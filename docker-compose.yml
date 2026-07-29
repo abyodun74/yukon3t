@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: yukon3t-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yukon3tuser
+      POSTGRES_PASSWORD: yukon3tpass
+      POSTGRES_DB: yukon3tdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - yukon3t-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  yukon3t-postgres-data:

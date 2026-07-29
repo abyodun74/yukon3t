@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f6f2;
+  --surface: #ffffff;
+  --foreground: #1c2420;
+  --foreground-soft: #55605a;
+  --line: #e1ddd2;
+  --accent: #b5651d;
+  --accent-ink: #ffffff;
+  --teal: #1f6f6b;
+  --danger: #a3372b;
+  --success: #3f7d4f;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-foreground-soft: var(--foreground-soft);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-teal: var(--teal);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --background: #14181a;
+    --surface: #1c2124;
+    --foreground: #e9ece7;
+    --foreground-soft: #a8b0a8;
+    --line: #313834;
+    --accent: #e08a3e;
+    --accent-ink: #14181a;
+    --teal: #5fb3ac;
+    --danger: #d97a6c;
+    --success: #7fbf8f;
   }
+}
+
+/* Explicit theme choice always wins over the OS preference, in both directions. */
+:root[data-theme="dark"] {
+  --background: #14181a;
+  --surface: #1c2124;
+  --foreground: #e9ece7;
+  --foreground-soft: #a8b0a8;
+  --line: #313834;
+  --accent: #e08a3e;
+  --accent-ink: #14181a;
+  --teal: #5fb3ac;
+  --danger: #d97a6c;
+  --success: #7fbf8f;
+}
+
+:root[data-theme="light"] {
+  --background: #f7f6f2;
+  --surface: #ffffff;
+  --foreground: #1c2420;
+  --foreground-soft: #55605a;
+  --line: #e1ddd2;
+  --accent: #b5651d;
+  --accent-ink: #ffffff;
+  --teal: #1f6f6b;
+  --danger: #a3372b;
+  --success: #3f7d4f;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
