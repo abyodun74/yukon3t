@@ -1,5 +1,6 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { createCircle } from "@/app/actions/circles";
+import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 
 export default async function NewCirclePage({
   searchParams,
@@ -39,12 +40,21 @@ export default async function NewCirclePage({
         </div>
         <div>
           <label className="block text-sm font-medium">Category</label>
-          <input
+          <select
             name="category"
             required
-            placeholder="Hobby, culture, cause, profession..."
+            defaultValue=""
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
+          >
+            <option value="" disabled>
+              Select a category...
+            </option>
+            {CIRCLE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm font-medium">Description</label>

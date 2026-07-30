@@ -44,3 +44,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Local Netlify folder
+.netlify
+deno.lock

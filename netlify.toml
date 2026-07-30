@@ -1,0 +1,12 @@
+[build]
+  command = "next build --webpack"
+  publish = ".next"
+
+# Next.js 16 defaults to Turbopack, but Netlify's Next.js Runtime edge
+# function bundler fails on Turbopack's compiled middleware output
+# (a "[turbopack]_runtime.js" chunk it can't resolve). Webpack output is
+# unaffected. Scoped to netlify.toml only — Vercel keeps using the default
+# Turbopack build via `npm run build`.
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

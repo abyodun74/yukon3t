@@ -20,10 +20,7 @@ export async function createCollabPost(formData: FormData) {
     title: formData.get("title"),
     description: formData.get("description"),
     type: formData.get("type"),
-    countries: String(formData.get("countries") ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
+    countries: formData.getAll("countries"),
   });
   if (!parsed.success) {
     redirect("/collab/new?error=invalid");

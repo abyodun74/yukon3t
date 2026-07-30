@@ -1,5 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { createCollabPost } from "@/app/actions/collab";
+import { COUNTRIES } from "@/lib/countries";
+import { MultiSelect } from "@/components/multi-select";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -52,15 +54,15 @@ export default async function NewCollabPostPage({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium">
-            Countries involved (comma-separated)
-          </label>
-          <input
-            name="countries"
-            required
-            placeholder="Kenya, Philippines, Brazil"
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
+          <label className="block text-sm font-medium">Countries involved</label>
+          <div className="mt-1">
+            <MultiSelect
+              name="countries"
+              options={COUNTRIES}
+              placeholder="Search countries..."
+              max={10}
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium">Description</label>

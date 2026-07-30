@@ -9,7 +9,7 @@ const pillars = [
   },
   {
     title: "Say what you're here for",
-    body: "Tag your intent — friendship, cultural exchange, professional, community, or dating — so conversations never drift into something you didn't sign up for.",
+    body: "Tag your intent — friendship, cultural exchange, professional, community, or travel tips — so conversations never drift into something you didn't sign up for.",
   },
   {
     title: "Free Circles, no organizer tax",
