@@ -18,7 +18,7 @@ async function sendMagicLink(formData: FormData) {
     redirect("/sign-in?error=rate_limited");
   }
 
-  await signIn("resend", { email, redirectTo: "/discover" });
+  await signIn("resend", { email, redirectTo: "/home" });
 }
 
 function passwordErrorMessage(error: string | undefined) {

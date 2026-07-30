@@ -49,8 +49,8 @@ export async function completeOnboarding(formData: FormData) {
   });
 
   await recomputeTrustScore(user.id);
-  revalidatePath("/discover");
-  redirect("/discover");
+  revalidatePath("/home");
+  redirect("/home");
 }
 
 export async function updateProfile(formData: FormData) {
@@ -65,7 +65,7 @@ export async function updateProfile(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/settings?error=invalid");
+    redirect(`/u/${user.id}?error=invalid`);
   }
 
   const { name, bio, country, languages, interests, openToIntents } = parsed.data;
@@ -73,7 +73,7 @@ export async function updateProfile(formData: FormData) {
   if (bio) {
     const modResult = await moderateText(bio);
     if (!modResult.allowed) {
-      redirect("/settings?error=moderation");
+      redirect(`/u/${user.id}?error=moderation`);
     }
   }
 
@@ -83,8 +83,8 @@ export async function updateProfile(formData: FormData) {
   });
 
   await recomputeTrustScore(user.id);
-  revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  revalidatePath(`/u/${user.id}`);
+  redirect(`/u/${user.id}?saved=1`);
 }
 
 export async function updatePrivacy(formData: FormData) {

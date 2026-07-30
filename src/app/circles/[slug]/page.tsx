@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
 import { PostCard } from "@/components/post-card";
+import { BackButton } from "@/components/back-button";
+import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 export default async function CirclePage({
   params,
@@ -22,7 +24,7 @@ export default async function CirclePage({
         where: { moderationStatus: "PUBLISHED" },
         orderBy: { createdAt: "desc" },
         take: 30,
-        include: { author: { select: { id: true, name: true, trustBand: true } } },
+        include: postCardInclude,
       },
     },
   });
@@ -31,9 +33,11 @@ export default async function CirclePage({
 
   const isMember = circle.members.length > 0;
   const isOwner = circle.createdById === me.id;
+  const posts = await attachViewerState(circle.posts, me.id);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
+      <BackButton fallbackHref="/circles" />
       <p className="text-xs font-medium uppercase tracking-wide text-teal">
         {circle.category}
       </p>
@@ -61,10 +65,10 @@ export default async function CirclePage({
       </div>
 
       <div className="mt-8 space-y-4">
-        {circle.posts.map((post) => (
+        {posts.map((post) => (
           <PostCard key={post.id} post={post} />
         ))}
-        {circle.posts.length === 0 && (
+        {posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
             No posts yet — be the first.
           </p>

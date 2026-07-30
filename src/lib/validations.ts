@@ -140,10 +140,21 @@ export const messageSchema = z.object({
 });
 
 export const reportSchema = z.object({
-  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST"]),
+  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT"]),
   targetId: z.string().cuid(),
   reportedUserId: z.string().cuid().optional(),
   reason: z.string().trim().min(10).max(1000),
+});
+
+export const commentSchema = z.object({
+  postId: z.string().cuid(),
+  parentId: z.string().cuid().optional(),
+  content: z.string().trim().min(1).max(1000),
+});
+
+export const repostSchema = z.object({
+  postId: z.string().cuid(),
+  caption: z.string().trim().max(500).optional().default(""),
 });
 
 export const moderationActionSchema = z.object({

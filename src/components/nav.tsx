@@ -3,15 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Compass, Users, Handshake, MessageCircle, User } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, MessageCircle, User } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 function navLinks(userId: string) {
   return [
+    { href: "/home", label: "Home" },
     { href: "/discover", label: "Discover" },
     { href: "/circles", label: "Circles" },
     { href: "/collab", label: "Collab Boards" },
@@ -22,11 +24,11 @@ function navLinks(userId: string) {
 }
 
 // The 5 primary destinations, shown as a fixed bottom bar on small screens
-// (Instagram/WhatsApp/TikTok pattern) — Connections moves into the
-// secondary hamburger menu to keep this to 5 tabs.
+// (Instagram/WhatsApp/TikTok pattern) — Connections and Discover move into
+// the secondary hamburger menu to keep this to 5 tabs.
 function bottomTabs(userId: string) {
   return [
-    { href: "/discover", label: "Discover", icon: Compass },
+    { href: "/home", label: "Home", icon: Home },
     { href: "/circles", label: "Circles", icon: Users },
     { href: "/collab", label: "Collab", icon: Handshake },
     { href: "/messages", label: "Messages", icon: MessageCircle },
@@ -73,6 +75,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             <div className="hidden sm:block">
               <ThemeToggle initial={theme} />
             </div>
+            {session?.user && <NotificationBell />}
             {session?.user ? (
               <>
                 <Link
@@ -121,6 +124,16 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         {open && session?.user && (
           <div className="border-t border-line px-4 py-3 md:hidden">
             <nav className="flex flex-col gap-1 text-sm font-medium">
+              <Link
+                href="/discover"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "rounded-lg px-3 py-2 hover:bg-line",
+                  pathname === "/discover" ? "text-accent" : "text-foreground-soft",
+                )}
+              >
+                Discover
+              </Link>
               <Link
                 href="/connections"
                 onClick={() => setOpen(false)}

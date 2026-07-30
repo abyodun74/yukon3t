@@ -8,7 +8,7 @@ export function ReportButton({
   targetId,
   reportedUserId,
 }: {
-  targetType: "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST";
+  targetType: "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
   targetId: string;
   reportedUserId?: string;
 }) {

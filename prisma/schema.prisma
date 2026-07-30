@@ -122,6 +122,13 @@ model User {
 
   auditLogEntries AuditLog[] @relation("AuditLogTarget")
 
+  likes    Like[]
+  comments Comment[]
+  shares   Share[]
+
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+  notificationsSent     Notification[] @relation("NotificationActor")
+
   @@index([country])
 }
 
@@ -186,11 +193,102 @@ model Post {
   moderationStatus  ModerationStatus @default(PUBLISHED)
   createdAt         DateTime         @default(now())
 
-  author User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  circle Circle? @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  repostOfId String?
 
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+  repostCount  Int @default(0)
+  shareCount   Int @default(0)
+
+  author   User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  circle   Circle? @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  repostOf Post?   @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts  Post[]  @relation("PostRepost")
+
+  likes         Like[]
+  comments      Comment[]
+  shares        Share[]
+  notifications Notification[]
+
+  @@unique([authorId, repostOfId])
   @@index([circleId])
   @@index([authorId])
+  @@index([repostOfId])
+}
+
+model Comment {
+  id               String           @id @default(cuid())
+  postId           String
+  authorId         String
+  parentId         String?
+  content          String           @db.Text
+  moderationStatus ModerationStatus @default(PUBLISHED)
+  createdAt        DateTime         @default(now())
+
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+
+  replies       Comment[]      @relation("CommentReplies")
+  notifications Notification[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Share {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+enum NotificationType {
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  POST_LIKE
+  POST_COMMENT
+  POST_REPOST
+  POST_SHARE
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  recipientId  String
+  actorId      String
+  type         NotificationType
+  postId       String?
+  commentId    String?
+  connectionId String?
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+
+  recipient  User        @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor      User        @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post       Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment    Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  connection Connection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, readAt])
+  @@index([recipientId, createdAt])
 }
 
 enum CollabType {
@@ -239,6 +337,8 @@ model Connection {
   requester User @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   target    User @relation("ConnectionTarget", fields: [targetId], references: [id], onDelete: Cascade)
 
+  notifications Notification[]
+
   @@unique([requesterId, targetId])
   @@index([targetId])
 }
@@ -285,6 +385,7 @@ enum ReportTargetType {
   MESSAGE
   CIRCLE
   COLLAB_POST
+  COMMENT
 }
 
 enum ReportStatus {

@@ -6,14 +6,20 @@ import { ConnectButton } from "@/components/connect-button";
 import { ReportButton } from "@/components/report-form";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
+import { EditProfileForm } from "@/components/edit-profile-form";
+import { BackButton } from "@/components/back-button";
+import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 export default async function PublicProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ userId: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
+  const { error, saved } = await searchParams;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -49,17 +55,33 @@ export default async function PublicProfilePage({
   const canSeePosts =
     isOwnProfile || user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED";
 
-  const posts = canSeePosts
+  const rawPosts = canSeePosts
     ? await prisma.post.findMany({
         where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
         orderBy: { createdAt: "desc" },
         take: 30,
-        include: { author: { select: { id: true, name: true, trustBand: true } } },
+        include: postCardInclude,
       })
     : [];
+  const posts = await attachViewerState(rawPosts, me.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
+      <BackButton />
+
+      {saved && (
+        <p className="mb-4 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+          Profile updated.
+        </p>
+      )}
+      {error && (
+        <p className="mb-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          {error === "moderation"
+            ? "Your bio didn't pass our content guidelines."
+            : "Please check your inputs."}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface">
@@ -97,7 +119,11 @@ export default async function PublicProfilePage({
         </div>
       )}
 
-      {!isOwnProfile && (
+      {isOwnProfile ? (
+        <div className="mt-6">
+          <EditProfileForm user={user} />
+        </div>
+      ) : (
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ConnectButton
             targetId={user.id}

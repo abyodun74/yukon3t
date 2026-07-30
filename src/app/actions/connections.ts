@@ -35,10 +35,19 @@ export async function requestConnection(formData: FormData) {
     return { error: "intent_not_open" };
   }
 
-  await prisma.connection.upsert({
+  const connection = await prisma.connection.upsert({
     where: { requesterId_targetId: { requesterId: user.id, targetId } },
     create: { requesterId: user.id, targetId, intentTag },
     update: { intentTag, status: "PENDING" },
+  });
+
+  await prisma.notification.create({
+    data: {
+      recipientId: targetId,
+      actorId: user.id,
+      type: "CONNECTION_REQUEST",
+      connectionId: connection.id,
+    },
   });
 
   revalidatePath("/connections");
@@ -71,6 +80,16 @@ export async function respondToConnection(connectionId: string, accept: boolean)
         },
       },
     });
+
+    await prisma.notification.create({
+      data: {
+        recipientId: updated.requesterId,
+        actorId: user.id,
+        type: "CONNECTION_ACCEPTED",
+        connectionId: updated.id,
+      },
+    });
+
     revalidatePath("/messages");
     revalidatePath("/connections");
     return { error: null, conversationId: conversation.id };

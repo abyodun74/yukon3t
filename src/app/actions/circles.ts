@@ -204,7 +204,7 @@ export async function createPost(formData: FormData) {
   });
 
   revalidatePath("/circles", "layout");
-  revalidatePath("/discover");
+  revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
   return { error: null };
 }

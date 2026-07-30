@@ -140,5 +140,5 @@ export async function loginWithPassword(formData: FormData) {
     expires,
   });
 
-  redirect("/discover");
+  redirect("/home");
 }

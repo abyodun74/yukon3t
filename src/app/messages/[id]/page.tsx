@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ChatThread } from "@/components/chat-thread";
+import { BackButton } from "@/components/back-button";
 
 export default async function ConversationPage({
   params,
@@ -40,6 +41,7 @@ export default async function ConversationPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
+      <BackButton fallbackHref="/messages" />
       <h1 className="text-lg font-semibold">{other?.name ?? "Conversation"}</h1>
       <div className="mt-4">
         <ChatThread
