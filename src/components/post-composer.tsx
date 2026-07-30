@@ -228,7 +228,7 @@ export function PostComposer({
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <input
             ref={imageInputRef}
@@ -263,7 +263,7 @@ export function PostComposer({
           >
             <Video size={16} />
           </button>
-          <p className="ml-1 text-xs text-foreground-soft">
+          <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">
             Posts are prescreened for safety before they appear.
           </p>
         </div>

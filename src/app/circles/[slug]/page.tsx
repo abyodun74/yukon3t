@@ -37,8 +37,8 @@ export default async function CirclePage({
       <p className="text-xs font-medium uppercase tracking-wide text-teal">
         {circle.category}
       </p>
-      <div className="mt-1 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">{circle.name}</h1>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="min-w-0 text-2xl font-semibold">{circle.name}</h1>
         <CircleMembershipButton
           circleId={circle.id}
           isMember={isMember}

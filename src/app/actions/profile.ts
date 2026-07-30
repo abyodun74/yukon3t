@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { onboardingSchema } from "@/lib/validations";
+import { onboardingSchema, privacySchema } from "@/lib/validations";
 import { recomputeTrustScore } from "@/lib/trust";
 import { moderateText } from "@/lib/moderation";
 import { revalidatePath } from "next/cache";
@@ -74,6 +74,26 @@ export async function updateProfile(formData: FormData) {
   });
 
   await recomputeTrustScore(user.id);
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+export async function updatePrivacy(formData: FormData) {
+  const user = await requireUser();
+  const parsed = privacySchema.safeParse({
+    postsVisibility: formData.get("postsVisibility"),
+    discoverable: formData.get("discoverable") === "on",
+  });
+
+  if (!parsed.success) {
+    redirect("/settings?error=invalid");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: parsed.data,
+  });
+
   revalidatePath("/settings");
   redirect("/settings?saved=1");
 }

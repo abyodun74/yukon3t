@@ -1,5 +1,5 @@
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
-import { updateProfile } from "@/app/actions/profile";
+import { updateProfile, updatePrivacy } from "@/app/actions/profile";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { AvatarUpload } from "@/components/avatar-upload";
@@ -111,7 +111,7 @@ export default async function SettingsPage({
         </div>
         <div>
           <label className="block text-sm font-medium">Open to</label>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {intentTagValues.map((tag) => (
               <label
                 key={tag}
@@ -135,6 +135,40 @@ export default async function SettingsPage({
           Save changes
         </button>
       </form>
+
+      <div>
+        <h2 className="text-lg font-semibold">Privacy</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Controls what people who aren&apos;t connected to you can see.
+        </p>
+        <form action={updatePrivacy} className="mt-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Who can see your posts</label>
+            <select
+              name="postsVisibility"
+              defaultValue={user.postsVisibility}
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="PUBLIC">Anyone signed in</option>
+              <option value="CONNECTIONS_ONLY">Only my connections</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              name="discoverable"
+              defaultChecked={user.discoverable}
+            />
+            Show my profile in Discover
+          </label>
+          <button
+            type="submit"
+            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+          >
+            Save privacy settings
+          </button>
+        </form>
+      </div>
 
       <AccountDangerZone />
     </div>

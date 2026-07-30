@@ -41,17 +41,17 @@ export default async function CollabPage() {
       <div className="mt-8 space-y-4">
         {posts.map((post) => (
           <div key={post.id} className="rounded-xl border border-line p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
                 {typeLabels[post.type]}
               </span>
-              <span className="text-xs text-foreground-soft">
+              <span className="text-right text-xs text-foreground-soft">
                 {post.countries.join(", ")}
               </span>
             </div>
             <h2 className="mt-2 font-semibold">{post.title}</h2>
             <p className="mt-1 text-sm text-foreground-soft">{post.description}</p>
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <Link
                 href={`/u/${post.author.id}`}
                 className="text-xs font-medium hover:text-accent"

@@ -110,7 +110,7 @@ export default async function OnboardingPage({
           <label className="block text-sm font-medium">
             What are you open to here?
           </label>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {intentTagValues.map((tag) => (
               <label
                 key={tag}

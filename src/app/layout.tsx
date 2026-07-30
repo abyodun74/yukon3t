@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { RegisterServiceWorker } from "@/components/register-sw";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
@@ -20,6 +21,30 @@ export const metadata: Metadata = {
   title: "YuKon3t — Connect across cultures, interests, and borders",
   description:
     "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "YuKon3t",
+  },
+  other: {
+    // iOS Safari only honors the legacy vendor-prefixed tag for standalone
+    // launch mode — Next's `appleWebApp.capable` only emits the newer
+    // unprefixed `mobile-web-app-capable`, which Android/Chrome reads but
+    // iOS ignores.
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f6f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#14181a" },
+  ],
 };
 
 export default async function RootLayout({
@@ -37,6 +62,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <RegisterServiceWorker />
         <Nav session={session} theme={theme} />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">

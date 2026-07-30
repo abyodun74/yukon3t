@@ -25,6 +25,13 @@ export const onboardingSchema = z.object({
   openToIntents: z.array(z.enum(intentTagValues)).min(1),
 });
 
+export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY"] as const;
+
+export const privacySchema = z.object({
+  postsVisibility: z.enum(postsVisibilityValues),
+  discoverable: z.boolean(),
+});
+
 export const circleSchema = z.object({
   name: z.string().trim().min(3).max(60),
   description: z.string().trim().min(10).max(1000),

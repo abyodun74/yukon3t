@@ -19,12 +19,51 @@ export default async function DiscoverPage({
       id: { not: me.id },
       status: "ACTIVE",
       name: { not: null },
+      discoverable: true,
       ...(intent ? { openToIntents: { has: intent as never } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
     },
     orderBy: { trustScore: "desc" },
     take: 30,
   });
+
+  // Batch-fetch connection state for everyone on this page, instead of one
+  // query per card, so the button can reflect pending/accepted status
+  // instead of always showing a fresh "Connect" prompt.
+  const peopleIds = people.map((p) => p.id);
+  const connections = peopleIds.length
+    ? await prisma.connection.findMany({
+        where: {
+          OR: [
+            { requesterId: me.id, targetId: { in: peopleIds } },
+            { targetId: me.id, requesterId: { in: peopleIds } },
+          ],
+        },
+      })
+    : [];
+  const connectionByOtherId = new Map(
+    connections.map((c) => [c.requesterId === me.id ? c.targetId : c.requesterId, c]),
+  );
+
+  const acceptedOtherIds = connections
+    .filter((c) => c.status === "ACCEPTED")
+    .map((c) => (c.requesterId === me.id ? c.targetId : c.requesterId));
+  const conversations = acceptedOtherIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          AND: [
+            { members: { some: { userId: me.id } } },
+            { members: { some: { userId: { in: acceptedOtherIds } } } },
+          ],
+        },
+        include: { members: { select: { userId: true } } },
+      })
+    : [];
+  const conversationIdByOtherId = new Map<string, string>();
+  for (const conv of conversations) {
+    const other = conv.members.find((m) => m.userId !== me.id);
+    if (other) conversationIdByOtherId.set(other.userId, conv.id);
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -68,7 +107,9 @@ export default async function DiscoverPage({
       </form>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {people.map((person) => (
+        {people.map((person) => {
+          const connection = connectionByOtherId.get(person.id);
+          return (
           <div key={person.id} className="rounded-xl border border-line p-4">
             <div className="flex items-center justify-between">
               <Link
@@ -98,10 +139,17 @@ export default async function DiscoverPage({
               ))}
             </div>
             <div className="mt-4">
-              <ConnectButton targetId={person.id} openToIntents={person.openToIntents} />
+              <ConnectButton
+                targetId={person.id}
+                openToIntents={person.openToIntents}
+                status={connection?.status ?? null}
+                isRequester={connection?.requesterId === me.id}
+                conversationId={conversationIdByOtherId.get(person.id) ?? null}
+              />
             </div>
           </div>
-        ))}
+          );
+        })}
         {people.length === 0 && (
           <p className="text-sm text-foreground-soft">
             No one matches those filters yet — try broadening them.

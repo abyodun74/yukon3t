@@ -18,18 +18,49 @@ export default async function PublicProfilePage({
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
 
-  const posts = await prisma.post.findMany({
-    where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-    include: { author: { select: { id: true, name: true, trustBand: true } } },
-  });
-
   const isOwnProfile = user.id === me.id;
+
+  const connection = isOwnProfile
+    ? null
+    : await prisma.connection.findFirst({
+        where: {
+          OR: [
+            { requesterId: me.id, targetId: user.id },
+            { requesterId: user.id, targetId: me.id },
+          ],
+        },
+      });
+
+  const conversationId =
+    connection?.status === "ACCEPTED"
+      ? (
+          await prisma.conversation.findFirst({
+            where: {
+              AND: [
+                { members: { some: { userId: me.id } } },
+                { members: { some: { userId: user.id } } },
+              ],
+            },
+            select: { id: true },
+          })
+        )?.id ?? null
+      : null;
+
+  const canSeePosts =
+    isOwnProfile || user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED";
+
+  const posts = canSeePosts
+    ? await prisma.post.findMany({
+        where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        include: { author: { select: { id: true, name: true, trustBand: true } } },
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface">
             {user.avatarUrl ? (
@@ -41,8 +72,8 @@ export default async function PublicProfilePage({
               </div>
             )}
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold">{user.name}</h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold">{user.name}</h1>
             <p className="text-sm text-foreground-soft">
               {user.country ?? "Unknown location"}
             </p>
@@ -67,8 +98,14 @@ export default async function PublicProfilePage({
       )}
 
       {!isOwnProfile && (
-        <div className="mt-6 flex items-center gap-4">
-          <ConnectButton targetId={user.id} openToIntents={user.openToIntents} />
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <ConnectButton
+            targetId={user.id}
+            openToIntents={user.openToIntents}
+            status={connection?.status ?? null}
+            isRequester={connection?.requesterId === me.id}
+            conversationId={conversationId}
+          />
           <ReportButton targetType="USER" targetId={user.id} reportedUserId={user.id} />
         </div>
       )}
@@ -78,10 +115,14 @@ export default async function PublicProfilePage({
           {isOwnProfile ? "Your posts" : "Posts"}
         </h2>
         {isOwnProfile && <PostComposer />}
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
-        ))}
-        {posts.length === 0 && (
+        {!canSeePosts && (
+          <p className="text-sm text-foreground-soft">
+            {user.name} only shares posts with their connections.
+          </p>
+        )}
+        {canSeePosts &&
+          posts.map((post) => <PostCard key={post.id} post={post} />)}
+        {canSeePosts && posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
             {isOwnProfile
               ? "Nothing posted yet — share a photo, a short video, or an update."
