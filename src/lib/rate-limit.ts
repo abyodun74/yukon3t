@@ -47,6 +47,8 @@ function makeLimiter(limit: number, window: `${number} ${"s" | "m" | "h"}`) {
 
 export const rateLimiters = {
   signIn: makeLimiter(5, "10 m"),
+  passwordSignUp: makeLimiter(5, "1 h"),
+  passwordLogin: makeLimiter(10, "10 m"),
   messageSend: makeLimiter(20, "1 m"),
   postCreate: makeLimiter(10, "5 m"),
   report: makeLimiter(10, "10 m"),

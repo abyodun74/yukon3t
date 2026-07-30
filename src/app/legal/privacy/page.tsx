@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       <h2 className="mt-8 font-semibold">1. Information we collect</h2>
       <p className="mt-2 text-foreground-soft">We collect:</p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
-        <li><b>Account information</b>: email address, display name, bio, country, languages, interests, and profile picture.</li>
+        <li><b>Account information</b>: email address, optionally a username and password (stored as a salted hash, never in plain text), date of birth (used only to confirm you meet our minimum age requirement — not shown on your profile), display name, bio, country, languages, interests, and profile picture.</li>
         <li><b>Content you create</b>: Circle posts, Collab Board listings, direct messages, reports you file, and any photos or short videos you upload.</li>
         <li><b>Connection &amp; activity data</b>: Circles you join, connection requests, intent tags you select, trust score signals (account age, verification status, report history).</li>
         <li><b>Technical data</b>: IP address and basic request metadata (used for rate limiting and abuse prevention), session cookies, and your theme preference cookie.</li>
@@ -29,7 +29,8 @@ export default function PrivacyPage() {
 
       <h2 className="mt-8 font-semibold">2. How we use your information</h2>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
-        <li>To create and operate your account, and to authenticate sign-ins via emailed magic links.</li>
+        <li>To create and operate your account, and to authenticate sign-ins via emailed magic links or, if you choose, a username and password.</li>
+        <li>To confirm you meet our minimum age requirement before your account is created.</li>
         <li>To operate core features: Circles, Collab Boards, Discover matching, connections, and messaging.</li>
         <li>To automatically screen text, photos, and video for policy violations before they are shown to others.</li>
         <li>To investigate reports, enforce our Community Guidelines, and maintain an audit trail of moderation decisions.</li>
@@ -131,8 +132,10 @@ export default function PrivacyPage() {
         We use industry-standard technical safeguards, including encrypted
         connections (HTTPS/TLS) everywhere, encrypted secrets management,
         rate limiting, and per-request access controls that verify every
-        action server-side. No method of transmission or storage is 100%
-        secure, and we cannot guarantee absolute security. If we become
+        action server-side. If you set a password, we never store it in
+        plain text — only a salted bcrypt hash, which we cannot reverse to
+        see your actual password. No method of transmission or storage is
+        100% secure, and we cannot guarantee absolute security. If we become
         aware of a data breach affecting your personal information, we will
         notify affected users and relevant authorities as required by
         applicable law.

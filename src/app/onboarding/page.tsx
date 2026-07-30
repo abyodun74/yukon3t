@@ -36,6 +36,11 @@ export default async function OnboardingPage({
           Your bio didn&apos;t pass our content guidelines. Please revise it.
         </p>
       )}
+      {error === "underage" && (
+        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          You must be at least 13 years old to use YuKon3t.
+        </p>
+      )}
 
       <form action={completeOnboarding} className="mt-6 space-y-5">
         <div>
@@ -59,6 +64,20 @@ export default async function OnboardingPage({
             defaultValue={user.bio ?? ""}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Date of birth</label>
+          <input
+            type="date"
+            name="birthDate"
+            required
+            defaultValue={user.birthDate?.toISOString().slice(0, 10) ?? ""}
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+          />
+          <p className="mt-1 text-xs text-foreground-soft">
+            You must be at least 13 to use YuKon3t.
+          </p>
         </div>
 
         <div>

@@ -79,6 +79,9 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   emailVerified DateTime?
+  username      String?   @unique
+  passwordHash  String?
+  birthDate     DateTime?
   name          String?
   avatarUrl     String?
   bio           String?   @db.Text
@@ -266,6 +269,8 @@ model Message {
   senderId         String
   content          String           @db.Text
   moderationStatus ModerationStatus @default(PUBLISHED)
+  deliveredAt      DateTime?
+  readAt           DateTime?
   createdAt        DateTime         @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

@@ -16,13 +16,63 @@ export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
   TRAVEL_TIPS: "Travel Tips",
 };
 
-export const onboardingSchema = z.object({
+export const MIN_AGE = 13;
+
+/** True when someone born on `birthDate` is at least `minAge` years old today. */
+export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
+  return birthDate <= cutoff;
+}
+
+const baseProfileFields = {
   name: z.string().trim().min(2).max(60),
   bio: z.string().trim().max(500).optional().default(""),
   country: z.string().trim().min(2).max(60),
   languages: z.array(z.string().trim().min(2).max(30)).max(10),
   interests: z.array(z.string().trim().min(2).max(30)).max(15),
   openToIntents: z.array(z.enum(intentTagValues)).min(1),
+};
+
+// Used by settings updates for already-onboarded users — deliberately does
+// NOT touch birthDate (collected once, at onboarding/signup, not editable
+// here — same pattern most social apps use for a birthdate field).
+export const profileUpdateSchema = z.object(baseProfileFields);
+
+// Used by first-time onboarding — requires birthDate so every new profile
+// gets age-gated, without retroactively forcing it on existing users.
+export const onboardingSchema = z.object({
+  ...baseProfileFields,
+  birthDate: z.coerce.date().refine(isOldEnough, {
+    message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
+  }),
+});
+
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(20)
+  .regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, and underscores only.");
+
+export const passwordSchema = z.string().min(8).max(72);
+
+export const signUpSchema = z.object({
+  username: usernameSchema,
+  email: z.string().trim().toLowerCase().email(),
+  password: passwordSchema,
+  birthDate: z.coerce.date().refine(isOldEnough, {
+    message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
+  }),
+});
+
+export const loginSchema = z.object({
+  identifier: z.string().trim().min(1).max(255),
+  password: z.string().min(1).max(72),
+});
+
+export const setPasswordSchema = z.object({
+  password: passwordSchema,
 });
 
 export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY"] as const;

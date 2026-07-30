@@ -18,21 +18,22 @@ export default function TermsPage() {
 
       <h2 className="mt-8 font-semibold">1. Eligibility</h2>
       <p className="mt-2 text-foreground-soft">
-        You must be at least 18 years old and able to form a legally binding
-        contract to use YuKon3t. By creating an account, you represent that
-        you meet this requirement, that all information you provide is
-        accurate, and that you are not barred from using YuKon3t under the
-        laws of your country or any applicable export control or sanctions
-        list.
+        You must be at least 13 years old to use YuKon3t; if you are under
+        18, you may only use YuKon3t with the involvement and consent of a
+        parent or legal guardian. By creating an account, you represent that
+        you meet this requirement, that your date of birth and all other
+        information you provide is accurate, and that you are not barred
+        from using YuKon3t under the laws of your country or any applicable
+        export control or sanctions list.
       </p>
 
       <h2 className="mt-8 font-semibold">2. Your account</h2>
       <p className="mt-2 text-foreground-soft">
-        You are responsible for maintaining access to the email address
-        associated with your account, since sign-in works via emailed
-        one-time links rather than a password. You are responsible for all
-        activity that occurs under your account. Notify us immediately if
-        you believe your account has been compromised.
+        You can sign in either via an emailed one-time link, or with a
+        username and password you set at sign-up. If you use a password,
+        you are responsible for keeping it secret and for all activity that
+        occurs under your account. Notify us immediately if you believe
+        your account has been compromised.
       </p>
 
       <h2 className="mt-8 font-semibold">3. Acceptable use</h2>
