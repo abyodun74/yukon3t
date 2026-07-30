@@ -14,7 +14,6 @@ export const CIRCLE_CATEGORIES = [
   "Volunteering & Causes",
   "Health & Wellness",
   "Parenting & Family",
-  "LGBTQ+",
   "Environment & Sustainability",
   "Books & Writing",
   "Photography",
