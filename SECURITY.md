@@ -2,7 +2,7 @@
 
 ## Controls implemented
 
-- **Passwordless auth** (NextAuth v5 + Resend magic link) — no password table to leak or credential-stuff.
+- **Dual auth**: NextAuth v5 + Resend magic link (no password to leak), *or* an optional username/password. See "Username/password auth" below for why the password path bypasses NextAuth's own Credentials provider.
 - **CSP with per-request nonce** (`src/proxy.ts`) — `script-src 'self' 'nonce-...' 'strict-dynamic'`, no `unsafe-inline` in production. Plus HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy (`next.config.ts`).
 - **Input validation** — every server action validates with Zod (`src/lib/validations.ts`) before touching the database.
 - **Rate limiting** — Upstash-backed sliding window on sign-in, posts, messages, connection requests, reports, Circle creation (`src/lib/rate-limit.ts`); fails open only on Upstash outages, fails closed (in-memory limiter) in local dev.
@@ -25,6 +25,74 @@
 - **`npm audit` reports 12 high-severity advisories**, all inside Next.js's own bundled build toolchain (`postcss`, `sharp`, and dev-only `eslint`/`minimatch`), not in application code. `npm audit fix --force` wants to downgrade `next` to `9.3.3`, which is not a real fix — Next 16.2.12 is already the latest stable release as of this build. Note this now has *some* live surface: `sharp`'s libvips CVEs are about image processing, and while post/avatar images are served directly from R2 (never through `next/image`/`sharp`), re-run `npm audit` and prioritize a `next` upgrade the moment a patched release ships, given untrusted images are now a real part of the app.
 - **`AUTH_SECRET` in `.env` is a dev placeholder** (`dev-only-secret-change-before-deploy-CHANGE-ME`). Generate a real one with `openssl rand -base64 32` before deploying anywhere reachable.
 - **In-memory rate limiting fallback** only applies when Upstash env vars are unset (local dev). Production deploys must set `UPSTASH_REDIS_REST_URL`/`TOKEN` or rate limits silently reset per serverless instance.
+
+## Username/password auth, age verification, real-time-ish chat — status: live
+
+**Username/password auth** (`src/app/actions/password-auth.ts`) is additive to
+the existing magic-link flow, not a replacement — either method signs into
+the same account. It's implemented as fully custom server actions, not
+NextAuth's own Credentials provider, because Auth.js does not support
+Credentials with the `"database"` session strategy this app already uses
+(Credentials effectively requires `"jwt"`, and mixing session strategies
+per-provider isn't supported). Instead, `loginWithPassword` writes directly
+to the same `Session` table NextAuth uses and sets the identical cookie
+Auth.js would (`src/lib/auth-cookie.ts`, name computed from whether
+`AUTH_URL` is `https://`) — verified compatible with `auth()` everywhere
+else in the app via real end-to-end tests (signup → verify → login →
+`page-guards` onboarding redirect all worked without touching a single
+other file). Passwords are hashed with `bcryptjs` (12 rounds, pure JS — no
+native build step, chosen specifically to avoid Windows dev-machine
+native-module pain). Email verification is a single-use token in the same
+`VerificationToken` table NextAuth's adapter uses; login is rejected until
+`emailVerified` is set. Existing magic-link-only users can add a
+username/password from Settings (`setPassword` action) without needing
+their old password (there isn't one) — just proves ownership via their
+existing session.
+
+**Age verification**: `User.birthDate`, required at password sign-up and
+at onboarding (for magic-link users), enforced via `isOldEnough()` in
+`src/lib/validations.ts` — minimum age 13, self-declared, no paid ID-check
+service (consistent with the project's existing budget-driven trust-score
+design — see "phone/ID verification descoped" above). **Not retroactive**:
+existing users who onboarded before this shipped are not forced to
+re-verify. `legal/terms` eligibility section updated to 13+
+(with a parent/guardian clause for under-18s) — it previously said 18+,
+left over from the original boilerplate; reconciled to match the actual
+enforced age, per an explicit choice made when this was built, not an
+oversight.
+
+**Real-time-ish chat with delivered/read receipts**: no WebSocket/SSE
+infrastructure — deliberately short-interval (~3s) polling instead, to
+stay on the "no added paid services" budget line the rest of this project
+follows. `Message.deliveredAt`/`readAt` (nullable, two separate columns —
+conversations here are always exactly 2 people, so no join table needed).
+**Real bug found and fixed during testing**: the first implementation
+called the read-marking mutation directly inside the `/messages/[id]`
+Server Component's render. Next.js prefetches `<Link>` targets that are
+merely visible in a list (e.g. every conversation row on `/messages`, or
+the nav's own `/messages` link on every page) — this silently marked
+messages "read" before the user ever opened the thread, just from the link
+being on screen. Fixed by moving both the read-marking (`ChatThread`, on
+mount) and delivered-marking (`MarkDelivered`, on the `/messages` list) to
+client-only `useEffect` calls, which only run after real hydration in a
+live browser — never during SSR or prefetch. Worth remembering for any
+future "mark as seen"-style feature: never mutate on the server-rendered
+path of a page that could be a `<Link>` prefetch target.
+
+**Emoji picker** (`emoji-picker-react`, wired into both chat and post
+composer) uses `EmojiStyle.NATIVE` — renders actual Unicode glyphs via the
+system font — instead of the library's default, which fetches emoji
+images from `cdn.jsdelivr.net` per render. The CSP's `img-src` already
+permits any `https:` source so the CDN images wouldn't have been blocked,
+but native rendering avoids the third-party requests (and the associated
+IP-address leakage to jsdelivr on every emoji hover) entirely, and loads
+instantly with no network round trip.
+
+**Bottom tab bar** (mobile only, `<md`): Discover/Circles/Collab/Messages/
+Profile, Instagram/WhatsApp/TikTok-style. Connections moved into the
+secondary hamburger menu to keep the bar to 5 items — the hamburger drawer
+still exists on mobile for Connections + Settings + Moderation + Theme +
+Sign out.
 
 ## Media uploads (Cloudflare R2) — status: live
 
