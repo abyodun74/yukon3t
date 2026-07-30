@@ -51,11 +51,53 @@ Production is live at **https://yukon3t.vercel.app**, deployed via `vercel --pro
 
 **Takeaway for future deploys**: after `vercel env add`-ing the "obvious" secrets, run `vercel env ls production` and diff it against every key in `.env`/`.env.example` — anything present locally but missing from that list is a latent leak waiting to happen the moment it's actually read at runtime or build time.
 
+## Deployed to Netlify — status: live (second, parallel deployment)
+
+Production is also live at **https://yukon3t.netlify.app** (site `yukon3t`, same Neon database as Vercel — deliberately a second deployment, not a replacement, per the user's choice). Git-connected to `github.com/abyodun74/yukon3t` (`master` branch) with auto-deploy on push. Same full verification as Vercel: landing page clean, CSP nonce header confirmed present and correctly built from env vars (proves `src/proxy.ts` genuinely runs under Netlify's Edge Functions, not just that the build succeeded), real sign-in email sent (Neon write + Resend send), real avatar upload through the live site (R2 + CORS), and a real code change (category list edit) confirmed to reach the live site through the full webhook → build → deploy pipeline.
+
+**Three real problems hit and fixed getting here — all worth knowing before touching this again:**
+
+1. **Local Windows-only Netlify CLI bug.** `netlify deploy --prod` (which builds and bundles locally before uploading) fails bundling the middleware/proxy as an Edge Function, with a telltale malformed path in the error (`file:///Users/...C:/Users/...` — two path styles concatenated). Reproduced identically with both Turbopack and webpack builds, so it's not a bundler-format issue — it's Netlify CLI's edge-runtime module resolver mishandling Windows paths. **Fix**: never use local `netlify deploy` for this project on Windows; rely on Git-connected builds, which run on Netlify's own Linux servers and never hit this path.
+2. **GitHub authorization went to the wrong account.** The user has two GitHub accounts; the dashboard "Link repository" flow authorized against `ainabizpro-eng` and auto-created an empty placeholder repo there, instead of connecting to the real `abyodun74/yukon3t` repo. Root-caused by inspecting `getSite`'s `build_settings.repo_path`/`repo_owner_type` via `netlify api` and cross-checking against `gh auth status`. **Fixed** by directly `updateSite`-ing the correct `repo_path`/`repo_branch`, then — since that bypassed the GitHub App's own authorization — generating a Netlify deploy key (`createDeployKey`) and adding it as a read-only Deploy Key on the GitHub repo via `gh repo deploy-key add`, and finally linking it with `deploy_key_id` on the site.
+3. **Auto-deploy-on-push silently didn't work**, even after the repo was correctly connected — because the manual API-based reconnection never registered a GitHub webhook (that's normally created automatically by the proper OAuth/GitHub-App flow, which this project's cross-account mixup prevented). Confirmed via `gh api repos/.../hooks` returning empty. **Fixed** by creating a Netlify Build Hook (`createSiteBuildHook`) and registering it as a GitHub webhook (`gh api repos/.../hooks`, event `push`) pointing at that hook URL — verified with a real webhook delivery (200) and a real end-to-end push → auto-build → live site check.
+4. Separately (not Netlify-specific): `src/generated/prisma` is gitignored, and Vercel silently auto-runs `prisma generate` for Prisma projects but Netlify doesn't — this broke the Netlify build with `Module not found: Can't resolve '@/generated/prisma/client'` until a `postinstall: prisma generate` script was added to `package.json`. This fix benefits Vercel too (removes reliance on undocumented platform magic) and any future CI target.
+
+**Operational note**: Vercel (`vercel --prod`) and Netlify (Git push) now have **different deploy mechanisms** — pushing to `master` auto-deploys Netlify, but Vercel needs an explicit `vercel --prod` run. A change isn't "live everywhere" until both have happened.
+
+### Custom domain: yukon3t.com
+
+`yukon3t.com` (registered through Netlify Domains) is linked to the Netlify
+site as its primary custom domain, TLS auto-provisioned by Netlify, `www`
+also DNS-mapped to the same site. `AUTH_URL`/`NEXT_PUBLIC_APP_URL` on
+Netlify point at `https://yukon3t.com` (updated via `netlify env:set
+--context production`, then a build re-triggered to bake the new
+`NEXT_PUBLIC_APP_URL` into the client bundle). Verified live: `http://` →
+`https://` redirect (301) works, and a real `curl` against
+`https://yukon3t.com/` returns 200 with the correct page title. **Note**:
+on this Windows dev machine, `curl`/schannel can fail the TLS handshake
+with `CRYPT_E_NO_REVOCATION_CHECK` if the network can't reach the CA's OCSP
+responder — that's a local network/OS quirk, not a site problem; retest
+with `curl --ssl-no-revoke` (or just a browser) before assuming the
+certificate is broken.
+
+R2 bucket CORS still needs `https://yukon3t.com` added alongside the
+`.vercel.app`/`.netlify.app`/`localhost` origins already there (tracked as
+a follow-up, not yet done as of this writing).
+
+### Manual/fallback deploy: `netlify-manual-deploy/`
+
+A small folder with a script (`trigger-deploy.mjs`) and README for
+redeploying Netlify on demand without a new commit — e.g. right after
+changing an env var. It calls `netlify deploy --trigger --prod`, which
+builds remotely on Netlify's Linux servers (same mechanism as the webhook),
+deliberately avoiding the local Windows Edge Function bundling bug in
+problem #1 above. The everyday path remains a plain `git push`.
+
 ## Before going to production (or redeploying elsewhere)
 
-1. Set real `AUTH_SECRET`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`/`TOKEN`, `OPENAI_API_KEY`, `DATABASE_URL` (Neon), R2 credentials, `AUTH_URL`, `NEXT_PUBLIC_APP_URL` as **Vercel** env vars — not just in the local `.env` (see gotcha above).
-2. Confirm `NODE_ENV=production` so the CSP drops `'unsafe-eval'` — Vercel sets this automatically.
+1. Set real `AUTH_SECRET`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`/`TOKEN`, `OPENAI_API_KEY`, `DATABASE_URL` (Neon), R2 credentials, `AUTH_URL`, `NEXT_PUBLIC_APP_URL` as env vars on **every** deploy target (Vercel *and* Netlify) — not just in the local `.env` (see gotcha above; the Vercel gotcha applies to any platform that reads a locally-present `.env` during build).
+2. Confirm `NODE_ENV=production` so the CSP drops `'unsafe-eval'` — both Vercel and Netlify set this automatically.
 3. Re-run `npm audit` and `npm run build` in the deploy pipeline.
 4. ✅ **Done** — first real admin account promoted on the live Neon database (`ainabizpro@gmail.com`, signed in via a real magic-link click, `isAdmin` set directly via Prisma). Verified with a short-lived, separate verification session that the "Moderation" nav link and `/admin/moderation` page both work, then removed that verification session without touching the real one.
-5. ✅ **Done** — R2 bucket CORS policy includes `https://yukon3t.vercel.app`, verified with a real upload through the live site (avatar landed in R2, publicly reachable, zero console errors).
-6. ✅ **Done** — `OPENAI_API_KEY` is live on production and verified actually blocking flagged content (see above), not just present.
+5. ✅ **Done** — R2 bucket CORS policy includes `https://yukon3t.vercel.app`, `https://yukon3t.netlify.app`, and `http://localhost:3000` — verified with real uploads through both live sites.
+6. ✅ **Done** — `OPENAI_API_KEY` is live on both deploys and verified actually blocking flagged content (see above), not just present.
