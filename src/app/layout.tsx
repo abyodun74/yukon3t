@@ -61,7 +61,9 @@ export default async function RootLayout({
       data-theme={theme === "system" ? undefined : theme}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body
+        className={`min-h-full flex flex-col bg-background text-foreground ${session?.user ? "pb-16 md:pb-0" : ""}`}
+      >
         <RegisterServiceWorker />
         <Nav session={session} theme={theme} />
         <main className="flex-1">{children}</main>
