@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ImagePlus, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { uploadFileDirect, captureVideoFrame } from "@/lib/upload-client";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -42,8 +43,16 @@ export function PostComposer({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  function insertEmoji(emoji: string) {
+    const el = contentRef.current;
+    if (!el) return;
+    el.setRangeText(emoji, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, "end");
+    el.focus();
+  }
 
   // Object URLs are created once per image set (memoized on `images`), not
   // on every render — creating one inline in JSX would leak a new blob URL
@@ -190,6 +199,7 @@ export function PostComposer({
       }}
     >
       <textarea
+        ref={contentRef}
         name="content"
         maxLength={2000}
         rows={3}
@@ -263,6 +273,7 @@ export function PostComposer({
           >
             <Video size={16} />
           </button>
+          <EmojiPickerButton onSelect={insertEmoji} />
           <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">
             Posts are prescreened for safety before they appear.
           </p>
