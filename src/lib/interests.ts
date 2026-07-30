@@ -1,0 +1,16 @@
+export const INTERESTS = [
+  "Travel", "Backpacking", "Road Trips", "Food & Cooking", "Coffee Culture",
+  "Photography", "Videography", "Music", "Live Concerts", "Dancing",
+  "Reading", "Writing", "Poetry", "Film & TV", "Theatre",
+  "Art & Design", "Fashion", "Museums", "History", "Architecture",
+  "Languages", "Language Exchange", "Cultural Exchange", "Volunteering", "Sustainability",
+  "Hiking", "Camping", "Cycling", "Running", "Swimming",
+  "Yoga", "Fitness", "Football (Soccer)", "Basketball", "Tennis",
+  "Surfing", "Skiing & Snowboarding", "Martial Arts", "Rock Climbing", "Sailing",
+  "Gaming", "Board Games", "Chess", "Anime & Manga", "Comics",
+  "Tech & Startups", "Entrepreneurship", "Remote Work", "Personal Finance", "Investing",
+  "Science", "Space & Astronomy", "Environment & Nature", "Animals & Pets", "Gardening",
+  "Meditation & Mindfulness", "Spirituality", "Philosophy", "Politics & Current Events", "Comedy",
+  "Nightlife", "Craft Beer & Wine", "Wellness", "Parenting", "Study Abroad",
+  "Digital Nomad Life", "Career Networking", "Public Speaking", "Podcasts", "DIY & Crafts",
+] as const;

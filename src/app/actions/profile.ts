@@ -9,13 +9,6 @@ import { moderateText } from "@/lib/moderation";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/lib/auth";
 
-function parseListField(formData: FormData, key: string) {
-  return String(formData.get(key) ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
 
@@ -23,8 +16,8 @@ export async function completeOnboarding(formData: FormData) {
     name: formData.get("name"),
     bio: formData.get("bio") ?? "",
     country: formData.get("country"),
-    languages: parseListField(formData, "languages"),
-    interests: parseListField(formData, "interests"),
+    languages: formData.getAll("languages"),
+    interests: formData.getAll("interests"),
     openToIntents: formData.getAll("openToIntents"),
   });
 
@@ -57,8 +50,8 @@ export async function updateProfile(formData: FormData) {
     name: formData.get("name"),
     bio: formData.get("bio") ?? "",
     country: formData.get("country"),
-    languages: parseListField(formData, "languages"),
-    interests: parseListField(formData, "interests"),
+    languages: formData.getAll("languages"),
+    interests: formData.getAll("interests"),
     openToIntents: formData.getAll("openToIntents"),
   });
 

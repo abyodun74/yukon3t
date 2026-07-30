@@ -2,14 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { requestConnection } from "@/app/actions/connections";
-
-const intentLabels: Record<string, string> = {
-  FRIENDSHIP: "Friendship",
-  CULTURAL_EXCHANGE: "Cultural Exchange",
-  PROFESSIONAL: "Professional",
-  COMMUNITY: "Community",
-  DATING: "Dating",
-};
+import { intentLabels } from "@/lib/validations";
 
 export function ConnectButton({
   targetId,
@@ -35,7 +28,7 @@ export function ConnectButton({
       >
         {openToIntents.map((tag) => (
           <option key={tag} value={tag}>
-            {intentLabels[tag] ?? tag}
+            {(intentLabels as Record<string, string>)[tag] ?? tag}
           </option>
         ))}
       </select>

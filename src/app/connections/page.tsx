@@ -2,14 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ConnectionResponseButtons } from "@/components/connection-response-buttons";
 import Link from "next/link";
-
-const intentLabels: Record<string, string> = {
-  FRIENDSHIP: "Friendship",
-  CULTURAL_EXCHANGE: "Cultural Exchange",
-  PROFESSIONAL: "Professional",
-  COMMUNITY: "Community",
-  DATING: "Dating",
-};
+import { intentLabels } from "@/lib/validations";
 
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();

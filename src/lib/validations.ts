@@ -5,8 +5,16 @@ export const intentTagValues = [
   "CULTURAL_EXCHANGE",
   "PROFESSIONAL",
   "COMMUNITY",
-  "DATING",
+  "TRAVEL_TIPS",
 ] as const;
+
+export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
+  FRIENDSHIP: "Friendship",
+  CULTURAL_EXCHANGE: "Cultural Exchange",
+  PROFESSIONAL: "Professional",
+  COMMUNITY: "Community",
+  TRAVEL_TIPS: "Travel Tips",
+};
 
 export const onboardingSchema = z.object({
   name: z.string().trim().min(2).max(60),

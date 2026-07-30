@@ -3,15 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import Link from "next/link";
-import { intentTagValues } from "@/lib/validations";
-
-const intentLabels: Record<string, string> = {
-  FRIENDSHIP: "Friendship",
-  CULTURAL_EXCHANGE: "Cultural Exchange",
-  PROFESSIONAL: "Professional",
-  COMMUNITY: "Community",
-  DATING: "Dating",
-};
+import { intentTagValues, intentLabels } from "@/lib/validations";
+import { COUNTRIES } from "@/lib/countries";
 
 export default async function DiscoverPage({
   searchParams,
@@ -54,12 +47,18 @@ export default async function DiscoverPage({
             </option>
           ))}
         </select>
-        <input
+        <select
           name="country"
           defaultValue={country ?? ""}
-          placeholder="Country"
           className="rounded-lg border border-line bg-surface px-3 py-2"
-        />
+        >
+          <option value="">Any country</option>
+          {COUNTRIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           className="rounded-lg bg-accent px-4 py-2 font-medium text-accent-ink"

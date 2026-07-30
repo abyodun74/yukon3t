@@ -1,15 +1,11 @@
 import { getSessionUserOrRedirect, isProfileComplete } from "@/lib/page-guards";
 import { completeOnboarding } from "@/app/actions/profile";
 import { redirect } from "next/navigation";
-import { intentTagValues } from "@/lib/validations";
-
-const intentLabels: Record<string, string> = {
-  FRIENDSHIP: "Friendship",
-  CULTURAL_EXCHANGE: "Cultural Exchange",
-  PROFESSIONAL: "Professional",
-  COMMUNITY: "Community",
-  DATING: "Dating",
-};
+import { intentTagValues, intentLabels } from "@/lib/validations";
+import { COUNTRIES } from "@/lib/countries";
+import { LANGUAGES } from "@/lib/languages";
+import { INTERESTS } from "@/lib/interests";
+import { MultiSelect } from "@/components/multi-select";
 
 export default async function OnboardingPage({
   searchParams,
@@ -67,38 +63,47 @@ export default async function OnboardingPage({
 
         <div>
           <label className="block text-sm font-medium">Country</label>
-          <input
+          <select
             name="country"
             required
-            minLength={2}
             defaultValue={user.country ?? ""}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
+          >
+            <option value="" disabled>
+              Select your country...
+            </option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium">
-            Languages (comma-separated)
-          </label>
-          <input
-            name="languages"
-            placeholder="English, Spanish"
-            defaultValue={user.languages.join(", ")}
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
+          <label className="block text-sm font-medium">Languages</label>
+          <div className="mt-1">
+            <MultiSelect
+              name="languages"
+              options={LANGUAGES}
+              defaultValues={user.languages}
+              placeholder="Search languages..."
+              max={10}
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium">
-            Interests (comma-separated)
-          </label>
-          <input
-            name="interests"
-            required
-            placeholder="Hiking, Photography, Startups"
-            defaultValue={user.interests.join(", ")}
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
+          <label className="block text-sm font-medium">Interests</label>
+          <div className="mt-1">
+            <MultiSelect
+              name="interests"
+              options={INTERESTS}
+              defaultValues={user.interests}
+              placeholder="Search interests..."
+              max={15}
+            />
+          </div>
         </div>
 
         <div>
