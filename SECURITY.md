@@ -56,6 +56,6 @@ Production is live at **https://yukon3t.vercel.app**, deployed via `vercel --pro
 1. Set real `AUTH_SECRET`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`/`TOKEN`, `OPENAI_API_KEY`, `DATABASE_URL` (Neon), R2 credentials, `AUTH_URL`, `NEXT_PUBLIC_APP_URL` as **Vercel** env vars — not just in the local `.env` (see gotcha above).
 2. Confirm `NODE_ENV=production` so the CSP drops `'unsafe-eval'` — Vercel sets this automatically.
 3. Re-run `npm audit` and `npm run build` in the deploy pipeline.
-4. Promote the first real admin account manually (`UPDATE "User" SET "isAdmin" = true WHERE email = '...'`) — there is no self-serve admin signup path by design. Not yet done on the live Neon database as of this writing (the live DB has zero real users so far — the one real sign-in attempt was never clicked through to completion).
+4. ✅ **Done** — first real admin account promoted on the live Neon database (`ainabizpro@gmail.com`, signed in via a real magic-link click, `isAdmin` set directly via Prisma). Verified with a short-lived, separate verification session that the "Moderation" nav link and `/admin/moderation` page both work, then removed that verification session without touching the real one.
 5. ✅ **Done** — R2 bucket CORS policy includes `https://yukon3t.vercel.app`, verified with a real upload through the live site (avatar landed in R2, publicly reachable, zero console errors).
 6. ✅ **Done** — `OPENAI_API_KEY` is live on production and verified actually blocking flagged content (see above), not just present.
