@@ -31,6 +31,18 @@ export default async function ConnectionsPage() {
     }),
   ]);
 
+  // Map each connected user to their shared conversation, so "Connected"
+  // can link straight into the chat instead of just the profile.
+  const myConversations = await prisma.conversation.findMany({
+    where: { members: { some: { userId: me.id } } },
+    include: { members: { select: { userId: true } } },
+  });
+  const conversationIdByUserId = new Map<string, string>();
+  for (const c of myConversations) {
+    const other = c.members.find((m) => m.userId !== me.id);
+    if (other) conversationIdByUserId.set(other.userId, c.id);
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-10">
       <div>
@@ -92,17 +104,28 @@ export default async function ConnectionsPage() {
         <div className="mt-3 space-y-3">
           {accepted.map((c) => {
             const other = c.requesterId === me.id ? c.target : c.requester;
+            const conversationId = conversationIdByUserId.get(other.id);
             return (
               <div
                 key={c.id}
                 className="flex items-center justify-between rounded-xl border border-line p-4"
               >
-                <Link href={`/u/${other.id}`} className="font-medium hover:text-accent">
-                  {other.name}
-                </Link>
-                <span className="text-xs text-foreground-soft">
-                  {intentLabels[c.intentTag]}
-                </span>
+                <div>
+                  <Link href={`/u/${other.id}`} className="font-medium hover:text-accent">
+                    {other.name}
+                  </Link>
+                  <span className="ml-2 text-xs text-foreground-soft">
+                    {intentLabels[c.intentTag]}
+                  </span>
+                </div>
+                {conversationId && (
+                  <Link
+                    href={`/messages/${conversationId}`}
+                    className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
+                  >
+                    Message
+                  </Link>
+                )}
               </div>
             );
           })}

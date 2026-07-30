@@ -31,15 +31,21 @@ export const circleSchema = z.object({
   category: z.string().trim().min(2).max(40),
 });
 
-export const postSchema = z.object({
-  circleId: z.string().cuid().optional(),
-  content: z.string().trim().min(1).max(2000),
-  intentTag: z.enum(intentTagValues).optional(),
-  mediaType: z.enum(["NONE", "IMAGE", "VIDEO"]).optional().default("NONE"),
-  mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
-  videoUrl: z.string().url().optional(),
-  videoThumbnailUrl: z.string().url().optional(),
-});
+export const postSchema = z
+  .object({
+    circleId: z.string().cuid().optional(),
+    content: z.string().trim().max(2000).optional().default(""),
+    intentTag: z.enum(intentTagValues).optional(),
+    mediaType: z.enum(["NONE", "IMAGE", "VIDEO"]).optional().default("NONE"),
+    mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
+    videoUrl: z.string().url().optional(),
+    videoThumbnailUrl: z.string().url().optional(),
+  })
+  // A post needs a caption or media — never both empty.
+  .refine((data) => data.content.length > 0 || data.mediaType !== "NONE", {
+    message: "A post needs a caption or media.",
+    path: ["content"],
+  });
 
 export const uploadKindValues = [
   "avatar",

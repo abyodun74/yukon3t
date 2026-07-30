@@ -154,6 +154,12 @@ export function PostComposer({
       ref={formRef}
       className="rounded-xl border border-line p-4"
       action={(fd) => {
+        const content = String(fd.get("content") ?? "").trim();
+        if (!content && images.length === 0 && !video) {
+          setStatus("error");
+          setErrorText("Write something or attach a photo/video first.");
+          return;
+        }
         if (circleId) fd.set("circleId", circleId);
         setStatus("uploading");
         setErrorText(null);
@@ -185,7 +191,6 @@ export function PostComposer({
     >
       <textarea
         name="content"
-        required
         maxLength={2000}
         rows={3}
         placeholder={placeholder}

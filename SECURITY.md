@@ -80,9 +80,39 @@ responder — that's a local network/OS quirk, not a site problem; retest
 with `curl --ssl-no-revoke` (or just a browser) before assuming the
 certificate is broken.
 
-R2 bucket CORS still needs `https://yukon3t.com` added alongside the
-`.vercel.app`/`.netlify.app`/`localhost` origins already there (tracked as
-a follow-up, not yet done as of this writing).
+R2 bucket CORS includes `https://yukon3t.com` alongside the
+`.vercel.app`/`.netlify.app`/`localhost` origins — verified with a real
+cross-origin `PUT` from a page actually loaded at `https://yukon3t.com`
+(not just a curl request), confirming the browser's CORS preflight against
+R2 succeeds for this origin.
+
+### Resend sandbox mode blocked all real sign-ins (fixed)
+
+After the custom domain went live, sign-in broke for everyone: NextAuth
+showed a generic `/api/auth/error?error=Configuration` page (Auth.js
+deliberately hides the real error from the browser for any error type not
+on its small client-safe allowlist — this generic page can mean almost
+anything). The real cause only appears in server logs
+(`netlify logs --source functions`, need to `--follow` and retrigger live,
+since historical function logs aren't otherwise fetchable): `EMAIL_FROM`
+was still `onboarding@resend.dev`, Resend's shared sandbox address, which
+**only accepts sending to the Resend account's own verified email** — every
+other recipient gets rejected with a `validation_error`, surfaced to users
+as the same generic Configuration page.
+
+**Fix**: verified `yukon3t.com` as a real sending domain on Resend
+(DKIM TXT on `resend._domainkey`, SPF via an MX + TXT on `send`, DMARC TXT
+on `_dmarc` — added directly to the Netlify-hosted DNS zone via
+`netlify api createDnsRecord`, `zone_id` + `body` shape, confirmed
+resolving with Google's DoH resolver before verifying in Resend), then
+updated `EMAIL_FROM` to `YuKon3t <noreply@yukon3t.com>` on both Netlify and
+Vercel, redeployed both (Netlify via build hook, Vercel via `vercel --prod`
+— env var changes need a redeploy on both platforms), and confirmed with a
+real sign-in email that was actually received.
+
+**Takeaway**: a NextAuth `Configuration` error on production is close to
+meaningless on its own — always check function logs for the real
+`[auth][error]` line before assuming what's broken.
 
 ### Manual/fallback deploy: `netlify-manual-deploy/`
 
