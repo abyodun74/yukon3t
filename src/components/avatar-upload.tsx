@@ -68,7 +68,13 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
 
   return (
     <div className="flex items-center gap-4">
-      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => inputRef.current?.click()}
+        aria-label="Change profile picture"
+        className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface disabled:opacity-50"
+      >
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="" className="h-full w-full object-cover" />
@@ -77,7 +83,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
             No photo
           </div>
         )}
-      </div>
+      </button>
       <div>
         <input
           ref={inputRef}
