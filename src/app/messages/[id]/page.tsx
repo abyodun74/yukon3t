@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { MessageForm } from "@/components/message-form";
-import { cn } from "@/lib/utils";
+import { ChatThread } from "@/components/chat-thread";
 
 export default async function ConversationPage({
   params,
@@ -21,43 +20,35 @@ export default async function ConversationPage({
     where: { id },
     include: {
       members: { include: { user: { select: { id: true, name: true } } } },
-      messages: {
-        where: { moderationStatus: { not: "REMOVED" } },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
   if (!conversation) notFound();
 
   const other = conversation.members.find((m) => m.user.id !== me.id)?.user;
 
+  // Deliberately a plain read, no delivered/read mutation here: Next.js
+  // prefetches <Link> targets that are merely visible in a list (e.g. the
+  // conversation link on /messages), which would silently mark messages
+  // "read" before the user ever opened the thread. Marking read only
+  // happens client-side, in ChatThread, after the component actually
+  // mounts in a real browser — never during SSR/prefetch.
+  const messages = await prisma.message.findMany({
+    where: { conversationId: id, moderationStatus: { not: "REMOVED" } },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+  });
+
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-2xl flex-col px-4 py-6">
+    <div className="mx-auto max-w-2xl px-4 py-6">
       <h1 className="text-lg font-semibold">{other?.name ?? "Conversation"}</h1>
-      <div className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-xl border border-line p-4">
-        {conversation.messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn(
-              "max-w-[75%] rounded-lg px-3 py-2 text-sm",
-              m.senderId === me.id
-                ? "ml-auto bg-accent text-accent-ink"
-                : "bg-surface",
-            )}
-          >
-            {m.moderationStatus === "PUBLISHED"
-              ? m.content
-              : "This message is under review."}
-          </div>
-        ))}
-        {conversation.messages.length === 0 && (
-          <p className="text-sm text-foreground-soft">
-            Say hello — remember, you can only DM after both of you accepted
-            the connection request.
-          </p>
-        )}
+      <div className="mt-4">
+        <ChatThread
+          conversationId={id}
+          initialMessages={messages}
+          currentUserId={me.id}
+          otherUserName={other?.name ?? "them"}
+        />
       </div>
-      <MessageForm conversationId={conversation.id} />
     </div>
   );
 }
