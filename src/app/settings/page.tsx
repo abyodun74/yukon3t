@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { updatePrivacy, setPassword } from "@/app/actions/profile";
 import { AccountDangerZone } from "@/components/account-danger-zone";
+import { PasswordInput } from "@/components/password-input";
 
 export default async function SettingsPage({
   searchParams,
@@ -104,8 +105,7 @@ export default async function SettingsPage({
             <label className="block text-sm font-medium">
               {user.passwordHash ? "New password" : "Password"}
             </label>
-            <input
-              type="password"
+            <PasswordInput
               name="password"
               required
               minLength={8}

@@ -19,6 +19,7 @@ export async function fileReport(formData: FormData) {
     targetType: formData.get("targetType"),
     targetId: formData.get("targetId"),
     reportedUserId: formData.get("reportedUserId") || undefined,
+    reasonCategory: formData.get("reasonCategory") || undefined,
     reason: formData.get("reason"),
   });
   if (!parsed.success) {

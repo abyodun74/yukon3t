@@ -151,6 +151,21 @@ export async function exportMyData() {
   return JSON.stringify(data, null, 2);
 }
 
+/**
+ * A reversible, self-service pause: hides the profile and posts (both check
+ * `status === "ACTIVE"`) without touching any data. Signing back in with a
+ * verified email or working password flips status back to ACTIVE — see the
+ * DEACTIVATED branches in password-auth.ts and lib/auth.ts's signIn callback.
+ */
+export async function deactivateAccount() {
+  const user = await requireUser();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { status: "DEACTIVATED", deactivatedAt: new Date() },
+  });
+  await signOut({ redirectTo: "/" });
+}
+
 export async function deleteMyAccount() {
   const user = await requireUser();
   // Hard delete — never paywalled, never held hostage. Cascades handle

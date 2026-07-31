@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signUpWithPassword } from "@/app/actions/password-auth";
+import { PasswordInput } from "@/components/password-input";
 
 function errorMessage(error: string | undefined) {
   switch (error) {
@@ -58,8 +59,7 @@ export default async function SignUpPage({
           placeholder="you@example.com"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
-        <input
-          type="password"
+        <PasswordInput
           name="password"
           required
           minLength={8}

@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { RegisterServiceWorker } from "@/components/register-sw";
+import { IncomingCallListener } from "@/components/incoming-call-listener";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
@@ -66,6 +67,7 @@ export default async function RootLayout({
       >
         <RegisterServiceWorker />
         <Nav session={session} theme={theme} />
+        {session?.user && <IncomingCallListener />}
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">
           <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">

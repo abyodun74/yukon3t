@@ -66,7 +66,7 @@ export default async function CirclePage({
 
       <div className="mt-8 space-y-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
         ))}
         {posts.length === 0 && (
           <p className="text-sm text-foreground-soft">

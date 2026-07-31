@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { loginWithPassword, resendVerificationEmail } from "@/app/actions/password-auth";
+import { PasswordInput } from "@/components/password-input";
 
 async function sendMagicLink(formData: FormData) {
   "use server";
@@ -37,9 +38,9 @@ function passwordErrorMessage(error: string | undefined) {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; email?: string }>;
+  searchParams: Promise<{ error?: string; email?: string; reset?: string }>;
 }) {
-  const { error, email } = await searchParams;
+  const { error, email, reset } = await searchParams;
   const passwordError = passwordErrorMessage(error);
 
   return (
@@ -49,6 +50,11 @@ export default async function SignInPage({
       <div className="mt-8 w-full rounded-xl border border-line p-5">
         <h2 className="text-sm font-semibold">Username &amp; password</h2>
 
+        {reset && !passwordError && (
+          <p className="mt-3 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+            Password reset — sign in with your new password.
+          </p>
+        )}
         {passwordError && (
           <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
@@ -71,8 +77,7 @@ export default async function SignInPage({
             placeholder="Username or email"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             required
             placeholder="Password"
@@ -85,11 +90,16 @@ export default async function SignInPage({
             Sign in
           </button>
         </form>
-        <p className="mt-3 text-center text-xs text-foreground-soft">
-          No account?{" "}
-          <Link href="/sign-up" className="font-medium text-accent hover:underline">
-            Create one
+        <p className="mt-3 flex items-center justify-between text-xs text-foreground-soft">
+          <Link href="/forgot-password" className="font-medium text-accent hover:underline">
+            Forgot password?
           </Link>
+          <span>
+            No account?{" "}
+            <Link href="/sign-up" className="font-medium text-accent hover:underline">
+              Create one
+            </Link>
+          </span>
         </p>
       </div>
 

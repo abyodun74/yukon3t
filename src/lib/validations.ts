@@ -75,6 +75,15 @@ export const setPasswordSchema = z.object({
   password: passwordSchema,
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  password: passwordSchema,
+});
+
 export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY"] as const;
 
 export const privacySchema = z.object({
@@ -139,10 +148,31 @@ export const messageSchema = z.object({
   content: z.string().trim().min(1).max(4000),
 });
 
+export const reportReasonCategoryValues = [
+  "SPAM",
+  "SCAM_OR_FRAUD",
+  "PHISHING",
+  "HARASSMENT",
+  "FAKE_ACCOUNT",
+  "INAPPROPRIATE_CONTENT",
+  "OTHER",
+] as const;
+
+export const reportReasonCategoryLabels: Record<(typeof reportReasonCategoryValues)[number], string> = {
+  SPAM: "Spam",
+  SCAM_OR_FRAUD: "Scam or fraud",
+  PHISHING: "Phishing",
+  HARASSMENT: "Harassment or abuse",
+  FAKE_ACCOUNT: "Fake account / impersonation",
+  INAPPROPRIATE_CONTENT: "Inappropriate or unwanted content",
+  OTHER: "Something else",
+};
+
 export const reportSchema = z.object({
   targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT"]),
   targetId: z.string().cuid(),
   reportedUserId: z.string().cuid().optional(),
+  reasonCategory: z.enum(reportReasonCategoryValues).optional().default("OTHER"),
   reason: z.string().trim().min(10).max(1000),
 });
 

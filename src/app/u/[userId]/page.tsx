@@ -3,7 +3,8 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
-import { ReportButton } from "@/components/report-form";
+import { ReportTrigger } from "@/components/report-form";
+import { CallButton } from "@/components/call-button";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
 import { EditProfileForm } from "@/components/edit-profile-form";
@@ -132,7 +133,10 @@ export default async function PublicProfilePage({
             isRequester={connection?.requesterId === me.id}
             conversationId={conversationId}
           />
-          <ReportButton targetType="USER" targetId={user.id} reportedUserId={user.id} />
+          {connection?.status === "ACCEPTED" && (
+            <CallButton calleeId={user.id} calleeName={user.name ?? "them"} />
+          )}
+          <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label="Report account" />
         </div>
       )}
 
@@ -147,7 +151,9 @@ export default async function PublicProfilePage({
           </p>
         )}
         {canSeePosts &&
-          posts.map((post) => <PostCard key={post.id} post={post} />)}
+          posts.map((post) => (
+            <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
+          ))}
         {canSeePosts && posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
             {isOwnProfile

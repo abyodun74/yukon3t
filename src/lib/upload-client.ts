@@ -52,3 +52,30 @@ export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null>
     );
   });
 }
+
+/**
+ * Self-contained frame grab from a local File (its own hidden <video>, not
+ * one the caller has to wire up) — this has no dependency on the file having
+ * been uploaded anywhere yet, so callers can run it in parallel with the
+ * network upload of that same file instead of waiting for it to finish.
+ */
+export function captureVideoFrameFromFile(file: File): Promise<File | null> {
+  return new Promise((resolve) => {
+    const probe = document.createElement("video");
+    probe.src = URL.createObjectURL(file);
+    probe.muted = true;
+    probe.playsInline = true;
+    probe.onloadeddata = () => {
+      probe.currentTime = Math.min(1, probe.duration / 2);
+    };
+    probe.onseeked = async () => {
+      const frame = await captureVideoFrame(probe);
+      URL.revokeObjectURL(probe.src);
+      resolve(frame);
+    };
+    probe.onerror = () => {
+      URL.revokeObjectURL(probe.src);
+      resolve(null);
+    };
+  });
+}

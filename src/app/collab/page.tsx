@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { ReportButton } from "@/components/report-form";
+import { ReportTrigger } from "@/components/report-form";
 
 const typeLabels: Record<string, string> = {
   SKILL_EXCHANGE: "Skill Exchange",
@@ -58,7 +58,7 @@ export default async function CollabPage() {
               >
                 by {post.author.name}
               </Link>
-              <ReportButton
+              <ReportTrigger
                 targetType="COLLAB_POST"
                 targetId={post.id}
                 reportedUserId={post.author.id}

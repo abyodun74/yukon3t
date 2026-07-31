@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, CheckCheck } from "lucide-react";
-import { sendMessage, getConversationMessages } from "@/app/actions/messages";
+import { Check, CheckCheck, MoreHorizontal } from "lucide-react";
+import {
+  sendMessage,
+  getConversationMessages,
+  deleteMessageForMe,
+  deleteMessageForEveryone,
+} from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 3000;
@@ -15,6 +21,7 @@ type MessageData = {
   moderationStatus: "PUBLISHED" | "FLAGGED" | "REMOVED";
   deliveredAt: Date | null;
   readAt: Date | null;
+  deletedForEveryoneAt: Date | null;
   createdAt: Date;
 };
 
@@ -30,6 +37,103 @@ function ReceiptIcon({ message }: { message: MessageData }) {
 
 function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function MessageBubble({
+  message,
+  mine,
+  onDeleted,
+}: {
+  message: MessageData;
+  mine: boolean;
+  onDeleted: (messageId: string, mode: "me" | "everyone") => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const deleted = Boolean(message.deletedForEveryoneAt);
+  const bigEmoji = !deleted && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+
+  return (
+    <div className="group relative">
+      <div
+        className={cn(
+          "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+          mine ? "bg-accent text-accent-ink" : "bg-surface",
+        )}
+      >
+        {deleted ? (
+          <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+            This message was deleted
+          </p>
+        ) : (
+          <p className={cn("whitespace-pre-wrap break-words", bigEmoji && "text-3xl leading-none")}>
+            {message.moderationStatus === "PUBLISHED" ? message.content : "This message is under review."}
+          </p>
+        )}
+        <div
+          className={cn(
+            "mt-1 flex items-center justify-end gap-1 text-[10px]",
+            mine ? "text-accent-ink/70" : "text-foreground-soft",
+          )}
+        >
+          <span>{formatTime(message.createdAt)}</span>
+          {mine && <ReceiptIcon message={message} />}
+        </div>
+      </div>
+
+      {!deleted && (
+        <div className={cn("absolute top-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100", mine ? "-left-7" : "-right-7")}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Message options"
+            className="rounded-full p-1 text-foreground-soft hover:bg-line"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {menuOpen && (
+            <div
+              className={cn(
+                "absolute top-full z-20 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
+                mine ? "left-0" : "right-0",
+              )}
+            >
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  setMenuOpen(false);
+                  startTransition(async () => {
+                    const result = await deleteMessageForMe(message.id);
+                    if (!result.error) onDeleted(message.id, "me");
+                  });
+                }}
+                className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+              >
+                Delete for me
+              </button>
+              {mine && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    startTransition(async () => {
+                      const result = await deleteMessageForEveryone(message.id);
+                      if (!result.error) onDeleted(message.id, "everyone");
+                    });
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs text-danger hover:bg-line"
+                >
+                  Delete for everyone
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ChatThread({
@@ -99,6 +203,14 @@ export function ChatThread({
     textareaRef.current?.focus();
   }
 
+  function handleDeleted(messageId: string, mode: "me" | "everyone") {
+    setMessages((prev) =>
+      mode === "me"
+        ? prev.filter((m) => m.id !== messageId)
+        : prev.map((m) => (m.id === messageId ? { ...m, deletedForEveryoneAt: new Date() } : m)),
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
@@ -111,25 +223,7 @@ export function ChatThread({
               key={m.id}
               className={cn("flex", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-3")}
             >
-              <div
-                className={cn(
-                  "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                  mine ? "bg-accent text-accent-ink" : "bg-surface",
-                )}
-              >
-                <p className="whitespace-pre-wrap break-words">
-                  {m.moderationStatus === "PUBLISHED" ? m.content : "This message is under review."}
-                </p>
-                <div
-                  className={cn(
-                    "mt-1 flex items-center justify-end gap-1 text-[10px]",
-                    mine ? "text-accent-ink/70" : "text-foreground-soft",
-                  )}
-                >
-                  <span>{formatTime(m.createdAt)}</span>
-                  {mine && <ReceiptIcon message={m} />}
-                </div>
-              </div>
+              <MessageBubble message={m} mine={mine} onDeleted={handleDeleted} />
             </div>
           );
         })}

@@ -66,7 +66,7 @@ export default async function PostDetailPage({
     <div className="mx-auto max-w-2xl px-4 py-10">
       <BackButton />
 
-      <PostCard post={postWithState} />
+      <PostCard post={postWithState} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
 
       <div className="mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">

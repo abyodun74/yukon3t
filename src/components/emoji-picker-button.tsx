@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Smile } from "lucide-react";
 import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 
@@ -37,6 +37,9 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
             emojiStyle={EmojiStyle.NATIVE}
             width={300}
             height={360}
+            // Bigger glyphs in the picker grid itself — easier to tell
+            // similar emoji apart when tapping on mobile.
+            style={{ "--epr-emoji-size": "28px" } as CSSProperties}
             onEmojiClick={(data) => {
               onSelect(data.emoji);
               setOpen(false);

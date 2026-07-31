@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { exportMyData, deleteMyAccount } from "@/app/actions/profile";
+import { exportMyData, deleteMyAccount, deactivateAccount } from "@/app/actions/profile";
 
 export function AccountDangerZone() {
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
 
   return (
     <div className="space-y-4 rounded-xl border border-danger/40 p-5">
@@ -33,6 +34,41 @@ export function AccountDangerZone() {
         >
           Export my data
         </button>
+      </div>
+
+      <div className="border-t border-line pt-4">
+        <h2 className="font-semibold">Deactivate account</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Temporarily hides your profile and posts. Nothing is deleted — sign
+          back in any time with your password or email link to reactivate.
+        </p>
+        {!confirmingDeactivate ? (
+          <button
+            type="button"
+            onClick={() => setConfirmingDeactivate(true)}
+            className="mt-3 rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            Deactivate my account
+          </button>
+        ) : (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => startTransition(() => deactivateAccount())}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              Yes, deactivate
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDeactivate(false)}
+              className="text-sm text-foreground-soft"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-line pt-4">

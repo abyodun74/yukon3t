@@ -33,6 +33,7 @@ export default async function HomePage({
   const rawPosts = await prisma.post.findMany({
     where: {
       moderationStatus: "PUBLISHED",
+      author: { status: "ACTIVE" },
       OR: [
         ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
         { authorId: { in: [...connectionUserIds, me.id] } },
@@ -61,7 +62,7 @@ export default async function HomePage({
 
       <div className="mt-8 space-y-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
         ))}
         {posts.length === 0 && (
           <p className="text-sm text-foreground-soft">

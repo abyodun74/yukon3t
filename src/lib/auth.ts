@@ -46,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user?.email) return false;
       const existing = await prisma.user.findUnique({
         where: { email: user.email },
-        select: { status: true },
+        select: { id: true, status: true },
       });
       if (
         existing?.status === "SUSPENDED" ||
@@ -54,6 +54,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         existing?.status === "DELETED"
       ) {
         return false;
+      }
+      // Signing in again is treated as an explicit request to come back —
+      // same pattern as most social apps' "log in to reactivate" flow.
+      if (existing?.status === "DEACTIVATED") {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { status: "ACTIVE", deactivatedAt: null },
+        });
       }
       return true;
     },

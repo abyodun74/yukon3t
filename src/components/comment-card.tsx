@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { deleteComment } from "@/app/actions/comments";
-import { ReportButton } from "@/components/report-form";
+import { ReportTrigger } from "@/components/report-form";
 import { CommentComposer } from "@/components/comment-composer";
+import { isEmojiOnly } from "@/lib/emoji";
+import { cn } from "@/lib/utils";
 
 type CommentData = {
   id: string;
@@ -53,7 +55,9 @@ export function CommentCard({
           {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
         </span>
       </div>
-      <p className="mt-1 whitespace-pre-wrap text-sm">{comment.content}</p>
+      <p className={cn("mt-1 whitespace-pre-wrap text-sm", isEmojiOnly(comment.content) && "text-3xl leading-tight")}>
+        {comment.content}
+      </p>
       <div className="mt-1 flex items-center gap-3">
         {!isReply && (
           <button
@@ -82,7 +86,7 @@ export function CommentCard({
             Delete
           </button>
         )}
-        <ReportButton
+        <ReportTrigger
           targetType="COMMENT"
           targetId={comment.id}
           reportedUserId={comment.author.id}

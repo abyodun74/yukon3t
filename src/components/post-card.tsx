@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Heart, MessageSquare, Repeat2, Share2 } from "lucide-react";
-import { ReportButton } from "@/components/report-form";
+import { Heart, Maximize2, MessageSquare, Repeat2, Share2 } from "lucide-react";
+import { Lightbox } from "@/components/lightbox";
 import { toggleLike } from "@/app/actions/likes";
 import { repost } from "@/app/actions/reposts";
 import { recordShare } from "@/app/actions/shares";
 import { cn } from "@/lib/utils";
+import { isEmojiOnly } from "@/lib/emoji";
+import { PostOptionsMenu } from "@/components/post-options-menu";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO";
 
@@ -32,11 +34,21 @@ type PostCardData = EmbeddedPost & {
   repostOf: EmbeddedPost | null;
 };
 
-function MediaBlock({ post }: { post: EmbeddedPost }) {
+function MediaBlock({
+  post,
+  onOpenImage,
+  onOpenVideo,
+}: {
+  post: EmbeddedPost;
+  onOpenImage: (index: number) => void;
+  onOpenVideo: () => void;
+}) {
   return (
     <>
       {post.content && (
-        <p className="mt-2 whitespace-pre-wrap text-sm">{post.content}</p>
+        <p className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}>
+          {post.content}
+        </p>
       )}
 
       {post.mediaType === "IMAGE" && post.mediaUrls.length > 0 && (
@@ -46,36 +58,60 @@ function MediaBlock({ post }: { post: EmbeddedPost }) {
             post.mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
           )}
         >
-          {post.mediaUrls.map((url) => (
-            // Plain <img>, not next/image: avoids routing user-uploaded
-            // content through Next's bundled sharp (see SECURITY.md).
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+          {post.mediaUrls.map((url, i) => (
+            <button
               key={url}
-              src={url}
-              alt=""
-              className="max-h-96 w-full rounded-lg object-cover"
-              loading="lazy"
-            />
+              type="button"
+              onClick={() => onOpenImage(i)}
+              className="block cursor-zoom-in"
+            >
+              {/* Plain <img>, not next/image: avoids routing user-uploaded
+                  content through Next's bundled sharp (see SECURITY.md). */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt=""
+                className="max-h-96 w-full rounded-lg object-cover"
+                loading="lazy"
+              />
+            </button>
           ))}
         </div>
       )}
 
       {post.mediaType === "VIDEO" && post.videoUrl && (
-        <video
-          controls
-          preload="metadata"
-          poster={post.videoThumbnailUrl ?? undefined}
-          className="mt-3 max-h-96 w-full rounded-lg bg-black"
-        >
-          <source src={post.videoUrl} />
-        </video>
+        <div className="relative mt-3">
+          <video
+            controls
+            preload="metadata"
+            poster={post.videoThumbnailUrl ?? undefined}
+            className="max-h-96 w-full rounded-lg bg-black"
+          >
+            <source src={post.videoUrl} />
+          </video>
+          <button
+            type="button"
+            onClick={onOpenVideo}
+            title="Watch in full screen"
+            className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+          >
+            <Maximize2 size={14} />
+          </button>
+        </div>
       )}
     </>
   );
 }
 
-export function PostCard({ post }: { post: PostCardData }) {
+export function PostCard({
+  post,
+  viewerId,
+  viewerIsAdmin = false,
+}: {
+  post: PostCardData;
+  viewerId: string;
+  viewerIsAdmin?: boolean;
+}) {
   const displayPost = post.repostOf ?? post;
   const interactionTargetId = post.repostOf?.id ?? post.id;
 
@@ -85,6 +121,8 @@ export function PostCard({ post }: { post: PostCardData }) {
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [shareCount, setShareCount] = useState(post.shareCount);
   const [copied, setCopied] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxVideo, setLightboxVideo] = useState(false);
   const [isLikePending, startLikeTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
   const [isSharePending, startShareTransition] = useTransition();
@@ -154,9 +192,18 @@ export function PostCard({ post }: { post: PostCardData }) {
         >
           {displayPost.author.name}
         </Link>
-        <span className="text-xs text-foreground-soft">
-          {displayPost.createdAt.toLocaleDateString()}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-foreground-soft">
+            {displayPost.createdAt.toLocaleDateString()}
+          </span>
+          <PostOptionsMenu
+            postId={post.id}
+            canDelete={viewerId === post.author.id || viewerIsAdmin}
+            canReport={viewerId !== displayPost.author.id}
+            reportTargetId={interactionTargetId}
+            reportedUserId={displayPost.author.id}
+          />
+        </div>
       </div>
 
       {post.repostOf && post.content && (
@@ -165,7 +212,11 @@ export function PostCard({ post }: { post: PostCardData }) {
         </p>
       )}
 
-      <MediaBlock post={displayPost} />
+      <MediaBlock
+        post={displayPost}
+        onOpenImage={(index) => setLightboxIndex(index)}
+        onOpenVideo={() => setLightboxVideo(true)}
+      />
 
       <div className="mt-3 flex items-center gap-5 border-t border-line pt-2 text-xs text-foreground-soft">
         <button
@@ -214,13 +265,17 @@ export function PostCard({ post }: { post: PostCardData }) {
         {copied && <span className="text-success">Link copied</span>}
       </div>
 
-      <div className="mt-2">
-        <ReportButton
-          targetType="POST"
-          targetId={interactionTargetId}
-          reportedUserId={displayPost.author.id}
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={displayPost.mediaUrls}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
-      </div>
+      )}
+      {lightboxVideo && displayPost.videoUrl && (
+        <Lightbox video={displayPost.videoUrl} onClose={() => setLightboxVideo(false)} />
+      )}
     </div>
   );
 }

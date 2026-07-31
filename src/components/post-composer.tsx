@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ImagePlus, Video, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Camera, ImagePlus, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
-import { uploadFileDirect, captureVideoFrame } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { VideoRecorderModal } from "@/components/video-recorder-modal";
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -41,10 +43,13 @@ export function PostComposer({
   const [video, setVideo] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [showRecorder, setShowRecorder] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   function insertEmoji(emoji: string) {
@@ -131,28 +136,26 @@ export function PostComposer({
     }
 
     if (video) {
-      const videoResult = await uploadFileDirect(video, "post-video");
+      // Frame capture reads the local file directly — it never depended on
+      // the video actually being uploaded yet, so run both uploads
+      // concurrently instead of the video → capture → thumbnail chain this
+      // used to be. That chain was the main cause of "video posting feels
+      // slow": two full network round-trips in sequence when neither one
+      // needed to wait for the other.
+      const [videoResult, thumbnailUrl] = await Promise.all([
+        uploadFileDirect(video, "post-video"),
+        captureVideoFrameFromFile(video).then((frame) =>
+          frame ? uploadFileDirect(frame, "video-thumb") : null,
+        ),
+      ]);
       if (!videoResult.ok) return { error: videoResult.error };
 
-      let videoThumbnailUrl: string | undefined;
-      const probe = document.createElement("video");
-      probe.src = URL.createObjectURL(video);
-      probe.muted = true;
-      await new Promise<void>((resolve) => {
-        probe.onloadeddata = () => {
-          probe.currentTime = Math.min(1, probe.duration / 2);
-        };
-        probe.onseeked = () => resolve();
-        probe.onerror = () => resolve();
-      });
-      const frame = await captureVideoFrame(probe);
-      URL.revokeObjectURL(probe.src);
-      if (frame) {
-        const thumbResult = await uploadFileDirect(frame, "video-thumb");
-        if (thumbResult.ok) videoThumbnailUrl = thumbResult.publicUrl;
-      }
-
-      return { mediaType: "VIDEO", mediaUrls: [], videoUrl: videoResult.publicUrl, videoThumbnailUrl };
+      return {
+        mediaType: "VIDEO",
+        mediaUrls: [],
+        videoUrl: videoResult.publicUrl,
+        videoThumbnailUrl: thumbnailUrl?.ok ? thumbnailUrl.publicUrl : undefined,
+      };
     }
 
     return { mediaType: "NONE", mediaUrls: [] };
@@ -193,7 +196,7 @@ export function PostComposer({
             setImages([]);
             setVideo(null);
             formRef.current?.reset();
-            location.reload();
+            router.refresh();
           }
         });
       }}
@@ -249,6 +252,14 @@ export function PostComposer({
             onChange={(e) => pickImages(e.target.files)}
           />
           <input
+            ref={cameraInputRef}
+            type="file"
+            accept={IMAGE_TYPES.join(",")}
+            capture="environment"
+            className="hidden"
+            onChange={(e) => pickImages(e.target.files)}
+          />
+          <input
             ref={videoInputRef}
             type="file"
             accept={VIDEO_TYPES.join(",")}
@@ -266,12 +277,33 @@ export function PostComposer({
           </button>
           <button
             type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={Boolean(video) || images.length >= MAX_IMAGES}
+            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+            title="Take a photo"
+          >
+            <Camera size={16} />
+          </button>
+          <button
+            type="button"
             onClick={() => videoInputRef.current?.click()}
             disabled={images.length > 0 || Boolean(video)}
             className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Add a short video"
+            title="Upload a video"
           >
             <Video size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRecorder(true)}
+            disabled={images.length > 0 || Boolean(video)}
+            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+            title="Record a video"
+          >
+            <span className="relative inline-flex">
+              <Video size={16} />
+              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-danger" />
+            </span>
           </button>
           <EmojiPickerButton onSelect={insertEmoji} />
           <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">
@@ -288,6 +320,17 @@ export function PostComposer({
       </div>
       {status === "error" && errorText && (
         <p className="mt-1 text-xs text-danger">{errorText}</p>
+      )}
+
+      {showRecorder && (
+        <VideoRecorderModal
+          maxSeconds={MAX_VIDEO_SECONDS}
+          onClose={() => setShowRecorder(false)}
+          onRecorded={(file) => {
+            setShowRecorder(false);
+            pickVideo(file);
+          }}
+        />
       )}
     </form>
   );

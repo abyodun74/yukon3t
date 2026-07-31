@@ -49,6 +49,8 @@ export const rateLimiters = {
   signIn: makeLimiter(5, "10 m"),
   passwordSignUp: makeLimiter(5, "1 h"),
   passwordLogin: makeLimiter(10, "10 m"),
+  passwordResetRequest: makeLimiter(5, "1 h"),
+  call: makeLimiter(20, "10 m"),
   messageSend: makeLimiter(20, "1 m"),
   postCreate: makeLimiter(10, "5 m"),
   report: makeLimiter(10, "10 m"),

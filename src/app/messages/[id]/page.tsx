@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ChatThread } from "@/components/chat-thread";
 import { BackButton } from "@/components/back-button";
+import { CallButton } from "@/components/call-button";
 
 export default async function ConversationPage({
   params,
@@ -34,7 +35,11 @@ export default async function ConversationPage({
   // happens client-side, in ChatThread, after the component actually
   // mounts in a real browser — never during SSR/prefetch.
   const messages = await prisma.message.findMany({
-    where: { conversationId: id, moderationStatus: { not: "REMOVED" } },
+    where: {
+      conversationId: id,
+      moderationStatus: { not: "REMOVED" },
+      NOT: { deletedForUserIds: { has: me.id } },
+    },
     orderBy: { createdAt: "asc" },
     take: 200,
   });
@@ -42,7 +47,10 @@ export default async function ConversationPage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <BackButton fallbackHref="/messages" />
-      <h1 className="text-lg font-semibold">{other?.name ?? "Conversation"}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">{other?.name ?? "Conversation"}</h1>
+        {other && <CallButton calleeId={other.id} calleeName={other.name ?? "them"} />}
+      </div>
       <div className="mt-4">
         <ChatThread
           conversationId={id}

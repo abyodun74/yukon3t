@@ -47,10 +47,23 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 // ---------- Core domain ----------
 
 enum UserStatus {
   ACTIVE
+  DEACTIVATED
   SUSPENDED
   BANNED
   DELETED
@@ -76,18 +89,18 @@ enum IntentTag {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String      @id @default(cuid())
+  email         String      @unique
   emailVerified DateTime?
-  username      String?   @unique
+  username      String?     @unique
   passwordHash  String?
   birthDate     DateTime?
   name          String?
   avatarUrl     String?
-  bio           String?   @db.Text
+  bio           String?     @db.Text
   country       String?
-  languages     String[]  @default([])
-  interests     String[]  @default([])
+  languages     String[]    @default([])
+  interests     String[]    @default([])
   openToIntents IntentTag[] @default([])
 
   trustScore Int       @default(0)
@@ -95,6 +108,7 @@ model User {
 
   status           UserStatus @default(ACTIVE)
   suspensionReason String?
+  deactivatedAt    DateTime?
   isAdmin          Boolean    @default(false)
 
   postsVisibility PostsVisibility @default(PUBLIC)
@@ -128,6 +142,11 @@ model User {
 
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
+
+  passwordResetTokens PasswordResetToken[]
+
+  callsMade     Call[] @relation("CallCaller")
+  callsReceived Call[] @relation("CallCallee")
 
   @@index([country])
 }
@@ -364,14 +383,16 @@ model ConversationMember {
 }
 
 model Message {
-  id               String           @id @default(cuid())
-  conversationId   String
-  senderId         String
-  content          String           @db.Text
-  moderationStatus ModerationStatus @default(PUBLISHED)
-  deliveredAt      DateTime?
-  readAt           DateTime?
-  createdAt        DateTime         @default(now())
+  id                   String           @id @default(cuid())
+  conversationId       String
+  senderId             String
+  content              String           @db.Text
+  moderationStatus     ModerationStatus @default(PUBLISHED)
+  deliveredAt          DateTime?
+  readAt               DateTime?
+  deletedForEveryoneAt DateTime?
+  deletedForUserIds    String[]         @default([])
+  createdAt            DateTime         @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
@@ -394,16 +415,27 @@ enum ReportStatus {
   RESOLVED
 }
 
+enum ReportReasonCategory {
+  SPAM
+  SCAM_OR_FRAUD
+  PHISHING
+  HARASSMENT
+  FAKE_ACCOUNT
+  INAPPROPRIATE_CONTENT
+  OTHER
+}
+
 model Report {
-  id             String           @id @default(cuid())
+  id             String               @id @default(cuid())
   reporterId     String
   reportedUserId String?
   targetType     ReportTargetType
   targetId       String
-  reason         String           @db.Text
-  status         ReportStatus     @default(OPEN)
-  resolutionNote String?          @db.Text
-  createdAt      DateTime         @default(now())
+  reasonCategory ReportReasonCategory @default(OTHER)
+  reason         String               @db.Text
+  status         ReportStatus         @default(OPEN)
+  resolutionNote String?              @db.Text
+  createdAt      DateTime             @default(now())
   resolvedAt     DateTime?
 
   reporter     User  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
@@ -433,4 +465,36 @@ model AuditLog {
   target User @relation("AuditLogTarget", fields: [targetId], references: [id], onDelete: Cascade)
 
   @@index([targetId])
+}
+
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACCEPTED
+  DECLINED
+  ENDED
+  MISSED
+}
+
+model Call {
+  id          String     @id @default(cuid())
+  callerId    String
+  calleeId    String
+  type        CallType
+  status      CallStatus @default(RINGING)
+  roomName    String
+  roomUrl     String
+  createdAt   DateTime   @default(now())
+  respondedAt DateTime?
+  endedAt     DateTime?
+
+  caller User @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  callee User @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+
+  @@index([calleeId, status])
+  @@index([callerId, status])
 }

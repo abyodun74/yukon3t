@@ -72,12 +72,61 @@ export async function getConversationMessages(conversationId: string) {
   });
 
   const messages = await prisma.message.findMany({
-    where: { conversationId, moderationStatus: { not: "REMOVED" } },
+    where: {
+      conversationId,
+      moderationStatus: { not: "REMOVED" },
+      NOT: { deletedForUserIds: { has: user.id } },
+    },
     orderBy: { createdAt: "asc" },
     take: 200,
   });
 
   return { error: null, messages };
+}
+
+/** Hides this message for the caller only — the other participant still sees it normally. */
+export async function deleteMessageForMe(messageId: string) {
+  const user = await requireVerifiedUser();
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    return { error: "not_found" as const };
+  }
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
+  });
+  if (!membership) {
+    return { error: "not_a_member" as const };
+  }
+
+  await prisma.message.update({
+    where: { id: messageId },
+    data: { deletedForUserIds: { push: user.id } },
+  });
+
+  revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null };
+}
+
+/** Sender-only: replaces the content with a tombstone visible to both participants. */
+export async function deleteMessageForEveryone(messageId: string) {
+  const user = await requireVerifiedUser();
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    return { error: "not_found" as const };
+  }
+  if (message.senderId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.message.update({
+    where: { id: messageId },
+    data: { deletedForEveryoneAt: new Date(), content: "" },
+  });
+
+  revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null };
 }
 
 /**

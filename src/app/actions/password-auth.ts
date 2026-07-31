@@ -4,13 +4,14 @@ import { randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { signUpSchema, loginSchema } from "@/lib/validations";
+import { signUpSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { sessionCookieName, SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 async function clientIp() {
   return (await headers()).get("x-forwarded-for") ?? "unknown";
@@ -115,7 +116,7 @@ export async function loginWithPassword(formData: FormData) {
   if (!user || !user.passwordHash) {
     redirect("/sign-in?error=invalid_credentials");
   }
-  if (user.status !== "ACTIVE") {
+  if (user.status !== "ACTIVE" && user.status !== "DEACTIVATED") {
     redirect("/sign-in?error=invalid_credentials");
   }
 
@@ -125,6 +126,16 @@ export async function loginWithPassword(formData: FormData) {
   }
   if (!user.emailVerified) {
     redirect(`/sign-in?error=unverified&email=${encodeURIComponent(user.email)}`);
+  }
+
+  // Logging back in with the right password is treated as an explicit
+  // request to reactivate — same "log in to come back" pattern most social
+  // apps use, rather than a separate reactivation flow.
+  if (user.status === "DEACTIVATED") {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { status: "ACTIVE", deactivatedAt: null },
+    });
   }
 
   const sessionToken = randomUUID();
@@ -141,4 +152,71 @@ export async function loginWithPassword(formData: FormData) {
   });
 
   redirect("/home");
+}
+
+/**
+ * Always redirects to the same "check your email" page regardless of
+ * whether the address is registered — otherwise this endpoint becomes an
+ * account-enumeration oracle.
+ */
+export async function requestPasswordReset(formData: FormData) {
+  const ip = await clientIp();
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    redirect("/forgot-password?error=invalid");
+  }
+  const { email } = parsed.data;
+
+  const allowed = await checkRateLimit("passwordResetRequest", `resetreq:${ip}:${email}`);
+  if (!allowed) {
+    redirect("/forgot-password?sent=1");
+  }
+
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true } });
+  if (user && user.status === "ACTIVE") {
+    const token = randomUUID();
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+    });
+
+    const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+    await sendEmail({
+      to: email,
+      subject: "Reset your YuKon3t password",
+      html: `<p>Someone requested a password reset for this YuKon3t account.</p>
+        <p><a href="${url}">Reset your password</a></p>
+        <p>This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>`,
+    });
+  }
+
+  redirect("/forgot-password?sent=1");
+}
+
+export async function resetPassword(formData: FormData) {
+  const parsed = resetPasswordSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    redirect(`/reset-password?token=${formData.get("token") ?? ""}&error=invalid`);
+  }
+  const { token, password } = parsed.data;
+
+  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (!resetToken || resetToken.expires < new Date()) {
+    redirect("/forgot-password?error=expired");
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.user.update({
+    where: { id: resetToken.userId },
+    data: { passwordHash },
+  });
+  await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
+  // A password reset ends every existing session — otherwise a stolen
+  // session token would survive the very recovery meant to cut it off.
+  await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
+
+  redirect("/sign-in?reset=1");
 }
