@@ -34,7 +34,22 @@ export function VideoRecorderModal({
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
       })
-      .catch(() => setError("Couldn't access your camera/microphone — check permissions."));
+      .catch((err: unknown) => {
+        // getUserMedia's DOMException name distinguishes "you said no" from
+        // "there's no camera" from "something else has it open" — surfacing
+        // that instead of one generic message is the difference between a
+        // user knowing what to actually do next and just retrying blindly.
+        console.error("getUserMedia failed:", err);
+        const name = err instanceof DOMException ? err.name : "Unknown";
+        const message =
+          {
+            NotAllowedError: "Camera/microphone access was denied. Check your browser's site permissions (and your OS privacy settings) and try again.",
+            NotFoundError: "No camera or microphone was found on this device.",
+            NotReadableError: "Your camera or microphone is already in use by another app.",
+            SecurityError: "This page isn't running in a secure context (camera access needs HTTPS, or localhost for dev).",
+          }[name] ?? `Couldn't access your camera/microphone (${name}).`;
+        setError(message);
+      });
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());

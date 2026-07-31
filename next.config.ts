@@ -4,7 +4,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // camera/microphone allow self (in-browser recording) and let the
+  // Daily.co call iframe's own `allow` attribute delegate access to it —
+  // an empty allowlist here would override that delegation entirely,
+  // blocking calls regardless of the iframe's own permissions request.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
