@@ -124,10 +124,11 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  circleMemberships CircleMembership[]
-  ownedCircles      Circle[]           @relation("CircleOwner")
-  posts             Post[]
-  collabPosts       CollabBoardPost[]
+  circleMemberships   CircleMembership[]
+  ownedCircles        Circle[]                 @relation("CircleOwner")
+  posts               Post[]
+  collabPosts         CollabBoardPost[]
+  voiceParticipations CircleVoiceParticipant[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
@@ -170,11 +171,29 @@ model Circle {
   createdById   String
   createdAt     DateTime @default(now())
 
-  createdBy User               @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
-  members   CircleMembership[]
-  posts     Post[]
+  voiceRoomName String?
+  voiceRoomUrl  String?
+
+  createdBy         User                     @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
+  members           CircleMembership[]
+  posts             Post[]
+  voiceParticipants CircleVoiceParticipant[]
 
   @@index([category])
+}
+
+/** Presence, not history — a row exists only while that member is currently in the Circle's persistent voice room. */
+model CircleVoiceParticipant {
+  id       String   @id @default(cuid())
+  circleId String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@index([circleId])
 }
 
 enum CircleRole {

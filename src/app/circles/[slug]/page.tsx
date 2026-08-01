@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
+import { CircleVoiceRoom } from "@/components/circle-voice-room";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
 import { DeleteCircleButton } from "@/components/delete-circle-button";
 import { PostCard } from "@/components/post-card";
@@ -59,6 +60,10 @@ export default async function CirclePage({
       </p>
 
       <div className="mt-8">
+        <CircleVoiceRoom circleId={circle.id} canJoin={isMember || isOwner} />
+      </div>
+
+      <div className="mt-4">
         {isMember || isOwner ? (
           <PostComposer circleId={circle.id} />
         ) : (
