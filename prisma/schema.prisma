@@ -128,9 +128,11 @@ model User {
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
 
-  sentMessages     Message[]            @relation("MessageSender")
-  conversations    ConversationMember[]
-  messageReactions MessageReaction[]
+  sentMessages         Message[]            @relation("MessageSender")
+  conversations        ConversationMember[]
+  messageReactions     MessageReaction[]
+  createdConversations Conversation[]       @relation("ConversationCreator")
+  groupJoinRequests    GroupJoinRequest[]
 
   reportsFiled    Report[] @relation("ReportsFiled")
   reportsReceived Report[] @relation("ReportsReceived")
@@ -364,13 +366,37 @@ model Connection {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  isGroup   Boolean  @default(false)
-  name      String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  isGroup     Boolean  @default(false)
+  name        String?
+  createdById String?
+  createdAt   DateTime @default(now())
 
-  members  ConversationMember[]
-  messages Message[]
+  createdBy    User?              @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members      ConversationMember[]
+  messages     Message[]
+  joinRequests GroupJoinRequest[]
+}
+
+model GroupJoinRequest {
+  id             String            @id @default(cuid())
+  conversationId String
+  userId         String
+  status         JoinRequestStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  respondedAt    DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId, status])
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
 }
 
 model ConversationMember {

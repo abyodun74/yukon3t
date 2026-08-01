@@ -53,6 +53,7 @@ export async function createGroupChat(formData: FormData) {
     data: {
       isGroup: true,
       name,
+      createdById: user.id,
       members: {
         create: [{ userId: user.id }, ...memberIds.map((id) => ({ userId: id }))],
       },
@@ -61,6 +62,102 @@ export async function createGroupChat(formData: FormData) {
 
   revalidatePath("/messages");
   redirect(`/messages/${conversation.id}`);
+}
+
+/** Removes the caller from a group; deletes the conversation entirely once nobody is left in it. */
+export async function leaveGroup(conversationId: string) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+
+  await prisma.conversationMember.deleteMany({
+    where: { conversationId, userId: user.id },
+  });
+
+  const remaining = await prisma.conversationMember.count({ where: { conversationId } });
+  if (remaining === 0) {
+    await prisma.conversation.delete({ where: { id: conversationId } });
+  }
+
+  revalidatePath("/messages");
+  redirect("/messages");
+}
+
+/** Requests to join a group via its shared thread link — the creator approves/declines it. */
+export async function requestToJoinGroup(conversationId: string) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+  });
+  if (membership) {
+    return { error: "already_member" as const };
+  }
+
+  const existing = await prisma.groupJoinRequest.findUnique({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+  });
+  if (!existing) {
+    await prisma.groupJoinRequest.create({
+      data: { conversationId, userId: user.id },
+    });
+  } else if (existing.status === "DECLINED") {
+    await prisma.groupJoinRequest.update({
+      where: { id: existing.id },
+      data: { status: "PENDING", respondedAt: null },
+    });
+  }
+
+  revalidatePath(`/messages/${conversationId}`);
+  return { error: null };
+}
+
+/** Creator-only: approves or declines a pending join request. */
+export async function respondToJoinRequest(requestId: string, approve: boolean) {
+  const user = await requireVerifiedUser();
+
+  const request = await prisma.groupJoinRequest.findUnique({
+    where: { id: requestId },
+    include: { conversation: true },
+  });
+  if (!request) {
+    return { error: "not_found" as const };
+  }
+  if (request.conversation.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  if (approve) {
+    const memberCount = await prisma.conversationMember.count({
+      where: { conversationId: request.conversationId },
+    });
+    if (memberCount >= 20) {
+      return { error: "full" as const };
+    }
+    await prisma.conversationMember.upsert({
+      where: {
+        conversationId_userId: { conversationId: request.conversationId, userId: request.userId },
+      },
+      create: { conversationId: request.conversationId, userId: request.userId },
+      update: {},
+    });
+  }
+
+  await prisma.groupJoinRequest.update({
+    where: { id: requestId },
+    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+  });
+
+  revalidatePath(`/messages/${request.conversationId}`);
+  return { error: null };
 }
 
 export async function sendMessage(formData: FormData) {
