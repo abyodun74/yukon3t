@@ -4,11 +4,16 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // camera/microphone allow self (in-browser recording) and let the
-  // Daily.co call iframe's own `allow` attribute delegate access to it —
-  // an empty allowlist here would override that delegation entirely,
-  // blocking calls regardless of the iframe's own permissions request.
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
+  // `*` (any origin), not `(self)`: Permissions-Policy doesn't support
+  // wildcard subdomains the way CSP's frame-src does, and the Daily.co
+  // call iframe lives on a per-account *.daily.co subdomain — `(self)`
+  // silently excludes it, which is exactly what still blocked calls after
+  // the first attempt at this fix. CSP's frame-src ('self' and
+  // https://*.daily.co only, see src/proxy.ts) is the actual boundary on
+  // what can be embedded at all, so broadening this doesn't hand camera
+  // access to arbitrary third-party content — nothing else can be framed
+  // here regardless of what this header allows.
+  { key: "Permissions-Policy", value: "camera=*, microphone=*, geolocation=()" },
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
