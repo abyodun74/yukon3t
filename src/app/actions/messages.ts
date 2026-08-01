@@ -24,11 +24,12 @@ export async function createGroupChat(formData: FormData) {
   const parsed = groupChatSchema.safeParse({
     name: formData.get("name"),
     memberIds: formData.getAll("memberIds"),
+    discoverable: formData.get("discoverable") === "on",
   });
   if (!parsed.success) {
     redirect("/messages/new?error=invalid");
   }
-  const { name, memberIds } = parsed.data;
+  const { name, memberIds, discoverable } = parsed.data;
 
   const acceptedCount = await prisma.connection.count({
     where: {
@@ -54,6 +55,7 @@ export async function createGroupChat(formData: FormData) {
     data: {
       isGroup: true,
       name,
+      discoverable,
       createdById: user.id,
       members: {
         create: [{ userId: user.id }, ...memberIds.map((id) => ({ userId: id }))],
@@ -93,6 +95,25 @@ export async function renameGroupChat(conversationId: string, formData: FormData
   revalidatePath(`/messages/${conversationId}`);
   revalidatePath("/messages");
   return { error: null, name };
+}
+
+/** Creator-only: toggles whether a group appears in the public /messages/discover directory. */
+export async function setGroupDiscoverable(conversationId: string, discoverable: boolean) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+  if (conversation.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.conversation.update({ where: { id: conversationId }, data: { discoverable } });
+
+  revalidatePath(`/messages/${conversationId}`);
+  revalidatePath("/messages/discover");
+  return { error: null, discoverable };
 }
 
 /** Removes the caller from a group; deletes the conversation entirely once nobody is left in it. */

@@ -21,12 +21,20 @@ export default async function MessagesPage() {
       <MarkDelivered />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Messages</h1>
-        <Link
-          href="/messages/new"
-          className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          New group
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/messages/discover"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            Discover groups
+          </Link>
+          <Link
+            href="/messages/new"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            New group
+          </Link>
+        </div>
       </div>
       <div className="mt-6 space-y-2">
         {conversations.map((c) => {

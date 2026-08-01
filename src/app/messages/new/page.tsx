@@ -67,6 +67,10 @@ export default async function NewGroupChatPage({
               />
             </div>
           </div>
+          <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+            <input type="checkbox" name="discoverable" />
+            Make this group discoverable — anyone can find it and request to join
+          </label>
           <button
             type="submit"
             className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"

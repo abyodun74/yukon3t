@@ -387,11 +387,12 @@ model Connection {
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  isGroup     Boolean  @default(false)
-  name        String?
-  createdById String?
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  isGroup      Boolean  @default(false)
+  name         String?
+  discoverable Boolean  @default(false)
+  createdById  String?
+  createdAt    DateTime @default(now())
 
   createdBy    User?              @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
   members      ConversationMember[]

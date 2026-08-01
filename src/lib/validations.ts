@@ -161,6 +161,7 @@ export const messageSchema = z.object({
 export const groupChatSchema = z.object({
   name: z.string().trim().min(2).max(60),
   memberIds: z.array(z.string().cuid()).min(2).max(20),
+  discoverable: z.boolean(),
 });
 
 export const groupNameSchema = groupChatSchema.pick({ name: true });
