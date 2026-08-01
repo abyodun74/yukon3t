@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, CheckCheck, MoreHorizontal } from "lucide-react";
+import { Check, CheckCheck, MoreHorizontal, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -9,6 +9,8 @@ import {
   deleteMessageForEveryone,
   editMessage,
   toggleMessageReaction,
+  suggestCorrection,
+  removeCorrection,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -27,6 +29,14 @@ type MessageData = {
   editedAt: Date | null;
   createdAt: Date;
   reactions: { emoji: string; userId: string }[];
+  corrections: CorrectionData[];
+};
+
+type CorrectionData = {
+  id: string;
+  authorId: string;
+  correctedText: string;
+  author: { name: string | null };
 };
 
 type MemberData = {
@@ -99,6 +109,46 @@ function ReactionBar({
   );
 }
 
+function CorrectionList({
+  corrections,
+  currentUserId,
+  mine,
+  onRemove,
+}: {
+  corrections: CorrectionData[];
+  currentUserId: string;
+  mine: boolean;
+  onRemove: (correctionId: string) => void;
+}) {
+  if (corrections.length === 0) return null;
+
+  return (
+    <div className={cn("mt-1 flex flex-col gap-1", mine ? "items-end" : "items-start")}>
+      {corrections.map((c) => (
+        <div
+          key={c.id}
+          className="max-w-[min(75vw,26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground-soft">{c.author.name ?? "Someone"} suggests</span>
+            {c.authorId === currentUserId && (
+              <button
+                type="button"
+                onClick={() => onRemove(c.id)}
+                aria-label="Remove correction"
+                className="ml-auto text-foreground-soft hover:text-danger"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+          <p className="mt-0.5 whitespace-pre-wrap break-words">{c.correctedText}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   mine,
@@ -108,6 +158,7 @@ function MessageBubble({
   onDeleted,
   onEdited,
   onReacted,
+  onCorrected,
 }: {
   message: MessageData;
   mine: boolean;
@@ -119,19 +170,61 @@ function MessageBubble({
   onDeleted: (messageId: string, mode: "me" | "everyone") => void;
   onEdited: (message: MessageData) => void;
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
+  onCorrected: (messageId: string, corrections: CorrectionData[]) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [editError, setEditError] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState(false);
+  const [correctionDraft, setCorrectionDraft] = useState("");
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+  const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
 
   function toggleReaction(emoji: string) {
     startTransition(async () => {
       const result = await toggleMessageReaction(message.id, emoji);
       if (!result.error) onReacted(message.id, result.reactions);
+    });
+  }
+
+  function openCorrection() {
+    setCorrectionDraft(myCorrection?.correctedText ?? message.content);
+    setCorrectionError(null);
+    setCorrecting(true);
+  }
+
+  function cancelCorrection() {
+    setCorrecting(false);
+    setCorrectionError(null);
+  }
+
+  function saveCorrection() {
+    const text = correctionDraft.trim();
+    if (!text || isPending) return;
+    setCorrectionError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("correctedText", text);
+      const result = await suggestCorrection(message.id, fd);
+      if (result.error || !result.corrections) {
+        setCorrectionError("Couldn't save that suggestion.");
+        return;
+      }
+      onCorrected(message.id, result.corrections);
+      setCorrecting(false);
+    });
+  }
+
+  function handleRemoveCorrection(correctionId: string) {
+    startTransition(async () => {
+      const result = await removeCorrection(correctionId);
+      if (!result.error && result.corrections) {
+        onCorrected(message.id, result.corrections);
+      }
     });
   }
 
@@ -237,6 +330,53 @@ function MessageBubble({
           )}
         </div>
 
+        <CorrectionList
+          corrections={message.corrections}
+          currentUserId={currentUserId}
+          mine={mine}
+          onRemove={handleRemoveCorrection}
+        />
+
+        {correcting && (
+          <div className="mt-1 max-w-[min(75vw,26rem)] rounded-lg border border-line bg-surface p-2">
+            <textarea
+              value={correctionDraft}
+              onChange={(e) => setCorrectionDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  saveCorrection();
+                } else if (e.key === "Escape") {
+                  cancelCorrection();
+                }
+              }}
+              maxLength={4000}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+            />
+            <div className="mt-1 flex items-center justify-end gap-2 text-[11px]">
+              {correctionError && <span className="mr-auto text-danger">{correctionError}</span>}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={cancelCorrection}
+                className="rounded px-2 py-0.5 hover:bg-line"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending || !correctionDraft.trim()}
+                onClick={saveCorrection}
+                className="rounded bg-accent px-2 py-0.5 font-medium text-accent-ink disabled:opacity-50"
+              >
+                Suggest
+              </button>
+            </div>
+          </div>
+        )}
+
         <ReactionBar
           reactions={message.reactions}
           currentUserId={currentUserId}
@@ -263,6 +403,19 @@ function MessageBubble({
                 mine ? "right-0" : "left-0",
               )}
             >
+              {!mine && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openCorrection();
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                >
+                  {myCorrection ? "Edit your correction" : "Suggest a correction"}
+                </button>
+              )}
               {mine && (
                 <button
                   type="button"
@@ -413,6 +566,10 @@ export function ChatThread({
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
   }
 
+  function handleCorrected(messageId: string, corrections: CorrectionData[]) {
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, corrections } : m)));
+  }
+
   const memberNameById = new Map(members.map((m) => [m.userId, m.name]));
   const lastMineIndex = isGroup ? messages.findLastIndex((m) => m.senderId === currentUserId) : -1;
 
@@ -445,6 +602,7 @@ export function ChatThread({
                 onDeleted={handleDeleted}
                 onEdited={handleEdited}
                 onReacted={handleReacted}
+                onCorrected={handleCorrected}
               />
             </div>
           );

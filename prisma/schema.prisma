@@ -131,6 +131,7 @@ model User {
   sentMessages         Message[]            @relation("MessageSender")
   conversations        ConversationMember[]
   messageReactions     MessageReaction[]
+  messageCorrections   MessageCorrection[]
   createdConversations Conversation[]       @relation("ConversationCreator")
   groupJoinRequests    GroupJoinRequest[]
 
@@ -445,11 +446,27 @@ model Message {
   editedAt             DateTime?
   createdAt            DateTime         @default(now())
 
-  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   reactions    MessageReaction[]
+  corrections  MessageCorrection[]
 
   @@index([conversationId])
+}
+
+/** One active correction suggestion per (message, corrector) — resubmitting updates it rather than stacking duplicates. */
+model MessageCorrection {
+  id            String   @id @default(cuid())
+  messageId     String
+  authorId      String
+  correctedText String   @db.Text
+  createdAt     DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, authorId])
+  @@index([messageId])
 }
 
 /** One active emoji reaction per user per message — picking a new emoji replaces it, re-picking the same one removes it. */

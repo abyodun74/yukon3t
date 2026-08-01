@@ -165,6 +165,10 @@ export const groupChatSchema = z.object({
 
 export const groupNameSchema = groupChatSchema.pick({ name: true });
 
+export const correctionSchema = z.object({
+  correctedText: z.string().trim().min(1).max(4000),
+});
+
 export const reportReasonCategoryValues = [
   "SPAM",
   "SCAM_OR_FRAUD",

@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { messageSchema, groupChatSchema, groupNameSchema } from "@/lib/validations";
+import { messageSchema, groupChatSchema, groupNameSchema, correctionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
+const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
 
 /** Creates a group conversation — caller must have an ACCEPTED connection with every selected member. */
 export async function createGroupChat(formData: FormData) {
@@ -221,7 +222,7 @@ export async function sendMessage(formData: FormData) {
 
   const message = await prisma.message.create({
     data: { conversationId, senderId: user.id, content, moderationStatus },
-    include: { reactions: { select: REACTION_SELECT } },
+    include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
   });
 
   revalidatePath(`/messages/${conversationId}`);
@@ -281,7 +282,7 @@ export async function getConversationMessages(conversationId: string) {
       },
       orderBy: { createdAt: "asc" },
       take: 200,
-      include: { reactions: { select: REACTION_SELECT } },
+      include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
     }),
   ]);
 
@@ -339,7 +340,7 @@ export async function editMessage(messageId: string, formData: FormData) {
   const updated = await prisma.message.update({
     where: { id: messageId },
     data: { content, moderationStatus, editedAt: new Date() },
-    include: { reactions: { select: REACTION_SELECT } },
+    include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
   });
 
   revalidatePath(`/messages/${message.conversationId}`);
@@ -390,6 +391,78 @@ export async function toggleMessageReaction(messageId: string, emoji: string) {
 
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null, reactions };
+}
+
+/**
+ * Suggests (or updates your own previously-suggested) correction on someone
+ * else's message — never your own. Each conversation member gets at most
+ * one active correction per message, matching the reaction toggle's shape.
+ */
+export async function suggestCorrection(messageId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    return { error: "not_found" as const };
+  }
+  if (message.senderId === user.id) {
+    return { error: "forbidden" as const };
+  }
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
+  });
+  if (!membership) {
+    return { error: "not_a_member" as const };
+  }
+
+  const parsed = correctionSchema.safeParse({ correctedText: formData.get("correctedText") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { correctedText } = parsed.data;
+
+  const modResult = await moderateText(correctedText);
+  if (!modResult.allowed) {
+    return { error: "moderation" as const };
+  }
+
+  await prisma.messageCorrection.upsert({
+    where: { messageId_authorId: { messageId, authorId: user.id } },
+    create: { messageId, authorId: user.id, correctedText },
+    update: { correctedText },
+  });
+
+  const corrections = await prisma.messageCorrection.findMany({
+    where: { messageId },
+    include: CORRECTION_INCLUDE,
+  });
+
+  revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null, corrections };
+}
+
+/** Author-only: removes a correction you suggested. */
+export async function removeCorrection(correctionId: string) {
+  const user = await requireVerifiedUser();
+
+  const correction = await prisma.messageCorrection.findUnique({ where: { id: correctionId } });
+  if (!correction) {
+    return { error: "not_found" as const };
+  }
+  if (correction.authorId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  const message = await prisma.message.findUnique({ where: { id: correction.messageId } });
+  await prisma.messageCorrection.delete({ where: { id: correctionId } });
+
+  const corrections = await prisma.messageCorrection.findMany({
+    where: { messageId: correction.messageId },
+    include: CORRECTION_INCLUDE,
+  });
+
+  if (message) revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null, corrections };
 }
 
 /** Sender-only: replaces the content with a tombstone visible to both participants. */

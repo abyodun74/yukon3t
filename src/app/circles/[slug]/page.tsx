@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
+import { DeleteCircleButton } from "@/components/delete-circle-button";
 import { PostCard } from "@/components/post-card";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
@@ -43,11 +44,14 @@ export default async function CirclePage({
       </p>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
         <h1 className="min-w-0 text-2xl font-semibold">{circle.name}</h1>
-        <CircleMembershipButton
-          circleId={circle.id}
-          isMember={isMember}
-          isOwner={isOwner}
-        />
+        <div className="flex items-center gap-2">
+          <CircleMembershipButton
+            circleId={circle.id}
+            isMember={isMember}
+            isOwner={isOwner}
+          />
+          {isOwner && <DeleteCircleButton circleId={circle.id} />}
+        </div>
       </div>
       <p className="mt-2 text-sm text-foreground-soft">{circle.description}</p>
       <p className="mt-1 text-xs text-foreground-soft">

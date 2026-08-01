@@ -95,7 +95,10 @@ export default async function ConversationPage({
     },
     orderBy: { createdAt: "asc" },
     take: 200,
-    include: { reactions: { select: { emoji: true, userId: true } } },
+    include: {
+      reactions: { select: { emoji: true, userId: true } },
+      corrections: { include: { author: { select: { id: true, name: true } } } },
+    },
   });
 
   return (

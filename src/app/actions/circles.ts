@@ -87,6 +87,24 @@ export async function leaveCircle(circleId: string) {
   revalidatePath("/circles");
 }
 
+/** Owner-only: deletes the Circle outright — cascades its posts and memberships. */
+export async function deleteCircle(circleId: string) {
+  const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  if (circle.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.circle.delete({ where: { id: circleId } });
+
+  revalidatePath("/circles");
+  redirect("/circles");
+}
+
 export async function createPost(formData: FormData) {
   const user = await requireVerifiedUser();
 
