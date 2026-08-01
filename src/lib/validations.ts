@@ -106,11 +106,21 @@ export const postSchema = z
     mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
+    eventAt: z.coerce.date().optional(),
+    eventLocation: z.string().trim().min(2).max(200).optional(),
   })
-  // A post needs a caption or media — never both empty.
-  .refine((data) => data.content.length > 0 || data.mediaType !== "NONE", {
+  // A post needs a caption, media, or event details — never all three empty.
+  .refine((data) => data.content.length > 0 || data.mediaType !== "NONE" || Boolean(data.eventAt), {
     message: "A post needs a caption or media.",
     path: ["content"],
+  })
+  .refine((data) => !data.eventAt || data.eventAt > new Date(), {
+    message: "Event date must be in the future.",
+    path: ["eventAt"],
+  })
+  .refine((data) => !data.eventAt || Boolean(data.eventLocation), {
+    message: "Events need a location.",
+    path: ["eventLocation"],
   });
 
 export const uploadKindValues = [

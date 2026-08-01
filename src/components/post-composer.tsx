@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImagePlus, Video, X } from "lucide-react";
+import { Calendar, Camera, ImagePlus, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
+import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -14,6 +15,14 @@ const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
+
+// datetime-local inputs want "YYYY-MM-DDTHH:mm" in the viewer's own local
+// time — Date#toISOString() is UTC, so the offset has to be subtracted out
+// by hand rather than just slicing the ISO string.
+function nowForDateTimeLocal() {
+  const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
 
 function errorMessage(code: string) {
   switch (code) {
@@ -44,6 +53,9 @@ export function PostComposer({
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
+  const [isEvent, setIsEvent] = useState(false);
+  const [eventAt, setEventAt] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -167,10 +179,22 @@ export function PostComposer({
       className="rounded-xl border border-line p-4"
       action={(fd) => {
         const content = String(fd.get("content") ?? "").trim();
-        if (!content && images.length === 0 && !video) {
+        if (!content && images.length === 0 && !video && !isEvent) {
           setStatus("error");
-          setErrorText("Write something or attach a photo/video first.");
+          setErrorText("Write something, attach a photo/video, or add event details first.");
           return;
+        }
+        if (isEvent) {
+          if (!eventAt || new Date(eventAt) <= new Date()) {
+            setStatus("error");
+            setErrorText("Pick a future date and time for the event.");
+            return;
+          }
+          if (!eventLocation.trim()) {
+            setStatus("error");
+            setErrorText("Add a location for the event.");
+            return;
+          }
         }
         if (circleId) fd.set("circleId", circleId);
         setStatus("uploading");
@@ -195,6 +219,9 @@ export function PostComposer({
             setStatus("idle");
             setImages([]);
             setVideo(null);
+            setIsEvent(false);
+            setEventAt("");
+            setEventLocation("");
             formRef.current?.reset();
             router.refresh();
           }
@@ -238,6 +265,34 @@ export function PostComposer({
           <button type="button" onClick={() => setVideo(null)} className="text-danger">
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {isEvent && (
+        <div className="mt-2 space-y-2 rounded-lg border border-line p-3">
+          <div>
+            <label className="block text-xs font-medium text-foreground-soft">When</label>
+            <input
+              type="datetime-local"
+              name="eventAt"
+              value={eventAt}
+              onChange={(e) => setEventAt(e.target.value)}
+              min={nowForDateTimeLocal()}
+              className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-soft">Where</label>
+            <input
+              type="text"
+              name="eventLocation"
+              value={eventLocation}
+              onChange={(e) => setEventLocation(e.target.value)}
+              maxLength={200}
+              placeholder="Address, venue, or a video call link"
+              className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
         </div>
       )}
 
@@ -304,6 +359,17 @@ export function PostComposer({
               <Video size={16} />
               <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-danger" />
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEvent((v) => !v)}
+            className={cn(
+              "rounded-lg p-1.5 hover:bg-line",
+              isEvent ? "text-accent" : "text-foreground-soft",
+            )}
+            title={isEvent ? "Remove event details" : "Add event details"}
+          >
+            <Calendar size={16} />
           </button>
           <EmojiPickerButton onSelect={insertEmoji} />
           <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">

@@ -139,9 +139,10 @@ model User {
 
   auditLogEntries AuditLog[] @relation("AuditLogTarget")
 
-  likes    Like[]
-  comments Comment[]
-  shares   Share[]
+  likes     Like[]
+  comments  Comment[]
+  shares    Share[]
+  postRsvps PostRsvp[]
 
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
@@ -213,6 +214,8 @@ model Post {
   videoThumbnailUrl String?
   intentTag         IntentTag?
   moderationStatus  ModerationStatus @default(PUBLISHED)
+  eventAt           DateTime?
+  eventLocation     String?
   createdAt         DateTime         @default(now())
 
   repostOfId String?
@@ -221,6 +224,7 @@ model Post {
   commentCount Int @default(0)
   repostCount  Int @default(0)
   shareCount   Int @default(0)
+  rsvpCount    Int @default(0)
 
   author   User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
   circle   Circle? @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -230,6 +234,7 @@ model Post {
   likes         Like[]
   comments      Comment[]
   shares        Share[]
+  rsvps         PostRsvp[]
   notifications Notification[]
 
   @@unique([authorId, repostOfId])
@@ -271,6 +276,20 @@ model Like {
   @@index([postId])
 }
 
+/** Presence of a row = "going", same one-per-user-per-post shape as Like — no separate status enum. */
+model PostRsvp {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
 model Share {
   id        String   @id @default(cuid())
   userId    String
@@ -290,6 +309,7 @@ enum NotificationType {
   POST_COMMENT
   POST_REPOST
   POST_SHARE
+  EVENT_RSVP
 }
 
 model Notification {

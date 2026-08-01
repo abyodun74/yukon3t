@@ -13,7 +13,8 @@ type NotificationData = {
     | "POST_LIKE"
     | "POST_COMMENT"
     | "POST_REPOST"
-    | "POST_SHARE";
+    | "POST_SHARE"
+    | "EVENT_RSVP";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null };
@@ -34,6 +35,8 @@ function messageFor(type: NotificationData["type"]) {
       return "reposted your post";
     case "POST_SHARE":
       return "shared your post";
+    case "EVENT_RSVP":
+      return "is going to your event";
   }
 }
 

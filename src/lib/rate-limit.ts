@@ -59,6 +59,7 @@ export const rateLimiters = {
   groupChatCreate: makeLimiter(5, "1 h"),
   mediaUpload: makeLimiter(20, "10 m"),
   like: makeLimiter(60, "1 m"),
+  rsvp: makeLimiter(30, "1 m"),
   comment: makeLimiter(20, "5 m"),
   repost: makeLimiter(20, "10 m"),
   share: makeLimiter(20, "5 m"),

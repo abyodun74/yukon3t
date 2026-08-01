@@ -9,11 +9,14 @@ type EmbeddedPostRow = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  eventAt: Date | null;
+  eventLocation: string | null;
   createdAt: Date;
   likeCount: number;
   commentCount: number;
   repostCount: number;
   shareCount: number;
+  rsvpCount: number;
   author: { id: string; name: string | null };
 };
 
@@ -40,7 +43,7 @@ export const postCardInclude = {
 export async function attachViewerState<T extends PostRow>(posts: T[], viewerId: string) {
   const targetIds = [...new Set(posts.map((p) => p.repostOf?.id ?? p.id))];
 
-  const [likes, myReposts] = targetIds.length
+  const [likes, myReposts, myRsvps] = targetIds.length
     ? await Promise.all([
         prisma.like.findMany({
           where: { userId: viewerId, postId: { in: targetIds } },
@@ -50,11 +53,16 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
           where: { authorId: viewerId, repostOfId: { in: targetIds } },
           select: { repostOfId: true },
         }),
+        prisma.postRsvp.findMany({
+          where: { userId: viewerId, postId: { in: targetIds } },
+          select: { postId: true },
+        }),
       ])
-    : [[], []];
+    : [[], [], []];
 
   const likedSet = new Set(likes.map((l) => l.postId));
   const repostedSet = new Set(myReposts.map((r) => r.repostOfId as string));
+  const rsvpGoingSet = new Set(myRsvps.map((r) => r.postId));
 
   return posts.map((post) => {
     const target = post.repostOf ?? post;
@@ -65,14 +73,18 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       mediaUrls: post.mediaUrls,
       videoUrl: post.videoUrl,
       videoThumbnailUrl: post.videoThumbnailUrl,
+      eventAt: post.eventAt,
+      eventLocation: post.eventLocation,
       createdAt: post.createdAt,
       author: post.author,
       likeCount: target.likeCount,
       commentCount: target.commentCount,
       repostCount: target.repostCount,
       shareCount: target.shareCount,
+      rsvpCount: target.rsvpCount,
       likedByMe: likedSet.has(target.id),
       repostedByMe: repostedSet.has(target.id),
+      rsvpGoingByMe: rsvpGoingSet.has(target.id),
       repostOf: post.repostOf,
     };
   });

@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Heart, Maximize2, MessageSquare, Repeat2, Share2 } from "lucide-react";
+import { Calendar, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { toggleLike } from "@/app/actions/likes";
+import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
 import { recordShare } from "@/app/actions/shares";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ type EmbeddedPost = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  eventAt: Date | null;
+  eventLocation: string | null;
   createdAt: Date;
   author: { id: string; name: string | null };
 };
@@ -29,10 +32,64 @@ type PostCardData = EmbeddedPost & {
   commentCount: number;
   repostCount: number;
   shareCount: number;
+  rsvpCount: number;
   likedByMe: boolean;
   repostedByMe: boolean;
+  rsvpGoingByMe: boolean;
   repostOf: EmbeddedPost | null;
 };
+
+function EventBlock({
+  post,
+  going,
+  rsvpCount,
+  isPending,
+  onToggle,
+}: {
+  post: EmbeddedPost;
+  going: boolean;
+  rsvpCount: number;
+  isPending: boolean;
+  onToggle: () => void;
+}) {
+  if (!post.eventAt) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-background px-3 py-2">
+      <div className="text-xs text-foreground-soft">
+        <div className="flex items-center gap-1.5">
+          <Calendar size={13} />
+          <span>
+            {post.eventAt.toLocaleString([], {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+        {post.eventLocation && (
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <MapPin size={13} />
+            <span>{post.eventLocation}</span>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={onToggle}
+        className={cn(
+          "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
+          going ? "bg-success text-white" : "bg-accent text-accent-ink",
+        )}
+      >
+        {going ? "Going ✓" : "I'm going"}
+        {rsvpCount > 0 && <span className="ml-1.5 opacity-80">{rsvpCount}</span>}
+      </button>
+    </div>
+  );
+}
 
 function MediaBlock({
   post,
@@ -120,12 +177,15 @@ export function PostCard({
   const [reposted, setReposted] = useState(post.repostedByMe);
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [shareCount, setShareCount] = useState(post.shareCount);
+  const [going, setGoing] = useState(post.rsvpGoingByMe);
+  const [rsvpCount, setRsvpCount] = useState(post.rsvpCount);
   const [copied, setCopied] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxVideo, setLightboxVideo] = useState(false);
   const [isLikePending, startLikeTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
   const [isSharePending, startShareTransition] = useTransition();
+  const [isRsvpPending, startRsvpTransition] = useTransition();
 
   function handleLike() {
     const nextLiked = !liked;
@@ -136,6 +196,19 @@ export function PostCard({
       if (result.error) {
         setLiked(!nextLiked);
         setLikeCount((c) => c + (nextLiked ? -1 : 1));
+      }
+    });
+  }
+
+  function handleRsvp() {
+    const nextGoing = !going;
+    setGoing(nextGoing);
+    setRsvpCount((c) => c + (nextGoing ? 1 : -1));
+    startRsvpTransition(async () => {
+      const result = await toggleRsvp(interactionTargetId);
+      if (result.error) {
+        setGoing(!nextGoing);
+        setRsvpCount((c) => c + (nextGoing ? -1 : 1));
       }
     });
   }
@@ -211,6 +284,14 @@ export function PostCard({
           {post.content}
         </p>
       )}
+
+      <EventBlock
+        post={displayPost}
+        going={going}
+        rsvpCount={rsvpCount}
+        isPending={isRsvpPending}
+        onToggle={handleRsvp}
+      />
 
       <MediaBlock
         post={displayPost}

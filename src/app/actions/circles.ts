@@ -105,11 +105,13 @@ export async function createPost(formData: FormData) {
     mediaUrls: mediaUrlsRaw ? JSON.parse(String(mediaUrlsRaw)) : [],
     videoUrl: formData.get("videoUrl") || undefined,
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
+    eventAt: formData.get("eventAt") || undefined,
+    eventLocation: formData.get("eventLocation") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" };
   }
-  const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl } = parsed.data;
+  const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, eventAt, eventLocation } = parsed.data;
 
   if (parsed.data.circleId) {
     const membership = await prisma.circleMembership.findUnique({
@@ -199,6 +201,8 @@ export async function createPost(formData: FormData) {
       mediaUrls: mediaType === "IMAGE" ? mediaUrls : [],
       videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
       videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
+      eventAt,
+      eventLocation,
       moderationStatus,
     },
   });
