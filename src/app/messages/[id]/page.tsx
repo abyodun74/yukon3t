@@ -5,6 +5,7 @@ import { ChatThread } from "@/components/chat-thread";
 import { BackButton } from "@/components/back-button";
 import { CallButton } from "@/components/call-button";
 import { CopyInviteLinkButton } from "@/components/copy-invite-link-button";
+import { GroupNameEditor } from "@/components/group-name-editor";
 import { LeaveGroupButton } from "@/components/leave-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
@@ -100,9 +101,17 @@ export default async function ConversationPage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <BackButton fallbackHref="/messages" />
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{conversationLabel}</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
+        {conversation.isGroup ? (
+          <GroupNameEditor
+            conversationId={id}
+            name={conversationLabel}
+            canEdit={conversation.createdById === me.id}
+          />
+        ) : (
+          <h1 className="text-lg font-semibold">{conversationLabel}</h1>
+        )}
+        <div className="flex shrink-0 items-center gap-2">
           {!conversation.isGroup && other && (
             <CallButton calleeId={other.id} calleeName={other.name ?? "them"} />
           )}

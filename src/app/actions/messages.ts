@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { messageSchema, groupChatSchema } from "@/lib/validations";
+import { messageSchema, groupChatSchema, groupNameSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -62,6 +62,36 @@ export async function createGroupChat(formData: FormData) {
 
   revalidatePath("/messages");
   redirect(`/messages/${conversation.id}`);
+}
+
+/** Creator-only: renames a group after creation. */
+export async function renameGroupChat(conversationId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+  if (conversation.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  const parsed = groupNameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { name } = parsed.data;
+
+  const modResult = await moderateText(name);
+  if (!modResult.allowed) {
+    return { error: "moderation" as const };
+  }
+
+  await prisma.conversation.update({ where: { id: conversationId }, data: { name } });
+
+  revalidatePath(`/messages/${conversationId}`);
+  revalidatePath("/messages");
+  return { error: null, name };
 }
 
 /** Removes the caller from a group; deletes the conversation entirely once nobody is left in it. */
