@@ -128,8 +128,9 @@ model User {
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
 
-  sentMessages  Message[]            @relation("MessageSender")
-  conversations ConversationMember[]
+  sentMessages     Message[]            @relation("MessageSender")
+  conversations    ConversationMember[]
+  messageReactions MessageReaction[]
 
   reportsFiled    Report[] @relation("ReportsFiled")
   reportsReceived Report[] @relation("ReportsReceived")
@@ -395,10 +396,26 @@ model Message {
   editedAt             DateTime?
   createdAt            DateTime         @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
 
   @@index([conversationId])
+}
+
+/** One active emoji reaction per user per message — picking a new emoji replaces it, re-picking the same one removes it. */
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
 }
 
 enum ReportTargetType {

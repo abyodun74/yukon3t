@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
+import { isEmojiOnly } from "@/lib/emoji";
+
+const REACTION_SELECT = { emoji: true, userId: true } as const;
 
 export async function sendMessage(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -38,6 +41,7 @@ export async function sendMessage(formData: FormData) {
 
   const message = await prisma.message.create({
     data: { conversationId, senderId: user.id, content, moderationStatus },
+    include: { reactions: { select: REACTION_SELECT } },
   });
 
   revalidatePath(`/messages/${conversationId}`);
@@ -79,6 +83,7 @@ export async function getConversationMessages(conversationId: string) {
     },
     orderBy: { createdAt: "asc" },
     take: 200,
+    include: { reactions: { select: REACTION_SELECT } },
   });
 
   return { error: null, messages };
@@ -135,10 +140,57 @@ export async function editMessage(messageId: string, formData: FormData) {
   const updated = await prisma.message.update({
     where: { id: messageId },
     data: { content, moderationStatus, editedAt: new Date() },
+    include: { reactions: { select: REACTION_SELECT } },
   });
 
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null, message: updated };
+}
+
+/**
+ * Toggles the caller's reaction on a message: picking the emoji they
+ * already reacted with removes it, picking a different one replaces it —
+ * each user gets at most one active reaction per message.
+ */
+export async function toggleMessageReaction(messageId: string, emoji: string) {
+  const user = await requireVerifiedUser();
+
+  if (!isEmojiOnly(emoji, 1)) {
+    return { error: "invalid" as const };
+  }
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    return { error: "not_found" as const };
+  }
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
+  });
+  if (!membership) {
+    return { error: "not_a_member" as const };
+  }
+
+  const existing = await prisma.messageReaction.findUnique({
+    where: { messageId_userId: { messageId, userId: user.id } },
+  });
+
+  if (existing?.emoji === emoji) {
+    await prisma.messageReaction.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.messageReaction.upsert({
+      where: { messageId_userId: { messageId, userId: user.id } },
+      create: { messageId, userId: user.id, emoji },
+      update: { emoji },
+    });
+  }
+
+  const reactions = await prisma.messageReaction.findMany({
+    where: { messageId },
+    select: REACTION_SELECT,
+  });
+
+  revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null, reactions };
 }
 
 /** Sender-only: replaces the content with a tombstone visible to both participants. */

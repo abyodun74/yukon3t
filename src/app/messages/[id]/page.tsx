@@ -42,6 +42,7 @@ export default async function ConversationPage({
     },
     orderBy: { createdAt: "asc" },
     take: 200,
+    include: { reactions: { select: { emoji: true, userId: true } } },
   });
 
   return (

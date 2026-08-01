@@ -8,6 +8,7 @@ import {
   deleteMessageForMe,
   deleteMessageForEveryone,
   editMessage,
+  toggleMessageReaction,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -25,6 +26,7 @@ type MessageData = {
   deletedForEveryoneAt: Date | null;
   editedAt: Date | null;
   createdAt: Date;
+  reactions: { emoji: string; userId: string }[];
 };
 
 function ReceiptIcon({ message }: { message: MessageData }) {
@@ -41,16 +43,61 @@ function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function ReactionBar({
+  reactions,
+  currentUserId,
+  mine,
+  onToggle,
+}: {
+  reactions: { emoji: string; userId: string }[];
+  currentUserId: string;
+  mine: boolean;
+  onToggle: (emoji: string) => void;
+}) {
+  if (reactions.length === 0) return null;
+
+  const grouped = new Map<string, string[]>();
+  for (const r of reactions) {
+    grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r.userId]);
+  }
+
+  return (
+    <div className={cn("mt-1 flex flex-wrap gap-1", mine ? "justify-end" : "justify-start")}>
+      {[...grouped.entries()].map(([emoji, userIds]) => {
+        const mineReacted = userIds.includes(currentUserId);
+        return (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => onToggle(emoji)}
+            className={cn(
+              "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs",
+              mineReacted ? "border-accent bg-accent/10" : "border-line bg-surface hover:bg-line",
+            )}
+          >
+            <span>{emoji}</span>
+            {userIds.length > 1 && <span className="text-[10px] text-foreground-soft">{userIds.length}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   mine,
+  currentUserId,
   onDeleted,
   onEdited,
+  onReacted,
 }: {
   message: MessageData;
   mine: boolean;
+  currentUserId: string;
   onDeleted: (messageId: string, mode: "me" | "everyone") => void;
   onEdited: (message: MessageData) => void;
+  onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -59,6 +106,13 @@ function MessageBubble({
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+
+  function toggleReaction(emoji: string) {
+    startTransition(async () => {
+      const result = await toggleMessageReaction(message.id, emoji);
+      if (!result.error) onReacted(message.id, result.reactions);
+    });
+  }
 
   function saveEdit() {
     const text = draft.trim();
@@ -153,8 +207,21 @@ function MessageBubble({
         </div>
       </div>
 
+      <ReactionBar
+        reactions={message.reactions}
+        currentUserId={currentUserId}
+        mine={mine}
+        onToggle={toggleReaction}
+      />
+
       {!deleted && !editing && (
-        <div className={cn("absolute top-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100", mine ? "-left-7" : "-right-7")}>
+        <div
+          className={cn(
+            "absolute top-1 flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100",
+            mine ? "-left-16" : "-right-16",
+          )}
+        >
+          <EmojiPickerButton onSelect={toggleReaction} />
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
@@ -302,6 +369,10 @@ export function ChatThread({
     setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
   }
 
+  function handleReacted(messageId: string, reactions: { emoji: string; userId: string }[]) {
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
@@ -314,7 +385,14 @@ export function ChatThread({
               key={m.id}
               className={cn("flex", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-3")}
             >
-              <MessageBubble message={m} mine={mine} onDeleted={handleDeleted} onEdited={handleEdited} />
+              <MessageBubble
+                message={m}
+                mine={mine}
+                currentUserId={currentUserId}
+                onDeleted={handleDeleted}
+                onEdited={handleEdited}
+                onReacted={handleReacted}
+              />
             </div>
           );
         })}

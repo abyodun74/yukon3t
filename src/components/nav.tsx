@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, MessageCircle, User } from "lucide-react";
@@ -10,6 +10,38 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+
+const UNREAD_MESSAGES_POLL_MS = 25_000;
+
+/** Polls how many conversations have an unread message, for the Messages nav badge. */
+function useUnreadMessagesCount(enabled: boolean) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+
+    async function fetchCount() {
+      try {
+        const res = await fetch("/api/messages/unread-count");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setCount(data.count ?? 0);
+      } catch {
+        // A failed poll should not be visible to the user — try again next tick.
+      }
+    }
+
+    fetchCount();
+    const interval = setInterval(fetchCount, UNREAD_MESSAGES_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [enabled]);
+
+  return count;
+}
 
 function navLinks(userId: string) {
   return [
@@ -41,6 +73,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   const pathname = usePathname();
   const links = session?.user ? navLinks(session.user.id) : [];
   const tabs = session?.user ? bottomTabs(session.user.id) : [];
+  const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
 
   return (
     <>
@@ -61,11 +94,16 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "hover:text-accent",
+                    "relative hover:text-accent",
                     pathname === link.href && "text-accent",
                   )}
                 >
                   {link.label}
+                  {link.href === "/messages" && unreadMessages > 0 && (
+                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>
@@ -192,7 +230,14 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   active ? "text-accent" : "text-foreground-soft",
                 )}
               >
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                <span className="relative">
+                  <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                  {tab.href === "/messages" && unreadMessages > 0 && (
+                    <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
+                </span>
                 {tab.label}
               </Link>
             );
