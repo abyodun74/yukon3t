@@ -7,6 +7,7 @@ import {
   getConversationMessages,
   deleteMessageForMe,
   deleteMessageForEveryone,
+  editMessage,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -22,6 +23,7 @@ type MessageData = {
   deliveredAt: Date | null;
   readAt: Date | null;
   deletedForEveryoneAt: Date | null;
+  editedAt: Date | null;
   createdAt: Date;
 };
 
@@ -43,15 +45,37 @@ function MessageBubble({
   message,
   mine,
   onDeleted,
+  onEdited,
 }: {
   message: MessageData;
   mine: boolean;
   onDeleted: (messageId: string, mode: "me" | "everyone") => void;
+  onEdited: (message: MessageData) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(message.content);
+  const [editError, setEditError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
-  const bigEmoji = !deleted && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+  const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+
+  function saveEdit() {
+    const text = draft.trim();
+    if (!text || isPending) return;
+    setEditError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("content", text);
+      const result = await editMessage(message.id, fd);
+      if (result.error || !result.message) {
+        setEditError("Couldn't save that edit.");
+        return;
+      }
+      onEdited(result.message as MessageData);
+      setEditing(false);
+    });
+  }
 
   return (
     <div className="group relative">
@@ -65,6 +89,53 @@ function MessageBubble({
           <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
             This message was deleted
           </p>
+        ) : editing ? (
+          <div className="space-y-1">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  saveEdit();
+                } else if (e.key === "Escape") {
+                  setEditing(false);
+                  setDraft(message.content);
+                  setEditError(null);
+                }
+              }}
+              maxLength={4000}
+              rows={2}
+              autoFocus
+              className={cn(
+                "w-full resize-none rounded-lg bg-black/10 px-2 py-1 text-sm outline-none",
+                mine ? "text-accent-ink" : "text-foreground",
+              )}
+            />
+            <div className="flex items-center justify-end gap-2 text-[11px]">
+              {editError && <span className="mr-auto text-danger">{editError}</span>}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  setEditing(false);
+                  setDraft(message.content);
+                  setEditError(null);
+                }}
+                className="rounded px-2 py-0.5 hover:bg-black/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending || !draft.trim()}
+                onClick={saveEdit}
+                className="rounded bg-black/10 px-2 py-0.5 font-medium disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         ) : (
           <p className={cn("whitespace-pre-wrap break-words", bigEmoji && "text-3xl leading-none")}>
             {message.moderationStatus === "PUBLISHED" ? message.content : "This message is under review."}
@@ -76,12 +147,13 @@ function MessageBubble({
             mine ? "text-accent-ink/70" : "text-foreground-soft",
           )}
         >
+          {!deleted && message.editedAt && <span>Edited</span>}
           <span>{formatTime(message.createdAt)}</span>
           {mine && <ReceiptIcon message={message} />}
         </div>
       </div>
 
-      {!deleted && (
+      {!deleted && !editing && (
         <div className={cn("absolute top-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100", mine ? "-left-7" : "-right-7")}>
           <button
             type="button"
@@ -98,6 +170,21 @@ function MessageBubble({
                 mine ? "left-0" : "right-0",
               )}
             >
+              {mine && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setDraft(message.content);
+                    setEditError(null);
+                    setEditing(true);
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 type="button"
                 disabled={isPending}
@@ -211,6 +298,10 @@ export function ChatThread({
     );
   }
 
+  function handleEdited(updated: MessageData) {
+    setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
@@ -223,7 +314,7 @@ export function ChatThread({
               key={m.id}
               className={cn("flex", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-3")}
             >
-              <MessageBubble message={m} mine={mine} onDeleted={handleDeleted} />
+              <MessageBubble message={m} mine={mine} onDeleted={handleDeleted} onEdited={handleEdited} />
             </div>
           );
         })}

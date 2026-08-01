@@ -392,6 +392,7 @@ model Message {
   readAt               DateTime?
   deletedForEveryoneAt DateTime?
   deletedForUserIds    String[]         @default([])
+  editedAt             DateTime?
   createdAt            DateTime         @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

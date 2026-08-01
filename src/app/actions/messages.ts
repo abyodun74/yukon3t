@@ -108,6 +108,39 @@ export async function deleteMessageForMe(messageId: string) {
   return { error: null };
 }
 
+/** Sender-only: updates the content of a still-live message and stamps editedAt. */
+export async function editMessage(messageId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = messageSchema.safeParse({ content: formData.get("content") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { content } = parsed.data;
+
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    return { error: "not_found" as const };
+  }
+  if (message.senderId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+  if (message.deletedForEveryoneAt) {
+    return { error: "deleted" as const };
+  }
+
+  const modResult = await moderateText(content);
+  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+
+  const updated = await prisma.message.update({
+    where: { id: messageId },
+    data: { content, moderationStatus, editedAt: new Date() },
+  });
+
+  revalidatePath(`/messages/${message.conversationId}`);
+  return { error: null, message: updated };
+}
+
 /** Sender-only: replaces the content with a tombstone visible to both participants. */
 export async function deleteMessageForEveryone(messageId: string) {
   const user = await requireVerifiedUser();
