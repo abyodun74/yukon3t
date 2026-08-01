@@ -132,95 +132,92 @@ function MessageBubble({
   }
 
   return (
-    <div className="group relative">
-      <div
-        className={cn(
-          "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-          mine ? "bg-accent text-accent-ink" : "bg-surface",
-        )}
-      >
-        {deleted ? (
-          <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
-            This message was deleted
-          </p>
-        ) : editing ? (
-          <div className="space-y-1">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  saveEdit();
-                } else if (e.key === "Escape") {
-                  setEditing(false);
-                  setDraft(message.content);
-                  setEditError(null);
-                }
-              }}
-              maxLength={4000}
-              rows={2}
-              autoFocus
-              className={cn(
-                "w-full resize-none rounded-lg bg-black/10 px-2 py-1 text-sm outline-none",
-                mine ? "text-accent-ink" : "text-foreground",
-              )}
-            />
-            <div className="flex items-center justify-end gap-2 text-[11px]">
-              {editError && <span className="mr-auto text-danger">{editError}</span>}
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => {
-                  setEditing(false);
-                  setDraft(message.content);
-                  setEditError(null);
-                }}
-                className="rounded px-2 py-0.5 hover:bg-black/10"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isPending || !draft.trim()}
-                onClick={saveEdit}
-                className="rounded bg-black/10 px-2 py-0.5 font-medium disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className={cn("whitespace-pre-wrap break-words", bigEmoji && "text-3xl leading-none")}>
-            {message.moderationStatus === "PUBLISHED" ? message.content : "This message is under review."}
-          </p>
-        )}
+    <div className={cn("flex items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
+      <div className="min-w-0">
         <div
           className={cn(
-            "mt-1 flex items-center justify-end gap-1 text-[10px]",
-            mine ? "text-accent-ink/70" : "text-foreground-soft",
+            "max-w-[min(75vw,26rem)] rounded-2xl px-3 py-2 text-sm",
+            mine ? "bg-accent text-accent-ink" : "bg-surface",
           )}
         >
-          {!deleted && message.editedAt && <span>Edited</span>}
-          <span>{formatTime(message.createdAt)}</span>
-          {mine && <ReceiptIcon message={message} />}
+          {deleted ? (
+            <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+              This message was deleted
+            </p>
+          ) : editing ? (
+            <div className="space-y-1">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    saveEdit();
+                  } else if (e.key === "Escape") {
+                    setEditing(false);
+                    setDraft(message.content);
+                    setEditError(null);
+                  }
+                }}
+                maxLength={4000}
+                rows={2}
+                autoFocus
+                className={cn(
+                  "w-full resize-none rounded-lg bg-black/10 px-2 py-1 text-sm outline-none",
+                  mine ? "text-accent-ink" : "text-foreground",
+                )}
+              />
+              <div className="flex items-center justify-end gap-2 text-[11px]">
+                {editError && <span className="mr-auto text-danger">{editError}</span>}
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setEditing(false);
+                    setDraft(message.content);
+                    setEditError(null);
+                  }}
+                  className="rounded px-2 py-0.5 hover:bg-black/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isPending || !draft.trim()}
+                  onClick={saveEdit}
+                  className="rounded bg-black/10 px-2 py-0.5 font-medium disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className={cn("whitespace-pre-wrap break-words", bigEmoji && "text-3xl leading-none")}>
+              {message.moderationStatus === "PUBLISHED" ? message.content : "This message is under review."}
+            </p>
+          )}
+          <div
+            className={cn(
+              "mt-1 flex items-center justify-end gap-1 text-[10px]",
+              mine ? "text-accent-ink/70" : "text-foreground-soft",
+            )}
+          >
+            {!deleted && message.editedAt && <span>Edited</span>}
+            <span>{formatTime(message.createdAt)}</span>
+            {mine && <ReceiptIcon message={message} />}
+          </div>
         </div>
+
+        <ReactionBar
+          reactions={message.reactions}
+          currentUserId={currentUserId}
+          mine={mine}
+          onToggle={toggleReaction}
+        />
       </div>
 
-      <ReactionBar
-        reactions={message.reactions}
-        currentUserId={currentUserId}
-        mine={mine}
-        onToggle={toggleReaction}
-      />
-
       {!deleted && !editing && (
-        <div
-          className={cn(
-            "absolute top-1 flex items-center opacity-0 focus-within:opacity-100 group-hover:opacity-100",
-            mine ? "-left-16" : "-right-16",
-          )}
-        >
+        <div className="relative flex shrink-0 items-center pb-1">
           <EmojiPickerButton onSelect={toggleReaction} />
           <button
             type="button"
@@ -234,7 +231,7 @@ function MessageBubble({
             <div
               className={cn(
                 "absolute top-full z-20 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
-                mine ? "left-0" : "right-0",
+                mine ? "right-0" : "left-0",
               )}
             >
               {mine && (
