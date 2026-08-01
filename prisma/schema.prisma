@@ -365,6 +365,8 @@ model Connection {
 
 model Conversation {
   id        String   @id @default(cuid())
+  isGroup   Boolean  @default(false)
+  name      String?
   createdAt DateTime @default(now())
 
   members  ConversationMember[]
@@ -372,10 +374,11 @@ model Conversation {
 }
 
 model ConversationMember {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   userId         String
-  joinedAt       DateTime @default(now())
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

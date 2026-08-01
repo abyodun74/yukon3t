@@ -21,12 +21,22 @@ export default async function ConversationPage({
   const conversation = await prisma.conversation.findUnique({
     where: { id },
     include: {
-      members: { include: { user: { select: { id: true, name: true } } } },
+      members: {
+        include: { user: { select: { id: true, name: true } } },
+      },
     },
   });
   if (!conversation) notFound();
 
   const other = conversation.members.find((m) => m.user.id !== me.id)?.user;
+  const conversationLabel = conversation.isGroup
+    ? (conversation.name ?? "Group")
+    : (other?.name ?? "Conversation");
+  const members = conversation.members.map((m) => ({
+    userId: m.user.id,
+    name: m.user.name ?? "Unknown",
+    lastReadAt: m.lastReadAt,
+  }));
 
   // Deliberately a plain read, no delivered/read mutation here: Next.js
   // prefetches <Link> targets that are merely visible in a list (e.g. the
@@ -49,15 +59,19 @@ export default async function ConversationPage({
     <div className="mx-auto max-w-2xl px-4 py-6">
       <BackButton fallbackHref="/messages" />
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{other?.name ?? "Conversation"}</h1>
-        {other && <CallButton calleeId={other.id} calleeName={other.name ?? "them"} />}
+        <h1 className="text-lg font-semibold">{conversationLabel}</h1>
+        {!conversation.isGroup && other && (
+          <CallButton calleeId={other.id} calleeName={other.name ?? "them"} />
+        )}
       </div>
       <div className="mt-4">
         <ChatThread
           conversationId={id}
           initialMessages={messages}
           currentUserId={me.id}
-          otherUserName={other?.name ?? "them"}
+          isGroup={conversation.isGroup}
+          conversationLabel={conversationLabel}
+          members={members}
         />
       </div>
     </div>

@@ -1,14 +1,67 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { messageSchema } from "@/lib/validations";
+import { messageSchema, groupChatSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
+
+/** Creates a group conversation — caller must have an ACCEPTED connection with every selected member. */
+export async function createGroupChat(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("groupChatCreate", user.id);
+  if (!allowed) {
+    redirect("/messages/new?error=rate_limited");
+  }
+
+  const parsed = groupChatSchema.safeParse({
+    name: formData.get("name"),
+    memberIds: formData.getAll("memberIds"),
+  });
+  if (!parsed.success) {
+    redirect("/messages/new?error=invalid");
+  }
+  const { name, memberIds } = parsed.data;
+
+  const acceptedCount = await prisma.connection.count({
+    where: {
+      status: "ACCEPTED",
+      OR: memberIds.map((id) => ({
+        OR: [
+          { requesterId: user.id, targetId: id },
+          { requesterId: id, targetId: user.id },
+        ],
+      })),
+    },
+  });
+  if (acceptedCount !== memberIds.length) {
+    redirect("/messages/new?error=invalid");
+  }
+
+  const modResult = await moderateText(name);
+  if (!modResult.allowed) {
+    redirect("/messages/new?error=moderation");
+  }
+
+  const conversation = await prisma.conversation.create({
+    data: {
+      isGroup: true,
+      name,
+      members: {
+        create: [{ userId: user.id }, ...memberIds.map((id) => ({ userId: id }))],
+      },
+    },
+  });
+
+  revalidatePath("/messages");
+  redirect(`/messages/${conversation.id}`);
+}
 
 export async function sendMessage(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -62,7 +115,7 @@ export async function getConversationMessages(conversationId: string) {
     where: { conversationId_userId: { conversationId, userId: user.id } },
   });
   if (!membership) {
-    return { error: "not_a_member" as const, messages: [] };
+    return { error: "not_a_member" as const, messages: [], conversation: null };
   }
 
   const now = new Date();
@@ -74,19 +127,38 @@ export async function getConversationMessages(conversationId: string) {
     where: { conversationId, senderId: { not: user.id }, readAt: null },
     data: { readAt: now },
   });
-
-  const messages = await prisma.message.findMany({
-    where: {
-      conversationId,
-      moderationStatus: { not: "REMOVED" },
-      NOT: { deletedForUserIds: { has: user.id } },
-    },
-    orderBy: { createdAt: "asc" },
-    take: 200,
-    include: { reactions: { select: REACTION_SELECT } },
+  // Member-level "I've seen up to here" marker — drives read-receipt display
+  // and unread detection for groups, where a single shared readAt on the
+  // message can't represent partial read status across N people.
+  await prisma.conversationMember.update({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+    data: { lastReadAt: now },
   });
 
-  return { error: null, messages };
+  const [conversation, messages] = await Promise.all([
+    prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        isGroup: true,
+        name: true,
+        members: {
+          select: { userId: true, lastReadAt: true, user: { select: { id: true, name: true } } },
+        },
+      },
+    }),
+    prisma.message.findMany({
+      where: {
+        conversationId,
+        moderationStatus: { not: "REMOVED" },
+        NOT: { deletedForUserIds: { has: user.id } },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+      include: { reactions: { select: REACTION_SELECT } },
+    }),
+  ]);
+
+  return { error: null, messages, conversation };
 }
 
 /** Hides this message for the caller only — the other participant still sees it normally. */

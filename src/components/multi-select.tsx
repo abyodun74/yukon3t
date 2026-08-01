@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type Option = { value: string; label: string };
+
+function normalizeOption(o: string | Option): Option {
+  return typeof o === "string" ? { value: o, label: o } : o;
+}
+
 export function MultiSelect({
   name,
   options,
@@ -12,7 +18,7 @@ export function MultiSelect({
   max,
 }: {
   name: string;
-  options: readonly string[];
+  options: readonly (string | Option)[];
   defaultValues?: string[];
   placeholder?: string;
   max?: number;
@@ -21,6 +27,12 @@ export function MultiSelect({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const normalizedOptions = useMemo(() => options.map(normalizeOption), [options]);
+  const labelByValue = useMemo(
+    () => new Map(normalizedOptions.map((o) => [o.value, o.label])),
+    [normalizedOptions],
+  );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -34,10 +46,10 @@ export function MultiSelect({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return options.filter(
-      (o) => !selected.includes(o) && (q === "" || o.toLowerCase().includes(q)),
+    return normalizedOptions.filter(
+      (o) => !selected.includes(o.value) && (q === "" || o.label.toLowerCase().includes(q)),
     );
-  }, [options, selected, query]);
+  }, [normalizedOptions, selected, query]);
 
   const atMax = typeof max === "number" && selected.length >= max;
 
@@ -69,7 +81,7 @@ export function MultiSelect({
             key={value}
             className="flex items-center gap-1 rounded-full bg-teal/10 px-2 py-0.5 text-xs text-teal"
           >
-            {value}
+            {labelByValue.get(value) ?? value}
             <button
               type="button"
               onClick={(e) => {
@@ -101,14 +113,14 @@ export function MultiSelect({
           ) : (
             filtered.slice(0, 40).map((option) => (
               <button
-                key={option}
+                key={option.value}
                 type="button"
-                onClick={() => add(option)}
+                onClick={() => add(option.value)}
                 className={cn(
                   "block w-full px-3 py-2 text-left text-sm hover:bg-line",
                 )}
               >
-                {option}
+                {option.label}
               </button>
             ))
           )}

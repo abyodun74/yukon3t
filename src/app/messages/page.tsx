@@ -7,35 +7,40 @@ import { cn } from "@/lib/utils";
 export default async function MessagesPage() {
   const me = await getOnboardedUserOrRedirect();
 
-  const [conversations, unreadMessages] = await Promise.all([
-    prisma.conversation.findMany({
-      where: { members: { some: { userId: me.id } } },
-      include: {
-        members: { include: { user: { select: { id: true, name: true } } } },
-        messages: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.message.findMany({
-      where: {
-        conversation: { members: { some: { userId: me.id } } },
-        senderId: { not: me.id },
-        readAt: null,
-      },
-      select: { conversationId: true },
-    }),
-  ]);
-  const unreadConversationIds = new Set(unreadMessages.map((m) => m.conversationId));
+  const conversations = await prisma.conversation.findMany({
+    where: { members: { some: { userId: me.id } } },
+    include: {
+      members: { include: { user: { select: { id: true, name: true } } } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <MarkDelivered />
-      <h1 className="text-2xl font-semibold">Messages</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Messages</h1>
+        <Link
+          href="/messages/new"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+        >
+          New group
+        </Link>
+      </div>
       <div className="mt-6 space-y-2">
         {conversations.map((c) => {
+          const myMembership = c.members.find((m) => m.user.id === me.id);
           const other = c.members.find((m) => m.user.id !== me.id)?.user;
+          const label = c.isGroup
+            ? (c.name ?? "Group")
+            : (other?.name ?? "Unknown");
           const last = c.messages[0];
-          const unread = unreadConversationIds.has(c.id);
+          const unread = Boolean(
+            last &&
+              last.senderId !== me.id &&
+              (!myMembership?.lastReadAt || last.createdAt > myMembership.lastReadAt),
+          );
           return (
             <Link
               key={c.id}
@@ -43,9 +48,7 @@ export default async function MessagesPage() {
               className="flex items-center justify-between rounded-xl border border-line p-4 hover:border-accent"
             >
               <div>
-                <p className={cn("font-medium", unread && "font-semibold")}>
-                  {other?.name ?? "Unknown"}
-                </p>
+                <p className={cn("font-medium", unread && "font-semibold")}>{label}</p>
                 {last && (
                   <p
                     className={cn(

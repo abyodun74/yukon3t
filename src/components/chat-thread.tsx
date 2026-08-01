@@ -29,6 +29,21 @@ type MessageData = {
   reactions: { emoji: string; userId: string }[];
 };
 
+type MemberData = {
+  userId: string;
+  name: string;
+  lastReadAt: Date | null;
+};
+
+const SEEN_BY_NAME_LIMIT = 3;
+
+function seenByLabel(names: string[]) {
+  if (names.length === 0) return "Sent";
+  const shown = names.slice(0, SEEN_BY_NAME_LIMIT).join(", ");
+  const rest = names.length - SEEN_BY_NAME_LIMIT;
+  return `Seen by ${shown}${rest > 0 ? ` +${rest} more` : ""}`;
+}
+
 function ReceiptIcon({ message }: { message: MessageData }) {
   if (message.readAt) {
     return <CheckCheck size={13} className="text-sky-400" />;
@@ -88,6 +103,8 @@ function MessageBubble({
   message,
   mine,
   currentUserId,
+  senderName,
+  seenByNames,
   onDeleted,
   onEdited,
   onReacted,
@@ -95,6 +112,10 @@ function MessageBubble({
   message: MessageData;
   mine: boolean;
   currentUserId: string;
+  /** Group chats only: the sender's name, shown above the bubble for non-own messages not grouped with the previous one. */
+  senderName?: string;
+  /** Group chats only: passed for the sender's own most recent message, to render "Seen by ..." in place of the DM checkmark. */
+  seenByNames?: string[];
   onDeleted: (messageId: string, mode: "me" | "everyone") => void;
   onEdited: (message: MessageData) => void;
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
@@ -134,6 +155,9 @@ function MessageBubble({
   return (
     <div className={cn("flex items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
       <div className="min-w-0">
+        {senderName && (
+          <p className="mb-0.5 px-1 text-xs font-medium text-foreground-soft">{senderName}</p>
+        )}
         <div
           className={cn(
             "max-w-[min(75vw,26rem)] rounded-2xl px-3 py-2 text-sm",
@@ -204,8 +228,13 @@ function MessageBubble({
           >
             {!deleted && message.editedAt && <span>Edited</span>}
             <span>{formatTime(message.createdAt)}</span>
-            {mine && <ReceiptIcon message={message} />}
+            {mine && seenByNames === undefined && <ReceiptIcon message={message} />}
           </div>
+          {mine && seenByNames !== undefined && (
+            <p className="mt-0.5 text-right text-[10px] text-accent-ink/70">
+              {seenByLabel(seenByNames)}
+            </p>
+          )}
         </div>
 
         <ReactionBar
@@ -291,14 +320,19 @@ export function ChatThread({
   conversationId,
   initialMessages,
   currentUserId,
-  otherUserName,
+  isGroup,
+  conversationLabel,
+  members: initialMembers,
 }: {
   conversationId: string;
   initialMessages: MessageData[];
   currentUserId: string;
-  otherUserName: string;
+  isGroup: boolean;
+  conversationLabel: string;
+  members: MemberData[];
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
+  const [members, setMembers] = useState<MemberData[]>(initialMembers);
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -311,6 +345,15 @@ export function ChatThread({
       const result = await getConversationMessages(conversationId);
       if (!cancelled && result.error === null) {
         setMessages(result.messages as MessageData[]);
+        if (result.conversation) {
+          setMembers(
+            result.conversation.members.map((m) => ({
+              userId: m.userId,
+              name: m.user.name ?? "Unknown",
+              lastReadAt: m.lastReadAt,
+            })),
+          );
+        }
       }
     };
     // Fire immediately on mount too — this is the real "mark as read"
@@ -370,6 +413,9 @@ export function ChatThread({
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
   }
 
+  const memberNameById = new Map(members.map((m) => [m.userId, m.name]));
+  const lastMineIndex = isGroup ? messages.findLastIndex((m) => m.senderId === currentUserId) : -1;
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
@@ -377,6 +423,14 @@ export function ChatThread({
           const mine = m.senderId === currentUserId;
           const prev = messages[i - 1];
           const grouped = Boolean(prev && prev.senderId === m.senderId);
+          const senderName =
+            isGroup && !mine && !grouped ? (memberNameById.get(m.senderId) ?? "Unknown") : undefined;
+          const seenByNames =
+            i === lastMineIndex
+              ? members
+                  .filter((mem) => mem.userId !== currentUserId && mem.lastReadAt && mem.lastReadAt >= m.createdAt)
+                  .map((mem) => mem.name)
+              : undefined;
           return (
             <div
               key={m.id}
@@ -386,6 +440,8 @@ export function ChatThread({
                 message={m}
                 mine={mine}
                 currentUserId={currentUserId}
+                senderName={senderName}
+                seenByNames={seenByNames}
                 onDeleted={handleDeleted}
                 onEdited={handleEdited}
                 onReacted={handleReacted}
@@ -395,8 +451,9 @@ export function ChatThread({
         })}
         {messages.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            Say hello — remember, you can only DM after both of you accepted
-            the connection request.
+            {isGroup
+              ? "Say hello to the group!"
+              : "Say hello — remember, you can only DM after both of you accepted the connection request."}
           </p>
         )}
         <div ref={bottomRef} />
@@ -415,7 +472,7 @@ export function ChatThread({
           }}
           maxLength={4000}
           rows={1}
-          placeholder={`Message ${otherUserName}...`}
+          placeholder={`Message ${conversationLabel}...`}
           className="max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none"
         />
         <EmojiPickerButton onSelect={insertEmoji} />
