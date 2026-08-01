@@ -45,7 +45,7 @@ export default async function PostDetailPage({
   if (!canView) notFound();
 
   const [postWithState] = await attachViewerState(
-    [{ ...post, author: { id: post.author.id, name: post.author.name } }],
+    [{ ...post, author: { id: post.author.id, name: post.author.name, trustBand: post.author.trustBand } }],
     me.id,
   );
 

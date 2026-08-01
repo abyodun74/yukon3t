@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ReportTrigger } from "@/components/report-form";
+import { TrustBadge } from "@/components/trust-badge";
 
 const typeLabels: Record<string, string> = {
   SKILL_EXCHANGE: "Skill Exchange",
@@ -52,12 +53,15 @@ export default async function CollabPage() {
             <h2 className="mt-2 font-semibold">{post.title}</h2>
             <p className="mt-1 text-sm text-foreground-soft">{post.description}</p>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <Link
-                href={`/u/${post.author.id}`}
-                className="text-xs font-medium hover:text-accent"
-              >
-                by {post.author.name}
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/u/${post.author.id}`}
+                  className="text-xs font-medium hover:text-accent"
+                >
+                  by {post.author.name}
+                </Link>
+                <TrustBadge band={post.author.trustBand} />
+              </div>
               <ReportTrigger
                 targetType="COLLAB_POST"
                 targetId={post.id}

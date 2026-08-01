@@ -1,6 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ConnectionResponseButtons } from "@/components/connection-response-buttons";
+import { TrustBadge } from "@/components/trust-badge";
 import Link from "next/link";
 import { intentLabels } from "@/lib/validations";
 
@@ -10,12 +11,12 @@ export default async function ConnectionsPage() {
   const [incoming, outgoing, accepted] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
-      include: { requester: { select: { id: true, name: true } } },
+      include: { requester: { select: { id: true, name: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.connection.findMany({
       where: { requesterId: me.id, status: "PENDING" },
-      include: { target: { select: { id: true, name: true } } },
+      include: { target: { select: { id: true, name: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.connection.findMany({
@@ -24,8 +25,8 @@ export default async function ConnectionsPage() {
         OR: [{ requesterId: me.id }, { targetId: me.id }],
       },
       include: {
-        requester: { select: { id: true, name: true } },
-        target: { select: { id: true, name: true } },
+        requester: { select: { id: true, name: true, trustBand: true } },
+        target: { select: { id: true, name: true, trustBand: true } },
       },
       orderBy: { respondedAt: "desc" },
     }),
@@ -60,9 +61,12 @@ export default async function ConnectionsPage() {
               className="flex items-center justify-between rounded-xl border border-line p-4"
             >
               <div>
-                <Link href={`/u/${c.requester.id}`} className="font-medium hover:text-accent">
-                  {c.requester.name}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/u/${c.requester.id}`} className="font-medium hover:text-accent">
+                    {c.requester.name}
+                  </Link>
+                  <TrustBadge band={c.requester.trustBand} />
+                </div>
                 <p className="text-xs text-foreground-soft">
                   wants to connect for {intentLabels[c.intentTag]}
                 </p>
@@ -83,9 +87,12 @@ export default async function ConnectionsPage() {
         <div className="mt-3 space-y-3">
           {outgoing.map((c) => (
             <div key={c.id} className="rounded-xl border border-line p-4">
-              <Link href={`/u/${c.target.id}`} className="font-medium hover:text-accent">
-                {c.target.name}
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href={`/u/${c.target.id}`} className="font-medium hover:text-accent">
+                  {c.target.name}
+                </Link>
+                <TrustBadge band={c.target.trustBand} />
+              </div>
               <p className="text-xs text-foreground-soft">
                 {intentLabels[c.intentTag]} — awaiting response
               </p>
@@ -111,10 +118,13 @@ export default async function ConnectionsPage() {
                 className="flex items-center justify-between rounded-xl border border-line p-4"
               >
                 <div>
-                  <Link href={`/u/${other.id}`} className="font-medium hover:text-accent">
-                    {other.name}
-                  </Link>
-                  <span className="ml-2 text-xs text-foreground-soft">
+                  <div className="flex items-center gap-2">
+                    <Link href={`/u/${other.id}`} className="font-medium hover:text-accent">
+                      {other.name}
+                    </Link>
+                    <TrustBadge band={other.trustBand} />
+                  </div>
+                  <span className="text-xs text-foreground-soft">
                     {intentLabels[c.intentTag]}
                   </span>
                 </div>
