@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { messageSchema, groupChatSchema, groupNameSchema, correctionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
+import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
@@ -245,6 +246,7 @@ export async function sendMessage(formData: FormData) {
     data: { conversationId, senderId: user.id, content, moderationStatus },
     include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
   });
+  await recordActivity(user.id);
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };

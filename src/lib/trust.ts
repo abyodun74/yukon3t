@@ -9,6 +9,32 @@ export function bandFromScore(score: number): TrustBand {
   return "NEW";
 }
 
+function dayNumber(date: Date) {
+  return Math.floor(date.getTime() / DAY_MS);
+}
+
+/** Call from genuine content-creation actions (sending a message, making a post) — not page views or polling. */
+export async function recordActivity(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { lastActiveAt: true, currentStreak: true, longestStreak: true },
+  });
+  if (!user) return;
+
+  const today = dayNumber(new Date());
+  const lastDay = user.lastActiveAt ? dayNumber(user.lastActiveAt) : null;
+  if (lastDay === today) return;
+
+  const currentStreak = lastDay === today - 1 ? user.currentStreak + 1 : 1;
+  const longestStreak = Math.max(user.longestStreak, currentStreak);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { currentStreak, longestStreak, lastActiveAt: new Date() },
+  });
+  await recomputeTrustScore(userId);
+}
+
 /** Recomputes and persists a user's trust score from free, non-paid signals. */
 export async function recomputeTrustScore(userId: string) {
   const user = await prisma.user.findUnique({
@@ -19,6 +45,7 @@ export async function recomputeTrustScore(userId: string) {
       bio: true,
       country: true,
       interests: true,
+      currentStreak: true,
       _count: {
         select: {
           reportsReceived: { where: { status: "RESOLVED" } },
@@ -38,6 +65,8 @@ export async function recomputeTrustScore(userId: string) {
     user.bio && user.country && user.interests.length > 0,
   );
   if (profileComplete) score += 20;
+
+  score += Math.min(20, Math.floor(user.currentStreak / 7) * 5); // up to 20 pts, +5 per full week of consecutive activity
 
   const upheldReports = user._count.reportsReceived;
   score -= Math.min(50, upheldReports * 15);

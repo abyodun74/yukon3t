@@ -102,7 +102,14 @@ export default async function PublicProfilePage({
             </p>
           </div>
         </div>
-        <TrustBadge band={user.trustBand} />
+        <div className="flex items-center gap-2">
+          {isOwnProfile && user.currentStreak > 0 && (
+            <span className="text-xs text-foreground-soft">
+              🔥 {user.currentStreak}-day streak
+            </span>
+          )}
+          <TrustBadge band={user.trustBand} />
+        </div>
       </div>
 
       {user.bio && <p className="mt-4 text-sm">{user.bio}</p>}

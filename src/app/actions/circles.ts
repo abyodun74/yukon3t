@@ -8,6 +8,7 @@ import { circleSchema, postSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
+import { recordActivity } from "@/lib/trust";
 import {
   MEDIA_LIMITS,
   verifyUploadedSize,
@@ -224,6 +225,7 @@ export async function createPost(formData: FormData) {
       moderationStatus,
     },
   });
+  await recordActivity(user.id);
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");
