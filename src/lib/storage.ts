@@ -36,8 +36,16 @@ export function isStorageConfigured() {
   );
 }
 
+// Reused across calls within a warm serverless instance instead of a fresh
+// S3Client per call — each one otherwise re-negotiates its own TLS
+// connection to R2, which was adding a full extra handshake to every HEAD/
+// PUT/DELETE, most noticeably when a request does more than one of these
+// back to back (e.g. verifying a video and its thumbnail).
+let cachedClient: S3Client | null = null;
+
 function client() {
-  return new S3Client({
+  if (cachedClient) return cachedClient;
+  cachedClient = new S3Client({
     region: "auto",
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
     // Path-style (endpoint/bucket/key) instead of the SDK's default
@@ -49,6 +57,7 @@ function client() {
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
     },
   });
+  return cachedClient;
 }
 
 export function validateContentType(kind: UploadKind, contentType: string) {

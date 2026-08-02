@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { joinCircle, leaveCircle } from "@/app/actions/circles";
 
 export function CircleMembershipButton({
@@ -13,6 +14,7 @@ export function CircleMembershipButton({
   isOwner: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   if (isOwner) {
     return (
@@ -30,7 +32,7 @@ export function CircleMembershipButton({
         startTransition(async () => {
           if (isMember) await leaveCircle(circleId);
           else await joinCircle(circleId);
-          location.reload();
+          router.refresh();
         })
       }
       className="rounded-lg border border-line px-4 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"

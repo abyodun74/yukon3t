@@ -138,13 +138,14 @@ export function PostComposer({
       }
   > {
     if (images.length > 0) {
-      const uploaded: string[] = [];
-      for (const file of images) {
-        const result = await uploadFileDirect(file, "post-image");
-        if (!result.ok) return { error: result.error };
-        uploaded.push(result.publicUrl);
-      }
-      return { mediaType: "IMAGE", mediaUrls: uploaded };
+      // Each image is an independent presigned-URL request + direct PUT to
+      // R2 — uploading them one at a time in sequence was the main cause of
+      // multi-image posts feeling slow (4 images == 4x the wait instead of
+      // ~1x running concurrently).
+      const results = await Promise.all(images.map((file) => uploadFileDirect(file, "post-image")));
+      const failed = results.find((r) => !r.ok);
+      if (failed && !failed.ok) return { error: failed.error };
+      return { mediaType: "IMAGE", mediaUrls: results.map((r) => (r.ok ? r.publicUrl : "")) };
     }
 
     if (video) {

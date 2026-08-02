@@ -152,39 +152,49 @@ export async function createPost(formData: FormData) {
   ];
 
   async function cleanupUploads() {
-    for (const url of uploadedUrls) {
-      const key = keyFromPublicUrl(url);
-      if (key) await deleteObject(key);
-    }
+    // Independent deletes to independent keys — no reason to wait on them
+    // one at a time.
+    await Promise.all(
+      uploadedUrls.map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteObject(key) : Promise.resolve();
+      }),
+    );
   }
 
   if (mediaType === "IMAGE") {
-    for (const url of mediaUrls) {
-      const key = keyFromPublicUrl(url);
-      const ok = key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["post-image"] }));
-      if (!ok) {
-        await cleanupUploads();
-        return { error: "too_large" };
-      }
+    // Each HEAD check hits R2 independently — running them in sequence was
+    // adding one round trip per image to every multi-image post.
+    const checks = await Promise.all(
+      mediaUrls.map(async (url) => {
+        const key = keyFromPublicUrl(url);
+        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["post-image"] }));
+      }),
+    );
+    if (checks.some((ok) => !ok)) {
+      await cleanupUploads();
+      return { error: "too_large" };
     }
   }
 
   if (mediaType === "VIDEO") {
-    const videoKey = videoUrl ? keyFromPublicUrl(videoUrl) : null;
-    const videoOk =
-      videoKey && (await verifyUploadedSize({ key: videoKey, maxBytes: MEDIA_LIMITS["post-video"] }));
-    if (!videoOk) {
+    // The video and its thumbnail are unrelated objects — verifying them
+    // one after the other was the single biggest source of "posting a video
+    // feels slow" on the server side, adding a whole extra round trip.
+    const [videoOk, thumbOk] = await Promise.all([
+      (async () => {
+        const videoKey = videoUrl ? keyFromPublicUrl(videoUrl) : null;
+        return videoKey && (await verifyUploadedSize({ key: videoKey, maxBytes: MEDIA_LIMITS["post-video"] }));
+      })(),
+      (async () => {
+        if (!videoThumbnailUrl) return true;
+        const thumbKey = keyFromPublicUrl(videoThumbnailUrl);
+        return thumbKey && (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"] }));
+      })(),
+    ]);
+    if (!videoOk || !thumbOk) {
       await cleanupUploads();
       return { error: "too_large" };
-    }
-    if (videoThumbnailUrl) {
-      const thumbKey = keyFromPublicUrl(videoThumbnailUrl);
-      const thumbOk =
-        thumbKey && (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"] }));
-      if (!thumbOk) {
-        await cleanupUploads();
-        return { error: "too_large" };
-      }
     }
   }
 
