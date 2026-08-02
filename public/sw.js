@@ -18,8 +18,8 @@
 // bump these version strings too — otherwise every browser with this
 // SW already installed keeps serving the stale precached content
 // forever, even after a new deploy.
-const SHELL_CACHE = "yk3-shell-v3";
-const STATIC_CACHE = "yk3-static-v3";
+const SHELL_CACHE = "yk3-shell-v4";
+const STATIC_CACHE = "yk3-static-v4";
 const OFFLINE_URL = "/offline";
 const SHELL_ASSETS = [
   "/manifest.webmanifest",
@@ -38,7 +38,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  const keep = new Set([SHELL_CACHE, STATIC_CACHE, "yk3-debug"]);
+  const keep = new Set([SHELL_CACHE, STATIC_CACHE]);
   event.waitUntil(
     caches
       .keys()
@@ -58,38 +58,24 @@ self.addEventListener("fetch", (event) => {
   // after a real network failure.
   if (request.mode === "navigate") {
     event.respondWith(
-      (async () => {
-        const logs = [];
-        const log = (msg) => logs.push(`${Date.now()} ${msg}`);
-        const flush = async () => {
-          try {
-            const dbg = await caches.open("yk3-debug");
-            await dbg.put(
-              "/__debug-log",
-              new Response(logs.join("\n"), { headers: { "content-type": "text/plain" } }),
-            );
-          } catch {}
-        };
-        try {
-          log(`fetch start ${request.url}`);
-          const res = await fetch(request);
-          log(`fetch ok ${res.status}`);
-          await flush();
-          return res;
-        } catch (err) {
-          log(`fetch threw: ${err && err.message}`);
-          try {
-            const cached = await caches.match(OFFLINE_URL);
-            log(`cache match: ${cached ? "hit " + cached.status : "MISS"}`);
-            await flush();
-            return cached ?? Response.error();
-          } catch (cacheErr) {
-            log(`cache match threw: ${cacheErr && cacheErr.message}`);
-            await flush();
-            return Response.error();
-          }
-        }
-      })(),
+      fetch(request).catch(async () => {
+        const cached = await caches.match(OFFLINE_URL);
+        if (!cached) return Response.error();
+        // Re-wrap the cached body in a clean Response instead of
+        // returning it as-is. The original response carries a `Vary:
+        // rsc, next-router-state-tree, ...` header (Next.js's RSC
+        // content-negotiation) plus Content-Encoding — replaying that
+        // exact response object through a service worker during a
+        // real navigation left the page stuck showing Next's raw,
+        // unhydrated streaming payload instead of the rendered HTML
+        // (confirmed via diagnostic logging against production). A
+        // plain text/html response with no Vary/encoding avoids it.
+        const body = await cached.text();
+        return new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }),
     );
     return;
   }
