@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { RegisterServiceWorker } from "@/components/register-sw";
+import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
@@ -66,6 +67,7 @@ export default async function RootLayout({
         className={`min-h-full flex flex-col bg-background text-foreground ${session?.user ? "pb-16 md:pb-0" : ""}`}
       >
         <RegisterServiceWorker />
+        <OfflineBanner />
         <Nav session={session} theme={theme} />
         {session?.user && <IncomingCallListener />}
         <main className="flex-1">{children}</main>
