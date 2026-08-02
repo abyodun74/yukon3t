@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Camera, ImagePlus, Video, X } from "lucide-react";
+import { Calendar, Camera, ImageDown, ImagePlus, Link as LinkIcon, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
+import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
+import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { cn } from "@/lib/utils";
@@ -36,8 +38,29 @@ function errorMessage(code: string) {
       return "Join this Circle first.";
     case "rate_limited":
       return "You're posting too fast — slow down a little.";
+    case "invalid":
+      return "That video link isn't a YouTube or Vimeo link we recognize.";
     default:
       return "Couldn't post — try again.";
+  }
+}
+
+function imageUrlErrorMessage(code: string) {
+  switch (code) {
+    case "blocked_host":
+      return "That URL isn't allowed — link directly to a public image.";
+    case "invalid_content_type":
+      return "That link isn't a JPEG, PNG, or WebP image.";
+    case "too_large":
+      return "That image is too large (max 8MB).";
+    case "fetch_failed":
+      return "Couldn't fetch that image — check the link and try again.";
+    case "not_configured":
+      return "Media uploads aren't set up yet.";
+    case "rate_limited":
+      return "You're adding images too fast — slow down a little.";
+    default:
+      return "Couldn't add that image — check the link and try again.";
   }
 }
 
@@ -49,13 +72,22 @@ export function PostComposer({
   placeholder?: string;
 }) {
   const [images, setImages] = useState<File[]>([]);
+  const [urlImages, setUrlImages] = useState<string[]>([]);
   const [video, setVideo] = useState<File | null>(null);
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const [isEvent, setIsEvent] = useState(false);
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
+  const [showImageUrlInput, setShowImageUrlInput] = useState(false);
+  const [imageUrlValue, setImageUrlValue] = useState("");
+  const [imageUrlPending, setImageUrlPending] = useState(false);
+  const [imageUrlError, setImageUrlError] = useState<string | null>(null);
+  const [showEmbedInput, setShowEmbedInput] = useState(false);
+  const [embedUrlValue, setEmbedUrlValue] = useState("");
+  const [embedError, setEmbedError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -63,6 +95,10 @@ export function PostComposer({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  const imageCount = images.length + urlImages.length;
+  const hasOtherMedia = Boolean(video) || Boolean(embedUrl);
+  const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
 
   function insertEmoji(emoji: string) {
     const el = contentRef.current;
@@ -94,7 +130,29 @@ export function PostComposer({
       return;
     }
     setVideo(null);
-    setImages((prev) => [...prev, ...next].slice(0, MAX_IMAGES));
+    setEmbedUrl(null);
+    const remaining = Math.max(0, MAX_IMAGES - urlImages.length);
+    setImages((prev) => [...prev, ...next].slice(0, remaining));
+  }
+
+  async function addImageUrl() {
+    const url = imageUrlValue.trim();
+    if (!url || imageCount >= MAX_IMAGES) return;
+    setImageUrlPending(true);
+    setImageUrlError(null);
+    const fd = new FormData();
+    fd.set("url", url);
+    const result = await addImageFromUrl(fd);
+    setImageUrlPending(false);
+    if (result.error || !result.publicUrl) {
+      setImageUrlError(imageUrlErrorMessage(result.error ?? "invalid"));
+      return;
+    }
+    setVideo(null);
+    setEmbedUrl(null);
+    setUrlImages((prev) => [...prev, result.publicUrl].slice(0, MAX_IMAGES));
+    setImageUrlValue("");
+    setShowImageUrlInput(false);
   }
 
   function pickVideo(file: File | undefined) {
@@ -122,30 +180,54 @@ export function PostComposer({
         return;
       }
       setImages([]);
+      setUrlImages([]);
+      setEmbedUrl(null);
       setVideo(file);
       setStatus("idle");
       setErrorText(null);
     };
   }
 
+  function addEmbed() {
+    const url = embedUrlValue.trim();
+    if (!parseVideoEmbedUrl(url)) {
+      setEmbedError("That doesn't look like a YouTube or Vimeo video link.");
+      return;
+    }
+    setImages([]);
+    setUrlImages([]);
+    setVideo(null);
+    setEmbedUrl(url);
+    setEmbedError(null);
+    setEmbedUrlValue("");
+    setShowEmbedInput(false);
+  }
+
   async function uploadAll(): Promise<
     | { error: string }
     | {
-        mediaType: "NONE" | "IMAGE" | "VIDEO";
+        mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED";
         mediaUrls: string[];
         videoUrl?: string;
         videoThumbnailUrl?: string;
+        embedUrl?: string;
       }
   > {
-    if (images.length > 0) {
-      // Each image is an independent presigned-URL request + direct PUT to
-      // R2 — uploading them one at a time in sequence was the main cause of
-      // multi-image posts feeling slow (4 images == 4x the wait instead of
-      // ~1x running concurrently).
-      const results = await Promise.all(images.map((file) => uploadFileDirect(file, "post-image")));
+    if (imageCount > 0) {
+      // Each local image is an independent presigned-URL request + direct
+      // PUT to R2 — uploading them one at a time in sequence was the main
+      // cause of multi-image posts feeling slow. URL-sourced images are
+      // already uploaded (that happened when they were added), so they just
+      // pass straight through.
+      const results = images.length > 0
+        ? await Promise.all(images.map((file) => uploadFileDirect(file, "post-image")))
+        : [];
       const failed = results.find((r) => !r.ok);
       if (failed && !failed.ok) return { error: failed.error };
-      return { mediaType: "IMAGE", mediaUrls: results.map((r) => (r.ok ? r.publicUrl : "")) };
+      return {
+        mediaType: "IMAGE",
+        mediaUrls: [...results.map((r) => (r.ok ? r.publicUrl : "")), ...urlImages],
+      };
     }
 
     if (video) {
@@ -171,6 +253,12 @@ export function PostComposer({
       };
     }
 
+    if (embedUrl) {
+      // Nothing to upload — createPost re-parses and validates this link
+      // itself; the client-side parse above is only for instant feedback.
+      return { mediaType: "EMBED", mediaUrls: [], embedUrl };
+    }
+
     return { mediaType: "NONE", mediaUrls: [] };
   }
 
@@ -180,7 +268,7 @@ export function PostComposer({
       className="rounded-xl border border-line p-4"
       action={(fd) => {
         const content = String(fd.get("content") ?? "").trim();
-        if (!content && images.length === 0 && !video && !isEvent) {
+        if (!content && imageCount === 0 && !video && !embedUrl && !isEvent) {
           setStatus("error");
           setErrorText("Write something, attach a photo/video, or add event details first.");
           return;
@@ -211,6 +299,7 @@ export function PostComposer({
           fd.set("mediaUrls", JSON.stringify(media.mediaUrls));
           if (media.videoUrl) fd.set("videoUrl", media.videoUrl);
           if (media.videoThumbnailUrl) fd.set("videoThumbnailUrl", media.videoThumbnailUrl);
+          if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
           const result = await createPost(fd);
           if (result.error) {
@@ -219,7 +308,9 @@ export function PostComposer({
           } else {
             setStatus("idle");
             setImages([]);
+            setUrlImages([]);
             setVideo(null);
+            setEmbedUrl(null);
             setIsEvent(false);
             setEventAt("");
             setEventLocation("");
@@ -238,10 +329,10 @@ export function PostComposer({
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
 
-      {images.length > 0 && (
+      {(images.length > 0 || urlImages.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {images.map((file, i) => (
-            <div key={i} className="relative h-16 w-16 overflow-hidden rounded-lg border border-line">
+            <div key={`local-${i}`} className="relative h-16 w-16 overflow-hidden rounded-lg border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreviewUrls[i]}
@@ -257,8 +348,53 @@ export function PostComposer({
               </button>
             </div>
           ))}
+          {urlImages.map((url, i) => (
+            <div key={`url-${url}`} className="relative h-16 w-16 overflow-hidden rounded-lg border border-line">
+              {/* Already a public URL of our own bucket (fetched server-side) — no object URL needed. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setUrlImages((prev) => prev.filter((_, idx) => idx !== i))}
+                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
+
+      {showImageUrlInput && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="url"
+            value={imageUrlValue}
+            onChange={(e) => setImageUrlValue(e.target.value)}
+            placeholder="https://example.com/image.jpg"
+            className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            disabled={imageUrlPending || !imageUrlValue.trim()}
+            onClick={addImageUrl}
+            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
+          >
+            {imageUrlPending ? "Adding..." : "Add"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowImageUrlInput(false);
+              setImageUrlError(null);
+            }}
+            className="text-foreground-soft"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {imageUrlError && <p className="mt-1 text-xs text-danger">{imageUrlError}</p>}
 
       {video && (
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
@@ -268,6 +404,48 @@ export function PostComposer({
           </button>
         </div>
       )}
+
+      {embedUrl && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          <span className="flex-1 truncate">
+            {parsedEmbed?.provider === "VIMEO" ? "Vimeo video linked" : "YouTube video linked"}
+          </span>
+          <button type="button" onClick={() => setEmbedUrl(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {showEmbedInput && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="url"
+            value={embedUrlValue}
+            onChange={(e) => setEmbedUrlValue(e.target.value)}
+            placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..."
+            className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            disabled={!embedUrlValue.trim()}
+            onClick={addEmbed}
+            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowEmbedInput(false);
+              setEmbedError(null);
+            }}
+            className="text-foreground-soft"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {embedError && <p className="mt-1 text-xs text-danger">{embedError}</p>}
 
       {isEvent && (
         <div className="mt-2 space-y-2 rounded-lg border border-line p-3">
@@ -325,7 +503,7 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => imageInputRef.current?.click()}
-            disabled={Boolean(video) || images.length >= MAX_IMAGES}
+            disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
             className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
             title="Add photos"
           >
@@ -334,7 +512,7 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
-            disabled={Boolean(video) || images.length >= MAX_IMAGES}
+            disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
             className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
             title="Take a photo"
           >
@@ -342,8 +520,20 @@ export function PostComposer({
           </button>
           <button
             type="button"
+            onClick={() => setShowImageUrlInput((v) => !v)}
+            disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
+            className={cn(
+              "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
+              showImageUrlInput ? "text-accent" : "text-foreground-soft",
+            )}
+            title="Add an image from a URL"
+          >
+            <ImageDown size={16} />
+          </button>
+          <button
+            type="button"
             onClick={() => videoInputRef.current?.click()}
-            disabled={images.length > 0 || Boolean(video)}
+            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl)}
             className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
             title="Upload a video"
           >
@@ -352,7 +542,7 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => setShowRecorder(true)}
-            disabled={images.length > 0 || Boolean(video)}
+            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl)}
             className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
             title="Record a video"
           >
@@ -360,6 +550,18 @@ export function PostComposer({
               <Video size={16} />
               <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-danger" />
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEmbedInput((v) => !v)}
+            disabled={imageCount > 0 || Boolean(video)}
+            className={cn(
+              "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
+              showEmbedInput ? "text-accent" : "text-foreground-soft",
+            )}
+            title="Link a YouTube or Vimeo video"
+          >
+            <LinkIcon size={16} />
           </button>
           <button
             type="button"

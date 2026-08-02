@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
-type MediaType = "NONE" | "IMAGE" | "VIDEO";
+type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
+type EmbedProvider = "YOUTUBE" | "VIMEO";
 
 type EmbeddedPostRow = {
   id: string;
@@ -9,6 +10,8 @@ type EmbeddedPostRow = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  embedProvider: EmbedProvider | null;
+  embedId: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
@@ -73,6 +76,8 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       mediaUrls: post.mediaUrls,
       videoUrl: post.videoUrl,
       videoThumbnailUrl: post.videoThumbnailUrl,
+      embedProvider: post.embedProvider,
+      embedId: post.embedId,
       eventAt: post.eventAt,
       eventLocation: post.eventLocation,
       createdAt: post.createdAt,

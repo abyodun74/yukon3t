@@ -225,6 +225,12 @@ enum PostMediaType {
   NONE
   IMAGE
   VIDEO
+  EMBED
+}
+
+enum EmbedProvider {
+  YOUTUBE
+  VIMEO
 }
 
 model Post {
@@ -236,6 +242,12 @@ model Post {
   mediaUrls         String[]         @default([])
   videoUrl          String?
   videoThumbnailUrl String?
+  // EMBED posts store only a provider + the extracted video id, never the
+  // raw pasted URL — the iframe src is always rebuilt server-side from these
+  // two known-safe values, so nothing attacker-controlled ever becomes an
+  // iframe src.
+  embedProvider     EmbedProvider?
+  embedId           String?
   intentTag         IntentTag?
   moderationStatus  ModerationStatus @default(PUBLISHED)
   eventAt           DateTime?

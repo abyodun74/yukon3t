@@ -15,6 +15,7 @@ import {
   deleteObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
+import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -198,11 +199,24 @@ export async function createPost(formData: FormData) {
     }
   }
 
+  // The client's own parse is only for instant feedback — this is the parse
+  // that actually matters. Nothing but the resulting provider+id (never the
+  // raw URL) ever reaches the database or an iframe src.
+  let embed: ParsedEmbed | null = null;
+  if (mediaType === "EMBED") {
+    embed = parsed.data.embedUrl ? parseVideoEmbedUrl(parsed.data.embedUrl) : null;
+    if (!embed) {
+      return { error: "invalid" };
+    }
+  }
+
   let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
 
-  if (mediaType === "NONE") {
-    // Pure text keeps the existing soft-flag behavior: stored hidden,
-    // reviewable by an admin rather than silently discarded.
+  if (mediaType === "NONE" || mediaType === "EMBED") {
+    // Pure text (and embeds, which carry no media file of ours to inspect —
+    // the linked video is moderated by YouTube/Vimeo, not us) keeps the
+    // existing soft-flag behavior: stored hidden, reviewable by an admin
+    // rather than silently discarded.
     const modResult = await moderateText(parsed.data.content);
     moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   } else {
@@ -230,6 +244,8 @@ export async function createPost(formData: FormData) {
       mediaUrls: mediaType === "IMAGE" ? mediaUrls : [],
       videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
       videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
+      embedProvider: embed?.provider,
+      embedId: embed?.id,
       eventAt,
       eventLocation,
       moderationStatus,

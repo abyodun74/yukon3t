@@ -39,8 +39,11 @@ export function proxy(request: NextRequest) {
     `connect-src 'self'${r2ApiHost ? ` ${r2ApiHost}` : ""}`,
     // Daily.co calling embeds its own call UI in an iframe on its own
     // subdomain (frame-src) — everything inside runs under Daily's CSP, not
-    // ours, so no connect-src/script-src changes are needed for it.
-    "frame-src 'self' https://*.daily.co",
+    // ours, so no connect-src/script-src changes are needed for it. Same
+    // reasoning for YouTube/Vimeo post embeds: the linked-video iframe (see
+    // src/lib/video-embed.ts) only ever points at these two exact origins,
+    // never an attacker-controlled one.
+    "frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

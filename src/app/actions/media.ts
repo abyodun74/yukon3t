@@ -13,8 +13,10 @@ import {
   verifyUploadedSize,
   deleteObject,
   keyFromPublicUrl,
+  uploadBuffer,
 } from "@/lib/storage";
-import { requestUploadSchema, confirmAvatarUploadSchema } from "@/lib/validations";
+import { requestUploadSchema, confirmAvatarUploadSchema, imageFromUrlSchema } from "@/lib/validations";
+import { fetchRemoteImage } from "@/lib/fetch-remote-image";
 
 export async function requestUploadUrl(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -46,6 +48,44 @@ export async function requestUploadUrl(formData: FormData) {
   } catch {
     return { error: "invalid" as const };
   }
+}
+
+/**
+ * Fetches an image from a URL the user pasted in and re-hosts it in our own
+ * bucket, so it goes through the exact same downstream path (verifyUploadedSize
+ * + moderateMedia in createPost) as a normal local upload — the only new
+ * step is the SSRF-guarded fetch itself (see fetchRemoteImage).
+ */
+export async function addImageFromUrl(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  if (!isStorageConfigured()) {
+    return { error: "not_configured" as const };
+  }
+
+  const allowed = await checkRateLimit("mediaUpload", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const parsed = imageFromUrlSchema.safeParse({ url: formData.get("url") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  const fetched = await fetchRemoteImage(parsed.data.url);
+  if (!fetched.ok) {
+    return { error: fetched.error };
+  }
+
+  const { publicUrl } = await uploadBuffer({
+    kind: "post-image",
+    contentType: fetched.contentType,
+    userId: user.id,
+    body: fetched.body,
+  });
+
+  return { error: null, publicUrl };
 }
 
 export async function confirmAvatarUpload(formData: FormData) {

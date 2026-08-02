@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
+import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 
-type MediaType = "NONE" | "IMAGE" | "VIDEO";
+type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
 
 type EmbeddedPost = {
   id: string;
@@ -22,6 +23,8 @@ type EmbeddedPost = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  embedProvider: EmbedProvider | null;
+  embedId: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
@@ -155,6 +158,20 @@ function MediaBlock({
           >
             <Maximize2 size={14} />
           </button>
+        </div>
+      )}
+
+      {post.mediaType === "EMBED" && post.embedProvider && post.embedId && (
+        <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
+          <iframe
+            src={embedSrc({ provider: post.embedProvider, id: post.embedId })}
+            title="Embedded video"
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
         </div>
       )}
     </>

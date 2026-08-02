@@ -96,6 +96,37 @@ export async function createUploadUrl({
   return { uploadUrl, publicUrl, key };
 }
 
+/** Server-side direct upload (as opposed to createUploadUrl's client-driven presigned PUT) — used when the bytes originate on the server itself, e.g. an image fetched from a URL the user pasted in. */
+export async function uploadBuffer({
+  kind,
+  contentType,
+  userId,
+  body,
+}: {
+  kind: UploadKind;
+  contentType: string;
+  userId: string;
+  body: Uint8Array;
+}) {
+  if (!isStorageConfigured()) {
+    throw new Error("not_configured");
+  }
+  const ext = validateContentType(kind, contentType);
+  if (!ext) {
+    throw new Error("invalid_content_type");
+  }
+
+  const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
+  const bucket = process.env.R2_BUCKET_NAME!;
+
+  await client().send(
+    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType, Body: body }),
+  );
+
+  const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
+  return { publicUrl, key };
+}
+
 /**
  * A presigned PUT URL alone can't cap the uploaded size, so this checks the
  * real object size after the client's direct upload and deletes it if it

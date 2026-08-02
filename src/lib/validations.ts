@@ -102,10 +102,14 @@ export const postSchema = z
     circleId: z.string().cuid().optional(),
     content: z.string().trim().max(2000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
-    mediaType: z.enum(["NONE", "IMAGE", "VIDEO"]).optional().default("NONE"),
+    mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED"]).optional().default("NONE"),
     mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
+    // Raw pasted link, only ever used server-side as input to
+    // parseVideoEmbedUrl() — the parsed provider+id is what actually gets
+    // stored, never this string itself.
+    embedUrl: z.string().trim().max(500).optional(),
     eventAt: z.coerce.date().optional(),
     eventLocation: z.string().trim().min(2).max(200).optional(),
   })
@@ -138,6 +142,10 @@ export const requestUploadSchema = z.object({
 export const confirmAvatarUploadSchema = z.object({
   key: z.string().trim().min(1).max(500),
   publicUrl: z.string().url(),
+});
+
+export const imageFromUrlSchema = z.object({
+  url: z.string().trim().url().max(2000),
 });
 
 export const collabPostSchema = z.object({
