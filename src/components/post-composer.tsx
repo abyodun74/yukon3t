@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Camera, ImageDown, ImagePlus, Link as LinkIcon, Video, X } from "lucide-react";
+import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
@@ -62,6 +62,73 @@ function imageUrlErrorMessage(code: string) {
     default:
       return "Couldn't add that image — check the link and try again.";
   }
+}
+
+/**
+ * One button that opens a small menu of media sources — replaces what used
+ * to be a separate always-visible icon per source (device upload, camera,
+ * URL, etc.). The sources still funnel into the exact same handlers as
+ * before; this only changes how they're reached.
+ */
+function MediaPickerButton({
+  icon,
+  title,
+  disabled,
+  options,
+}: {
+  icon: ReactNode;
+  title: string;
+  disabled?: boolean;
+  options: { label: string; icon: ReactNode; onSelect: () => void }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        title={title}
+        className={cn(
+          "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
+          open ? "text-accent" : "text-foreground-soft",
+        )}
+      >
+        {icon}
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-20 mb-1 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+          {options.map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                option.onSelect();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PostComposer({
@@ -500,57 +567,45 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => pickVideo(e.target.files?.[0])}
           />
-          <button
-            type="button"
-            onClick={() => imageInputRef.current?.click()}
+          <MediaPickerButton
+            icon={<ImagePlus size={16} />}
+            title="Add a photo"
             disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Add photos"
-          >
-            <ImagePlus size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => cameraInputRef.current?.click()}
-            disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Take a photo"
-          >
-            <Camera size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowImageUrlInput((v) => !v)}
-            disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
-            className={cn(
-              "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
-              showImageUrlInput ? "text-accent" : "text-foreground-soft",
-            )}
-            title="Add an image from a URL"
-          >
-            <ImageDown size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => videoInputRef.current?.click()}
+            options={[
+              {
+                label: "Upload from device",
+                icon: <Upload size={14} />,
+                onSelect: () => imageInputRef.current?.click(),
+              },
+              {
+                label: "Take a photo",
+                icon: <Camera size={14} />,
+                onSelect: () => cameraInputRef.current?.click(),
+              },
+              {
+                label: "Add from a URL",
+                icon: <ImageDown size={14} />,
+                onSelect: () => setShowImageUrlInput(true),
+              },
+            ]}
+          />
+          <MediaPickerButton
+            icon={<Video size={16} />}
+            title="Add a video"
             disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl)}
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Upload a video"
-          >
-            <Video size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowRecorder(true)}
-            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl)}
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Record a video"
-          >
-            <span className="relative inline-flex">
-              <Video size={16} />
-              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-danger" />
-            </span>
-          </button>
+            options={[
+              {
+                label: "Upload from device",
+                icon: <Upload size={14} />,
+                onSelect: () => videoInputRef.current?.click(),
+              },
+              {
+                label: "Record live",
+                icon: <Circle size={14} className="text-danger" fill="currentColor" />,
+                onSelect: () => setShowRecorder(true),
+              },
+            ]}
+          />
           <button
             type="button"
             onClick={() => setShowEmbedInput((v) => !v)}
