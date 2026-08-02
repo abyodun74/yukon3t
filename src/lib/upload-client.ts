@@ -7,7 +7,14 @@ export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
   | { ok: false; error: string };
 
-/** Requests a presigned URL, then PUTs the file directly to R2 from the browser. */
+/**
+ * Requests a presigned URL, then PUTs the file directly to R2 from the
+ * browser. Never throws — both steps are network calls (the server action
+ * is itself a fetch under the hood), and a rejected fetch (e.g. no
+ * connectivity) would otherwise propagate as an uncaught exception through
+ * whatever startTransition called this, which React/Next renders as a full
+ * page crash rather than a normal form error.
+ */
 export async function uploadFileDirect(
   file: File,
   kind: UploadKind,
@@ -16,16 +23,26 @@ export async function uploadFileDirect(
   fd.set("kind", kind);
   fd.set("contentType", file.type);
 
-  const result = await requestUploadUrl(fd);
+  let result;
+  try {
+    result = await requestUploadUrl(fd);
+  } catch {
+    return { ok: false, error: "network" };
+  }
   if (result.error || !result.uploadUrl || !result.publicUrl || !result.key) {
     return { ok: false, error: result.error ?? "invalid" };
   }
 
-  const putRes = await fetch(result.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
+  let putRes;
+  try {
+    putRes = await fetch(result.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+  } catch {
+    return { ok: false, error: "network" };
+  }
 
   if (!putRes.ok) {
     return { ok: false, error: "upload_failed" };

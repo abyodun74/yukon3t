@@ -626,7 +626,19 @@ export function ChatThread({
       if (media.mediaType === "VIDEO" && media.mediaThumbnailUrl) {
         fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
       }
-      const result = await sendMessage(fd);
+      let result;
+      try {
+        result = await sendMessage(fd);
+      } catch {
+        // A rejected server-action call (e.g. no connectivity) would
+        // otherwise be an uncaught exception that crashes the whole page
+        // instead of showing a normal composer error.
+        setError("Couldn't reach the server — check your connection and try again.");
+        setContent(text);
+        setPendingAudio(audio);
+        setPendingVideo(video);
+        return;
+      }
       if (result.error) {
         setError(result.error === "rate_limited" ? "Slow down a little." : "Couldn't send that.");
         setContent(text);

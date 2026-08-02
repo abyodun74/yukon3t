@@ -40,6 +40,8 @@ function errorMessage(code: string) {
       return "You're posting too fast — slow down a little.";
     case "invalid":
       return "That video link isn't a YouTube or Vimeo link we recognize.";
+    case "network":
+      return "Couldn't reach the server — check your connection and try again.";
     default:
       return "Couldn't post — try again.";
   }
@@ -368,7 +370,17 @@ export function PostComposer({
           if (media.videoThumbnailUrl) fd.set("videoThumbnailUrl", media.videoThumbnailUrl);
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
-          const result = await createPost(fd);
+          let result;
+          try {
+            result = await createPost(fd);
+          } catch {
+            // A rejected server-action call (e.g. no connectivity) would
+            // otherwise be an uncaught exception that crashes the whole
+            // page instead of showing a normal composer error.
+            setStatus("error");
+            setErrorText(errorMessage("network"));
+            return;
+          }
           if (result.error) {
             setStatus("error");
             setErrorText(errorMessage(result.error));

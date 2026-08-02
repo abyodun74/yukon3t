@@ -39,7 +39,9 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         setMessage(
           uploaded.error === "not_configured"
             ? "Profile picture uploads aren't set up yet — check back soon."
-            : "Upload failed — try again.",
+            : uploaded.error === "network"
+              ? "Couldn't reach the server — check your connection and try again."
+              : "Upload failed — try again.",
         );
         return;
       }
@@ -47,7 +49,18 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       const fd = new FormData();
       fd.set("key", uploaded.key);
       fd.set("publicUrl", uploaded.publicUrl);
-      const result = await confirmAvatarUpload(fd);
+
+      let result;
+      try {
+        result = await confirmAvatarUpload(fd);
+      } catch {
+        // A rejected server-action call (e.g. connectivity dropped between
+        // the upload finishing and this confirm step) would otherwise be
+        // an uncaught exception that crashes the whole page.
+        setStatus("error");
+        setMessage("Couldn't reach the server — check your connection and try again.");
+        return;
+      }
 
       if (result.error) {
         setStatus("error");
