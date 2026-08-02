@@ -40,9 +40,16 @@ const baseProfileFields = {
 export const profileUpdateSchema = z.object(baseProfileFields);
 
 // Used by first-time onboarding — requires birthDate so every new profile
-// gets age-gated, without retroactively forcing it on existing users.
+// gets age-gated, without retroactively forcing it on existing users. Also
+// requires at least one interest: isProfileComplete() (src/lib/page-guards.ts)
+// already gates on interests.length > 0 to leave onboarding, but this schema
+// previously allowed submitting with zero — completeOnboarding would then
+// "succeed" and redirect to /home, which would immediately bounce back to
+// /onboarding with no error shown, since nothing here actually enforced the
+// requirement the redirect logic depended on.
 export const onboardingSchema = z.object({
   ...baseProfileFields,
+  interests: baseProfileFields.interests.min(1),
   birthDate: z.coerce.date().refine(isOldEnough, {
     message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
   }),

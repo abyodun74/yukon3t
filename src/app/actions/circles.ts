@@ -125,6 +125,7 @@ export async function createPost(formData: FormData) {
     mediaUrls: mediaUrlsRaw ? JSON.parse(String(mediaUrlsRaw)) : [],
     videoUrl: formData.get("videoUrl") || undefined,
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
+    embedUrl: formData.get("embedUrl") || undefined,
     eventAt: formData.get("eventAt") || undefined,
     eventLocation: formData.get("eventLocation") || undefined,
   });

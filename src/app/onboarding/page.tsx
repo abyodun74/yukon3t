@@ -114,6 +114,10 @@ export default async function OnboardingPage({
 
         <div>
           <label className="block text-sm font-medium">Interests</label>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Pick at least one — this is how Circles and connections get
+            matched to you.
+          </p>
           <div className="mt-1">
             <MultiSelect
               name="interests"
