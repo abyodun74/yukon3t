@@ -47,7 +47,7 @@ export default async function CollabPage() {
                 {typeLabels[post.type]}
               </span>
               <span className="text-right text-xs text-foreground-soft">
-                {post.countries.join(", ")}
+                {post.worldwide ? "Worldwide" : post.countries.join(", ")}
               </span>
             </div>
             <h2 className="mt-2 font-semibold">{post.title}</h2>

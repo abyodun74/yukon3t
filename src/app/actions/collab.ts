@@ -20,12 +20,13 @@ export async function createCollabPost(formData: FormData) {
     title: formData.get("title"),
     description: formData.get("description"),
     type: formData.get("type"),
+    worldwide: formData.get("worldwide") === "on",
     countries: formData.getAll("countries"),
   });
   if (!parsed.success) {
     redirect("/collab/new?error=invalid");
   }
-  const { title, description, type, countries } = parsed.data;
+  const { title, description, type, worldwide, countries } = parsed.data;
 
   const modResult = await moderateText(`${title}\n${description}`);
   if (!modResult.allowed) {
@@ -33,7 +34,16 @@ export async function createCollabPost(formData: FormData) {
   }
 
   await prisma.collabBoardPost.create({
-    data: { title, description, type, countries, authorId: user.id },
+    data: {
+      title,
+      description,
+      type,
+      worldwide,
+      // Ignore any leftover selections if the client sent both — worldwide
+      // always wins and the stored data stays unambiguous.
+      countries: worldwide ? [] : countries,
+      authorId: user.id,
+    },
   });
 
   revalidatePath("/collab");

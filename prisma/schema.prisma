@@ -387,6 +387,9 @@ model CollabBoardPost {
   title       String
   description String       @db.Text
   type        CollabType
+  // Mutually exclusive with `countries`: worldwide posts ignore it entirely
+  // (kept empty) rather than requiring every country to be enumerated.
+  worldwide   Boolean      @default(false)
   countries   String[]     @default([])
   status      CollabStatus @default(OPEN)
   createdAt   DateTime     @default(now())

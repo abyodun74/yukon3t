@@ -1,7 +1,6 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { createCollabPost } from "@/app/actions/collab";
-import { COUNTRIES } from "@/lib/countries";
-import { MultiSelect } from "@/components/multi-select";
+import { CollabCountriesField } from "@/components/collab-countries-field";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -53,17 +52,7 @@ export default async function NewCollabPostPage({
             <option value="PROJECT">Project</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium">Countries involved</label>
-          <div className="mt-1">
-            <MultiSelect
-              name="countries"
-              options={COUNTRIES}
-              placeholder="Search countries..."
-              max={10}
-            />
-          </div>
-        </div>
+        <CollabCountriesField />
         <div>
           <label className="block text-sm font-medium">What is this collaboration?</label>
           <p className="mt-0.5 text-xs text-foreground-soft">

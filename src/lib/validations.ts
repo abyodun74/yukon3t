@@ -148,12 +148,22 @@ export const imageFromUrlSchema = z.object({
   url: z.string().trim().url().max(2000),
 });
 
-export const collabPostSchema = z.object({
-  title: z.string().trim().min(5).max(100),
-  description: z.string().trim().min(20).max(2000),
-  type: z.enum(["SKILL_EXCHANGE", "VOLUNTEER", "STUDY_GROUP", "PROJECT"]),
-  countries: z.array(z.string().trim().min(2).max(60)).min(1).max(10),
-});
+export const collabPostSchema = z
+  .object({
+    title: z.string().trim().min(5).max(100),
+    description: z.string().trim().min(20).max(2000),
+    type: z.enum(["SKILL_EXCHANGE", "VOLUNTEER", "STUDY_GROUP", "PROJECT"]),
+    worldwide: z.coerce.boolean().optional().default(false),
+    countries: z.array(z.string().trim().min(2).max(60)).max(20).optional().default([]),
+  })
+  // Worldwide posts skip the country list entirely; anything else still
+  // needs at least one — the 10-country cap this replaced was read as "this
+  // app only supports 10 countries," when really it was just an unlabeled
+  // selection limit with no "open to everyone" escape hatch.
+  .refine((data) => data.worldwide || data.countries.length > 0, {
+    message: "Pick at least one country, or mark this worldwide.",
+    path: ["countries"],
+  });
 
 export const connectionRequestSchema = z.object({
   targetId: z.string().cuid(),
