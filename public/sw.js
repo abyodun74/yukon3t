@@ -12,15 +12,25 @@
 // through to the network exactly as if this service worker didn't
 // exist.
 //
+// The offline fallback (OFFLINE_URL) is a plain static HTML file, not
+// a Next.js page: Next's rendered pages pull in framework bootstrap
+// scripts (webpack/main-app/route chunks), and if any one of those
+// isn't already cached, Next's own client-side hydration throws and
+// replaces the whole document with its internal error boundary —
+// confirmed live via diagnostic logging showing the service worker
+// correctly returning the full, byte-correct cached HTML every time,
+// while the rendered page still ended up blank. The one page that
+// most needs to work with zero network can't depend on any JS at
+// all, framework or otherwise.
+//
 // IMPORTANT: the browser only re-installs this service worker when
 // this file's own bytes change. If a future change touches anything
-// in SHELL_ASSETS (e.g. the /offline page's markup or its client JS),
-// bump these version strings too — otherwise every browser with this
-// SW already installed keeps serving the stale precached content
-// forever, even after a new deploy.
-const SHELL_CACHE = "yk3-shell-v4";
-const STATIC_CACHE = "yk3-static-v4";
-const OFFLINE_URL = "/offline";
+// in SHELL_ASSETS, bump these version strings too — otherwise every
+// browser with this SW already installed keeps serving the stale
+// precached content forever, even after a new deploy.
+const SHELL_CACHE = "yk3-shell-v5";
+const STATIC_CACHE = "yk3-static-v5";
+const OFFLINE_URL = "/offline.html";
 const SHELL_ASSETS = [
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -38,7 +48,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  const keep = new Set([SHELL_CACHE, STATIC_CACHE, "yk3-debug"]);
+  const keep = new Set([SHELL_CACHE, STATIC_CACHE]);
   event.waitUntil(
     caches
       .keys()
@@ -58,47 +68,9 @@ self.addEventListener("fetch", (event) => {
   // after a real network failure.
   if (request.mode === "navigate") {
     event.respondWith(
-      (async () => {
-        const logs = [];
-        const log = (m) => logs.push(`${Date.now()} ${m}`);
-        const flush = async () => {
-          try {
-            const dbg = await caches.open("yk3-debug");
-            await dbg.put("/__debug-log", new Response(logs.join("\n")));
-          } catch (e) {
-            logs.push(`flush threw: ${e && e.message}`);
-          }
-        };
-        try {
-          log("fetch start");
-          const res = await fetch(request);
-          log(`fetch ok ${res.status}`);
-          return res;
-        } catch (err) {
-          log(`fetch threw: ${err && err.message}`);
-          try {
-            const cached = await caches.match(OFFLINE_URL);
-            log(`cache match: ${cached ? "hit " + cached.status : "MISS"}`);
-            if (!cached) {
-              await flush();
-              return Response.error();
-            }
-            const body = await cached.text();
-            log(`body read, length ${body.length}`);
-            const resp = new Response(body, {
-              status: 200,
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            });
-            log("built clean response, returning");
-            await flush();
-            return resp;
-          } catch (innerErr) {
-            log(`inner threw: ${innerErr && innerErr.message} :: ${innerErr && innerErr.stack}`);
-            await flush();
-            return Response.error();
-          }
-        }
-      })(),
+      fetch(request).catch(
+        () => caches.match(OFFLINE_URL).then((cached) => cached ?? Response.error()),
+      ),
     );
     return;
   }

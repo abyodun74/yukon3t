@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>You're offline — YuKon3t</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --background: #f7f6f2;
+    --foreground: #1c2420;
+    --foreground-soft: #55605a;
+    --accent: #b5651d;
+    --accent-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #14181a;
+      --foreground: #e9ece7;
+      --foreground-soft: #a8b0a8;
+      --accent: #e08a3e;
+      --accent-ink: #14181a;
+    }
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem 1rem;
+    text-align: center;
+  }
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  p {
+    color: var(--foreground-soft);
+    max-width: 26rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+  a.retry {
+    margin-top: 0.5rem;
+    display: inline-block;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+  <!--
+    Deliberately a plain static file, not a Next.js page: this is what
+    the service worker serves when a real navigation fails offline,
+    and Next's rendered pages pull in framework bootstrap scripts
+    (webpack/main-app/page chunks). If any one of those isn't already
+    cached, Next's own client hydration throws and replaces the whole
+    document with its internal error boundary — so the one page that
+    most needs to work with zero network can't depend on any JS at
+    all, framework or otherwise.
+  -->
+  <div class="wrap">
+    <h1>You&rsquo;re offline</h1>
+    <p>
+      This page needs an internet connection. Check your connection and try again —
+      anything you already had open should still be there.
+    </p>
+    <a class="retry" href="/">Try again</a>
+  </div>
+</body>
+</html>
