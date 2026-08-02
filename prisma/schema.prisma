@@ -472,11 +472,20 @@ model ConversationMember {
   @@unique([conversationId, userId])
 }
 
+enum MessageMediaType {
+  NONE
+  AUDIO
+  VIDEO
+}
+
 model Message {
   id                   String           @id @default(cuid())
   conversationId       String
   senderId             String
   content              String           @db.Text
+  mediaType            MessageMediaType @default(NONE)
+  mediaUrl             String?
+  mediaThumbnailUrl    String?
   moderationStatus     ModerationStatus @default(PUBLISHED)
   deliveredAt          DateTime?
   readAt               DateTime?

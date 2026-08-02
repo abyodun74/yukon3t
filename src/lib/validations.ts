@@ -139,6 +139,8 @@ export const uploadKindValues = [
   "post-image",
   "post-video",
   "video-thumb",
+  "message-audio",
+  "message-video",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -177,11 +179,20 @@ export const connectionRequestSchema = z.object({
   intentTag: z.enum(intentTagValues),
 });
 
-export const messageSchema = z.object({
-  conversationId: z.string().cuid().optional(),
-  recipientId: z.string().cuid().optional(),
-  content: z.string().trim().min(1).max(4000),
-});
+export const messageSchema = z
+  .object({
+    conversationId: z.string().cuid().optional(),
+    recipientId: z.string().cuid().optional(),
+    content: z.string().trim().max(4000).optional().default(""),
+    mediaType: z.enum(["NONE", "AUDIO", "VIDEO"]).optional().default("NONE"),
+    mediaUrl: z.string().url().optional(),
+    mediaThumbnailUrl: z.string().url().optional(),
+  })
+  // A message needs text or a voice/video note — never neither.
+  .refine((data) => data.content.length > 0 || data.mediaType !== "NONE", {
+    message: "A message needs text or a voice/video note.",
+    path: ["content"],
+  });
 
 export const groupChatSchema = z.object({
   name: z.string().trim().min(2).max(60),

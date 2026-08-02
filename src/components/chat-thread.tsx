@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, CheckCheck, MoreHorizontal, X } from "lucide-react";
+import { Check, CheckCheck, Mic, MoreHorizontal, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -13,15 +13,30 @@ import {
   removeCorrection,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { AudioRecorderModal } from "@/components/audio-recorder-modal";
+import { VideoRecorderModal } from "@/components/video-recorder-modal";
+import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 3000;
+// Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
+// and MEDIA_LIMITS — duplicated locally rather than imported, since
+// storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't be
+// bundled into a "use client" component (same pattern post-composer.tsx
+// already uses for its own MAX_VIDEO_SECONDS).
+const MAX_AUDIO_NOTE_SECONDS = 60;
+const MAX_VIDEO_NOTE_SECONDS = 30;
+
+type MessageMediaType = "NONE" | "AUDIO" | "VIDEO";
 
 type MessageData = {
   id: string;
   senderId: string;
   content: string;
+  mediaType: MessageMediaType;
+  mediaUrl: string | null;
+  mediaThumbnailUrl: string | null;
   moderationStatus: "PUBLISHED" | "FLAGGED" | "REMOVED";
   deliveredAt: Date | null;
   readAt: Date | null;
@@ -308,10 +323,35 @@ function MessageBubble({
                 </button>
               </div>
             </div>
+          ) : message.moderationStatus !== "PUBLISHED" ? (
+            <p className="italic">This message is under review.</p>
           ) : (
-            <p className={cn("whitespace-pre-wrap break-words", bigEmoji && "text-3xl leading-none")}>
-              {message.moderationStatus === "PUBLISHED" ? message.content : "This message is under review."}
-            </p>
+            <>
+              {message.mediaType === "AUDIO" && message.mediaUrl && (
+                <audio controls preload="metadata" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
+              )}
+              {message.mediaType === "VIDEO" && message.mediaUrl && (
+                <video
+                  controls
+                  preload="metadata"
+                  poster={message.mediaThumbnailUrl ?? undefined}
+                  className="max-h-72 w-full rounded-lg bg-black"
+                >
+                  <source src={message.mediaUrl} />
+                </video>
+              )}
+              {message.content && (
+                <p
+                  className={cn(
+                    "whitespace-pre-wrap break-words",
+                    message.mediaType !== "NONE" && "mt-1.5",
+                    bigEmoji && "text-3xl leading-none",
+                  )}
+                >
+                  {message.content}
+                </p>
+              )}
+            </>
           )}
           <div
             className={cn(
@@ -487,6 +527,10 @@ export function ChatThread({
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
   const [content, setContent] = useState("");
+  const [pendingAudio, setPendingAudio] = useState<File | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<File | null>(null);
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -524,19 +568,70 @@ export function ChatThread({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  async function uploadPendingMedia(): Promise<
+    | { error: string }
+    | { mediaType: "NONE" }
+    | { mediaType: "AUDIO"; mediaUrl: string }
+    | { mediaType: "VIDEO"; mediaUrl: string; mediaThumbnailUrl?: string }
+  > {
+    if (pendingAudio) {
+      const result = await uploadFileDirect(pendingAudio, "message-audio");
+      if (!result.ok) return { error: result.error };
+      return { mediaType: "AUDIO", mediaUrl: result.publicUrl };
+    }
+    if (pendingVideo) {
+      // Same reasoning as the post composer: frame capture reads the local
+      // file directly, so it can run concurrently with the video upload
+      // instead of waiting on it first.
+      const [videoResult, thumbnailResult] = await Promise.all([
+        uploadFileDirect(pendingVideo, "message-video"),
+        captureVideoFrameFromFile(pendingVideo).then((frame) =>
+          frame ? uploadFileDirect(frame, "video-thumb") : null,
+        ),
+      ]);
+      if (!videoResult.ok) return { error: videoResult.error };
+      return {
+        mediaType: "VIDEO",
+        mediaUrl: videoResult.publicUrl,
+        mediaThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
+      };
+    }
+    return { mediaType: "NONE" };
+  }
+
   function handleSend() {
     const text = content.trim();
-    if (!text || isPending) return;
+    if (!text && !pendingAudio && !pendingVideo) return;
+    if (isPending) return;
+    const audio = pendingAudio;
+    const video = pendingVideo;
     setContent("");
+    setPendingAudio(null);
+    setPendingVideo(null);
     setError(null);
     startTransition(async () => {
+      const media = await uploadPendingMedia();
+      if ("error" in media) {
+        setError("Couldn't send that.");
+        setContent(text);
+        setPendingAudio(audio);
+        setPendingVideo(video);
+        return;
+      }
       const fd = new FormData();
       fd.set("conversationId", conversationId);
       fd.set("content", text);
+      fd.set("mediaType", media.mediaType);
+      if (media.mediaType !== "NONE") fd.set("mediaUrl", media.mediaUrl);
+      if (media.mediaType === "VIDEO" && media.mediaThumbnailUrl) {
+        fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
+      }
       const result = await sendMessage(fd);
       if (result.error) {
         setError(result.error === "rate_limited" ? "Slow down a little." : "Couldn't send that.");
         setContent(text);
+        setPendingAudio(audio);
+        setPendingVideo(video);
         return;
       }
       if (result.message) {
@@ -617,6 +712,25 @@ export function ChatThread({
         <div ref={bottomRef} />
       </div>
 
+      {pendingAudio && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          <Mic size={14} className="shrink-0 text-foreground-soft" />
+          <span className="flex-1 truncate">Voice note ready to send</span>
+          <button type="button" onClick={() => setPendingAudio(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {pendingVideo && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          <Video size={14} className="shrink-0 text-foreground-soft" />
+          <span className="flex-1 truncate">Video note ready to send</span>
+          <button type="button" onClick={() => setPendingVideo(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="mt-3 flex items-end gap-2 rounded-xl border border-line p-2">
         <textarea
           ref={textareaRef}
@@ -630,13 +744,37 @@ export function ChatThread({
           }}
           maxLength={4000}
           rows={1}
-          placeholder={`Message ${conversationLabel}...`}
+          placeholder={
+            pendingAudio || pendingVideo ? "Add a caption (optional)..." : `Message ${conversationLabel}...`
+          }
           className="max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none"
         />
+        <button
+          type="button"
+          onClick={() => {
+            setPendingVideo(null);
+            setShowAudioRecorder(true);
+          }}
+          title="Record a voice note"
+          className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line"
+        >
+          <Mic size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setPendingAudio(null);
+            setShowVideoRecorder(true);
+          }}
+          title="Record a video note"
+          className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line"
+        >
+          <Video size={16} />
+        </button>
         <EmojiPickerButton onSelect={insertEmoji} />
         <button
           type="button"
-          disabled={isPending || !content.trim()}
+          disabled={isPending || (!content.trim() && !pendingAudio && !pendingVideo)}
           onClick={handleSend}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
@@ -644,6 +782,29 @@ export function ChatThread({
         </button>
       </div>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+
+      {showAudioRecorder && (
+        <AudioRecorderModal
+          maxSeconds={MAX_AUDIO_NOTE_SECONDS}
+          onClose={() => setShowAudioRecorder(false)}
+          onRecorded={(file) => {
+            setShowAudioRecorder(false);
+            setPendingVideo(null);
+            setPendingAudio(file);
+          }}
+        />
+      )}
+      {showVideoRecorder && (
+        <VideoRecorderModal
+          maxSeconds={MAX_VIDEO_NOTE_SECONDS}
+          onClose={() => setShowVideoRecorder(false)}
+          onRecorded={(file) => {
+            setShowVideoRecorder(false);
+            setPendingAudio(null);
+            setPendingVideo(file);
+          }}
+        />
+      )}
     </div>
   );
 }

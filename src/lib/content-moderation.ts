@@ -71,10 +71,18 @@ export async function removeModeratedContent(
       // Soft-remove, matching how the rest of messaging already treats REMOVED
       // (see messages.ts's `moderationStatus: { not: "REMOVED" }` filter) — a
       // conversation's history shouldn't vanish, just the offending message.
+      // A voice/video note's file still needs cleaning up from storage
+      // though, same as deleteMessageForEveryone.
       await prisma.message.update({
         where: { id: targetId },
         data: { moderationStatus: "REMOVED" },
       });
+      await Promise.all(
+        [message.mediaUrl, message.mediaThumbnailUrl].filter((url): url is string => Boolean(url)).map((url) => {
+          const key = keyFromPublicUrl(url);
+          return key ? deleteObject(key) : Promise.resolve();
+        }),
+      );
 
       revalidatePath(`/messages/${message.conversationId}`);
       return { authorId: message.senderId };

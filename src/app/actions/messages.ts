@@ -6,9 +6,10 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { messageSchema, groupChatSchema, groupNameSchema, correctionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText } from "@/lib/moderation";
+import { moderateText, moderateMedia } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -237,11 +238,14 @@ export async function sendMessage(formData: FormData) {
   const parsed = messageSchema.safeParse({
     conversationId: formData.get("conversationId") || undefined,
     content: formData.get("content"),
+    mediaType: formData.get("mediaType") || "NONE",
+    mediaUrl: formData.get("mediaUrl") || undefined,
+    mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
   });
   if (!parsed.success || !parsed.data.conversationId) {
     return { error: "invalid" as const };
   }
-  const { conversationId, content } = parsed.data;
+  const { conversationId, content, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
 
   // Ownership check: the sender must actually be a member of this
   // conversation — never trust a client-supplied conversationId alone.
@@ -252,11 +256,59 @@ export async function sendMessage(formData: FormData) {
     return { error: "not_a_member" as const };
   }
 
-  const modResult = await moderateText(content);
-  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+  const uploadedUrls = [
+    ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
+    ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
+  ];
+  async function cleanupUploads() {
+    await Promise.all(
+      uploadedUrls.map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteObject(key) : Promise.resolve();
+      }),
+    );
+  }
+
+  if (mediaType === "AUDIO" || mediaType === "VIDEO") {
+    const key = mediaUrl ? keyFromPublicUrl(mediaUrl) : null;
+    const maxBytes = mediaType === "AUDIO" ? MEDIA_LIMITS["message-audio"] : MEDIA_LIMITS["message-video"];
+    const ok = key && (await verifyUploadedSize({ key, maxBytes }));
+    if (!ok) {
+      await cleanupUploads();
+      return { error: "too_large" as const };
+    }
+  }
+
+  let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
+
+  if (mediaType === "VIDEO") {
+    // Same strict, reject-outright policy as post videos: the thumbnail
+    // frame is the only inspectable signal, held to the zero-tolerance
+    // media policy. A voice note has no equivalent frame to check — see the
+    // NONE/AUDIO branch below, same accepted gap already documented for
+    // video content generally (SECURITY.md).
+    const modResult = await moderateMedia({ text: content, thumbnailUrl: mediaThumbnailUrl });
+    if (!modResult.allowed) {
+      await cleanupUploads();
+      return { error: "moderation" as const, categories: modResult.flaggedCategories };
+    }
+  } else if (content) {
+    // A voice note with no caption has no text to check — skip the call
+    // rather than sending an empty string to the moderation endpoint.
+    const modResult = await moderateText(content);
+    moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+  }
 
   const message = await prisma.message.create({
-    data: { conversationId, senderId: user.id, content, moderationStatus },
+    data: {
+      conversationId,
+      senderId: user.id,
+      content,
+      mediaType,
+      mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
+      mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
+      moderationStatus,
+    },
     include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
   });
   await recordActivity(user.id);
@@ -516,7 +568,13 @@ export async function deleteMessageForEveryone(messageId: string) {
   await prisma.$transaction([
     prisma.message.update({
       where: { id: messageId },
-      data: { deletedForEveryoneAt: new Date(), content: "" },
+      data: {
+        deletedForEveryoneAt: new Date(),
+        content: "",
+        mediaType: "NONE",
+        mediaUrl: null,
+        mediaThumbnailUrl: null,
+      },
     }),
     // Reactions/corrections point at content that no longer exists — leaving
     // them would show emoji reactions and "suggested correction" text on a
@@ -524,6 +582,15 @@ export async function deleteMessageForEveryone(messageId: string) {
     prisma.messageReaction.deleteMany({ where: { messageId } }),
     prisma.messageCorrection.deleteMany({ where: { messageId } }),
   ]);
+
+  // A voice/video note's actual file otherwise keeps sitting in R2 forever,
+  // unreferenced — same cleanup discipline as deletePost's media handling.
+  await Promise.all(
+    [message.mediaUrl, message.mediaThumbnailUrl].filter((url): url is string => Boolean(url)).map((url) => {
+      const key = keyFromPublicUrl(url);
+      return key ? deleteObject(key) : Promise.resolve();
+    }),
+  );
 
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null };

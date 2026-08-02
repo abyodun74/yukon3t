@@ -7,13 +7,21 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 
-export type UploadKind = "avatar" | "post-image" | "post-video" | "video-thumb";
+export type UploadKind =
+  | "avatar"
+  | "post-image"
+  | "post-video"
+  | "video-thumb"
+  | "message-audio"
+  | "message-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "message-audio": { "audio/webm": "webm" },
+  "message-video": { "video/webm": "webm" },
 };
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
@@ -21,10 +29,17 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "post-image": 8 * 1024 * 1024,
   "video-thumb": 3 * 1024 * 1024,
   "post-video": 30 * 1024 * 1024,
+  // Voice/video notes in chat are meant to be quick — kept well under the
+  // full post-video allowance both in bytes and (see MAX_*_NOTE_SECONDS
+  // below) duration.
+  "message-audio": 5 * 1024 * 1024,
+  "message-video": 15 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;
 export const MAX_VIDEO_DURATION_SECONDS = 60;
+export const MAX_AUDIO_NOTE_SECONDS = 60;
+export const MAX_VIDEO_NOTE_SECONDS = 30;
 
 export function isStorageConfigured() {
   return Boolean(
