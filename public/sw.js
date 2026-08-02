@@ -38,7 +38,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  const keep = new Set([SHELL_CACHE, STATIC_CACHE]);
+  const keep = new Set([SHELL_CACHE, STATIC_CACHE, "yk3-debug"]);
   event.waitUntil(
     caches
       .keys()
@@ -58,24 +58,47 @@ self.addEventListener("fetch", (event) => {
   // after a real network failure.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(async () => {
-        const cached = await caches.match(OFFLINE_URL);
-        if (!cached) return Response.error();
-        // Re-wrap the cached body in a clean Response instead of
-        // returning it as-is. The original response carries a `Vary:
-        // rsc, next-router-state-tree, ...` header (Next.js's RSC
-        // content-negotiation) plus Content-Encoding — replaying that
-        // exact response object through a service worker during a
-        // real navigation left the page stuck showing Next's raw,
-        // unhydrated streaming payload instead of the rendered HTML
-        // (confirmed via diagnostic logging against production). A
-        // plain text/html response with no Vary/encoding avoids it.
-        const body = await cached.text();
-        return new Response(body, {
-          status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      }),
+      (async () => {
+        const logs = [];
+        const log = (m) => logs.push(`${Date.now()} ${m}`);
+        const flush = async () => {
+          try {
+            const dbg = await caches.open("yk3-debug");
+            await dbg.put("/__debug-log", new Response(logs.join("\n")));
+          } catch (e) {
+            logs.push(`flush threw: ${e && e.message}`);
+          }
+        };
+        try {
+          log("fetch start");
+          const res = await fetch(request);
+          log(`fetch ok ${res.status}`);
+          return res;
+        } catch (err) {
+          log(`fetch threw: ${err && err.message}`);
+          try {
+            const cached = await caches.match(OFFLINE_URL);
+            log(`cache match: ${cached ? "hit " + cached.status : "MISS"}`);
+            if (!cached) {
+              await flush();
+              return Response.error();
+            }
+            const body = await cached.text();
+            log(`body read, length ${body.length}`);
+            const resp = new Response(body, {
+              status: 200,
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            });
+            log("built clean response, returning");
+            await flush();
+            return resp;
+          } catch (innerErr) {
+            log(`inner threw: ${innerErr && innerErr.message} :: ${innerErr && innerErr.stack}`);
+            await flush();
+            return Response.error();
+          }
+        }
+      })(),
     );
     return;
   }
