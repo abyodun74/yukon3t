@@ -11,8 +11,15 @@
 // serving stale or wrong-user content. Everything dynamic falls
 // through to the network exactly as if this service worker didn't
 // exist.
-const SHELL_CACHE = "yk3-shell-v2";
-const STATIC_CACHE = "yk3-static-v2";
+//
+// IMPORTANT: the browser only re-installs this service worker when
+// this file's own bytes change. If a future change touches anything
+// in SHELL_ASSETS (e.g. the /offline page's markup or its client JS),
+// bump these version strings too — otherwise every browser with this
+// SW already installed keeps serving the stale precached content
+// forever, even after a new deploy.
+const SHELL_CACHE = "yk3-shell-v3";
+const STATIC_CACHE = "yk3-static-v3";
 const OFFLINE_URL = "/offline";
 const SHELL_ASSETS = [
   "/manifest.webmanifest",
