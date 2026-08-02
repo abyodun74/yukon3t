@@ -65,13 +65,19 @@ export default async function NewCollabPostPage({
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium">Description</label>
+          <label className="block text-sm font-medium">What is this collaboration?</label>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Describe the goal before people commit — what you&apos;re trying
+            to build or exchange, what a collaborator would actually do, and
+            any expectations up front.
+          </p>
           <textarea
             name="description"
             required
             minLength={20}
             maxLength={2000}
             rows={5}
+            placeholder="e.g. Looking for 2-3 people to practice conversational Japanese/English exchange twice a week over video for the next month."
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>

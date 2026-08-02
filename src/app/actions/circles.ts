@@ -88,7 +88,7 @@ export async function leaveCircle(circleId: string) {
   revalidatePath("/circles");
 }
 
-/** Owner-only: deletes the Circle outright — cascades its posts and memberships. */
+/** Owner or admin: deletes the Circle outright — cascades its posts and memberships. Admins need this to clear out duplicate/spam Circles that aren't theirs to own. */
 export async function deleteCircle(circleId: string) {
   const user = await requireVerifiedUser();
 
@@ -96,7 +96,7 @@ export async function deleteCircle(circleId: string) {
   if (!circle) {
     return { error: "not_found" as const };
   }
-  if (circle.createdById !== user.id) {
+  if (circle.createdById !== user.id && !user.isAdmin) {
     return { error: "forbidden" as const };
   }
 

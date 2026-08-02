@@ -75,6 +75,33 @@ export async function signUpWithPassword(formData: FormData) {
   redirect("/sign-in/check-email?context=verify");
 }
 
+/**
+ * Consumes the verification token — deliberately only reachable via a POST
+ * form submit, never as a side effect of rendering the /verify-email page.
+ * A bare GET link is routinely pre-fetched by corporate email "safe link"
+ * scanners, which would otherwise burn the one-time token before the real
+ * user ever clicks it.
+ */
+export async function confirmEmailVerification(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!token || !email) {
+    redirect("/verify-email");
+  }
+
+  const record = await prisma.verificationToken.findUnique({
+    where: { identifier_token: { identifier: email, token } },
+  });
+  if (!record || record.expires < new Date()) {
+    redirect(`/verify-email?email=${encodeURIComponent(email)}`);
+  }
+
+  await prisma.user.update({ where: { email }, data: { emailVerified: new Date() } });
+  await prisma.verificationToken.delete({ where: { identifier_token: { identifier: email, token } } });
+
+  redirect("/verify-email?verified=1");
+}
+
 export async function resendVerificationEmail(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return;

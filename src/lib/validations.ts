@@ -211,6 +211,19 @@ export const repostSchema = z.object({
 
 export const moderationActionSchema = z.object({
   reportId: z.string().cuid(),
-  action: z.enum(["WARN", "SUSPEND", "BAN", "REPORT_DISMISSED", "REPORT_RESOLVED"]),
+  action: z.enum([
+    "WARN",
+    "SUSPEND",
+    "BAN",
+    "REMOVE_CONTENT",
+    "REPORT_DISMISSED",
+    "REPORT_RESOLVED",
+  ]),
   note: z.string().trim().min(5).max(1000),
+});
+
+export const flaggedContentActionSchema = z.object({
+  contentType: z.enum(["POST", "COMMENT", "MESSAGE"]),
+  contentId: z.string().cuid(),
+  decision: z.enum(["APPROVE", "REMOVE"]),
 });

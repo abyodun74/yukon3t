@@ -57,13 +57,19 @@ export default async function NewCirclePage({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium">Description</label>
+          <label className="block text-sm font-medium">Theme</label>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Describe what this Circle is about — the shared interest or
+            identity that brings people here — so members know what to
+            expect before they join.
+          </p>
           <textarea
             name="description"
             required
             minLength={10}
             maxLength={1000}
             rows={4}
+            placeholder="e.g. A space for first-gen university students abroad to swap advice on visas, housing, and homesickness."
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>

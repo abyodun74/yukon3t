@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireAdmin } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { reportSchema, moderationActionSchema } from "@/lib/validations";
+import { reportSchema, moderationActionSchema, flaggedContentActionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recomputeTrustScore } from "@/lib/trust";
+import { removeModeratedContent } from "@/lib/content-moderation";
 
 export async function fileReport(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -61,13 +62,32 @@ export async function resolveReport(formData: FormData) {
   await prisma.report.update({
     where: { id: reportId },
     data: {
-      status: "RESOLVED",
+      // A dismissed report was found to have no merit and must not count as
+      // an "upheld" report — recomputeTrustScore() only penalizes RESOLVED
+      // ones, so this needs its own status or a baseless report would still
+      // dock the reported user's trust score.
+      status: action === "REPORT_DISMISSED" ? "DISMISSED" : "RESOLVED",
       resolutionNote: note,
       resolvedAt: new Date(),
     },
   });
 
-  if (report.reportedUserId) {
+  if (action === "REMOVE_CONTENT") {
+    // Content reports (POST/COMMENT/MESSAGE/CIRCLE/COLLAB_POST) resolve by
+    // taking the reported content down, not by acting on reportedUserId.
+    const removed = await removeModeratedContent(report.targetType, report.targetId);
+    if (removed) {
+      await prisma.auditLog.create({
+        data: {
+          targetId: removed.authorId,
+          action: "CONTENT_REMOVED",
+          reason: note,
+          performedBy: admin.id,
+        },
+      });
+      await recomputeTrustScore(removed.authorId);
+    }
+  } else if (report.reportedUserId) {
     await prisma.auditLog.create({
       data: {
         targetId: report.reportedUserId,
@@ -88,6 +108,77 @@ export async function resolveReport(formData: FormData) {
     }
 
     await recomputeTrustScore(report.reportedUserId);
+  }
+
+  revalidatePath("/admin/moderation");
+  return { error: null };
+}
+
+/**
+ * Content that automated moderation flagged at creation time (see
+ * moderateText/moderateMedia) is stored hidden but was previously never
+ * reviewed by anyone — it just sat invisible forever. These two actions are
+ * how an admin clears that queue: publish it after a human look, or remove it
+ * outright.
+ */
+export async function approveFlaggedContent(formData: FormData) {
+  await requireAdmin();
+
+  const parsed = flaggedContentActionSchema.safeParse({
+    contentType: formData.get("contentType"),
+    contentId: formData.get("contentId"),
+    decision: "APPROVE",
+  });
+  if (!parsed.success) {
+    return { error: "invalid" };
+  }
+  const { contentType, contentId } = parsed.data;
+
+  if (contentType === "POST") {
+    await prisma.post.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
+  } else if (contentType === "COMMENT") {
+    const comment = await prisma.comment.update({
+      where: { id: contentId },
+      data: { moderationStatus: "PUBLISHED" },
+    });
+    // createComment only increments commentCount when it publishes immediately;
+    // a comment approved late needs that increment applied now instead.
+    await prisma.post.update({
+      where: { id: comment.postId },
+      data: { commentCount: { increment: 1 } },
+    });
+  } else {
+    await prisma.message.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
+  }
+
+  revalidatePath("/admin/moderation");
+  return { error: null };
+}
+
+export async function removeFlaggedContent(formData: FormData) {
+  const admin = await requireAdmin();
+
+  const parsed = flaggedContentActionSchema.safeParse({
+    contentType: formData.get("contentType"),
+    contentId: formData.get("contentId"),
+    decision: "REMOVE",
+  });
+  if (!parsed.success) {
+    return { error: "invalid" };
+  }
+  const { contentType, contentId } = parsed.data;
+
+  const removed = await removeModeratedContent(contentType, contentId);
+  if (removed) {
+    await prisma.auditLog.create({
+      data: {
+        targetId: removed.authorId,
+        action: "CONTENT_REMOVED",
+        reason: "Removed from the flagged content queue after review.",
+        performedBy: admin.id,
+      },
+    });
+    await recomputeTrustScore(removed.authorId);
   }
 
   revalidatePath("/admin/moderation");

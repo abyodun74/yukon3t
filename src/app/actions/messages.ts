@@ -130,9 +130,22 @@ export async function leaveGroup(conversationId: string) {
     where: { conversationId, userId: user.id },
   });
 
-  const remaining = await prisma.conversationMember.count({ where: { conversationId } });
-  if (remaining === 0) {
+  const remainingMembers = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    orderBy: { joinedAt: "asc" },
+    select: { userId: true },
+  });
+
+  if (remainingMembers.length === 0) {
     await prisma.conversation.delete({ where: { id: conversationId } });
+  } else if (conversation.createdById === user.id) {
+    // Creator-only actions (rename, discoverability, join-request approval)
+    // all gate on createdById — leaving it pointed at someone no longer in
+    // the group would permanently lock those out for everyone remaining.
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { createdById: remainingMembers[0].userId },
+    });
   }
 
   revalidatePath("/messages");
@@ -500,10 +513,17 @@ export async function deleteMessageForEveryone(messageId: string) {
     return { error: "forbidden" as const };
   }
 
-  await prisma.message.update({
-    where: { id: messageId },
-    data: { deletedForEveryoneAt: new Date(), content: "" },
-  });
+  await prisma.$transaction([
+    prisma.message.update({
+      where: { id: messageId },
+      data: { deletedForEveryoneAt: new Date(), content: "" },
+    }),
+    // Reactions/corrections point at content that no longer exists — leaving
+    // them would show emoji reactions and "suggested correction" text on a
+    // tombstoned "This message was deleted" bubble.
+    prisma.messageReaction.deleteMany({ where: { messageId } }),
+    prisma.messageCorrection.deleteMany({ where: { messageId } }),
+  ]);
 
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null };

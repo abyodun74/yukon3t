@@ -46,10 +46,18 @@ export async function startCall(formData: FormData) {
     return { error: "not_found" as const };
   }
 
-  // One ringing/active call to a given person at a time — otherwise a
-  // double-click would spawn a second Daily room and a second ring.
+  // One ringing/active call between these two people at a time, in either
+  // direction — otherwise a double-click (or B calling A back while A's
+  // call to B is still ringing) would spawn a second Daily room and a
+  // second ring.
   const existing = await prisma.call.findFirst({
-    where: { callerId: user.id, calleeId, status: { in: ["RINGING", "ACCEPTED"] } },
+    where: {
+      status: { in: ["RINGING", "ACCEPTED"] },
+      OR: [
+        { callerId: user.id, calleeId },
+        { callerId: calleeId, calleeId: user.id },
+      ],
+    },
   });
   if (existing) {
     return { error: "already_calling" as const };

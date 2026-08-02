@@ -123,12 +123,20 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   Settings
                 </Link>
                 {session.user.isAdmin && (
-                  <Link
-                    href="/admin/moderation"
-                    className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
-                  >
-                    Moderation
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin/moderation"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Moderation
+                    </Link>
+                    <Link
+                      href="/admin/circles"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Circles (admin)
+                    </Link>
+                  </>
                 )}
                 <form action={signOutAction} className="hidden sm:block">
                   <button
@@ -191,13 +199,22 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 Settings
               </Link>
               {session.user.isAdmin && (
-                <Link
-                  href="/admin/moderation"
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
-                >
-                  Moderation
-                </Link>
+                <>
+                  <Link
+                    href="/admin/moderation"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Moderation
+                  </Link>
+                  <Link
+                    href="/admin/circles"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Circles (admin)
+                  </Link>
+                </>
               )}
               <div className="flex items-center justify-between px-3 py-2">
                 <span className="text-foreground-soft">Theme</span>

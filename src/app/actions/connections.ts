@@ -35,6 +35,18 @@ export async function requestConnection(formData: FormData) {
     return { error: "intent_not_open" };
   }
 
+  // The unique constraint is on the ordered (requesterId, targetId) pair, so
+  // it can't catch the reverse case: target already has a pending request
+  // out to us. Without this check that creates a second, independent
+  // Connection row for the same two people instead of the natural "respond
+  // to the existing request" flow.
+  const reverse = await prisma.connection.findUnique({
+    where: { requesterId_targetId: { requesterId: targetId, targetId: user.id } },
+  });
+  if (reverse && reverse.status === "PENDING") {
+    return { error: "pending_from_them" };
+  }
+
   const connection = await prisma.connection.upsert({
     where: { requesterId_targetId: { requesterId: user.id, targetId } },
     create: { requesterId: user.id, targetId, intentTag },
@@ -62,6 +74,12 @@ export async function respondToConnection(connectionId: string, accept: boolean)
   });
   if (!connection || connection.targetId !== user.id) {
     return { error: "not_found" };
+  }
+  if (connection.status !== "PENDING") {
+    // Already responded — without this, a duplicate submit (double click, a
+    // retried request) creates a second DM conversation and a second
+    // "connection accepted" notification for the same pair.
+    return { error: "already_responded" };
   }
 
   const updated = await prisma.connection.update({

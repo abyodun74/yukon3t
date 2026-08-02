@@ -51,7 +51,9 @@ export default async function CirclePage({
             isMember={isMember}
             isOwner={isOwner}
           />
-          {isOwner && <DeleteCircleButton circleId={circle.id} />}
+          {(isOwner || me.isAdmin) && (
+            <DeleteCircleButton circleId={circle.id} isAdminOverride={!isOwner} />
+          )}
         </div>
       </div>
       <p className="mt-2 text-sm text-foreground-soft">{circle.description}</p>

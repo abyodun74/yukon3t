@@ -521,6 +521,7 @@ enum ReportStatus {
   OPEN
   REVIEWING
   RESOLVED
+  DISMISSED
 }
 
 enum ReportReasonCategory {
@@ -560,6 +561,7 @@ enum AuditAction {
   REPORT_DISMISSED
   REPORT_RESOLVED
   ACCOUNT_DELETED
+  CONTENT_REMOVED
 }
 
 model AuditLog {

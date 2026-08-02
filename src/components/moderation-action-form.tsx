@@ -4,10 +4,25 @@ import { useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { resolveReport } from "@/app/actions/reports";
 
-export function ModerationActionForm({ reportId }: { reportId: string }) {
+const CONTENT_LABELS: Record<string, string> = {
+  POST: "Remove the post",
+  COMMENT: "Remove the comment",
+  MESSAGE: "Remove the message",
+  CIRCLE: "Delete the Circle",
+  COLLAB_POST: "Close the collab post",
+};
+
+export function ModerationActionForm({
+  reportId,
+  targetType,
+}: {
+  reportId: string;
+  targetType: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const contentLabel = CONTENT_LABELS[targetType];
 
   return (
     <form
@@ -27,6 +42,7 @@ export function ModerationActionForm({ reportId }: { reportId: string }) {
         className="rounded-md border border-line bg-surface px-2 py-1.5 text-xs"
       >
         <option value="REPORT_DISMISSED">Dismiss (no violation)</option>
+        {contentLabel && <option value="REMOVE_CONTENT">{contentLabel}</option>}
         <option value="WARN">Warn user</option>
         <option value="SUSPEND">Suspend user (temporary)</option>
         <option value="BAN">Ban user (permanent)</option>
