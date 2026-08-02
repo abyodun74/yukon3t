@@ -38,7 +38,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  const keep = new Set([SHELL_CACHE, STATIC_CACHE]);
+  const keep = new Set([SHELL_CACHE, STATIC_CACHE, "yk3-debug"]);
   event.waitUntil(
     caches
       .keys()
@@ -58,9 +58,38 @@ self.addEventListener("fetch", (event) => {
   // after a real network failure.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(
-        () => caches.match(OFFLINE_URL).then((cached) => cached ?? Response.error()),
-      ),
+      (async () => {
+        const logs = [];
+        const log = (msg) => logs.push(`${Date.now()} ${msg}`);
+        const flush = async () => {
+          try {
+            const dbg = await caches.open("yk3-debug");
+            await dbg.put(
+              "/__debug-log",
+              new Response(logs.join("\n"), { headers: { "content-type": "text/plain" } }),
+            );
+          } catch {}
+        };
+        try {
+          log(`fetch start ${request.url}`);
+          const res = await fetch(request);
+          log(`fetch ok ${res.status}`);
+          await flush();
+          return res;
+        } catch (err) {
+          log(`fetch threw: ${err && err.message}`);
+          try {
+            const cached = await caches.match(OFFLINE_URL);
+            log(`cache match: ${cached ? "hit " + cached.status : "MISS"}`);
+            await flush();
+            return cached ?? Response.error();
+          } catch (cacheErr) {
+            log(`cache match threw: ${cacheErr && cacheErr.message}`);
+            await flush();
+            return Response.error();
+          }
+        }
+      })(),
     );
     return;
   }
