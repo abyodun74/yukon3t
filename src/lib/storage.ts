@@ -13,7 +13,8 @@ export type UploadKind =
   | "post-video"
   | "video-thumb"
   | "message-audio"
-  | "message-video";
+  | "message-video"
+  | "message-image";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -21,7 +22,11 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "message-audio": { "audio/webm": "webm" },
-  "message-video": { "video/webm": "webm" },
+  // Recorded voice/video notes are always webm (MediaRecorder's output);
+  // mp4 is here too because "attach from device" lets a user pick a video
+  // their phone actually recorded, which is virtually always mp4.
+  "message-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
 };
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
@@ -34,6 +39,7 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // below) duration.
   "message-audio": 5 * 1024 * 1024,
   "message-video": 15 * 1024 * 1024,
+  "message-image": 8 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;

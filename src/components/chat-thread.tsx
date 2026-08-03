@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, CheckCheck, Mic, MoreHorizontal, Video, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -15,6 +15,7 @@ import {
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
+import { MediaPickerButton } from "@/components/media-picker-button";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
@@ -27,8 +28,12 @@ const POLL_INTERVAL_MS = 3000;
 // already uses for its own MAX_VIDEO_SECONDS).
 const MAX_AUDIO_NOTE_SECONDS = 60;
 const MAX_VIDEO_NOTE_SECONDS = 30;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 15 * 1024 * 1024;
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const VIDEO_TYPES = ["video/mp4", "video/webm"];
 
-type MessageMediaType = "NONE" | "AUDIO" | "VIDEO";
+type MessageMediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE";
 
 type MessageData = {
   id: string;
@@ -340,6 +345,14 @@ function MessageBubble({
                   <source src={message.mediaUrl} />
                 </video>
               )}
+              {message.mediaType === "IMAGE" && message.mediaUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- R2-hosted user upload, not a local/optimizable asset
+                <img
+                  src={message.mediaUrl}
+                  alt=""
+                  className="max-h-72 w-full rounded-lg object-contain"
+                />
+              )}
               {message.content && (
                 <p
                   className={cn(
@@ -529,12 +542,29 @@ export function ChatThread({
   const [content, setContent] = useState("");
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Object URL is created once per pendingImage (memoized), not inline in
+  // JSX — that would leak a new blob URL on every re-render. The paired
+  // effect below only handles revocation.
+  const pendingImagePreviewUrl = useMemo(
+    () => (pendingImage ? URL.createObjectURL(pendingImage) : null),
+    [pendingImage],
+  );
+  useEffect(() => {
+    return () => {
+      if (pendingImagePreviewUrl) URL.revokeObjectURL(pendingImagePreviewUrl);
+    };
+  }, [pendingImagePreviewUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -573,11 +603,17 @@ export function ChatThread({
     | { mediaType: "NONE" }
     | { mediaType: "AUDIO"; mediaUrl: string }
     | { mediaType: "VIDEO"; mediaUrl: string; mediaThumbnailUrl?: string }
+    | { mediaType: "IMAGE"; mediaUrl: string }
   > {
     if (pendingAudio) {
       const result = await uploadFileDirect(pendingAudio, "message-audio");
       if (!result.ok) return { error: result.error };
       return { mediaType: "AUDIO", mediaUrl: result.publicUrl };
+    }
+    if (pendingImage) {
+      const result = await uploadFileDirect(pendingImage, "message-image");
+      if (!result.ok) return { error: result.error };
+      return { mediaType: "IMAGE", mediaUrl: result.publicUrl };
     }
     if (pendingVideo) {
       // Same reasoning as the post composer: frame capture reads the local
@@ -601,13 +637,15 @@ export function ChatThread({
 
   function handleSend() {
     const text = content.trim();
-    if (!text && !pendingAudio && !pendingVideo) return;
+    if (!text && !pendingAudio && !pendingVideo && !pendingImage) return;
     if (isPending) return;
     const audio = pendingAudio;
     const video = pendingVideo;
+    const image = pendingImage;
     setContent("");
     setPendingAudio(null);
     setPendingVideo(null);
+    setPendingImage(null);
     setError(null);
     startTransition(async () => {
       const media = await uploadPendingMedia();
@@ -616,6 +654,7 @@ export function ChatThread({
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);
+        setPendingImage(image);
         return;
       }
       const fd = new FormData();
@@ -637,6 +676,7 @@ export function ChatThread({
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);
+        setPendingImage(image);
         return;
       }
       if (result.error) {
@@ -644,12 +684,45 @@ export function ChatThread({
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);
+        setPendingImage(image);
         return;
       }
       if (result.message) {
         setMessages((prev) => [...prev, result.message as MessageData]);
       }
     });
+  }
+
+  function pickImage(file: File | undefined) {
+    if (!file) return;
+    if (!IMAGE_TYPES.includes(file.type)) {
+      setError("Use a JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError("Images must be 8MB or smaller.");
+      return;
+    }
+    setPendingAudio(null);
+    setPendingVideo(null);
+    setError(null);
+    setPendingImage(file);
+  }
+
+  function pickVideoFile(file: File | undefined) {
+    if (!file) return;
+    if (!VIDEO_TYPES.includes(file.type)) {
+      setError("Use an MP4 or WebM video.");
+      return;
+    }
+    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+      setError("Video must be 15MB or smaller.");
+      return;
+    }
+    setPendingAudio(null);
+    setPendingImage(null);
+    setError(null);
+    setPendingVideo(file);
   }
 
   function insertEmoji(emoji: string) {
@@ -736,14 +809,46 @@ export function ChatThread({
       {pendingVideo && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">Video note ready to send</span>
+          <span className="flex-1 truncate">Video ready to send</span>
           <button type="button" onClick={() => setPendingVideo(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {pendingImage && pendingImagePreviewUrl && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview, not an optimizable remote image */}
+          <img src={pendingImagePreviewUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+          <span className="flex-1 truncate">Photo ready to send</span>
+          <button type="button" onClick={() => setPendingImage(null)} className="text-danger">
             <X size={14} />
           </button>
         </div>
       )}
 
       <div className="mt-3 flex items-end gap-2 rounded-xl border border-line p-2">
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept={IMAGE_TYPES.join(",")}
+          className="hidden"
+          onChange={(e) => pickImage(e.target.files?.[0])}
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept={IMAGE_TYPES.join(",")}
+          capture="environment"
+          className="hidden"
+          onChange={(e) => pickImage(e.target.files?.[0])}
+        />
+        <input
+          ref={videoFileInputRef}
+          type="file"
+          accept={VIDEO_TYPES.join(",")}
+          className="hidden"
+          onChange={(e) => pickVideoFile(e.target.files?.[0])}
+        />
         <textarea
           ref={textareaRef}
           value={content}
@@ -757,7 +862,9 @@ export function ChatThread({
           maxLength={4000}
           rows={1}
           placeholder={
-            pendingAudio || pendingVideo ? "Add a caption (optional)..." : `Message ${conversationLabel}...`
+            pendingAudio || pendingVideo || pendingImage
+              ? "Add a caption (optional)..."
+              : `Message ${conversationLabel}...`
           }
           className="max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none"
         />
@@ -765,6 +872,7 @@ export function ChatThread({
           type="button"
           onClick={() => {
             setPendingVideo(null);
+            setPendingImage(null);
             setShowAudioRecorder(true);
           }}
           title="Record a voice note"
@@ -772,21 +880,46 @@ export function ChatThread({
         >
           <Mic size={16} />
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPendingAudio(null);
-            setShowVideoRecorder(true);
-          }}
-          title="Record a video note"
-          className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line"
-        >
-          <Video size={16} />
-        </button>
+        <MediaPickerButton
+          icon={<ImagePlus size={16} />}
+          title="Add a photo"
+          options={[
+            {
+              label: "Upload from device",
+              icon: <Upload size={14} />,
+              onSelect: () => imageInputRef.current?.click(),
+            },
+            {
+              label: "Take a photo",
+              icon: <Camera size={14} />,
+              onSelect: () => cameraInputRef.current?.click(),
+            },
+          ]}
+        />
+        <MediaPickerButton
+          icon={<Video size={16} />}
+          title="Add a video"
+          options={[
+            {
+              label: "Upload from device",
+              icon: <Upload size={14} />,
+              onSelect: () => videoFileInputRef.current?.click(),
+            },
+            {
+              label: "Record live",
+              icon: <Circle size={14} className="text-danger" fill="currentColor" />,
+              onSelect: () => {
+                setPendingAudio(null);
+                setPendingImage(null);
+                setShowVideoRecorder(true);
+              },
+            },
+          ]}
+        />
         <EmojiPickerButton onSelect={insertEmoji} />
         <button
           type="button"
-          disabled={isPending || (!content.trim() && !pendingAudio && !pendingVideo)}
+          disabled={isPending || (!content.trim() && !pendingAudio && !pendingVideo && !pendingImage)}
           onClick={handleSend}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
@@ -802,6 +935,7 @@ export function ChatThread({
           onRecorded={(file) => {
             setShowAudioRecorder(false);
             setPendingVideo(null);
+            setPendingImage(null);
             setPendingAudio(file);
           }}
         />
@@ -813,6 +947,7 @@ export function ChatThread({
           onRecorded={(file) => {
             setShowVideoRecorder(false);
             setPendingAudio(null);
+            setPendingImage(null);
             setPendingVideo(file);
           }}
         />

@@ -269,9 +269,14 @@ export async function sendMessage(formData: FormData) {
     );
   }
 
-  if (mediaType === "AUDIO" || mediaType === "VIDEO") {
+  if (mediaType === "AUDIO" || mediaType === "VIDEO" || mediaType === "IMAGE") {
     const key = mediaUrl ? keyFromPublicUrl(mediaUrl) : null;
-    const maxBytes = mediaType === "AUDIO" ? MEDIA_LIMITS["message-audio"] : MEDIA_LIMITS["message-video"];
+    const maxBytes =
+      mediaType === "AUDIO"
+        ? MEDIA_LIMITS["message-audio"]
+        : mediaType === "VIDEO"
+          ? MEDIA_LIMITS["message-video"]
+          : MEDIA_LIMITS["message-image"];
     const ok = key && (await verifyUploadedSize({ key, maxBytes }));
     if (!ok) {
       await cleanupUploads();
@@ -288,6 +293,14 @@ export async function sendMessage(formData: FormData) {
     // NONE/AUDIO branch below, same accepted gap already documented for
     // video content generally (SECURITY.md).
     const modResult = await moderateMedia({ text: content, thumbnailUrl: mediaThumbnailUrl });
+    if (!modResult.allowed) {
+      await cleanupUploads();
+      return { error: "moderation" as const, categories: modResult.flaggedCategories };
+    }
+  } else if (mediaType === "IMAGE") {
+    // Unlike video, the full attached image itself is inspectable directly —
+    // no thumbnail proxy needed.
+    const modResult = await moderateMedia({ text: content, imageUrls: mediaUrl ? [mediaUrl] : [] });
     if (!modResult.allowed) {
       await cleanupUploads();
       return { error: "moderation" as const, categories: modResult.flaggedCategories };

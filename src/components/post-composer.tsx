@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
@@ -9,6 +9,7 @@ import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
+import { MediaPickerButton } from "@/components/media-picker-button";
 import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 4;
@@ -64,73 +65,6 @@ function imageUrlErrorMessage(code: string) {
     default:
       return "Couldn't add that image — check the link and try again.";
   }
-}
-
-/**
- * One button that opens a small menu of media sources — replaces what used
- * to be a separate always-visible icon per source (device upload, camera,
- * URL, etc.). The sources still funnel into the exact same handlers as
- * before; this only changes how they're reached.
- */
-function MediaPickerButton({
-  icon,
-  title,
-  disabled,
-  options,
-}: {
-  icon: ReactNode;
-  title: string;
-  disabled?: boolean;
-  options: { label: string; icon: ReactNode; onSelect: () => void }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    function onClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        disabled={disabled}
-        title={title}
-        className={cn(
-          "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
-          open ? "text-accent" : "text-foreground-soft",
-        )}
-      >
-        {icon}
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-1 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
-          {options.map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                option.onSelect();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
-            >
-              {option.icon}
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function PostComposer({

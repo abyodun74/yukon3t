@@ -141,6 +141,7 @@ export const uploadKindValues = [
   "video-thumb",
   "message-audio",
   "message-video",
+  "message-image",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -184,13 +185,13 @@ export const messageSchema = z
     conversationId: z.string().cuid().optional(),
     recipientId: z.string().cuid().optional(),
     content: z.string().trim().max(4000).optional().default(""),
-    mediaType: z.enum(["NONE", "AUDIO", "VIDEO"]).optional().default("NONE"),
+    mediaType: z.enum(["NONE", "AUDIO", "VIDEO", "IMAGE"]).optional().default("NONE"),
     mediaUrl: z.string().url().optional(),
     mediaThumbnailUrl: z.string().url().optional(),
   })
-  // A message needs text or a voice/video note — never neither.
+  // A message needs text or a voice/video/photo attachment — never neither.
   .refine((data) => data.content.length > 0 || data.mediaType !== "NONE", {
-    message: "A message needs text or a voice/video note.",
+    message: "A message needs text or a voice/video/photo attachment.",
     path: ["content"],
   });
 

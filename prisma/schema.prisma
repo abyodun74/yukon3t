@@ -476,6 +476,7 @@ enum MessageMediaType {
   NONE
   AUDIO
   VIDEO
+  IMAGE
 }
 
 model Message {
