@@ -7,6 +7,7 @@ export function AccountDangerZone() {
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   return (
     <div className="space-y-4 rounded-xl border border-danger/40 p-5">
@@ -19,8 +20,13 @@ export function AccountDangerZone() {
           type="button"
           onClick={() =>
             startTransition(async () => {
-              const json = await exportMyData();
-              const blob = new Blob([json], { type: "application/json" });
+              setExportError(null);
+              const result = await exportMyData();
+              if (result.error) {
+                setExportError("Too many exports recently — try again in a bit.");
+                return;
+              }
+              const blob = new Blob([result.data], { type: "application/json" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
@@ -34,6 +40,7 @@ export function AccountDangerZone() {
         >
           Export my data
         </button>
+        {exportError && <p className="mt-2 text-xs text-danger">{exportError}</p>}
       </div>
 
       <div className="border-t border-line pt-4">

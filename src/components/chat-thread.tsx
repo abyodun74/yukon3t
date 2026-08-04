@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
@@ -19,8 +19,9 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
+import { usePolling } from "@/lib/use-polling";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 5000;
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
 // storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't be
@@ -566,33 +567,32 @@ export function ChatThread({
     };
   }, [pendingImagePreviewUrl]);
 
+  // usePolling fires this immediately (mount, and on regaining tab focus)
+  // as well as on the recurring interval — that immediate fire is the real
+  // "mark as read" signal, not just a bonus of the polling mechanism.
+  const conversationIdRef = useRef(conversationId);
   useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      const result = await getConversationMessages(conversationId);
-      if (!cancelled && result.error === null) {
-        setMessages(result.messages as MessageData[]);
-        if (result.conversation) {
-          setMembers(
-            result.conversation.members.map((m) => ({
-              userId: m.userId,
-              name: m.user.name ?? "Unknown",
-              lastReadAt: m.lastReadAt,
-            })),
-          );
-        }
-      }
-    };
-    // Fire immediately on mount too — this is the real "mark as read"
-    // signal (only ever runs in a live browser, never during SSR/prefetch),
-    // not just the recurring poll.
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [conversationId]);
+    conversationIdRef.current = conversationId;
+  });
+
+  const poll = useCallback(async () => {
+    const forId = conversationIdRef.current;
+    const result = await getConversationMessages(forId);
+    // Ignore a response that arrives after the user has switched threads.
+    if (conversationIdRef.current !== forId || result.error !== null) return;
+    setMessages(result.messages as MessageData[]);
+    if (result.conversation) {
+      setMembers(
+        result.conversation.members.map((m) => ({
+          userId: m.userId,
+          name: m.user.name ?? "Unknown",
+          lastReadAt: m.lastReadAt,
+        })),
+      );
+    }
+  }, []);
+
+  usePolling(poll, POLL_INTERVAL_MS);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

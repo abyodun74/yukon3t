@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic } from "lucide-react";
 import { joinCircleVoiceRoom, leaveCircleVoiceRoom, getCircleVoiceParticipants } from "@/app/actions/circle-voice";
 import { CallFrame } from "@/components/call-frame";
+import { usePolling } from "@/lib/use-polling";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 5000;
 
 type Participant = { id: string; name: string };
 type ActiveRoom = { roomUrl: string; token: string };
@@ -27,20 +28,19 @@ export function CircleVoiceRoom({ circleId, canJoin }: { circleId: string; canJo
   const [active, setActive] = useState<ActiveRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const circleIdRef = useRef(circleId);
   useEffect(() => {
-    if (active) return undefined;
-    let cancelled = false;
-    const poll = async () => {
-      const { participants: list } = await getCircleVoiceParticipants(circleId);
-      if (!cancelled) setParticipants(list);
-    };
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [circleId, active]);
+    circleIdRef.current = circleId;
+  });
+
+  const poll = useCallback(async () => {
+    const forId = circleIdRef.current;
+    const { participants: list } = await getCircleVoiceParticipants(forId);
+    // Ignore a response that arrives after the user has switched Circles.
+    if (circleIdRef.current === forId) setParticipants(list);
+  }, []);
+
+  usePolling(poll, POLL_INTERVAL_MS, !active);
 
   async function join() {
     setError(null);

@@ -75,6 +75,7 @@ export const rateLimiters = {
   comment: makeLimiter(20, "5 m"),
   repost: makeLimiter(20, "10 m"),
   share: makeLimiter(20, "5 m"),
+  dataExport: makeLimiter(3, "1 h"),
 };
 
 export async function checkRateLimit(

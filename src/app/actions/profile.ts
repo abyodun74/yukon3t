@@ -13,6 +13,7 @@ import {
 import { hashPassword } from "@/lib/passwords";
 import { recomputeTrustScore } from "@/lib/trust";
 import { moderateText } from "@/lib/moderation";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/lib/auth";
 
@@ -136,6 +137,16 @@ export async function setPassword(formData: FormData) {
 
 export async function exportMyData() {
   const user = await requireUser();
+
+  // Repeatable to trigger and expensive to serve (a full, unbounded dump of
+  // everything the user has ever posted/sent) — not truncating the actual
+  // export, since a partial "your data" download would be a correctness
+  // problem in its own right, just capping how often it can be requested.
+  const allowed = await checkRateLimit("dataExport", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const, data: null };
+  }
+
   const data = await prisma.user.findUnique({
     where: { id: user.id },
     include: {
@@ -148,7 +159,7 @@ export async function exportMyData() {
       reportsFiled: true,
     },
   });
-  return JSON.stringify(data, null, 2);
+  return { error: null, data: JSON.stringify(data, null, 2) };
 }
 
 /**

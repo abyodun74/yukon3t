@@ -163,6 +163,10 @@ model User {
   callsReceived Call[] @relation("CallCallee")
 
   @@index([country])
+  // Matches the discover page's actual query shape (status + discoverable
+  // equality filters, ordered by trustScore) — without this, that query
+  // forces a full scan + sort as the user table grows.
+  @@index([status, discoverable, trustScore])
 }
 
 model Circle {

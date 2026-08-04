@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { getIncomingCall, respondToCall, endCall } from "@/app/actions/calls";
 import { CallFrame } from "@/components/call-frame";
+import { usePolling } from "@/lib/use-polling";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 5000;
 
 type IncomingCall = {
   id: string;
@@ -20,20 +21,18 @@ export function IncomingCallListener() {
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
 
+  const activeCallRef = useRef(activeCall);
   useEffect(() => {
-    if (activeCall) return undefined;
-    let cancelled = false;
-    const poll = async () => {
-      const { call } = await getIncomingCall();
-      if (!cancelled) setIncoming(call as IncomingCall | null);
-    };
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [activeCall]);
+    activeCallRef.current = activeCall;
+  });
+
+  const poll = useCallback(async () => {
+    const { call } = await getIncomingCall();
+    // Ignore a response that arrives after a call has since started.
+    if (!activeCallRef.current) setIncoming(call as IncomingCall | null);
+  }, []);
+
+  usePolling(poll, POLL_INTERVAL_MS, !activeCall);
 
   async function accept() {
     if (!incoming) return;
