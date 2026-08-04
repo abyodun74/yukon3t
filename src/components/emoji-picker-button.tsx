@@ -2,8 +2,21 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { Smile } from "lucide-react";
-import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
+// Type-only import — erased entirely at build time, so this doesn't pull
+// the package into this file's bundle. The actual component is loaded via
+// next/dynamic below, fetched only once a user clicks the emoji button
+// instead of shipping on every page (this button sits on /home and every
+// DM thread) — emoji-picker-react bundles a full emoji dataset+search
+// index that's otherwise dead weight for the vast majority of page loads.
+import type { Theme, EmojiStyle } from "emoji-picker-react";
+
+const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
+// String enums under the hood (Theme.AUTO === "auto", EmojiStyle.NATIVE ===
+// "native") — literal values avoid needing a runtime import of the enums.
+const THEME_AUTO = "auto" as Theme;
+const EMOJI_STYLE_NATIVE = "native" as EmojiStyle;
 
 const PICKER_WIDTH = 300;
 const PICKER_HEIGHT = 360;
@@ -86,8 +99,8 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
         createPortal(
           <div ref={popupRef} className="fixed z-50" style={{ top: position.top, left: position.left }}>
             <EmojiPicker
-              theme={Theme.AUTO}
-              emojiStyle={EmojiStyle.NATIVE}
+              theme={THEME_AUTO}
+              emojiStyle={EMOJI_STYLE_NATIVE}
               width={PICKER_WIDTH}
               height={PICKER_HEIGHT}
               // Bigger glyphs in the picker grid itself — easier to tell

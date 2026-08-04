@@ -7,6 +7,67 @@ export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
   | { ok: false; error: string };
 
+// Kinds where the source is typically a raw phone-camera photo (often
+// several MB) but only ever needs to render as a feed thumbnail, avatar,
+// or chat bubble — never full sensor resolution. Video/audio kinds are
+// deliberately excluded; resizing those is a different problem entirely.
+const RESIZABLE_KINDS: UploadKind[] = ["avatar", "post-image", "message-image"];
+
+const MAX_IMAGE_DIMENSION = 1920;
+const IMAGE_RESIZE_QUALITY = 0.85;
+
+/**
+ * Downscales an image client-side, in the browser, before it ever leaves
+ * the device — this app deliberately never routes untrusted uploaded
+ * images through server-side processing (see SECURITY.md: sharp/libvips,
+ * which powers next/image, has known CVEs, and post/avatar images come
+ * from arbitrary users), so this can't be done server-side. A no-op for
+ * anything already smaller than the cap, and fails open (returns the
+ * original file) on any error — never blocks an upload over a resize
+ * failure.
+ */
+export async function resizeImageFile(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("image_load_failed"));
+      el.src = objectUrl;
+    });
+
+    const { naturalWidth: width, naturalHeight: height } = img;
+    if (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION) {
+      return file;
+    }
+
+    const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // PNG stays PNG (preserves transparency); everything else (JPEG, WebP,
+    // HEIC-as-JPEG from iOS's own conversion) re-encodes as JPEG.
+    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, outputType, IMAGE_RESIZE_QUALITY),
+    );
+    if (!blob) return file;
+
+    const ext = outputType === "image/png" ? "png" : "jpg";
+    return new File([blob], file.name.replace(/\.\w+$/, `.${ext}`), { type: outputType });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 /**
  * Requests a presigned URL, then PUTs the file directly to R2 from the
  * browser. Never throws — both steps are network calls (the server action
@@ -19,9 +80,11 @@ export async function uploadFileDirect(
   file: File,
   kind: UploadKind,
 ): Promise<ClientUploadResult> {
+  const uploadFile = RESIZABLE_KINDS.includes(kind) ? await resizeImageFile(file) : file;
+
   const fd = new FormData();
   fd.set("kind", kind);
-  fd.set("contentType", file.type);
+  fd.set("contentType", uploadFile.type);
 
   let result;
   try {
@@ -37,8 +100,8 @@ export async function uploadFileDirect(
   try {
     putRes = await fetch(result.uploadUrl, {
       method: "PUT",
-      headers: { "Content-Type": file.type },
-      body: file,
+      headers: { "Content-Type": uploadFile.type },
+      body: uploadFile,
     });
   } catch {
     return { ok: false, error: "network" };
@@ -54,8 +117,12 @@ export async function uploadFileDirect(
 export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {
   return new Promise((resolve) => {
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Capped the same as resizeImageFile above — a 4K phone video would
+    // otherwise produce a multi-MB 4K thumbnail frame for what's just a
+    // small poster image, and risk tripping video-thumb's 3MB size limit.
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       resolve(null);
@@ -65,7 +132,7 @@ export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null>
     canvas.toBlob(
       (blob) => resolve(blob ? new File([blob], "thumb.jpg", { type: "image/jpeg" }) : null),
       "image/jpeg",
-      0.85,
+      IMAGE_RESIZE_QUALITY,
     );
   });
 }

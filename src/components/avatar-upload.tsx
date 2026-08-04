@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { uploadFileDirect } from "@/lib/upload-client";
+import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -23,17 +23,21 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       setMessage("Use a JPEG, PNG, or WebP image.");
       return;
     }
-    if (file.size > MAX_AVATAR_BYTES) {
-      setStatus("error");
-      setMessage("Image must be 5MB or smaller.");
-      return;
-    }
 
     setStatus("uploading");
     setMessage(null);
 
     startTransition(async () => {
-      const uploaded = await uploadFileDirect(file, "avatar");
+      // Resize before the size check — a raw phone photo routinely exceeds
+      // 5MB, but the resized version essentially never does.
+      const resized = await resizeImageFile(file);
+      if (resized.size > MAX_AVATAR_BYTES) {
+        setStatus("error");
+        setMessage("Image must be 5MB or smaller.");
+        return;
+      }
+
+      const uploaded = await uploadFileDirect(resized, "avatar");
       if (!uploaded.ok) {
         setStatus(uploaded.error === "not_configured" ? "not_configured" : "error");
         setMessage(

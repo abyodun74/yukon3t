@@ -16,7 +16,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
@@ -575,11 +575,24 @@ export function ChatThread({
     conversationIdRef.current = conversationId;
   });
 
+  // Most 5s poll ticks return the exact same data as last time — without
+  // this, setMessages would still hand React a brand-new array of brand-new
+  // objects every tick regardless, forcing a full re-render of every
+  // message bubble/reaction/timestamp in the thread even when nothing
+  // changed. A cheap content comparison skips that no-op render — real
+  // CPU/battery cost on a phone during a long-open conversation.
+  const lastSignatureRef = useRef<string | null>(null);
+
   const poll = useCallback(async () => {
     const forId = conversationIdRef.current;
     const result = await getConversationMessages(forId);
     // Ignore a response that arrives after the user has switched threads.
     if (conversationIdRef.current !== forId || result.error !== null) return;
+
+    const signature = JSON.stringify(result);
+    if (signature === lastSignatureRef.current) return;
+    lastSignatureRef.current = signature;
+
     setMessages(result.messages as MessageData[]);
     if (result.conversation) {
       setMembers(
@@ -693,20 +706,24 @@ export function ChatThread({
     });
   }
 
-  function pickImage(file: File | undefined) {
+  async function pickImage(file: File | undefined) {
     if (!file) return;
     if (!IMAGE_TYPES.includes(file.type)) {
       setError("Use a JPEG, PNG, or WebP image.");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    // Resize before the size check — see post-composer.tsx's pickImages
+    // for why (a raw phone photo routinely exceeds 8MB; the resized
+    // version essentially never does).
+    const resized = await resizeImageFile(file);
+    if (resized.size > MAX_IMAGE_BYTES) {
       setError("Images must be 8MB or smaller.");
       return;
     }
     setPendingAudio(null);
     setPendingVideo(null);
     setError(null);
-    setPendingImage(file);
+    setPendingImage(resized);
   }
 
   function pickVideoFile(file: File | undefined) {

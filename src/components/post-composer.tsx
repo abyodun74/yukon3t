@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
-import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -123,9 +123,14 @@ export function PostComposer({
     };
   }, [imagePreviewUrls]);
 
-  function pickImages(files: FileList | null) {
+  async function pickImages(files: FileList | null) {
     if (!files) return;
-    const next = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
+    const picked = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
+    // Resize before the size check — a raw phone photo routinely exceeds
+    // 8MB, but the resized version essentially never does, so this check
+    // is really just a backstop against a resize failure (rare, fails
+    // open to the original file) rather than the normal path.
+    const next = await Promise.all(picked.map(resizeImageFile));
     const tooBig = next.find((f) => f.size > MAX_IMAGE_BYTES);
     if (tooBig) {
       setStatus("error");
