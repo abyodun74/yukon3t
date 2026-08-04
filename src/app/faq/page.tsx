@@ -225,6 +225,19 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "It says my account is locked — what happened?",
+        a: (
+          <>
+            After 4 incorrect password attempts, an account locks for 24
+            hours as a security measure. Resetting your password (via
+            &ldquo;Forgot password&rdquo; on the sign-in page) unlocks it
+            immediately — you don&apos;t have to wait out the 24 hours. If
+            you&apos;re still stuck, contact support and we can send a reset
+            link to your registered email directly.
+          </>
+        ),
+      },
     ],
   },
   {

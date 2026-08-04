@@ -16,6 +16,7 @@ import {
   keyFromPublicUrl,
 } from "@/lib/storage";
 import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
+import { track } from "@/lib/analytics";
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -62,17 +63,25 @@ export async function createCircle(formData: FormData) {
     },
   });
 
+  await track("CIRCLE_CREATED", user.id, { circleId: circle.id });
+
   revalidatePath("/circles");
   redirect(`/circles/${circle.slug}`);
 }
 
 export async function joinCircle(circleId: string) {
   const user = await requireVerifiedUser();
+  const existing = await prisma.circleMembership.findUnique({
+    where: { userId_circleId: { userId: user.id, circleId } },
+  });
   await prisma.circleMembership.upsert({
     where: { userId_circleId: { userId: user.id, circleId } },
     create: { userId: user.id, circleId },
     update: {},
   });
+  if (!existing) {
+    await track("CIRCLE_JOINED", user.id, { circleId });
+  }
   revalidatePath("/circles");
 }
 
@@ -253,6 +262,7 @@ export async function createPost(formData: FormData) {
     },
   });
   await recordActivity(user.id);
+  await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");

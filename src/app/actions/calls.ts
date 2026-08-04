@@ -5,6 +5,9 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
+import { isBlockedEitherWay } from "@/lib/blocks";
+import { sendPushToUser } from "@/lib/push";
+import { track } from "@/lib/analytics";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
   return prisma.connection.findFirst({
@@ -36,14 +39,18 @@ export async function startCall(formData: FormData) {
     return { error: "invalid" as const };
   }
 
-  const [connection, callee] = await Promise.all([
+  const [connection, callee, blocked] = await Promise.all([
     requireAcceptedConnection(user.id, calleeId),
     prisma.user.findUnique({ where: { id: calleeId } }),
+    isBlockedEitherWay(user.id, calleeId),
   ]);
   if (!connection) {
     return { error: "not_connected" as const };
   }
   if (!callee || callee.status !== "ACTIVE") {
+    return { error: "not_found" as const };
+  }
+  if (blocked) {
     return { error: "not_found" as const };
   }
 
@@ -82,6 +89,12 @@ export async function startCall(formData: FormData) {
       userName: user.name ?? "Caller",
       isOwner: true,
     });
+    await sendPushToUser(calleeId, {
+      title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
+      body: `${user.name ?? "Someone"} is calling you`,
+      url: "/",
+    });
+    await track("CALL_STARTED", user.id, { type: call.type });
     return { error: null, callId: call.id, roomUrl: room.url, token, type: call.type };
   } catch {
     await prisma.call.delete({ where: { id: call.id } });

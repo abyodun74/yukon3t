@@ -30,6 +30,8 @@ function passwordErrorMessage(error: string | undefined) {
       return "Confirm your email before signing in — check your inbox.";
     case "rate_limited":
       return "Too many attempts. Please wait a few minutes and try again.";
+    case "locked":
+      return "Too many failed attempts — this account is locked for 24 hours. Reset your password below to unlock it immediately.";
     default:
       return null;
   }

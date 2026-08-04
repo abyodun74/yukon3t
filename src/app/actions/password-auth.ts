@@ -3,15 +3,20 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { signUpSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { issueSessionCookie } from "@/lib/session-token";
+import { track } from "@/lib/analytics";
+import { requireAdmin } from "@/lib/auth-guards";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const LOCKOUT_THRESHOLD = 4;
+const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
 
 async function clientIp() {
   return (await headers()).get("x-forwarded-for") ?? "unknown";
@@ -67,9 +72,10 @@ export async function signUpWithPassword(formData: FormData) {
   }
 
   const passwordHash = await hashPassword(password);
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: { email, username, passwordHash, birthDate, status: "ACTIVE" },
   });
+  await track("SIGN_UP", created.id, { method: "password" });
 
   await sendVerificationEmail(email);
   redirect("/sign-in/check-email?context=verify");
@@ -147,9 +153,25 @@ export async function loginWithPassword(formData: FormData) {
     redirect("/sign-in?error=invalid_credentials");
   }
 
+  // Brute-force lockout, separate from (and stricter than) the IP-scoped
+  // passwordLogin rate limit above — this one is per-account and survives
+  // the attacker switching IPs. Checked before verifying the password so a
+  // locked account can't be probed at all during the lockout window.
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    redirect("/sign-in?error=locked");
+  }
+
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
-    redirect("/sign-in?error=invalid_credentials");
+    const attempts = user.failedLoginAttempts + 1;
+    const lockingNow = attempts >= LOCKOUT_THRESHOLD;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: lockingNow
+        ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) }
+        : { failedLoginAttempts: attempts },
+    });
+    redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
   }
   if (!user.emailVerified) {
     redirect(`/sign-in?error=unverified&email=${encodeURIComponent(user.email)}`);
@@ -157,15 +179,22 @@ export async function loginWithPassword(formData: FormData) {
 
   // Logging back in with the right password is treated as an explicit
   // request to reactivate — same "log in to come back" pattern most social
-  // apps use, rather than a separate reactivation flow.
-  if (user.status === "DEACTIVATED") {
+  // apps use, rather than a separate reactivation flow. Also clears any
+  // stale lockout bookkeeping now that the real password has been proven.
+  if (user.status === "DEACTIVATED" || user.failedLoginAttempts > 0 || user.lockedUntil) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { status: "ACTIVE", deactivatedAt: null },
+      data: {
+        status: "ACTIVE",
+        deactivatedAt: null,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
     });
   }
 
   await issueSessionCookie(user);
+  await track("SIGN_IN", user.id, { method: "password" });
 
   redirect("/home");
 }
@@ -232,9 +261,63 @@ export async function resetPassword(formData: FormData) {
     // Sessions are stateless JWTs (no server-side row to delete), so this
     // works by marking anything issued before now as stale; requireUser()
     // checks each session's issued-at time against this on every request.
-    data: { passwordHash, sessionInvalidatedAt: new Date() },
+    // Completing a reset is proof of email ownership, so it also clears any
+    // brute-force lockout immediately rather than making the real owner
+    // wait out the 24h — this is the intended early-unlock path.
+    data: {
+      passwordHash,
+      sessionInvalidatedAt: new Date(),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
   });
   await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
 
   redirect("/sign-in?reset=1");
+}
+
+/**
+ * Admin-initiated password reset — for support cases where a customer can't
+ * complete their own reset (e.g. they don't recognize the "email already in
+ * use" they get on sign-up because they'd forgotten they already had an
+ * account) or is locked out and doesn't want to wait 24h. Uses the exact
+ * same token/expiry as the self-service flow, so completing it also clears
+ * the lockout via resetPassword above — this one action covers both cases.
+ * Not IP-rate-limited like requestPasswordReset: the trust boundary here is
+ * admin auth itself, not anonymous request volume.
+ */
+export async function adminSendPasswordReset(userId: string) {
+  const admin = await requireAdmin();
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return { error: "not_found" as const };
+  }
+
+  const token = randomUUID();
+  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+  await prisma.passwordResetToken.create({
+    data: { userId: user.id, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+  });
+
+  const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  await sendEmail({
+    to: user.email,
+    subject: "Reset your YuKon3t password",
+    html: `<p>A YuKon3t admin sent you this link after you contacted support about signing in.</p>
+      <p><a href="${url}">Reset your password</a></p>
+      <p>This link expires in 1 hour. If you didn't contact support about this, ignore this email — your password won't change.</p>`,
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      targetId: user.id,
+      action: "PASSWORD_RESET_SENT",
+      reason: `Password reset link sent to ${user.email} by admin at their request.`,
+      performedBy: admin.id,
+    },
+  });
+
+  revalidatePath("/admin/users");
+  return { error: null, email: user.email };
 }

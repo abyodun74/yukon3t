@@ -10,6 +10,9 @@ import { moderateText, moderateMedia } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { isBlockedEitherWay } from "@/lib/blocks";
+import { sendPushToUser } from "@/lib/push";
+import { track } from "@/lib/analytics";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -256,6 +259,20 @@ export async function sendMessage(formData: FormData) {
     return { error: "not_a_member" as const };
   }
 
+  // Blocking only applies to direct (1:1) conversations — a block silently
+  // stops new messages between just those two people without pulling every
+  // other member of a group into block-state logic.
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { isGroup: true, members: { select: { userId: true } } },
+  });
+  if (conversation && !conversation.isGroup) {
+    const other = conversation.members.find((m) => m.userId !== user.id);
+    if (other && (await isBlockedEitherWay(user.id, other.userId))) {
+      return { error: "blocked" as const };
+    }
+  }
+
   const uploadedUrls = [
     ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
     ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
@@ -325,6 +342,27 @@ export async function sendMessage(formData: FormData) {
     include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
   });
   await recordActivity(user.id);
+  await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
+
+  const recipientIds =
+    conversation?.members.map((m) => m.userId).filter((id) => id !== user.id) ?? [];
+  const preview =
+    mediaType === "NONE"
+      ? content
+      : mediaType === "IMAGE"
+        ? "Sent a photo"
+        : mediaType === "VIDEO"
+          ? "Sent a video"
+          : "Sent a voice note";
+  await Promise.all(
+    recipientIds.map((recipientId) =>
+      sendPushToUser(recipientId, {
+        title: user.name ?? "New message",
+        body: preview.slice(0, 120),
+        url: `/messages/${conversationId}`,
+      }),
+    ),
+  );
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };

@@ -5,6 +5,8 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { connectionRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isBlockedEitherWay } from "@/lib/blocks";
+import { track } from "@/lib/analytics";
 
 export async function requestConnection(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -29,6 +31,11 @@ export async function requestConnection(formData: FormData) {
 
   const target = await prisma.user.findUnique({ where: { id: targetId } });
   if (!target || target.status !== "ACTIVE") {
+    return { error: "not_found" };
+  }
+  // Deliberately indistinguishable from "not_found" — a request shouldn't
+  // reveal to the sender that they've been blocked.
+  if (await isBlockedEitherWay(user.id, targetId)) {
     return { error: "not_found" };
   }
   if (!target.openToIntents.includes(intentTag)) {
@@ -61,6 +68,7 @@ export async function requestConnection(formData: FormData) {
       connectionId: connection.id,
     },
   });
+  await track("CONNECTION_REQUESTED", user.id, { targetId, intentTag });
 
   revalidatePath("/connections");
   return { error: null };
@@ -107,6 +115,7 @@ export async function respondToConnection(connectionId: string, accept: boolean)
         connectionId: updated.id,
       },
     });
+    await track("CONNECTION_ACCEPTED", user.id, { requesterId: updated.requesterId });
 
     revalidatePath("/messages");
     revalidatePath("/connections");

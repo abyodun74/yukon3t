@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { ReportTrigger } from "@/components/report-form";
+import { BlockButton } from "@/components/block-button";
 import { CallButton } from "@/components/call-button";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
@@ -26,6 +27,12 @@ export default async function PublicProfilePage({
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
 
   const isOwnProfile = user.id === me.id;
+
+  const iBlockedThem = isOwnProfile
+    ? false
+    : !!(await prisma.block.findUnique({
+        where: { blockerId_blockedId: { blockerId: me.id, blockedId: user.id } },
+      }));
 
   const connection = isOwnProfile
     ? null
@@ -54,7 +61,8 @@ export default async function PublicProfilePage({
       : null;
 
   const canSeePosts =
-    isOwnProfile || user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED";
+    !iBlockedThem &&
+    (isOwnProfile || user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED");
 
   const rawPosts = canSeePosts
     ? await prisma.post.findMany({
@@ -131,6 +139,11 @@ export default async function PublicProfilePage({
         <div className="mt-6">
           <EditProfileForm user={user} />
         </div>
+      ) : iBlockedThem ? (
+        <div className="mt-6 flex items-center gap-4">
+          <p className="text-sm text-foreground-soft">You&apos;ve blocked this account.</p>
+          <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked />
+        </div>
       ) : (
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ConnectButton
@@ -144,6 +157,7 @@ export default async function PublicProfilePage({
             <CallButton calleeId={user.id} calleeName={user.name ?? "them"} />
           )}
           <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label="Report account" />
+          <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked={false} />
         </div>
       )}
 

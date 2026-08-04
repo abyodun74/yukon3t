@@ -130,6 +130,15 @@ model User {
   // (e.g. password reset) even though the JWT itself hasn't expired yet.
   sessionInvalidatedAt DateTime?
 
+  // Password-login brute-force lockout: 4 wrong passwords locks the account
+  // for 24h. failedLoginAttempts resets to 0 the moment lockedUntil is set,
+  // so it only ever counts attempts within the current (unlocked) window.
+  // Completing a real password reset also clears both, since that's proof
+  // of email ownership and should unlock the account immediately rather
+  // than making a legitimate owner wait out the 24h.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
   ringtone        Ringtone        @default(CLASSIC)
@@ -174,6 +183,11 @@ model User {
   callsMade     Call[] @relation("CallCaller")
   callsReceived Call[] @relation("CallCallee")
 
+  blocksMade        Block[]            @relation("Blocker")
+  blocksReceived    Block[]            @relation("Blocked")
+  pushSubscriptions PushSubscription[]
+  analyticsEvents   AnalyticsEvent[]
+
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
   // equality filters, ordered by trustScore) — without this, that query
@@ -202,7 +216,9 @@ model Circle {
   @@index([category])
 }
 
-/** Presence, not history — a row exists only while that member is currently in the Circle's persistent voice room. */
+/**
+ * Presence, not history — a row exists only while that member is currently in the Circle's persistent voice room.
+ */
 model CircleVoiceParticipant {
   id       String   @id @default(cuid())
   circleId String
@@ -338,7 +354,9 @@ model Like {
   @@index([postId])
 }
 
-/** Presence of a row = "going", same one-per-user-per-post shape as Like — no separate status enum. */
+/**
+ * Presence of a row = "going", same one-per-user-per-post shape as Like — no separate status enum.
+ */
 model PostRsvp {
   id        String   @id @default(cuid())
   userId    String
@@ -458,7 +476,7 @@ model Conversation {
   createdById  String?
   createdAt    DateTime @default(now())
 
-  createdBy    User?              @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy    User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
   members      ConversationMember[]
   messages     Message[]
   joinRequests GroupJoinRequest[]
@@ -529,7 +547,9 @@ model Message {
   @@index([conversationId])
 }
 
-/** One active correction suggestion per (message, corrector) — resubmitting updates it rather than stacking duplicates. */
+/**
+ * One active correction suggestion per (message, corrector) — resubmitting updates it rather than stacking duplicates.
+ */
 model MessageCorrection {
   id            String   @id @default(cuid())
   messageId     String
@@ -544,7 +564,9 @@ model MessageCorrection {
   @@index([messageId])
 }
 
-/** One active emoji reaction per user per message — picking a new emoji replaces it, re-picking the same one removes it. */
+/**
+ * One active emoji reaction per user per message — picking a new emoji replaces it, re-picking the same one removes it.
+ */
 model MessageReaction {
   id        String   @id @default(cuid())
   messageId String
@@ -613,6 +635,7 @@ enum AuditAction {
   REPORT_RESOLVED
   ACCOUNT_DELETED
   CONTENT_REMOVED
+  PASSWORD_RESET_SENT
 }
 
 model AuditLog {
@@ -658,4 +681,64 @@ model Call {
 
   @@index([calleeId, status])
   @@index([callerId, status])
+}
+
+/**
+ * One-directional; "blocked either way" checks look at both directions. Blocking severs any existing connection between the two (see blockUser).
+ */
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+/**
+ * One row per subscribed browser/device (Web Push), not per user — a user can have several.
+ */
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum AnalyticsEventType {
+  SIGN_UP
+  SIGN_IN
+  POST_CREATED
+  CONNECTION_REQUESTED
+  CONNECTION_ACCEPTED
+  MESSAGE_SENT
+  CALL_STARTED
+  CIRCLE_JOINED
+  CIRCLE_CREATED
+}
+
+/**
+ * Lightweight first-party product-usage log — not a PII/session tracker. userId is nullable and SetNull on delete so a deleted account doesn't need to touch this table.
+ */
+model AnalyticsEvent {
+  id        String             @id @default(cuid())
+  userId    String?
+  type      AnalyticsEventType
+  metadata  Json?
+  createdAt DateTime           @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([userId])
 }

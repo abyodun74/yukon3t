@@ -142,6 +142,18 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     >
                       Circles (admin)
                     </Link>
+                    <Link
+                      href="/admin/analytics"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Analytics
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Users
+                    </Link>
                   </>
                 )}
                 <form action={signOutAction} className="hidden sm:block">
@@ -226,6 +238,20 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Circles (admin)
+                  </Link>
+                  <Link
+                    href="/admin/analytics"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Analytics
+                  </Link>
+                  <Link
+                    href="/admin/users"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Users
                   </Link>
                 </>
               )}

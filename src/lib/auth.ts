@@ -6,6 +6,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
 import { sessionTokenClaims } from "@/lib/session-token";
+import { track } from "@/lib/analytics";
 
 const providers: Provider[] = [
   Resend({
@@ -76,6 +77,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { id: existing.id },
           data: { status: "ACTIVE", deactivatedAt: null },
         });
+      }
+      if (existing) {
+        await track("SIGN_IN", existing.id, { method: "magic_link_or_oauth" });
+      } else if (user.id) {
+        await track("SIGN_UP", user.id, { method: "magic_link_or_oauth" });
       }
       return true;
     },

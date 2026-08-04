@@ -693,7 +693,13 @@ export function ChatThread({
         return;
       }
       if (result.error) {
-        setError(result.error === "rate_limited" ? "Slow down a little." : "Couldn't send that.");
+        setError(
+          result.error === "rate_limited"
+            ? "Slow down a little."
+            : result.error === "blocked"
+              ? "This message couldn't be delivered."
+              : "Couldn't send that.",
+        );
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);

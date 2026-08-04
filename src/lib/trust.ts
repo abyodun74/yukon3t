@@ -13,7 +13,7 @@ function dayNumber(date: Date) {
   return Math.floor(date.getTime() / DAY_MS);
 }
 
-type TrustSignals = {
+export type TrustSignals = {
   emailVerified: Date | null;
   createdAt: Date;
   bio: string | null;
@@ -24,7 +24,7 @@ type TrustSignals = {
 };
 
 /** Pure scoring logic, shared so recordActivity can score off data it already fetched instead of re-querying. */
-function computeTrustScore(signals: TrustSignals): number {
+export function computeTrustScore(signals: TrustSignals): number {
   let score = 0;
   if (signals.emailVerified) score += 30;
 

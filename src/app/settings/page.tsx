@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
+import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
+import { BlockButton } from "@/components/block-button";
 import { PasswordInput } from "@/components/password-input";
 import { RingtonePicker } from "@/components/ringtone-picker";
 import { InviteContactsButton } from "@/components/invite-contacts-button";
+import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 
 export default async function SettingsPage({
   searchParams,
@@ -13,6 +16,7 @@ export default async function SettingsPage({
 }) {
   const user = await getSessionUserOrRedirect();
   const { error, saved } = await searchParams;
+  const blocked = await listBlockedUsers();
 
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
@@ -82,6 +86,17 @@ export default async function SettingsPage({
       </div>
 
       <div>
+        <h2 className="text-lg font-semibold">Notifications</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Get notified about incoming calls and new messages even when
+          YuKon3t isn&apos;t open in a tab.
+        </p>
+        <div className="mt-4">
+          <PushNotificationsToggle />
+        </div>
+      </div>
+
+      <div>
         <h2 className="text-lg font-semibold">Invite friends</h2>
         <p className="mt-1 text-sm text-foreground-soft">
           Send the app link straight to people in your phone&apos;s contacts
@@ -91,6 +106,32 @@ export default async function SettingsPage({
           <InviteContactsButton />
         </div>
       </div>
+
+      {blocked.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold">Blocked accounts</h2>
+          <p className="mt-1 text-sm text-foreground-soft">
+            They can&apos;t message, call, or connect with you, and you won&apos;t see them in Discover.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {blocked.map((b) => (
+              <li
+                key={b.id}
+                className="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm"
+              >
+                <Link href={`/u/${b.blocked.id}`} className="hover:text-accent">
+                  {b.blocked.name ?? "Deleted account"}
+                </Link>
+                <BlockButton
+                  targetId={b.blocked.id}
+                  targetName={b.blocked.name ?? "them"}
+                  initiallyBlocked
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold">Calls</h2>

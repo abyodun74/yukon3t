@@ -49,7 +49,7 @@ function isBlockedIpv6(ip: string): boolean {
   return mapped ? isBlockedIpv4(mapped[1]) : false;
 }
 
-function isBlockedIp(ip: string): boolean {
+export function isBlockedIp(ip: string): boolean {
   const version = isIP(ip);
   if (version === 4) return isBlockedIpv4(ip);
   if (version === 6) return isBlockedIpv6(ip);

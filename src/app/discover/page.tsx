@@ -5,6 +5,7 @@ import { ConnectButton } from "@/components/connect-button";
 import Link from "next/link";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
 
 export default async function DiscoverPage({
   searchParams,
@@ -14,9 +15,11 @@ export default async function DiscoverPage({
   const me = await getOnboardedUserOrRedirect();
   const { intent, country } = await searchParams;
 
+  const blockedIds = await getBlockedEitherWayIds(me.id);
+
   const people = await prisma.user.findMany({
     where: {
-      id: { not: me.id },
+      id: { notIn: [me.id, ...blockedIds] },
       status: "ACTIVE",
       name: { not: null },
       discoverable: true,
