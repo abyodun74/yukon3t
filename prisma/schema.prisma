@@ -115,6 +115,10 @@ model User {
   deactivatedAt    DateTime?
   isAdmin          Boolean    @default(false)
 
+  // Set whenever an active session should be forced to re-authenticate
+  // (e.g. password reset) even though the JWT itself hasn't expired yet.
+  sessionInvalidatedAt DateTime?
+
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
 

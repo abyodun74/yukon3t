@@ -13,6 +13,16 @@ export async function requireUser() {
   if (!user || user.status !== "ACTIVE") {
     throw new AuthError("Account is not active.");
   }
+  // Sessions are stateless JWTs, so a ban/suspend or password reset can't
+  // delete them server-side. This one query (already fetching the user row
+  // for the status check above) doubles as the revocation check: any token
+  // issued before sessionInvalidatedAt is treated as signed out.
+  if (
+    user.sessionInvalidatedAt &&
+    (!session.issuedAt || session.issuedAt * 1000 < user.sessionInvalidatedAt.getTime())
+  ) {
+    throw new AuthError("Session expired, please sign in again.");
+  }
   return user;
 }
 

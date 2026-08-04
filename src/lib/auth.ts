@@ -4,6 +4,8 @@ import Resend from "next-auth/providers/resend";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
+import { sessionTokenClaims } from "@/lib/session-token";
 
 const providers: Provider[] = [
   Resend({
@@ -23,23 +25,35 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "database" },
+  // JWT sessions validate on every request without a database round trip —
+  // at high concurrency, database-strategy sessions (a Session-table lookup
+  // per request) become the dominant bottleneck. Continuous enforcement of
+  // bans/suspensions and forced re-auth (e.g. password reset) still happens
+  // via requireUser()'s single query against sessionInvalidatedAt/status —
+  // see src/lib/auth-guards.ts.
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   providers,
   pages: {
     signIn: "/sign-in",
     verifyRequest: "/sign-in/check-email",
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-        session.user.isAdmin = Boolean(
-          (user as { isAdmin?: boolean }).isAdmin,
+    async jwt({ token, user }) {
+      if (user) {
+        Object.assign(
+          token,
+          sessionTokenClaims(user as { isAdmin?: boolean; trustBand?: string }),
         );
-        session.user.trustBand = (
-          user as { trustBand?: string }
-        ).trustBand;
       }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub!;
+        session.user.isAdmin = Boolean(token.isAdmin);
+        session.user.trustBand = token.trustBand as string | undefined;
+      }
+      session.issuedAt = token.issuedAt;
       return session;
     },
     async signIn({ user }) {

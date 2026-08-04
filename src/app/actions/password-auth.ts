@@ -1,14 +1,14 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { signUpSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
-import { sessionCookieName, SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
+import { issueSessionCookie } from "@/lib/session-token";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -165,18 +165,7 @@ export async function loginWithPassword(formData: FormData) {
     });
   }
 
-  const sessionToken = randomUUID();
-  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
-  await prisma.session.create({ data: { sessionToken, userId: user.id, expires } });
-
-  const cookieStore = await cookies();
-  cookieStore.set(sessionCookieName(), sessionToken, {
-    httpOnly: true,
-    secure: process.env.AUTH_URL?.startsWith("https://") ?? true,
-    sameSite: "lax",
-    path: "/",
-    expires,
-  });
+  await issueSessionCookie(user);
 
   redirect("/home");
 }
@@ -238,12 +227,14 @@ export async function resetPassword(formData: FormData) {
   const passwordHash = await hashPassword(password);
   await prisma.user.update({
     where: { id: resetToken.userId },
-    data: { passwordHash },
+    // A password reset ends every existing session — otherwise a stolen
+    // session token would survive the very recovery meant to cut it off.
+    // Sessions are stateless JWTs (no server-side row to delete), so this
+    // works by marking anything issued before now as stale; requireUser()
+    // checks each session's issued-at time against this on every request.
+    data: { passwordHash, sessionInvalidatedAt: new Date() },
   });
   await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
-  // A password reset ends every existing session — otherwise a stolen
-  // session token would survive the very recovery meant to cut it off.
-  await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
 
   redirect("/sign-in?reset=1");
 }

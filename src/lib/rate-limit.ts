@@ -25,6 +25,18 @@ function memoryLimiter(limit: number, windowMs: number) {
 const hasUpstash =
   !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN;
 
+if (!hasUpstash && process.env.NODE_ENV === "production") {
+  // Each serverless instance would otherwise enforce its own independent
+  // in-memory limit — under real concurrent load this isn't "a smaller
+  // limit," it's effectively no limit at all. Fail loud in logs rather than
+  // silently degrading, without taking the app down over a config issue.
+  console.error(
+    "[rate-limit] UPSTASH_REDIS_REST_URL/TOKEN are not set in production. " +
+      "Falling back to a per-instance in-memory limiter that does not " +
+      "enforce limits across serverless instances.",
+  );
+}
+
 const redis = hasUpstash
   ? new Redis({
       url: process.env.UPSTASH_REDIS_REST_URL!,

@@ -1,18 +1,20 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireUser, AuthError } from "@/lib/auth-guards";
 
-/** For server components/pages: redirects to /sign-in when not authenticated. */
+/**
+ * For server components/pages: redirects to /sign-in when not authenticated.
+ * Delegates to requireUser() so page loads and server actions enforce the
+ * exact same status/session-revocation check from a single place.
+ */
 export async function getSessionUserOrRedirect() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/sign-in");
+  try {
+    return await requireUser();
+  } catch (error) {
+    if (error instanceof AuthError) {
+      redirect("/sign-in");
+    }
+    throw error;
   }
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!user || user.status !== "ACTIVE") {
-    redirect("/sign-in");
-  }
-  return user;
 }
 
 function isProfileComplete(user: { name: string | null; country: string | null; interests: string[] }) {
