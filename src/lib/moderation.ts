@@ -1,5 +1,13 @@
 type ModerationResult = { allowed: boolean; flaggedCategories: string[] };
 
+// A stalled/slow OpenAI response would otherwise hold the calling write
+// action (post/comment/message/etc.) open for as long as the API takes —
+// under load or an OpenAI-side slowdown, this endpoint becomes the
+// throughput ceiling for every content-creation action at once. Bounding it
+// caps that worst case; a timeout is treated the same as any other API
+// error below (fail open, flag for human review).
+const MODERATION_TIMEOUT_MS = 8000;
+
 async function callModerationApi(
   input: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>,
 ): Promise<ModerationResult> {
@@ -7,6 +15,9 @@ async function callModerationApi(
   if (!apiKey) {
     return { allowed: true, flaggedCategories: [] };
   }
+
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => timeoutController.abort(), MODERATION_TIMEOUT_MS);
 
   try {
     const res = await fetch("https://api.openai.com/v1/moderations", {
@@ -16,6 +27,7 @@ async function callModerationApi(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ model: "omni-moderation-latest", input }),
+      signal: timeoutController.signal,
     });
 
     if (!res.ok) {
@@ -34,7 +46,10 @@ async function callModerationApi(
       .map(([key]) => key);
     return { allowed: false, flaggedCategories };
   } catch {
+    // Covers both a real network/API error and the timeout abort above.
     return { allowed: true, flaggedCategories: ["moderation_api_error"] };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

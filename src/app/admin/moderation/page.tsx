@@ -24,6 +24,11 @@ export default async function ModerationQueuePage() {
     prisma.report.findMany({
       where: { status: { in: ["OPEN", "REVIEWING"] } },
       orderBy: { createdAt: "asc" },
+      // Oldest-first plus a generous cap — this is the actionable backlog
+      // admins are expected to fully work through, not a "recent" preview
+      // like the queues below, so this exists as a blowup circuit-breaker
+      // (e.g. a spam wave), not a normal-operation pagination limit.
+      take: 200,
       include: {
         reporter: { select: { name: true } },
         reportedUser: { select: { id: true, name: true, status: true } },

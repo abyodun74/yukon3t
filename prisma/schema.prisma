@@ -285,6 +285,12 @@ model Post {
   @@index([circleId])
   @@index([authorId])
   @@index([repostOfId])
+  // Match the home feed's actual query shape (each OR branch filtered by
+  // moderationStatus, the whole result ordered by createdAt) — without
+  // these, that OR+sort increasingly needs to sort a large intermediate
+  // row set as a user's circle/connection graph grows.
+  @@index([circleId, moderationStatus, createdAt])
+  @@index([authorId, moderationStatus, createdAt])
 }
 
 model Comment {
