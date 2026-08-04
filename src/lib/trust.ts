@@ -13,11 +13,61 @@ function dayNumber(date: Date) {
   return Math.floor(date.getTime() / DAY_MS);
 }
 
-/** Call from genuine content-creation actions (sending a message, making a post) — not page views or polling. */
+type TrustSignals = {
+  emailVerified: Date | null;
+  createdAt: Date;
+  bio: string | null;
+  country: string | null;
+  interests: string[];
+  currentStreak: number;
+  upheldReportCount: number;
+};
+
+/** Pure scoring logic, shared so recordActivity can score off data it already fetched instead of re-querying. */
+function computeTrustScore(signals: TrustSignals): number {
+  let score = 0;
+  if (signals.emailVerified) score += 30;
+
+  const accountAgeDays = (Date.now() - signals.createdAt.getTime()) / DAY_MS;
+  score += Math.min(30, Math.floor(accountAgeDays / 7) * 5); // up to 30 pts over ~6 weeks
+
+  const profileComplete = Boolean(
+    signals.bio && signals.country && signals.interests.length > 0,
+  );
+  if (profileComplete) score += 20;
+
+  score += Math.min(20, Math.floor(signals.currentStreak / 7) * 5); // up to 20 pts, +5 per full week of consecutive activity
+
+  score -= Math.min(50, signals.upheldReportCount * 15);
+
+  return Math.max(0, Math.min(100, score));
+}
+
+const trustFieldsSelect = {
+  emailVerified: true,
+  createdAt: true,
+  bio: true,
+  country: true,
+  interests: true,
+  _count: {
+    select: {
+      reportsReceived: { where: { status: "RESOLVED" as const } },
+    },
+  },
+} as const;
+
+/**
+ * Call from genuine content-creation actions (sending a message, making a
+ * post) — not page views or polling. Fetches everything trust scoring needs
+ * alongside the streak fields in one query, and writes both the streak and
+ * the recomputed score in one update, instead of the naive "update streak,
+ * then call recomputeTrustScore" which would re-read and re-write the same
+ * row a second time on the hottest write paths in the app.
+ */
 export async function recordActivity(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { lastActiveAt: true, currentStreak: true, longestStreak: true },
+    select: { lastActiveAt: true, currentStreak: true, longestStreak: true, ...trustFieldsSelect },
   });
   if (!user) return;
 
@@ -28,50 +78,45 @@ export async function recordActivity(userId: string) {
   const currentStreak = lastDay === today - 1 ? user.currentStreak + 1 : 1;
   const longestStreak = Math.max(user.longestStreak, currentStreak);
 
+  const score = computeTrustScore({
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+    bio: user.bio,
+    country: user.country,
+    interests: user.interests,
+    currentStreak,
+    upheldReportCount: user._count.reportsReceived,
+  });
+
   await prisma.user.update({
     where: { id: userId },
-    data: { currentStreak, longestStreak, lastActiveAt: new Date() },
+    data: {
+      currentStreak,
+      longestStreak,
+      lastActiveAt: new Date(),
+      trustScore: score,
+      trustBand: bandFromScore(score),
+    },
   });
-  await recomputeTrustScore(userId);
 }
 
 /** Recomputes and persists a user's trust score from free, non-paid signals. */
 export async function recomputeTrustScore(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      emailVerified: true,
-      createdAt: true,
-      bio: true,
-      country: true,
-      interests: true,
-      currentStreak: true,
-      _count: {
-        select: {
-          reportsReceived: { where: { status: "RESOLVED" } },
-        },
-      },
-    },
+    select: { currentStreak: true, ...trustFieldsSelect },
   });
   if (!user) return;
 
-  let score = 0;
-  if (user.emailVerified) score += 30;
-
-  const accountAgeDays = (Date.now() - user.createdAt.getTime()) / DAY_MS;
-  score += Math.min(30, Math.floor(accountAgeDays / 7) * 5); // up to 30 pts over ~6 weeks
-
-  const profileComplete = Boolean(
-    user.bio && user.country && user.interests.length > 0,
-  );
-  if (profileComplete) score += 20;
-
-  score += Math.min(20, Math.floor(user.currentStreak / 7) * 5); // up to 20 pts, +5 per full week of consecutive activity
-
-  const upheldReports = user._count.reportsReceived;
-  score -= Math.min(50, upheldReports * 15);
-
-  score = Math.max(0, Math.min(100, score));
+  const score = computeTrustScore({
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+    bio: user.bio,
+    country: user.country,
+    interests: user.interests,
+    currentStreak: user.currentStreak,
+    upheldReportCount: user._count.reportsReceived,
+  });
 
   await prisma.user.update({
     where: { id: userId },
