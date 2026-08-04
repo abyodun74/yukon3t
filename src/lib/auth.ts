@@ -78,12 +78,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           data: { status: "ACTIVE", deactivatedAt: null },
         });
       }
+      // Only tracked for an existing (already-persisted) user — for a
+      // brand-new sign-up, this callback fires before the adapter has
+      // actually created the User row, so `user.id` here doesn't yet exist
+      // in Postgres and logging against it throws a foreign-key violation.
+      // See events.createUser below for the correct place to track that.
       if (existing) {
         await track("SIGN_IN", existing.id, { method: "magic_link_or_oauth" });
-      } else if (user.id) {
-        await track("SIGN_UP", user.id, { method: "magic_link_or_oauth" });
       }
       return true;
+    },
+  },
+  events: {
+    // Fires once, after the adapter has actually persisted the new user —
+    // the reliable place to track a magic-link/OAuth sign-up, unlike the
+    // signIn callback above.
+    async createUser({ user }) {
+      if (user.id) {
+        await track("SIGN_UP", user.id, { method: "magic_link_or_oauth" });
+      }
     },
   },
 });
