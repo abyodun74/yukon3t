@@ -348,21 +348,25 @@ export async function getConversationMessages(conversationId: string) {
   }
 
   const now = new Date();
-  await prisma.message.updateMany({
-    where: { conversationId, senderId: { not: user.id }, deliveredAt: null },
-    data: { deliveredAt: now },
-  });
-  await prisma.message.updateMany({
-    where: { conversationId, senderId: { not: user.id }, readAt: null },
-    data: { readAt: now },
-  });
-  // Member-level "I've seen up to here" marker — drives read-receipt display
-  // and unread detection for groups, where a single shared readAt on the
-  // message can't represent partial read status across N people.
-  await prisma.conversationMember.update({
-    where: { conversationId_userId: { conversationId, userId: user.id } },
-    data: { lastReadAt: now },
-  });
+  await Promise.all([
+    prisma.message.updateMany({
+      where: { conversationId, senderId: { not: user.id }, deliveredAt: null },
+      data: { deliveredAt: now },
+    }),
+    prisma.message.updateMany({
+      where: { conversationId, senderId: { not: user.id }, readAt: null },
+      data: { readAt: now },
+    }),
+    // Member-level "I've seen up to here" marker — drives read-receipt
+    // display and unread detection for groups, where a single shared
+    // readAt on the message can't represent partial read status across
+    // N people. Independent of the two updates above, so it runs alongside
+    // them instead of after — this fires on every chat poll tick.
+    prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: user.id } },
+      data: { lastReadAt: now },
+    }),
+  ]);
 
   const [conversation, messages] = await Promise.all([
     prisma.conversation.findUnique({

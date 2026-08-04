@@ -36,12 +36,13 @@ export async function startCall(formData: FormData) {
     return { error: "invalid" as const };
   }
 
-  const connection = await requireAcceptedConnection(user.id, calleeId);
+  const [connection, callee] = await Promise.all([
+    requireAcceptedConnection(user.id, calleeId),
+    prisma.user.findUnique({ where: { id: calleeId } }),
+  ]);
   if (!connection) {
     return { error: "not_connected" as const };
   }
-
-  const callee = await prisma.user.findUnique({ where: { id: calleeId } });
   if (!callee || callee.status !== "ACTIVE") {
     return { error: "not_found" as const };
   }

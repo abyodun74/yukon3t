@@ -137,15 +137,18 @@ export async function approveFlaggedContent(formData: FormData) {
   if (contentType === "POST") {
     await prisma.post.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
   } else if (contentType === "COMMENT") {
-    const comment = await prisma.comment.update({
-      where: { id: contentId },
-      data: { moderationStatus: "PUBLISHED" },
-    });
     // createComment only increments commentCount when it publishes immediately;
-    // a comment approved late needs that increment applied now instead.
-    await prisma.post.update({
-      where: { id: comment.postId },
-      data: { commentCount: { increment: 1 } },
+    // a comment approved late needs that increment applied now instead —
+    // transactional so the two writes can't drift apart on a crash/race.
+    await prisma.$transaction(async (tx) => {
+      const comment = await tx.comment.update({
+        where: { id: contentId },
+        data: { moderationStatus: "PUBLISHED" },
+      });
+      await tx.post.update({
+        where: { id: comment.postId },
+        data: { commentCount: { increment: 1 } },
+      });
     });
   } else {
     await prisma.message.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });

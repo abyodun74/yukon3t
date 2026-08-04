@@ -16,14 +16,15 @@ export async function joinCircleVoiceRoom(circleId: string) {
     return { error: "not_configured" as const };
   }
 
-  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  const [circle, membership] = await Promise.all([
+    prisma.circle.findUnique({ where: { id: circleId } }),
+    prisma.circleMembership.findUnique({
+      where: { userId_circleId: { userId: user.id, circleId } },
+    }),
+  ]);
   if (!circle) {
     return { error: "not_found" as const };
   }
-
-  const membership = await prisma.circleMembership.findUnique({
-    where: { userId_circleId: { userId: user.id, circleId } },
-  });
   if (!membership) {
     return { error: "not_a_member" as const };
   }

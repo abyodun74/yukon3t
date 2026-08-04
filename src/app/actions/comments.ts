@@ -43,16 +43,24 @@ export async function createComment(formData: FormData) {
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
-  const comment = await prisma.comment.create({
-    data: { postId, authorId: user.id, parentId, content, moderationStatus },
+  // Comment creation and the post's commentCount must land together —
+  // a crash or a race between the two here would otherwise leave the
+  // count permanently out of sync with the actual published comments,
+  // the same failure mode deleteComment already guards against below.
+  const comment = await prisma.$transaction(async (tx) => {
+    const created = await tx.comment.create({
+      data: { postId, authorId: user.id, parentId, content, moderationStatus },
+    });
+    if (moderationStatus === "PUBLISHED") {
+      await tx.post.update({
+        where: { id: postId },
+        data: { commentCount: { increment: 1 } },
+      });
+    }
+    return created;
   });
 
   if (moderationStatus === "PUBLISHED") {
-    await prisma.post.update({
-      where: { id: postId },
-      data: { commentCount: { increment: 1 } },
-    });
-
     if (post.authorId !== user.id) {
       await prisma.notification.create({
         data: {

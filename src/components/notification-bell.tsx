@@ -1,35 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Bell, BellDot } from "lucide-react";
+import { usePolling } from "@/lib/use-polling";
 
 const POLL_INTERVAL_MS = 25_000;
 
 export function NotificationBell() {
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchCount() {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setCount(data.count ?? 0);
-      } catch {
-        // A failed poll should not be visible to the user — try again next tick.
-      }
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications/unread-count");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCount(data.count ?? 0);
+    } catch {
+      // A failed poll should not be visible to the user — try again next tick.
     }
-
-    fetchCount();
-    const interval = setInterval(fetchCount, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, []);
+
+  // Mounted app-wide (in Nav) for every signed-in user — same visibility-
+  // aware pausing as IncomingCallListener/ChatThread/CircleVoiceRoom, so
+  // backgrounded tabs stop polling instead of hitting the DB every 25s
+  // regardless of whether anyone's looking.
+  usePolling(poll, POLL_INTERVAL_MS);
 
   const Icon = count > 0 ? BellDot : Bell;
 

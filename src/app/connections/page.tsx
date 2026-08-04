@@ -8,7 +8,7 @@ import { intentLabels } from "@/lib/validations";
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
 
-  const [incoming, outgoing, accepted] = await Promise.all([
+  const [incoming, outgoing, accepted, myConversations] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
       include: { requester: { select: { id: true, name: true, trustBand: true } } },
@@ -30,14 +30,14 @@ export default async function ConnectionsPage() {
       },
       orderBy: { respondedAt: "desc" },
     }),
+    // Maps each connected user to their shared conversation, so "Connected"
+    // can link straight into the chat instead of just the profile. Only
+    // needs me.id, so it runs alongside the other three instead of after.
+    prisma.conversation.findMany({
+      where: { members: { some: { userId: me.id } } },
+      include: { members: { select: { userId: true } } },
+    }),
   ]);
-
-  // Map each connected user to their shared conversation, so "Connected"
-  // can link straight into the chat instead of just the profile.
-  const myConversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId: me.id } } },
-    include: { members: { select: { userId: true } } },
-  });
   const conversationIdByUserId = new Map<string, string>();
   for (const c of myConversations) {
     const other = c.members.find((m) => m.userId !== me.id);
