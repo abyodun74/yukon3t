@@ -88,6 +88,17 @@ enum IntentTag {
   TRAVEL_TIPS
 }
 
+// Synthesized client-side via Web Audio (src/lib/ringtones.ts), not audio
+// files — one preference covers both audio and video calls, same as a
+// phone's ringtone applying regardless of call type.
+enum Ringtone {
+  CLASSIC
+  CHIME
+  DIGITAL
+  MARIMBA
+  PULSE
+}
+
 model User {
   id            String      @id @default(cuid())
   email         String      @unique
@@ -121,6 +132,7 @@ model User {
 
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
+  ringtone        Ringtone        @default(CLASSIC)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

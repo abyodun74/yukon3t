@@ -117,9 +117,11 @@ export async function getIncomingCall() {
       orderBy: { createdAt: "desc" },
       include: { caller: { select: { id: true, name: true } } },
     });
-    return { call };
+    // requireVerifiedUser() already fetched the full row, so this is free —
+    // the callee's own ringtone preference, for the UI to actually play it.
+    return { call, ringtone: user.ringtone };
   } catch {
-    return { call: null };
+    return { call: null, ringtone: null };
   }
 }
 

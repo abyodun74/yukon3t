@@ -7,6 +7,7 @@ import {
   onboardingSchema,
   profileUpdateSchema,
   privacySchema,
+  ringtoneSchema,
   setPasswordSchema,
   usernameSchema,
 } from "@/lib/validations";
@@ -94,6 +95,23 @@ export async function updatePrivacy(formData: FormData) {
     postsVisibility: formData.get("postsVisibility"),
     discoverable: formData.get("discoverable") === "on",
   });
+
+  if (!parsed.success) {
+    redirect("/settings?error=invalid");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: parsed.data,
+  });
+
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+export async function updateRingtone(formData: FormData) {
+  const user = await requireUser();
+  const parsed = ringtoneSchema.safeParse({ ringtone: formData.get("ringtone") });
 
   if (!parsed.success) {
     redirect("/settings?error=invalid");

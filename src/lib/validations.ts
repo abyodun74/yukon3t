@@ -98,6 +98,12 @@ export const privacySchema = z.object({
   discoverable: z.boolean(),
 });
 
+export const ringtoneValues = ["CLASSIC", "CHIME", "DIGITAL", "MARIMBA", "PULSE"] as const;
+
+export const ringtoneSchema = z.object({
+  ringtone: z.enum(ringtoneValues),
+});
+
 export const circleSchema = z.object({
   name: z.string().trim().min(3).max(60),
   description: z.string().trim().min(10).max(1000),

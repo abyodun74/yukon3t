@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
-import { updatePrivacy, setPassword } from "@/app/actions/profile";
+import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { PasswordInput } from "@/components/password-input";
+import { RingtonePicker } from "@/components/ringtone-picker";
 
 export default async function SettingsPage({
   searchParams,
@@ -71,6 +72,27 @@ export default async function SettingsPage({
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           >
             Save privacy settings
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Calls</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Plays for both audio and video calls.
+        </p>
+        <form action={updateRingtone} className="mt-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Ringtone</label>
+            <div className="mt-1">
+              <RingtonePicker defaultValue={user.ringtone} />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+          >
+            Save ringtone
           </button>
         </form>
       </div>
