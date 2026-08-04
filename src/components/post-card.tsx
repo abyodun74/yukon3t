@@ -264,7 +264,7 @@ export function PostCard({
   }
 
   return (
-    <div className="rounded-xl border border-line p-4">
+    <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
       {post.repostOf && (
         <Link
           href={`/u/${post.repostOf.author.id}`}

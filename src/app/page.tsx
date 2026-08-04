@@ -29,39 +29,52 @@ export default async function Home() {
 
   return (
     <div>
-      <section className="mx-auto max-w-5xl px-4 py-20 text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-          Global connection, done honestly
-        </p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Connect with people worldwide — by interest, by culture, by purpose.
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-foreground-soft">
-          YuKon3t is built around one idea: every major connection app has a
-          trust problem. We fixed the ones that keep showing up in real user
-          reviews — fake profiles, opaque moderation, and paywalled safety.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            href="/sign-in"
-            className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-ink"
-          >
-            Get started free
-          </Link>
-          <Link
-            href="/legal/guidelines"
-            className="rounded-full border border-line px-6 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          >
-            Read our guidelines
-          </Link>
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(60% 50% at 50% 0%, var(--accent-soft) 0%, transparent 70%)",
+          }}
+        />
+        <div className="mx-auto max-w-5xl px-4 py-20 text-center sm:py-28">
+          <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+            Global connection, done honestly
+          </p>
+          <h1 className="font-display mt-4 text-4xl font-semibold italic tracking-tight text-balance sm:text-6xl">
+            Connect with people worldwide — by interest, by culture, by purpose.
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-foreground-soft">
+            YuKon3t is built around one idea: every major connection app has a
+            trust problem. We fixed the ones that keep showing up in real user
+            reviews — fake profiles, opaque moderation, and paywalled safety.
+          </p>
+          <div className="mt-8 flex justify-center gap-3">
+            <Link
+              href="/sign-in"
+              className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-ink shadow-[var(--shadow-md)] hover:-translate-y-0.5"
+            >
+              Get started free
+            </Link>
+            <Link
+              href="/legal/guidelines"
+              className="rounded-full border border-line px-6 py-3 text-sm font-semibold hover:-translate-y-0.5 hover:border-accent hover:text-accent"
+            >
+              Read our guidelines
+            </Link>
+          </div>
         </div>
       </section>
 
       <section className="border-t border-line bg-surface py-16">
         <div className="mx-auto grid max-w-5xl gap-8 px-4 sm:grid-cols-2">
           {pillars.map((pillar) => (
-            <div key={pillar.title} className="rounded-xl border border-line p-6">
-              <h2 className="text-lg font-semibold">{pillar.title}</h2>
+            <div
+              key={pillar.title}
+              className="rounded-xl border border-line p-6 shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
+            >
+              <h2 className="font-display text-lg font-semibold">{pillar.title}</h2>
               <p className="mt-2 text-sm text-foreground-soft">{pillar.body}</p>
             </div>
           ))}
@@ -69,17 +82,17 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <h2 className="text-2xl font-semibold">Two ways to connect</h2>
+        <h2 className="font-display text-2xl font-semibold">Two ways to connect</h2>
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-xl border border-line p-6 text-left">
-            <h3 className="font-semibold text-teal">Circles</h3>
+          <div className="rounded-xl border border-line p-6 text-left shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
+            <h3 className="font-display font-semibold text-teal">Circles</h3>
             <p className="mt-2 text-sm text-foreground-soft">
               Interest and identity communities — hobbies, causes, cultures.
               Free to create and join.
             </p>
           </div>
-          <div className="rounded-xl border border-line p-6 text-left">
-            <h3 className="font-semibold text-teal">Collab Boards</h3>
+          <div className="rounded-xl border border-line p-6 text-left shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
+            <h3 className="font-display font-semibold text-teal">Collab Boards</h3>
             <p className="mt-2 text-sm text-foreground-soft">
               Cross-country skill exchanges, volunteering, study groups, and
               projects — the connection type most global apps skip.

@@ -1,26 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { WifiOff } from "lucide-react";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("offline", callback);
+  window.addEventListener("online", callback);
+  return () => {
+    window.removeEventListener("offline", callback);
+    window.removeEventListener("online", callback);
+  };
+}
+
+function getSnapshot() {
+  return !navigator.onLine;
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 // Purely informational — tells the user why actions might be failing.
 // Does not intercept or queue anything; posting/messaging etc. still
 // just fail normally while offline, same as before this component
 // existed.
 export function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState(false);
-
-  useEffect(() => {
-    setIsOffline(!navigator.onLine);
-    const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
-    window.addEventListener("offline", goOffline);
-    window.addEventListener("online", goOnline);
-    return () => {
-      window.removeEventListener("offline", goOffline);
-      window.removeEventListener("online", goOnline);
-    };
-  }, []);
+  const isOffline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!isOffline) return null;
 

@@ -8,9 +8,12 @@
   --line: #e1ddd2;
   --accent: #b5651d;
   --accent-ink: #ffffff;
+  --accent-soft: #f3e3d2;
   --teal: #1f6f6b;
   --danger: #a3372b;
   --success: #3f7d4f;
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06), 0 1px 1px rgba(60, 40, 20, 0.04);
+  --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
 
 @theme inline {
@@ -21,11 +24,13 @@
   --color-line: var(--line);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
   --color-teal: var(--teal);
   --color-danger: var(--danger);
   --color-success: var(--success);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,9 +42,12 @@
     --line: #313834;
     --accent: #e08a3e;
     --accent-ink: #14181a;
+    --accent-soft: #2e2416;
     --teal: #5fb3ac;
     --danger: #d97a6c;
     --success: #7fbf8f;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
   }
 }
 
@@ -52,9 +60,12 @@
   --line: #313834;
   --accent: #e08a3e;
   --accent-ink: #14181a;
+  --accent-soft: #2e2416;
   --teal: #5fb3ac;
   --danger: #d97a6c;
   --success: #7fbf8f;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 :root[data-theme="light"] {
@@ -65,13 +76,38 @@
   --line: #e1ddd2;
   --accent: #b5651d;
   --accent-ink: #ffffff;
+  --accent-soft: #f3e3d2;
   --teal: #1f6f6b;
   --danger: #a3372b;
   --success: #3f7d4f;
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06), 0 1px 1px rgba(60, 40, 20, 0.04);
+  --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), var(--font-sans), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* Every hover/focus state sitewide gets a considered transition instead of
+   an abrupt snap, without having to touch each component individually. */
+a,
+button,
+summary,
+input,
+select,
+textarea {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease,
+    box-shadow 200ms ease, transform 150ms ease, opacity 150ms ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

@@ -4,6 +4,7 @@ import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profil
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { PasswordInput } from "@/components/password-input";
 import { RingtonePicker } from "@/components/ringtone-picker";
+import { InviteContactsButton } from "@/components/invite-contacts-button";
 
 export default async function SettingsPage({
   searchParams,
@@ -16,7 +17,7 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className="font-display text-2xl font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-foreground-soft">
           Signed in as {user.email}
         </p>
@@ -24,6 +25,10 @@ export default async function SettingsPage({
           Want to change your name, bio, photo, or interests?{" "}
           <Link href={`/u/${user.id}`} className="text-accent hover:underline">
             Edit your profile
+          </Link>
+          . New to YuKon3t or looking for how something works?{" "}
+          <Link href="/faq" className="text-accent hover:underline">
+            Check the FAQ
           </Link>
           .
         </p>
@@ -74,6 +79,17 @@ export default async function SettingsPage({
             Save privacy settings
           </button>
         </form>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Invite friends</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Send the app link straight to people in your phone&apos;s contacts
+          who aren&apos;t on YuKon3t yet.
+        </p>
+        <div className="mt-4">
+          <InviteContactsButton />
+        </div>
       </div>
 
       <div>

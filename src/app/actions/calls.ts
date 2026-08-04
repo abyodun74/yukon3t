@@ -61,7 +61,7 @@ export async function startCall(formData: FormData) {
     },
   });
   if (existing) {
-    return { error: "already_calling" as const };
+    return { error: "already_calling" as const, existingCallId: existing.id };
   }
 
   let room: { url: string; name: string };

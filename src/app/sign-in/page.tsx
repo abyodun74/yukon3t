@@ -45,9 +45,9 @@ export default async function SignInPage({
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
-      <h1 className="text-2xl font-semibold">Sign in to YuKon3t</h1>
+      <h1 className="font-display text-3xl font-semibold">Sign in to YuKon3t</h1>
 
-      <div className="mt-8 w-full rounded-xl border border-line p-5">
+      <div className="mt-8 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <h2 className="text-sm font-semibold">Username &amp; password</h2>
 
         {reset && !passwordError && (
@@ -85,7 +85,7 @@ export default async function SignInPage({
           />
           <button
             type="submit"
-            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
+            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink shadow-[var(--shadow-sm)] hover:-translate-y-0.5"
           >
             Sign in
           </button>
@@ -109,7 +109,7 @@ export default async function SignInPage({
         <div className="h-px flex-1 bg-line" />
       </div>
 
-      <div className="w-full rounded-xl border border-line p-5">
+      <div className="w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <h2 className="text-sm font-semibold">Email link</h2>
         <p className="mt-1 text-sm text-foreground-soft">
           No password to leak or reuse — we&apos;ll email you a secure

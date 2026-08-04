@@ -14,7 +14,15 @@ export function AccountDangerZone() {
       <div>
         <h2 className="font-semibold">Your data</h2>
         <p className="mt-1 text-sm text-foreground-soft">
-          Export everything we have on you as JSON, any time, for free.
+          Your posts, photos, videos, messages, Circles, and connections are
+          stored on our servers, not on any one device — so signing in on a
+          new phone or computer with this same email or username
+          automatically brings all of it with you. Nothing to move or
+          restore by hand.
+        </p>
+        <p className="mt-2 text-sm text-foreground-soft">
+          You can also export everything we have on you as JSON, any time,
+          for free — a personal backup you keep outside YuKon3t.
         </p>
         <button
           type="button"
