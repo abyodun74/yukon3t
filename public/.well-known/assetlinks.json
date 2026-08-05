@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.yukon3t.app",
       "sha256_cert_fingerprints": [
-        "08:7E:70:BB:9E:D1:D5:AC:68:7A:9C:8C:97:D1:B9:A0:04:E3:9F:92:6E:A0:D7:74:5F:DB:4B:62:69:55:EF:9B"
+        "08:7E:70:BB:9E:D1:D5:AC:68:7A:9C:8C:97:D1:B9:A0:04:E3:9F:92:6E:A0:D7:74:5F:DB:4B:62:69:55:EF:9B",
+        "BF:77:61:34:8F:FF:79:C5:A7:6F:F9:01:F2:EC:E7:A9:FE:EB:26:EB:F9:28:3E:39:C0:3B:20:33:28:76:91:A7"
       ]
     }
   }
