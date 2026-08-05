@@ -7,7 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
-import { sendFcmCallToUser } from "@/lib/fcm";
+import { sendFcmCallToUser, sendFcmCallCancelToUser } from "@/lib/fcm";
 import { track } from "@/lib/analytics";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
@@ -204,6 +204,13 @@ export async function endCall(callId: string) {
     },
   });
   await deleteCallRoom(call.roomName);
+
+  // The caller hanging up before the callee answered — the callee's native
+  // notification (if any) has no other way to find out the call is gone
+  // and would otherwise keep ringing/showing indefinitely.
+  if (wasRinging && call.callerId === user.id) {
+    await sendFcmCallCancelToUser(call.calleeId, call.id);
+  }
 
   return { error: null };
 }

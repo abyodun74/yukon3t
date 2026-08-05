@@ -23,16 +23,17 @@ export type IncomingCallPayload = {
 };
 
 /**
- * Sends a data-only FCM message (not a "notification" payload) — the native
- * Android app's own FirebaseMessagingService decides how to display it, so
- * it can use a proper call-style notification channel (system ringtone,
- * full-screen intent) instead of a generic auto-displayed one, which is the
- * whole reason FCM exists here alongside the Web Push path in push.ts.
+ * Sends a data-only FCM message (not a "notification" payload) to every
+ * device registered for a user — the native Android app's own
+ * FirebaseMessagingService decides how to display it, so it can use a
+ * proper call-style notification channel (system ringtone, full-screen
+ * intent) instead of a generic auto-displayed one, which is the whole
+ * reason FCM exists here alongside the Web Push path in push.ts.
  * Best-effort, same as sendPushToUser — a send failure should never break
  * the call action that triggered it. No-op until the Firebase project env
  * vars above are set.
  */
-export async function sendFcmCallToUser(userId: string, payload: IncomingCallPayload) {
+async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
   if (!isFcmConfigured || !app) return;
 
   const tokens = await prisma.fcmToken.findMany({ where: { userId } });
@@ -40,12 +41,7 @@ export async function sendFcmCallToUser(userId: string, payload: IncomingCallPay
 
   const response = await getMessaging(app).sendEachForMulticast({
     tokens: tokens.map((t) => t.token),
-    data: {
-      type: "incoming_call",
-      callId: payload.callId,
-      callerName: payload.callerName,
-      callType: payload.callType,
-    },
+    data,
     android: {
       // Delivered immediately, bypassing Doze/App Standby batching — a call
       // notification arriving minutes late defeats the point.
@@ -66,4 +62,23 @@ export async function sendFcmCallToUser(userId: string, payload: IncomingCallPay
   if (staleTokenIds.length > 0) {
     await prisma.fcmToken.deleteMany({ where: { id: { in: staleTokenIds } } }).catch(() => {});
   }
+}
+
+export async function sendFcmCallToUser(userId: string, payload: IncomingCallPayload) {
+  await sendFcmDataToUser(userId, {
+    type: "incoming_call",
+    callId: payload.callId,
+    callerName: payload.callerName,
+    callType: payload.callType,
+  });
+}
+
+/**
+ * Clears a ringing call's native notification — without this, a caller
+ * hanging up before the callee answers would leave the callee's phone
+ * showing (and possibly still ringing) a call that no longer exists, with
+ * no way for the native side to know to stop on its own.
+ */
+export async function sendFcmCallCancelToUser(userId: string, callId: string) {
+  await sendFcmDataToUser(userId, { type: "call_cancelled", callId });
 }
