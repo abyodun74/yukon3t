@@ -186,6 +186,7 @@ model User {
   blocksMade        Block[]            @relation("Blocker")
   blocksReceived    Block[]            @relation("Blocked")
   pushSubscriptions PushSubscription[]
+  fcmTokens         FcmToken[]
   analyticsEvents   AnalyticsEvent[]
 
   @@index([country])
@@ -708,6 +709,25 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/**
+ * One row per registered Android device (Firebase Cloud Messaging) — separate
+ * from PushSubscription (Web Push/VAPID) because the shape is different (a
+ * single opaque token vs. an endpoint + keypair) and because native call
+ * notifications go through FCM's data-message path, not the browser
+ * Notification API, so the two need to be sent independently. See
+ * src/lib/fcm.ts.
+ */
+model FcmToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

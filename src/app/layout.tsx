@@ -6,6 +6,7 @@ import { Nav } from "@/components/nav";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
+import { FcmTokenBridge } from "@/components/fcm-token-bridge";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
@@ -77,6 +78,7 @@ export default async function RootLayout({
         <OfflineBanner />
         <Nav session={session} theme={theme} />
         {session?.user && <IncomingCallListener />}
+        {session?.user && <FcmTokenBridge />}
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">
           <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">

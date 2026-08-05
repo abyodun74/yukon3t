@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
+import { sendFcmCallToUser } from "@/lib/fcm";
 import { track } from "@/lib/analytics";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
@@ -93,6 +94,15 @@ export async function startCall(formData: FormData) {
       title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
       body: `${user.name ?? "Someone"} is calling you`,
       url: "/",
+    });
+    // Separate from the Web Push above: this is a data-only message the
+    // native Android app's own notification code turns into a proper
+    // call-style ring (system ringtone, full-screen), rather than a
+    // browser notification. See src/lib/fcm.ts.
+    await sendFcmCallToUser(calleeId, {
+      callId: call.id,
+      callerName: user.name ?? "Someone",
+      callType: call.type,
     });
     await track("CALL_STARTED", user.id, { type: call.type });
     return { error: null, callId: call.id, roomUrl: room.url, token, type: call.type };
