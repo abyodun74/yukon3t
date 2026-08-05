@@ -148,6 +148,7 @@ export const uploadKindValues = [
   "message-audio",
   "message-video",
   "message-image",
+  "circle-cover",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -156,6 +157,12 @@ export const requestUploadSchema = z.object({
 });
 
 export const confirmAvatarUploadSchema = z.object({
+  key: z.string().trim().min(1).max(500),
+  publicUrl: z.string().url(),
+});
+
+export const confirmCircleCoverUploadSchema = z.object({
+  circleId: z.string().cuid(),
   key: z.string().trim().min(1).max(500),
   publicUrl: z.string().url(),
 });

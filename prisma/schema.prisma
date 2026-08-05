@@ -170,10 +170,11 @@ model User {
 
   auditLogEntries AuditLog[] @relation("AuditLogTarget")
 
-  likes     Like[]
-  comments  Comment[]
-  shares    Share[]
-  postRsvps PostRsvp[]
+  likes            Like[]
+  comments         Comment[]
+  commentReactions CommentReaction[]
+  shares           Share[]
+  postRsvps        PostRsvp[]
 
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
@@ -213,6 +214,7 @@ model Circle {
   members           CircleMembership[]
   posts             Post[]
   voiceParticipants CircleVoiceParticipant[]
+  notifications     Notification[]
 
   @@index([category])
 }
@@ -335,11 +337,31 @@ model Comment {
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
 
-  replies       Comment[]      @relation("CommentReplies")
+  replies       Comment[]         @relation("CommentReplies")
   notifications Notification[]
+  reactions     CommentReaction[]
 
   @@index([postId, createdAt])
   @@index([parentId])
+}
+
+/**
+ * One active emoji reaction per user per comment — same shape as
+ * MessageReaction (picking a new emoji replaces it, re-picking the same one
+ * removes it).
+ */
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
 }
 
 model Like {
@@ -391,6 +413,10 @@ enum NotificationType {
   POST_REPOST
   POST_SHARE
   EVENT_RSVP
+  // Sent to a Circle's creator and any co-admins when a new member joins.
+  CIRCLE_JOINED
+  // Sent to every site admin (isAdmin=true) when any user creates a new Circle.
+  CIRCLE_CREATED
 }
 
 model Notification {
@@ -401,6 +427,7 @@ model Notification {
   postId       String?
   commentId    String?
   connectionId String?
+  circleId     String?
   readAt       DateTime?
   createdAt    DateTime         @default(now())
 
@@ -409,6 +436,7 @@ model Notification {
   post       Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment    Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
   connection Connection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  circle     Circle?     @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])

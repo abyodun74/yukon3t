@@ -36,10 +36,22 @@ export default async function CirclesPage() {
             href={`/circles/${circle.slug}`}
             className="rounded-xl border border-line p-4 hover:border-accent"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-teal">
-              {circle.category}
-            </p>
-            <h2 className="mt-1 font-semibold">{circle.name}</h2>
+            <div className="flex items-center gap-3">
+              {circle.coverImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={circle.coverImageUrl}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-teal">
+                  {circle.category}
+                </p>
+                <h2 className="mt-1 truncate font-semibold">{circle.name}</h2>
+              </div>
+            </div>
             <p className="mt-2 line-clamp-2 text-sm text-foreground-soft">
               {circle.description}
             </p>

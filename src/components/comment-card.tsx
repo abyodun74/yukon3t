@@ -4,41 +4,62 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { deleteComment } from "@/app/actions/comments";
+import { deleteComment, hideComment, toggleCommentReaction } from "@/app/actions/comments";
 import { ReportTrigger } from "@/components/report-form";
 import { CommentComposer } from "@/components/comment-composer";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { ReactionBar } from "@/components/reaction-bar";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
+import type { CommentNode } from "@/lib/comment-tree";
 
-type CommentData = {
-  id: string;
-  content: string;
-  createdAt: Date;
-  author: { id: string; name: string | null };
-};
+// Beyond this depth, replies stop indenting further (they'd otherwise run
+// off the edge of the page on a long chain) but stay nested logically.
+const MAX_VISUAL_DEPTH = 4;
 
 export function CommentCard({
   comment,
   postId,
-  canDelete,
-  isReply = false,
   postAuthorId,
+  viewerId,
+  viewerIsAdmin,
+  canModerate,
+  depth = 0,
 }: {
-  comment: CommentData;
+  comment: CommentNode;
   postId: string;
-  canDelete: boolean;
-  isReply?: boolean;
   postAuthorId: string;
+  viewerId: string;
+  viewerIsAdmin: boolean;
+  canModerate: boolean;
+  depth?: number;
 }) {
   const [replying, setReplying] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [removed, setRemoved] = useState(comment.moderationStatus === "REMOVED");
+  const [reactions, setReactions] = useState(comment.reactions);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   if (deleted) return null;
 
+  const isOwn = comment.author.id === viewerId;
+  const isModerator = postAuthorId === viewerId || viewerIsAdmin || canModerate;
+  const canDelete = isOwn || isModerator;
+  const canHide = isModerator && !isOwn && !removed;
+
+  function toggleReaction(emoji: string) {
+    startTransition(async () => {
+      const result = await toggleCommentReaction(comment.id, emoji);
+      if (!result.error) setReactions(result.reactions);
+    });
+  }
+
   return (
-    <div className={isReply ? "ml-8 mt-3" : "mt-3"}>
+    <div
+      className="mt-3"
+      style={depth > 0 ? { marginLeft: Math.min(depth, MAX_VISUAL_DEPTH) * 20 } : undefined}
+    >
       <div className="flex items-center justify-between">
         <Link
           href={`/u/${comment.author.id}`}
@@ -55,43 +76,70 @@ export function CommentCard({
           {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
         </span>
       </div>
-      <p className={cn("mt-1 whitespace-pre-wrap text-sm", isEmojiOnly(comment.content) && "text-3xl leading-tight")}>
-        {comment.content}
-      </p>
-      <div className="mt-1 flex items-center gap-3">
-        {!isReply && (
-          <button
-            type="button"
-            onClick={() => setReplying((v) => !v)}
-            className="text-xs text-foreground-soft hover:text-accent"
-          >
-            Reply
-          </button>
-        )}
-        {canDelete && (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => {
-              startTransition(async () => {
-                const result = await deleteComment(comment.id);
-                if (!result.error) {
-                  setDeleted(true);
-                  router.refresh();
-                }
-              });
-            }}
-            className="text-xs text-foreground-soft hover:text-danger"
-          >
-            Delete
-          </button>
-        )}
-        <ReportTrigger
-          targetType="COMMENT"
-          targetId={comment.id}
-          reportedUserId={comment.author.id}
-        />
-      </div>
+      {removed ? (
+        <p className="mt-1 text-sm italic text-foreground-soft">This comment was removed.</p>
+      ) : (
+        <p className={cn("mt-1 whitespace-pre-wrap text-sm", isEmojiOnly(comment.content) && "text-3xl leading-tight")}>
+          {comment.content}
+        </p>
+      )}
+      {!removed && (
+        <>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setReplying((v) => !v)}
+              className="text-xs text-foreground-soft hover:text-accent"
+            >
+              Reply
+            </button>
+            <EmojiPickerButton onSelect={toggleReaction} />
+            {canDelete && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await deleteComment(comment.id);
+                    if (!result.error) {
+                      setDeleted(true);
+                      router.refresh();
+                    }
+                  });
+                }}
+                className="text-xs text-foreground-soft hover:text-danger"
+              >
+                Delete
+              </button>
+            )}
+            {canHide && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await hideComment(comment.id);
+                    if (!result.error) {
+                      setRemoved(true);
+                      router.refresh();
+                    }
+                  });
+                }}
+                className="text-xs text-foreground-soft hover:text-danger"
+                title="Hide this comment as inappropriate — keeps the thread intact for everyone else"
+              >
+                Hide
+              </button>
+            )}
+            <ReportTrigger
+              targetType="COMMENT"
+              targetId={comment.id}
+              reportedUserId={comment.author.id}
+            />
+          </div>
+          <ReactionBar reactions={reactions} currentUserId={viewerId} onToggle={toggleReaction} />
+        </>
+      )}
       {replying && (
         <CommentComposer
           postId={postId}
@@ -99,6 +147,18 @@ export function CommentCard({
           onDone={() => setReplying(false)}
         />
       )}
+      {comment.replies.map((reply) => (
+        <CommentCard
+          key={reply.id}
+          comment={reply}
+          postId={postId}
+          postAuthorId={postAuthorId}
+          viewerId={viewerId}
+          viewerIsAdmin={viewerIsAdmin}
+          canModerate={canModerate}
+          depth={depth + 1}
+        />
+      ))}
     </div>
   );
 }

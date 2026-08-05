@@ -11,7 +11,7 @@ export type ClientUploadResult =
 // several MB) but only ever needs to render as a feed thumbnail, avatar,
 // or chat bubble — never full sensor resolution. Video/audio kinds are
 // deliberately excluded; resizing those is a different problem entirely.
-const RESIZABLE_KINDS: UploadKind[] = ["avatar", "post-image", "message-image"];
+const RESIZABLE_KINDS: UploadKind[] = ["avatar", "post-image", "message-image", "circle-cover"];
 
 const MAX_IMAGE_DIMENSION = 1920;
 const IMAGE_RESIZE_QUALITY = 0.85;

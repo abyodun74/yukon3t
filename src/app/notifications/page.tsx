@@ -13,6 +13,7 @@ export default async function NotificationsPage() {
     take: 50,
     include: {
       actor: { select: { id: true, name: true } },
+      circle: { select: { slug: true } },
     },
   });
 

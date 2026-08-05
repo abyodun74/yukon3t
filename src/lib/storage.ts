@@ -14,11 +14,13 @@ export type UploadKind =
   | "video-thumb"
   | "message-audio"
   | "message-video"
-  | "message-image";
+  | "message-image"
+  | "circle-cover";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "circle-cover": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "message-audio": { "audio/webm": "webm" },
@@ -40,6 +42,7 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "message-audio": 5 * 1024 * 1024,
   "message-video": 15 * 1024 * 1024,
   "message-image": 8 * 1024 * 1024,
+  "circle-cover": 5 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;

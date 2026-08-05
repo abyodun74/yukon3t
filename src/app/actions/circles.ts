@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { circleSchema, postSchema } from "@/lib/validations";
+import { circleSchema, postSchema, confirmCircleCoverUploadSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText, moderateMedia } from "@/lib/moderation";
+import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import {
   MEDIA_LIMITS,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/storage";
 import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
 import { track } from "@/lib/analytics";
+import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -65,6 +66,24 @@ export async function createCircle(formData: FormData) {
 
   await track("CIRCLE_CREATED", user.id, { circleId: circle.id });
 
+  // Site admins get a heads-up on every new Circle for oversight — there's
+  // no one else to notify at creation time (no members yet besides the
+  // creator).
+  const admins = await prisma.user.findMany({
+    where: { isAdmin: true, id: { not: user.id } },
+    select: { id: true },
+  });
+  if (admins.length > 0) {
+    await prisma.notification.createMany({
+      data: admins.map((admin) => ({
+        recipientId: admin.id,
+        actorId: user.id,
+        type: "CIRCLE_CREATED" as const,
+        circleId: circle.id,
+      })),
+    });
+  }
+
   revalidatePath("/circles");
   redirect(`/circles/${circle.slug}`);
 }
@@ -81,6 +100,29 @@ export async function joinCircle(circleId: string) {
   });
   if (!existing) {
     await track("CIRCLE_JOINED", user.id, { circleId });
+
+    // Notify the Circle's creator and any co-admins that someone new joined.
+    const circle = await prisma.circle.findUnique({
+      where: { id: circleId },
+      select: {
+        createdById: true,
+        members: { where: { role: "MODERATOR" }, select: { userId: true } },
+      },
+    });
+    if (circle) {
+      const recipientIds = new Set([circle.createdById, ...circle.members.map((m) => m.userId)]);
+      recipientIds.delete(user.id);
+      if (recipientIds.size > 0) {
+        await prisma.notification.createMany({
+          data: [...recipientIds].map((recipientId) => ({
+            recipientId,
+            actorId: user.id,
+            type: "CIRCLE_JOINED" as const,
+            circleId,
+          })),
+        });
+      }
+    }
   }
   revalidatePath("/circles");
 }
@@ -114,6 +156,140 @@ export async function deleteCircle(circleId: string) {
 
   revalidatePath("/circles");
   redirect("/circles");
+}
+
+/**
+ * Co-admins (CircleMembership.role "MODERATOR") get the same day-to-day
+ * management powers as the Circle's original creator — editing the cover
+ * picture, moderating posts/comments, managing members, promoting further
+ * co-admins — except deleting the whole Circle or touching the creator's
+ * own membership, which stay owner/site-admin-only (deleteCircle above).
+ */
+export async function addCircleCoAdmin(circleId: string, targetUserId: string) {
+  const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(circleId, user.id);
+  if (!isCircleAdmin(circle, myMembership, user)) {
+    return { error: "forbidden" as const };
+  }
+  if (targetUserId === circle.createdById) {
+    return { error: "invalid" as const };
+  }
+
+  const targetMembership = await getCircleMembership(circleId, targetUserId);
+  if (!targetMembership) {
+    return { error: "not_a_member" as const };
+  }
+
+  await prisma.circleMembership.update({
+    where: { userId_circleId: { userId: targetUserId, circleId } },
+    data: { role: "MODERATOR" },
+  });
+
+  revalidatePath(`/circles/${circle.slug}`);
+  return { error: null };
+}
+
+export async function removeCircleCoAdmin(circleId: string, targetUserId: string) {
+  const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(circleId, user.id);
+  if (!isCircleAdmin(circle, myMembership, user)) {
+    return { error: "forbidden" as const };
+  }
+  if (targetUserId === circle.createdById) {
+    return { error: "invalid" as const };
+  }
+
+  await prisma.circleMembership.updateMany({
+    where: { userId: targetUserId, circleId, role: "MODERATOR" },
+    data: { role: "MEMBER" },
+  });
+
+  revalidatePath(`/circles/${circle.slug}`);
+  return { error: null };
+}
+
+/** Owner or co-admin: removes a member outright (not just their own leaving). Can't be used on the Circle's original creator. */
+export async function removeCircleMember(circleId: string, targetUserId: string) {
+  const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(circleId, user.id);
+  if (!isCircleAdmin(circle, myMembership, user)) {
+    return { error: "forbidden" as const };
+  }
+  if (targetUserId === circle.createdById) {
+    return { error: "invalid" as const };
+  }
+
+  await prisma.circleMembership.deleteMany({
+    where: { userId: targetUserId, circleId },
+  });
+
+  revalidatePath(`/circles/${circle.slug}`);
+  return { error: null };
+}
+
+/** Owner or co-admin: sets/replaces the Circle's cover picture. */
+export async function confirmCircleCoverUpload(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = confirmCircleCoverUploadSchema.safeParse({
+    circleId: formData.get("circleId"),
+    key: formData.get("key"),
+    publicUrl: formData.get("publicUrl"),
+  });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { circleId, key, publicUrl } = parsed.data;
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const membership = await getCircleMembership(circleId, user.id);
+  if (!isCircleAdmin(circle, membership, user)) {
+    return { error: "forbidden" as const };
+  }
+
+  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["circle-cover"] });
+  if (!sizeOk) {
+    return { error: "too_large" as const };
+  }
+
+  const modResult = await moderateImage(publicUrl);
+  if (!modResult.allowed) {
+    await deleteObject(key);
+    return { error: "moderation" as const, categories: modResult.flaggedCategories };
+  }
+
+  const previousKey = circle.coverImageUrl ? keyFromPublicUrl(circle.coverImageUrl) : null;
+
+  await prisma.circle.update({
+    where: { id: circleId },
+    data: { coverImageUrl: publicUrl },
+  });
+
+  if (previousKey) {
+    await deleteObject(previousKey);
+  }
+
+  revalidatePath(`/circles/${circle.slug}`);
+  revalidatePath("/circles");
+  return { error: null };
 }
 
 export async function createPost(formData: FormData) {

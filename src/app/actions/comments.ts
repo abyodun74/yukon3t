@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { commentSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
+import { isEmojiOnly } from "@/lib/emoji";
+import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+
+const REACTION_SELECT = { emoji: true, userId: true } as const;
 
 export async function createComment(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -32,10 +36,11 @@ export async function createComment(formData: FormData) {
 
   let parentComment = null;
   if (parentId) {
+    // Chain comments: a reply can itself be replied to, at any depth — the
+    // only requirement is that the parent is a real, published comment on
+    // this same post.
     parentComment = await prisma.comment.findUnique({ where: { id: parentId } });
-    // Only one level of nesting: you can reply to a top-level comment,
-    // never to a reply.
-    if (!parentComment || parentComment.postId !== postId || parentComment.parentId) {
+    if (!parentComment || parentComment.postId !== postId || parentComment.moderationStatus !== "PUBLISHED") {
       return { error: "invalid" };
     }
   }
@@ -90,6 +95,26 @@ export async function createComment(formData: FormData) {
   return { error: null, moderationStatus };
 }
 
+/** Comment author (their own comment), the post's author, a co-admin/owner of the post's Circle, or a site admin. */
+async function canModerateComment(
+  user: { id: string; isAdmin: boolean },
+  comment: { authorId: string },
+  post: { authorId: string; circleId: string | null },
+) {
+  if (comment.authorId === user.id || post.authorId === user.id || user.isAdmin) {
+    return true;
+  }
+  if (!post.circleId) {
+    return false;
+  }
+  const circle = await prisma.circle.findUnique({ where: { id: post.circleId } });
+  if (!circle) {
+    return false;
+  }
+  const membership = await getCircleMembership(post.circleId, user.id);
+  return isCircleAdmin(circle, membership, user);
+}
+
 export async function deleteComment(commentId: string) {
   const user = await requireVerifiedUser();
 
@@ -101,10 +126,7 @@ export async function deleteComment(commentId: string) {
     return { error: "not_found" };
   }
 
-  const canDelete =
-    comment.authorId === user.id ||
-    comment.post.authorId === user.id ||
-    user.isAdmin;
+  const canDelete = await canModerateComment(user, comment, comment.post);
   if (!canDelete) {
     return { error: "forbidden" };
   }
@@ -127,4 +149,80 @@ export async function deleteComment(commentId: string) {
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null };
+}
+
+/**
+ * Soft-removes a comment (moderationStatus -> REMOVED) instead of deleting
+ * it outright, matching the same pattern already used for messages — a
+ * thread's structure shouldn't vanish, just the offending content. Only
+ * moderators (post author, the post's Circle owner/co-admin, or a site
+ * admin) can hide a comment; a user removing their own comment should just
+ * delete it.
+ */
+export async function hideComment(commentId: string) {
+  const user = await requireVerifiedUser();
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    include: { post: true },
+  });
+  if (!comment || comment.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (comment.authorId === user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  const canHide = await canModerateComment(user, comment, comment.post);
+  if (!canHide) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.$transaction([
+    prisma.comment.update({ where: { id: commentId }, data: { moderationStatus: "REMOVED" } }),
+    prisma.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } }),
+  ]);
+
+  revalidatePath(`/post/${comment.postId}`);
+  return { error: null };
+}
+
+/**
+ * Toggles the caller's emoji reaction on a comment: picking the emoji they
+ * already reacted with removes it, picking a different one replaces it —
+ * one active reaction per user per comment, same as message reactions.
+ */
+export async function toggleCommentReaction(commentId: string, emoji: string) {
+  const user = await requireVerifiedUser();
+
+  if (!isEmojiOnly(emoji, 1)) {
+    return { error: "invalid" as const };
+  }
+
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+  if (!comment || comment.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+
+  const existing = await prisma.commentReaction.findUnique({
+    where: { commentId_userId: { commentId, userId: user.id } },
+  });
+
+  if (existing?.emoji === emoji) {
+    await prisma.commentReaction.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.commentReaction.upsert({
+      where: { commentId_userId: { commentId, userId: user.id } },
+      create: { commentId, userId: user.id, emoji },
+      update: { emoji },
+    });
+  }
+
+  const reactions = await prisma.commentReaction.findMany({
+    where: { commentId },
+    select: REACTION_SELECT,
+  });
+
+  revalidatePath(`/post/${comment.postId}`);
+  return { error: null, reactions };
 }

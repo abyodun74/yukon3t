@@ -14,11 +14,14 @@ type NotificationData = {
     | "POST_COMMENT"
     | "POST_REPOST"
     | "POST_SHARE"
-    | "EVENT_RSVP";
+    | "EVENT_RSVP"
+    | "CIRCLE_JOINED"
+    | "CIRCLE_CREATED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null };
   postId: string | null;
+  circle: { slug: string } | null;
 };
 
 function messageFor(type: NotificationData["type"]) {
@@ -37,11 +40,16 @@ function messageFor(type: NotificationData["type"]) {
       return "shared your post";
     case "EVENT_RSVP":
       return "is going to your event";
+    case "CIRCLE_JOINED":
+      return "joined your Circle";
+    case "CIRCLE_CREATED":
+      return "created a new Circle";
   }
 }
 
 function hrefFor(notification: NotificationData) {
   if (notification.postId) return `/post/${notification.postId}`;
+  if (notification.circle) return `/circles/${notification.circle.slug}`;
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";
   }

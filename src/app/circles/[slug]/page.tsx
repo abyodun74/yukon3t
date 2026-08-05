@@ -5,9 +5,12 @@ import { PostComposer } from "@/components/post-composer";
 import { CircleVoiceRoom } from "@/components/circle-voice-room";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
 import { DeleteCircleButton } from "@/components/delete-circle-button";
+import { CircleCoverUpload } from "@/components/circle-cover-upload";
+import { CircleMemberManager } from "@/components/circle-member-manager";
 import { PostCard } from "@/components/post-card";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { isCircleAdmin } from "@/lib/circle-permissions";
 
 export default async function CirclePage({
   params,
@@ -35,7 +38,16 @@ export default async function CirclePage({
 
   const isMember = circle.members.length > 0;
   const isOwner = circle.createdById === me.id;
+  const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
   const posts = await attachViewerState(circle.posts, me.id);
+
+  const allMembers = canModerate
+    ? await prisma.circleMembership.findMany({
+        where: { circleId: circle.id },
+        orderBy: { joinedAt: "asc" },
+        include: { user: { select: { id: true, name: true } } },
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -44,7 +56,17 @@ export default async function CirclePage({
         {circle.category}
       </p>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="min-w-0 text-2xl font-semibold">{circle.name}</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          {circle.coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={circle.coverImageUrl}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-xl object-cover"
+            />
+          )}
+          <h1 className="min-w-0 text-2xl font-semibold">{circle.name}</h1>
+        </div>
         <div className="flex items-center gap-2">
           <CircleMembershipButton
             circleId={circle.id}
@@ -61,6 +83,12 @@ export default async function CirclePage({
         {circle._count.members} members
       </p>
 
+      {canModerate && (
+        <div className="mt-4">
+          <CircleCoverUpload circleId={circle.id} currentUrl={circle.coverImageUrl} />
+        </div>
+      )}
+
       <div className="mt-8">
         <CircleVoiceRoom circleId={circle.id} canJoin={isMember || isOwner} />
       </div>
@@ -74,6 +102,20 @@ export default async function CirclePage({
           </p>
         )}
       </div>
+
+      {canModerate && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+            Members
+          </h2>
+          <p className="mt-1 text-xs text-foreground-soft">
+            Co-admins get the same management powers as you, except deleting this Circle.
+          </p>
+          <div className="mt-3">
+            <CircleMemberManager circleId={circle.id} members={allMembers} />
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 space-y-4">
         {posts.map((post) => (
