@@ -48,7 +48,13 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "message-image": 8 * 1024 * 1024,
   "circle-cover": 5 * 1024 * 1024,
   "story-image": 8 * 1024 * 1024,
-  "story-video": 30 * 1024 * 1024,
+  // A raw phone-recorded clip routinely runs 35-50MB for just 20-30 seconds
+  // at typical 1080p bitrates — post-video's 30MB (paired with a 60s cap)
+  // was carried over here too tightly for story-length footage, rejecting
+  // completely normal videos. Stories only allow half post-video's duration
+  // (see MAX_STORY_VIDEO_SECONDS in story-upload-modal.tsx), so this stays
+  // proportionally generous instead of just matching post-video's byte cap.
+  "story-video": 60 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;
