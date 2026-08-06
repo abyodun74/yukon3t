@@ -294,6 +294,13 @@ export function PostComposer({
           }
         }
         if (circleId) fd.set("circleId", circleId);
+        // The datetime-local input's raw value has no timezone info, so
+        // re-send it as an absolute instant: new Date(eventAt) here
+        // correctly parses it as the browser's own local time, but the
+        // server would parse the same raw string as UTC (its own
+        // timezone) if we sent it unconverted — silently shifting the
+        // event time by the server/client UTC offset.
+        if (isEvent && eventAt) fd.set("eventAt", new Date(eventAt).toISOString());
         setStatus("uploading");
         setErrorText(null);
         startTransition(async () => {
