@@ -5,7 +5,13 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { signUpSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validations";
+import {
+  signUpSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  adminDeleteUserSchema,
+} from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
@@ -320,4 +326,64 @@ export async function adminSendPasswordReset(userId: string) {
 
   revalidatePath("/admin/users");
   return { error: null, email: user.email };
+}
+
+/**
+ * Admin-initiated hard delete — the only way to actually remove another
+ * account's data (BAN via the moderation queue only hides/disables it,
+ * never deletes anything). Reuses the exact same prisma.user.delete() +
+ * onDelete: Cascade relations already proven safe by the self-service
+ * deleteMyAccount below, just gated behind admin auth with extra friction
+ * since one admin mistake here can destroy someone else's real data:
+ * typed-handle confirmation, a required reason, and a hard block on
+ * deleting yourself or another admin (avoids both accidental lockout and
+ * one admin being able to unilaterally remove another).
+ *
+ * The AuditLog write pattern used elsewhere doesn't work here — AuditLog
+ * rows are FK'd to their target user with onDelete: Cascade, so a normal
+ * audit entry would vanish the instant the user is deleted, erasing the
+ * only record of why. AccountDeletionLog deliberately has no such relation
+ * (plain string fields) so it survives.
+ */
+export async function adminDeleteUser(formData: FormData) {
+  const admin = await requireAdmin();
+
+  const parsed = adminDeleteUserSchema.safeParse({
+    userId: formData.get("userId"),
+    confirmHandle: formData.get("confirmHandle"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { userId, confirmHandle, reason } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return { error: "not_found" as const };
+  }
+  if (user.id === admin.id) {
+    return { error: "cannot_delete_self" as const };
+  }
+  if (user.isAdmin) {
+    return { error: "cannot_delete_admin" as const };
+  }
+  const expectedHandle = user.username ?? user.email;
+  if (confirmHandle !== expectedHandle) {
+    return { error: "confirmation_mismatch" as const };
+  }
+
+  await prisma.accountDeletionLog.create({
+    data: {
+      deletedUserId: user.id,
+      deletedEmail: user.email,
+      deletedUsername: user.username,
+      reason,
+      performedBy: admin.id,
+    },
+  });
+  await prisma.user.delete({ where: { id: user.id } });
+
+  revalidatePath("/admin/users");
+  return { error: null };
 }

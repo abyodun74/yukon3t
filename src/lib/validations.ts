@@ -272,6 +272,12 @@ export const moderationActionSchema = z.object({
   note: z.string().trim().min(5).max(1000),
 });
 
+export const adminDeleteUserSchema = z.object({
+  userId: z.string().cuid(),
+  confirmHandle: z.string().trim().min(1),
+  reason: z.string().trim().min(5).max(1000),
+});
+
 export const flaggedContentActionSchema = z.object({
   contentType: z.enum(["POST", "COMMENT", "MESSAGE"]),
   contentId: z.string().cuid(),

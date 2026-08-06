@@ -693,6 +693,20 @@ model AuditLog {
   @@index([targetId])
 }
 
+// Deliberately has no relation (just plain string fields) to the account it
+// records the deletion of — an AuditLog row FK'd to that user would cascade
+// away the instant the user is deleted, erasing the very record of why,
+// which defeats the point for this one action specifically.
+model AccountDeletionLog {
+  id              String   @id @default(cuid())
+  deletedUserId   String
+  deletedEmail    String
+  deletedUsername String?
+  reason          String   @db.Text
+  performedBy     String
+  createdAt       DateTime @default(now())
+}
+
 enum CallType {
   AUDIO
   VIDEO
