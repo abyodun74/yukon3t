@@ -10,6 +10,7 @@ import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
 import { EditProfileForm } from "@/components/edit-profile-form";
 import { BackButton } from "@/components/back-button";
+import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 export default async function PublicProfilePage({
@@ -74,6 +75,23 @@ export default async function PublicProfilePage({
     : [];
   const posts = await attachViewerState(rawPosts, me.id);
 
+  const activeStories = canSeePosts
+    ? await prisma.story.findMany({
+        where: { authorId: user.id, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "asc" },
+        include: { _count: { select: { views: true } } },
+      })
+    : [];
+  const storiesForRing = activeStories.map((s) => ({
+    id: s.id,
+    mediaType: s.mediaType,
+    mediaUrl: s.mediaUrl,
+    mediaThumbnailUrl: s.mediaThumbnailUrl,
+    caption: s.caption,
+    createdAt: s.createdAt,
+    viewCount: s._count.views,
+  }));
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <BackButton />
@@ -93,16 +111,12 @@ export default async function PublicProfilePage({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface">
-            {user.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
-                No photo
-              </div>
-            )}
-          </div>
+          <ProfileStoryRing
+            avatarUrl={user.avatarUrl}
+            name={user.name ?? "them"}
+            stories={storiesForRing}
+            isOwner={isOwnProfile}
+          />
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold">{user.name}</h1>
             <p className="text-sm text-foreground-soft">

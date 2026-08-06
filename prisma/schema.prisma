@@ -157,6 +157,9 @@ model User {
   collabParticipations        CollabParticipant[]
   collabSessionParticipations CollabSessionParticipant[]
 
+  stories     Story[]
+  storyViews  StoryView[]
+
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
 
@@ -537,6 +540,49 @@ model CollabSessionParticipant {
 
   @@unique([collabId, userId])
   @@index([collabId])
+}
+
+enum StoryMediaType {
+  IMAGE
+  VIDEO
+}
+
+/** A profile story — always has a media file (unlike a Post, which can be text-only) and disappears 24h after posting. */
+model Story {
+  id                String         @id @default(cuid())
+  authorId          String
+  mediaType         StoryMediaType
+  mediaUrl          String
+  mediaThumbnailUrl String?
+  caption           String?        @db.Text
+  createdAt         DateTime       @default(now())
+  expiresAt         DateTime
+
+  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views  StoryView[]
+
+  // Backs both "my active stories" (profile page) and the expiry cron's
+  // sweep for rows past expiresAt.
+  @@index([authorId, expiresAt])
+  @@index([expiresAt])
+}
+
+/**
+ * Presence of a row = "this viewer has seen this story" — same one-row-per-
+ * (target, viewer) shape as Like/PostRsvp. The author's own views of their
+ * own story are never recorded here (see viewStory).
+ */
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer User  @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, viewerId])
+  @@index([storyId])
 }
 
 enum ConnectionStatus {

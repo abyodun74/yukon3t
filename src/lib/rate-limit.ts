@@ -79,6 +79,7 @@ export const rateLimiters = {
   circleModerate: makeLimiter(30, "10 m"),
   collabModerate: makeLimiter(30, "10 m"),
   collabSession: makeLimiter(20, "10 m"),
+  storyCreate: makeLimiter(10, "1 h"),
 };
 
 export async function checkRateLimit(

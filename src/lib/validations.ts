@@ -149,6 +149,8 @@ export const uploadKindValues = [
   "message-video",
   "message-image",
   "circle-cover",
+  "story-image",
+  "story-video",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -187,6 +189,13 @@ export const collabPostSchema = z
     message: "Pick at least one country, or mark this worldwide.",
     path: ["countries"],
   });
+
+export const storySchema = z.object({
+  mediaType: z.enum(["IMAGE", "VIDEO"]),
+  mediaUrl: z.string().url(),
+  mediaThumbnailUrl: z.string().url().optional(),
+  caption: z.string().trim().max(200).optional().default(""),
+});
 
 export const connectionRequestSchema = z.object({
   targetId: z.string().cuid(),

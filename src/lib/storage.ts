@@ -15,7 +15,9 @@ export type UploadKind =
   | "message-audio"
   | "message-video"
   | "message-image"
-  | "circle-cover";
+  | "circle-cover"
+  | "story-image"
+  | "story-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -29,6 +31,8 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   // their phone actually recorded, which is virtually always mp4.
   "message-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
 };
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
@@ -43,12 +47,16 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "message-video": 15 * 1024 * 1024,
   "message-image": 8 * 1024 * 1024,
   "circle-cover": 5 * 1024 * 1024,
+  "story-image": 8 * 1024 * 1024,
+  "story-video": 30 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;
 export const MAX_VIDEO_DURATION_SECONDS = 60;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
+export const MAX_STORY_VIDEO_SECONDS = 30;
+export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 export function isStorageConfigured() {
   return Boolean(
