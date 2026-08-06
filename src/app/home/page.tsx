@@ -5,6 +5,7 @@ import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
 import { StreakBanner } from "@/components/streak-banner";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { dayNumber } from "@/lib/trust";
 
 const PAGE_SIZE = 30;
@@ -17,30 +18,8 @@ export default async function HomePage({
   const me = await getOnboardedUserOrRedirect();
   const { before } = await searchParams;
 
-  const [circleMemberships, connections] = await Promise.all([
-    prisma.circleMembership.findMany({
-      where: { userId: me.id },
-      select: { circleId: true },
-    }),
-    prisma.connection.findMany({
-      where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
-    }),
-  ]);
-
-  const circleIds = circleMemberships.map((m) => m.circleId);
-  const connectionUserIds = connections.map((c) =>
-    c.requesterId === me.id ? c.targetId : c.requesterId,
-  );
-
   const rawPosts = await prisma.post.findMany({
-    where: {
-      moderationStatus: "PUBLISHED",
-      author: { status: "ACTIVE" },
-      OR: [
-        ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
-        { authorId: { in: [...connectionUserIds, me.id] } },
-      ],
-    },
+    where: await getVisiblePostsWhere(me.id),
     orderBy: { createdAt: "desc" },
     take: PAGE_SIZE,
     ...(before ? { cursor: { id: before }, skip: 1 } : {}),

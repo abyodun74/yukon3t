@@ -2,10 +2,17 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
+import { PostCard } from "@/components/post-card";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { COUNTRIES } from "@/lib/countries";
 import { collabTypeLabels } from "@/lib/collab-labels";
+import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { SearchBar } from "@/components/search-bar";
+
+type SearchPostRow = Awaited<
+  ReturnType<typeof prisma.post.findMany<{ include: typeof postCardInclude }>>
+>[number];
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "current"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
@@ -59,12 +66,26 @@ export default async function SearchPage({
       }>
     >
   > = [];
+  let posts: Awaited<ReturnType<typeof attachViewerState<SearchPostRow>>> = [];
+  let groupChats: Awaited<
+    ReturnType<
+      typeof prisma.conversation.findMany<{
+        include: {
+          _count: { select: { members: true } };
+          createdBy: { select: { id: true; name: true } };
+        };
+      }>
+    >
+  > = [];
 
   if (q.length >= 2) {
-    const blockedIds = await getBlockedEitherWayIds(me.id);
+    const [blockedIds, postsWhere] = await Promise.all([
+      getBlockedEitherWayIds(me.id),
+      getVisiblePostsWhere(me.id),
+    ]);
     const currentSince = currentAffairsCutoff();
 
-    const [peopleResult, circlesResult, collabsResult] = await Promise.all([
+    const [peopleResult, circlesResult, collabsResult, rawPostsResult, groupChatsResult] = await Promise.all([
       prisma.user.findMany({
         where: {
           id: { notIn: [me.id, ...blockedIds] },
@@ -128,20 +149,60 @@ export default async function SearchPage({
         take: 20,
         include: { author: { select: { id: true, name: true } }, _count: { select: { participants: true } } },
       }),
+      prisma.post.findMany({
+        where: {
+          ...postsWhere,
+          ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
+          content: { contains: q, mode: "insensitive" },
+        },
+        orderBy:
+          sort === "recent" || sort === "current"
+            ? { createdAt: "desc" }
+            : sort === "oldest"
+              ? { createdAt: "asc" }
+              : { likeCount: "desc" },
+        take: 20,
+        include: postCardInclude,
+      }),
+      prisma.conversation.findMany({
+        where: {
+          isGroup: true,
+          discoverable: true,
+          NOT: { members: { some: { userId: me.id } } },
+          ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
+          name: { contains: q, mode: "insensitive" },
+        },
+        orderBy:
+          sort === "recent" || sort === "current"
+            ? { createdAt: "desc" }
+            : sort === "oldest"
+              ? { createdAt: "asc" }
+              : { members: { _count: "desc" } },
+        take: 20,
+        include: { _count: { select: { members: true } }, createdBy: { select: { id: true, name: true } } },
+      }),
     ]);
 
     people = peopleResult;
     circles = circlesResult;
     collabs = collabsResult;
+    posts = await attachViewerState(rawPostsResult, me.id);
+    groupChats = groupChatsResult;
   }
 
-  const noResults = q.length >= 2 && people.length === 0 && circles.length === 0 && collabs.length === 0;
+  const noResults =
+    q.length >= 2 &&
+    people.length === 0 &&
+    circles.length === 0 &&
+    collabs.length === 0 &&
+    posts.length === 0 &&
+    groupChats.length === 0;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Search</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Find people, Circles, and collaborations across YuKon3t.
+        Find people, usernames, Circles, group chats, collaborations, and posts across YuKon3t.
       </p>
 
       <div className="mt-6">
@@ -246,6 +307,31 @@ export default async function SearchPage({
         </div>
       )}
 
+      {groupChats.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+            Group chats
+          </h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {groupChats.map((group) => (
+              <Link
+                key={group.id}
+                href={`/messages/${group.id}`}
+                className="rounded-xl border border-line p-4 hover:border-accent"
+              >
+                <h3 className="font-semibold">{group.name ?? "Group"}</h3>
+                <p className="mt-1 text-xs text-foreground-soft">
+                  Started by {group.createdBy?.name ?? "Unknown"}
+                </p>
+                <p className="mt-2 text-xs text-foreground-soft">
+                  {group._count.members}/20 members
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {collabs.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
@@ -268,6 +354,19 @@ export default async function SearchPage({
                   {collab._count.participants === 1 ? "" : "s"}
                 </p>
               </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {posts.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+            Posts
+          </h2>
+          <div className="mt-3 space-y-4">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
             ))}
           </div>
         </div>
