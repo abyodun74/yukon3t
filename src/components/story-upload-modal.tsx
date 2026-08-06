@@ -16,6 +16,24 @@ const MAX_VIDEO_BYTES = 60 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 30;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+
+/**
+ * Android's document picker often hands back a file from a content:// URI
+ * (Google Photos, a file manager, etc.) with File.type empty or wrong,
+ * even for a perfectly normal .mp4 — a strict MIME-type check alone
+ * rejected those outright with no indication why. Falls back to the file
+ * extension, and returns a corrected File so the upload itself (which
+ * sends file.type as the R2 object's Content-Type) doesn't inherit the
+ * same wrong/empty type.
+ */
+function normalizeVideoFile(f: File): File | null {
+  if (VIDEO_TYPES.includes(f.type)) return f;
+  const ext = f.name.split(".").pop()?.toLowerCase();
+  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
+  if (!detectedType) return null;
+  return new File([f], f.name, { type: detectedType });
+}
 
 function errorMessage(code: string) {
   switch (code) {
@@ -63,9 +81,10 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     setFile(resized);
   }
 
-  function pickVideo(f: File | undefined) {
-    if (!f) return;
-    if (!VIDEO_TYPES.includes(f.type)) {
+  function pickVideo(rawFile: File | undefined) {
+    if (!rawFile) return;
+    const f = normalizeVideoFile(rawFile);
+    if (!f) {
       setError("Use an MP4 or WebM video.");
       return;
     }
@@ -78,12 +97,42 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     const probe = document.createElement("video");
     probe.preload = "metadata";
     probe.src = url;
-    probe.onloadedmetadata = () => {
+
+    // Some Android devices/codecs never fire loadedmetadata for a file this
+    // <video> element can't decode (nor onerror, in a few cases) — without
+    // this, picking such a video did nothing at all: no preview, no error,
+    // the modal just sat there looking broken. A duration probe failure is
+    // a client-side nicety, not a security boundary, so it fails open
+    // (lets the video through unchecked) rather than blocking the upload.
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       URL.revokeObjectURL(url);
-      if (probe.duration > MAX_VIDEO_SECONDS) {
+    };
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      finish();
+      setError(null);
+      setMediaType("VIDEO");
+      setFile(f);
+    }, 4000);
+
+    probe.onloadedmetadata = () => {
+      if (settled) return;
+      finish();
+      if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
         setError(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
         return;
       }
+      setError(null);
+      setMediaType("VIDEO");
+      setFile(f);
+    };
+    probe.onerror = () => {
+      if (settled) return;
+      finish();
       setError(null);
       setMediaType("VIDEO");
       setFile(f);
