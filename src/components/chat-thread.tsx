@@ -52,6 +52,15 @@ type MessageData = {
   createdAt: Date;
   reactions: { emoji: string; userId: string }[];
   corrections: CorrectionData[];
+  // Only set for a reply-to-story message (see replyToStory) — null once
+  // the story itself has expired and been swept by the cron.
+  story: {
+    id: string;
+    mediaType: "IMAGE" | "VIDEO";
+    mediaUrl: string;
+    mediaThumbnailUrl: string | null;
+    caption: string | null;
+  } | null;
 };
 
 type CorrectionData = {
@@ -293,6 +302,28 @@ function MessageBubble({
             <p className="italic">This message is under review.</p>
           ) : (
             <>
+              {message.story && (
+                <div
+                  className={cn(
+                    "mb-1.5 flex items-center gap-2 rounded-lg p-1.5 text-xs",
+                    mine ? "bg-black/10" : "bg-black/5",
+                  )}
+                >
+                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black">
+                    {(message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl!}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <span className={cn(mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+                    {mine ? "You replied to their story" : "Replied to your story"}
+                  </span>
+                </div>
+              )}
               {message.mediaType === "AUDIO" && message.mediaUrl && (
                 <audio controls preload="metadata" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
               )}

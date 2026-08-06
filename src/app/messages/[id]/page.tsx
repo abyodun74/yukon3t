@@ -99,6 +99,9 @@ export default async function ConversationPage({
     include: {
       reactions: { select: { emoji: true, userId: true } },
       corrections: { include: { author: { select: { id: true, name: true } } } },
+      story: {
+        select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
+      },
     },
   });
 

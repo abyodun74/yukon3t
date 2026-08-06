@@ -169,6 +169,13 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
       if (caption.trim()) fd.set("caption", caption.trim());
 
+      // Not retried, unlike the upload steps above: createStory isn't
+      // idempotent (no idempotency key), so if it actually succeeded
+      // server-side but the response itself got lost on a flaky
+      // connection, a blind retry would create a duplicate story — the
+      // exact bug already fixed once for collab posts. A failure here just
+      // surfaces normally; the file/caption stay filled in so the user can
+      // safely retry by tapping "Share to your story" again themselves.
       let result;
       try {
         result = await createStory(fd);

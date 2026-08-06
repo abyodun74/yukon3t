@@ -157,8 +157,9 @@ model User {
   collabParticipations        CollabParticipant[]
   collabSessionParticipations CollabSessionParticipant[]
 
-  stories     Story[]
-  storyViews  StoryView[]
+  stories        Story[]
+  storyViews     StoryView[]
+  storyReactions StoryReaction[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
@@ -558,13 +559,36 @@ model Story {
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
 
-  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   views  StoryView[]
+  reactions StoryReaction[]
+  replies   Message[]
 
   // Backs both "my active stories" (profile page) and the expiry cron's
   // sweep for rows past expiresAt.
   @@index([authorId, expiresAt])
   @@index([expiresAt])
+}
+
+/**
+ * One active emoji reaction per user per story — same toggle shape as
+ * MessageReaction/CommentReaction (picking a new emoji replaces it,
+ * re-picking the same one removes it). Aggregate counts are visible to
+ * anyone who can see the story; who-reacted-what is author-only (see
+ * getStoryViewers).
+ */
+model StoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+  @@index([storyId])
 }
 
 /**
@@ -681,8 +705,15 @@ model Message {
   editedAt             DateTime?
   createdAt            DateTime         @default(now())
 
+  // Set when this message is a reply to a story (see replyToStory) — lets
+  // the chat thread show a "Replied to your story" reference above the
+  // bubble. SetNull rather than cascading: the story disappearing 24h
+  // later shouldn't delete the conversation history of the reply itself.
+  storyId String?
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
   reactions    MessageReaction[]
   corrections  MessageCorrection[]
 

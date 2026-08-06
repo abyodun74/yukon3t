@@ -16,6 +16,13 @@ import { track } from "@/lib/analytics";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
+// Only meaningful for messages sent via replyToStory — story stays populated
+// as long as the Story row itself hasn't expired/been swept by the cron
+// (Message.storyId is onDelete: SetNull, so it just quietly goes back to
+// null afterward and the message renders as a normal text message).
+const STORY_SELECT = {
+  select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
+} as const;
 
 /** Creates a group conversation — caller must have an ACCEPTED connection with every selected member. */
 export async function createGroupChat(formData: FormData) {
@@ -339,7 +346,11 @@ export async function sendMessage(formData: FormData) {
       mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
       moderationStatus,
     },
-    include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
+    include: {
+      reactions: { select: REACTION_SELECT },
+      corrections: { include: CORRECTION_INCLUDE },
+      story: STORY_SELECT,
+    },
   });
   await recordActivity(user.id);
   await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
@@ -425,7 +436,11 @@ export async function getConversationMessages(conversationId: string) {
       },
       orderBy: { createdAt: "asc" },
       take: 200,
-      include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
+      include: {
+      reactions: { select: REACTION_SELECT },
+      corrections: { include: CORRECTION_INCLUDE },
+      story: STORY_SELECT,
+    },
     }),
   ]);
 
@@ -483,7 +498,11 @@ export async function editMessage(messageId: string, formData: FormData) {
   const updated = await prisma.message.update({
     where: { id: messageId },
     data: { content, moderationStatus, editedAt: new Date() },
-    include: { reactions: { select: REACTION_SELECT }, corrections: { include: CORRECTION_INCLUDE } },
+    include: {
+      reactions: { select: REACTION_SELECT },
+      corrections: { include: CORRECTION_INCLUDE },
+      story: STORY_SELECT,
+    },
   });
 
   revalidatePath(`/messages/${message.conversationId}`);

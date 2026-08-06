@@ -69,6 +69,26 @@ export async function resizeImageFile(file: File): Promise<File> {
 }
 
 /**
+ * Retries a flaky network call once after a short delay before giving up —
+ * mobile connections (especially a TWA switching between wifi/cellular
+ * mid-upload) routinely drop a single request without the connection
+ * actually being down, and neither of uploadFileDirect's two network calls
+ * had any resilience to that: one dropped packet meant the whole upload
+ * failed with "couldn't reach the server," even though a bare retry would
+ * have gone through immediately.
+ */
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs = 800): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+/**
  * Requests a presigned URL, then PUTs the file directly to R2 from the
  * browser. Never throws — both steps are network calls (the server action
  * is itself a fetch under the hood), and a rejected fetch (e.g. no
@@ -88,7 +108,7 @@ export async function uploadFileDirect(
 
   let result;
   try {
-    result = await requestUploadUrl(fd);
+    result = await withRetry(() => requestUploadUrl(fd));
   } catch {
     return { ok: false, error: "network" };
   }
@@ -98,11 +118,16 @@ export async function uploadFileDirect(
 
   let putRes;
   try {
-    putRes = await fetch(result.uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": uploadFile.type },
-      body: uploadFile,
-    });
+    // Retrying re-sends to the exact same presigned URL/key (not a fresh
+    // request-upload-url round trip), so a retry just overwrites the same
+    // R2 object rather than risking an orphaned duplicate.
+    putRes = await withRetry(() =>
+      fetch(result.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": uploadFile.type },
+        body: uploadFile,
+      }),
+    );
   } catch {
     return { ok: false, error: "network" };
   }

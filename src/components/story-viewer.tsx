@@ -2,11 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Eye, Trash2 } from "lucide-react";
-import { viewStory, deleteStory, getStoryViewers } from "@/app/actions/stories";
+import { X, Eye, Trash2, Send } from "lucide-react";
+import {
+  viewStory,
+  deleteStory,
+  getStoryViewers,
+  getStoryReactionSummary,
+  toggleStoryReaction,
+  replyToStory,
+} from "@/app/actions/stories";
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
+const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
 export type StoryData = {
   id: string;
@@ -54,8 +62,12 @@ export function StoryViewer({
   // effect to synchronously reset state on every story change.
   const [deleteConfirmForId, setDeleteConfirmForId] = useState<string | null>(null);
   const [viewersOpenForId, setViewersOpenForId] = useState<string | null>(null);
-  const [viewers, setViewers] = useState<{ id: string; name: string }[] | null>(null);
+  const [viewers, setViewers] = useState<
+    { id: string; name: string; viewedAt: Date; reaction: string | null }[] | null
+  >(null);
   const [isPending, setIsPending] = useState(false);
+  const [reactionCounts, setReactionCounts] = useState<{ emoji: string; count: number }[]>([]);
+  const [myReaction, setMyReaction] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const elapsedRef = useRef(0);
@@ -91,6 +103,23 @@ export function StoryViewer({
       seenRef.current.add(story.id);
       viewStory(story.id);
     }
+  }, [story]);
+
+  // Loads this story's reaction counts fresh each time it becomes current —
+  // an async fetch resolved in a .then(), not a synchronous reset, so it
+  // doesn't hit the same "setState directly in an effect body" issue the
+  // viewers/delete-confirm state avoids via id-keying above.
+  useEffect(() => {
+    if (!story) return;
+    let cancelled = false;
+    getStoryReactionSummary(story.id).then((result) => {
+      if (cancelled || result.error) return;
+      setReactionCounts(result.summary);
+      setMyReaction(result.mine);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [story]);
 
   // Image auto-advance timer — videos drive their own progress via onTimeUpdate/onEnded below.
@@ -132,6 +161,15 @@ export function StoryViewer({
     if (held < TAP_MAX_HOLD_MS) {
       if (direction === "prev") prev();
       else next();
+    }
+  }
+
+  async function handleReact(emoji: string) {
+    if (!story) return;
+    const result = await toggleStoryReaction(story.id, emoji);
+    if (!result.error) {
+      setReactionCounts(result.summary);
+      setMyReaction(result.mine);
     }
   }
 
@@ -276,7 +314,22 @@ export function StoryViewer({
         </div>
       )}
 
-      {isOwner && (
+      {reactionCounts.length > 0 && !showViewers && (
+        <div
+          className={`absolute inset-x-0 z-20 flex gap-1.5 px-4 ${isOwner ? "bottom-14" : "bottom-20"}`}
+        >
+          {reactionCounts.map((r) => (
+            <span
+              key={r.emoji}
+              className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white"
+            >
+              {r.emoji} {r.count}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {isOwner ? (
         <div className="absolute inset-x-0 bottom-0 z-20">
           {showViewers ? (
             <div className="max-h-64 overflow-y-auto rounded-t-2xl bg-surface p-4">
@@ -290,8 +343,9 @@ export function StoryViewer({
               </div>
               <ul className="mt-2 space-y-1.5">
                 {(viewers ?? []).map((v) => (
-                  <li key={v.id} className="text-sm">
-                    {v.name}
+                  <li key={v.id} className="flex items-center justify-between text-sm">
+                    <span>{v.name}</span>
+                    {v.reaction && <span>{v.reaction}</span>}
                   </li>
                 ))}
                 {viewers?.length === 0 && (
@@ -310,7 +364,118 @@ export function StoryViewer({
             </button>
           )}
         </div>
+      ) : (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => handleReact(emoji)}
+                className={`rounded-full px-2 py-1 text-lg ${
+                  myReaction === emoji ? "bg-white/30" : "bg-black/30 hover:bg-white/20"
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          <div className="pointer-events-auto mt-2">
+            <StoryReplyBar
+              key={story.id}
+              storyId={story.id}
+              authorName={authorName}
+              onFocusChange={setPaused}
+            />
+          </div>
+        </div>
       )}
+    </div>
+  );
+}
+
+function replyErrorMessage(code: string) {
+  switch (code) {
+    case "not_connected":
+      return "Connect with them first to reply to their story.";
+    case "blocked":
+      return "This reply couldn't be sent.";
+    case "rate_limited":
+      return "Slow down a little.";
+    case "not_found":
+      return "This story is no longer available.";
+    default:
+      return "Couldn't send that reply — try again.";
+  }
+}
+
+/**
+ * Owns its own draft/status state, keyed by story id from the parent — so
+ * switching stories naturally clears any in-progress draft via remount
+ * instead of an effect resetting it (see the id-keyed viewer/delete state
+ * above for the same reasoning).
+ */
+function StoryReplyBar({
+  storyId,
+  authorName,
+  onFocusChange,
+}: {
+  storyId: string;
+  authorName: string;
+  onFocusChange: (focused: boolean) => void;
+}) {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function send() {
+    const trimmed = text.trim();
+    if (!trimmed || status === "sending") return;
+    setStatus("sending");
+    setErrorMsg(null);
+    const fd = new FormData();
+    fd.set("content", trimmed);
+    const result = await replyToStory(storyId, fd);
+    if (result.error) {
+      setStatus("error");
+      setErrorMsg(replyErrorMessage(result.error));
+      return;
+    }
+    setText("");
+    setStatus("sent");
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={() => onFocusChange(true)}
+          onBlur={() => onFocusChange(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              send();
+            }
+          }}
+          maxLength={1000}
+          placeholder={`Reply to ${authorName}...`}
+          className="flex-1 rounded-full border border-white/30 bg-black/30 px-4 py-2 text-sm text-white placeholder-white/60 outline-none focus:border-white"
+        />
+        <button
+          type="button"
+          disabled={!text.trim() || status === "sending"}
+          onClick={send}
+          aria-label="Send reply"
+          className="shrink-0 rounded-full bg-accent p-2 text-accent-ink disabled:opacity-50"
+        >
+          <Send size={16} />
+        </button>
+      </div>
+      {status === "sent" && <p className="mt-1 text-xs text-white/80">Reply sent.</p>}
+      {errorMsg && <p className="mt-1 text-xs text-danger">{errorMsg}</p>}
     </div>
   );
 }
