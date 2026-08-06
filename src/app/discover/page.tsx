@@ -7,13 +7,19 @@ import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 
+const SORT_OPTIONS = ["relevant", "recent", "oldest"] as const;
+type SortOption = (typeof SORT_OPTIONS)[number];
+
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; country?: string }>;
+  searchParams: Promise<{ intent?: string; country?: string; sort?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { intent, country } = await searchParams;
+  const { intent, country, sort: sortParam } = await searchParams;
+  const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
+    ? (sortParam as SortOption)
+    : "relevant";
 
   const blockedIds = await getBlockedEitherWayIds(me.id);
 
@@ -26,7 +32,12 @@ export default async function DiscoverPage({
       ...(intent ? { openToIntents: { has: intent as never } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
     },
-    orderBy: { trustScore: "desc" },
+    orderBy:
+      sort === "recent"
+        ? { createdAt: "desc" }
+        : sort === "oldest"
+          ? { createdAt: "asc" }
+          : { trustScore: "desc" },
     take: 30,
   });
 
@@ -100,6 +111,15 @@ export default async function DiscoverPage({
               {c}
             </option>
           ))}
+        </select>
+        <select
+          name="sort"
+          defaultValue={sort}
+          className="rounded-lg border border-line bg-surface px-3 py-2"
+        >
+          <option value="relevant">Most relevant</option>
+          <option value="recent">Most recent</option>
+          <option value="oldest">Oldest</option>
         </select>
         <button
           type="submit"

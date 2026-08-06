@@ -1,0 +1,168 @@
+import { notFound } from "next/navigation";
+import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
+import { prisma } from "@/lib/prisma";
+import { BackButton } from "@/components/back-button";
+import { TrustBadge } from "@/components/trust-badge";
+import { ReportTrigger } from "@/components/report-form";
+import { CollabParticipantButton } from "@/components/collab-participant-button";
+import { CollabParticipantManager } from "@/components/collab-participant-manager";
+import { CollabSessionRoom } from "@/components/collab-session-room";
+import { CloseCollabButton } from "@/components/close-collab-button";
+import { DeleteCollabButton } from "@/components/delete-collab-button";
+import { ChatThread } from "@/components/chat-thread";
+import { collabTypeLabels } from "@/lib/collab-labels";
+import { isCollabAdmin } from "@/lib/collab-permissions";
+
+export default async function CollabDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const me = await getOnboardedUserOrRedirect();
+  const { id } = await params;
+
+  const collab = await prisma.collabBoardPost.findUnique({
+    where: { id },
+    include: {
+      author: { select: { id: true, name: true, trustBand: true } },
+      participants: { where: { userId: me.id } },
+      _count: { select: { participants: true } },
+    },
+  });
+  if (!collab) notFound();
+
+  const isParticipant = collab.participants.length > 0;
+  const isOwner = collab.authorId === me.id;
+  const canModerate = isCollabAdmin(collab, collab.participants[0] ?? null, me);
+  const canJoinSession = isParticipant || isOwner;
+
+  const allParticipants = canModerate
+    ? await prisma.collabParticipant.findMany({
+        where: { collabId: collab.id },
+        orderBy: { joinedAt: "asc" },
+        include: { user: { select: { id: true, name: true } } },
+      })
+    : [];
+
+  const conversation = collab.conversationId
+    ? await prisma.conversation.findUnique({
+        where: { id: collab.conversationId },
+        include: { members: { include: { user: { select: { id: true, name: true } } } } },
+      })
+    : null;
+
+  const messages =
+    conversation && canJoinSession
+      ? await prisma.message.findMany({
+          where: {
+            conversationId: conversation.id,
+            moderationStatus: { not: "REMOVED" },
+            NOT: { deletedForUserIds: { has: me.id } },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+          include: {
+            reactions: { select: { emoji: true, userId: true } },
+            corrections: { include: { author: { select: { id: true, name: true } } } },
+          },
+        })
+      : [];
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <BackButton fallbackHref="/collab" />
+
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+        <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
+          {collabTypeLabels[collab.type]}
+        </span>
+        <span className="text-xs text-foreground-soft">
+          {collab.worldwide ? "Worldwide" : collab.countries.join(", ")}
+        </span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">{collab.title}</h1>
+        <div className="flex items-center gap-2">
+          <CollabParticipantButton
+            collabId={collab.id}
+            isParticipant={isParticipant}
+            isOwner={isOwner}
+          />
+          {collab.status === "OPEN" && (isOwner || me.isAdmin) && (
+            <CloseCollabButton collabId={collab.id} />
+          )}
+          {(isOwner || me.isAdmin) && (
+            <DeleteCollabButton collabId={collab.id} isAdminOverride={!isOwner} />
+          )}
+        </div>
+      </div>
+
+      <p className="mt-2 text-sm text-foreground-soft">{collab.description}</p>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium">by {collab.author.name}</span>
+          <TrustBadge band={collab.author.trustBand} />
+          <span className="text-xs text-foreground-soft">
+            · {collab._count.participants} participant{collab._count.participants === 1 ? "" : "s"}
+          </span>
+          {collab.status === "CLOSED" && (
+            <span className="rounded-full bg-line px-2 py-0.5 text-[11px] text-foreground-soft">
+              Closed
+            </span>
+          )}
+        </div>
+        <ReportTrigger
+          targetType="COLLAB_POST"
+          targetId={collab.id}
+          reportedUserId={collab.author.id}
+        />
+      </div>
+
+      <div className="mt-8">
+        <CollabSessionRoom collabId={collab.id} canJoin={canJoinSession} />
+      </div>
+
+      {canModerate && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+            Participants
+          </h2>
+          <p className="mt-1 text-xs text-foreground-soft">
+            Co-admins get the same management powers as you, except closing this collaboration.
+          </p>
+          <div className="mt-3">
+            <CollabParticipantManager collabId={collab.id} participants={allParticipants} />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+          Collaboration chat
+        </h2>
+        {conversation && canJoinSession ? (
+          <div className="mt-3">
+            <ChatThread
+              conversationId={conversation.id}
+              initialMessages={messages}
+              currentUserId={me.id}
+              isGroup
+              conversationLabel={collab.title}
+              members={conversation.members.map((m) => ({
+                userId: m.user.id,
+                name: m.user.name ?? "Unknown",
+                lastReadAt: m.lastReadAt,
+              }))}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-line p-4 text-sm text-foreground-soft">
+            Participate in this collaboration to post photos, videos, and messages here.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

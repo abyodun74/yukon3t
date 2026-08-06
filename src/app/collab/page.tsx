@@ -3,22 +3,27 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ReportTrigger } from "@/components/report-form";
 import { TrustBadge } from "@/components/trust-badge";
+import { collabTypeLabels as typeLabels } from "@/lib/collab-labels";
 
-const typeLabels: Record<string, string> = {
-  SKILL_EXCHANGE: "Skill Exchange",
-  VOLUNTEER: "Volunteer",
-  STUDY_GROUP: "Study Group",
-  PROJECT: "Project",
-};
+type SortOption = "recent" | "oldest";
 
-export default async function CollabPage() {
+export default async function CollabPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
   await getOnboardedUserOrRedirect();
+  const { sort: sortParam } = await searchParams;
+  const sort: SortOption = sortParam === "oldest" ? "oldest" : "recent";
 
   const posts = await prisma.collabBoardPost.findMany({
     where: { status: "OPEN" },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: sort === "oldest" ? "asc" : "desc" },
     take: 40,
-    include: { author: { select: { id: true, name: true, trustBand: true } } },
+    include: {
+      author: { select: { id: true, name: true, trustBand: true } },
+      _count: { select: { participants: true } },
+    },
   });
 
   return (
@@ -39,19 +44,41 @@ export default async function CollabPage() {
         </Link>
       </div>
 
+      <form className="mt-6 flex items-center gap-3 text-sm">
+        <select
+          name="sort"
+          defaultValue={sort}
+          className="rounded-lg border border-line bg-surface px-3 py-2"
+        >
+          <option value="recent">Most recent</option>
+          <option value="oldest">Oldest</option>
+        </select>
+        <button
+          type="submit"
+          className="rounded-lg border border-line px-3 py-2 font-medium hover:border-accent hover:text-accent"
+        >
+          Apply
+        </button>
+      </form>
+
       <div className="mt-8 space-y-4">
         {posts.map((post) => (
           <div key={post.id} className="rounded-xl border border-line p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-                {typeLabels[post.type]}
-              </span>
-              <span className="text-right text-xs text-foreground-soft">
-                {post.worldwide ? "Worldwide" : post.countries.join(", ")}
-              </span>
-            </div>
-            <h2 className="mt-2 font-semibold">{post.title}</h2>
-            <p className="mt-1 text-sm text-foreground-soft">{post.description}</p>
+            <Link href={`/collab/${post.id}`} className="block">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
+                  {typeLabels[post.type]}
+                </span>
+                <span className="text-right text-xs text-foreground-soft">
+                  {post.worldwide ? "Worldwide" : post.countries.join(", ")}
+                </span>
+              </div>
+              <h2 className="mt-2 font-semibold hover:text-accent">{post.title}</h2>
+              <p className="mt-1 text-sm text-foreground-soft">{post.description}</p>
+              <p className="mt-1 text-xs text-foreground-soft">
+                {post._count.participants} participant{post._count.participants === 1 ? "" : "s"}
+              </p>
+            </Link>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Link

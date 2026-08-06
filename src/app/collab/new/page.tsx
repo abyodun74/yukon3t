@@ -1,6 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { createCollabPost } from "@/app/actions/collab";
 import { CollabCountriesField } from "@/components/collab-countries-field";
+import { CollabSubmitButton } from "@/components/collab-submit-button";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -70,12 +71,7 @@ export default async function NewCollabPostPage({
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Post
-        </button>
+        <CollabSubmitButton />
       </form>
     </div>
   );

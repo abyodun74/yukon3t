@@ -95,3 +95,84 @@ export async function deleteCallRoom(roomName: string) {
     // createCallRoom) guarantees it disappears either way.
   }
 }
+
+async function createRoom(name: string, properties: Record<string, unknown>) {
+  const res = await fetch("https://api.daily.co/v1/rooms", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, privacy: "private", properties }),
+  });
+  if (!res.ok) {
+    throw new Error("daily_room_create_failed");
+  }
+  const data = await res.json();
+  return { url: data.url as string, name: data.name as string };
+}
+
+/**
+ * Creates a persistent group room for a Collab's live session — unlike
+ * createCallRoom's single-use 1:1 rooms, this is joined/left freely by any
+ * number of participants over the collab's lifetime (same "create once,
+ * reuse forever" pattern as Circle.voiceRoomName). Daily's prebuilt call UI
+ * (see CallFrame) surfaces screen share, in-call chat, emoji reactions, and
+ * hand-raising automatically once these room properties are on — no custom
+ * WebRTC UI needed for any of that.
+ */
+export async function createCollabRoom({
+  name,
+  expiresInSeconds = 60 * 60 * 24 * 365,
+}: {
+  name: string;
+  expiresInSeconds?: number;
+}) {
+  const baseProperties = {
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    enable_screenshare: true,
+    enable_chat: true,
+    enable_emoji_reactions: true,
+    enable_hand_raising: true,
+    eject_at_room_exp: true,
+  };
+  try {
+    // Cloud recording needs a Daily plan that supports it — attempted first
+    // since most do, with a plain fallback below so a plan that doesn't
+    // support it still gets a working room, just without the record button.
+    return await createRoom(name, { ...baseProperties, enable_recording: "cloud" });
+  } catch {
+    return await createRoom(name, baseProperties);
+  }
+}
+
+export type DailyRecording = {
+  id: string;
+  status: string;
+  start_ts: number;
+  duration?: number;
+};
+
+/** Lists cloud recordings for a room — Daily is the source of truth, nothing is mirrored into our own DB. */
+export async function listRoomRecordings(roomName: string) {
+  const res = await fetch(
+    `https://api.daily.co/v1/recordings?room_name=${encodeURIComponent(roomName)}&limit=50`,
+    { headers: { Authorization: `Bearer ${apiKey()}` } },
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.data ?? []) as DailyRecording[];
+}
+
+/** Access links are short-lived (Daily-signed, expiring), so this is fetched fresh on demand rather than cached. */
+export async function getRecordingAccessLink(recordingId: string) {
+  const res = await fetch(
+    `https://api.daily.co/v1/recordings/${encodeURIComponent(recordingId)}/access-link`,
+    { headers: { Authorization: `Bearer ${apiKey()}` } },
+  );
+  if (!res.ok) {
+    throw new Error("daily_access_link_failed");
+  }
+  const data = await res.json();
+  return data.download_link as string;
+}

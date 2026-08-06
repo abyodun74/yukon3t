@@ -8,6 +8,7 @@ import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { SearchBar } from "@/components/search-bar";
 import { usePolling } from "@/lib/use-polling";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             YuKon3t
           </Link>
 
+          {session?.user && (
+            <div className="hidden max-w-[16rem] flex-1 lg:block">
+              <SearchBar />
+            </div>
+          )}
+
           {links.length > 0 && (
             <nav className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
               {links.map((link) => (
@@ -153,7 +160,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                       href="/admin/circles"
                       className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                     >
-                      Circles (admin)
+                      Circles & Collabs (admin)
                     </Link>
                     <Link
                       href="/admin/analytics"
@@ -200,6 +207,9 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
 
         {open && session?.user && (
           <div className="border-t border-line px-4 py-3 md:hidden">
+            <div className="mb-2">
+              <SearchBar />
+            </div>
             <nav className="flex flex-col gap-1 text-sm font-medium">
               <Link
                 href="/discover"
@@ -255,7 +265,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     onClick={() => setOpen(false)}
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
-                    Circles (admin)
+                    Circles & Collabs (admin)
                   </Link>
                   <Link
                     href="/admin/analytics"

@@ -154,6 +154,8 @@ model User {
   posts               Post[]
   collabPosts         CollabBoardPost[]
   voiceParticipations CircleVoiceParticipant[]
+  collabParticipations        CollabParticipant[]
+  collabSessionParticipations CollabSessionParticipant[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
@@ -480,10 +482,61 @@ model CollabBoardPost {
   status      CollabStatus @default(OPEN)
   createdAt   DateTime     @default(now())
 
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  // Live session room — lazily created on first join, same pattern as
+  // Circle.voiceRoomName/voiceRoomUrl (see joinCollabSession).
+  roomName String?
+  roomUrl  String?
+
+  // Group chat backing in-session text/photo/video posting — lazily created
+  // on first join and reuses the existing Conversation/Message pipeline
+  // (see joinCollab) instead of a bespoke media feed.
+  conversationId String?       @unique
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  author       User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  participants CollabParticipant[]
+  sessionParticipants CollabSessionParticipant[]
 
   @@index([type])
   @@index([status])
+}
+
+enum CollabRole {
+  PARTICIPANT
+  MODERATOR
+  OWNER
+}
+
+/** Static "joined this collaboration" membership — mirrors CircleMembership. */
+model CollabParticipant {
+  id       String     @id @default(cuid())
+  userId   String
+  collabId String
+  role     CollabRole @default(PARTICIPANT)
+  joinedAt DateTime   @default(now())
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collab CollabBoardPost @relation(fields: [collabId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, collabId])
+  @@index([collabId, role])
+}
+
+/**
+ * Presence, not history — a row exists only while that participant is
+ * currently in the collab's live session room. Mirrors CircleVoiceParticipant.
+ */
+model CollabSessionParticipant {
+  id       String   @id @default(cuid())
+  collabId String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  collab CollabBoardPost @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collabId, userId])
+  @@index([collabId])
 }
 
 enum ConnectionStatus {
@@ -522,6 +575,7 @@ model Conversation {
   members      ConversationMember[]
   messages     Message[]
   joinRequests GroupJoinRequest[]
+  collabBoardPost CollabBoardPost?
 }
 
 model GroupJoinRequest {
