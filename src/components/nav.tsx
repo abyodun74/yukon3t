@@ -3,12 +3,11 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Home, Users, Handshake, MessageCircle, User } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, MessageCircle, User, Search } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
-import { SearchBar } from "@/components/search-bar";
 import { usePolling } from "@/lib/use-polling";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -96,12 +95,6 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             YuKon3t
           </Link>
 
-          {session?.user && (
-            <div className="hidden max-w-[16rem] flex-1 lg:block">
-              <SearchBar />
-            </div>
-          )}
-
           {links.length > 0 && (
             <nav className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
               {links.map((link) => (
@@ -133,6 +126,18 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             <div className="hidden sm:block">
               <ThemeToggle initial={theme} />
             </div>
+            {session?.user && (
+              <Link
+                href="/search"
+                aria-label="Search"
+                className={cn(
+                  "rounded-full p-1.5 text-foreground-soft hover:bg-line hover:text-accent",
+                  pathname === "/search" && "bg-accent-soft text-accent",
+                )}
+              >
+                <Search size={20} />
+              </Link>
+            )}
             {session?.user && <NotificationBell />}
             {session?.user ? (
               <>
@@ -207,9 +212,6 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
 
         {open && session?.user && (
           <div className="border-t border-line px-4 py-3 md:hidden">
-            <div className="mb-2">
-              <SearchBar />
-            </div>
             <nav className="flex flex-col gap-1 text-sm font-medium">
               <Link
                 href="/discover"
