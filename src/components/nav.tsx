@@ -174,6 +174,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                       Analytics
                     </Link>
                     <Link
+                      href="/admin/ads"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Ads
+                    </Link>
+                    <Link
                       href="/admin/users"
                       className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                     >
@@ -275,6 +281,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Analytics
+                  </Link>
+                  <Link
+                    href="/admin/ads"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Ads
                   </Link>
                   <Link
                     href="/admin/users"

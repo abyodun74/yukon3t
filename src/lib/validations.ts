@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AD_DURATION_OPTIONS } from "@/lib/ads";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -151,6 +152,8 @@ export const uploadKindValues = [
   "circle-cover",
   "story-image",
   "story-video",
+  "ad-image",
+  "ad-video",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -189,6 +192,21 @@ export const collabPostSchema = z
     message: "Pick at least one country, or mark this worldwide.",
     path: ["countries"],
   });
+
+export const adBookingSchema = z.object({
+  companyName: z.string().trim().min(2).max(100),
+  contactName: z.string().trim().min(2).max(100),
+  contactEmail: z.string().trim().toLowerCase().email(),
+  headline: z.string().trim().min(5).max(80),
+  body: z.string().trim().min(10).max(280),
+  linkUrl: z.string().trim().url().max(500),
+  mediaType: z.enum(["IMAGE", "VIDEO"]),
+  mediaUrl: z.string().url(),
+  mediaThumbnailUrl: z.string().url().optional(),
+  durationDays: z.coerce.number().refine((d) => (AD_DURATION_OPTIONS as readonly number[]).includes(d), {
+    message: "Pick one of the offered durations.",
+  }),
+});
 
 export const storySchema = z.object({
   mediaType: z.enum(["IMAGE", "VIDEO"]),

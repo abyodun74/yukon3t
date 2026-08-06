@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
 import { StreakBanner } from "@/components/streak-banner";
+import { AdSlot } from "@/components/ad-slot";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { dayNumber } from "@/lib/trust";
@@ -46,6 +47,10 @@ export default async function HomePage({
 
       <div className="mt-6">
         <PostComposer placeholder="Share a photo, a short video, or an update..." />
+      </div>
+
+      <div className="mt-6">
+        <AdSlot />
       </div>
 
       <div className="mt-8 space-y-4">

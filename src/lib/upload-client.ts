@@ -96,9 +96,17 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs =
  * whatever startTransition called this, which React/Next renders as a full
  * page crash rather than a normal form error.
  */
+type RequestUploadUrlFn = (
+  fd: FormData,
+) => Promise<{ error: string | null; uploadUrl?: string; publicUrl?: string; key?: string }>;
+
 export async function uploadFileDirect(
   file: File,
   kind: UploadKind,
+  // Defaults to the authenticated requestUploadUrl action; the public
+  // /advertise booking flow passes requestAdUploadUrl instead, since there's
+  // no signed-in user to attribute the upload to there.
+  requestUrlFn: RequestUploadUrlFn = requestUploadUrl,
 ): Promise<ClientUploadResult> {
   const uploadFile = RESIZABLE_KINDS.includes(kind) ? await resizeImageFile(file) : file;
 
@@ -108,13 +116,19 @@ export async function uploadFileDirect(
 
   let result;
   try {
-    result = await withRetry(() => requestUploadUrl(fd));
+    result = await withRetry(() => requestUrlFn(fd));
   } catch {
     return { ok: false, error: "network" };
   }
   if (result.error || !result.uploadUrl || !result.publicUrl || !result.key) {
     return { ok: false, error: result.error ?? "invalid" };
   }
+  // Narrowed into their own const bindings — a closure over the `let
+  // result` above can't be trusted by TS to keep the narrowing from the
+  // guard just above (a real gap, not just noise: RequestUploadUrlFn's
+  // return type isn't the discriminated union requestUploadUrl's own
+  // inferred type is, so the two behave differently here).
+  const { uploadUrl, publicUrl, key } = result;
 
   let putRes;
   try {
@@ -122,7 +136,7 @@ export async function uploadFileDirect(
     // request-upload-url round trip), so a retry just overwrites the same
     // R2 object rather than risking an orphaned duplicate.
     putRes = await withRetry(() =>
-      fetch(result.uploadUrl, {
+      fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": uploadFile.type },
         body: uploadFile,
@@ -136,7 +150,7 @@ export async function uploadFileDirect(
     return { ok: false, error: "upload_failed" };
   }
 
-  return { ok: true, publicUrl: result.publicUrl, key: result.key };
+  return { ok: true, publicUrl, key };
 }
 
 export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {

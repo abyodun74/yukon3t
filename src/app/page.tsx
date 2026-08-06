@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { AdSlot } from "@/components/ad-slot";
 
 const pillars = [
   {
@@ -65,6 +66,10 @@ export default async function Home() {
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto max-w-2xl px-4 pb-4">
+        <AdSlot />
       </section>
 
       <section className="border-t border-line bg-surface py-16">

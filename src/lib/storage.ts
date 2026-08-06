@@ -17,7 +17,9 @@ export type UploadKind =
   | "message-image"
   | "circle-cover"
   | "story-image"
-  | "story-video";
+  | "story-video"
+  | "ad-image"
+  | "ad-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -33,6 +35,8 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
 };
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
@@ -55,6 +59,8 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // (see MAX_STORY_VIDEO_SECONDS in story-upload-modal.tsx), so this stays
   // proportionally generous instead of just matching post-video's byte cap.
   "story-video": 60 * 1024 * 1024,
+  "ad-image": 8 * 1024 * 1024,
+  "ad-video": 30 * 1024 * 1024,
 };
 
 export const MAX_POST_IMAGES = 4;

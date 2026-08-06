@@ -97,6 +97,9 @@ export default async function RootLayout({
             <a href="/legal/disclaimer" className="hover:text-accent">
               Disclaimer
             </a>
+            <a href="/advertise" className="hover:text-accent">
+              Advertise
+            </a>
           </div>
           <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
         </footer>

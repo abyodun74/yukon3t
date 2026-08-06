@@ -160,6 +160,7 @@ model User {
   stories        Story[]
   storyViews     StoryView[]
   storyReactions StoryReaction[]
+  adCampaigns    AdCampaign[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
@@ -607,6 +608,76 @@ model StoryView {
 
   @@unique([storyId, viewerId])
   @@index([storyId])
+}
+
+enum AdMediaType {
+  IMAGE
+  VIDEO
+}
+
+enum AdStatus {
+  DRAFT
+  // Checkout session created, waiting on the Stripe webhook to confirm payment.
+  PENDING_PAYMENT
+  // Paid, waiting on an admin to approve the creative before it goes live.
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  // Approved and previously live, then pulled early (policy issue found
+  // after launch, or the advertiser asked to stop) — distinct from
+  // REJECTED, which never ran at all.
+  PAUSED
+  COMPLETED
+}
+
+/**
+ * A paid ad booking. Deliberately not tied to a User — the public /advertise
+ * page takes bookings from companies with no YuKon3t account, so contact
+ * info is captured directly here; advertiserUserId is just an optional link
+ * for the rare case someone books while signed in.
+ */
+model AdCampaign {
+  id      String @id @default(cuid())
+  advertiserUserId String?
+
+  companyName  String
+  contactName  String
+  contactEmail String
+
+  headline  String
+  body      String      @db.Text
+  linkUrl   String
+  mediaType AdMediaType
+  mediaUrl  String
+
+  durationDays Int
+  startAt      DateTime?
+  endAt        DateTime?
+
+  priceCents Int
+  currency   String @default("usd")
+
+  status          AdStatus @default(DRAFT)
+  rejectionReason String?  @db.Text
+  reviewedAt      DateTime?
+  reviewedBy      String?
+
+  stripeCheckoutSessionId String?   @unique
+  stripePaymentIntentId   String?
+  paidAt                  DateTime?
+  refundedAt              DateTime?
+
+  impressionCount Int @default(0)
+  clickCount      Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  advertiserUser User? @relation(fields: [advertiserUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  // Backs the display slot's "any currently-running ad" query.
+  @@index([status, startAt, endAt])
 }
 
 enum ConnectionStatus {
