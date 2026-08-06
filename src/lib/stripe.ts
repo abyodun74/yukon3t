@@ -56,6 +56,13 @@ export async function createAdCheckoutSession({
         quantity: 1,
       },
     ],
+    // Newer Stripe accounts default to Managed Payments (automatic tax),
+    // which requires a product tax_code on every line item unless
+    // explicitly opted out — a flat-rate ad placement has no tax
+    // categorization to speak of, so this just opts out rather than
+    // fabricating a tax code. Not yet in this SDK version's TS types.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    managed_payments: { enabled: false } as any,
     metadata: { campaignId },
     success_url: `${baseUrl}/advertise/success?campaign=${campaignId}`,
     cancel_url: `${baseUrl}/advertise?campaign=${campaignId}&canceled=1`,
