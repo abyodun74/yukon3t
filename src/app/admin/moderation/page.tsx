@@ -20,7 +20,7 @@ export default async function ModerationQueuePage() {
   const user = await getSessionUserOrRedirect();
   if (!user.isAdmin) redirect("/discover");
 
-  const [open, resolved, flaggedPosts, flaggedComments, flaggedMessages] = await Promise.all([
+  const [open, resolved, flaggedPosts, flaggedComments, flaggedMessages, hiddenComments] = await Promise.all([
     prisma.report.findMany({
       where: { status: { in: ["OPEN", "REVIEWING"] } },
       orderBy: { createdAt: "asc" },
@@ -60,6 +60,15 @@ export default async function ModerationQueuePage() {
       orderBy: { createdAt: "asc" },
       take: 20,
       include: { sender: { select: { name: true } } },
+    }),
+    // Hidden by a post author/Circle co-admin, not an admin — see hideComment
+    // in comments.ts. Unlike a report or a flagged-at-creation item, these
+    // never otherwise surface anywhere an admin would see them.
+    prisma.comment.findMany({
+      where: { moderationStatus: "REMOVED" },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: { author: { select: { name: true } } },
     }),
   ]);
 
@@ -127,6 +136,25 @@ export default async function ModerationQueuePage() {
         ))}
         {flaggedCount === 0 && (
           <p className="text-sm text-foreground-soft">Nothing flagged right now.</p>
+        )}
+      </div>
+
+      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+        Hidden comments ({hiddenComments.length})
+      </h2>
+      <p className="mt-1 text-xs text-foreground-soft">
+        Hidden by a post author or Circle co-admin, not reported or auto-flagged. Publish to restore or remove outright.
+      </p>
+      <div className="mt-3 space-y-3">
+        {hiddenComments.map((comment) => (
+          <div key={comment.id} className="rounded-lg border border-line p-3">
+            <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
+            <p className="mt-1 text-sm">{comment.content}</p>
+            <FlaggedContentActions contentType="COMMENT" contentId={comment.id} />
+          </div>
+        ))}
+        {hiddenComments.length === 0 && (
+          <p className="text-sm text-foreground-soft">No hidden comments right now.</p>
         )}
       </div>
 

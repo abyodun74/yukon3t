@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, MessageCircle, User } from "lucide-react";
@@ -8,39 +8,46 @@ import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { usePolling } from "@/lib/use-polling";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-const UNREAD_MESSAGES_POLL_MS = 25_000;
+const POLL_INTERVAL_MS = 25_000;
 
-/** Polls how many conversations have an unread message, for the Messages nav badge. */
-function useUnreadMessagesCount(enabled: boolean) {
+/**
+ * Polls a `{ count }` JSON endpoint — shared by the messages and connections
+ * nav badges. Both are mounted in Nav for every signed-in user on every
+ * page, so this pauses while the tab isn't visible via the same
+ * `usePolling` mechanism as NotificationBell/ChatThread/CircleVoiceRoom,
+ * rather than a plain always-on `setInterval`.
+ */
+function usePolledCount(url: string, enabled: boolean) {
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-
-    async function fetchCount() {
-      try {
-        const res = await fetch("/api/messages/unread-count");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setCount(data.count ?? 0);
-      } catch {
-        // A failed poll should not be visible to the user — try again next tick.
-      }
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCount(data.count ?? 0);
+    } catch {
+      // A failed poll should not be visible to the user — try again next tick.
     }
+  }, [url]);
 
-    fetchCount();
-    const interval = setInterval(fetchCount, UNREAD_MESSAGES_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [enabled]);
+  usePolling(poll, POLL_INTERVAL_MS, enabled);
 
   return count;
+}
+
+/** How many conversations have an unread message, for the Messages nav badge. */
+function useUnreadMessagesCount(enabled: boolean) {
+  return usePolledCount("/api/messages/unread-count", enabled);
+}
+
+/** How many incoming connection requests are still awaiting a response, for the Connections nav badge. */
+function usePendingConnectionsCount(enabled: boolean) {
+  return usePolledCount("/api/connections/pending-count", enabled);
 }
 
 function navLinks(userId: string) {
@@ -74,6 +81,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   const links = session?.user ? navLinks(session.user.id) : [];
   const tabs = session?.user ? bottomTabs(session.user.id) : [];
   const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
+  const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
 
   return (
     <>
@@ -102,6 +110,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   {link.href === "/messages" && unreadMessages > 0 && (
                     <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
+                  {link.href === "/connections" && pendingConnections > 0 && (
+                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                      {pendingConnections > 9 ? "9+" : pendingConnections}
                     </span>
                   )}
                 </Link>
@@ -202,11 +215,16 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 href="/connections"
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "rounded-lg px-3 py-2 hover:bg-line",
+                  "relative rounded-lg px-3 py-2 hover:bg-line",
                   pathname === "/connections" ? "text-accent" : "text-foreground-soft",
                 )}
               >
                 Connections
+                {pendingConnections > 0 && (
+                  <span className="ml-2 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                    {pendingConnections > 9 ? "9+" : pendingConnections}
+                  </span>
+                )}
               </Link>
               <div className="my-2 border-t border-line" />
               <Link

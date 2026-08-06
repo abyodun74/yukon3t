@@ -252,6 +252,11 @@ model CircleMembership {
   circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, circleId])
+  // The unique constraint above is userId-leading, so it doesn't serve
+  // circleId-first lookups — matches how joinCircle filters co-admins by
+  // circleId+role on every join, and how /circles now includes a
+  // per-viewer membership per Circle card.
+  @@index([circleId, role])
 }
 
 enum ModerationStatus {

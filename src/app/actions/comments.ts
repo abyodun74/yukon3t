@@ -162,6 +162,11 @@ export async function deleteComment(commentId: string) {
 export async function hideComment(commentId: string) {
   const user = await requireVerifiedUser();
 
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
     include: { post: true },
@@ -178,9 +183,23 @@ export async function hideComment(commentId: string) {
     return { error: "forbidden" as const };
   }
 
+  // All three writes land together — a crash between them would otherwise
+  // risk a hidden comment with no audit trail (or a count decrement with no
+  // matching hide). Same accountability trail every other content-removal
+  // action leaves (see reports.ts): a moderator hiding a comment isn't an
+  // admin action, but it should be just as explainable/appealable and just
+  // as visible to a site admin reviewing moderation activity.
   await prisma.$transaction([
     prisma.comment.update({ where: { id: commentId }, data: { moderationStatus: "REMOVED" } }),
     prisma.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } }),
+    prisma.auditLog.create({
+      data: {
+        targetId: comment.authorId,
+        action: "CONTENT_REMOVED",
+        reason: "Comment hidden by a post author, Circle co-admin, or site admin.",
+        performedBy: user.id,
+      },
+    }),
   ]);
 
   revalidatePath(`/post/${comment.postId}`);

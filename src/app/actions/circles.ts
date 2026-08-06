@@ -168,6 +168,11 @@ export async function deleteCircle(circleId: string) {
 export async function addCircleCoAdmin(circleId: string, targetUserId: string) {
   const user = await requireVerifiedUser();
 
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
   const circle = await prisma.circle.findUnique({ where: { id: circleId } });
   if (!circle) {
     return { error: "not_found" as const };
@@ -197,6 +202,11 @@ export async function addCircleCoAdmin(circleId: string, targetUserId: string) {
 export async function removeCircleCoAdmin(circleId: string, targetUserId: string) {
   const user = await requireVerifiedUser();
 
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
   const circle = await prisma.circle.findUnique({ where: { id: circleId } });
   if (!circle) {
     return { error: "not_found" as const };
@@ -221,6 +231,11 @@ export async function removeCircleCoAdmin(circleId: string, targetUserId: string
 /** Owner or co-admin: removes a member outright (not just their own leaving). Can't be used on the Circle's original creator. */
 export async function removeCircleMember(circleId: string, targetUserId: string) {
   const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
 
   const circle = await prisma.circle.findUnique({ where: { id: circleId } });
   if (!circle) {
