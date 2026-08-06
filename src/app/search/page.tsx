@@ -90,7 +90,11 @@ export default async function SearchPage({
         where: {
           id: { notIn: [me.id, ...blockedIds] },
           status: "ACTIVE",
-          discoverable: true,
+          // Deliberately not gated on `discoverable` — that flag opts someone
+          // out of *passive* algorithmic suggestions (see /discover), not out
+          // of being found by someone who already knows their name and
+          // explicitly searches for it. `status: ACTIVE` + the blocked-either-
+          // way exclusion above remain the real safety boundary here.
           ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
           ...(sort === "current" ? { lastActiveAt: { gt: currentSince } } : {}),
           OR: [
