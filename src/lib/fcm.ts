@@ -82,3 +82,14 @@ export async function sendFcmCallToUser(userId: string, payload: IncomingCallPay
 export async function sendFcmCallCancelToUser(userId: string, callId: string) {
   await sendFcmDataToUser(userId, { type: "call_cancelled", callId });
 }
+
+export async function sendFcmEventReminderToUser(
+  userId: string,
+  payload: { postId: string; title: string },
+) {
+  await sendFcmDataToUser(userId, {
+    type: "event_reminder",
+    postId: payload.postId,
+    title: payload.title,
+  });
+}

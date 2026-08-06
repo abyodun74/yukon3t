@@ -114,6 +114,7 @@ export default async function PublicProfilePage({
           {isOwnProfile && user.currentStreak > 0 && (
             <span className="text-xs text-foreground-soft">
               🔥 {user.currentStreak}-day streak
+              {user.longestStreak > user.currentStreak && ` · best: ${user.longestStreak}`}
             </span>
           )}
           <TrustBadge band={user.trustBand} />

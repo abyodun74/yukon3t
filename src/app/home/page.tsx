@@ -3,7 +3,9 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
+import { StreakBanner } from "@/components/streak-banner";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { dayNumber } from "@/lib/trust";
 
 const PAGE_SIZE = 30;
 
@@ -48,6 +50,7 @@ export default async function HomePage({
   const posts = await attachViewerState(rawPosts, me.id);
   const lastPost = rawPosts[rawPosts.length - 1];
   const hasMore = rawPosts.length === PAGE_SIZE;
+  const activeToday = Boolean(me.lastActiveAt && dayNumber(me.lastActiveAt) === dayNumber(new Date()));
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -55,6 +58,12 @@ export default async function HomePage({
       <p className="mt-1 text-sm text-foreground-soft">
         Posts from your Circles and connections.
       </p>
+
+      <StreakBanner
+        currentStreak={me.currentStreak}
+        longestStreak={me.longestStreak}
+        activeToday={activeToday}
+      />
 
       <div className="mt-6">
         <PostComposer placeholder="Share a photo, a short video, or an update..." />

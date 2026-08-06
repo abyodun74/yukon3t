@@ -296,6 +296,9 @@ model Post {
   moderationStatus  ModerationStatus @default(PUBLISHED)
   eventAt           DateTime?
   eventLocation     String?
+  // Set once a "starts soon" reminder has gone out (see the event-reminders
+  // cron route) so the same event never notifies attendees twice.
+  eventReminderSentAt DateTime?
   createdAt         DateTime         @default(now())
 
   repostOfId String?
@@ -327,6 +330,9 @@ model Post {
   // row set as a user's circle/connection graph grows.
   @@index([circleId, moderationStatus, createdAt])
   @@index([authorId, moderationStatus, createdAt])
+  // Backs the event-reminders cron's recurring range scan (eventAt between
+  // now and the reminder window, reminder not yet sent).
+  @@index([eventAt])
 }
 
 model Comment {
@@ -422,6 +428,8 @@ enum NotificationType {
   CIRCLE_JOINED
   // Sent to every site admin (isAdmin=true) when any user creates a new Circle.
   CIRCLE_CREATED
+  // Sent to an event post's author and RSVP'd attendees shortly before eventAt.
+  EVENT_REMINDER
 }
 
 model Notification {

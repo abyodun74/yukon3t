@@ -16,7 +16,8 @@ type NotificationData = {
     | "POST_SHARE"
     | "EVENT_RSVP"
     | "CIRCLE_JOINED"
-    | "CIRCLE_CREATED";
+    | "CIRCLE_CREATED"
+    | "EVENT_REMINDER";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null };
@@ -44,6 +45,8 @@ function messageFor(type: NotificationData["type"]) {
       return "joined your Circle";
     case "CIRCLE_CREATED":
       return "created a new Circle";
+    case "EVENT_REMINDER":
+      return "An event you're attending is starting soon";
   }
 }
 
@@ -58,6 +61,10 @@ function hrefFor(notification: NotificationData) {
 
 export function NotificationRow({ notification }: { notification: NotificationData }) {
   const unread = !notification.readAt;
+  // A reminder isn't "someone did something to you" — it's system-generated,
+  // so the usual "{actor} {verb}" phrasing doesn't apply. messageFor already
+  // returns a complete sentence for this type.
+  const hasActor = notification.type !== "EVENT_REMINDER";
 
   return (
     <Link
@@ -70,7 +77,8 @@ export function NotificationRow({ notification }: { notification: NotificationDa
         unread ? "border-accent bg-accent/5" : "border-transparent",
       )}
     >
-      <span className="font-semibold">{notification.actor.name}</span>{" "}
+      {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
+      {hasActor && " "}
       {messageFor(notification.type)}
       <span className="ml-2 text-xs text-foreground-soft">
         {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
