@@ -10,6 +10,7 @@ import { GroupDiscoverableToggle } from "@/components/group-discoverable-toggle"
 import { LeaveGroupButton } from "@/components/leave-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
+import { UserLink } from "@/components/user-link";
 
 export default async function ConversationPage({
   params,
@@ -27,7 +28,7 @@ export default async function ConversationPage({
       where: { id },
       include: {
         members: {
-          include: { user: { select: { id: true, name: true } } },
+          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
         },
       },
     }),
@@ -70,6 +71,8 @@ export default async function ConversationPage({
   const members = conversation.members.map((m) => ({
     userId: m.user.id,
     name: m.user.name ?? "Unknown",
+    username: m.user.username,
+    avatarUrl: m.user.avatarUrl,
     lastReadAt: m.lastReadAt,
   }));
 
@@ -114,6 +117,15 @@ export default async function ConversationPage({
             conversationId={id}
             name={conversationLabel}
             canEdit={conversation.createdById === me.id}
+          />
+        ) : other ? (
+          <UserLink
+            userId={other.id}
+            name={other.name}
+            username={other.username}
+            avatarUrl={other.avatarUrl}
+            avatarSize={32}
+            className="text-lg font-semibold"
           />
         ) : (
           <h1 className="text-lg font-semibold">{conversationLabel}</h1>

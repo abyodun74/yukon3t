@@ -45,7 +45,7 @@ export default async function CirclePage({
     ? await prisma.circleMembership.findMany({
         where: { circleId: circle.id },
         orderBy: { joinedAt: "asc" },
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
       })
     : [];
 

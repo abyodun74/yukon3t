@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { deleteComment, hideComment, toggleCommentReaction } from "@/app/actions/comments";
 import { ReportTrigger } from "@/components/report-form";
 import { CommentComposer } from "@/components/comment-composer";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
+import { UserLink } from "@/components/user-link";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import type { CommentNode } from "@/lib/comment-tree";
@@ -61,17 +61,19 @@ export function CommentCard({
       style={depth > 0 ? { marginLeft: Math.min(depth, MAX_VISUAL_DEPTH) * 20 } : undefined}
     >
       <div className="flex items-center justify-between">
-        <Link
-          href={`/u/${comment.author.id}`}
-          className="text-sm font-semibold hover:text-accent"
-        >
-          {comment.author.name}
+        <div className="flex items-center gap-1.5">
+          <UserLink
+            userId={comment.author.id}
+            name={comment.author.name}
+            username={comment.author.username}
+            avatarUrl={comment.author.avatarUrl}
+            avatarSize={20}
+            className="text-sm font-semibold"
+          />
           {comment.author.id === postAuthorId && (
-            <span className="ml-1.5 text-xs font-normal text-foreground-soft">
-              (author)
-            </span>
+            <span className="text-xs font-normal text-foreground-soft">(author)</span>
           )}
-        </Link>
+        </div>
         <span className="text-xs text-foreground-soft">
           {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
         </span>

@@ -9,7 +9,7 @@ export type FlatComment = {
   // at the query level — but typed against the full enum since Prisma's
   // `where: { in: [...] }` doesn't narrow the return type.
   moderationStatus: ModerationStatus;
-  author: { id: string; name: string | null };
+  author: { id: string; name: string | null; username?: string | null; avatarUrl?: string | null };
   reactions: { emoji: string; userId: string }[];
 };
 

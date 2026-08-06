@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { markAsRead } from "@/app/actions/notifications";
 import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/user-link";
 
 type NotificationData = {
   id: string;
@@ -20,7 +21,7 @@ type NotificationData = {
     | "EVENT_REMINDER";
   readAt: Date | null;
   createdAt: Date;
-  actor: { id: string; name: string | null };
+  actor: { id: string; name: string | null; avatarUrl?: string | null };
   postId: string | null;
   circle: { slug: string } | null;
 };
@@ -77,11 +78,18 @@ export function NotificationRow({ notification }: { notification: NotificationDa
         unread ? "border-accent bg-accent/5" : "border-transparent",
       )}
     >
-      {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
-      {hasActor && " "}
-      {messageFor(notification.type)}
-      <span className="ml-2 text-xs text-foreground-soft">
-        {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
+      <span className="flex items-start gap-2">
+        {hasActor && (
+          <UserAvatar avatarUrl={notification.actor.avatarUrl} name={notification.actor.name} size={20} />
+        )}
+        <span>
+          {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
+          {hasActor && " "}
+          {messageFor(notification.type)}
+          <span className="ml-2 text-xs text-foreground-soft">
+            {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
+          </span>
+        </span>
       </span>
     </Link>
   );

@@ -14,11 +14,13 @@ import { StoryUploadModal } from "@/components/story-upload-modal";
  * stays a plain server component.
  */
 export function ProfileStoryRing({
+  userId,
   avatarUrl,
   name,
   stories,
   isOwner,
 }: {
+  userId: string;
   avatarUrl: string | null;
   name: string;
   stories: StoryData[];
@@ -66,6 +68,7 @@ export function ProfileStoryRing({
         <StoryViewer
           stories={stories}
           startIndex={0}
+          authorId={userId}
           authorName={name}
           authorAvatarUrl={avatarUrl}
           isOwner={isOwner}

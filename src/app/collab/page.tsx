@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ReportTrigger } from "@/components/report-form";
 import { TrustBadge } from "@/components/trust-badge";
+import { UserLink } from "@/components/user-link";
 import { collabTypeLabels as typeLabels } from "@/lib/collab-labels";
 
 type SortOption = "recent" | "oldest";
@@ -21,7 +22,7 @@ export default async function CollabPage({
     orderBy: { createdAt: sort === "oldest" ? "asc" : "desc" },
     take: 40,
     include: {
-      author: { select: { id: true, name: true, trustBand: true } },
+      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
       _count: { select: { participants: true } },
     },
   });
@@ -81,12 +82,15 @@ export default async function CollabPage({
             </Link>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Link
-                  href={`/u/${post.author.id}`}
-                  className="text-xs font-medium hover:text-accent"
-                >
-                  by {post.author.name}
-                </Link>
+                <span className="text-xs text-foreground-soft">by</span>
+                <UserLink
+                  userId={post.author.id}
+                  name={post.author.name}
+                  username={post.author.username}
+                  avatarUrl={post.author.avatarUrl}
+                  avatarSize={18}
+                  className="text-xs font-medium"
+                />
                 <TrustBadge band={post.author.trustBand} />
               </div>
               <ReportTrigger

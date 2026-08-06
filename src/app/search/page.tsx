@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { PostCard } from "@/components/post-card";
+import { UserAvatar } from "@/components/user-link";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { COUNTRIES } from "@/lib/countries";
 import { collabTypeLabels } from "@/lib/collab-labels";
@@ -270,7 +271,17 @@ export default async function SearchPage({
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">{person.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <UserAvatar avatarUrl={person.avatarUrl} name={person.name} size={28} />
+                    <span className="min-w-0 truncate">
+                      <span className="font-semibold">{person.name}</span>
+                      {person.username && (
+                        <span className="ml-1 text-xs font-normal text-foreground-soft">
+                          @{person.username}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                   <TrustBadge band={person.trustBand} />
                 </div>
                 <p className="mt-1 text-xs text-foreground-soft">

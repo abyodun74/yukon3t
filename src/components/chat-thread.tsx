@@ -17,6 +17,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { UserLink } from "@/components/user-link";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,8 @@ type CorrectionData = {
 type MemberData = {
   userId: string;
   name: string;
+  username?: string | null;
+  avatarUrl?: string | null;
   lastReadAt: Date | null;
 };
 
@@ -143,7 +146,7 @@ function MessageBubble({
   message,
   mine,
   currentUserId,
-  senderName,
+  sender,
   seenByNames,
   onDeleted,
   onEdited,
@@ -153,8 +156,8 @@ function MessageBubble({
   message: MessageData;
   mine: boolean;
   currentUserId: string;
-  /** Group chats only: the sender's name, shown above the bubble for non-own messages not grouped with the previous one. */
-  senderName?: string;
+  /** Group chats only: the sender, shown above the bubble for non-own messages not grouped with the previous one. */
+  sender?: MemberData;
   /** Group chats only: passed for the sender's own most recent message, to render "Seen by ..." in place of the DM checkmark. */
   seenByNames?: string[];
   onDeleted: (messageId: string, mode: "me" | "everyone") => void;
@@ -238,8 +241,17 @@ function MessageBubble({
   return (
     <div className={cn("flex items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
       <div className="min-w-0">
-        {senderName && (
-          <p className="mb-0.5 px-1 text-xs font-medium text-foreground-soft">{senderName}</p>
+        {sender && (
+          <div className="mb-0.5 px-1">
+            <UserLink
+              userId={sender.userId}
+              name={sender.name}
+              username={sender.username}
+              avatarUrl={sender.avatarUrl}
+              avatarSize={16}
+              className="text-xs font-medium text-foreground-soft hover:text-accent"
+            />
+          </div>
         )}
         <div
           className={cn(
@@ -764,7 +776,7 @@ export function ChatThread({
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, corrections } : m)));
   }
 
-  const memberNameById = new Map(members.map((m) => [m.userId, m.name]));
+  const memberById = new Map(members.map((m) => [m.userId, m]));
   const lastMineIndex = isGroup ? messages.findLastIndex((m) => m.senderId === currentUserId) : -1;
 
   return (
@@ -774,8 +786,7 @@ export function ChatThread({
           const mine = m.senderId === currentUserId;
           const prev = messages[i - 1];
           const grouped = Boolean(prev && prev.senderId === m.senderId);
-          const senderName =
-            isGroup && !mine && !grouped ? (memberNameById.get(m.senderId) ?? "Unknown") : undefined;
+          const sender = isGroup && !mine && !grouped ? memberById.get(m.senderId) : undefined;
           const seenByNames =
             i === lastMineIndex
               ? members
@@ -791,7 +802,7 @@ export function ChatThread({
                 message={m}
                 mine={mine}
                 currentUserId={currentUserId}
-                senderName={senderName}
+                sender={sender}
                 seenByNames={seenByNames}
                 onDeleted={handleDeleted}
                 onEdited={handleEdited}

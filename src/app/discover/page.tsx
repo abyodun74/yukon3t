@@ -2,7 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
-import Link from "next/link";
+import { UserLink } from "@/components/user-link";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
@@ -135,12 +135,14 @@ export default async function DiscoverPage({
           return (
           <div key={person.id} className="rounded-xl border border-line p-4">
             <div className="flex items-center justify-between">
-              <Link
-                href={`/u/${person.id}`}
-                className="font-semibold hover:text-accent"
-              >
-                {person.name}
-              </Link>
+              <UserLink
+                userId={person.id}
+                name={person.name}
+                username={person.username}
+                avatarUrl={person.avatarUrl}
+                avatarSize={28}
+                className="font-semibold"
+              />
               <TrustBadge band={person.trustBand} />
             </div>
             <p className="mt-1 text-xs text-foreground-soft">

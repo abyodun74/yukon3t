@@ -2,6 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ConnectionResponseButtons } from "@/components/connection-response-buttons";
 import { TrustBadge } from "@/components/trust-badge";
+import { UserLink } from "@/components/user-link";
 import Link from "next/link";
 import { intentLabels } from "@/lib/validations";
 
@@ -11,12 +12,12 @@ export default async function ConnectionsPage() {
   const [incoming, outgoing, accepted, myConversations] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
-      include: { requester: { select: { id: true, name: true, trustBand: true } } },
+      include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.connection.findMany({
       where: { requesterId: me.id, status: "PENDING" },
-      include: { target: { select: { id: true, name: true, trustBand: true } } },
+      include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.connection.findMany({
@@ -25,8 +26,8 @@ export default async function ConnectionsPage() {
         OR: [{ requesterId: me.id }, { targetId: me.id }],
       },
       include: {
-        requester: { select: { id: true, name: true, trustBand: true } },
-        target: { select: { id: true, name: true, trustBand: true } },
+        requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
+        target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
       },
       orderBy: { respondedAt: "desc" },
     }),
@@ -62,9 +63,12 @@ export default async function ConnectionsPage() {
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <Link href={`/u/${c.requester.id}`} className="font-medium hover:text-accent">
-                    {c.requester.name}
-                  </Link>
+                  <UserLink
+                    userId={c.requester.id}
+                    name={c.requester.name}
+                    username={c.requester.username}
+                    avatarUrl={c.requester.avatarUrl}
+                  />
                   <TrustBadge band={c.requester.trustBand} />
                 </div>
                 <p className="text-xs text-foreground-soft">
@@ -88,9 +92,12 @@ export default async function ConnectionsPage() {
           {outgoing.map((c) => (
             <div key={c.id} className="rounded-xl border border-line p-4">
               <div className="flex items-center gap-2">
-                <Link href={`/u/${c.target.id}`} className="font-medium hover:text-accent">
-                  {c.target.name}
-                </Link>
+                <UserLink
+                  userId={c.target.id}
+                  name={c.target.name}
+                  username={c.target.username}
+                  avatarUrl={c.target.avatarUrl}
+                />
                 <TrustBadge band={c.target.trustBand} />
               </div>
               <p className="text-xs text-foreground-soft">
@@ -119,9 +126,12 @@ export default async function ConnectionsPage() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <Link href={`/u/${other.id}`} className="font-medium hover:text-accent">
-                      {other.name}
-                    </Link>
+                    <UserLink
+                      userId={other.id}
+                      name={other.name}
+                      username={other.username}
+                      avatarUrl={other.avatarUrl}
+                    />
                     <TrustBadge band={other.trustBand} />
                   </div>
                   <span className="text-xs text-foreground-soft">

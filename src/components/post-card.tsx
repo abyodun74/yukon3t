@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
+import { UserLink } from "@/components/user-link";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
@@ -28,7 +29,7 @@ type EmbeddedPost = {
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
-  author: { id: string; name: string | null; trustBand: string };
+  author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
 };
 
 type PostCardData = EmbeddedPost & {
@@ -278,12 +279,13 @@ export function PostCard({
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Link
-            href={`/u/${displayPost.author.id}`}
-            className="truncate text-sm font-semibold hover:text-accent"
-          >
-            {displayPost.author.name}
-          </Link>
+          <UserLink
+            userId={displayPost.author.id}
+            name={displayPost.author.name}
+            username={displayPost.author.username}
+            avatarUrl={displayPost.author.avatarUrl}
+            className="text-sm font-semibold"
+          />
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
         <div className="flex shrink-0 items-center gap-2">

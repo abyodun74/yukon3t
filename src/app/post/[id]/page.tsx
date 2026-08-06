@@ -46,7 +46,18 @@ export default async function PostDetailPage({
   if (!canView) notFound();
 
   const [postWithState] = await attachViewerState(
-    [{ ...post, author: { id: post.author.id, name: post.author.name, trustBand: post.author.trustBand } }],
+    [
+      {
+        ...post,
+        author: {
+          id: post.author.id,
+          name: post.author.name,
+          username: post.author.username,
+          avatarUrl: post.author.avatarUrl,
+          trustBand: post.author.trustBand,
+        },
+      },
+    ],
     me.id,
   );
 
@@ -59,7 +70,7 @@ export default async function PostDetailPage({
     where: { postId: id, moderationStatus: { in: ["PUBLISHED", "REMOVED"] } },
     orderBy: { createdAt: "asc" },
     include: {
-      author: { select: { id: true, name: true } },
+      author: { select: { id: true, name: true, username: true, avatarUrl: true } },
       reactions: { select: { emoji: true, userId: true } },
     },
   });

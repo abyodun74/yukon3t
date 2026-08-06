@@ -112,6 +112,7 @@ export default async function PublicProfilePage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <ProfileStoryRing
+            userId={user.id}
             avatarUrl={user.avatarUrl}
             name={user.name ?? "them"}
             stories={storiesForRing}

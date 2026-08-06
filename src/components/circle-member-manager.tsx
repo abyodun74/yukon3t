@@ -3,10 +3,11 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addCircleCoAdmin, removeCircleCoAdmin, removeCircleMember } from "@/app/actions/circles";
+import { UserLink } from "@/components/user-link";
 
 type Member = {
   role: string;
-  user: { id: string; name: string | null };
+  user: { id: string; name: string | null; username?: string | null; avatarUrl?: string | null };
 };
 
 /** Owner/co-admin only: promote members to co-admin, demote co-admins, or remove members outright. Never lists the Circle's original creator — their membership can't be touched here. */
@@ -31,10 +32,10 @@ export function CircleMemberManager({
         const isCoAdmin = m.role === "MODERATOR";
         return (
           <li key={m.user.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-            <span className="min-w-0 truncate">
-              {m.user.name}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <UserLink userId={m.user.id} name={m.user.name} username={m.user.username} avatarUrl={m.user.avatarUrl} />
               {isCoAdmin && (
-                <span className="ml-1.5 text-xs font-normal text-accent">Co-admin</span>
+                <span className="text-xs font-normal text-accent">Co-admin</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">

@@ -63,13 +63,13 @@ export default async function NewGroupChatPage({
               <MultiSelect
                 name="memberIds"
                 options={connections.map((c) => ({ value: c.id, label: c.name ?? "Unknown" }))}
-                max={19}
               />
             </div>
           </div>
           <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
-            <input type="checkbox" name="discoverable" />
+            <input type="checkbox" name="discoverable" defaultChecked />
             Make this group discoverable — anyone can find it and request to join
+            (on by default; uncheck for an invite-only group)
           </label>
           <button
             type="submit"

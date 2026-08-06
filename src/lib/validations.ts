@@ -199,7 +199,17 @@ export const adBookingSchema = z.object({
   contactEmail: z.string().trim().toLowerCase().email(),
   headline: z.string().trim().min(5).max(80),
   body: z.string().trim().min(10).max(280),
-  linkUrl: z.string().trim().url().max(500),
+  // z.string().url() alone accepts any syntactically valid URL, including
+  // javascript:/data: schemes — this is rendered as a raw <a href> to every
+  // visitor (once approved) and to admins reviewing it beforehand, so
+  // without this an advertiser could submit a script-executing "link" as a
+  // stored XSS payload. http(s)-only closes that off.
+  linkUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .refine((url) => /^https?:\/\//i.test(url), { message: "Link must start with http:// or https://" }),
   mediaType: z.enum(["IMAGE", "VIDEO"]),
   mediaUrl: z.string().url(),
   mediaThumbnailUrl: z.string().url().optional(),
@@ -237,7 +247,11 @@ export const messageSchema = z
 
 export const groupChatSchema = z.object({
   name: z.string().trim().min(2).max(60),
-  memberIds: z.array(z.string().cuid()).min(2).max(20),
+  // No upper bound — group size is unlimited. Still naturally bounded by
+  // requiring every id to be an actual accepted connection of the creator
+  // (see createGroupChat's acceptedCount check) and by the groupChatCreate
+  // rate limiter.
+  memberIds: z.array(z.string().cuid()).min(2),
   discoverable: z.boolean(),
 });
 

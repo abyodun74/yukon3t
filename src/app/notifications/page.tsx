@@ -12,7 +12,7 @@ export default async function NotificationsPage() {
     orderBy: { createdAt: "desc" },
     take: 50,
     include: {
-      actor: { select: { id: true, name: true } },
+      actor: { select: { id: true, name: true, avatarUrl: true } },
       circle: { select: { slug: true } },
     },
   });

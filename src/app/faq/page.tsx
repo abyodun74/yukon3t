@@ -42,6 +42,30 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "How do I search the app?",
+        a: (
+          <>
+            Tap the magnifying-glass icon next to your notification bell.
+            One search box covers people, Circles, group chats, and
+            Collaborations at once — filter results by most relevant, most
+            recent, oldest, &ldquo;current affairs&rdquo; (active in the last
+            two weeks), or a specific country.
+          </>
+        ),
+      },
+      {
+        q: "Why can I click someone's name almost everywhere?",
+        a: (
+          <>
+            Any name or profile picture you see — in a chat, a comment, a
+            connection list, a Circle&apos;s member list, and so on — links
+            straight to that person&apos;s profile. It&apos;s the same
+            click-through everywhere on purpose, so you never have to hunt
+            for a &ldquo;view profile&rdquo; button.
+          </>
+        ),
+      },
     ],
   },
   {
@@ -80,6 +104,33 @@ const sections: Section[] = [
             Open the &ldquo;⋯&rdquo; menu on any post for delete (your own
             posts) or report (anyone&apos;s). Reports go to our moderation
             queue and are reviewed with a stated reason either way.
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Stories",
+    items: [
+      {
+        q: "What's a Story?",
+        a: (
+          <>
+            A photo or short video (up to 30 seconds) on your profile that
+            disappears automatically after 24 hours. Tap the &ldquo;+&rdquo;
+            on your own profile picture to add one — anyone who can see your
+            profile can view it while it&apos;s active.
+          </>
+        ),
+      },
+      {
+        q: "Can people react or reply to my Story?",
+        a: (
+          <>
+            Yes — viewers can tap an emoji to react (you&apos;ll see who
+            reacted when you open your own Story) or type a reply, which
+            arrives as a direct message. Replying only works between people
+            who are already connected, same as regular messaging.
           </>
         ),
       },
@@ -155,7 +206,42 @@ const sections: Section[] = [
             A place to find cross-country skill exchanges, volunteering,
             study groups, and projects. Posts can be scoped to specific
             countries or marked &ldquo;worldwide&rdquo; if you&apos;re open
-            to collaborators from anywhere.
+            to collaborators from anywhere. Tap a posting to join it — once
+            you&apos;re a participant, you get access to that
+            collaboration&apos;s group chat (text, photos, and videos) and a
+            live video session with screen sharing, in-call reactions, and
+            recording.
+          </>
+        ),
+      },
+      {
+        q: "What do co-admins do in a Circle or Collab Board?",
+        a: (
+          <>
+            A Circle or Collaboration&apos;s creator can promote any
+            member/participant to co-admin, giving them the same day-to-day
+            management powers (moderating posts, managing members, promoting
+            further co-admins) — everything except deleting the whole Circle
+            or closing the Collaboration outright, which stays with the
+            original creator.
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Advertising",
+    items: [
+      {
+        q: "How do I advertise on YuKon3t?",
+        a: (
+          <>
+            Go to <a href="/advertise" className="text-accent hover:underline">/advertise</a>{" "}
+            — no YuKon3t account needed. Submit your company details, ad
+            copy, a photo or short video, and pick how many days you want it
+            to run; payment is handled securely via Stripe. Every submission
+            is reviewed before it goes live, usually within one business
+            day.
           </>
         ),
       },

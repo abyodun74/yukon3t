@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { TrustBadge } from "@/components/trust-badge";
+import { UserLink } from "@/components/user-link";
 import { ReportTrigger } from "@/components/report-form";
 import { CollabParticipantButton } from "@/components/collab-participant-button";
 import { CollabParticipantManager } from "@/components/collab-participant-manager";
@@ -24,7 +25,7 @@ export default async function CollabDetailPage({
   const collab = await prisma.collabBoardPost.findUnique({
     where: { id },
     include: {
-      author: { select: { id: true, name: true, trustBand: true } },
+      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
       participants: { where: { userId: me.id } },
       _count: { select: { participants: true } },
     },
@@ -40,14 +41,16 @@ export default async function CollabDetailPage({
     ? await prisma.collabParticipant.findMany({
         where: { collabId: collab.id },
         orderBy: { joinedAt: "asc" },
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
       })
     : [];
 
   const conversation = collab.conversationId
     ? await prisma.conversation.findUnique({
         where: { id: collab.conversationId },
-        include: { members: { include: { user: { select: { id: true, name: true } } } } },
+        include: {
+          members: { include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } } },
+        },
       })
     : null;
 
@@ -105,7 +108,15 @@ export default async function CollabDetailPage({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium">by {collab.author.name}</span>
+          <span className="text-xs text-foreground-soft">by</span>
+          <UserLink
+            userId={collab.author.id}
+            name={collab.author.name}
+            username={collab.author.username}
+            avatarUrl={collab.author.avatarUrl}
+            avatarSize={18}
+            className="text-xs font-medium"
+          />
           <TrustBadge band={collab.author.trustBand} />
           <span className="text-xs text-foreground-soft">
             · {collab._count.participants} participant{collab._count.participants === 1 ? "" : "s"}
@@ -156,6 +167,8 @@ export default async function CollabDetailPage({
               members={conversation.members.map((m) => ({
                 userId: m.user.id,
                 name: m.user.name ?? "Unknown",
+                username: m.user.username,
+                avatarUrl: m.user.avatarUrl,
                 lastReadAt: m.lastReadAt,
               }))}
             />

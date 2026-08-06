@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Eye, Trash2, Send } from "lucide-react";
+import { UserLink } from "@/components/user-link";
 import {
   viewStory,
   deleteStory,
@@ -42,6 +43,7 @@ function timeAgo(date: Date) {
 export function StoryViewer({
   stories,
   startIndex,
+  authorId,
   authorName,
   authorAvatarUrl,
   isOwner,
@@ -49,6 +51,7 @@ export function StoryViewer({
 }: {
   stories: StoryData[];
   startIndex: number;
+  authorId: string;
   authorName: string;
   authorAvatarUrl: string | null;
   isOwner: boolean;
@@ -252,13 +255,14 @@ export function StoryViewer({
         </div>
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/40 bg-white/10">
-              {authorAvatarUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={authorAvatarUrl} alt="" className="h-full w-full object-cover" />
-              )}
-            </div>
-            <span className="text-sm font-medium text-white">{authorName}</span>
+            <UserLink
+              userId={authorId}
+              name={authorName}
+              avatarUrl={authorAvatarUrl}
+              avatarSize={28}
+              showUsername={false}
+              className="text-sm font-medium text-white hover:text-white/80"
+            />
             <span className="text-xs text-white/70">{timeAgo(story.createdAt)}</span>
           </div>
           <div className="flex items-center gap-1">
@@ -308,27 +312,13 @@ export function StoryViewer({
         </div>
       )}
 
-      {story.caption && !showViewers && (
-        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
-          <p className="text-sm text-white">{story.caption}</p>
-        </div>
-      )}
-
-      {reactionCounts.length > 0 && !showViewers && (
-        <div
-          className={`absolute inset-x-0 z-20 flex gap-1.5 px-4 ${isOwner ? "bottom-14" : "bottom-20"}`}
-        >
-          {reactionCounts.map((r) => (
-            <span
-              key={r.emoji}
-              className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white"
-            >
-              {r.emoji} {r.count}
-            </span>
-          ))}
-        </div>
-      )}
-
+      {/*
+        Everything below is one flowing bottom stack per branch (owner vs
+        viewer), not several independently `absolute bottom-0` siblings —
+        that used to make the caption, reaction badges, and reply bar all
+        anchor to the exact same spot and render on top of each other
+        instead of pushing one another apart.
+      */}
       {isOwner ? (
         <div className="absolute inset-x-0 bottom-0 z-20">
           {showViewers ? (
@@ -354,19 +344,47 @@ export function StoryViewer({
               </ul>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={loadViewers}
-              className="mb-4 ml-4 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
-            >
-              <Eye size={14} />
-              {story.viewCount}
-            </button>
+            <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
+              {story.caption && <p className="text-sm text-white">{story.caption}</p>}
+              {reactionCounts.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {reactionCounts.map((r) => (
+                    <span
+                      key={r.emoji}
+                      className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white"
+                    >
+                      {r.emoji} {r.count}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={loadViewers}
+                className="mt-3 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
+              >
+                <Eye size={14} />
+                {story.viewCount}
+              </button>
+            </div>
           )}
         </div>
       ) : (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
-          <div className="pointer-events-auto flex items-center gap-1.5">
+        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
+          {story.caption && <p className="mb-2 text-sm text-white">{story.caption}</p>}
+          {reactionCounts.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {reactionCounts.map((r) => (
+                <span
+                  key={r.emoji}
+                  className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white"
+                >
+                  {r.emoji} {r.count}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
             {QUICK_REACTIONS.map((emoji) => (
               <button
                 key={emoji}
@@ -380,7 +398,7 @@ export function StoryViewer({
               </button>
             ))}
           </div>
-          <div className="pointer-events-auto mt-2">
+          <div className="mt-2">
             <StoryReplyBar
               key={story.id}
               storyId={story.id}

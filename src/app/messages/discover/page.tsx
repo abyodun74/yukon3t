@@ -48,7 +48,7 @@ export default async function DiscoverGroupsPage() {
               Started by {group.createdBy?.name ?? "Unknown"}
             </p>
             <p className="mt-3 text-xs text-foreground-soft">
-              {group._count.members}/20 members
+              {group._count.members} member{group._count.members === 1 ? "" : "s"}
             </p>
           </Link>
         ))}

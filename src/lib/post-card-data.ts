@@ -20,7 +20,7 @@ type EmbeddedPostRow = {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
-  author: { id: string; name: string | null; trustBand: string };
+  author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
 };
 
 type PostRow = EmbeddedPostRow & {
@@ -31,9 +31,9 @@ type PostRow = EmbeddedPostRow & {
 // that will be rendered through `<PostCard>` — keeps every call site's
 // selection in sync with what attachViewerState()/PostCard actually need.
 export const postCardInclude = {
-  author: { select: { id: true, name: true, trustBand: true } },
+  author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
   repostOf: {
-    include: { author: { select: { id: true, name: true, trustBand: true } } },
+    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
   },
 } as const;
 

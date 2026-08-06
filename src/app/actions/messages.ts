@@ -213,12 +213,7 @@ export async function respondToJoinRequest(requestId: string, approve: boolean) 
   }
 
   if (approve) {
-    const memberCount = await prisma.conversationMember.count({
-      where: { conversationId: request.conversationId },
-    });
-    if (memberCount >= 20) {
-      return { error: "full" as const };
-    }
+    // No group-size cap — membership is unlimited.
     await prisma.conversationMember.upsert({
       where: {
         conversationId_userId: { conversationId: request.conversationId, userId: request.userId },
