@@ -22,29 +22,29 @@ function joinErrorMessage(code?: string) {
   }
 }
 
-/** Persistent, drop-in voice room for a Circle — no ringing, members join/leave freely. */
-export function CircleVoiceRoom({ circleId, canJoin }: { circleId: string; canJoin: boolean }) {
+/** Persistent, drop-in voice room for one voice Channel — no ringing, members join/leave freely. */
+export function CircleVoiceRoom({ channelId, canJoin }: { channelId: string; canJoin: boolean }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [active, setActive] = useState<ActiveRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const circleIdRef = useRef(circleId);
+  const channelIdRef = useRef(channelId);
   useEffect(() => {
-    circleIdRef.current = circleId;
+    channelIdRef.current = channelId;
   });
 
   const poll = useCallback(async () => {
-    const forId = circleIdRef.current;
+    const forId = channelIdRef.current;
     const { participants: list } = await getCircleVoiceParticipants(forId);
-    // Ignore a response that arrives after the user has switched Circles.
-    if (circleIdRef.current === forId) setParticipants(list);
+    // Ignore a response that arrives after the user has switched channels.
+    if (channelIdRef.current === forId) setParticipants(list);
   }, []);
 
   usePolling(poll, POLL_INTERVAL_MS, !active);
 
   async function join() {
     setError(null);
-    const result = await joinCircleVoiceRoom(circleId);
+    const result = await joinCircleVoiceRoom(channelId);
     if (result.error || !result.roomUrl || !result.token) {
       setError(joinErrorMessage(result.error ?? undefined));
       return;
@@ -53,7 +53,7 @@ export function CircleVoiceRoom({ circleId, canJoin }: { circleId: string; canJo
   }
 
   function leave() {
-    leaveCircleVoiceRoom(circleId);
+    leaveCircleVoiceRoom(channelId);
     setActive(null);
   }
 

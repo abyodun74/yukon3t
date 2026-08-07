@@ -73,6 +73,19 @@ export default async function NewCirclePage({
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium">Privacy</label>
+          <div className="mt-1 flex gap-4 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="visibility" value="PUBLIC" defaultChecked />
+              Public — anyone can find and join
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="visibility" value="PRIVATE" />
+              Private — join by request only
+            </label>
+          </div>
+        </div>
         <button
           type="submit"
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"

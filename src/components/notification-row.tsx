@@ -18,7 +18,9 @@ type NotificationData = {
     | "EVENT_RSVP"
     | "CIRCLE_JOINED"
     | "CIRCLE_CREATED"
-    | "EVENT_REMINDER";
+    | "EVENT_REMINDER"
+    | "CIRCLE_JOIN_REQUEST"
+    | "CIRCLE_JOIN_APPROVED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -48,6 +50,10 @@ function messageFor(type: NotificationData["type"]) {
       return "created a new Circle";
     case "EVENT_REMINDER":
       return "An event you're attending is starting soon";
+    case "CIRCLE_JOIN_REQUEST":
+      return "requested to join your Circle";
+    case "CIRCLE_JOIN_APPROVED":
+      return "approved your request to join their Circle";
   }
 }
 

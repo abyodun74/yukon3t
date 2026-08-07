@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 
@@ -56,6 +57,14 @@ export default async function CirclesPage() {
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
                       {circle.category}
                     </p>
+                    {circle.visibility === "PRIVATE" && (
+                      <span
+                        title="Private — join by request"
+                        className="flex items-center text-foreground-soft"
+                      >
+                        <Lock size={11} />
+                      </span>
+                    )}
                     {(isOwner || isCoAdmin) && (
                       <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                         {isOwner ? "Owner" : "Co-admin"}

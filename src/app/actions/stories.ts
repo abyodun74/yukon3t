@@ -11,6 +11,98 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 
+/**
+ * Groups active stories from the caller's accepted connections (plus their
+ * own, if any) into one row per author, for the /home story tray — same
+ * accepted-connection-ids shape already used by createGroupChat/replyToStory.
+ * Sort: caller's own row first, then any author with an unseen story
+ * (most-recently-posted first), then fully-seen authors.
+ */
+export async function getConnectionsStories() {
+  const user = await requireVerifiedUser();
+
+  const connections = await prisma.connection.findMany({
+    where: {
+      status: "ACCEPTED",
+      OR: [{ requesterId: user.id }, { targetId: user.id }],
+    },
+    select: { requesterId: true, targetId: true },
+  });
+  const connectionIds = connections.map((c) => (c.requesterId === user.id ? c.targetId : c.requesterId));
+
+  const stories = await prisma.story.findMany({
+    where: {
+      authorId: { in: [...connectionIds, user.id] },
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "asc" },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      views: { where: { viewerId: user.id }, select: { id: true } },
+      _count: { select: { views: true } },
+    },
+  });
+
+  const byAuthor = new Map<
+    string,
+    {
+      authorId: string;
+      authorName: string;
+      authorAvatarUrl: string | null;
+      isMe: boolean;
+      hasUnseen: boolean;
+      latestAt: Date;
+      stories: {
+        id: string;
+        mediaType: "IMAGE" | "VIDEO";
+        mediaUrl: string;
+        mediaThumbnailUrl: string | null;
+        caption: string | null;
+        createdAt: Date;
+        viewCount: number;
+      }[];
+    }
+  >();
+
+  for (const story of stories) {
+    const isMe = story.authorId === user.id;
+    let group = byAuthor.get(story.authorId);
+    if (!group) {
+      group = {
+        authorId: story.author.id,
+        authorName: story.author.name ?? "Unknown",
+        authorAvatarUrl: story.author.avatarUrl,
+        isMe,
+        hasUnseen: false,
+        latestAt: story.createdAt,
+        stories: [],
+      };
+      byAuthor.set(story.authorId, group);
+    }
+    // The author never counts their own story as "unseen" — viewStory
+    // never records a self-view either, so this must be checked explicitly.
+    if (!isMe && story.views.length === 0) group.hasUnseen = true;
+    if (story.createdAt > group.latestAt) group.latestAt = story.createdAt;
+    group.stories.push({
+      id: story.id,
+      mediaType: story.mediaType,
+      mediaUrl: story.mediaUrl,
+      mediaThumbnailUrl: story.mediaThumbnailUrl,
+      caption: story.caption,
+      createdAt: story.createdAt,
+      viewCount: story._count.views,
+    });
+  }
+
+  const groups = [...byAuthor.values()].sort((a, b) => {
+    if (a.isMe !== b.isMe) return a.isMe ? -1 : 1;
+    if (a.hasUnseen !== b.hasUnseen) return a.hasUnseen ? -1 : 1;
+    return b.latestAt.getTime() - a.latestAt.getTime();
+  });
+
+  return { groups };
+}
+
 export async function createStory(formData: FormData) {
   const user = await requireVerifiedUser();
 

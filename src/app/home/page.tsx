@@ -4,9 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
 import { PostCard } from "@/components/post-card";
 import { StreakBanner } from "@/components/streak-banner";
+import { StoryTray } from "@/components/story-tray";
 import { AdSlot } from "@/components/ad-slot";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getConnectionsStories } from "@/app/actions/stories";
 import { dayNumber } from "@/lib/trust";
 
 const PAGE_SIZE = 30;
@@ -31,6 +33,7 @@ export default async function HomePage({
   const lastPost = rawPosts[rawPosts.length - 1];
   const hasMore = rawPosts.length === PAGE_SIZE;
   const activeToday = Boolean(me.lastActiveAt && dayNumber(me.lastActiveAt) === dayNumber(new Date()));
+  const { groups: storyGroups } = await getConnectionsStories();
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -44,6 +47,10 @@ export default async function HomePage({
         longestStreak={me.longestStreak}
         activeToday={activeToday}
       />
+
+      <div className="mt-6">
+        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
+      </div>
 
       <div className="mt-6">
         <PostComposer placeholder="Share a photo, a short video, or an update..." />

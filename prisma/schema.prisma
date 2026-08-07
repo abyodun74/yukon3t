@@ -143,6 +143,11 @@ model User {
   discoverable    Boolean         @default(true)
   ringtone        Ringtone        @default(CLASSIC)
 
+  // Cheap "what's new" seen-tracking — compared against the latest
+  // Announcement.createdAt rather than fanning out a Notification row to
+  // every user for something as rare and global as a product announcement.
+  lastSeenAnnouncementAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -151,9 +156,12 @@ model User {
 
   circleMemberships   CircleMembership[]
   ownedCircles        Circle[]                 @relation("CircleOwner")
+  circleJoinRequests  CircleJoinRequest[]
   posts               Post[]
   collabPosts         CollabBoardPost[]
-  voiceParticipations CircleVoiceParticipant[]
+  channelsCreated             Channel[]
+  channelMemberships          ChannelMembership[]
+  channelVoiceParticipations  ChannelVoiceParticipant[]
   collabParticipations        CollabParticipant[]
   collabSessionParticipations CollabSessionParticipant[]
 
@@ -204,42 +212,46 @@ model User {
   @@index([status, discoverable, trustScore])
 }
 
+enum CircleVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 model Circle {
-  id            String   @id @default(cuid())
+  id            String           @id @default(cuid())
   name          String
-  slug          String   @unique
-  description   String   @db.Text
+  slug          String           @unique
+  description   String           @db.Text
   category      String
   coverImageUrl String?
+  visibility    CircleVisibility @default(PUBLIC)
   createdById   String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime         @default(now())
 
-  voiceRoomName String?
-  voiceRoomUrl  String?
-
-  createdBy         User                     @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
-  members           CircleMembership[]
-  posts             Post[]
-  voiceParticipants CircleVoiceParticipant[]
-  notifications     Notification[]
+  createdBy     User                @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
+  members       CircleMembership[]
+  joinRequests  CircleJoinRequest[]
+  posts         Post[]
+  channels      Channel[]
+  notifications Notification[]
 
   @@index([category])
 }
 
-/**
- * Presence, not history — a row exists only while that member is currently in the Circle's persistent voice room.
- */
-model CircleVoiceParticipant {
-  id       String   @id @default(cuid())
-  circleId String
-  userId   String
-  joinedAt DateTime @default(now())
+/** Mirrors GroupJoinRequest (used for private Conversations) — a PRIVATE Circle's owner/co-admins approve or decline these instead of joinCircle adding a member instantly. */
+model CircleJoinRequest {
+  id          String            @id @default(cuid())
+  circleId    String
+  userId      String
+  status      JoinRequestStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  respondedAt DateTime?
 
   circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([circleId, userId])
-  @@index([circleId])
+  @@index([circleId, status])
 }
 
 enum CircleRole {
@@ -266,6 +278,85 @@ model CircleMembership {
   @@index([circleId, role])
 }
 
+enum ChannelType {
+  TEXT
+  VOICE
+}
+
+enum ChannelVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+/**
+ * A labelled sub-room within a Circle — text channels carry Posts, voice
+ * channels carry a persistent Daily.co room (voiceRoomName/voiceRoomUrl,
+ * only meaningful when type=VOICE). Every Circle always has at least one
+ * TEXT channel (slug "general", auto-created by createCircle and, for
+ * Circles that predate this model, by the backfill migration).
+ */
+model Channel {
+  id          String            @id @default(cuid())
+  circleId    String
+  name        String
+  slug        String
+  topic       String?           @db.Text
+  type        ChannelType
+  visibility  ChannelVisibility @default(PUBLIC)
+  position    Int               @default(0)
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  voiceRoomName String?
+  voiceRoomUrl  String?
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  posts             Post[]
+  members           ChannelMembership[]
+  voiceParticipants ChannelVoiceParticipant[]
+
+  @@unique([circleId, slug])
+  @@index([circleId, position])
+}
+
+/**
+ * Explicit allow-list, only ever populated for PRIVATE channels — a PUBLIC
+ * channel has no rows here at all, since access is just "any CircleMembership".
+ */
+model ChannelMembership {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  addedAt   DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+}
+
+/**
+ * Presence, not history — a row exists only while that member is currently
+ * in this voice channel's room. Same shape as CollabSessionParticipant,
+ * scoped per Channel rather than per Circle so a Circle can have several
+ * simultaneous voice rooms.
+ */
+model ChannelVoiceParticipant {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+}
+
 enum ModerationStatus {
   PUBLISHED
   FLAGGED
@@ -288,6 +379,12 @@ model Post {
   id                String           @id @default(cuid())
   authorId          String
   circleId          String?
+  // Set alongside circleId whenever the post was made in a specific text
+  // Channel — circleId itself is still always set too (derived from
+  // channel.circleId at write time) so every existing circleId-scoped query/
+  // index (home feed, moderation queue, admin/circles) keeps working
+  // untouched; channelId only narrows within that.
+  channelId         String?
   content           String           @db.Text
   mediaType         PostMediaType    @default(NONE)
   mediaUrls         String[]         @default([])
@@ -316,10 +413,11 @@ model Post {
   shareCount   Int @default(0)
   rsvpCount    Int @default(0)
 
-  author   User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  circle   Circle? @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  repostOf Post?   @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
-  reposts  Post[]  @relation("PostRepost")
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  circle   Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  channel  Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  repostOf Post?    @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts  Post[]   @relation("PostRepost")
 
   likes         Like[]
   comments      Comment[]
@@ -337,6 +435,9 @@ model Post {
   // row set as a user's circle/connection graph grows.
   @@index([circleId, moderationStatus, createdAt])
   @@index([authorId, moderationStatus, createdAt])
+  // Matches a channel's own feed query shape, same reasoning as the
+  // circleId-scoped index above.
+  @@index([channelId, moderationStatus, createdAt])
   // Backs the event-reminders cron's recurring range scan (eventAt between
   // now and the reminder window, reminder not yet sent).
   @@index([eventAt])
@@ -437,6 +538,10 @@ enum NotificationType {
   CIRCLE_CREATED
   // Sent to an event post's author and RSVP'd attendees shortly before eventAt.
   EVENT_REMINDER
+  // Sent to a PRIVATE Circle's owner and co-admins when someone requests to join.
+  CIRCLE_JOIN_REQUEST
+  // Sent to the requester when their CircleJoinRequest is approved.
+  CIRCLE_JOIN_APPROVED
 }
 
 model Notification {
@@ -899,6 +1004,22 @@ model AuditLog {
 // records the deletion of — an AuditLog row FK'd to that user would cascade
 // away the instant the user is deleted, erasing the very record of why,
 // which defeats the point for this one action specifically.
+/**
+ * Admin-authored "what's new" post. createdById is deliberately a plain
+ * string (no relation), same reasoning as AccountDeletionLog/
+ * AuditLog.performedBy — an announcement should survive the authoring
+ * admin's account ever being deleted, not cascade away with it.
+ */
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   @db.Text
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model AccountDeletionLog {
   id              String   @id @default(cuid())
   deletedUserId   String

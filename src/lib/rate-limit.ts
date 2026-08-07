@@ -77,6 +77,7 @@ export const rateLimiters = {
   share: makeLimiter(20, "5 m"),
   dataExport: makeLimiter(3, "1 h"),
   circleModerate: makeLimiter(30, "10 m"),
+  channelManage: makeLimiter(30, "10 m"),
   collabModerate: makeLimiter(30, "10 m"),
   collabSession: makeLimiter(20, "10 m"),
   storyCreate: makeLimiter(10, "1 h"),

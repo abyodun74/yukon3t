@@ -109,11 +109,31 @@ export const circleSchema = z.object({
   name: z.string().trim().min(3).max(60),
   description: z.string().trim().min(10).max(1000),
   category: z.string().trim().min(2).max(40),
+  visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
+});
+
+export const announcementSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  body: z.string().trim().min(10).max(4000),
+});
+
+export const channelSchema = z.object({
+  name: z.string().trim().min(2).max(50),
+  type: z.enum(["TEXT", "VOICE"]),
+  topic: z.string().trim().max(200).optional().default(""),
+  visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
+});
+
+export const updateChannelSchema = z.object({
+  name: z.string().trim().min(2).max(50),
+  topic: z.string().trim().max(200).optional().default(""),
+  visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
 
 export const postSchema = z
   .object({
     circleId: z.string().cuid().optional(),
+    channelId: z.string().cuid().optional(),
     content: z.string().trim().max(2000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
     mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED"]).optional().default("NONE"),

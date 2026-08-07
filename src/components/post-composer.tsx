@@ -69,9 +69,11 @@ function imageUrlErrorMessage(code: string) {
 
 export function PostComposer({
   circleId,
+  channelId,
   placeholder = circleId ? "Share something with this Circle..." : "Share a photo, a short video, or an update...",
 }: {
   circleId?: string;
+  channelId?: string;
   placeholder?: string;
 }) {
   const [images, setImages] = useState<File[]>([]);
@@ -294,6 +296,7 @@ export function PostComposer({
           }
         }
         if (circleId) fd.set("circleId", circleId);
+        if (channelId) fd.set("channelId", channelId);
         // The datetime-local input's raw value has no timezone info, so
         // re-send it as an absolute instant: new Date(eventAt) here
         // correctly parses it as the browser's own local time, but the

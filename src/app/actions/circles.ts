@@ -18,6 +18,7 @@ import {
 import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+import { canAccessChannel } from "@/lib/channel-permissions";
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -31,11 +32,12 @@ export async function createCircle(formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description"),
     category: formData.get("category"),
+    visibility: formData.get("visibility") || undefined,
   });
   if (!parsed.success) {
     redirect("/circles/new?error=invalid");
   }
-  const { name, description, category } = parsed.data;
+  const { name, description, category, visibility } = parsed.data;
 
   const modResult = await moderateText(`${name}\n${description}`);
   if (!modResult.allowed) {
@@ -56,10 +58,17 @@ export async function createCircle(formData: FormData) {
       name,
       description,
       category,
+      visibility,
       slug,
       createdById: user.id,
       members: {
         create: { userId: user.id, role: "OWNER" },
+      },
+      channels: {
+        create: [
+          { name: "General", slug: "general", type: "TEXT", position: 0, createdById: user.id },
+          { name: "Voice", slug: "voice", type: "VOICE", position: 1, createdById: user.id },
+        ],
       },
     },
   });
@@ -90,6 +99,59 @@ export async function createCircle(formData: FormData) {
 
 export async function joinCircle(circleId: string) {
   const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    select: {
+      visibility: true,
+      createdById: true,
+      members: { where: { role: "MODERATOR" }, select: { userId: true } },
+    },
+  });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+
+  if (circle.visibility === "PRIVATE") {
+    // Instant-join doesn't apply — create/refresh a CircleJoinRequest
+    // instead, same upsert-with-status-reset-on-DECLINED shape as
+    // requestToJoinGroup for private Conversations.
+    const existingRequest = await prisma.circleJoinRequest.findUnique({
+      where: { circleId_userId: { circleId, userId: user.id } },
+    });
+    const alreadyMember = await prisma.circleMembership.findUnique({
+      where: { userId_circleId: { userId: user.id, circleId } },
+    });
+    if (alreadyMember) {
+      revalidatePath("/circles");
+      return { error: null, requested: false };
+    }
+    if (!existingRequest) {
+      await prisma.circleJoinRequest.create({ data: { circleId, userId: user.id } });
+    } else if (existingRequest.status === "DECLINED") {
+      await prisma.circleJoinRequest.update({
+        where: { id: existingRequest.id },
+        data: { status: "PENDING", respondedAt: null },
+      });
+    }
+
+    const recipientIds = new Set([circle.createdById, ...circle.members.map((m) => m.userId)]);
+    recipientIds.delete(user.id);
+    if (recipientIds.size > 0 && !existingRequest) {
+      await prisma.notification.createMany({
+        data: [...recipientIds].map((recipientId) => ({
+          recipientId,
+          actorId: user.id,
+          type: "CIRCLE_JOIN_REQUEST" as const,
+          circleId,
+        })),
+      });
+    }
+
+    revalidatePath(`/circles`);
+    return { error: null, requested: true };
+  }
+
   const existing = await prisma.circleMembership.findUnique({
     where: { userId_circleId: { userId: user.id, circleId } },
   });
@@ -102,29 +164,62 @@ export async function joinCircle(circleId: string) {
     await track("CIRCLE_JOINED", user.id, { circleId });
 
     // Notify the Circle's creator and any co-admins that someone new joined.
-    const circle = await prisma.circle.findUnique({
-      where: { id: circleId },
-      select: {
-        createdById: true,
-        members: { where: { role: "MODERATOR" }, select: { userId: true } },
-      },
-    });
-    if (circle) {
-      const recipientIds = new Set([circle.createdById, ...circle.members.map((m) => m.userId)]);
-      recipientIds.delete(user.id);
-      if (recipientIds.size > 0) {
-        await prisma.notification.createMany({
-          data: [...recipientIds].map((recipientId) => ({
-            recipientId,
-            actorId: user.id,
-            type: "CIRCLE_JOINED" as const,
-            circleId,
-          })),
-        });
-      }
+    const recipientIds = new Set([circle.createdById, ...circle.members.map((m) => m.userId)]);
+    recipientIds.delete(user.id);
+    if (recipientIds.size > 0) {
+      await prisma.notification.createMany({
+        data: [...recipientIds].map((recipientId) => ({
+          recipientId,
+          actorId: user.id,
+          type: "CIRCLE_JOINED" as const,
+          circleId,
+        })),
+      });
     }
   }
   revalidatePath("/circles");
+  return { error: null, requested: false };
+}
+
+/** Owner or co-admin of a PRIVATE Circle: approves or declines a pending join request. */
+export async function respondToCircleJoinRequest(requestId: string, approve: boolean) {
+  const user = await requireVerifiedUser();
+
+  const request = await prisma.circleJoinRequest.findUnique({
+    where: { id: requestId },
+    include: { circle: true },
+  });
+  if (!request) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(request.circleId, user.id);
+  if (!isCircleAdmin(request.circle, myMembership, user)) {
+    return { error: "forbidden" as const };
+  }
+
+  if (approve) {
+    await prisma.circleMembership.upsert({
+      where: { userId_circleId: { userId: request.userId, circleId: request.circleId } },
+      create: { userId: request.userId, circleId: request.circleId },
+      update: {},
+    });
+    await prisma.notification.create({
+      data: {
+        recipientId: request.userId,
+        actorId: user.id,
+        type: "CIRCLE_JOIN_APPROVED",
+        circleId: request.circleId,
+      },
+    });
+  }
+
+  await prisma.circleJoinRequest.update({
+    where: { id: requestId },
+    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+  });
+
+  revalidatePath(`/circles/${request.circle.slug}`);
+  return { error: null };
 }
 
 export async function leaveCircle(circleId: string) {
@@ -316,9 +411,11 @@ export async function createPost(formData: FormData) {
   }
 
   const circleId = formData.get("circleId");
+  const channelId = formData.get("channelId");
   const mediaUrlsRaw = formData.get("mediaUrls");
   const parsed = postSchema.safeParse({
     circleId: circleId ? String(circleId) : undefined,
+    channelId: channelId ? String(channelId) : undefined,
     content: formData.get("content"),
     intentTag: formData.get("intentTag") || undefined,
     mediaType: formData.get("mediaType") || "NONE",
@@ -335,12 +432,17 @@ export async function createPost(formData: FormData) {
   const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, eventAt, eventLocation } = parsed.data;
 
   if (parsed.data.circleId) {
-    const membership = await prisma.circleMembership.findUnique({
-      where: {
-        userId_circleId: { userId: user.id, circleId: parsed.data.circleId },
-      },
+    if (!parsed.data.channelId) {
+      return { error: "invalid" };
+    }
+    const channel = await prisma.channel.findUnique({
+      where: { id: parsed.data.channelId },
+      include: { circle: true },
     });
-    if (!membership) {
+    if (!channel || channel.circleId !== parsed.data.circleId || channel.type !== "TEXT") {
+      return { error: "invalid" };
+    }
+    if (!(await canAccessChannel(channel, channel.circle, user))) {
       return { error: "not_a_member" };
     }
   }
@@ -439,6 +541,7 @@ export async function createPost(formData: FormData) {
     data: {
       authorId: user.id,
       circleId: parsed.data.circleId,
+      channelId: parsed.data.channelId,
       content: parsed.data.content,
       intentTag: parsed.data.intentTag,
       mediaType,

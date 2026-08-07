@@ -8,6 +8,7 @@ import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { WhatsNewBell } from "@/components/whats-new-bell";
 import { usePolling } from "@/lib/use-polling";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -138,6 +139,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 <Search size={20} />
               </Link>
             )}
+            {session?.user && <WhatsNewBell />}
             {session?.user && <NotificationBell />}
             {session?.user ? (
               <>
@@ -178,6 +180,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                       className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                     >
                       Ads
+                    </Link>
+                    <Link
+                      href="/admin/announcements"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Announcements
                     </Link>
                     <Link
                       href="/admin/users"
@@ -288,6 +296,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Ads
+                  </Link>
+                  <Link
+                    href="/admin/announcements"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Announcements
                   </Link>
                   <Link
                     href="/admin/users"
