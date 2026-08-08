@@ -106,7 +106,12 @@ export default async function SearchPage({
             { name: { contains: q, mode: "insensitive" } },
             { username: { contains: q, mode: "insensitive" } },
             { bio: { contains: q, mode: "insensitive" } },
-            { interests: { has: q } },
+            // Prisma's `has` on a String[] is case-sensitive with no
+            // case-insensitive variant, so this matches against the
+            // lowercased mirror column instead of `interests` directly (see
+            // User.interestsLower in schema.prisma) — otherwise "travel"
+            // would miss a stored interest of "Travel".
+            { interestsLower: { has: q.toLowerCase() } },
           ],
         },
         orderBy:

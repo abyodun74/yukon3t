@@ -48,7 +48,16 @@ export async function completeOnboarding(formData: FormData) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { name, bio, country, languages, interests, openToIntents, birthDate },
+    data: {
+      name,
+      bio,
+      country,
+      languages,
+      interests,
+      interestsLower: interests.map((i) => i.toLowerCase()),
+      openToIntents,
+      birthDate,
+    },
   });
   await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
 
@@ -83,7 +92,15 @@ export async function updateProfile(formData: FormData) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { name, bio, country, languages, interests, openToIntents },
+    data: {
+      name,
+      bio,
+      country,
+      languages,
+      interests,
+      interestsLower: interests.map((i) => i.toLowerCase()),
+      openToIntents,
+    },
   });
   await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
 

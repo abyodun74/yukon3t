@@ -112,6 +112,13 @@ model User {
   country       String?
   languages     String[]    @default([])
   interests     String[]    @default([])
+  // Lowercased mirror of `interests`, kept in sync at write time (see
+  // completeOnboarding/updateProfile in actions/profile.ts). Prisma's `has`
+  // filter on a String[] is case-sensitive with no case-insensitive variant,
+  // so exact search (search/page.tsx) matches against this instead of
+  // `interests` directly — otherwise a query like "travel" would miss a
+  // stored interest of "Travel".
+  interestsLower String[]  @default([])
   openToIntents IntentTag[] @default([])
 
   // Embedding of name+username+bio+interests, used by smart/semantic search
