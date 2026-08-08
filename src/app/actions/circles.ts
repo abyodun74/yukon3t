@@ -19,6 +19,7 @@ import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canAccessChannel } from "@/lib/channel-permissions";
+import { updateCircleEmbedding, updatePostEmbedding } from "@/lib/embeddings";
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -73,6 +74,7 @@ export async function createCircle(formData: FormData) {
     },
   });
 
+  await updateCircleEmbedding(circle.id, { name, description, category });
   await track("CIRCLE_CREATED", user.id, { circleId: circle.id });
 
   // Site admins get a heads-up on every new Circle for oversight — there's
@@ -537,7 +539,7 @@ export async function createPost(formData: FormData) {
     }
   }
 
-  await prisma.post.create({
+  const post = await prisma.post.create({
     data: {
       authorId: user.id,
       circleId: parsed.data.circleId,
@@ -555,6 +557,7 @@ export async function createPost(formData: FormData) {
       moderationStatus,
     },
   });
+  await updatePostEmbedding(post.id, parsed.data.content);
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 

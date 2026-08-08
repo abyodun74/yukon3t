@@ -15,6 +15,7 @@ import { hashPassword } from "@/lib/passwords";
 import { recomputeTrustScore } from "@/lib/trust";
 import { moderateText } from "@/lib/moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { updateUserEmbedding } from "@/lib/embeddings";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/lib/auth";
 
@@ -49,6 +50,7 @@ export async function completeOnboarding(formData: FormData) {
     where: { id: user.id },
     data: { name, bio, country, languages, interests, openToIntents, birthDate },
   });
+  await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
 
   await recomputeTrustScore(user.id);
   revalidatePath("/home");
@@ -83,6 +85,7 @@ export async function updateProfile(formData: FormData) {
     where: { id: user.id },
     data: { name, bio, country, languages, interests, openToIntents },
   });
+  await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
 
   await recomputeTrustScore(user.id);
   revalidatePath(`/u/${user.id}`);

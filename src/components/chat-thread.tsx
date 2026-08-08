@@ -32,7 +32,9 @@ const POLL_INTERVAL_MS = 5000;
 const MAX_AUDIO_NOTE_SECONDS = 60;
 const MAX_VIDEO_NOTE_SECONDS = 30;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_VIDEO_UPLOAD_BYTES = 15 * 1024 * 1024;
+// Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
+// same reason as post-composer.tsx's MAX_VIDEO_BYTES.
+const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 
@@ -742,7 +744,7 @@ export function ChatThread({
       return;
     }
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-      setError("Video must be 15MB or smaller.");
+      setError("Video must be 200MB or smaller.");
       return;
     }
     setPendingAudio(null);

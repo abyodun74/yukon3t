@@ -1,6 +1,11 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16 is postgres:16 plus the pgvector extension
+    # precompiled — needed for embedding-based semantic search (see
+    # src/lib/embeddings.ts). Same Postgres major version as the plain
+    # postgres:16-alpine image this replaced, so the existing data volume
+    # is still compatible.
+    image: pgvector/pgvector:pg16
     container_name: yukon3t-postgres
     restart: unless-stopped
     environment:

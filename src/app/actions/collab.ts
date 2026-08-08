@@ -8,6 +8,7 @@ import { collabPostSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isCollabAdmin, getCollabMembership } from "@/lib/collab-permissions";
+import { updateCollabEmbedding } from "@/lib/embeddings";
 
 export async function createCollabPost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -67,6 +68,8 @@ export async function createCollabPost(formData: FormData) {
       },
     },
   });
+
+  await updateCollabEmbedding(post.id, { title, description });
 
   revalidatePath("/collab");
   redirect(`/collab/${post.id}`);

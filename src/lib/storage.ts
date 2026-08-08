@@ -39,29 +39,33 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
 };
 
+// Every video kind shares one 200MB byte cap — durations (MAX_*_SECONDS
+// below) are what actually keep message/story clips short in practice; the
+// byte cap alone was too tight for ordinary phone-recorded 1080p/4K footage
+// even at the old per-kind values, so there's no reason to size it per kind.
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
   avatar: 5 * 1024 * 1024,
   "post-image": 8 * 1024 * 1024,
   "video-thumb": 3 * 1024 * 1024,
-  "post-video": 30 * 1024 * 1024,
-  // Voice/video notes in chat are meant to be quick — kept well under the
-  // full post-video allowance both in bytes and (see MAX_*_NOTE_SECONDS
-  // below) duration.
+  "post-video": MAX_VIDEO_BYTES,
   "message-audio": 5 * 1024 * 1024,
-  "message-video": 15 * 1024 * 1024,
+  "message-video": MAX_VIDEO_BYTES,
   "message-image": 8 * 1024 * 1024,
   "circle-cover": 5 * 1024 * 1024,
   "story-image": 8 * 1024 * 1024,
-  // A raw phone-recorded clip routinely runs 35-50MB for just 20-30 seconds
-  // at typical 1080p bitrates — post-video's 30MB (paired with a 60s cap)
-  // was carried over here too tightly for story-length footage, rejecting
-  // completely normal videos. Stories only allow half post-video's duration
-  // (see MAX_STORY_VIDEO_SECONDS in story-upload-modal.tsx), so this stays
-  // proportionally generous instead of just matching post-video's byte cap.
-  "story-video": 60 * 1024 * 1024,
+  "story-video": MAX_VIDEO_BYTES,
   "ad-image": 8 * 1024 * 1024,
-  "ad-video": 30 * 1024 * 1024,
+  "ad-video": MAX_VIDEO_BYTES,
 };
+
+const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
+  "post-video",
+  "message-video",
+  "story-video",
+  "ad-video",
+]);
 
 export const MAX_POST_IMAGES = 4;
 export const MAX_VIDEO_DURATION_SECONDS = 60;
@@ -129,10 +133,14 @@ export async function createUploadUrl({
   const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
   const bucket = process.env.R2_BUCKET_NAME!;
 
+  // 200MB over a slow mobile upload can take well past 5 minutes; a video
+  // kind gets a longer-lived presigned URL so the PUT doesn't start failing
+  // partway through on a slow connection. Non-video kinds stay at 5 minutes.
+  const expiresIn = VIDEO_KINDS.has(kind) ? 3600 : 300;
   const uploadUrl = await getSignedUrl(
     client(),
     new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
-    { expiresIn: 300 },
+    { expiresIn },
   );
 
   const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;

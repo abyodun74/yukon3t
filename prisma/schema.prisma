@@ -114,6 +114,14 @@ model User {
   interests     String[]    @default([])
   openToIntents IntentTag[] @default([])
 
+  // Embedding of name+username+bio+interests, used by smart/semantic search
+  // (src/lib/search-embeddings.ts) as a fallback when exact substring search
+  // returns few results. Unsupported because Prisma Client has no native
+  // vector type — always read/written via $queryRaw/$executeRaw, never
+  // through the typed API. Nullable: absent until the next write or backfill
+  // run populates it (see scripts/backfill-embeddings.ts).
+  embedding Unsupported("vector(1536)")?
+
   trustScore Int       @default(0)
   trustBand  TrustBand @default(NEW)
 
@@ -227,6 +235,9 @@ model Circle {
   visibility    CircleVisibility @default(PUBLIC)
   createdById   String
   createdAt     DateTime         @default(now())
+
+  // See User.embedding — embeds name+description+category.
+  embedding Unsupported("vector(1536)")?
 
   createdBy     User                @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
   members       CircleMembership[]
@@ -404,6 +415,9 @@ model Post {
   // cron route) so the same event never notifies attendees twice.
   eventReminderSentAt DateTime?
   createdAt         DateTime         @default(now())
+
+  // See User.embedding — embeds content only.
+  embedding Unsupported("vector(1536)")?
 
   repostOfId String?
 
@@ -591,6 +605,9 @@ model CollabBoardPost {
   countries   String[]     @default([])
   status      CollabStatus @default(OPEN)
   createdAt   DateTime     @default(now())
+
+  // See User.embedding — embeds title+description.
+  embedding Unsupported("vector(1536)")?
 
   // Live session room — lazily created on first join, same pattern as
   // Circle.voiceRoomName/voiceRoomUrl (see joinCollabSession).
