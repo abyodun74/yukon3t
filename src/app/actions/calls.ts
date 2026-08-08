@@ -122,7 +122,7 @@ export async function getCallStatus(callId: string) {
     return { error: "not_found" as const };
   }
 
-  return { error: null, status: call.status, type: call.type };
+  return { error: null, status: call.status, type: call.type, ringing: call.ringingAt !== null };
 }
 
 /**
@@ -140,6 +140,15 @@ export async function getIncomingCall() {
       orderBy: { createdAt: "desc" },
       include: { caller: { select: { id: true, name: true } } },
     });
+    // First time this callee's own client has observed the ring — flips the
+    // caller's UI from "Calling" to "Ringing". Best-effort: a failed write
+    // here shouldn't break the ring itself, it'd just leave the caller on
+    // "Calling" a bit longer.
+    if (call && !call.ringingAt) {
+      await prisma.call
+        .updateMany({ where: { id: call.id, ringingAt: null }, data: { ringingAt: new Date() } })
+        .catch(() => {});
+    }
     // requireVerifiedUser() already fetched the full row, so this is free —
     // the callee's own ringtone preference, for the UI to actually play it.
     return { call, ringtone: user.ringtone };

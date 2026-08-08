@@ -38,6 +38,12 @@ export async function createCallRoom({
         enable_screenshare: true,
         enable_chat: false,
         eject_at_room_exp: true,
+        // Daily's prebuilt UI otherwise shows its own camera/mic "prejoin"
+        // lobby screen with its own Join button before actually connecting
+        // — on a 1:1 call, accepting the ring (see respondToCall) is already
+        // that confirmation, so both sides should connect immediately
+        // instead of needing a second tap each.
+        enable_prejoin_ui: false,
       },
     }),
   });

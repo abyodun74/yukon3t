@@ -1076,6 +1076,14 @@ model Call {
   roomName    String
   roomUrl     String
   createdAt   DateTime   @default(now())
+  // Set the first time the callee's own client (IncomingCallListener, polled
+  // app-wide while signed in) actually observes this RINGING call — i.e. the
+  // callee is online and their device is genuinely ringing right now, not
+  // just that a push notification was sent to a possibly-offline device.
+  // Lets the caller's UI say "Ringing" instead of a static "Calling" the
+  // whole time. Stays null if the callee never has an active session to
+  // notice the call before it's answered/declined/missed.
+  ringingAt   DateTime?
   respondedAt DateTime?
   endedAt     DateTime?
 

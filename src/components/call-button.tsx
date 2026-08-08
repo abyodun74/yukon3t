@@ -9,7 +9,7 @@ type CallType = "AUDIO" | "VIDEO";
 
 type OutgoingState =
   | { phase: "idle" }
-  | { phase: "ringing"; callId: string; roomUrl: string; token: string; type: CallType }
+  | { phase: "ringing"; callId: string; roomUrl: string; token: string; type: CallType; calleeRinging: boolean }
   | { phase: "in-call"; callId: string; roomUrl: string; token: string; type: CallType }
   | { phase: "ended"; message: string }
   | { phase: "duplicate"; existingCallId: string; type: CallType };
@@ -43,6 +43,8 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
             ? { phase: "in-call", callId: s.callId, roomUrl: s.roomUrl, token: s.token, type: s.type }
             : s,
         );
+      } else if (result.status === "RINGING" && result.ringing) {
+        setState((s) => (s.phase === "ringing" && !s.calleeRinging ? { ...s, calleeRinging: true } : s));
       } else if (result.status === "DECLINED") {
         setState({ phase: "ended", message: `${calleeName} declined the call.` });
       } else if (result.status === "ENDED" || result.status === "MISSED") {
@@ -81,6 +83,7 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       roomUrl: result.roomUrl,
       token: result.token,
       type: (result.type as CallType) ?? type,
+      calleeRinging: false,
     });
   }
 
@@ -123,7 +126,7 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       {state.phase === "ringing" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
-            <p className="text-sm text-foreground-soft">Calling</p>
+            <p className="text-sm text-foreground-soft">{state.calleeRinging ? "Ringing" : "Calling"}</p>
             <p className="mt-1 text-lg font-semibold">{calleeName}</p>
             <button
               type="button"
