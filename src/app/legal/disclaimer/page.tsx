@@ -2,7 +2,7 @@ export default function DisclaimerPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Disclaimer</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: July 30, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: August 8, 2026</p>
       <p className="mt-4 text-foreground-soft">
         This page summarizes important limitations on what YuKon3t can
         promise you. It supplements, and should be read together with, our{" "}
@@ -25,33 +25,60 @@ export default function DisclaimerPage() {
 
       <h2 className="mt-8 font-semibold">User-generated content</h2>
       <p className="mt-2 text-foreground-soft">
-        Posts, messages, Circle content, and Collab Board listings are
-        created by other members, not by YuKon3t. We automatically screen
-        text and media for policy violations before publication, but
-        automated moderation is not perfect and does not review every
-        message in real time (see Section 5 of our{" "}
+        Posts, messages, Circle and Channel content, Stories, and Collab
+        Board listings are created by other members, not by YuKon3t. We
+        automatically screen text and media for policy violations before
+        publication, but automated moderation is not perfect and does not
+        review every message in real time (see Section 5 of our{" "}
         <a href="/legal/terms" className="text-accent">Terms</a>). We do not
         endorse, verify, or take responsibility for the accuracy of any
         user-generated content, including travel tips, recommendations, or
-        advice shared through Circles or Collab Boards.
+        advice shared through Circles, Channels, or Collab Boards.
+      </p>
+
+      <h2 className="mt-8 font-semibold">Advertising</h2>
+      <p className="mt-2 text-foreground-soft">
+        YuKon3t displays paid ads submitted by third-party advertisers. We
+        review ad creative before it goes live, but we do not verify the
+        accuracy of any advertiser&apos;s claims and do not endorse any
+        advertised product, service, or business. Clicking an ad takes you
+        to a site or service outside YuKon3t that we do not control and are
+        not responsible for — see &quot;Third-party services and links&quot;
+        below. Ads are shown to all users on the same flat-rate basis and
+        are not selected using your personal data.
+      </p>
+
+      <h2 className="mt-8 font-semibold">Calls and live sessions</h2>
+      <p className="mt-2 text-foreground-soft">
+        Voice/video calls and Collab live sessions are relayed through a
+        third-party video provider. If a live session&apos;s host enables
+        cloud recording, that recording is stored by our video provider, not
+        verified by YuKon3t for content, and accessible to anyone the host
+        or an admin shares it with. Anything you say or show during a call
+        or live session is your own responsibility, just as with any other
+        content on YuKon3t.
       </p>
 
       <h2 className="mt-8 font-semibold">Not professional advice</h2>
       <p className="mt-2 text-foreground-soft">
-        Nothing on YuKon3t — including content shared in Circles, Collab
-        Boards, or direct messages — constitutes legal, financial, medical,
-        immigration, or travel-safety advice. Always verify important
-        information (visa requirements, local laws, safety conditions)
-        through official or professional sources before relying on it.
+        Nothing on YuKon3t — including content shared in Circles, Channels,
+        Collab Boards, direct messages, calls, or live sessions —
+        constitutes legal, financial, medical, immigration, or
+        travel-safety advice. Always verify important information (visa
+        requirements, local laws, safety conditions) through official or
+        professional sources before relying on it.
       </p>
 
       <h2 className="mt-8 font-semibold">Third-party services and links</h2>
       <p className="mt-2 text-foreground-soft">
         YuKon3t may contain links to third-party websites or reference
-        third-party services we don&apos;t control. We are not responsible
-        for the content, accuracy, or practices of any third party,
-        including any site or service you access as a result of a
-        connection made through YuKon3t.
+        third-party services we don&apos;t control, including advertiser
+        links and the payment, video-calling, and notification providers
+        described in our{" "}
+        <a href="/legal/privacy" className="text-accent">Privacy Policy</a>.
+        We are not responsible for the content, accuracy, or practices of
+        any third party, including any site or service you access as a
+        result of a connection made through YuKon3t.
       </p>
 
       <h2 className="mt-8 font-semibold">Service availability</h2>
@@ -66,9 +93,10 @@ export default function DisclaimerPage() {
       <p className="mt-2 text-foreground-soft">
         To the fullest extent permitted by law, YuKon3t is not liable for
         any harm, loss, or damages arising from your interactions with other
-        users, reliance on user-generated content, or any in-person meeting
-        or travel arranged as a result of using YuKon3t. Full terms are set
-        out in Section 10 of our{" "}
+        users, reliance on user-generated content, any advertisement or
+        advertiser you interact with, or any in-person meeting or travel
+        arranged as a result of using YuKon3t. Full terms are set out in
+        Section 12 of our{" "}
         <a href="/legal/terms" className="text-accent">Terms of Service</a>.
       </p>
 

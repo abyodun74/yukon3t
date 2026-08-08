@@ -2,7 +2,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: July 30, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: August 8, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         These Terms of Service (&quot;Terms&quot;) govern your access to and
@@ -49,16 +49,17 @@ export default function TermsPage() {
       <h2 className="mt-8 font-semibold">4. Your content</h2>
       <p className="mt-2 text-foreground-soft">
         You retain ownership of the text, photos, and videos you post
-        (&quot;User Content&quot;). By posting User Content, you grant
+        (&quot;User Content&quot;), including Circle, Channel, and Collab
+        Board posts and Stories. By posting User Content, you grant
         YuKon3t a worldwide, non-exclusive, royalty-free license to host,
         store, reproduce, and display that content solely for the purpose of
         operating and providing the service to you and other users — for
-        example, showing your posts to Circle members. This license ends
-        when you delete the content or your account, except for content
-        already shared with others in ways it can&apos;t practically be
-        recalled (e.g., a message already read by its recipient), and except
-        where retention is required for moderation records as described in
-        our Privacy Policy.
+        example, showing your posts to Circle members or your Story to your
+        connections. This license ends when you delete the content or your
+        account, except for content already shared with others in ways it
+        can&apos;t practically be recalled (e.g., a message already read by
+        its recipient), and except where retention is required for
+        moderation records as described in our Privacy Policy.
       </p>
       <p className="mt-2 text-foreground-soft">
         You are solely responsible for your User Content and confirm you
@@ -94,13 +95,52 @@ export default function TermsPage() {
       <h2 className="mt-8 font-semibold">7. Third-party services and links</h2>
       <p className="mt-2 text-foreground-soft">
         YuKon3t relies on third-party infrastructure providers described in
-        our Privacy Policy, and users may post links to external websites or
-        services. We do not control and are not responsible for third-party
-        content, websites, or services, including anything you access as a
-        result of a connection made through YuKon3t.
+        our Privacy Policy — including Stripe for ad payments, Daily.co for
+        calls and live sessions, and Firebase Cloud Messaging for Android
+        push notifications — and users may post links to external websites
+        or services. We do not control and are not responsible for
+        third-party content, websites, or services, including anything you
+        access as a result of a connection made through YuKon3t or a link in
+        an ad.
       </p>
 
-      <h2 className="mt-8 font-semibold">8. Termination</h2>
+      <h2 className="mt-8 font-semibold">8. Voice/video calls and live sessions</h2>
+      <p className="mt-2 text-foreground-soft">
+        YuKon3t offers 1:1 voice/video calls between connected users and
+        group live sessions on Collabs, powered by our video infrastructure
+        provider. A live session&apos;s host may enable cloud recording of
+        that session, which our video provider&apos;s call interface
+        indicates while active; the resulting recording is stored as
+        described in our Privacy Policy until the host or an admin deletes
+        it. Do not record or rebroadcast a call or live session outside of
+        this built-in feature without the consent of everyone participating,
+        and you are responsible for complying with any recording-consent
+        laws that apply to you and other participants.
+      </p>
+
+      <h2 className="mt-8 font-semibold">9. Advertising and paid placements</h2>
+      <p className="mt-2 text-foreground-soft">
+        YuKon3t sells flat-rate, untargeted ad placements shown to users of
+        the service. If you submit an ad booking (an &quot;Advertiser&quot;),
+        the following additional terms apply:
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
+        <li>You represent that you have the right to use the company name, contact details, and creative (images, video, and text) you submit, and that the ad and its linked destination comply with applicable law and don&apos;t infringe any third party&apos;s rights.</li>
+        <li>All ad creative is reviewed before it goes live and may be rejected at our discretion, including after automated content screening. We do not guarantee approval, any particular placement, or any level of reach or results.</li>
+        <li>Payment is collected up front via Stripe Checkout for the number of days you select. If we reject your submission, or later pull an already-live ad for a policy violation, we will refund the payment for that campaign. Campaigns that run to completion as approved are non-refundable.</li>
+        <li>We may pause or remove any live ad at our discretion, including after it has started running, if we determine it violates these Terms, our Community Guidelines, or applicable law.</li>
+      </ul>
+      <p className="mt-2 text-foreground-soft">
+        If you are a user viewing an ad on YuKon3t: ads are paid content
+        submitted by third parties, reviewed by us before publication but
+        not verified for accuracy, and their appearance on YuKon3t is not an
+        endorsement by us of the advertiser or its products or services.
+        Clicking through to an advertiser&apos;s link takes you to a site or
+        service we do not control — see our{" "}
+        <a href="/legal/disclaimer" className="text-accent">Disclaimer</a>.
+      </p>
+
+      <h2 className="mt-8 font-semibold">10. Termination</h2>
       <p className="mt-2 text-foreground-soft">
         You may delete your account at any time from Settings, free, with no
         retention period or paywall. We may suspend or terminate your access
@@ -110,41 +150,44 @@ export default function TermsPage() {
         provide an appeal path, as described in the Guidelines.
       </p>
 
-      <h2 className="mt-8 font-semibold">9. Disclaimers</h2>
+      <h2 className="mt-8 font-semibold">11. Disclaimers</h2>
       <p className="mt-2 text-foreground-soft">
         YuKon3t is provided &quot;as is&quot; and &quot;as available,&quot;
         without warranties of any kind, whether express, implied, or
         statutory, including implied warranties of merchantability, fitness
         for a particular purpose, and non-infringement. We do not warrant
         that YuKon3t will be uninterrupted, error-free, or completely
-        secure, or that any other user is who they claim to be. See our{" "}
+        secure, that any other user is who they claim to be, or that any
+        advertised product or service is as described. See our{" "}
         <a href="/legal/disclaimer" className="text-accent">Disclaimer</a>{" "}
         for important information about interacting with and meeting other
         users.
       </p>
 
-      <h2 className="mt-8 font-semibold">10. Limitation of liability</h2>
+      <h2 className="mt-8 font-semibold">12. Limitation of liability</h2>
       <p className="mt-2 text-foreground-soft">
         To the maximum extent permitted by law, YuKon3t and its operators
         will not be liable for any indirect, incidental, special,
         consequential, or punitive damages, or any loss of data, use,
         goodwill, or other intangible losses, arising from your use of or
-        inability to use YuKon3t, or from the conduct of any user or third
-        party, even if advised of the possibility of such damages. Where
+        inability to use YuKon3t, from the conduct of any user or third
+        party, or from any ad or advertiser you interact with through
+        YuKon3t, even if advised of the possibility of such damages. Where
         liability cannot be excluded by law, our total liability is limited
         to the greater of the amount you paid us in the past 12 months (if
         any) or fifty US dollars ($50).
       </p>
 
-      <h2 className="mt-8 font-semibold">11. Indemnification</h2>
+      <h2 className="mt-8 font-semibold">13. Indemnification</h2>
       <p className="mt-2 text-foreground-soft">
         You agree to indemnify and hold YuKon3t harmless from any claims,
         damages, liabilities, and expenses (including reasonable legal fees)
-        arising from your use of YuKon3t, your User Content, or your
-        violation of these Terms or any applicable law.
+        arising from your use of YuKon3t, your User Content, any ad you
+        submit as an Advertiser, or your violation of these Terms or any
+        applicable law.
       </p>
 
-      <h2 className="mt-8 font-semibold">12. Dispute resolution &amp; governing law</h2>
+      <h2 className="mt-8 font-semibold">14. Dispute resolution &amp; governing law</h2>
       <p className="mt-2 text-foreground-soft">
         Before filing a formal claim, please contact us so we can try to
         resolve the issue informally. These Terms are governed by applicable
@@ -155,7 +198,7 @@ export default function TermsPage() {
         your own jurisdiction, which these Terms do not override.
       </p>
 
-      <h2 className="mt-8 font-semibold">13. Changes to these Terms</h2>
+      <h2 className="mt-8 font-semibold">15. Changes to these Terms</h2>
       <p className="mt-2 text-foreground-soft">
         We may update these Terms as YuKon3t evolves. Material changes will
         be announced in-app or by email before they take effect. Continued
@@ -163,7 +206,7 @@ export default function TermsPage() {
         the updated Terms.
       </p>
 
-      <h2 className="mt-8 font-semibold">14. General</h2>
+      <h2 className="mt-8 font-semibold">16. General</h2>
       <p className="mt-2 text-foreground-soft">
         If any provision of these Terms is found unenforceable, the
         remaining provisions remain in full effect. Our failure to enforce
