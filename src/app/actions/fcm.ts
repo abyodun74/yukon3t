@@ -27,3 +27,18 @@ export async function registerFcmToken(token: string) {
 
   return { error: null };
 }
+
+/**
+ * Unregisters this device's FCM token — called from Nav's sign-out handler,
+ * before the session actually ends, so a shared/lost device stops receiving
+ * pushes for an account nobody's signed into anymore. Scoped to the caller's
+ * own userId (not just the token) so a stale/mismatched token client-side
+ * can't be used to detach some other user's device.
+ */
+export async function unregisterFcmToken(token: string) {
+  const user = await requireUser();
+  if (!token) return { error: null };
+
+  await prisma.fcmToken.deleteMany({ where: { token, userId: user.id } });
+  return { error: null };
+}

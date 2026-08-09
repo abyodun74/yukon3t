@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, MessageCircle, User, Search } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
+import { unregisterFcmToken } from "@/app/actions/fcm";
+import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsNewBell } from "@/components/whats-new-bell";
@@ -83,6 +85,20 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   const tabs = session?.user ? bottomTabs(session.user.id) : [];
   const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
   const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
+
+  // Unregisters this device's FCM token (if the native Android app ever
+  // handed us one — see fcm-token-bridge.tsx) before the session actually
+  // ends, so a signed-out device stops receiving pushes for an account
+  // nobody's using on it anymore. Runs on a best-effort basis: a failed
+  // unregister should never block sign-out itself.
+  const handleSignOut = useCallback(async () => {
+    const token = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
+    if (token) {
+      localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
+      await unregisterFcmToken(token).catch(() => {});
+    }
+    await signOutAction();
+  }, []);
 
   return (
     <>
@@ -195,14 +211,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     </Link>
                   </>
                 )}
-                <form action={signOutAction} className="hidden sm:block">
-                  <button
-                    type="submit"
-                    className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent"
-                  >
-                    Sign out
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="hidden rounded-full border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent sm:block"
+                >
+                  Sign out
+                </button>
                 <button
                   type="button"
                   aria-label={open ? "Close menu" : "Open menu"}
@@ -317,14 +332,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 <span className="text-foreground-soft">Theme</span>
                 <ThemeToggle initial={theme} />
               </div>
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-left hover:border-accent hover:text-accent"
-                >
-                  Sign out
-                </button>
-              </form>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-left hover:border-accent hover:text-accent"
+              >
+                Sign out
+              </button>
             </nav>
           </div>
         )}

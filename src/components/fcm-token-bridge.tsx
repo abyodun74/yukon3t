@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { registerFcmToken } from "@/app/actions/fcm";
+import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 
 /**
  * Receives the native Android app's FCM token. A TWA's native code has no
@@ -19,6 +20,15 @@ export function FcmTokenBridge() {
     if (!token) return;
 
     registerFcmToken(token)
+      .then((result) => {
+        // Persisted so Nav's sign-out handler can unregister this exact
+        // device later — the native app only hands us the token once, on
+        // launch, via this one-time query param; nothing else ever sees it
+        // again otherwise.
+        if (!result.error) {
+          localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+        }
+      })
       .catch(() => {})
       .finally(() => {
         // A device token doesn't belong in a shareable link or browser
