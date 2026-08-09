@@ -37,7 +37,6 @@ describe("usernameSchema", () => {
 
 describe("signUpSchema", () => {
   const validBase = {
-    username: "jane_doe",
     email: "jane@example.com",
     password: "correct horse battery staple",
   };

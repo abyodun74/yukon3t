@@ -28,6 +28,27 @@ async function clientIp() {
   return (await headers()).get("x-forwarded-for") ?? "unknown";
 }
 
+/**
+ * Sign-up no longer collects a username up front (just email + password +
+ * birth date) — this derives one from the email's local part so every user
+ * still has the unique handle the rest of the app (profile links, mentions,
+ * search) depends on. They can pick a custom one later in Settings, same as
+ * magic-link-only accounts already do.
+ */
+async function generateUniqueUsername(email: string) {
+  const base = email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15) || "user";
+  const padded = base.length < 3 ? base.padEnd(3, "0") : base;
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const suffix = attempt === 0 ? "" : String(Math.floor(1000 + Math.random() * 9000));
+    const candidate = `${padded}${suffix}`.slice(0, 20);
+    const existing = await prisma.user.findUnique({ where: { username: candidate }, select: { id: true } });
+    if (!existing) return candidate;
+  }
+
+  return `user${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
+
 async function sendVerificationEmail(email: string) {
   const token = randomUUID();
   await prisma.verificationToken.deleteMany({ where: { identifier: email } });
@@ -53,7 +74,6 @@ export async function signUpWithPassword(formData: FormData) {
   }
 
   const parsed = signUpSchema.safeParse({
-    username: formData.get("username"),
     email: formData.get("email"),
     password: formData.get("password"),
     birthDate: formData.get("birthDate"),
@@ -64,19 +84,14 @@ export async function signUpWithPassword(formData: FormData) {
     redirect(`/sign-up?error=${underage ? "underage" : "invalid"}`);
   }
 
-  const { username, email, password, birthDate } = parsed.data;
+  const { email, password, birthDate } = parsed.data;
 
-  const [existingEmail, existingUsername] = await Promise.all([
-    prisma.user.findUnique({ where: { email }, select: { id: true } }),
-    prisma.user.findUnique({ where: { username }, select: { id: true } }),
-  ]);
+  const existingEmail = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existingEmail) {
     redirect("/sign-up?error=email_taken");
   }
-  if (existingUsername) {
-    redirect("/sign-up?error=username_taken");
-  }
 
+  const username = await generateUniqueUsername(email);
   const passwordHash = await hashPassword(password);
   const created = await prisma.user.create({
     data: { email, username, passwordHash, birthDate, status: "ACTIVE" },
@@ -325,6 +340,43 @@ export async function adminSendPasswordReset(userId: string) {
   });
 
   revalidatePath("/admin/users");
+  revalidatePath("/admin/moderation");
+  return { error: null, email: user.email };
+}
+
+/**
+ * Admin-initiated resend of the sign-up confirmation email — for a customer
+ * stuck on "confirm your email before signing in" who lost or never
+ * received the original (spam filter, mistyped address they've since fixed,
+ * etc). Same email/token as the self-service resend in resendVerificationEmail
+ * above, just admin-triggered and not gated behind that flow's per-IP rate
+ * limit, since admin auth is the trust boundary here — mirrors
+ * adminSendPasswordReset's reasoning exactly.
+ */
+export async function adminResendVerificationEmail(userId: string) {
+  const admin = await requireAdmin();
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return { error: "not_found" as const };
+  }
+  if (user.emailVerified) {
+    return { error: "already_verified" as const };
+  }
+
+  await sendVerificationEmail(user.email);
+
+  await prisma.auditLog.create({
+    data: {
+      targetId: user.id,
+      action: "VERIFICATION_EMAIL_SENT",
+      reason: `Confirmation email re-sent to ${user.email} by admin — account was stuck unverified.`,
+      performedBy: admin.id,
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/moderation");
   return { error: null, email: user.email };
 }
 

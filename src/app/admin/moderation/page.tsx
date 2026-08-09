@@ -1,8 +1,17 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ModerationActionForm } from "@/components/moderation-action-form";
 import { FlaggedContentActions } from "@/components/flagged-content-actions";
+import { AdminSendResetButton } from "@/components/admin-send-reset-button";
+import { AdminResendVerificationButton } from "@/components/admin-resend-verification-button";
+
+// Signed up but never clicked the confirmation link — until they do,
+// loginWithPassword (src/app/actions/password-auth.ts) blocks them out
+// entirely. Excluded below if younger than this, so brand-new signups who
+// just haven't checked their inbox yet don't clutter the queue.
+const STUCK_UNVERIFIED_AFTER_MS = 60 * 60 * 1000;
 
 /**
  * What Moderation in the Admin profile can do:
@@ -13,6 +22,10 @@ import { FlaggedContentActions } from "@/components/flagged-content-actions";
  *  - Flagged content queue: content our automated moderation (see
  *    src/lib/moderation.ts) held back at creation time, before anyone
  *    reported it. An admin reviews it and either publishes it or removes it.
+ *  - Login issues: accounts locked out, racking up failed passwords, or
+ *    stuck unverified — surfaced proactively (not just reachable by
+ *    searching /admin/users) so support doesn't depend on the member
+ *    knowing to ask.
  * Every action writes an AuditLog entry against the content's author/the
  * reported user, so it's always explainable and appealable.
  */
@@ -20,7 +33,19 @@ export default async function ModerationQueuePage() {
   const user = await getSessionUserOrRedirect();
   if (!user.isAdmin) redirect("/discover");
 
-  const [open, resolved, flaggedPosts, flaggedComments, flaggedMessages, hiddenComments] = await Promise.all([
+  const now = new Date();
+
+  const [
+    open,
+    resolved,
+    flaggedPosts,
+    flaggedComments,
+    flaggedMessages,
+    hiddenComments,
+    lockedUsers,
+    failedAttemptUsers,
+    unverifiedStuckUsers,
+  ] = await Promise.all([
     prisma.report.findMany({
       where: { status: { in: ["OPEN", "REVIEWING"] } },
       orderBy: { createdAt: "asc" },
@@ -70,6 +95,36 @@ export default async function ModerationQueuePage() {
       take: 30,
       include: { author: { select: { name: true } } },
     }),
+    // Non-ACTIVE/DEACTIVATED accounts (banned, suspended) are deliberately
+    // excluded from all three login-issue queries below — that's an
+    // intentional moderation block handled via the reports queue above, not
+    // an access problem to fix here.
+    prisma.user.findMany({
+      where: { status: { in: ["ACTIVE", "DEACTIVATED"] }, lockedUntil: { gt: now } },
+      orderBy: { lockedUntil: "desc" },
+      take: 30,
+      select: { id: true, name: true, username: true, email: true, lockedUntil: true },
+    }),
+    prisma.user.findMany({
+      where: {
+        status: { in: ["ACTIVE", "DEACTIVATED"] },
+        failedLoginAttempts: { gt: 0 },
+        OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+      },
+      orderBy: { failedLoginAttempts: "desc" },
+      take: 30,
+      select: { id: true, name: true, username: true, email: true, failedLoginAttempts: true },
+    }),
+    prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        emailVerified: null,
+        createdAt: { lt: new Date(now.getTime() - STUCK_UNVERIFIED_AFTER_MS) },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 30,
+      select: { id: true, name: true, username: true, email: true, createdAt: true },
+    }),
   ]);
 
   const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length;
@@ -103,6 +158,109 @@ export default async function ModerationQueuePage() {
         {open.length === 0 && (
           <p className="text-sm text-foreground-soft">Queue is clear.</p>
         )}
+      </div>
+
+      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+        Login issues ({lockedUsers.length + failedAttemptUsers.length + unverifiedStuckUsers.length})
+      </h2>
+      <p className="mt-1 text-xs text-foreground-soft">
+        Accounts having trouble getting in — surfaced here so support doesn&apos;t
+        depend on the member knowing to reach out. Use{" "}
+        <Link href="/admin/users" className="text-accent hover:underline">
+          Users
+        </Link>{" "}
+        to look someone up directly instead.
+      </p>
+
+      <div className="mt-3 space-y-3">
+        <div>
+          <p className="text-xs font-medium">
+            Locked out ({lockedUsers.length})
+          </p>
+          <p className="text-xs text-foreground-soft">
+            4 wrong passwords locks an account for 24h. Sending a password
+            reset unlocks it immediately — they don&apos;t have to wait.
+          </p>
+          <div className="mt-2 space-y-2">
+            {lockedUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{u.name ?? u.username ?? u.email}</p>
+                  <p className="text-xs text-danger">
+                    {u.email} · locked until {u.lockedUntil!.toLocaleString()}
+                  </p>
+                </div>
+                <AdminSendResetButton userId={u.id} />
+              </div>
+            ))}
+            {lockedUsers.length === 0 && (
+              <p className="text-xs text-foreground-soft">No locked accounts right now.</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mt-4 text-xs font-medium">
+            Recent failed attempts, not yet locked ({failedAttemptUsers.length})
+          </p>
+          <p className="text-xs text-foreground-soft">
+            Heading toward a lockout at 4 attempts. If this is the real
+            owner struggling with their password, send a reset before that
+            happens.
+          </p>
+          <div className="mt-2 space-y-2">
+            {failedAttemptUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{u.name ?? u.username ?? u.email}</p>
+                  <p className="text-xs text-foreground-soft">
+                    {u.email} · {u.failedLoginAttempts} failed attempt(s)
+                  </p>
+                </div>
+                <AdminSendResetButton userId={u.id} />
+              </div>
+            ))}
+            {failedAttemptUsers.length === 0 && (
+              <p className="text-xs text-foreground-soft">Nothing here right now.</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mt-4 text-xs font-medium">
+            Stuck unverified ({unverifiedStuckUsers.length})
+          </p>
+          <p className="text-xs text-foreground-soft">
+            Signed up but never confirmed their email — sign-in is blocked
+            entirely until they do. Resend the confirmation email if theirs
+            was lost or filtered as spam.
+          </p>
+          <div className="mt-2 space-y-2">
+            {unverifiedStuckUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{u.name ?? u.username ?? u.email}</p>
+                  <p className="text-xs text-foreground-soft">
+                    {u.email} · signed up {u.createdAt.toLocaleString()}
+                  </p>
+                </div>
+                <AdminResendVerificationButton userId={u.id} />
+              </div>
+            ))}
+            {unverifiedStuckUsers.length === 0 && (
+              <p className="text-xs text-foreground-soft">Nothing here right now.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { AdminSendResetButton } from "@/components/admin-send-reset-button";
+import { AdminResendVerificationButton } from "@/components/admin-resend-verification-button";
 import { AdminDeleteUserButton } from "@/components/admin-delete-user-button";
 
 /** Support tool: look up an account and send them a password reset link — for a customer who can't complete their own reset, or is locked out and doesn't want to wait 24h. */
@@ -98,6 +99,7 @@ export default async function AdminUsersPage({
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <AdminSendResetButton userId={u.id} />
+                  {!u.emailVerified && <AdminResendVerificationButton userId={u.id} />}
                   {!u.isAdmin && u.id !== admin.id && (
                     <AdminDeleteUserButton userId={u.id} handle={u.username ?? u.email} />
                   )}

@@ -332,6 +332,16 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Do I need to pick a username when I sign up?",
+        a: (
+          <>
+            No — signing up only asks for your email, a password, and your
+            date of birth. We assign you a starting username automatically,
+            and you can change it any time from Settings.
+          </>
+        ),
+      },
+      {
         q: "It says my account is locked — what happened?",
         a: (
           <>

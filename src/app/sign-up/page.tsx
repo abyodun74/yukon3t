@@ -8,12 +8,10 @@ function errorMessage(error: string | undefined) {
       return "You must be at least 13 years old to use YuKon3t.";
     case "email_taken":
       return "An account with that email already exists.";
-    case "username_taken":
-      return "That username is taken — try another.";
     case "rate_limited":
       return "Too many attempts. Please wait a bit and try again.";
     case "invalid":
-      return "Please check your inputs — username must be 3-20 letters, numbers, or underscores, and password at least 8 characters.";
+      return "Please check your inputs — password must be at least 8 characters.";
     default:
       return null;
   }
@@ -31,8 +29,9 @@ export default async function SignUpPage({
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">Create an account</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">
-        Sign up with a username and password. We&apos;ll email you a link to
-        confirm your address before you can sign in.
+        Sign up with your email and a password. We&apos;ll email you a link
+        to confirm your address before you can sign in. You can pick a
+        username later in Settings.
       </p>
 
       {message && (
@@ -42,16 +41,6 @@ export default async function SignUpPage({
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
-        <input
-          type="text"
-          name="username"
-          required
-          minLength={3}
-          maxLength={20}
-          pattern="[a-zA-Z0-9_]+"
-          placeholder="Username"
-          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
-        />
         <input
           type="email"
           name="email"

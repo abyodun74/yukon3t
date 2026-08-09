@@ -66,7 +66,6 @@ export const usernameSchema = z
 export const passwordSchema = z.string().min(8).max(72);
 
 export const signUpSchema = z.object({
-  username: usernameSchema,
   email: z.string().trim().toLowerCase().email(),
   password: passwordSchema,
   birthDate: z.coerce.date().refine(isOldEnough, {
