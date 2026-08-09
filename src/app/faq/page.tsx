@@ -69,6 +69,26 @@ const sections: Section[] = [
     ],
   },
   {
+    title: "The Android app",
+    items: [
+      {
+        q: "The app opens in Chrome instead of full-screen — how do I fix that?",
+        a: (
+          <>
+            This is a one-time Android setting, not a bug. Go to your
+            phone&apos;s Settings → Apps → YuKon3t → &ldquo;Open by
+            default&rdquo; (some Android versions call this &ldquo;Set as
+            default&rdquo; or &ldquo;Supported links&rdquo;), and make sure{" "}
+            <code>yukon3t.com</code> is toggled on under &ldquo;Supported web
+            addresses.&rdquo; Android turns this off by default as a privacy
+            control — the app can&apos;t switch it on for you, so it&apos;s a
+            one-time manual step after installing.
+          </>
+        ),
+      },
+    ],
+  },
+  {
     title: "Posts and media",
     items: [
       {
