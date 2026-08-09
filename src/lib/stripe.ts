@@ -77,10 +77,6 @@ export function constructWebhookEvent(payload: string | Buffer, signature: strin
   return client().webhooks.constructEvent(payload, signature, secret);
 }
 
-export async function retrieveCheckoutSession(sessionId: string) {
-  return client().checkout.sessions.retrieve(sessionId);
-}
-
 /** Best-effort — a refund failing (e.g. already refunded) shouldn't block rejecting the campaign itself. */
 export async function refundAdPayment(paymentIntentId: string) {
   try {

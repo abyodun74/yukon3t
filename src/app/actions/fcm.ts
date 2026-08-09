@@ -27,9 +27,3 @@ export async function registerFcmToken(token: string) {
 
   return { error: null };
 }
-
-export async function unregisterFcmToken(token: string) {
-  await requireUser();
-  await prisma.fcmToken.deleteMany({ where: { token } });
-  return { error: null };
-}

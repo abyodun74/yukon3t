@@ -6,8 +6,6 @@
 import { prisma } from "@/lib/prisma";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
-export const EMBEDDING_DIMENSIONS = 1536;
-
 const EMBEDDING_TIMEOUT_MS = 8000;
 
 /** Returns null if no API key is configured or the call fails/times out. */

@@ -7,10 +7,13 @@
 //      authorization logic — it can't leak anything the phase below
 //      wouldn't also allow through.
 //   2. Those candidate ids are re-fetched through the exact same typed
-//      Prisma queries (and the same getBlockedEitherWayIds/
-//      getVisiblePostsWhere helpers) the exact-match search already uses,
-//      so blocking, visibility, and moderation rules can't drift between
-//      the two search paths.
+//      Prisma queries the exact-match search already uses — blocked-user
+//      ids come in pre-merged via `excludeUserIds` (the caller computes
+//      them with getBlockedEitherWayIds once and reuses that result for
+//      both search paths, see search/page.tsx) and post visibility goes
+//      through the same getVisiblePostsWhere helper — so blocking,
+//      visibility, and moderation rules can't drift between the two
+//      search paths.
 //
 // Never duplicate a visibility/block rule into the raw SQL in phase 1 to
 // "filter earlier" — that's exactly the kind of divergence phase 2 exists
@@ -19,7 +22,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEmbedding, toPgVector } from "@/lib/embeddings";
-import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
