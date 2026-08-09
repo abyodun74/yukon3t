@@ -6,12 +6,7 @@ import { ModerationActionForm } from "@/components/moderation-action-form";
 import { FlaggedContentActions } from "@/components/flagged-content-actions";
 import { AdminSendResetButton } from "@/components/admin-send-reset-button";
 import { AdminResendVerificationButton } from "@/components/admin-resend-verification-button";
-
-// Signed up but never clicked the confirmation link — until they do,
-// loginWithPassword (src/app/actions/password-auth.ts) blocks them out
-// entirely. Excluded below if younger than this, so brand-new signups who
-// just haven't checked their inbox yet don't clutter the queue.
-const STUCK_UNVERIFIED_AFTER_MS = 60 * 60 * 1000;
+import { STUCK_UNVERIFIED_AFTER_MS, RESOLVED_LOGIN_ISSUE_VISIBLE_MS } from "@/lib/login-issues";
 
 /**
  * What Moderation in the Admin profile can do:
@@ -45,6 +40,7 @@ export default async function ModerationQueuePage() {
     lockedUsers,
     failedAttemptUsers,
     unverifiedStuckUsers,
+    resolvedLoginIssueUsers,
   ] = await Promise.all([
     prisma.report.findMany({
       where: { status: { in: ["OPEN", "REVIEWING"] } },
@@ -125,7 +121,22 @@ export default async function ModerationQueuePage() {
       take: 30,
       select: { id: true, name: true, username: true, email: true, createdAt: true },
     }),
+    prisma.user.findMany({
+      where: {
+        loginIssueResolvedAt: { gt: new Date(now.getTime() - RESOLVED_LOGIN_ISSUE_VISIBLE_MS) },
+      },
+      orderBy: { loginIssueResolvedAt: "desc" },
+      take: 30,
+      select: { id: true, name: true, username: true, email: true, loginIssueResolvedAt: true },
+    }),
   ]);
+
+  // A user can rack up a fresh issue after a past one resolved (e.g.
+  // resolved a lockout, then got locked out again) — the active queries
+  // above are the source of truth for "currently a problem", so drop
+  // anyone from "recently resolved" who's still showing up there too.
+  const activeIds = new Set([...lockedUsers, ...failedAttemptUsers, ...unverifiedStuckUsers].map((u) => u.id));
+  const recentlyResolvedLoginIssueUsers = resolvedLoginIssueUsers.filter((u) => !activeIds.has(u.id));
 
   const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length;
 
@@ -257,6 +268,35 @@ export default async function ModerationQueuePage() {
               </div>
             ))}
             {unverifiedStuckUsers.length === 0 && (
+              <p className="text-xs text-foreground-soft">Nothing here right now.</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mt-4 text-xs font-medium">
+            Resolved in the last 24h ({recentlyResolvedLoginIssueUsers.length})
+          </p>
+          <p className="text-xs text-foreground-soft">
+            Cleared automatically once the person got back in or confirmed
+            their email — kept here briefly in case it comes up again, then
+            drops off the queue on its own.
+          </p>
+          <div className="mt-2 space-y-2">
+            {recentlyResolvedLoginIssueUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3 opacity-70"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{u.name ?? u.username ?? u.email}</p>
+                  <p className="text-xs text-success">
+                    {u.email} · resolved {u.loginIssueResolvedAt!.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {recentlyResolvedLoginIssueUsers.length === 0 && (
               <p className="text-xs text-foreground-soft">Nothing here right now.</p>
             )}
           </div>

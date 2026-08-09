@@ -154,6 +154,18 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
 
+  // Set when a genuine login-issue resolution happens — a completed password
+  // reset that cleared a lockout/failed-attempt streak, a successful login
+  // that did the same, or a confirmation-email click that unstuck a
+  // long-unverified account (see resetPassword, loginWithPassword, and
+  // confirmEmailVerification in actions/password-auth.ts). Admin/moderation
+  // (src/app/admin/moderation/page.tsx) uses this to show the account under
+  // "recently resolved" for a day, then drop it from the queue entirely —
+  // distinct from the AuditLog PASSWORD_RESET_SENT/VERIFICATION_EMAIL_SENT
+  // entries, which record an admin sending help, not the problem actually
+  // going away.
+  loginIssueResolvedAt DateTime?
+
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
   ringtone        Ringtone        @default(CLASSIC)

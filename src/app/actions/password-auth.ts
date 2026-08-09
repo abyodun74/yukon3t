@@ -18,6 +18,7 @@ import { sendEmail } from "@/lib/email";
 import { issueSessionCookie } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
 import { requireAdmin } from "@/lib/auth-guards";
+import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -123,7 +124,18 @@ export async function confirmEmailVerification(formData: FormData) {
     redirect(`/verify-email?email=${encodeURIComponent(email)}`);
   }
 
-  await prisma.user.update({ where: { email }, data: { emailVerified: new Date() } });
+  const now = new Date();
+  const user = await prisma.user.findUnique({ where: { email }, select: { createdAt: true } });
+  // Only a genuine moderation-queue resolution if the account was actually
+  // old enough to have been flagged "stuck" there in the first place —
+  // otherwise every ordinary signup verifying within minutes would show up
+  // under "recently resolved" despite never having been a visible problem.
+  const wasStuck = !!user && now.getTime() - user.createdAt.getTime() > STUCK_UNVERIFIED_AFTER_MS;
+
+  await prisma.user.update({
+    where: { email },
+    data: { emailVerified: now, ...(wasStuck ? { loginIssueResolvedAt: now } : {}) },
+  });
   await prisma.verificationToken.delete({ where: { identifier_token: { identifier: email, token } } });
 
   redirect("/verify-email?verified=1");
@@ -202,7 +214,8 @@ export async function loginWithPassword(formData: FormData) {
   // request to reactivate — same "log in to come back" pattern most social
   // apps use, rather than a separate reactivation flow. Also clears any
   // stale lockout bookkeeping now that the real password has been proven.
-  if (user.status === "DEACTIVATED" || user.failedLoginAttempts > 0 || user.lockedUntil) {
+  const hadLoginIssue = user.failedLoginAttempts > 0 || !!user.lockedUntil;
+  if (user.status === "DEACTIVATED" || hadLoginIssue) {
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -210,6 +223,7 @@ export async function loginWithPassword(formData: FormData) {
         deactivatedAt: null,
         failedLoginAttempts: 0,
         lockedUntil: null,
+        ...(hadLoginIssue ? { loginIssueResolvedAt: new Date() } : {}),
       },
     });
   }
@@ -274,6 +288,12 @@ export async function resetPassword(formData: FormData) {
     redirect("/forgot-password?error=expired");
   }
 
+  const target = await prisma.user.findUnique({
+    where: { id: resetToken.userId },
+    select: { failedLoginAttempts: true, lockedUntil: true },
+  });
+  const hadLoginIssue = !!target && (target.failedLoginAttempts > 0 || !!target.lockedUntil);
+
   const passwordHash = await hashPassword(password);
   await prisma.user.update({
     where: { id: resetToken.userId },
@@ -290,6 +310,7 @@ export async function resetPassword(formData: FormData) {
       sessionInvalidatedAt: new Date(),
       failedLoginAttempts: 0,
       lockedUntil: null,
+      ...(hadLoginIssue ? { loginIssueResolvedAt: new Date() } : {}),
     },
   });
   await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
