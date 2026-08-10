@@ -170,6 +170,18 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "How do I reply to a specific message?",
+        a: (
+          <>
+            Swipe a message to the right (or open its &ldquo;⋯&rdquo; menu
+            and tap &ldquo;Reply&rdquo; if you&apos;re on desktop) to quote
+            it in your reply — the other person sees exactly which message
+            you&apos;re responding to, useful once a chat has moved on to a
+            few topics at once.
+          </>
+        ),
+      },
+      {
         q: "Can I send photos, videos, or voice notes in a chat?",
         a: (
           <>
