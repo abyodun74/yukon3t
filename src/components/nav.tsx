@@ -93,19 +93,19 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
 
   // Swipe right steps forward through the bottom tab bar and wraps around
   // (Home → Circles → Collab → Messages → Profile → Home → ...); swipe left
-  // jumps straight to Profile from any of them, including Home. Touch-only
-  // — the bar itself is `md:hidden`, so gating on touchstart/touchend
-  // rather than a pointer gesture naturally keeps this a mobile-only
-  // behavior without an extra viewport check. Only armed on the 5 tab root
-  // screens themselves (never on e.g. an open chat thread), both because
-  // "swipe between tabs" only makes sense there and to stay clear of
+  // steps backward and wraps the other way (Profile → Messages → Collab →
+  // Circles → Home → Profile → ...) — the two gestures are mirror images of
+  // each other. Touch-only — the bar itself is `md:hidden`, so gating on
+  // touchstart/touchend rather than a pointer gesture naturally keeps this a
+  // mobile-only behavior without an extra viewport check. Only armed on the
+  // 5 tab root screens themselves (never on e.g. an open chat thread), both
+  // because "swipe between tabs" only makes sense there and to stay clear of
   // chat-thread.tsx's own swipe-*right*-to-reply gesture on individual
   // messages.
   useEffect(() => {
     if (tabs.length === 0) return;
     const tabIndex = tabs.findIndex((t) => t.href === pathname);
     if (tabIndex === -1) return;
-    const profileHref = tabs[tabs.length - 1].href;
 
     const SWIPE_THRESHOLD_PX = 70;
     let startX = 0;
@@ -149,9 +149,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // Swipe right: step forward, wrapping Profile back around to Home.
         const nextIndex = (tabIndex + 1) % tabs.length;
         router.push(tabs[nextIndex].href);
-      } else if (pathname !== profileHref) {
-        // Swipe left: jump straight to Profile.
-        router.push(profileHref);
+      } else {
+        // Swipe left: step backward, wrapping Home back around to Profile.
+        const prevIndex = (tabIndex - 1 + tabs.length) % tabs.length;
+        router.push(tabs[prevIndex].href);
       }
     }
 

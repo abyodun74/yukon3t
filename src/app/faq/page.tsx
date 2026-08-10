@@ -26,8 +26,8 @@ const sections: Section[] = [
           <>
             Yes, on a phone: swipe right anywhere on the screen to move
             forward through Home → Circles → Collab → Messages → Profile,
-            wrapping back around to Home. Swipe left from any of them to
-            jump straight to your Profile.
+            wrapping back around to Home. Swipe left to move backward through
+            the same tabs, wrapping the other way.
           </>
         ),
       },
