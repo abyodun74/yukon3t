@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, MessageCircle, User, Search } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
@@ -81,10 +81,79 @@ function bottomTabs(userId: string) {
 export function Nav({ session, theme }: { session: Session | null; theme: Theme }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const links = session?.user ? navLinks(session.user.id) : [];
-  const tabs = session?.user ? bottomTabs(session.user.id) : [];
+  // Memoized (unlike `links` above) because it's a useEffect dependency
+  // below — bottomTabs() returns a fresh array each render, which would
+  // otherwise tear down and re-add the swipe listeners on every render.
+  const userId = session?.user?.id;
+  const tabs = useMemo(() => (userId ? bottomTabs(userId) : []), [userId]);
   const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
   const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
+
+  // Swipe left steps forward through the bottom tab bar (Home → Circles →
+  // Collab → Messages); swipe right jumps straight to Profile from any of
+  // them, same "swipe right for your profile" shortcut Twitter/Instagram
+  // use, rather than stepping back one tab at a time. Touch-only — the bar
+  // itself is `md:hidden`, so gating on touchstart/touchend rather than a
+  // pointer gesture naturally keeps this a mobile-only behavior without an
+  // extra viewport check. Only armed on the 5 tab root screens themselves
+  // (never on e.g. an open chat thread), both because "swipe between tabs"
+  // only makes sense there and to stay clear of chat-thread.tsx's own
+  // swipe-*right*-to-reply gesture on individual messages.
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    const tabIndex = tabs.findIndex((t) => t.href === pathname);
+    if (tabIndex === -1) return;
+    const profileHref = tabs[tabs.length - 1].href;
+
+    const SWIPE_THRESHOLD_PX = 70;
+    let startX = 0;
+    let startY = 0;
+    let ignore = false;
+
+    // A touch that starts inside a horizontally-scrollable element (e.g.
+    // the story tray on Home) should scroll that element, not flip tabs —
+    // walk up from the touch target looking for one, same idea as
+    // chat-thread.tsx's dead-zone check before claiming a gesture.
+    function startsInsideHorizontalScroller(target: EventTarget | null) {
+      let node = target instanceof Element ? target : null;
+      while (node && node !== document.body) {
+        if (node.scrollWidth > node.clientWidth + 1) return true;
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      const touch = e.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      ignore = startsInsideHorizontalScroller(e.target);
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (ignore) return;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dy) > Math.abs(dx)) return;
+
+      if (dx < 0) {
+        const nextIndex = tabIndex + 1;
+        if (nextIndex < tabs.length) router.push(tabs[nextIndex].href);
+      } else if (pathname !== profileHref) {
+        router.push(profileHref);
+      }
+    }
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [tabs, pathname, router]);
 
   // Unregisters this device's FCM token (if the native Android app ever
   // handed us one — see fcm-token-bridge.tsx) before the session actually
@@ -107,8 +176,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
           <Link
             href="/"
             onClick={() => setOpen(false)}
-            className="font-display text-xl font-semibold tracking-tight text-accent"
+            className="logo-aurora font-display text-xl font-semibold tracking-tight text-accent"
           >
+            <span className="logo-aurora-blob" aria-hidden />
+            <span className="logo-aurora-blob" aria-hidden />
             YuKon3t
           </Link>
 

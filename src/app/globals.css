@@ -191,3 +191,58 @@ textarea {
     animation: none;
   }
 }
+
+/* Same aurora treatment as .aurora-bg, scaled down and contained to sit
+   directly behind the "YuKon3t" wordmark in the nav — a small glowing
+   badge rather than the full-page effect. `isolate` gives the link its
+   own stacking context so the negative-z-index blobs stay pinned behind
+   the text instead of escaping to the header's own stacking context (see
+   .aurora-bg's comment in RootLayout for the same underlying issue). */
+.logo-aurora {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.logo-aurora-blob {
+  position: absolute;
+  z-index: -1;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  opacity: 0.4;
+  filter: blur(14px);
+  animation: logo-aurora-drift 9s ease-in-out infinite;
+}
+
+.logo-aurora-blob:nth-child(1) {
+  left: -0.5rem;
+  top: -0.25rem;
+  background: var(--accent);
+}
+
+.logo-aurora-blob:nth-child(2) {
+  right: -0.75rem;
+  bottom: -0.25rem;
+  background: var(--teal);
+  animation-duration: 11s;
+  animation-delay: -4s;
+}
+
+@keyframes logo-aurora-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3px, 2px) scale(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-aurora-blob {
+    animation: none;
+  }
+}
