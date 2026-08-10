@@ -91,16 +91,16 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
   const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
 
-  // Swipe left steps forward through the bottom tab bar (Home → Circles →
-  // Collab → Messages); swipe right jumps straight to Profile from any of
-  // them, same "swipe right for your profile" shortcut Twitter/Instagram
-  // use, rather than stepping back one tab at a time. Touch-only — the bar
-  // itself is `md:hidden`, so gating on touchstart/touchend rather than a
-  // pointer gesture naturally keeps this a mobile-only behavior without an
-  // extra viewport check. Only armed on the 5 tab root screens themselves
-  // (never on e.g. an open chat thread), both because "swipe between tabs"
-  // only makes sense there and to stay clear of chat-thread.tsx's own
-  // swipe-*right*-to-reply gesture on individual messages.
+  // Swipe right steps forward through the bottom tab bar and wraps around
+  // (Home → Circles → Collab → Messages → Profile → Home → ...); swipe left
+  // jumps straight to Profile from any of them, including Home. Touch-only
+  // — the bar itself is `md:hidden`, so gating on touchstart/touchend
+  // rather than a pointer gesture naturally keeps this a mobile-only
+  // behavior without an extra viewport check. Only armed on the 5 tab root
+  // screens themselves (never on e.g. an open chat thread), both because
+  // "swipe between tabs" only makes sense there and to stay clear of
+  // chat-thread.tsx's own swipe-*right*-to-reply gesture on individual
+  // messages.
   useEffect(() => {
     if (tabs.length === 0) return;
     const tabIndex = tabs.findIndex((t) => t.href === pathname);
@@ -139,10 +139,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       const dy = touch.clientY - startY;
       if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dy) > Math.abs(dx)) return;
 
-      if (dx < 0) {
-        const nextIndex = tabIndex + 1;
-        if (nextIndex < tabs.length) router.push(tabs[nextIndex].href);
+      if (dx > 0) {
+        // Swipe right: step forward, wrapping Profile back around to Home.
+        const nextIndex = (tabIndex + 1) % tabs.length;
+        router.push(tabs[nextIndex].href);
       } else if (pathname !== profileHref) {
+        // Swipe left: jump straight to Profile.
         router.push(profileHref);
       }
     }
