@@ -110,30 +110,36 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
     const SWIPE_THRESHOLD_PX = 70;
     let startX = 0;
     let startY = 0;
-    let ignore = false;
+    let scroller: Element | null = null;
+    let scrollerStartLeft = 0;
 
     // A touch that starts inside a horizontally-scrollable element (e.g.
     // the story tray on Home) should scroll that element, not flip tabs —
     // walk up from the touch target looking for one, same idea as
-    // chat-thread.tsx's dead-zone check before claiming a gesture.
-    function startsInsideHorizontalScroller(target: EventTarget | null) {
+    // chat-thread.tsx's dead-zone check before claiming a gesture. Merely
+    // being inside a scrollable ancestor isn't enough to disqualify the
+    // gesture though (e.g. the story tray is often too short to scroll, or
+    // already at its scroll end) — only suppress if that scroller actually
+    // moved, i.e. the browser genuinely consumed the touch as a scroll.
+    function findHorizontalScroller(target: EventTarget | null) {
       let node = target instanceof Element ? target : null;
       while (node && node !== document.body) {
-        if (node.scrollWidth > node.clientWidth + 1) return true;
+        if (node.scrollWidth > node.clientWidth + 1) return node;
         node = node.parentElement;
       }
-      return false;
+      return null;
     }
 
     function onTouchStart(e: TouchEvent) {
       const touch = e.touches[0];
       startX = touch.clientX;
       startY = touch.clientY;
-      ignore = startsInsideHorizontalScroller(e.target);
+      scroller = findHorizontalScroller(e.target);
+      scrollerStartLeft = scroller?.scrollLeft ?? 0;
     }
 
     function onTouchEnd(e: TouchEvent) {
-      if (ignore) return;
+      if (scroller && Math.abs(scroller.scrollLeft - scrollerStartLeft) > 1) return;
       const touch = e.changedTouches[0];
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
