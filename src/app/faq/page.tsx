@@ -21,6 +21,17 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I swipe between tabs instead of tapping?",
+        a: (
+          <>
+            Yes, on a phone: swipe right anywhere on the screen to move
+            forward through Home → Circles → Collab → Messages → Profile,
+            wrapping back around to Home. Swipe left from any of them to
+            jump straight to your Profile.
+          </>
+        ),
+      },
+      {
         q: "What's the difference between Home, Discover, and Connections?",
         a: (
           <>
