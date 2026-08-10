@@ -63,7 +63,12 @@ function EventBlock({
       <div className="text-xs text-foreground-soft">
         <div className="flex items-center gap-1.5">
           <Calendar size={13} />
-          <span>
+          {/* toLocaleString depends on the runtime's timezone, which differs
+              between the server (render) and the browser (hydration) —
+              suppressHydrationWarning tells React that's expected here
+              rather than a real mismatch; the viewer's own local time
+              (post-hydration) is what should win anyway. */}
+          <span suppressHydrationWarning>
             {post.eventAt.toLocaleString([], {
               weekday: "short",
               month: "short",
@@ -289,7 +294,11 @@ export function PostCard({
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-foreground-soft">
+          {/* toLocaleDateString depends on the runtime's timezone, which
+              differs between the server (render) and the browser
+              (hydration) — suppressHydrationWarning tells React that's
+              expected here rather than a real mismatch to warn about. */}
+          <span className="text-xs text-foreground-soft" suppressHydrationWarning>
             {displayPost.createdAt.toLocaleDateString()}
           </span>
           <PostOptionsMenu

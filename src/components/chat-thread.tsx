@@ -507,7 +507,12 @@ function MessageBubble({
             )}
           >
             {!deleted && message.editedAt && <span>Edited</span>}
-            <span>{formatTime(message.createdAt)}</span>
+            {/* toLocaleTimeString depends on the runtime's timezone, which
+                differs between the server (render) and the browser
+                (hydration) — suppressHydrationWarning tells React that's
+                expected here rather than a real mismatch to warn about;
+                the browser's own local time is what should win anyway. */}
+            <span suppressHydrationWarning>{formatTime(message.createdAt)}</span>
             {mine && seenByNames === undefined && <ReceiptIcon message={message} />}
           </div>
           {mine && seenByNames !== undefined && (
