@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Upload, Video, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
+import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -23,7 +23,10 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
 
-const POLL_INTERVAL_MS = 5000;
+// 2s rather than the old 5s so a thread feels close to real-time without
+// standing up a WebSocket/SSE server — usePolling already pauses while the
+// tab isn't visible, so this only multiplies load for actively-open threads.
+const POLL_INTERVAL_MS = 2000;
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
 // storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't be
@@ -64,6 +67,16 @@ type MessageData = {
     mediaThumbnailUrl: string | null;
     caption: string | null;
   } | null;
+  // Set when this message is a swipe-to-reply quote of an earlier message
+  // in the same thread — null once that message ages out or the reply
+  // reference itself was never set.
+  replyTo: {
+    id: string;
+    content: string;
+    mediaType: MessageMediaType;
+    deletedForEveryoneAt: Date | null;
+    sender: { id: string; name: string | null };
+  } | null;
 };
 
 type CorrectionData = {
@@ -103,6 +116,27 @@ function ReceiptIcon({ message }: { message: MessageData }) {
 function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
+
+/** One-line summary of a quoted message for the reply preview — shared by the composer bar and the in-bubble quote. */
+function replyPreviewText(target: {
+  content: string;
+  mediaType: MessageMediaType;
+  deletedForEveryoneAt: Date | null;
+}) {
+  if (target.deletedForEveryoneAt) return "Original message was deleted";
+  if (target.mediaType === "IMAGE") return "Photo";
+  if (target.mediaType === "VIDEO") return "Video";
+  if (target.mediaType === "AUDIO") return "Voice note";
+  return target.content;
+}
+
+// How far right a bubble must be dragged before releasing counts as
+// "reply" rather than an aborted swipe — matches the common WhatsApp/
+// Telegram threshold closely enough to feel familiar.
+const SWIPE_REPLY_THRESHOLD_PX = 56;
+// Drag is clamped past the threshold so the bubble can't be flung
+// arbitrarily far off its row while the finger/pointer is still down.
+const SWIPE_MAX_DRAG_PX = 80;
 
 function CorrectionList({
   corrections,
@@ -154,6 +188,7 @@ function MessageBubble({
   onEdited,
   onReacted,
   onCorrected,
+  onReply,
 }: {
   message: MessageData;
   mine: boolean;
@@ -166,6 +201,7 @@ function MessageBubble({
   onEdited: (message: MessageData) => void;
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
   onCorrected: (messageId: string, corrections: CorrectionData[]) => void;
+  onReply: (message: MessageData) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -178,6 +214,65 @@ function MessageBubble({
   const deleted = Boolean(message.deletedForEveryoneAt);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
   const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
+
+  // Swipe-right-to-reply: a plain pointer-drag on the bubble itself, not a
+  // library — the gesture is one axis, one direction, and needs to coexist
+  // with normal text selection/scrolling, which a general-purpose gesture
+  // lib would add more ceremony to configure than it'd save here.
+  const [dragX, setDragX] = useState(0);
+  // Drives the CSS transition (off while actively dragging, on for the
+  // snap-back) — plain state rather than reading dragStateRef.current
+  // during render, which React's rules of hooks disallows.
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; active: boolean } | null>(null);
+
+  function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (deleted || editing) return;
+    // Only primary touch/mouse input — ignore secondary buttons/multi-touch.
+    if (e.button !== 0) return;
+    dragStateRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false };
+  }
+
+  function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+
+    if (!drag.active) {
+      // Require a clearly-horizontal, rightward gesture before capturing the
+      // pointer — otherwise a normal vertical scroll on mobile would get
+      // hijacked the instant a touch has any horizontal component at all.
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) {
+        dragStateRef.current = null;
+        return;
+      }
+      drag.active = true;
+      setIsDragging(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      // The few pixels of movement in the dead zone above can start a text
+      // selection (mouse) before preventDefault below ever gets a chance to
+      // run — clear it now that this has been claimed as a swipe, so a
+      // completed reply swipe never leaves a stray highlighted word behind.
+      window.getSelection()?.removeAllRanges();
+    }
+
+    e.preventDefault();
+    setDragX(Math.min(dx, SWIPE_MAX_DRAG_PX));
+  }
+
+  function endDrag(e: PointerEvent<HTMLDivElement>) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.active) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      if (dragX >= SWIPE_REPLY_THRESHOLD_PX) onReply(message);
+    }
+    dragStateRef.current = null;
+    setIsDragging(false);
+    setDragX(0);
+  }
 
   function toggleReaction(emoji: string) {
     startTransition(async () => {
@@ -242,7 +337,16 @@ function MessageBubble({
 
   return (
     <div className={cn("flex items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
-      <div className="min-w-0">
+      <div className="relative min-w-0">
+        {dragX > 0 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 -left-7 flex items-center text-accent"
+            style={{ opacity: Math.min(dragX / SWIPE_REPLY_THRESHOLD_PX, 1) }}
+          >
+            <Reply size={16} />
+          </div>
+        )}
         {sender && (
           <div className="mb-0.5 px-1">
             <UserLink
@@ -256,11 +360,35 @@ function MessageBubble({
           </div>
         )}
         <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          style={{
+            transform: dragX ? `translateX(${dragX}px)` : undefined,
+            transition: isDragging ? "none" : "transform 150ms ease",
+            touchAction: "pan-y",
+          }}
           className={cn(
             "max-w-[min(75vw,26rem)] rounded-2xl px-3 py-2 text-sm",
             mine ? "bg-accent text-accent-ink" : "bg-surface",
           )}
         >
+          {message.replyTo && (
+            <div
+              className={cn(
+                "mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs",
+                mine ? "border-accent-ink/40 bg-black/10" : "border-accent bg-black/5",
+              )}
+            >
+              <p className={cn("font-medium", mine ? "text-accent-ink/80" : "text-accent")}>
+                {message.replyTo.sender.id === currentUserId ? "You" : message.replyTo.sender.name ?? "Someone"}
+              </p>
+              <p className={cn("truncate", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+                {replyPreviewText(message.replyTo)}
+              </p>
+            </div>
+          )}
           {deleted ? (
             <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
               This message was deleted
@@ -462,6 +590,16 @@ function MessageBubble({
                 mine ? "right-0" : "left-0",
               )}
             >
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onReply(message);
+                }}
+                className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+              >
+                Reply
+              </button>
               {!mine && (
                 <button
                   type="button"
@@ -549,6 +687,7 @@ export function ChatThread({
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -660,10 +799,12 @@ export function ChatThread({
     const audio = pendingAudio;
     const video = pendingVideo;
     const image = pendingImage;
+    const replyTo = replyTarget;
     setContent("");
     setPendingAudio(null);
     setPendingVideo(null);
     setPendingImage(null);
+    setReplyTarget(null);
     setError(null);
     startTransition(async () => {
       const media = await uploadPendingMedia();
@@ -673,6 +814,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setReplyTarget(replyTo);
         return;
       }
       const fd = new FormData();
@@ -683,6 +825,7 @@ export function ChatThread({
       if (media.mediaType === "VIDEO" && media.mediaThumbnailUrl) {
         fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
       }
+      if (replyTo) fd.set("replyToMessageId", replyTo.id);
       let result;
       try {
         result = await sendMessage(fd);
@@ -695,6 +838,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setReplyTarget(replyTo);
         return;
       }
       if (result.error) {
@@ -709,6 +853,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setReplyTarget(replyTo);
         return;
       }
       if (result.message) {
@@ -810,6 +955,7 @@ export function ChatThread({
                 onEdited={handleEdited}
                 onReacted={handleReacted}
                 onCorrected={handleCorrected}
+                onReply={setReplyTarget}
               />
             </div>
           );
@@ -823,6 +969,26 @@ export function ChatThread({
         )}
         <div ref={bottomRef} />
       </div>
+
+      {replyTarget && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line border-l-2 border-l-accent px-3 py-2 text-xs">
+          <Reply size={14} className="shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-accent">
+              Replying to {replyTarget.senderId === currentUserId ? "yourself" : (memberById.get(replyTarget.senderId)?.name ?? "them")}
+            </p>
+            <p className="truncate text-foreground-soft">{replyPreviewText(replyTarget)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyTarget(null)}
+            aria-label="Cancel reply"
+            className="text-danger"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {pendingAudio && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">

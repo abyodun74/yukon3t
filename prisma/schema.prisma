@@ -575,26 +575,33 @@ enum NotificationType {
   CIRCLE_JOIN_REQUEST
   // Sent to the requester when their CircleJoinRequest is approved.
   CIRCLE_JOIN_APPROVED
+  // Sent to every other member of a conversation when a message arrives —
+  // in-app only (see createMessageNotifications in actions/messages.ts),
+  // so it shows up in the notification bell alongside everything else
+  // rather than only in the Messages tab's own unread badge.
+  MESSAGE
 }
 
 model Notification {
-  id           String           @id @default(cuid())
-  recipientId  String
-  actorId      String
-  type         NotificationType
-  postId       String?
-  commentId    String?
-  connectionId String?
-  circleId     String?
-  readAt       DateTime?
-  createdAt    DateTime         @default(now())
+  id             String           @id @default(cuid())
+  recipientId    String
+  actorId        String
+  type           NotificationType
+  postId         String?
+  commentId      String?
+  connectionId   String?
+  circleId       String?
+  conversationId String?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
 
-  recipient  User        @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  actor      User        @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
-  post       Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment    Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  connection Connection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  circle     Circle?     @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  recipient    User          @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        User          @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment      Comment?      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  connection   Connection?   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  circle       Circle?       @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -858,6 +865,7 @@ model Conversation {
   messages     Message[]
   joinRequests GroupJoinRequest[]
   collabBoardPost CollabBoardPost?
+  notifications   Notification[]
 }
 
 model GroupJoinRequest {
@@ -923,13 +931,24 @@ model Message {
   // later shouldn't delete the conversation history of the reply itself.
   storyId String?
 
+  // Set when the sender swiped/replied to an earlier message in this same
+  // thread (see swipe-to-reply in chat-thread.tsx) — shows a quoted preview
+  // above the bubble, same idea as storyId above. SetNull, not Cascade: the
+  // quoted message being deleted-for-everyone (which soft-deletes it, see
+  // deleteMessageForEveryone) already clears its content, so the reply just
+  // renders "Original message deleted" rather than losing its own history.
+  replyToMessageId String?
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  replyTo      Message?            @relation("MessageReplyTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies      Message[]           @relation("MessageReplyTo")
   reactions    MessageReaction[]
   corrections  MessageCorrection[]
 
   @@index([conversationId])
+  @@index([replyToMessageId])
 }
 
 /**

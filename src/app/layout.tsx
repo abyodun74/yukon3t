@@ -72,8 +72,17 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body
-        className={`min-h-full flex flex-col bg-background text-foreground ${session?.user ? "pb-16 md:pb-0" : ""}`}
+        // `isolate` gives body its own stacking context so the aurora
+        // background's `position: fixed; z-index: -1` (globals.css) stacks
+        // correctly above body's own background paint instead of escaping
+        // to the root and rendering behind it — see the comment there.
+        className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-16 md:pb-0" : ""}`}
       >
+        <div className="aurora-bg" aria-hidden>
+          <div className="aurora-blob" />
+          <div className="aurora-blob" />
+          <div className="aurora-blob" />
+        </div>
         <RegisterServiceWorker />
         <OfflineBanner />
         <Nav session={session} theme={theme} />

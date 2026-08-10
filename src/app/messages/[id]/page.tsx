@@ -105,6 +105,15 @@ export default async function ConversationPage({
       story: {
         select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
       },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          mediaType: true,
+          deletedForEveryoneAt: true,
+          sender: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 

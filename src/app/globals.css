@@ -12,6 +12,10 @@
   --teal: #1f6f6b;
   --danger: #a3372b;
   --success: #3f7d4f;
+  /* Third aurora-background hue (see .aurora-bg below) — a warm gold that
+     sits between --accent and --accent-soft, so the drifting blobs read as
+     one cohesive earth-tone palette rather than an arbitrary extra color. */
+  --aurora-gold: #c99a3e;
   --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06), 0 1px 1px rgba(60, 40, 20, 0.04);
   --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
@@ -46,6 +50,7 @@
     --teal: #5fb3ac;
     --danger: #d97a6c;
     --success: #7fbf8f;
+    --aurora-gold: #f0c674;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
   }
@@ -64,6 +69,7 @@
   --teal: #5fb3ac;
   --danger: #d97a6c;
   --success: #7fbf8f;
+  --aurora-gold: #f0c674;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
 }
@@ -80,6 +86,7 @@
   --teal: #1f6f6b;
   --danger: #a3372b;
   --success: #3f7d4f;
+  --aurora-gold: #c99a3e;
   --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06), 0 1px 1px rgba(60, 40, 20, 0.04);
   --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
@@ -110,4 +117,77 @@ textarea {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Subtle animated accent behind every page (see RootLayout) — three large,
+   heavily blurred, low-opacity blobs in the brand accent/teal/gold hues
+   drifting slowly and looping. Pure CSS (no JS, nothing to hydrate) and
+   fixed behind all content at a negative z-index, so it never affects
+   layout or interferes with clicks/scrolling. Kept deliberately subtle
+   (12-16% opacity) so body text contrast is unaffected in both themes —
+   this is meant to read as ambience, not a redesign.
+   Yes, it's an aurora despite the tropical accent colors — the visual
+   effect being borrowed (drifting blurred color fields) is what the name
+   refers to, not literal color fidelity to the arctic lights. */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aurora-blob {
+  position: absolute;
+  width: 55vmax;
+  height: 55vmax;
+  border-radius: 9999px;
+  opacity: 0.14;
+  filter: blur(90px);
+  animation: aurora-drift 34s ease-in-out infinite;
+  will-change: transform;
+}
+
+.aurora-blob:nth-child(1) {
+  top: -18vmax;
+  left: -12vmax;
+  background: var(--accent);
+}
+
+.aurora-blob:nth-child(2) {
+  right: -14vmax;
+  bottom: -20vmax;
+  background: var(--teal);
+  animation-duration: 42s;
+  animation-delay: -9s;
+}
+
+.aurora-blob:nth-child(3) {
+  top: 28vmax;
+  left: 32vmax;
+  background: var(--aurora-gold);
+  animation-duration: 50s;
+  animation-delay: -21s;
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6vmax, 4vmax) scale(1.08);
+  }
+  66% {
+    transform: translate(-5vmax, 6vmax) scale(0.95);
+  }
+}
+
+/* Ambient motion is the one thing this effect adds beyond a static gradient
+   — freeze it in place rather than removing it outright, so the color/mood
+   stays for anyone who's asked their OS to minimize motion. */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none;
+  }
 }

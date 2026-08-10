@@ -257,6 +257,7 @@ export const messageSchema = z
     mediaType: z.enum(["NONE", "AUDIO", "VIDEO", "IMAGE"]).optional().default("NONE"),
     mediaUrl: z.string().url().optional(),
     mediaThumbnailUrl: z.string().url().optional(),
+    replyToMessageId: z.string().cuid().optional(),
   })
   // A message needs text or a voice/video/photo attachment — never neither.
   .refine((data) => data.content.length > 0 || data.mediaType !== "NONE", {

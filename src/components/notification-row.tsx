@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { markAsRead } from "@/app/actions/notifications";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/user-link";
+import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
 
 type NotificationData = {
   id: string;
@@ -20,46 +21,20 @@ type NotificationData = {
     | "CIRCLE_CREATED"
     | "EVENT_REMINDER"
     | "CIRCLE_JOIN_REQUEST"
-    | "CIRCLE_JOIN_APPROVED";
+    | "CIRCLE_JOIN_APPROVED"
+    | "MESSAGE";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
   postId: string | null;
   circle: { slug: string } | null;
+  conversationId: string | null;
 };
-
-function messageFor(type: NotificationData["type"]) {
-  switch (type) {
-    case "CONNECTION_REQUEST":
-      return "sent you a connection request";
-    case "CONNECTION_ACCEPTED":
-      return "accepted your connection request";
-    case "POST_LIKE":
-      return "liked your post";
-    case "POST_COMMENT":
-      return "commented on your post";
-    case "POST_REPOST":
-      return "reposted your post";
-    case "POST_SHARE":
-      return "shared your post";
-    case "EVENT_RSVP":
-      return "is going to your event";
-    case "CIRCLE_JOINED":
-      return "joined your Circle";
-    case "CIRCLE_CREATED":
-      return "created a new Circle";
-    case "EVENT_REMINDER":
-      return "An event you're attending is starting soon";
-    case "CIRCLE_JOIN_REQUEST":
-      return "requested to join your Circle";
-    case "CIRCLE_JOIN_APPROVED":
-      return "approved your request to join their Circle";
-  }
-}
 
 function hrefFor(notification: NotificationData) {
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.circle) return `/circles/${notification.circle.slug}`;
+  if (notification.conversationId) return `/messages/${notification.conversationId}`;
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";
   }
@@ -68,10 +43,7 @@ function hrefFor(notification: NotificationData) {
 
 export function NotificationRow({ notification }: { notification: NotificationData }) {
   const unread = !notification.readAt;
-  // A reminder isn't "someone did something to you" — it's system-generated,
-  // so the usual "{actor} {verb}" phrasing doesn't apply. messageFor already
-  // returns a complete sentence for this type.
-  const hasActor = notification.type !== "EVENT_REMINDER";
+  const hasActor = notificationHasActor(notification.type);
 
   return (
     <Link
@@ -91,7 +63,7 @@ export function NotificationRow({ notification }: { notification: NotificationDa
         <span>
           {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
           {hasActor && " "}
-          {messageFor(notification.type)}
+          {NOTIFICATION_VERB[notification.type]}
           <span className="ml-2 text-xs text-foreground-soft">
             {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
           </span>

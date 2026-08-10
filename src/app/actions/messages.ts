@@ -23,6 +23,18 @@ const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as c
 const STORY_SELECT = {
   select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
 } as const;
+// Enough to render a quoted preview above the reply bubble — content is
+// already blanked by deleteMessageForEveryone if the original was deleted,
+// so no separate "deleted" flag is needed here.
+const REPLY_TO_SELECT = {
+  select: {
+    id: true,
+    content: true,
+    mediaType: true,
+    deletedForEveryoneAt: true,
+    sender: { select: { id: true, name: true } },
+  },
+} as const;
 
 /** Creates a group conversation — caller must have an ACCEPTED connection with every selected member. */
 export async function createGroupChat(formData: FormData) {
@@ -246,11 +258,12 @@ export async function sendMessage(formData: FormData) {
     mediaType: formData.get("mediaType") || "NONE",
     mediaUrl: formData.get("mediaUrl") || undefined,
     mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
+    replyToMessageId: formData.get("replyToMessageId") || undefined,
   });
   if (!parsed.success || !parsed.data.conversationId) {
     return { error: "invalid" as const };
   }
-  const { conversationId, content, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
+  const { conversationId, content, mediaType, mediaUrl, mediaThumbnailUrl, replyToMessageId } = parsed.data;
 
   // Ownership check: the sender must actually be a member of this
   // conversation — never trust a client-supplied conversationId alone.
@@ -272,6 +285,19 @@ export async function sendMessage(formData: FormData) {
     const other = conversation.members.find((m) => m.userId !== user.id);
     if (other && (await isBlockedEitherWay(user.id, other.userId))) {
       return { error: "blocked" as const };
+    }
+  }
+
+  // A client-supplied replyToMessageId must belong to this same
+  // conversation — otherwise someone could quote-reply to a message from a
+  // conversation they're not even in, leaking its content into this thread.
+  if (replyToMessageId) {
+    const target = await prisma.message.findUnique({
+      where: { id: replyToMessageId },
+      select: { conversationId: true },
+    });
+    if (!target || target.conversationId !== conversationId) {
+      return { error: "invalid" as const };
     }
   }
 
@@ -340,11 +366,13 @@ export async function sendMessage(formData: FormData) {
       mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
       mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
       moderationStatus,
+      replyToMessageId,
     },
     include: {
       reactions: { select: REACTION_SELECT },
       corrections: { include: CORRECTION_INCLUDE },
       story: STORY_SELECT,
+      replyTo: REPLY_TO_SELECT,
     },
   });
   await recordActivity(user.id);
@@ -369,6 +397,20 @@ export async function sendMessage(formData: FormData) {
       }),
     ),
   );
+  // In-app only (no email) — see MESSAGE in the NotificationType enum. One
+  // row per recipient per message, same as every other notification type
+  // here (no dedup/throttling), so it shows up in the bell alongside likes,
+  // comments, etc. instead of only in the Messages tab's own unread badge.
+  if (recipientIds.length > 0) {
+    await prisma.notification.createMany({
+      data: recipientIds.map((recipientId) => ({
+        recipientId,
+        actorId: user.id,
+        type: "MESSAGE" as const,
+        conversationId,
+      })),
+    });
+  }
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };
@@ -432,10 +474,11 @@ export async function getConversationMessages(conversationId: string) {
       orderBy: { createdAt: "asc" },
       take: 200,
       include: {
-      reactions: { select: REACTION_SELECT },
-      corrections: { include: CORRECTION_INCLUDE },
-      story: STORY_SELECT,
-    },
+        reactions: { select: REACTION_SELECT },
+        corrections: { include: CORRECTION_INCLUDE },
+        story: STORY_SELECT,
+        replyTo: REPLY_TO_SELECT,
+      },
     }),
   ]);
 
@@ -497,6 +540,7 @@ export async function editMessage(messageId: string, formData: FormData) {
       reactions: { select: REACTION_SELECT },
       corrections: { include: CORRECTION_INCLUDE },
       story: STORY_SELECT,
+      replyTo: REPLY_TO_SELECT,
     },
   });
 

@@ -32,8 +32,8 @@ export default async function NotificationsPage() {
         ))}
         {notifications.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            Nothing yet — likes, comments, reposts, shares, and connection
-            requests will show up here.
+            Nothing yet — likes, comments, reposts, shares, messages, and
+            connection requests will show up here.
           </p>
         )}
       </div>
