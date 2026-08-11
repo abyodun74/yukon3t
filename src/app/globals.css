@@ -246,3 +246,125 @@ textarea {
     animation: none;
   }
 }
+
+/* Installed-PWA launch intro (see AppSplash) — an opaque, full-viewport
+   layer above everything (including the sticky nav's z-40) that reuses the
+   same aurora background as the rest of the app, so the OS's own static
+   splash (manifest.ts background_color) hands off into real on-brand UI
+   instead of cutting straight to content. `isolation: isolate` scopes the
+   nested .aurora-bg's negative z-index the same way body's isolate class
+   does (see RootLayout) so those blobs stay pinned behind the wordmark
+   instead of escaping to a stacking context further down the page. */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+.app-splash-fade {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-logo {
+  position: relative;
+  perspective: 800px;
+}
+
+.splash-logo::before {
+  content: "";
+  position: absolute;
+  inset: -3rem;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 35%, transparent),
+    transparent 70%
+  );
+  filter: blur(20px);
+  animation: splash-halo-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.splash-logo-inner {
+  display: inline-block;
+  font-size: clamp(2.25rem, 8vw, 3.5rem);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  transform-style: preserve-3d;
+  animation:
+    splash-logo-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both,
+    splash-logo-glow 1.8s ease-in-out 1.1s infinite alternate;
+}
+
+@keyframes splash-halo-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-logo-in {
+  0% {
+    opacity: 0;
+    transform: rotateY(-110deg) scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: rotateY(15deg) scale(1.06);
+  }
+  80% {
+    transform: rotateY(-6deg) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes splash-logo-glow {
+  from {
+    text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  to {
+    text-shadow:
+      0 0 42px color-mix(in srgb, var(--accent) 75%, transparent),
+      0 0 70px color-mix(in srgb, var(--aurora-gold) 50%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-splash {
+    transition: opacity 200ms ease;
+  }
+
+  .splash-logo::before {
+    animation: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .splash-logo-inner {
+    animation: splash-logo-fade-in 250ms ease both;
+  }
+}
+
+@keyframes splash-logo-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

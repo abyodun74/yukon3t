@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { AppSplash } from "@/components/app-splash";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
@@ -83,6 +84,7 @@ export default async function RootLayout({
           <div className="aurora-blob" />
           <div className="aurora-blob" />
         </div>
+        <AppSplash />
         <RegisterServiceWorker />
         <OfflineBanner />
         <Nav session={session} theme={theme} />
