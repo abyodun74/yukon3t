@@ -11,6 +11,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { UserLink } from "@/components/user-link";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 import type { CommentNode } from "@/lib/comment-tree";
 
 // Beyond this depth, replies stop indenting further (they'd otherwise run
@@ -74,7 +75,7 @@ export function CommentCard({
             <span className="text-xs font-normal text-foreground-soft">(author)</span>
           )}
         </div>
-        <span className="text-xs text-foreground-soft">
+        <span className="text-xs text-foreground-soft" title={formatDateTime(comment.createdAt)}>
           {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
         </span>
       </div>

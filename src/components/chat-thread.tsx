@@ -22,6 +22,7 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
+import { formatDateTime } from "@/lib/format-date";
 
 // 2s rather than the old 5s so a thread feels close to real-time without
 // standing up a WebSocket/SSE server — usePolling already pauses while the
@@ -512,7 +513,9 @@ function MessageBubble({
                 (hydration) — suppressHydrationWarning tells React that's
                 expected here rather than a real mismatch to warn about;
                 the browser's own local time is what should win anyway. */}
-            <span suppressHydrationWarning>{formatTime(message.createdAt)}</span>
+            <span suppressHydrationWarning title={formatDateTime(message.createdAt)}>
+              {formatTime(message.createdAt)}
+            </span>
             {mine && seenByNames === undefined && <ReceiptIcon message={message} />}
           </div>
           {mine && seenByNames !== undefined && (

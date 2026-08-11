@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { markAsRead } from "@/app/actions/notifications";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 import { UserAvatar } from "@/components/user-link";
 import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
 
@@ -64,7 +65,10 @@ export function NotificationRow({ notification }: { notification: NotificationDa
           {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
           {hasActor && " "}
           {NOTIFICATION_VERB[notification.type]}
-          <span className="ml-2 text-xs text-foreground-soft">
+          <span
+            className="ml-2 text-xs text-foreground-soft"
+            title={formatDateTime(notification.createdAt)}
+          >
             {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
           </span>
         </span>

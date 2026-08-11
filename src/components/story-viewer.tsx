@@ -12,6 +12,7 @@ import {
   toggleStoryReaction,
   replyToStory,
 } from "@/app/actions/stories";
+import { formatDateTime } from "@/lib/format-date";
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
@@ -263,7 +264,9 @@ export function StoryViewer({
               showUsername={false}
               className="text-sm font-medium text-white hover:text-white/80"
             />
-            <span className="text-xs text-white/70">{timeAgo(story.createdAt)}</span>
+            <span className="text-xs text-white/70" title={formatDateTime(story.createdAt)}>
+              {timeAgo(story.createdAt)}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             {isOwner && (

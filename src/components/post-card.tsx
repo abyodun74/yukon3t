@@ -14,6 +14,7 @@ import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
+import { formatDateTime } from "@/lib/format-date";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
 
@@ -294,12 +295,12 @@ export function PostCard({
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* toLocaleDateString depends on the runtime's timezone, which
+          {/* toLocaleString depends on the runtime's timezone, which
               differs between the server (render) and the browser
               (hydration) — suppressHydrationWarning tells React that's
               expected here rather than a real mismatch to warn about. */}
           <span className="text-xs text-foreground-soft" suppressHydrationWarning>
-            {displayPost.createdAt.toLocaleDateString()}
+            {formatDateTime(displayPost.createdAt)}
           </span>
           <PostOptionsMenu
             postId={post.id}
