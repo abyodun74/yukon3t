@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Calendar, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { toggleLike } from "@/app/actions/likes";
+import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
 import { recordShare } from "@/app/actions/shares";
@@ -30,6 +31,7 @@ type EmbeddedPost = {
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
+  editedAt: Date | null;
   author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
 };
 
@@ -106,17 +108,66 @@ function MediaBlock({
   post,
   onOpenImage,
   onOpenVideo,
+  editing,
 }: {
   post: EmbeddedPost;
   onOpenImage: (index: number) => void;
   onOpenVideo: () => void;
+  editing?: {
+    draft: string;
+    onDraftChange: (value: string) => void;
+    onSave: () => void;
+    onCancel: () => void;
+    error: string | null;
+    isPending: boolean;
+  };
 }) {
   return (
     <>
-      {post.content && (
-        <p className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}>
-          {post.content}
-        </p>
+      {editing ? (
+        <div className="mt-2">
+          <textarea
+            value={editing.draft}
+            onChange={(e) => editing.onDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                editing.onSave();
+              } else if (e.key === "Escape") {
+                editing.onCancel();
+              }
+            }}
+            maxLength={2000}
+            rows={3}
+            autoFocus
+            className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <div className="mt-1 flex items-center justify-end gap-2 text-xs">
+            {editing.error && <span className="mr-auto text-danger">{editing.error}</span>}
+            <button
+              type="button"
+              disabled={editing.isPending}
+              onClick={editing.onCancel}
+              className="rounded-md px-2 py-1 text-foreground-soft hover:bg-line"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={editing.isPending || !editing.draft.trim()}
+              onClick={editing.onSave}
+              className="rounded-md bg-accent px-2 py-1 font-medium text-accent-ink disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        post.content && (
+          <p className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}>
+            {post.content}
+          </p>
+        )
       )}
 
       {post.mediaType === "IMAGE" && post.mediaUrls.length > 0 && (
@@ -212,6 +263,47 @@ export function PostCard({
   const [isSharePending, startShareTransition] = useTransition();
   const [isRsvpPending, startRsvpTransition] = useTransition();
 
+  // post.content/editedAt (this row's own text — the repost caption when
+  // it's a repost, otherwise the post body) shadowed in local state so an
+  // edit updates in place without a full server round-trip re-render.
+  const [content, setContent] = useState(post.content);
+  const [editedAt, setEditedAt] = useState(post.editedAt);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(post.content);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isEditPending, startEditTransition] = useTransition();
+  const canEdit = viewerId === post.author.id;
+
+  function startEditing() {
+    setEditDraft(content);
+    setEditError(null);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setEditDraft(content);
+    setEditError(null);
+  }
+
+  function saveEdit() {
+    const text = editDraft.trim();
+    if (!text || isEditPending) return;
+    setEditError(null);
+    startEditTransition(async () => {
+      const fd = new FormData();
+      fd.set("content", text);
+      const result = await editPost(post.id, fd);
+      if (result.error || !result.post) {
+        setEditError("Couldn't save that edit.");
+        return;
+      }
+      setContent(result.post.content);
+      setEditedAt(result.post.editedAt);
+      setEditing(false);
+    });
+  }
+
   function handleLike() {
     const nextLiked = !liked;
     setLiked(nextLiked);
@@ -299,23 +391,66 @@ export function PostCard({
               differs between the server (render) and the browser
               (hydration) — suppressHydrationWarning tells React that's
               expected here rather than a real mismatch to warn about. */}
+          {editedAt && <span className="text-xs text-foreground-soft">Edited</span>}
           <span className="text-xs text-foreground-soft" suppressHydrationWarning>
             {formatDateTime(displayPost.createdAt)}
           </span>
           <PostOptionsMenu
             postId={post.id}
+            canEdit={canEdit}
             canDelete={viewerId === post.author.id || viewerIsAdmin}
             canReport={viewerId !== displayPost.author.id}
             reportTargetId={interactionTargetId}
             reportedUserId={displayPost.author.id}
+            onEdit={startEditing}
           />
         </div>
       </div>
 
-      {post.repostOf && post.content && (
-        <p className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft">
-          {post.content}
-        </p>
+      {post.repostOf && (editing || content) && (
+        editing ? (
+          <div className="mt-2">
+            <textarea
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  saveEdit();
+                } else if (e.key === "Escape") {
+                  cancelEdit();
+                }
+              }}
+              maxLength={2000}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm italic outline-none focus:border-accent"
+            />
+            <div className="mt-1 flex items-center justify-end gap-2 text-xs">
+              {editError && <span className="mr-auto text-danger">{editError}</span>}
+              <button
+                type="button"
+                disabled={isEditPending}
+                onClick={cancelEdit}
+                className="rounded-md px-2 py-1 text-foreground-soft hover:bg-line"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isEditPending || !editDraft.trim()}
+                onClick={saveEdit}
+                className="rounded-md bg-accent px-2 py-1 font-medium text-accent-ink disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft">
+            {content}
+          </p>
+        )
       )}
 
       <EventBlock
@@ -327,9 +462,21 @@ export function PostCard({
       />
 
       <MediaBlock
-        post={displayPost}
+        post={post.repostOf ? displayPost : { ...displayPost, content }}
         onOpenImage={(index) => setLightboxIndex(index)}
         onOpenVideo={() => setLightboxVideo(true)}
+        editing={
+          !post.repostOf && editing
+            ? {
+                draft: editDraft,
+                onDraftChange: setEditDraft,
+                onSave: saveEdit,
+                onCancel: cancelEdit,
+                error: editError,
+                isPending: isEditPending,
+              }
+            : undefined
+        }
       />
 
       <div className="mt-3 flex items-center gap-5 border-t border-line pt-2 text-xs text-foreground-soft">

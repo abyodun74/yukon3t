@@ -2,23 +2,27 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Flag, MoreHorizontal, Trash2 } from "lucide-react";
+import { Flag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { deletePost } from "@/app/actions/posts";
 import { ReportModal } from "@/components/report-form";
 
-/** The "⋯" menu on each post: Delete (own post / admin) and Report (relocated here from the old always-visible inline form). */
+/** The "⋯" menu on each post: Edit/Delete (own post; admin gets Delete only) and Report (relocated here from the old always-visible inline form). */
 export function PostOptionsMenu({
   postId,
+  canEdit,
   canDelete,
   canReport,
   reportTargetId,
   reportedUserId,
+  onEdit,
 }: {
   postId: string;
+  canEdit: boolean;
   canDelete: boolean;
   canReport: boolean;
   reportTargetId: string;
   reportedUserId: string;
+  onEdit: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -39,7 +43,7 @@ export function PostOptionsMenu({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  if (!canDelete && !canReport) return null;
+  if (!canEdit && !canDelete && !canReport) return null;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -54,6 +58,18 @@ export function PostOptionsMenu({
 
       {open && (
         <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+            >
+              <Pencil size={14} /> Edit
+            </button>
+          )}
           {canReport && (
             <button
               type="button"

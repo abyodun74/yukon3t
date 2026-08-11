@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { commentSchema } from "@/lib/validations";
+import { commentSchema, editCommentSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -93,6 +93,40 @@ export async function createComment(formData: FormData) {
 
   revalidatePath(`/post/${postId}`);
   return { error: null, moderationStatus };
+}
+
+/** Author-only: updates a comment's text and stamps editedAt — unlike deleteComment/hideComment, moderators can't edit someone else's words. */
+export async function editComment(commentId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = editCommentSchema.safeParse({ content: formData.get("content") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { content } = parsed.data;
+
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+  if (!comment) {
+    return { error: "not_found" as const };
+  }
+  if (comment.authorId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+  if (comment.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+
+  const modResult = await moderateText(content);
+  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+
+  const updated = await prisma.comment.update({
+    where: { id: commentId },
+    data: { content, moderationStatus, editedAt: new Date() },
+    include: { reactions: { select: REACTION_SELECT } },
+  });
+
+  revalidatePath(`/post/${comment.postId}`);
+  return { error: null, comment: updated };
 }
 
 /** Comment author (their own comment), the post's author, a co-admin/owner of the post's Circle, or a site admin. */

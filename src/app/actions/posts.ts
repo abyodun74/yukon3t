@@ -4,6 +4,41 @@ import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { postSchema } from "@/lib/validations";
+import { moderateText } from "@/lib/moderation";
+
+/** Author-only: updates a post's text content and stamps editedAt. Media/type/event fields are immutable after posting. */
+export async function editPost(postId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = postSchema.safeParse({ content: formData.get("content") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { content } = parsed.data;
+
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    return { error: "not_found" as const };
+  }
+  if (post.authorId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  const modResult = await moderateText(content);
+  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+
+  const updated = await prisma.post.update({
+    where: { id: postId },
+    data: { content, moderationStatus, editedAt: new Date() },
+  });
+
+  revalidatePath("/circles", "layout");
+  revalidatePath("/home");
+  revalidatePath(`/u/${post.authorId}`);
+  revalidatePath(`/post/${postId}`);
+  return { error: null, post: updated };
+}
 
 export async function deletePost(postId: string) {
   const user = await requireVerifiedUser();

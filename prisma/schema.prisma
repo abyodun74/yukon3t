@@ -434,6 +434,7 @@ model Post {
   // cron route) so the same event never notifies attendees twice.
   eventReminderSentAt DateTime?
   createdAt         DateTime         @default(now())
+  editedAt          DateTime?
 
   // See User.embedding — embeds content only.
   embedding Unsupported("vector(1536)")?
@@ -484,6 +485,7 @@ model Comment {
   content          String           @db.Text
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
+  editedAt         DateTime?
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)

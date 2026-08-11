@@ -5,6 +5,7 @@ export type FlatComment = {
   parentId: string | null;
   content: string;
   createdAt: Date;
+  editedAt: Date | null;
   // Only ever PUBLISHED or REMOVED in practice — callers filter FLAGGED out
   // at the query level — but typed against the full enum since Prisma's
   // `where: { in: [...] }` doesn't narrow the return type.

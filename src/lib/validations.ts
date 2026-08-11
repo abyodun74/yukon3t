@@ -315,6 +315,8 @@ export const commentSchema = z.object({
   content: z.string().trim().min(1).max(1000),
 });
 
+export const editCommentSchema = commentSchema.pick({ content: true });
+
 export const repostSchema = z.object({
   postId: z.string().cuid(),
   caption: z.string().trim().max(500).optional().default(""),

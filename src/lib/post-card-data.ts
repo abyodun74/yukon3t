@@ -15,6 +15,7 @@ type EmbeddedPostRow = {
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
+  editedAt: Date | null;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -81,6 +82,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       eventAt: post.eventAt,
       eventLocation: post.eventLocation,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       author: post.author,
       likeCount: target.likeCount,
       commentCount: target.commentCount,
