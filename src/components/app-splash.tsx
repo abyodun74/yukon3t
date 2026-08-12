@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 const SPLASH_SESSION_KEY = "yk3-splash-shown";
-const HOLD_MS = 1400;
+const HOLD_MS = 500;
 const FADE_MS = 500;
 
 function isStandalone() {

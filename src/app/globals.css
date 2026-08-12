@@ -289,7 +289,7 @@ textarea {
     transparent 70%
   );
   filter: blur(20px);
-  animation: splash-halo-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: splash-halo-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .splash-logo-inner {
@@ -300,8 +300,8 @@ textarea {
   letter-spacing: -0.02em;
   transform-style: preserve-3d;
   animation:
-    splash-logo-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both,
-    splash-logo-glow 1.8s ease-in-out 1.1s infinite alternate;
+    splash-logo-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both,
+    splash-logo-glow 1.8s ease-in-out 0.4s infinite alternate;
 }
 
 @keyframes splash-halo-in {
