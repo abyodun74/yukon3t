@@ -120,6 +120,13 @@ export async function updatePrivacy(formData: FormData) {
     redirect("/settings?error=invalid");
   }
 
+  // HIDDEN ("invisible to everyone") is admin-only — the Settings UI only
+  // renders that option for admins, but a crafted form POST could still
+  // submit it, so re-check here rather than trusting the client.
+  if (parsed.data.postsVisibility === "HIDDEN" && !user.isAdmin) {
+    redirect("/settings?error=invalid");
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: parsed.data,

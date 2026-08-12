@@ -6,7 +6,13 @@ import { ModerationActionForm } from "@/components/moderation-action-form";
 import { FlaggedContentActions } from "@/components/flagged-content-actions";
 import { AdminSendResetButton } from "@/components/admin-send-reset-button";
 import { AdminResendVerificationButton } from "@/components/admin-resend-verification-button";
+import { AdminDeletePostButton } from "@/components/admin-delete-post-button";
+import { AdminDeleteConversationButton } from "@/components/admin-delete-conversation-button";
 import { STUCK_UNVERIFIED_AFTER_MS, RESOLVED_LOGIN_ISSUE_VISIBLE_MS } from "@/lib/login-issues";
+
+// How far back to look for duplicate posts/DM threads — bounds the scan to a
+// recent, actionable window rather than the whole table's history.
+const DUPLICATE_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * What Moderation in the Admin profile can do:
@@ -116,6 +122,12 @@ export default async function ModerationQueuePage() {
         status: "ACTIVE",
         emailVerified: null,
         createdAt: { lt: new Date(now.getTime() - STUCK_UNVERIFIED_AFTER_MS) },
+        // Excludes accounts the resolve-login-issues cron already auto-dismissed
+        // after 48h unresolved (src/app/api/cron/resolve-login-issues) — without
+        // this, still-unverified-but-dismissed accounts would keep showing here
+        // forever, since verifying is what would otherwise naturally clear this
+        // bucket (emailVerified stays null either way).
+        loginIssueResolvedAt: null,
       },
       orderBy: { createdAt: "asc" },
       take: 30,
@@ -139,6 +151,67 @@ export default async function ModerationQueuePage() {
   const recentlyResolvedLoginIssueUsers = resolvedLoginIssueUsers.filter((u) => !activeIds.has(u.id));
 
   const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length;
+
+  // Duplicate posts: same author + identical content within the scan
+  // window — grouped in memory rather than a raw GROUP BY so the "keep the
+  // earliest, offer to delete the rest" logic stays plain TS.
+  const duplicateScanCutoff = new Date(now.getTime() - DUPLICATE_SCAN_WINDOW_MS);
+  const recentPosts = await prisma.post.findMany({
+    where: { createdAt: { gt: duplicateScanCutoff }, content: { not: "" } },
+    orderBy: { createdAt: "asc" },
+    take: 1000,
+    select: { id: true, authorId: true, content: true, createdAt: true, author: { select: { name: true } } },
+  });
+  const postGroupsByKey = new Map<string, typeof recentPosts>();
+  for (const post of recentPosts) {
+    const key = `${post.authorId}::${post.content}`;
+    const group = postGroupsByKey.get(key) ?? [];
+    group.push(post);
+    postGroupsByKey.set(key, group);
+  }
+  const duplicatePostGroups = [...postGroupsByKey.values()].filter((g) => g.length > 1);
+
+  // Duplicate DM threads: two non-group conversations sharing the exact
+  // same pair of members. Keeps whichever has the most recent message (or
+  // was created most recently, if neither has messages yet) and offers the
+  // rest for deletion — see deleteConversation in actions/messages.ts and
+  // the find-before-create fix in respondToConnection that stops new ones
+  // from forming going forward.
+  const dmConversations = await prisma.conversation.findMany({
+    where: { isGroup: false },
+    orderBy: { createdAt: "asc" },
+    take: 1000,
+    select: {
+      id: true,
+      createdAt: true,
+      members: { select: { userId: true, user: { select: { name: true } } } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+    },
+  });
+  const conversationGroupsByKey = new Map<string, typeof dmConversations>();
+  for (const conv of dmConversations) {
+    if (conv.members.length !== 2) continue;
+    const key = conv.members
+      .map((m) => m.userId)
+      .sort()
+      .join(":");
+    const group = conversationGroupsByKey.get(key) ?? [];
+    group.push(conv);
+    conversationGroupsByKey.set(key, group);
+  }
+  const duplicateConversationGroups = [...conversationGroupsByKey.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => {
+      const sorted = [...g].sort((a, b) => {
+        const aLast = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
+        const bLast = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
+        return bLast - aLast;
+      });
+      return { keeper: sorted[0], duplicates: sorted.slice(1) };
+    });
+  const duplicateCount =
+    duplicatePostGroups.reduce((sum, g) => sum + g.length - 1, 0) +
+    duplicateConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -353,6 +426,57 @@ export default async function ModerationQueuePage() {
         ))}
         {hiddenComments.length === 0 && (
           <p className="text-sm text-foreground-soft">No hidden comments right now.</p>
+        )}
+      </div>
+
+      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+        Duplicates ({duplicateCount})
+      </h2>
+      <p className="mt-1 text-xs text-foreground-soft">
+        Same author + identical post text, or two DM threads between the same
+        two people, from the last 7 days. The earliest post / most recently
+        active thread in each group is kept automatically — everything else
+        is offered for deletion.
+      </p>
+      <div className="mt-3 space-y-3">
+        {duplicatePostGroups.map((group) => (
+          <div key={group[0].id} className="rounded-lg border border-line p-3">
+            <p className="text-xs text-foreground-soft">
+              {group.length} copies by {group[0].author.name ?? "Unknown"}
+            </p>
+            <p className="mt-1 text-sm">{group[0].content}</p>
+            <div className="mt-2 space-y-1">
+              {group.slice(1).map((post) => (
+                <div key={post.id} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-foreground-soft">
+                    Posted {post.createdAt.toLocaleString()}
+                  </span>
+                  <AdminDeletePostButton postId={post.id} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {duplicateConversationGroups.map(({ keeper, duplicates }) => (
+          <div key={keeper.id} className="rounded-lg border border-line p-3">
+            <p className="text-xs text-foreground-soft">
+              {duplicates.length + 1} DM threads between{" "}
+              {keeper.members.map((m) => m.user.name ?? "Unknown").join(" & ")}
+            </p>
+            <div className="mt-2 space-y-1">
+              {duplicates.map((conv) => (
+                <div key={conv.id} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-foreground-soft">
+                    Started {conv.createdAt.toLocaleString()}
+                  </span>
+                  <AdminDeleteConversationButton conversationId={conv.id} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {duplicateCount === 0 && (
+          <p className="text-sm text-foreground-soft">No duplicates found.</p>
         )}
       </div>
 

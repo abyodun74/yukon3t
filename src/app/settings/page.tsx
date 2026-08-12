@@ -66,6 +66,9 @@ export default async function SettingsPage({
             >
               <option value="PUBLIC">Anyone signed in</option>
               <option value="CONNECTIONS_ONLY">Only my connections</option>
+              {user.isAdmin && (
+                <option value="HIDDEN">Invisible to everyone (admin only)</option>
+              )}
             </select>
           </div>
           <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">

@@ -2,6 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { createGroupChat } from "@/app/actions/messages";
 import { MultiSelect } from "@/components/multi-select";
+import { BackButton } from "@/components/back-button";
 
 export default async function NewGroupChatPage({
   searchParams,
@@ -26,7 +27,8 @@ export default async function NewGroupChatPage({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
-      <h1 className="text-2xl font-semibold">Start a group chat</h1>
+      <BackButton fallbackHref="/messages/discover" />
+      <h1 className="mt-4 text-2xl font-semibold">Start a group chat</h1>
       <p className="mt-1 text-sm text-foreground-soft">
         Pick at least 2 connections to add, plus a name for the group.
       </p>

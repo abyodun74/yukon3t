@@ -63,7 +63,9 @@ export default async function PublicProfilePage({
 
   const canSeePosts =
     !iBlockedThem &&
-    (isOwnProfile || user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED");
+    (isOwnProfile ||
+      (user.postsVisibility !== "HIDDEN" &&
+        (user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED")));
 
   const rawPosts = canSeePosts
     ? await prisma.post.findMany({

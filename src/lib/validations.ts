@@ -91,7 +91,9 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema,
 });
 
-export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY"] as const;
+// HIDDEN is admin-only — enforced server-side in updatePrivacy (src/app/actions/profile.ts),
+// not just by hiding the option in the Settings UI for non-admins.
+export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY", "HIDDEN"] as const;
 
 export const privacySchema = z.object({
   postsVisibility: z.enum(postsVisibilityValues),
@@ -129,12 +131,24 @@ export const updateChannelSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
 
+// Mirrors the Prisma FeedCategory enum — which Home feed section a post is
+// filed under (src/app/home/page.tsx).
+export const feedCategoryValues = ["OCCUPATIONAL", "ENTERTAINMENT", "POLITICS", "SPORTS", "GENERAL"] as const;
+export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], string> = {
+  OCCUPATIONAL: "Occupational",
+  ENTERTAINMENT: "Entertainment",
+  POLITICS: "Politics",
+  SPORTS: "Sports",
+  GENERAL: "General",
+};
+
 export const postSchema = z
   .object({
     circleId: z.string().cuid().optional(),
     channelId: z.string().cuid().optional(),
     content: z.string().trim().max(2000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
+    feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
     mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED"]).optional().default("NONE"),
     mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
     videoUrl: z.string().url().optional(),
@@ -276,6 +290,13 @@ export const groupChatSchema = z.object({
 });
 
 export const groupNameSchema = groupChatSchema.pick({ name: true });
+
+// For addGroupMembers (adding connections to an already-created group) —
+// same id shape as groupChatSchema.memberIds, but no minimum, since adding
+// just one more member at a time is the normal case.
+export const addGroupMembersSchema = z.object({
+  memberIds: z.array(z.string().cuid()).min(1),
+});
 
 export const correctionSchema = z.object({
   correctedText: z.string().trim().min(1).max(4000),

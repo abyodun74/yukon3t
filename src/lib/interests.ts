@@ -13,4 +13,10 @@ export const INTERESTS = [
   "Meditation & Mindfulness", "Spirituality", "Philosophy", "Politics & Current Events", "Comedy",
   "Nightlife", "Craft Beer & Wine", "Wellness", "Parenting", "Study Abroad",
   "Digital Nomad Life", "Career Networking", "Public Speaking", "Podcasts", "DIY & Crafts",
+  // Occupations & professions
+  "Engineering", "Construction", "Healthcare & Medicine", "Law & Legal Services", "Education & Teaching",
+  "IT & Software Development", "Finance & Accounting", "Marketing & Sales", "Hospitality & Tourism", "Retail",
+  "Manufacturing", "Agriculture", "Government & Public Service", "Real Estate", "Transportation & Logistics",
+  "Consulting", "Nonprofit & NGO Work", "Skilled Trades", "Media & Journalism", "Human Resources",
+  "Architecture & Urban Planning", "Research & Academia", "Customer Service", "Aviation", "Energy & Utilities",
 ] as const;

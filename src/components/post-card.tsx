@@ -35,7 +35,7 @@ type EmbeddedPost = {
   author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
 };
 
-type PostCardData = EmbeddedPost & {
+export type PostCardData = EmbeddedPost & {
   likeCount: number;
   commentCount: number;
   repostCount: number;

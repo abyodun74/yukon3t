@@ -198,11 +198,15 @@ export async function loginWithPassword(formData: FormData) {
   if (!valid) {
     const attempts = user.failedLoginAttempts + 1;
     const lockingNow = attempts >= LOCKOUT_THRESHOLD;
+    // failedLoginAt anchors "how long has this been unresolved" for the
+    // resolve-login-issues cron (src/app/api/cron/resolve-login-issues) —
+    // only set on the first attempt in a fresh window, same as
+    // failedLoginAttempts itself only starting to count from 0 there.
     await prisma.user.update({
       where: { id: user.id },
       data: lockingNow
-        ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) }
-        : { failedLoginAttempts: attempts },
+        ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS), failedLoginAt: null }
+        : { failedLoginAttempts: attempts, failedLoginAt: user.failedLoginAttempts === 0 ? new Date() : undefined },
     });
     redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
   }
@@ -223,6 +227,7 @@ export async function loginWithPassword(formData: FormData) {
         deactivatedAt: null,
         failedLoginAttempts: 0,
         lockedUntil: null,
+        failedLoginAt: null,
         ...(hadLoginIssue ? { loginIssueResolvedAt: new Date() } : {}),
       },
     });
@@ -310,6 +315,7 @@ export async function resetPassword(formData: FormData) {
       sessionInvalidatedAt: new Date(),
       failedLoginAttempts: 0,
       lockedUntil: null,
+      failedLoginAt: null,
       ...(hadLoginIssue ? { loginIssueResolvedAt: new Date() } : {}),
     },
   });

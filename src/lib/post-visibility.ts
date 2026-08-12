@@ -30,5 +30,12 @@ export async function getVisiblePostsWhere(viewerId: string) {
       ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
       { authorId: { in: [...connectionUserIds, viewerId] } },
     ],
+    // HIDDEN ("invisible to everyone", admin-only — see updatePrivacy in
+    // actions/profile.ts) is the one PostsVisibility tier actually enforced
+    // today: a HIDDEN author's posts are excluded for every viewer but
+    // themselves, regardless of the OR branches above.
+    NOT: {
+      AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }],
+    },
   };
 }

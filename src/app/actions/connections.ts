@@ -96,16 +96,32 @@ export async function respondToConnection(connectionId: string, accept: boolean)
   });
 
   if (accept) {
-    const conversation = await prisma.conversation.create({
-      data: {
-        members: {
-          create: [
-            { userId: updated.requesterId },
-            { userId: updated.targetId },
-          ],
-        },
+    // A prior connection between the same two people (declined, then later
+    // re-requested and re-accepted) would otherwise leave its old DM
+    // conversation orphaned and spawn a second one here — reuse it instead,
+    // same find-before-create pattern as replyToStory in actions/stories.ts.
+    const existingConversation = await prisma.conversation.findFirst({
+      where: {
+        isGroup: false,
+        AND: [
+          { members: { some: { userId: updated.requesterId } } },
+          { members: { some: { userId: updated.targetId } } },
+        ],
       },
+      select: { id: true },
     });
+    const conversation =
+      existingConversation ??
+      (await prisma.conversation.create({
+        data: {
+          members: {
+            create: [
+              { userId: updated.requesterId },
+              { userId: updated.targetId },
+            ],
+          },
+        },
+      }));
 
     await prisma.notification.create({
       data: {

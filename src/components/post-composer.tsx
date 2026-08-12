@@ -10,6 +10,7 @@ import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 4;
@@ -359,6 +360,25 @@ export function PostComposer({
         placeholder={placeholder}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
+
+      {/* Only meaningful on the global Home feed's sections — Circle posts
+          stay scoped to their Circle instead. */}
+      {!circleId && (
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-foreground-soft">Feed section</label>
+          <select
+            name="feedCategory"
+            defaultValue="GENERAL"
+            className="mt-1 rounded-lg border border-line bg-background px-2 py-1.5 text-xs outline-none focus:border-accent"
+          >
+            {feedCategoryValues.map((cat) => (
+              <option key={cat} value={cat}>
+                {feedCategoryLabels[cat]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {(images.length > 0 || urlImages.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-2">

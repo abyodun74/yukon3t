@@ -12,3 +12,9 @@ export const STUCK_UNVERIFIED_AFTER_MS = 60 * 60 * 1000;
 // How long a resolved login issue stays under "recently resolved" before
 // disappearing from the moderation queue entirely.
 export const RESOLVED_LOGIN_ISSUE_VISIBLE_MS = 24 * 60 * 60 * 1000;
+
+// How long a login issue can sit unresolved in the queue before the
+// resolve-login-issues cron (src/app/api/cron/resolve-login-issues) clears
+// it automatically — see that route for exactly what "clears" means per
+// issue type.
+export const UNRESOLVED_LOGIN_ISSUE_CLEAR_AFTER_MS = 48 * 60 * 60 * 1000;

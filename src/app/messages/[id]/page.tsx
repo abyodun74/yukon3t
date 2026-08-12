@@ -7,6 +7,7 @@ import { CallButton } from "@/components/call-button";
 import { CopyInviteLinkButton } from "@/components/copy-invite-link-button";
 import { GroupNameEditor } from "@/components/group-name-editor";
 import { GroupDiscoverableToggle } from "@/components/group-discoverable-toggle";
+import { AddGroupMembersButton } from "@/components/add-group-members-button";
 import { LeaveGroupButton } from "@/components/leave-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
@@ -85,6 +86,27 @@ export default async function ConversationPage({
         })
       : [];
 
+  // Only the creator can add members, and only their accepted connections
+  // who aren't already in the group are valid candidates — same rule
+  // addGroupMembers enforces server-side.
+  const memberCandidates =
+    conversation.isGroup && conversation.createdById === me.id
+      ? await (async () => {
+          const memberIds = new Set(members.map((m) => m.userId));
+          const accepted = await prisma.connection.findMany({
+            where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
+            include: {
+              requester: { select: { id: true, name: true } },
+              target: { select: { id: true, name: true } },
+            },
+          });
+          return accepted
+            .map((c) => (c.requesterId === me.id ? c.target : c.requester))
+            .filter((u) => !memberIds.has(u.id))
+            .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
+        })()
+      : [];
+
   // Deliberately a plain read, no delivered/read mutation here: Next.js
   // prefetches <Link> targets that are merely visible in a list (e.g. the
   // conversation link on /messages), which would silently mark messages
@@ -157,6 +179,9 @@ export default async function ConversationPage({
           )}
         </div>
       </div>
+      {conversation.createdById === me.id && (
+        <AddGroupMembersButton conversationId={id} candidates={memberCandidates} />
+      )}
       {pendingRequests.length > 0 && (
         <div className="mt-4">
           <JoinRequestList

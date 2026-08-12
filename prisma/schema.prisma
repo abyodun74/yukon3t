@@ -72,6 +72,19 @@ enum UserStatus {
 enum PostsVisibility {
   PUBLIC
   CONNECTIONS_ONLY
+  // Admin-only tier: posts stay invisible to everyone but the author,
+  // regardless of connection/circle membership. See src/lib/post-visibility.ts.
+  HIDDEN
+}
+
+// Section a post is filed under on the Home feed (src/app/home/page.tsx).
+// GENERAL is the default for posts that don't fit a specific section.
+enum FeedCategory {
+  OCCUPATIONAL
+  ENTERTAINMENT
+  POLITICS
+  SPORTS
+  GENERAL
 }
 
 enum TrustBand {
@@ -153,6 +166,12 @@ model User {
   // than making a legitimate owner wait out the 24h.
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
+  // Set alongside the first failed attempt in a fresh window, cleared
+  // wherever failedLoginAttempts itself resets — gives the resolve-login-
+  // issues cron (src/app/api/cron/resolve-login-issues) a precise anchor for
+  // "unresolved for 48h", since lockedUntil is a future expiry rather than a
+  // start time and updatedAt is bumped by unrelated profile writes too.
+  failedLoginAt       DateTime?
 
   // Set when a genuine login-issue resolution happens — a completed password
   // reset that cleared a lockout/failed-attempt streak, a successful login
@@ -427,6 +446,8 @@ model Post {
   embedProvider     EmbedProvider?
   embedId           String?
   intentTag         IntentTag?
+  // Which Home feed section this post is filed under (src/app/home/page.tsx).
+  feedCategory      FeedCategory     @default(GENERAL)
   moderationStatus  ModerationStatus @default(PUBLISHED)
   eventAt           DateTime?
   eventLocation     String?
@@ -475,6 +496,9 @@ model Post {
   // Backs the event-reminders cron's recurring range scan (eventAt between
   // now and the reminder window, reminder not yet sent).
   @@index([eventAt])
+  // Matches each category section's own feed query shape on Home, same
+  // reasoning as the circleId/authorId composite indexes above.
+  @@index([feedCategory, moderationStatus, createdAt])
 }
 
 model Comment {

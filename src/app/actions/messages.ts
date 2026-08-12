@@ -4,7 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { messageSchema, groupChatSchema, groupNameSchema, correctionSchema } from "@/lib/validations";
+import {
+  messageSchema,
+  groupChatSchema,
+  groupNameSchema,
+  addGroupMembersSchema,
+  correctionSchema,
+} from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
@@ -89,6 +95,57 @@ export async function createGroupChat(formData: FormData) {
 
   revalidatePath("/messages");
   redirect(`/messages/${conversation.id}`);
+}
+
+/** Creator-only: adds more of the caller's accepted connections to an existing group. */
+export async function addGroupMembers(conversationId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { members: { select: { userId: true } } },
+  });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+  if (conversation.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  const parsed = addGroupMembersSchema.safeParse({ memberIds: formData.getAll("memberIds") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  const existingIds = new Set(conversation.members.map((m) => m.userId));
+  const newIds = parsed.data.memberIds.filter((id) => !existingIds.has(id));
+  if (newIds.length === 0) {
+    return { error: "invalid" as const };
+  }
+
+  // Same requirement as group creation — never trust client-supplied ids,
+  // only accepted connections of the person adding them can be added.
+  const acceptedCount = await prisma.connection.count({
+    where: {
+      status: "ACCEPTED",
+      OR: newIds.map((id) => ({
+        OR: [
+          { requesterId: user.id, targetId: id },
+          { requesterId: id, targetId: user.id },
+        ],
+      })),
+    },
+  });
+  if (acceptedCount !== newIds.length) {
+    return { error: "invalid" as const };
+  }
+
+  await prisma.conversationMember.createMany({
+    data: newIds.map((id) => ({ conversationId, userId: id })),
+  });
+
+  revalidatePath(`/messages/${conversationId}`);
+  return { error: null };
 }
 
 /** Creator-only: renames a group after creation. */
@@ -241,6 +298,31 @@ export async function respondToJoinRequest(requestId: string, approve: boolean) 
   });
 
   revalidatePath(`/messages/${request.conversationId}`);
+  return { error: null };
+}
+
+/**
+ * Admin-only: deletes a conversation outright, cascading to its members and
+ * messages (see onDelete: Cascade on ConversationMember/Message in schema.prisma).
+ * Used by the admin moderation "Duplicates" tool to clean up a redundant DM
+ * thread between the same two people (see respondToConnection's find-before-
+ * create fix in actions/connections.ts, which stops new ones forming).
+ */
+export async function deleteConversation(conversationId: string) {
+  const user = await requireVerifiedUser();
+  if (!user.isAdmin) {
+    return { error: "forbidden" as const };
+  }
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation) {
+    return { error: "not_found" as const };
+  }
+
+  await prisma.conversation.delete({ where: { id: conversationId } });
+
+  revalidatePath("/messages");
+  revalidatePath("/admin/moderation");
   return { error: null };
 }
 

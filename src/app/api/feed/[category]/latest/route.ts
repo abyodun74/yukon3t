@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { feedCategoryValues } from "@/lib/validations";
+
+const PAGE_SIZE = 10;
+
+/**
+ * Polled by PostFeedSection (src/components/post-feed-section.tsx) every ~25s
+ * to give each Home feed category section a near-real-time feel without new
+ * websocket/SSE infrastructure — same `usePolling` pattern already used for
+ * nav badges and chat (src/lib/use-polling.ts).
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ category: string }> },
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ posts: [] }, { status: 401 });
+  }
+
+  const { category } = await params;
+  if (!feedCategoryValues.includes(category as (typeof feedCategoryValues)[number])) {
+    return NextResponse.json({ posts: [] }, { status: 400 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const after = searchParams.get("after");
+  const afterDate = after ? new Date(after) : null;
+  if (after && (!afterDate || Number.isNaN(afterDate.getTime()))) {
+    return NextResponse.json({ posts: [] }, { status: 400 });
+  }
+
+  const where = await getVisiblePostsWhere(session.user.id);
+  const rawPosts = await prisma.post.findMany({
+    where: {
+      ...where,
+      feedCategory: category as (typeof feedCategoryValues)[number],
+      ...(afterDate ? { createdAt: { gt: afterDate } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: PAGE_SIZE,
+    include: postCardInclude,
+  });
+
+  const posts = await attachViewerState(rawPosts, session.user.id);
+  return NextResponse.json({ posts });
+}
