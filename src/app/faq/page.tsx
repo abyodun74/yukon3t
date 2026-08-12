@@ -77,6 +77,18 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "Why is Home split into sections like Occupational, Entertainment, Politics, and Sports?",
+        a: (
+          <>
+            Posts are grouped by the feed section the author picked in the
+            composer (defaulting to General) so it&apos;s easier to browse
+            what you care about. Each section checks for new posts every
+            20&ndash;30 seconds while you&apos;re on the page and adds them
+            to the top automatically — no need to refresh.
+          </>
+        ),
+      },
     ],
   },
   {
@@ -224,6 +236,19 @@ const sections: Section[] = [
             You&apos;ll see a popup offering to cancel that stuck call and
             immediately place a new one — tap &ldquo;Cancel it &amp; call
             again.&rdquo;
+          </>
+        ),
+      },
+      {
+        q: "How do group chats work?",
+        a: (
+          <>
+            Start one from Messages → &ldquo;New group&rdquo;: pick a name
+            and at least 2 of your connections. Public groups can also be
+            found under &ldquo;Discover groups&rdquo; — search by name and
+            request to join. If you created a group, open it and use
+            &ldquo;Add members&rdquo; any time afterward to bring in more of
+            your connections.
           </>
         ),
       },
