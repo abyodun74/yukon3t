@@ -8,6 +8,7 @@ import { RegisterServiceWorker } from "@/components/register-sw";
 import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
 import { FcmTokenBridge } from "@/components/fcm-token-bridge";
+import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
@@ -85,6 +86,7 @@ export default async function RootLayout({
           <div className="aurora-blob" />
         </div>
         <AppSplash />
+        <CapacitorBridge />
         <RegisterServiceWorker />
         <OfflineBanner />
         <Nav session={session} theme={theme} />

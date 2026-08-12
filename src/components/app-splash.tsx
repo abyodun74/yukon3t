@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 
 const SPLASH_SESSION_KEY = "yk3-splash-shown";
 const HOLD_MS = 500;
@@ -8,17 +9,26 @@ const FADE_MS = 500;
 
 function isStandalone() {
   const navAny = window.navigator as Navigator & { standalone?: boolean };
-  return window.matchMedia("(display-mode: standalone)").matches || navAny.standalone === true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navAny.standalone === true ||
+    // The Capacitor iOS app (see capacitor-bridge.tsx) runs in a native
+    // WKWebView, not a browser tab or PWA — neither of the checks above
+    // is ever true there, so without this the intro would silently never
+    // play in the native app at all.
+    Capacitor.isNativePlatform()
+  );
 }
 
 /**
  * A branded intro shown only when YuKon3t is launched as an installed PWA
- * (tapped from the home screen) — bridges the OS's own static splash (icon
- * + manifest background_color, which can't be animated or themed) into the
- * app's real aurora-gradient background with a 3D-animated wordmark, instead
- * of a hard cut from a solid color straight to content. Skipped for ordinary
- * browser tabs, and only plays once per session (sessionStorage) so internal
- * client-side navigation and repeat visits never replay it.
+ * (tapped from the home screen) or the native app (see capacitor-bridge.tsx)
+ * — bridges the OS's own static splash (icon + manifest background_color /
+ * native launch screen, neither of which can be animated or themed) into
+ * the app's real aurora-gradient background with a 3D-animated wordmark,
+ * instead of a hard cut from a solid color straight to content. Skipped for
+ * ordinary browser tabs, and only plays once per session (sessionStorage)
+ * so internal client-side navigation and repeat visits never replay it.
  */
 export function AppSplash() {
   const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
