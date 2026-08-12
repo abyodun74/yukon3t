@@ -132,13 +132,25 @@ export const updateChannelSchema = z.object({
 });
 
 // Mirrors the Prisma FeedCategory enum — which Home feed section a post is
-// filed under (src/app/home/page.tsx).
-export const feedCategoryValues = ["OCCUPATIONAL", "ENTERTAINMENT", "POLITICS", "SPORTS", "GENERAL"] as const;
+// filed under (src/app/home/page.tsx). Both the composer's category picker
+// and Home's filter tabs read from these two constants, so adding a
+// category here is the only change needed to surface it in both places.
+export const feedCategoryValues = [
+  "OCCUPATIONAL",
+  "ENTERTAINMENT",
+  "POLITICS",
+  "SPORTS",
+  "EDUCATIONAL",
+  "NEWS",
+  "GENERAL",
+] as const;
 export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], string> = {
   OCCUPATIONAL: "Occupational",
   ENTERTAINMENT: "Entertainment",
   POLITICS: "Politics",
   SPORTS: "Sports",
+  EDUCATIONAL: "Educational",
+  NEWS: "Local & International News",
   GENERAL: "General",
 };
 

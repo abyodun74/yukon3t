@@ -1,11 +1,15 @@
 import { prisma } from "@/lib/prisma";
 
 /**
- * The set of posts a viewer is allowed to see: their own, their accepted
- * connections', and anything posted in a Circle they belong to. This is the
- * app's actual post privacy boundary (the `postsVisibility` field on User is
- * collected in settings but not yet enforced anywhere) — shared here so the
- * home feed and search stay in sync instead of drifting apart.
+ * The set of posts a viewer is allowed to see: their own; anything posted in
+ * a Circle they belong to (member-only regardless of the author's
+ * postsVisibility — a separate boundary); their accepted connections' posts
+ * (regardless of that connection's own postsVisibility); and — this is the
+ * actual enforcement of `postsVisibility` promised by its Settings label
+ * ("Anyone signed in") — everyone else's non-Circle posts where the author
+ * has left postsVisibility at PUBLIC. CONNECTIONS_ONLY from a non-connection
+ * stays excluded. Shared here so the home feed and search stay in sync
+ * instead of drifting apart.
  */
 export async function getVisiblePostsWhere(viewerId: string) {
   const [circleMemberships, connections] = await Promise.all([
@@ -28,12 +32,15 @@ export async function getVisiblePostsWhere(viewerId: string) {
     author: { status: "ACTIVE" as const },
     OR: [
       ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
-      { authorId: { in: [...connectionUserIds, viewerId] } },
+      { authorId: viewerId },
+      ...(connectionUserIds.length
+        ? [{ circleId: null, authorId: { in: connectionUserIds } }]
+        : []),
+      { circleId: null, author: { postsVisibility: "PUBLIC" as const } },
     ],
     // HIDDEN ("invisible to everyone", admin-only — see updatePrivacy in
-    // actions/profile.ts) is the one PostsVisibility tier actually enforced
-    // today: a HIDDEN author's posts are excluded for every viewer but
-    // themselves, regardless of the OR branches above.
+    // actions/profile.ts) stays excluded for every viewer but the author,
+    // regardless of the OR branches above.
     NOT: {
       AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }],
     },

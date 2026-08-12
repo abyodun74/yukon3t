@@ -1,8 +1,11 @@
-export type EmbedProvider = "YOUTUBE" | "VIMEO";
+export type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION";
 export type ParsedEmbed = { provider: EmbedProvider; id: string };
 
 const YOUTUBE_ID = /^[a-zA-Z0-9_-]{11}$/;
 const VIMEO_ID = /^\d+$/;
+const TIKTOK_ID = /^\d+$/;
+// Dailymotion ids conventionally start with a letter (e.g. "x7abc12").
+const DAILYMOTION_ID = /^[a-zA-Z0-9]+$/;
 
 /**
  * Extracts a validated provider + video id from a pasted URL — nothing else
@@ -52,12 +55,40 @@ export function parseVideoEmbedUrl(raw: string): ParsedEmbed | null {
     return id && VIMEO_ID.test(id) ? { provider: "VIMEO", id } : null;
   }
 
+  // Canonical share links only (/@user/video/<id>) — short vm.tiktok.com /
+  // vt.tiktok.com links only reveal the real id after a redirect, which a
+  // pure URL parser can't safely follow, so those aren't supported here.
+  if (host === "tiktok.com") {
+    const match = url.pathname.match(/^\/@[^/]+\/video\/(\d+)/);
+    const id = match?.[1];
+    return id && TIKTOK_ID.test(id) ? { provider: "TIKTOK", id } : null;
+  }
+
+  if (host === "dailymotion.com") {
+    const id = url.pathname.startsWith("/video/")
+      ? url.pathname.slice("/video/".length).split("_")[0]
+      : null;
+    return id && DAILYMOTION_ID.test(id) ? { provider: "DAILYMOTION", id } : null;
+  }
+
+  if (host === "dai.ly") {
+    const id = url.pathname.slice(1).split("_")[0];
+    return DAILYMOTION_ID.test(id) ? { provider: "DAILYMOTION", id } : null;
+  }
+
   return null;
 }
 
 /** Rebuilds a safe iframe src from a provider+id pair — the only place this string is constructed. */
 export function embedSrc({ provider, id }: ParsedEmbed): string {
-  return provider === "YOUTUBE"
-    ? `https://www.youtube-nocookie.com/embed/${id}`
-    : `https://player.vimeo.com/video/${id}`;
+  switch (provider) {
+    case "YOUTUBE":
+      return `https://www.youtube-nocookie.com/embed/${id}`;
+    case "VIMEO":
+      return `https://player.vimeo.com/video/${id}`;
+    case "TIKTOK":
+      return `https://www.tiktok.com/embed/v2/${id}`;
+    case "DAILYMOTION":
+      return `https://www.dailymotion.com/embed/video/${id}`;
+  }
 }

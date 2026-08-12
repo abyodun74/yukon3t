@@ -84,6 +84,8 @@ enum FeedCategory {
   ENTERTAINMENT
   POLITICS
   SPORTS
+  EDUCATIONAL
+  NEWS
   GENERAL
 }
 
@@ -422,6 +424,8 @@ enum PostMediaType {
 enum EmbedProvider {
   YOUTUBE
   VIMEO
+  TIKTOK
+  DAILYMOTION
 }
 
 model Post {

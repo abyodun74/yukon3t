@@ -6,7 +6,7 @@ import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Uploa
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
-import { parseVideoEmbedUrl } from "@/lib/video-embed";
+import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -22,6 +22,12 @@ const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
+  YOUTUBE: "YouTube",
+  VIMEO: "Vimeo",
+  TIKTOK: "TikTok",
+  DAILYMOTION: "Dailymotion",
+};
 
 // datetime-local inputs want "YYYY-MM-DDTHH:mm" in the viewer's own local
 // time — Date#toISOString() is UTC, so the offset has to be subtracted out
@@ -44,7 +50,7 @@ function errorMessage(code: string) {
     case "rate_limited":
       return "You're posting too fast — slow down a little.";
     case "invalid":
-      return "That video link isn't a YouTube or Vimeo link we recognize.";
+      return "That video link isn't a YouTube, Vimeo, TikTok, or Dailymotion link we recognize.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
     default:
@@ -205,7 +211,7 @@ export function PostComposer({
   function addEmbed() {
     const url = embedUrlValue.trim();
     if (!parseVideoEmbedUrl(url)) {
-      setEmbedError("That doesn't look like a YouTube or Vimeo video link.");
+      setEmbedError("That doesn't look like a YouTube, Vimeo, TikTok, or Dailymotion video link.");
       return;
     }
     setImages([]);
@@ -459,7 +465,7 @@ export function PostComposer({
       {embedUrl && (
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <span className="flex-1 truncate">
-            {parsedEmbed?.provider === "VIMEO" ? "Vimeo video linked" : "YouTube video linked"}
+            {parsedEmbed ? `${EMBED_PROVIDER_LABELS[parsedEmbed.provider]} video linked` : "Video linked"}
           </span>
           <button type="button" onClick={() => setEmbedUrl(null)} className="text-danger">
             <X size={14} />
@@ -473,7 +479,7 @@ export function PostComposer({
             type="url"
             value={embedUrlValue}
             onChange={(e) => setEmbedUrlValue(e.target.value)}
-            placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..."
+            placeholder="YouTube, Vimeo, TikTok, or Dailymotion video link"
             className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
           />
           <button
@@ -598,7 +604,7 @@ export function PostComposer({
               "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
             )}
-            title="Link a YouTube or Vimeo video"
+            title="Link a YouTube, Vimeo, TikTok, or Dailymotion video"
           >
             <LinkIcon size={16} />
           </button>

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
-type EmbedProvider = "YOUTUBE" | "VIMEO";
+type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION";
 
 type EmbeddedPostRow = {
   id: string;

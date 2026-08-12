@@ -9,9 +9,10 @@ const PAGE_SIZE = 10;
 
 /**
  * Polled by PostFeedSection (src/components/post-feed-section.tsx) every ~25s
- * to give each Home feed category section a near-real-time feel without new
- * websocket/SSE infrastructure — same `usePolling` pattern already used for
- * nav badges and chat (src/lib/use-polling.ts).
+ * to give Home's feed a near-real-time feel without new websocket/SSE
+ * infrastructure — same `usePolling` pattern already used for nav badges
+ * and chat (src/lib/use-polling.ts). `category` is either a FeedCategory
+ * value or the literal "all" (no category filter, matching Home's "All" tab).
  */
 export async function GET(
   request: Request,
@@ -23,7 +24,8 @@ export async function GET(
   }
 
   const { category } = await params;
-  if (!feedCategoryValues.includes(category as (typeof feedCategoryValues)[number])) {
+  const isValidCategory = feedCategoryValues.includes(category as (typeof feedCategoryValues)[number]);
+  if (category !== "all" && !isValidCategory) {
     return NextResponse.json({ posts: [] }, { status: 400 });
   }
 
@@ -38,7 +40,7 @@ export async function GET(
   const rawPosts = await prisma.post.findMany({
     where: {
       ...where,
-      feedCategory: category as (typeof feedCategoryValues)[number],
+      ...(isValidCategory ? { feedCategory: category as (typeof feedCategoryValues)[number] } : {}),
       ...(afterDate ? { createdAt: { gt: afterDate } } : {}),
     },
     orderBy: { createdAt: "desc" },

@@ -28,16 +28,17 @@ function reviveDates(post: PostCardData): PostCardData {
 
 export function PostFeedSection({
   category,
-  label,
   initialPosts,
   viewerId,
   viewerIsAdmin,
+  pollingEnabled = true,
 }: {
+  // "all" polls/queries with no category filter.
   category: string;
-  label: string;
   initialPosts: PostCardData[];
   viewerId: string;
   viewerIsAdmin: boolean;
+  pollingEnabled?: boolean;
 }) {
   const [posts, setPosts] = useState(initialPosts);
 
@@ -62,18 +63,15 @@ export function PostFeedSection({
     }
   }, [category, posts]);
 
-  usePolling(poll, POLL_INTERVAL_MS, true);
+  usePolling(poll, POLL_INTERVAL_MS, pollingEnabled);
 
   if (posts.length === 0) return null;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">{label}</h2>
-      <div className="mt-3 space-y-4">
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
-        ))}
-      </div>
-    </section>
+    <div className="mt-6 space-y-4">
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
+      ))}
+    </div>
   );
 }
