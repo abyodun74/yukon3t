@@ -15,8 +15,11 @@ export const INTERESTS = [
   "Digital Nomad Life", "Career Networking", "Public Speaking", "Podcasts", "DIY & Crafts",
   // Occupations & professions
   "Engineering", "Construction", "Healthcare & Medicine", "Law & Legal Services", "Education & Teaching",
-  "IT & Software Development", "Finance & Accounting", "Marketing & Sales", "Hospitality & Tourism", "Retail",
-  "Manufacturing", "Agriculture", "Government & Public Service", "Real Estate", "Transportation & Logistics",
-  "Consulting", "Nonprofit & NGO Work", "Skilled Trades", "Media & Journalism", "Human Resources",
-  "Architecture & Urban Planning", "Research & Academia", "Customer Service", "Aviation", "Energy & Utilities",
+  "Information Technology", "Software Development", "Cybersecurity", "Data Science & Analytics", "Artificial Intelligence & ML",
+  "Finance & Accounting", "Marketing & Sales", "Hospitality & Tourism", "Retail", "Manufacturing",
+  "Agriculture", "Government & Public Service", "Real Estate", "Transportation & Logistics", "Consulting",
+  "Nonprofit & NGO Work", "Skilled Trades", "Media & Journalism", "Human Resources", "Architecture & Urban Planning",
+  "Research & Academia", "Customer Service", "Aviation", "Energy & Utilities", "Telecommunications",
+  "Pharmaceuticals & Biotech", "Insurance", "Social Work", "Veterinary Medicine", "Military & Defense",
+  "Design (UX/UI & Product)", "Sports & Athletics", "Culinary Arts & Chefs", "Environmental Science", "Supply Chain & Procurement",
 ] as const;
