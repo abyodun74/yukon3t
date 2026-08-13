@@ -142,6 +142,7 @@ export const feedCategoryValues = [
   "SPORTS",
   "EDUCATIONAL",
   "NEWS",
+  "RELIGIOUS_SPIRITUAL",
   "GENERAL",
 ] as const;
 export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], string> = {
@@ -151,6 +152,7 @@ export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], str
   SPORTS: "Sports",
   EDUCATIONAL: "Educational",
   NEWS: "Local & International News",
+  RELIGIOUS_SPIRITUAL: "Religious & Spiritual",
   GENERAL: "General",
 };
 

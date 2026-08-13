@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "FeedCategory" ADD VALUE 'RELIGIOUS_SPIRITUAL';

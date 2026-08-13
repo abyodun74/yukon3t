@@ -86,6 +86,7 @@ enum FeedCategory {
   SPORTS
   EDUCATIONAL
   NEWS
+  RELIGIOUS_SPIRITUAL
   GENERAL
 }
 

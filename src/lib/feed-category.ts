@@ -29,6 +29,8 @@ const CATEGORY_ANCHORS: Partial<Record<FeedCategory, string>> = {
   EDUCATIONAL:
     "Educational — learning, tutorials, courses, academic topics, study tips, science, how-to guides, explainers.",
   NEWS: "Local and international news — current events, breaking news, world affairs, community news, journalism.",
+  RELIGIOUS_SPIRITUAL:
+    "Religious and spiritual — Quran recitation, Bible verses, prayer, sermons, faith, worship, scripture, religious teachings, devotionals, spirituality.",
 };
 
 // A category's anchor text never changes at runtime, so its embedding is
