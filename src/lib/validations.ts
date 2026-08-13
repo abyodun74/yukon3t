@@ -157,7 +157,11 @@ export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], str
 export const postSchema = z
   .object({
     circleId: z.string().cuid().optional(),
-    channelId: z.string().cuid().optional(),
+    // Not z.string().cuid(): pre-existing Circles' General/Voice channels
+    // were backfilled (migration 20260807020052) with gen_random_uuid()
+    // ids, not Prisma's cuid() — a strict cuid check here rejects every
+    // post to any Circle created before that migration.
+    channelId: z.string().min(1).optional(),
     content: z.string().trim().max(2000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
