@@ -16,6 +16,7 @@ import {
   keyFromPublicUrl,
 } from "@/lib/storage";
 import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
+import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canAccessChannel } from "@/lib/channel-permissions";
@@ -516,13 +517,24 @@ export async function createPost(formData: FormData) {
     }
   }
 
+  // Any http(s) link that isn't a recognized video provider — stored raw and
+  // rendered only as a plain <a href>, never an iframe src, so no allowlist
+  // of hosts is needed here.
+  let linkUrl: string | null = null;
+  if (mediaType === "LINK") {
+    linkUrl = parsed.data.embedUrl ? normalizeLinkUrl(parsed.data.embedUrl) : null;
+    if (!linkUrl) {
+      return { error: "invalid" };
+    }
+  }
+
   let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
 
-  if (mediaType === "NONE" || mediaType === "EMBED") {
-    // Pure text (and embeds, which carry no media file of ours to inspect —
-    // the linked video is moderated by YouTube/Vimeo, not us) keeps the
-    // existing soft-flag behavior: stored hidden, reviewable by an admin
-    // rather than silently discarded.
+  if (mediaType === "NONE" || mediaType === "EMBED" || mediaType === "LINK") {
+    // Pure text (and embeds/links, which carry no media file of ours to
+    // inspect — a linked video is moderated by YouTube/Vimeo, not us, and a
+    // plain link is just a URL) keeps the existing soft-flag behavior:
+    // stored hidden, reviewable by an admin rather than silently discarded.
     const modResult = await moderateText(parsed.data.content);
     moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   } else {
@@ -554,6 +566,7 @@ export async function createPost(formData: FormData) {
       videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
       embedProvider: embed?.provider,
       embedId: embed?.id,
+      linkUrl: linkUrl ?? undefined,
       eventAt,
       eventLocation,
       moderationStatus,

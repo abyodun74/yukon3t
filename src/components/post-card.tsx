@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Calendar, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
+import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { toggleLike } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
@@ -17,7 +17,7 @@ import { UserLink } from "@/components/user-link";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { formatDateTime } from "@/lib/format-date";
 
-type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED";
+type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
 
 type EmbeddedPost = {
   id: string;
@@ -28,6 +28,7 @@ type EmbeddedPost = {
   videoThumbnailUrl: string | null;
   embedProvider: EmbedProvider | null;
   embedId: string | null;
+  linkUrl: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   createdAt: Date;
@@ -231,6 +232,18 @@ function MediaBlock({
             allowFullScreen
           />
         </div>
+      )}
+
+      {post.mediaType === "LINK" && post.linkUrl && (
+        <a
+          href={post.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-accent hover:bg-line/40"
+        >
+          <ExternalLink size={14} className="shrink-0" />
+          <span className="truncate">{post.linkUrl}</span>
+        </a>
       )}
     </>
   );

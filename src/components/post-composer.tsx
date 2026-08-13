@@ -7,6 +7,7 @@ import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
+import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -50,7 +51,7 @@ function errorMessage(code: string) {
     case "rate_limited":
       return "You're posting too fast — slow down a little.";
     case "invalid":
-      return "That video link isn't a YouTube, Vimeo, TikTok, or Dailymotion link we recognize.";
+      return "That link isn't valid — check it starts with http:// or https://.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
     default:
@@ -210,8 +211,11 @@ export function PostComposer({
 
   function addEmbed() {
     const url = embedUrlValue.trim();
-    if (!parseVideoEmbedUrl(url)) {
-      setEmbedError("That doesn't look like a YouTube, Vimeo, TikTok, or Dailymotion video link.");
+    // A recognized video provider gets a proper iframe embed; any other
+    // http(s) link is still accepted and posted as a plain link — only the
+    // protocol is checked, no allowlist of hosts.
+    if (!parseVideoEmbedUrl(url) && !normalizeLinkUrl(url)) {
+      setEmbedError("Enter a valid link, starting with http:// or https://.");
       return;
     }
     setImages([]);
@@ -226,7 +230,7 @@ export function PostComposer({
   async function uploadAll(): Promise<
     | { error: string }
     | {
-        mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED";
+        mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
         mediaUrls: string[];
         videoUrl?: string;
         videoThumbnailUrl?: string;
@@ -276,7 +280,13 @@ export function PostComposer({
     if (embedUrl) {
       // Nothing to upload — createPost re-parses and validates this link
       // itself; the client-side parse above is only for instant feedback.
-      return { mediaType: "EMBED", mediaUrls: [], embedUrl };
+      // A recognized video provider gets the iframe-embed treatment;
+      // anything else is posted as a plain link.
+      return {
+        mediaType: parseVideoEmbedUrl(embedUrl) ? "EMBED" : "LINK",
+        mediaUrls: [],
+        embedUrl,
+      };
     }
 
     return { mediaType: "NONE", mediaUrls: [] };
@@ -465,7 +475,7 @@ export function PostComposer({
       {embedUrl && (
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <span className="flex-1 truncate">
-            {parsedEmbed ? `${EMBED_PROVIDER_LABELS[parsedEmbed.provider]} video linked` : "Video linked"}
+            {parsedEmbed ? `${EMBED_PROVIDER_LABELS[parsedEmbed.provider]} video linked` : embedUrl}
           </span>
           <button type="button" onClick={() => setEmbedUrl(null)} className="text-danger">
             <X size={14} />
@@ -479,7 +489,7 @@ export function PostComposer({
             type="url"
             value={embedUrlValue}
             onChange={(e) => setEmbedUrlValue(e.target.value)}
-            placeholder="YouTube, Vimeo, TikTok, or Dailymotion video link"
+            placeholder="Paste any link, or a YouTube/Vimeo/TikTok/Dailymotion video"
             className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
           />
           <button
@@ -604,7 +614,7 @@ export function PostComposer({
               "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
             )}
-            title="Link a YouTube, Vimeo, TikTok, or Dailymotion video"
+            title="Add a link"
           >
             <LinkIcon size={16} />
           </button>

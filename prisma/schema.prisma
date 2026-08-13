@@ -419,6 +419,7 @@ enum PostMediaType {
   IMAGE
   VIDEO
   EMBED
+  LINK
 }
 
 enum EmbedProvider {
@@ -449,6 +450,11 @@ model Post {
   // iframe src.
   embedProvider     EmbedProvider?
   embedId           String?
+  // LINK posts: any http(s) URL that isn't a recognized video provider,
+  // stored raw and rendered only as a plain <a href> (never an iframe src,
+  // unlike embedProvider/embedId above) — protocol-checked at write time in
+  // normalizeLinkUrl().
+  linkUrl           String?
   intentTag         IntentTag?
   // Which Home feed section this post is filed under (src/app/home/page.tsx).
   feedCategory      FeedCategory     @default(GENERAL)

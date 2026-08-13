@@ -34,7 +34,9 @@ export function parseVideoEmbedUrl(raw: string): ParsedEmbed | null {
           ? url.pathname.slice("/embed/".length)
           : url.pathname.startsWith("/shorts/")
             ? url.pathname.slice("/shorts/".length)
-            : null;
+            : url.pathname.startsWith("/live/")
+              ? url.pathname.slice("/live/".length)
+              : null;
     return id && YOUTUBE_ID.test(id) ? { provider: "YOUTUBE", id } : null;
   }
 

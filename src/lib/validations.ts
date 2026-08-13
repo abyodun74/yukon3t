@@ -161,14 +161,15 @@ export const postSchema = z
     content: z.string().trim().max(2000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
-    mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED"]).optional().default("NONE"),
+    mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK"]).optional().default("NONE"),
     mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
-    // Raw pasted link, only ever used server-side as input to
-    // parseVideoEmbedUrl() — the parsed provider+id is what actually gets
-    // stored, never this string itself.
-    embedUrl: z.string().trim().max(500).optional(),
+    // Raw pasted link — for mediaType EMBED, server-side input to
+    // parseVideoEmbedUrl() (only the parsed provider+id is stored). For
+    // mediaType LINK (any other http(s) URL), input to normalizeLinkUrl()
+    // and stored as-is, since it's only ever rendered as a plain <a href>.
+    embedUrl: z.string().trim().max(2000).optional(),
     eventAt: z.coerce.date().optional(),
     eventLocation: z.string().trim().min(2).max(200).optional(),
   })

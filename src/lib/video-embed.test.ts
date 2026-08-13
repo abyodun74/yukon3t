@@ -24,6 +24,13 @@ describe("parseVideoEmbedUrl", () => {
     });
   });
 
+  it("parses a /live/ URL", () => {
+    expect(parseVideoEmbedUrl("https://www.youtube.com/live/dQw4w9WgXcQ")).toEqual({
+      provider: "YOUTUBE",
+      id: "dQw4w9WgXcQ",
+    });
+  });
+
   it("parses vimeo.com and player.vimeo.com URLs", () => {
     expect(parseVideoEmbedUrl("https://vimeo.com/76979871")).toEqual({
       provider: "VIMEO",
