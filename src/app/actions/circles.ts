@@ -15,7 +15,7 @@ import {
   deleteObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
-import { parseVideoEmbedUrl, type ParsedEmbed } from "@/lib/video-embed";
+import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
@@ -528,6 +528,14 @@ export async function createPost(formData: FormData) {
     }
   }
 
+  // Kicked off alongside moderation below rather than awaited here — a
+  // sparse video caption ("check this out") gives the smart category filter
+  // (src/lib/feed-category.ts) almost no signal on its own, so the actual
+  // video title is folded into the embedding text once both calls resolve.
+  // Best-effort only: never blocks or fails the post on a slow/broken
+  // oEmbed response.
+  const embedTitlePromise = mediaType === "EMBED" && embed ? fetchEmbedTitle(embed) : Promise.resolve(null);
+
   let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
 
   if (mediaType === "NONE" || mediaType === "EMBED" || mediaType === "LINK") {
@@ -572,7 +580,8 @@ export async function createPost(formData: FormData) {
       moderationStatus,
     },
   });
-  await updatePostEmbedding(post.id, parsed.data.content);
+  const embedTitle = await embedTitlePromise;
+  await updatePostEmbedding(post.id, [parsed.data.content, embedTitle].filter(Boolean).join("\n"));
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 

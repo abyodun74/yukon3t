@@ -94,3 +94,46 @@ export function embedSrc({ provider, id }: ParsedEmbed): string {
       return `https://www.dailymotion.com/embed/video/${id}`;
   }
 }
+
+const OEMBED_TIMEOUT_MS = 4000;
+
+// Builds the public, unauthenticated oEmbed request URL for a provider+id —
+// same "reconstruct from the validated id, never touch the raw pasted URL"
+// discipline as embedSrc. TikTok's oEmbed endpoint needs the full canonical
+// `/@user/video/<id>` path (the username segment, which parseVideoEmbedUrl
+// deliberately doesn't capture/store), so it has no entry here and always
+// falls through to the "not supported" case below.
+const OEMBED_URL: Partial<Record<EmbedProvider, (id: string) => string>> = {
+  YOUTUBE: (id) => `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`,
+  VIMEO: (id) => `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${id}`)}`,
+  DAILYMOTION: (id) => `https://www.dailymotion.com/services/oembed?url=${encodeURIComponent(`https://www.dailymotion.com/video/${id}`)}`,
+};
+
+/**
+ * Best-effort video title (+ uploader) lookup via the provider's public
+ * oEmbed endpoint — used only to give the smart category filter
+ * (src/lib/feed-category.ts) real topic signal for video posts, whose own
+ * caption is often too sparse ("check this out") to classify on its own.
+ * Never stored, never rendered — purely an input to the post's embedding
+ * text. Fails open (returns null) on any error/timeout/unsupported
+ * provider, same shape as moderation.ts/embeddings.ts.
+ */
+export async function fetchEmbedTitle(embed: ParsedEmbed): Promise<string | null> {
+  const buildUrl = OEMBED_URL[embed.provider];
+  if (!buildUrl) return null;
+
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => timeoutController.abort(), OEMBED_TIMEOUT_MS);
+  try {
+    const res = await fetch(buildUrl(embed.id), { signal: timeoutController.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const title = typeof data?.title === "string" ? data.title : null;
+    const author = typeof data?.author_name === "string" ? data.author_name : null;
+    return [title, author].filter(Boolean).join(" — ") || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

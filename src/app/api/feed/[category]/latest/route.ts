@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
+import { buildCategoryFilter } from "@/lib/feed-category";
 
 const PAGE_SIZE = 10;
 
@@ -37,11 +38,16 @@ export async function GET(
   }
 
   const where = await getVisiblePostsWhere(session.user.id);
+  const categoryFilter = isValidCategory
+    ? await buildCategoryFilter(category as (typeof feedCategoryValues)[number])
+    : undefined;
   const rawPosts = await prisma.post.findMany({
     where: {
-      ...where,
-      ...(isValidCategory ? { feedCategory: category as (typeof feedCategoryValues)[number] } : {}),
-      ...(afterDate ? { createdAt: { gt: afterDate } } : {}),
+      AND: [
+        where,
+        ...(categoryFilter ? [categoryFilter] : []),
+        ...(afterDate ? [{ createdAt: { gt: afterDate } }] : []),
+      ],
     },
     orderBy: { createdAt: "desc" },
     take: PAGE_SIZE,

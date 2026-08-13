@@ -52,6 +52,27 @@ async function nearestIds(table: keyof typeof TABLES, vector: string): Promise<C
   return rows.filter((r) => r.distance <= MAX_DISTANCE);
 }
 
+/**
+ * Standalone nearest-neighbor lookup against Post.embedding, parametrized by
+ * limit/distance rather than search's fixed CANDIDATE_LIMIT/MAX_DISTANCE —
+ * used by src/lib/feed-category.ts for the Home feed's smart category
+ * filter, which wants a much larger candidate pool than a search fallback
+ * does (it's filtering the primary feed, not suggesting extra results).
+ */
+export async function nearestPostIds(
+  vector: string,
+  { limit = 500, maxDistance = MAX_DISTANCE }: { limit?: number; maxDistance?: number } = {},
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Candidate[]>`
+    SELECT "id", "embedding" <=> ${vector}::vector AS distance
+    FROM "Post"
+    WHERE "embedding" IS NOT NULL
+    ORDER BY distance ASC
+    LIMIT ${limit}
+  `;
+  return rows.filter((r) => r.distance <= maxDistance).map((r) => r.id);
+}
+
 function rankMap(candidates: Candidate[]) {
   return new Map(candidates.map((c, index) => [c.id, index]));
 }

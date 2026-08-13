@@ -11,6 +11,7 @@ import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
 import { dayNumber } from "@/lib/trust";
 import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
+import { buildCategoryFilter } from "@/lib/feed-category";
 
 const PAGE_SIZE = 20;
 
@@ -49,7 +50,12 @@ export default async function HomePage({
         NOT: { author: { postsVisibility: "HIDDEN" as const } },
       }
     : await getVisiblePostsWhere(me.id);
-  const where = category ? { ...baseWhere, feedCategory: category } : baseWhere;
+  // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter
+  // for why this can't just be spread onto baseWhere (it may carry its own
+  // top-level OR, which spreading would silently clobber baseWhere's
+  // visibility OR instead of combining with it).
+  const categoryFilter = await buildCategoryFilter(category);
+  const where = categoryFilter ? { AND: [baseWhere, categoryFilter] } : baseWhere;
 
   const rawPosts = await prisma.post.findMany({
     where,
