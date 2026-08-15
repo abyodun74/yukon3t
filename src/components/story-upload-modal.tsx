@@ -12,7 +12,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component (same pattern
 // chat-thread.tsx uses for its own MAX_*_BYTES constants).
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
@@ -89,7 +89,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 200MB or smaller.");
+      setError("Video must be 500MB or smaller.");
       return;
     }
 

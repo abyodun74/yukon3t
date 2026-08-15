@@ -39,11 +39,13 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
 };
 
-// Every video kind shares one 200MB byte cap — durations (MAX_*_SECONDS
-// below) are what actually keep message/story clips short in practice; the
-// byte cap alone was too tight for ordinary phone-recorded 1080p/4K footage
-// even at the old per-kind values, so there's no reason to size it per kind.
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+// Every video kind shares one byte cap — durations (MAX_*_SECONDS below)
+// are what actually keep message/story clips short in practice; the byte
+// cap alone was too tight for ordinary phone-recorded 1080p/4K footage even
+// at the old per-kind values, so there's no reason to size it per kind. 500MB
+// comfortably fits a 2-minute clip even at 4K HEVC bitrates (~450MB worst
+// case), which the 200MB predecessor of this cap did not.
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
   avatar: 5 * 1024 * 1024,
@@ -133,7 +135,7 @@ export async function createUploadUrl({
   const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
   const bucket = process.env.R2_BUCKET_NAME!;
 
-  // 200MB over a slow mobile upload can take well past 5 minutes; a video
+  // 500MB over a slow mobile upload can take well past 5 minutes; a video
   // kind gets a longer-lived presigned URL so the PUT doesn't start failing
   // partway through on a slow connection. Non-video kinds stay at 5 minutes.
   const expiresIn = VIDEO_KINDS.has(kind) ? 3600 : 300;
