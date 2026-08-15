@@ -143,6 +143,55 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 const PUT_ATTEMPTS_DEFAULT = 2;
 const PUT_ATTEMPTS_VIDEO = 6;
 
+// A connection that gets established but then stalls (no bytes flowing —
+// seen from the installed Android app specifically) leaves a plain fetch()
+// neither resolving nor rejecting, sometimes for a very long time. That
+// silently eats far more wall-clock time per attempt than any backoff delay
+// between attempts, and the retry logic above can't even start the next
+// attempt until the stuck one finally gives up on its own — this is why a
+// trivial, sub-second, near-empty video was observed taking 30+ seconds to
+// finish even though the file itself is tiny. Bounding each attempt makes a
+// genuinely stuck request fail fast and move on to the next retry instead.
+// The budget scales with file size (using a conservative worst-case mobile
+// throughput) so a large, legitimately slow-but-progressing upload isn't
+// aborted prematurely, with a floor so small files still get a reasonable
+// minimum window.
+const MIN_ATTEMPT_TIMEOUT_MS = 15_000;
+const WORST_CASE_BYTES_PER_SECOND = 300_000; // ~2.4 Mbps — a conservative mobile-data floor, not a target
+
+function attemptTimeoutMs(fileSizeBytes: number): number {
+  return Math.max(MIN_ATTEMPT_TIMEOUT_MS, (fileSizeBytes / WORST_CASE_BYTES_PER_SECOND) * 1000);
+}
+
+/** fetch() with a hard ceiling on how long a single attempt is allowed to hang before being treated as failed. */
+function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Bounds a promise that can't take an AbortSignal itself (a Server Action
+ * call, under the hood a fetch this module doesn't control) — doesn't cancel
+ * the underlying request server-side, just stops the client from waiting on
+ * it indefinitely so the retry loop can move on to a fresh attempt.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 /**
  * Requests a presigned URL, then PUTs the file directly to R2 from the
  * browser. Never throws — both steps are network calls (the server action
@@ -171,7 +220,7 @@ export async function uploadFileDirect(
 
   let result;
   try {
-    result = await withRetry(() => requestUrlFn(fd));
+    result = await withRetry(() => withTimeout(requestUrlFn(fd), MIN_ATTEMPT_TIMEOUT_MS));
   } catch {
     return { ok: false, error: "network" };
   }
@@ -197,13 +246,18 @@ export async function uploadFileDirect(
     // still has plenty of room even after a long backgrounded stretch.
     const isVideo = VIDEO_KINDS.has(kind);
     const putAttempts = isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
+    const timeoutMs = attemptTimeoutMs(uploadFile.size);
     putRes = await withRetry(
       () =>
-        fetch(uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": uploadFile.type },
-          body: uploadFile,
-        }),
+        fetchWithTimeout(
+          uploadUrl,
+          {
+            method: "PUT",
+            headers: { "Content-Type": uploadFile.type },
+            body: uploadFile,
+          },
+          timeoutMs,
+        ),
       putAttempts,
       800,
       isVideo,
