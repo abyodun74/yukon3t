@@ -179,36 +179,89 @@ export async function uploadBuffer({
   return { publicUrl, key };
 }
 
+// Keys are always minted by createUploadUrl/uploadBuffer as
+// `${kind}/${userId}/${uuid}.${ext}` — the second path segment is the owner.
+// Every action that accepts a client-supplied key/URL for an upload it's
+// about to inspect or delete must check this before touching R2, otherwise
+// a user can submit someone else's public media URL through their own
+// confirm/cleanup flow and use it to probe or delete a stranger's object.
+export function keyBelongsToOwner(key: string, ownerId: string) {
+  return key.split("/")[1] === ownerId;
+}
+
 /**
  * A presigned PUT URL alone can't cap the uploaded size, so this checks the
  * real object size after the client's direct upload and deletes it if it
- * exceeds the kind's limit — the actual server-side enforcement.
+ * exceeds the kind's limit — the actual server-side enforcement. Also the
+ * one place ownership of a client-supplied key is enforced before any R2
+ * call is made for it.
  */
 export async function verifyUploadedSize({
   key,
   maxBytes,
+  ownerId,
 }: {
   key: string;
   maxBytes: number;
+  ownerId: string;
 }) {
+  if (!keyBelongsToOwner(key, ownerId)) {
+    return false;
+  }
+
   const bucket = process.env.R2_BUCKET_NAME!;
   const c = client();
 
-  const head = await c.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-  const size = head.ContentLength ?? 0;
+  try {
+    const head = await c.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    const size = head.ContentLength ?? 0;
 
-  if (size === 0 || size > maxBytes) {
-    await c.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    if (size === 0 || size > maxBytes) {
+      await c.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
+        console.error(`[storage] failed to delete oversized object ${key}`, err);
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    // A transient R2 outage here shouldn't turn into a 500 on an otherwise
+    // normal upload confirmation — fail closed (treat as unverifiable, same
+    // as "too large") rather than letting the exception propagate.
+    console.error(`[storage] failed to verify uploaded size for ${key}`, err);
     return false;
   }
-  return true;
 }
 
+/**
+ * Best-effort: every call site either runs this as post-mutation storage
+ * hygiene (the DB write it's cleaning up after already succeeded) or as
+ * cleanup for a rejected upload that was never referenced by any row — in
+ * both cases a transient R2 hiccup here should leave a harmlessly orphaned
+ * object behind, not turn an otherwise-successful request into a 500.
+ */
 export async function deleteObject(key: string) {
   if (!isStorageConfigured()) return;
-  await client().send(
-    new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }),
-  );
+  try {
+    await client().send(
+      new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }),
+    );
+  } catch (err) {
+    console.error(`[storage] failed to delete object ${key}`, err);
+  }
+}
+
+/**
+ * Same as deleteObject, but only deletes if the key was actually issued to
+ * ownerId — used by "cleanup a rejected upload" paths, which otherwise take
+ * a batch of client-supplied URLs and delete all of them unconditionally.
+ * Without this check, a user could smuggle a stranger's real media URL into
+ * their own post/message/story submission (alongside their own, deliberately
+ * oversized upload) and have the resulting cleanup delete the stranger's
+ * object for them.
+ */
+export async function deleteOwnedObject(key: string, ownerId: string) {
+  if (!keyBelongsToOwner(key, ownerId)) return;
+  await deleteObject(key);
 }
 
 export function keyFromPublicUrl(url: string) {

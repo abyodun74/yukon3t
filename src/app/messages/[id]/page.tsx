@@ -113,13 +113,16 @@ export default async function ConversationPage({
   // "read" before the user ever opened the thread. Marking read only
   // happens client-side, in ChatThread, after the component actually
   // mounts in a real browser — never during SSR/prefetch.
-  const messages = await prisma.message.findMany({
+  // Newest 200 first (not oldest) then reversed for display — otherwise a
+  // conversation past 200 messages would always render the same stuck,
+  // oldest slice with no recent messages ever visible.
+  const recentMessages = await prisma.message.findMany({
     where: {
       conversationId: id,
       moderationStatus: { not: "REMOVED" },
       NOT: { deletedForUserIds: { has: me.id } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take: 200,
     include: {
       reactions: { select: { emoji: true, userId: true } },
@@ -138,6 +141,7 @@ export default async function ConversationPage({
       },
     },
   });
+  const messages = recentMessages.reverse();
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">

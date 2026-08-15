@@ -26,9 +26,11 @@ export function BlockButton({
         disabled={isPending}
         onClick={() =>
           startTransition(async () => {
-            await unblockUser(targetId);
-            setBlocked(false);
-            router.refresh();
+            const result = await unblockUser(targetId);
+            if (!result.error) {
+              setBlocked(false);
+              router.refresh();
+            }
           })
         }
         className="text-xs text-foreground-soft hover:text-accent disabled:opacity-50"
@@ -47,10 +49,12 @@ export function BlockButton({
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              await blockUser(targetId);
-              setBlocked(true);
-              setConfirming(false);
-              router.refresh();
+              const result = await blockUser(targetId);
+              if (!result.error) {
+                setBlocked(true);
+                setConfirming(false);
+                router.refresh();
+              }
             })
           }
           className="font-medium text-danger disabled:opacity-50"

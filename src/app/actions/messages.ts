@@ -15,10 +15,11 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { track } from "@/lib/analytics";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -252,9 +253,17 @@ export async function requestToJoinGroup(conversationId: string) {
     where: { conversationId_userId: { conversationId, userId: user.id } },
   });
   if (!existing) {
-    await prisma.groupJoinRequest.create({
-      data: { conversationId, userId: user.id },
-    });
+    try {
+      await prisma.groupJoinRequest.create({
+        data: { conversationId, userId: user.id },
+      });
+    } catch (err) {
+      // A fast double-click can race past the !existing check above —
+      // @@unique([conversationId, userId]) then rejects the second create.
+      // The request already exists either way, so this is a success, not
+      // an error.
+      if (!isUniqueConstraintError(err)) throw err;
+    }
   } else if (existing.status === "DECLINED") {
     await prisma.groupJoinRequest.update({
       where: { id: existing.id },
@@ -391,7 +400,7 @@ export async function sendMessage(formData: FormData) {
     await Promise.all(
       uploadedUrls.map((url) => {
         const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
+        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
       }),
     );
   }
@@ -404,7 +413,7 @@ export async function sendMessage(formData: FormData) {
         : mediaType === "VIDEO"
           ? MEDIA_LIMITS["message-video"]
           : MEDIA_LIMITS["message-image"];
-    const ok = key && (await verifyUploadedSize({ key, maxBytes }));
+    const ok = key && (await verifyUploadedSize({ key, maxBytes, ownerId: user.id }));
     if (!ok) {
       await cleanupUploads();
       return { error: "too_large" as const };
@@ -536,7 +545,7 @@ export async function getConversationMessages(conversationId: string) {
     }),
   ]);
 
-  const [conversation, messages] = await Promise.all([
+  const [conversation, recentMessages] = await Promise.all([
     prisma.conversation.findUnique({
       where: { id: conversationId },
       select: {
@@ -547,13 +556,17 @@ export async function getConversationMessages(conversationId: string) {
         },
       },
     }),
+    // Newest 200 first (not oldest) then reversed for display — otherwise a
+    // conversation past 200 messages would be permanently stuck showing the
+    // same oldest slice forever, with every new message (including ones the
+    // caller just sent) invisible since it'd never fall inside the take.
     prisma.message.findMany({
       where: {
         conversationId,
         moderationStatus: { not: "REMOVED" },
         NOT: { deletedForUserIds: { has: user.id } },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       take: 200,
       include: {
         reactions: { select: REACTION_SELECT },
@@ -564,7 +577,7 @@ export async function getConversationMessages(conversationId: string) {
     }),
   ]);
 
-  return { error: null, messages, conversation };
+  return { error: null, messages: recentMessages.reverse(), conversation };
 }
 
 /** Hides this message for the caller only — the other participant still sees it normally. */

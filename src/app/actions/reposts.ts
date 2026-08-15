@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { repostSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 
 export async function repost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -68,20 +69,31 @@ export async function repost(formData: FormData) {
     }
   }
 
-  await prisma.$transaction([
-    prisma.post.create({
-      data: {
-        authorId: user.id,
-        content: caption,
-        mediaType: "NONE",
-        repostOfId: rootId,
-      },
-    }),
-    prisma.post.update({
-      where: { id: rootId },
-      data: { repostCount: { increment: 1 } },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.post.create({
+        data: {
+          authorId: user.id,
+          content: caption,
+          mediaType: "NONE",
+          repostOfId: rootId,
+        },
+      }),
+      prisma.post.update({
+        where: { id: rootId },
+        data: { repostCount: { increment: 1 } },
+      }),
+    ]);
+  } catch (err) {
+    // A fast double-click between the `existing` check above and this
+    // create can race past it — @@unique([authorId, repostOfId]) then
+    // rejects the second create. The repost already exists either way, so
+    // this is a success, not an error.
+    if (isUniqueConstraintError(err)) {
+      return { error: null, reposted: true };
+    }
+    throw err;
+  }
 
   await prisma.notification.create({
     data: {

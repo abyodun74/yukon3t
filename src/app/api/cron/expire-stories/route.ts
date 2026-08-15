@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { isCronAuthorized } from "@/lib/cron-auth";
 
 /**
  * Triggered on a schedule (Netlify Scheduled Function), not by a user
@@ -9,18 +10,11 @@ import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
  * /u/[userId]), so this is storage/DB hygiene, not what makes stories
  * actually disappear after 24h.
  */
-function isAuthorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const header = request.headers.get("authorization");
-  return header === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

@@ -984,7 +984,12 @@ model Message {
   reactions    MessageReaction[]
   corrections  MessageCorrection[]
 
-  @@index([conversationId])
+  // Every message query filters on conversationId and sorts/paginates on
+  // createdAt together (getConversationMessages, the collab board, the
+  // /messages/[id] SSR load) — the compound index serves that access
+  // pattern directly instead of falling back to the single-column index
+  // plus an in-memory sort.
+  @@index([conversationId, createdAt])
   @@index([replyToMessageId])
 }
 

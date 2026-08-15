@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
 
 /**
  * The set of posts a viewer is allowed to see: their own; anything posted in
@@ -8,11 +9,13 @@ import { prisma } from "@/lib/prisma";
  * actual enforcement of `postsVisibility` promised by its Settings label
  * ("Anyone signed in") — everyone else's non-Circle posts where the author
  * has left postsVisibility at PUBLIC. CONNECTIONS_ONLY from a non-connection
- * stays excluded. Shared here so the home feed and search stay in sync
- * instead of drifting apart.
+ * stays excluded. Blocked-either-way authors are excluded regardless of any
+ * OR branch above — blocking is meant to hide content, not just messaging.
+ * Shared here so the home feed and search stay in sync instead of drifting
+ * apart.
  */
 export async function getVisiblePostsWhere(viewerId: string) {
-  const [circleMemberships, connections] = await Promise.all([
+  const [circleMemberships, connections, blockedIds] = await Promise.all([
     prisma.circleMembership.findMany({
       where: { userId: viewerId },
       select: { circleId: true },
@@ -20,6 +23,7 @@ export async function getVisiblePostsWhere(viewerId: string) {
     prisma.connection.findMany({
       where: { status: "ACCEPTED", OR: [{ requesterId: viewerId }, { targetId: viewerId }] },
     }),
+    getBlockedEitherWayIds(viewerId),
   ]);
 
   const circleIds = circleMemberships.map((m) => m.circleId);
@@ -38,11 +42,14 @@ export async function getVisiblePostsWhere(viewerId: string) {
         : []),
       { circleId: null, author: { postsVisibility: "PUBLIC" as const } },
     ],
-    // HIDDEN ("invisible to everyone", admin-only — see updatePrivacy in
-    // actions/profile.ts) stays excluded for every viewer but the author,
-    // regardless of the OR branches above.
     NOT: {
-      AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }],
+      OR: [
+        // HIDDEN ("invisible to everyone", admin-only — see updatePrivacy in
+        // actions/profile.ts) stays excluded for every viewer but the
+        // author, regardless of the OR branches above.
+        { AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }] },
+        ...(blockedIds.size ? [{ authorId: { in: [...blockedIds] } }] : []),
+      ],
     },
   };
 }

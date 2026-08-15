@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireUser, AuthError } from "@/lib/auth-guards";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
@@ -19,9 +19,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ category: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ posts: [] }, { status: 401 });
+  let user;
+  try {
+    user = await requireUser();
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ posts: [] }, { status: 401 });
+    }
+    throw err;
   }
 
   const { category } = await params;
@@ -37,7 +42,7 @@ export async function GET(
     return NextResponse.json({ posts: [] }, { status: 400 });
   }
 
-  const where = await getVisiblePostsWhere(session.user.id);
+  const where = await getVisiblePostsWhere(user.id);
   const categoryFilter = isValidCategory
     ? await buildCategoryFilter(category as (typeof feedCategoryValues)[number])
     : undefined;
@@ -54,6 +59,6 @@ export async function GET(
     include: postCardInclude,
   });
 
-  const posts = await attachViewerState(rawPosts, session.user.id);
+  const posts = await attachViewerState(rawPosts, user.id);
   return NextResponse.json({ posts });
 }

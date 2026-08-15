@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { reportSchema, moderationActionSchema, flaggedContentActionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recomputeTrustScore } from "@/lib/trust";
-import { removeModeratedContent } from "@/lib/content-moderation";
+import { removeModeratedContent, cleanUpModeratedMedia } from "@/lib/content-moderation";
 
 export async function fileReport(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -59,55 +59,73 @@ export async function resolveReport(formData: FormData) {
     return { error: "not_found" };
   }
 
-  await prisma.report.update({
-    where: { id: reportId },
-    data: {
-      // A dismissed report was found to have no merit and must not count as
-      // an "upheld" report — recomputeTrustScore() only penalizes RESOLVED
-      // ones, so this needs its own status or a baseless report would still
-      // dock the reported user's trust score.
-      status: action === "REPORT_DISMISSED" ? "DISMISSED" : "RESOLVED",
-      resolutionNote: note,
-      resolvedAt: new Date(),
-    },
-  });
+  // The report's own status update, any content removal, and the AuditLog
+  // entry that makes it explainable/appealable all commit as one unit — a
+  // crash partway through must never leave a user banned (or content gone)
+  // with no audit record, or a report marked resolved with the enforcement
+  // action it describes never having happened.
+  let removedMediaKeys: string[] = [];
+  let touchedUserId: string | null = null;
 
-  if (action === "REMOVE_CONTENT") {
-    // Content reports (POST/COMMENT/MESSAGE/CIRCLE/COLLAB_POST) resolve by
-    // taking the reported content down, not by acting on reportedUserId.
-    const removed = await removeModeratedContent(report.targetType, report.targetId);
-    if (removed) {
-      await prisma.auditLog.create({
+  await prisma.$transaction(async (tx) => {
+    await tx.report.update({
+      where: { id: reportId },
+      data: {
+        // A dismissed report was found to have no merit and must not count as
+        // an "upheld" report — recomputeTrustScore() only penalizes RESOLVED
+        // ones, so this needs its own status or a baseless report would still
+        // dock the reported user's trust score.
+        status: action === "REPORT_DISMISSED" ? "DISMISSED" : "RESOLVED",
+        resolutionNote: note,
+        resolvedAt: new Date(),
+      },
+    });
+
+    if (action === "REMOVE_CONTENT") {
+      // Content reports (POST/COMMENT/MESSAGE/CIRCLE/COLLAB_POST) resolve by
+      // taking the reported content down, not by acting on reportedUserId.
+      const removed = await removeModeratedContent(report.targetType, report.targetId, tx);
+      if (removed) {
+        await tx.auditLog.create({
+          data: {
+            targetId: removed.authorId,
+            action: "CONTENT_REMOVED",
+            reason: note,
+            performedBy: admin.id,
+          },
+        });
+        removedMediaKeys = removed.mediaKeysToDelete;
+        touchedUserId = removed.authorId;
+      }
+    } else if (report.reportedUserId) {
+      await tx.auditLog.create({
         data: {
-          targetId: removed.authorId,
-          action: "CONTENT_REMOVED",
+          targetId: report.reportedUserId,
+          action,
           reason: note,
           performedBy: admin.id,
         },
       });
-      await recomputeTrustScore(removed.authorId);
-    }
-  } else if (report.reportedUserId) {
-    await prisma.auditLog.create({
-      data: {
-        targetId: report.reportedUserId,
-        action,
-        reason: note,
-        performedBy: admin.id,
-      },
-    });
 
-    if (action === "SUSPEND" || action === "BAN") {
-      await prisma.user.update({
-        where: { id: report.reportedUserId },
-        data: {
-          status: action === "BAN" ? "BANNED" : "SUSPENDED",
-          suspensionReason: note,
-        },
-      });
-    }
+      if (action === "SUSPEND" || action === "BAN") {
+        await tx.user.update({
+          where: { id: report.reportedUserId },
+          data: {
+            status: action === "BAN" ? "BANNED" : "SUSPENDED",
+            suspensionReason: note,
+          },
+        });
+      }
 
-    await recomputeTrustScore(report.reportedUserId);
+      touchedUserId = report.reportedUserId;
+    }
+  });
+
+  if (removedMediaKeys.length > 0) {
+    await cleanUpModeratedMedia(removedMediaKeys);
+  }
+  if (touchedUserId) {
+    await recomputeTrustScore(touchedUserId);
   }
 
   revalidatePath("/admin/moderation");
@@ -171,16 +189,23 @@ export async function removeFlaggedContent(formData: FormData) {
   }
   const { contentType, contentId } = parsed.data;
 
-  const removed = await removeModeratedContent(contentType, contentId);
+  const removed = await prisma.$transaction(async (tx) => {
+    const result = await removeModeratedContent(contentType, contentId, tx);
+    if (result) {
+      await tx.auditLog.create({
+        data: {
+          targetId: result.authorId,
+          action: "CONTENT_REMOVED",
+          reason: "Removed from the flagged content queue after review.",
+          performedBy: admin.id,
+        },
+      });
+    }
+    return result;
+  });
+
   if (removed) {
-    await prisma.auditLog.create({
-      data: {
-        targetId: removed.authorId,
-        action: "CONTENT_REMOVED",
-        reason: "Removed from the flagged content queue after review.",
-        performedBy: admin.id,
-      },
-    });
+    await cleanUpModeratedMedia(removed.mediaKeysToDelete);
     await recomputeTrustScore(removed.authorId);
   }
 

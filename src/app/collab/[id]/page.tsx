@@ -54,34 +54,37 @@ export default async function CollabDetailPage({
       })
     : null;
 
-  const messages =
-    conversation && canJoinSession
-      ? await prisma.message.findMany({
-          where: {
-            conversationId: conversation.id,
-            moderationStatus: { not: "REMOVED" },
-            NOT: { deletedForUserIds: { has: me.id } },
+  // Newest 200 first (not oldest) then reversed for display — otherwise a
+  // board past 200 messages would always render the same stuck, oldest
+  // slice with no recent messages ever visible.
+  const recentMessages = conversation && canJoinSession
+    ? await prisma.message.findMany({
+        where: {
+          conversationId: conversation.id,
+          moderationStatus: { not: "REMOVED" },
+          NOT: { deletedForUserIds: { has: me.id } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        include: {
+          reactions: { select: { emoji: true, userId: true } },
+          corrections: { include: { author: { select: { id: true, name: true } } } },
+          story: {
+            select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
           },
-          orderBy: { createdAt: "asc" },
-          take: 200,
-          include: {
-            reactions: { select: { emoji: true, userId: true } },
-            corrections: { include: { author: { select: { id: true, name: true } } } },
-            story: {
-              select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
-            },
-            replyTo: {
-              select: {
-                id: true,
-                content: true,
-                mediaType: true,
-                deletedForEveryoneAt: true,
-                sender: { select: { id: true, name: true } },
-              },
+          replyTo: {
+            select: {
+              id: true,
+              content: true,
+              mediaType: true,
+              deletedForEveryoneAt: true,
+              sender: { select: { id: true, name: true } },
             },
           },
-        })
-      : [];
+        },
+      })
+    : [];
+  const messages = recentMessages.reverse();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">

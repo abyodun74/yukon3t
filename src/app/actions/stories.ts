@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { storySchema, messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
-import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
@@ -127,14 +127,14 @@ export async function createStory(formData: FormData) {
     await Promise.all(
       uploadedUrls.map((url) => {
         const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
+        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
       }),
     );
   }
 
   const key = keyFromPublicUrl(mediaUrl);
   const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["story-image"] : MEDIA_LIMITS["story-video"];
-  const sizeOk = key && (await verifyUploadedSize({ key, maxBytes }));
+  const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: user.id }));
   if (!sizeOk) {
     await cleanupUploads();
     return { error: "too_large" as const };

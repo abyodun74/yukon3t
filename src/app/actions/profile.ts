@@ -194,6 +194,18 @@ export async function exportMyData() {
 
   const data = await prisma.user.findUnique({
     where: { id: user.id },
+    // Internal security fields — a bcrypt hash, lockout/session-revocation
+    // state — have no place in a user-facing "download your data" file that
+    // could end up pasted somewhere (a support ticket, a forum) with the
+    // hash still intact.
+    omit: {
+      passwordHash: true,
+      sessionInvalidatedAt: true,
+      failedLoginAttempts: true,
+      failedLoginAt: true,
+      lockedUntil: true,
+      loginIssueResolvedAt: true,
+    },
     include: {
       posts: true,
       collabPosts: true,

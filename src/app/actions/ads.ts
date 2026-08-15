@@ -11,7 +11,7 @@ import { moderateMedia } from "@/lib/moderation";
 import {
   MEDIA_LIMITS,
   verifyUploadedSize,
-  deleteObject,
+  deleteOwnedObject,
   keyFromPublicUrl,
   createUploadUrl,
   isStorageConfigured,
@@ -90,18 +90,22 @@ export async function createAdCampaign(formData: FormData) {
     parsed.data;
 
   const uploadedUrls = [mediaUrl, ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : [])];
+  // Ad uploads are unauthenticated (no user.id), so requestAdUploadUrl mints
+  // every ad-image/ad-video key under a shared "anonymous" owner segment —
+  // that's the ownership boundary here, same idea as the per-user checks on
+  // every other upload kind.
   async function cleanupUploads() {
     await Promise.all(
       uploadedUrls.map((url) => {
         const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
+        return key ? deleteOwnedObject(key, "anonymous") : Promise.resolve();
       }),
     );
   }
 
   const key = keyFromPublicUrl(mediaUrl);
   const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["ad-image"] : MEDIA_LIMITS["ad-video"];
-  const sizeOk = key && (await verifyUploadedSize({ key, maxBytes }));
+  const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: "anonymous" }));
   if (!sizeOk) {
     await cleanupUploads();
     return { error: "too_large" as const };

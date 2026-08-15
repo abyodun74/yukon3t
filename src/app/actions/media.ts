@@ -100,7 +100,7 @@ export async function confirmAvatarUpload(formData: FormData) {
   }
   const { key, publicUrl } = parsed.data;
 
-  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS.avatar });
+  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS.avatar, ownerId: user.id });
   if (!sizeOk) {
     return { error: "too_large" as const };
   }

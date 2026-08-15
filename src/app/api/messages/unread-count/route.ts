@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireUser, AuthError } from "@/lib/auth-guards";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ count: 0 }, { status: 401 });
+  let user;
+  try {
+    user = await requireUser();
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ count: 0 }, { status: 401 });
+    }
+    throw err;
   }
-
   // Count conversations with an unread message, not total unread messages —
   // matches the per-conversation dot already shown on /messages. Based on
   // the caller's own ConversationMember.lastReadAt rather than Message.readAt:
@@ -15,11 +19,11 @@ export async function GET() {
   // represent "read by some but not all" once a conversation has more than
   // one other member (group chats).
   const conversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId: session.user.id } } },
+    where: { members: { some: { userId: user.id } } },
     select: {
-      members: { where: { userId: session.user.id }, select: { lastReadAt: true } },
+      members: { where: { userId: user.id }, select: { lastReadAt: true } },
       messages: {
-        where: { senderId: { not: session.user.id }, NOT: { deletedForUserIds: { has: session.user.id } } },
+        where: { senderId: { not: user.id }, NOT: { deletedForUserIds: { has: user.id } } },
         orderBy: { createdAt: "desc" },
         take: 1,
         select: { createdAt: true },

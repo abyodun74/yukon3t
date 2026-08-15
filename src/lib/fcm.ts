@@ -39,38 +39,47 @@ async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
   const tokens = await prisma.fcmToken.findMany({ where: { userId } });
   if (tokens.length === 0) return;
 
-  const response = await getMessaging(app).sendEachForMulticast({
-    tokens: tokens.map((t) => t.token),
-    data,
-    android: {
-      // Delivered immediately, bypassing Doze/App Standby batching — a call
-      // notification arriving minutes late defeats the point.
-      priority: "high",
-    },
-    // iOS's counterpart to the android block above: content-available
-    // marks this a silent background push (there's no notification
-    // payload — the app's own JS decides how to surface it, same as
-    // Android), and priority 5 is what APNs requires for that push type
-    // (10 is reserved for alert pushes with a visible banner/sound).
-    // Note this is still a best-effort background push, not a true VoIP
-    // push — iOS can throttle/delay these more than Android's FCM
-    // high-priority delivery, especially once the app is fully
-    // terminated. Matching Android's instant-wake reliability for calls
-    // specifically would need PushKit (apns-push-type: voip) + CallKit,
-    // which is native Swift work beyond what a Capacitor plugin covers
-    // out of the box.
-    apns: {
-      headers: {
-        "apns-priority": "5",
-        "apns-push-type": "background",
+  // Genuinely best-effort, matching sendPushToUser's contract: callers like
+  // startCall/endCall and the event-reminders cron must not fail (or, for
+  // startCall, roll back an otherwise-successful action) just because FCM
+  // had a transient outage.
+  let response;
+  try {
+    response = await getMessaging(app).sendEachForMulticast({
+      tokens: tokens.map((t) => t.token),
+      data,
+      android: {
+        // Delivered immediately, bypassing Doze/App Standby batching — a call
+        // notification arriving minutes late defeats the point.
+        priority: "high",
       },
-      payload: {
-        aps: {
-          contentAvailable: true,
+      // iOS's counterpart to the android block above: content-available
+      // marks this a silent background push (there's no notification
+      // payload — the app's own JS decides how to surface it, same as
+      // Android), and priority 5 is what APNs requires for that push type
+      // (10 is reserved for alert pushes with a visible banner/sound).
+      // Note this is still a best-effort background push, not a true VoIP
+      // push — iOS can throttle/delay these more than Android's FCM
+      // high-priority delivery, especially once the app is fully
+      // terminated. Matching Android's instant-wake reliability for calls
+      // specifically would need PushKit (apns-push-type: voip) + CallKit,
+      // which is native Swift work beyond what a Capacitor plugin covers
+      // out of the box.
+      apns: {
+        headers: {
+          "apns-priority": "5",
+          "apns-push-type": "background",
+        },
+        payload: {
+          aps: {
+            contentAvailable: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch {
+    return;
+  }
 
   const staleTokenIds: string[] = [];
   response.responses.forEach((r, i) => {

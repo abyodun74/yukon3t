@@ -13,12 +13,14 @@ import {
   MEDIA_LIMITS,
   verifyUploadedSize,
   deleteObject,
+  deleteOwnedObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, updatePostEmbedding } from "@/lib/embeddings";
 
@@ -130,7 +132,14 @@ export async function joinCircle(circleId: string) {
       return { error: null, requested: false };
     }
     if (!existingRequest) {
-      await prisma.circleJoinRequest.create({ data: { circleId, userId: user.id } });
+      try {
+        await prisma.circleJoinRequest.create({ data: { circleId, userId: user.id } });
+      } catch (err) {
+        // A fast double-click can race past the !existingRequest check above —
+        // @@unique([circleId, userId]) then rejects the second create. The
+        // request already exists either way, so this is a success, not an error.
+        if (!isUniqueConstraintError(err)) throw err;
+      }
     } else if (existingRequest.status === "DECLINED") {
       await prisma.circleJoinRequest.update({
         where: { id: existingRequest.id },
@@ -378,7 +387,7 @@ export async function confirmCircleCoverUpload(formData: FormData) {
     return { error: "forbidden" as const };
   }
 
-  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["circle-cover"] });
+  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["circle-cover"], ownerId: user.id });
   if (!sizeOk) {
     return { error: "too_large" as const };
   }
@@ -461,11 +470,12 @@ export async function createPost(formData: FormData) {
 
   async function cleanupUploads() {
     // Independent deletes to independent keys — no reason to wait on them
-    // one at a time.
+    // one at a time. Ownership-checked per key so a foreign URL slipped
+    // into mediaUrls/videoUrl can't get deleted via this cleanup path.
     await Promise.all(
       uploadedUrls.map((url) => {
         const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
+        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
       }),
     );
   }
@@ -476,7 +486,7 @@ export async function createPost(formData: FormData) {
     const checks = await Promise.all(
       mediaUrls.map(async (url) => {
         const key = keyFromPublicUrl(url);
-        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["post-image"] }));
+        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["post-image"], ownerId: user.id }));
       }),
     );
     if (checks.some((ok) => !ok)) {
@@ -492,12 +502,12 @@ export async function createPost(formData: FormData) {
     const [videoOk, thumbOk] = await Promise.all([
       (async () => {
         const videoKey = videoUrl ? keyFromPublicUrl(videoUrl) : null;
-        return videoKey && (await verifyUploadedSize({ key: videoKey, maxBytes: MEDIA_LIMITS["post-video"] }));
+        return videoKey && (await verifyUploadedSize({ key: videoKey, maxBytes: MEDIA_LIMITS["post-video"], ownerId: user.id }));
       })(),
       (async () => {
         if (!videoThumbnailUrl) return true;
         const thumbKey = keyFromPublicUrl(videoThumbnailUrl);
-        return thumbKey && (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"] }));
+        return thumbKey && (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"], ownerId: user.id }));
       })(),
     ]);
     if (!videoOk || !thumbOk) {
