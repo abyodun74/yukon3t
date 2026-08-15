@@ -150,16 +150,28 @@ export async function createStory(formData: FormData) {
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
 
-  await prisma.story.create({
-    data: {
-      authorId: user.id,
-      mediaType,
-      mediaUrl,
-      mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
-      caption: caption || undefined,
-      expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
-    },
-  });
+  try {
+    await prisma.story.create({
+      data: {
+        authorId: user.id,
+        mediaType,
+        mediaUrl,
+        mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
+        caption: caption || undefined,
+        expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+      },
+    });
+  } catch (err) {
+    // The upload already succeeded by this point (media is sitting in R2) —
+    // an uncaught exception here would propagate to the client as a thrown
+    // promise rejection, which the client's generic catch-all then
+    // misreports as "couldn't reach the server," hiding that the real
+    // failure was this DB write, not the upload. Surface it as its own
+    // distinct error instead, and don't orphan the just-uploaded media.
+    console.error("[createStory] failed to create story row after successful upload", err);
+    await cleanupUploads();
+    return { error: "server_error" as const };
+  }
 
   revalidatePath(`/u/${user.id}`);
   return { error: null };

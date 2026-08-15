@@ -47,6 +47,8 @@ function errorMessage(code: string) {
       return "Story uploads aren't set up yet.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
+    case "server_error":
+      return "Your video uploaded, but posting it failed — try again in a moment.";
     default:
       return "Couldn't post that story — try again.";
   }
