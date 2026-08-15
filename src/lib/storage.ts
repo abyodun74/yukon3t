@@ -71,7 +71,7 @@ export const MAX_POST_IMAGES = 4;
 export const MAX_VIDEO_DURATION_SECONDS = 60;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
-export const MAX_STORY_VIDEO_SECONDS = 30;
+export const MAX_STORY_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 export function isStorageConfigured() {

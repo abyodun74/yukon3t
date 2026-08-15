@@ -159,7 +159,7 @@ const sections: Section[] = [
         q: "What's a Story?",
         a: (
           <>
-            A photo or short video (up to 30 seconds) on your profile that
+            A photo or short video (up to 2 minutes) on your profile that
             disappears automatically after 24 hours. Tap the &ldquo;+&rdquo;
             on your own profile picture to add one — anyone who can see your
             profile can view it while it&apos;s active.

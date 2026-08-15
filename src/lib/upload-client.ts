@@ -69,13 +69,14 @@ export async function resizeImageFile(file: File): Promise<File> {
 }
 
 /**
- * Retries a flaky network call once after a short delay before giving up —
- * mobile connections (especially a TWA switching between wifi/cellular
- * mid-upload) routinely drop a single request without the connection
- * actually being down, and neither of uploadFileDirect's two network calls
- * had any resilience to that: one dropped packet meant the whole upload
- * failed with "couldn't reach the server," even though a bare retry would
- * have gone through immediately.
+ * Retries a flaky network call before giving up — mobile connections
+ * (especially a TWA switching between wifi/cellular mid-upload) routinely
+ * drop a request without the connection actually being down, and neither of
+ * uploadFileDirect's two network calls had any resilience to that: one
+ * dropped packet meant the whole upload failed with "couldn't reach the
+ * server," even though a retry would have gone through. Delay grows with
+ * each attempt (backoff) rather than staying fixed, giving a flaky
+ * connection more time to recover before the next try.
  */
 export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs = 800): Promise<T> {
   for (let attempt = 1; ; attempt++) {
@@ -83,10 +84,26 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs =
       return await fn();
     } catch (err) {
       if (attempt >= attempts) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
     }
   }
 }
+
+// Video files can run into the tens/hundreds of MB — a single dropped
+// packet costs far more (the whole file re-uploads from scratch, since the
+// PUT isn't resumable) than it does for a small photo, so a real-world
+// connection blip is much likelier to exhaust 2 total attempts before a
+// large video finishes than it is for anything else this app uploads.
+// More attempts, with the growing backoff above, gives a shaky connection
+// a real chance to recover mid-upload instead of failing outright.
+const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
+  "post-video",
+  "message-video",
+  "story-video",
+  "ad-video",
+]);
+const PUT_ATTEMPTS_DEFAULT = 2;
+const PUT_ATTEMPTS_VIDEO = 4;
 
 /**
  * Requests a presigned URL, then PUTs the file directly to R2 from the
@@ -134,13 +151,17 @@ export async function uploadFileDirect(
   try {
     // Retrying re-sends to the exact same presigned URL/key (not a fresh
     // request-upload-url round trip), so a retry just overwrites the same
-    // R2 object rather than risking an orphaned duplicate.
-    putRes = await withRetry(() =>
-      fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": uploadFile.type },
-        body: uploadFile,
-      }),
+    // R2 object rather than risking an orphaned duplicate. Video gets more
+    // attempts than everything else — see PUT_ATTEMPTS_VIDEO above.
+    const putAttempts = VIDEO_KINDS.has(kind) ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
+    putRes = await withRetry(
+      () =>
+        fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": uploadFile.type },
+          body: uploadFile,
+        }),
+      putAttempts,
     );
   } catch {
     return { ok: false, error: "network" };
