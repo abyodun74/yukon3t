@@ -1,0 +1,79 @@
+definitions:
+  ios_env: &ios_env
+    ios_signing:
+      distribution_type: app_store
+      bundle_identifier: com.yukon3t.app
+    vars:
+      XCODE_PROJECT: "ios/App/App.xcodeproj"
+      XCODE_SCHEME: "App"
+    node: 20
+
+workflows:
+  ios-testflight:
+    name: YuKon3t iOS — TestFlight
+    # No local Mac to build/sign/archive on — this workflow is the whole iOS
+    # release pipeline. See ios/SUBMISSION.md for the one-time manual setup
+    # this depends on (App Store Connect API key, bundle ID + app record).
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      <<: *ios_env
+      groups:
+        # Create this group in Codemagic → Teams → your team → Environment
+        # variables, and add APP_STORE_CONNECT_KEY_IDENTIFIER,
+        # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY there —
+        # never in this file. Codemagic's own "App Store Connect" integration
+        # (Team settings → Integrations) is the actual signing credential;
+        # these vars are only needed if a script below reads them directly.
+        - app_store_credentials
+    triggering:
+      events: []
+      # Deliberately no push/PR/tag triggers — every run consumes paid macOS
+      # build minutes and there's no automated test suite gating this app
+      # yet. Trigger manually from the Codemagic dashboard or CLI
+      # (`codemagic-cli-tools`) per release.
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm ci
+      - name: Sync Capacitor iOS project
+        script: |
+          npx cap sync ios
+      - name: Bump the build number
+        script: |
+          # App Store Connect rejects a re-used build number for a given
+          # MARKETING_VERSION (currently 1.0, see project.pbxproj) — bump
+          # CURRENT_PROJECT_VERSION (currently 1) on every CI run using
+          # Codemagic's own incrementing build counter so this never
+          # collides, without hand-editing the .pbxproj per release.
+          cd "$(dirname "$XCODE_PROJECT")"
+          agvtool new-version -all "$PROJECT_BUILD_NUMBER"
+      - name: Set up code signing (App Store Connect API key)
+        script: |
+          # Requires the "App Store Connect" integration to already be
+          # connected in Codemagic's dashboard (Team settings →
+          # Integrations) — that's the credential this step actually uses;
+          # it fetches/creates matching certs + provisioning profiles
+          # automatically, no manually-generated .p12 needed.
+          xcode-project use-profiles
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Name of the App Store Connect integration as connected in
+        # Codemagic's dashboard — rename this to match whatever you name it
+        # there, or leave as-is and name it exactly this when connecting.
+        integration: yukon3t_app_store_connect
+        submit_to_testflight: true
+        # Create this TestFlight internal group first (App Store Connect →
+        # your app → TestFlight → Internal Testing) and rename to match, or
+        # remove this key to just upload without auto-adding testers.
+        beta_groups:
+          - internal-testers

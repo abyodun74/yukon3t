@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">YuKon3t</string>
+    <string name="title_activity_main">YuKon3t</string>
+    <string name="package_name">com.yukon3t.app</string>
+    <string name="custom_url_scheme">com.yukon3t.app</string>
+</resources>

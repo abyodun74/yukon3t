@@ -57,3 +57,11 @@ deno.lock
 **/xcuserdata/
 **/*.xcuserstate
 **/DerivedData/
+
+# Android (Capacitor) — same reasoning as the iOS block above, plus the
+# release signing keystore/credentials, which must never be committed.
+/android/app/google-services.json
+/android/local.properties
+/android/keystore.properties
+/android/*.jks
+/android/*.keystore
