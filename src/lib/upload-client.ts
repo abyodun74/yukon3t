@@ -69,6 +69,35 @@ export async function resizeImageFile(file: File): Promise<File> {
 }
 
 /**
+ * Resolves immediately if the page is already in the foreground, otherwise
+ * waits for it to become so. The installed Android app (a Trusted Web
+ * Activity wrapping Chrome, not a plain browser tab) is far more aggressive
+ * than a full browser about killing an in-flight network request the
+ * moment it's backgrounded — a locked screen or an app-switch mid-upload
+ * reliably kills a large video PUT that the same upload sails through in a
+ * regular browser tab. Retrying on a blind timer in that situation just
+ * burns attempts while still backgrounded, dying again immediately each
+ * time — waiting for real foreground visibility first means a retry only
+ * ever fires once Android is actually willing to grant network access
+ * again. A no-op outside a browser (SSR) or in a context with no
+ * Page Visibility API.
+ */
+function waitForForeground(): Promise<void> {
+  if (typeof document === "undefined" || document.visibilityState === "visible") {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        resolve();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  });
+}
+
+/**
  * Retries a flaky network call before giving up — mobile connections
  * (especially a TWA switching between wifi/cellular mid-upload) routinely
  * drop a request without the connection actually being down, and neither of
@@ -76,14 +105,22 @@ export async function resizeImageFile(file: File): Promise<File> {
  * dropped packet meant the whole upload failed with "couldn't reach the
  * server," even though a retry would have gone through. Delay grows with
  * each attempt (backoff) rather than staying fixed, giving a flaky
- * connection more time to recover before the next try.
+ * connection more time to recover before the next try. When
+ * waitForVisible is set, each retry also waits for the page to be in the
+ * foreground first — see waitForForeground above.
  */
-export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs = 800): Promise<T> {
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 2,
+  delayMs = 800,
+  waitForVisible = false,
+): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fn();
     } catch (err) {
       if (attempt >= attempts) throw err;
+      if (waitForVisible) await waitForForeground();
       await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
     }
   }
@@ -94,8 +131,9 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs =
 // PUT isn't resumable) than it does for a small photo, so a real-world
 // connection blip is much likelier to exhaust 2 total attempts before a
 // large video finishes than it is for anything else this app uploads.
-// More attempts, with the growing backoff above, gives a shaky connection
-// a real chance to recover mid-upload instead of failing outright.
+// More attempts, with the growing backoff above and the foreground wait,
+// gives a shaky (or backgrounded) connection a real chance to recover
+// mid-upload instead of failing outright.
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "post-video",
   "message-video",
@@ -103,7 +141,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "ad-video",
 ]);
 const PUT_ATTEMPTS_DEFAULT = 2;
-const PUT_ATTEMPTS_VIDEO = 4;
+const PUT_ATTEMPTS_VIDEO = 6;
 
 /**
  * Requests a presigned URL, then PUTs the file directly to R2 from the
@@ -152,8 +190,13 @@ export async function uploadFileDirect(
     // Retrying re-sends to the exact same presigned URL/key (not a fresh
     // request-upload-url round trip), so a retry just overwrites the same
     // R2 object rather than risking an orphaned duplicate. Video gets more
-    // attempts than everything else — see PUT_ATTEMPTS_VIDEO above.
-    const putAttempts = VIDEO_KINDS.has(kind) ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
+    // attempts than everything else, and waits for the page to be back in
+    // the foreground before each retry — see PUT_ATTEMPTS_VIDEO and
+    // waitForForeground above. The video-kind presigned URL is valid for an
+    // hour (see createUploadUrl), so waiting for the app to be reopened
+    // still has plenty of room even after a long backgrounded stretch.
+    const isVideo = VIDEO_KINDS.has(kind);
+    const putAttempts = isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
     putRes = await withRetry(
       () =>
         fetch(uploadUrl, {
@@ -162,6 +205,8 @@ export async function uploadFileDirect(
           body: uploadFile,
         }),
       putAttempts,
+      800,
+      isVideo,
     );
   } catch {
     return { ok: false, error: "network" };
