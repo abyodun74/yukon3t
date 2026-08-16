@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
@@ -10,16 +11,23 @@ import { getBlockedEitherWayIds } from "@/lib/blocks";
 const SORT_OPTIONS = ["relevant", "recent", "oldest"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
 
+// Offset (not cursor) pagination — "relevant" sorts by trustScore, which
+// isn't unique, so a cursor keyed on it could skip or repeat rows at tie
+// boundaries. Page-number based instead, same trade-off already accepted
+// elsewhere for imprecise result-set sizes (see hasMore below).
+const PAGE_SIZE = 30;
+
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; country?: string; sort?: string }>;
+  searchParams: Promise<{ intent?: string; country?: string; sort?: string; page?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { intent, country, sort: sortParam } = await searchParams;
+  const { intent, country, sort: sortParam, page: pageParam } = await searchParams;
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
     : "relevant";
+  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
 
   const blockedIds = await getBlockedEitherWayIds(me.id);
 
@@ -38,8 +46,10 @@ export default async function DiscoverPage({
         : sort === "oldest"
           ? { createdAt: "asc" }
           : { trustScore: "desc" },
-    take: 30,
+    take: PAGE_SIZE,
+    skip: (page - 1) * PAGE_SIZE,
   });
+  const hasMore = people.length === PAGE_SIZE;
 
   // Batch-fetch connection state for everyone on this page, instead of one
   // query per card, so the button can reflect pending/accepted status
@@ -181,6 +191,19 @@ export default async function DiscoverPage({
           </p>
         )}
       </div>
+      {hasMore && (
+        <Link
+          href={`/discover?${new URLSearchParams({
+            ...(intent ? { intent } : {}),
+            ...(country ? { country } : {}),
+            sort,
+            page: String(page + 1),
+          }).toString()}`}
+          className="mt-4 block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+        >
+          Load more
+        </Link>
+      )}
     </div>
   );
 }

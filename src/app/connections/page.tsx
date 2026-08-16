@@ -6,19 +6,35 @@ import { UserLink } from "@/components/user-link";
 import Link from "next/link";
 import { intentLabels } from "@/lib/validations";
 
-export default async function ConnectionsPage() {
-  const me = await getOnboardedUserOrRedirect();
+// Each of the three lists below is its own unbounded query — a long-time
+// user with dozens/hundreds of connections would otherwise turn this into
+// an ever-growing single page. Paginated independently (same cursor +
+// "Load more" pattern as the Home feed) so the page stays a normal length
+// by default, same as everywhere else in the app.
+const PAGE_SIZE = 20;
 
-  const [incoming, outgoing, accepted, myConversations] = await Promise.all([
+export default async function ConnectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ incomingBefore?: string; sentBefore?: string; connectedBefore?: string }>;
+}) {
+  const me = await getOnboardedUserOrRedirect();
+  const { incomingBefore, sentBefore, connectedBefore } = await searchParams;
+
+  const [incoming, outgoing, accepted] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
       include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+      ...(incomingBefore ? { cursor: { id: incomingBefore }, skip: 1 } : {}),
     }),
     prisma.connection.findMany({
       where: { requesterId: me.id, status: "PENDING" },
       include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
       orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+      ...(sentBefore ? { cursor: { id: sentBefore }, skip: 1 } : {}),
     }),
     prisma.connection.findMany({
       where: {
@@ -30,20 +46,46 @@ export default async function ConnectionsPage() {
         target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
       },
       orderBy: { respondedAt: "desc" },
-    }),
-    // Maps each connected user to their shared conversation, so "Connected"
-    // can link straight into the chat instead of just the profile. Only
-    // needs me.id, so it runs alongside the other three instead of after.
-    prisma.conversation.findMany({
-      where: { members: { some: { userId: me.id } } },
-      include: { members: { select: { userId: true } } },
+      take: PAGE_SIZE,
+      ...(connectedBefore ? { cursor: { id: connectedBefore }, skip: 1 } : {}),
     }),
   ]);
+
+  const incomingHasMore = incoming.length === PAGE_SIZE;
+  const sentHasMore = outgoing.length === PAGE_SIZE;
+  const connectedHasMore = accepted.length === PAGE_SIZE;
+
+  // Maps each connected user on *this page* to their shared conversation, so
+  // "Connected" can link straight into the chat instead of just the
+  // profile — scoped to just these otherIds rather than every conversation
+  // the viewer is in (group chats, Circle channels, etc.), which would be
+  // its own unbounded query otherwise.
+  const otherIds = accepted.map((c) => (c.requesterId === me.id ? c.target.id : c.requester.id));
+  const myConversations = otherIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          AND: [
+            { members: { some: { userId: me.id } } },
+            { members: { some: { userId: { in: otherIds } } } },
+          ],
+        },
+        include: { members: { select: { userId: true } } },
+      })
+    : [];
   const conversationIdByUserId = new Map<string, string>();
   for (const c of myConversations) {
     const other = c.members.find((m) => m.userId !== me.id);
     if (other) conversationIdByUserId.set(other.userId, c.id);
   }
+
+  const preserveQuery = (overrides: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (incomingBefore) params.set("incomingBefore", incomingBefore);
+    if (sentBefore) params.set("sentBefore", sentBefore);
+    if (connectedBefore) params.set("connectedBefore", connectedBefore);
+    for (const [key, value] of Object.entries(overrides)) params.set(key, value);
+    return `/connections?${params.toString()}`;
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-10">
@@ -81,6 +123,14 @@ export default async function ConnectionsPage() {
           {incoming.length === 0 && (
             <p className="text-sm text-foreground-soft">No pending requests.</p>
           )}
+          {incomingHasMore && (
+            <Link
+              href={preserveQuery({ incomingBefore: incoming[incoming.length - 1].id })}
+              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+            >
+              Load more
+            </Link>
+          )}
         </div>
       </section>
 
@@ -107,6 +157,14 @@ export default async function ConnectionsPage() {
           ))}
           {outgoing.length === 0 && (
             <p className="text-sm text-foreground-soft">No pending sent requests.</p>
+          )}
+          {sentHasMore && (
+            <Link
+              href={preserveQuery({ sentBefore: outgoing[outgoing.length - 1].id })}
+              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+            >
+              Load more
+            </Link>
           )}
         </div>
       </section>
@@ -151,6 +209,14 @@ export default async function ConnectionsPage() {
           })}
           {accepted.length === 0 && (
             <p className="text-sm text-foreground-soft">No connections yet.</p>
+          )}
+          {connectedHasMore && (
+            <Link
+              href={preserveQuery({ connectedBefore: accepted[accepted.length - 1].id })}
+              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+            >
+              Load more
+            </Link>
           )}
         </div>
       </section>

@@ -1061,13 +1061,13 @@ export function ChatThread({
             }
           }}
           maxLength={4000}
-          rows={1}
+          rows={2}
           placeholder={
             pendingAudio || pendingVideo || pendingImage
               ? "Add a caption (optional)..."
               : `Message ${conversationLabel}...`
           }
-          className="max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none"
+          className="max-h-32 flex-1 resize-none bg-transparent px-3 py-2 text-sm outline-none"
         />
         <button
           type="button"
