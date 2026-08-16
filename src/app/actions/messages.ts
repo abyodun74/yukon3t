@@ -100,7 +100,7 @@ export async function createGroupChat(formData: FormData) {
   redirect(`/messages/${conversation.id}`);
 }
 
-/** Any member: adds more of the caller's accepted connections to an existing group. */
+/** Creator-only: adds more of the caller's accepted connections to an existing group. */
 export async function addGroupMembers(conversationId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -111,7 +111,7 @@ export async function addGroupMembers(conversationId: string, formData: FormData
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (!conversation.members.some((m) => m.userId === user.id)) {
+  if (conversation.createdById !== user.id) {
     return { error: "forbidden" as const };
   }
 
@@ -159,18 +159,15 @@ export async function addGroupMembers(conversationId: string, formData: FormData
   return { error: null };
 }
 
-/** Any member: renames a group after creation. */
+/** Creator-only: renames a group after creation. */
 export async function renameGroupChat(conversationId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
-  const conversation = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    include: { members: { select: { userId: true } } },
-  });
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (!conversation.members.some((m) => m.userId === user.id)) {
+  if (conversation.createdById !== user.id) {
     return { error: "forbidden" as const };
   }
 

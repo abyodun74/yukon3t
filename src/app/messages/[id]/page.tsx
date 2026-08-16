@@ -86,12 +86,12 @@ export default async function ConversationPage({
         })
       : [];
 
-  // Any member can add more people, and only their own accepted connections
+  // Only the creator can add members, and only their accepted connections
   // who aren't already in the group are valid candidates — same rule
-  // addGroupMembers enforces server-side. Reaching this point already means
-  // `membership` is non-null (see the not-a-member branch above).
-  const memberCandidates = conversation.isGroup
-    ? await (async () => {
+  // addGroupMembers enforces server-side.
+  const memberCandidates =
+    conversation.isGroup && conversation.createdById === me.id
+      ? await (async () => {
           const memberIds = new Set(members.map((m) => m.userId));
           const accepted = await prisma.connection.findMany({
             where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
@@ -151,7 +151,7 @@ export default async function ConversationPage({
           <GroupNameEditor
             conversationId={id}
             name={conversationLabel}
-            canEdit
+            canEdit={conversation.createdById === me.id}
           />
         ) : other ? (
           <UserLink
@@ -183,7 +183,7 @@ export default async function ConversationPage({
           )}
         </div>
       </div>
-      {conversation.isGroup && (
+      {conversation.createdById === me.id && (
         <AddGroupMembersButton conversationId={id} candidates={memberCandidates} />
       )}
       {pendingRequests.length > 0 && (
