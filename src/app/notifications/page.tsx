@@ -14,6 +14,7 @@ export default async function NotificationsPage() {
     include: {
       actor: { select: { id: true, name: true, avatarUrl: true } },
       circle: { select: { slug: true } },
+      collab: { select: { id: true } },
     },
   });
 

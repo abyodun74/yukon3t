@@ -18,10 +18,10 @@ const PAGE_SIZE = 20;
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ before?: string; scope?: string; category?: string }>;
+  searchParams: Promise<{ scope?: string; category?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { before, scope, category: categoryParam } = await searchParams;
+  const { scope, category: categoryParam } = await searchParams;
   // Admin-only "include private posts" view — never trust the query param
   // alone, only branch the query when the signed-in user is actually an
   // admin. See src/lib/post-visibility.ts: everyone already sees everyone
@@ -61,11 +61,9 @@ export default async function HomePage({
     where,
     orderBy: { createdAt: "desc" },
     take: PAGE_SIZE,
-    ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     include: postCardInclude,
   });
   const posts = await attachViewerState(rawPosts, me.id);
-  const lastPost = rawPosts[rawPosts.length - 1];
   const hasMore = rawPosts.length === PAGE_SIZE;
 
   const scopeQuery = allPostsScope ? "&scope=all" : "";
@@ -144,11 +142,16 @@ export default async function HomePage({
         // Forces a remount (and fresh client state from the new
         // initialPosts) whenever the underlying SSR dataset changes — a
         // plain prop change wouldn't reset PostFeedSection's internal
-        // `posts` state, so switching tabs or paging would otherwise keep
-        // showing stale posts from the previous filter.
-        key={`${category ?? "all"}-${allPostsScope}-${before ?? "start"}`}
+        // `posts` state, so switching category/scope tabs would otherwise
+        // keep showing stale posts from the previous filter. "Load more"
+        // no longer changes any of these, so it no longer needs to be part
+        // of this key — see PostFeedSection's own loadMore, which appends
+        // in place instead of triggering a fresh SSR render.
+        key={`${category ?? "all"}-${allPostsScope}`}
         category={category ?? "all"}
         initialPosts={posts}
+        initialHasMore={hasMore}
+        allPostsScope={allPostsScope}
         viewerId={me.id}
         viewerIsAdmin={me.isAdmin}
         // Polling reflects each viewer's normal visibility (see
@@ -163,14 +166,6 @@ export default async function HomePage({
           Nothing here yet — check back soon, or connect with someone / join
           a Circle to see more.
         </p>
-      )}
-      {hasMore && lastPost && (
-        <Link
-          href={`/home?before=${lastPost.id}${categoryQuery}${scopeQuery}`}
-          className="mt-4 block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          Load more
-        </Link>
       )}
     </div>
   );

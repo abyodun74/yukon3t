@@ -23,18 +23,22 @@ type NotificationData = {
     | "EVENT_REMINDER"
     | "CIRCLE_JOIN_REQUEST"
     | "CIRCLE_JOIN_APPROVED"
-    | "MESSAGE";
+    | "MESSAGE"
+    | "GROUP_ADDED"
+    | "COLLAB_JOINED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
   postId: string | null;
   circle: { slug: string } | null;
   conversationId: string | null;
+  collab: { id: string } | null;
 };
 
 function hrefFor(notification: NotificationData) {
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.circle) return `/circles/${notification.circle.slug}`;
+  if (notification.collab) return `/collab/${notification.collab.id}`;
   if (notification.conversationId) return `/messages/${notification.conversationId}`;
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";

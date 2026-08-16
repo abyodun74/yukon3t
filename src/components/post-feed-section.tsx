@@ -29,6 +29,8 @@ function reviveDates(post: PostCardData): PostCardData {
 export function PostFeedSection({
   category,
   initialPosts,
+  initialHasMore,
+  allPostsScope = false,
   viewerId,
   viewerIsAdmin,
   pollingEnabled = true,
@@ -36,11 +38,18 @@ export function PostFeedSection({
   // "all" polls/queries with no category filter.
   category: string;
   initialPosts: PostCardData[];
+  initialHasMore: boolean;
+  // Forwarded to the "Load more" fetch as `&scope=all` — the API route
+  // re-checks isAdmin itself server-side, this is just so the right query
+  // gets requested (see src/app/home/page.tsx's own allPostsScope).
+  allPostsScope?: boolean;
   viewerId: string;
   viewerIsAdmin: boolean;
   pollingEnabled?: boolean;
 }) {
   const [posts, setPosts] = useState(initialPosts);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const poll = useCallback(async () => {
     const latest = posts[0]?.createdAt;
@@ -65,6 +74,34 @@ export function PostFeedSection({
 
   usePolling(poll, POLL_INTERVAL_MS, pollingEnabled);
 
+  // Fetches the next page and appends it in place — no navigation, so
+  // scroll position is untouched (this is what replaced Home's old
+  // `?before=` <Link>, which forced a full page reload back to the top).
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    const last = posts[posts.length - 1];
+    if (!last) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/feed/${category}/latest?before=${encodeURIComponent(last.id)}${allPostsScope ? "&scope=all" : ""}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const older: PostCardData[] = (data.posts ?? []).map(reviveDates);
+      setPosts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const toAdd = older.filter((p) => !existingIds.has(p.id));
+        return [...prev, ...toAdd];
+      });
+      setHasMore(Boolean(data.hasMore));
+    } catch {
+      // Leave hasMore as-is so the button stays put and can be retried.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [category, posts, hasMore, loadingMore, allPostsScope]);
+
   if (posts.length === 0) return null;
 
   return (
@@ -72,6 +109,16 @@ export function PostFeedSection({
       {posts.map((post) => (
         <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
       ))}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="block w-full rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
+      )}
     </div>
   );
 }

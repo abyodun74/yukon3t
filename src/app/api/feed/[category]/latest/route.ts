@@ -6,7 +6,10 @@ import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 
-const PAGE_SIZE = 10;
+const POLL_PAGE_SIZE = 10;
+// Matches Home's own PAGE_SIZE (src/app/home/page.tsx) so a "Load more"
+// click pulls in the same number of posts the old full-page pagination did.
+const LOAD_MORE_PAGE_SIZE = 20;
 
 /**
  * Polled by PostFeedSection (src/components/post-feed-section.tsx) every ~25s
@@ -14,6 +17,11 @@ const PAGE_SIZE = 10;
  * infrastructure — same `usePolling` pattern already used for nav badges
  * and chat (src/lib/use-polling.ts). `category` is either a FeedCategory
  * value or the literal "all" (no category filter, matching Home's "All" tab).
+ *
+ * Also serves Home's "Load more" button (`before` param) — fetching older
+ * posts this way instead of Home's old `?before=` full-page navigation lets
+ * PostFeedSection append them to its existing `posts` state in place, so
+ * the page never re-renders/scrolls back to the top.
  */
 export async function GET(
   request: Request,
@@ -41,8 +49,19 @@ export async function GET(
   if (after && (!afterDate || Number.isNaN(afterDate.getTime()))) {
     return NextResponse.json({ posts: [] }, { status: 400 });
   }
+  const before = searchParams.get("before");
+  // Same admin-only bypass as Home's own `allPostsScope` — never trust the
+  // query param alone, only branch when the signed-in user is actually an
+  // admin (see src/app/home/page.tsx).
+  const allPostsScope = searchParams.get("scope") === "all" && user.isAdmin;
 
-  const where = await getVisiblePostsWhere(user.id);
+  const where = allPostsScope
+    ? {
+        moderationStatus: "PUBLISHED" as const,
+        author: { status: "ACTIVE" as const },
+        NOT: { author: { postsVisibility: "HIDDEN" as const } },
+      }
+    : await getVisiblePostsWhere(user.id);
   const categoryFilter = isValidCategory
     ? await buildCategoryFilter(category as (typeof feedCategoryValues)[number])
     : undefined;
@@ -55,10 +74,12 @@ export async function GET(
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: PAGE_SIZE,
+    take: before ? LOAD_MORE_PAGE_SIZE : POLL_PAGE_SIZE,
+    ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     include: postCardInclude,
   });
 
   const posts = await attachViewerState(rawPosts, user.id);
-  return NextResponse.json({ posts });
+  const hasMore = before ? rawPosts.length === LOAD_MORE_PAGE_SIZE : undefined;
+  return NextResponse.json({ posts, hasMore });
 }

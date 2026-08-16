@@ -113,11 +113,17 @@ export async function deleteCollabPost(id: string) {
 export async function joinCollab(collabId: string) {
   const user = await requireVerifiedUser();
 
-  const collab = await prisma.collabBoardPost.findUnique({ where: { id: collabId } });
+  const collab = await prisma.collabBoardPost.findUnique({
+    where: { id: collabId },
+    include: { participants: { where: { role: "MODERATOR" }, select: { userId: true } } },
+  });
   if (!collab) {
     return { error: "not_found" as const };
   }
 
+  const existing = await prisma.collabParticipant.findUnique({
+    where: { userId_collabId: { userId: user.id, collabId } },
+  });
   await prisma.collabParticipant.upsert({
     where: { userId_collabId: { userId: user.id, collabId } },
     create: { userId: user.id, collabId },
@@ -132,6 +138,23 @@ export async function joinCollab(collabId: string) {
       create: { conversationId: collab.conversationId, userId: user.id },
       update: {},
     });
+  }
+
+  if (!existing) {
+    // Notify the collab's author and any co-admins that someone new
+    // joined — same shape as joinCircle's CIRCLE_JOINED notification.
+    const recipientIds = new Set([collab.authorId, ...collab.participants.map((p) => p.userId)]);
+    recipientIds.delete(user.id);
+    if (recipientIds.size > 0) {
+      await prisma.notification.createMany({
+        data: [...recipientIds].map((recipientId) => ({
+          recipientId,
+          actorId: user.id,
+          type: "COLLAB_JOINED" as const,
+          collabId,
+        })),
+      });
+    }
   }
 
   revalidatePath(`/collab/${collabId}`);

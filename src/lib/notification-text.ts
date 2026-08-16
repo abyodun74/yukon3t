@@ -17,6 +17,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   CIRCLE_JOIN_REQUEST: "requested to join your Circle",
   CIRCLE_JOIN_APPROVED: "approved your request to join their Circle",
   MESSAGE: "sent you a message",
+  GROUP_ADDED: "added you to a group chat",
+  COLLAB_JOINED: "joined your collaboration",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

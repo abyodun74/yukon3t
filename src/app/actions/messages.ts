@@ -100,7 +100,7 @@ export async function createGroupChat(formData: FormData) {
   redirect(`/messages/${conversation.id}`);
 }
 
-/** Creator-only: adds more of the caller's accepted connections to an existing group. */
+/** Any member: adds more of the caller's accepted connections to an existing group. */
 export async function addGroupMembers(conversationId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -111,7 +111,7 @@ export async function addGroupMembers(conversationId: string, formData: FormData
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (conversation.createdById !== user.id) {
+  if (!conversation.members.some((m) => m.userId === user.id)) {
     return { error: "forbidden" as const };
   }
 
@@ -146,20 +146,31 @@ export async function addGroupMembers(conversationId: string, formData: FormData
   await prisma.conversationMember.createMany({
     data: newIds.map((id) => ({ conversationId, userId: id })),
   });
+  await prisma.notification.createMany({
+    data: newIds.map((id) => ({
+      recipientId: id,
+      actorId: user.id,
+      type: "GROUP_ADDED" as const,
+      conversationId,
+    })),
+  });
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null };
 }
 
-/** Creator-only: renames a group after creation. */
+/** Any member: renames a group after creation. */
 export async function renameGroupChat(conversationId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { members: { select: { userId: true } } },
+  });
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (conversation.createdById !== user.id) {
+  if (!conversation.members.some((m) => m.userId === user.id)) {
     return { error: "forbidden" as const };
   }
 

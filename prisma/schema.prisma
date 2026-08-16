@@ -617,6 +617,12 @@ enum NotificationType {
   // so it shows up in the notification bell alongside everything else
   // rather than only in the Messages tab's own unread badge.
   MESSAGE
+  // Sent to a member when an existing member adds them to a group chat
+  // (see addGroupMembers in actions/messages.ts).
+  GROUP_ADDED
+  // Sent to a collab's author and any co-admins when a new participant
+  // joins — same shape as CIRCLE_JOINED (see joinCollab in actions/collab.ts).
+  COLLAB_JOINED
 }
 
 model Notification {
@@ -629,16 +635,18 @@ model Notification {
   connectionId   String?
   circleId       String?
   conversationId String?
+  collabId       String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
-  recipient    User          @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  actor        User          @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
-  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment      Comment?      @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  connection   Connection?   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  circle       Circle?       @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  recipient    User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        User             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post         Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment      Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  connection   Connection?      @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  circle       Circle?          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  conversation Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  collab       CollabBoardPost? @relation(fields: [collabId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -686,6 +694,7 @@ model CollabBoardPost {
   author       User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   participants CollabParticipant[]
   sessionParticipants CollabSessionParticipant[]
+  notifications Notification[]
 
   @@index([type])
   @@index([status])
