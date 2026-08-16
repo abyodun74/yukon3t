@@ -101,10 +101,15 @@ export default async function ConnectionsPage({
           {incoming.map((c) => (
             <div
               key={c.id}
-              className="flex items-center justify-between rounded-xl border border-line p-4"
+              className="flex items-center justify-between gap-2 rounded-xl border border-line p-4"
             >
-              <div>
-                <div className="flex items-center gap-2">
+              {/* min-w-0 lets this shrink below its content's natural
+                  width inside the flex row above — without it, a long
+                  name/username forces the whole row (and the page) wider
+                  than the viewport instead of letting UserLink's own
+                  truncate actually kick in. */}
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
                   <UserLink
                     userId={c.requester.id}
                     name={c.requester.name}
@@ -180,10 +185,10 @@ export default async function ConnectionsPage({
             return (
               <div
                 key={c.id}
-                className="flex items-center justify-between rounded-xl border border-line p-4"
+                className="flex items-center justify-between gap-2 rounded-xl border border-line p-4"
               >
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     <UserLink
                       userId={other.id}
                       name={other.name}
