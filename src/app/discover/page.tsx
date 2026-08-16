@@ -149,8 +149,8 @@ export default async function DiscoverPage({
         {people.map((person) => {
           const connection = connectionByOtherId.get(person.id);
           return (
-          <div key={person.id} className="rounded-xl border border-line p-4">
-            <div className="flex items-center justify-between">
+          <div key={person.id} className="min-w-0 rounded-xl border border-line p-4">
+            <div className="flex min-w-0 items-center justify-between">
               <UserLink
                 userId={person.id}
                 name={person.name}
@@ -165,7 +165,7 @@ export default async function DiscoverPage({
               {person.country ?? "Unknown location"}
             </p>
             {person.bio && (
-              <p className="mt-2 line-clamp-3 text-sm text-foreground-soft">
+              <p className="mt-2 line-clamp-3 break-words text-sm text-foreground-soft">
                 {person.bio}
               </p>
             )}
