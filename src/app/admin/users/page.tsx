@@ -24,6 +24,7 @@ export default async function AdminUsersPage({
           OR: [
             { email: { contains: query, mode: "insensitive" } },
             { username: { contains: query, mode: "insensitive" } },
+            { name: { contains: query, mode: "insensitive" } },
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -49,9 +50,10 @@ export default async function AdminUsersPage({
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">Users</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Look up an account by email or username to send them a password
-        reset link — for a customer having trouble resetting their own
-        password, or who&apos;s locked out after too many failed attempts.
+        Look up an account by email, username, or display name to send
+        them a password reset link — for a customer having trouble
+        resetting their own password, or who&apos;s locked out after too
+        many failed attempts.
       </p>
 
       <form className="mt-6 flex items-center gap-2">
@@ -59,7 +61,7 @@ export default async function AdminUsersPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="Email or username"
+          placeholder="Email, username, or name"
           className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
         />
         <button
