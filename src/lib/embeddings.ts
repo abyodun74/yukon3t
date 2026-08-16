@@ -92,6 +92,12 @@ export async function updateCollabEmbedding(collabId: string, fields: {
   await prisma.$executeRaw`UPDATE "CollabBoardPost" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${collabId}`;
 }
 
+export async function updateConversationEmbedding(conversationId: string, fields: { name: string }) {
+  const embedding = await getEmbedding(fields.name);
+  if (!embedding) return;
+  await prisma.$executeRaw`UPDATE "Conversation" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${conversationId}`;
+}
+
 export async function updatePostEmbedding(postId: string, content: string) {
   const embedding = await getEmbedding(content);
   if (!embedding) return;

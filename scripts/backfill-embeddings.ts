@@ -1,7 +1,7 @@
 // One-off backfill: computes embeddings for every existing User/Circle/
-// CollabBoardPost/Post row that doesn't have one yet (new rows get theirs
-// at creation time via the Server Actions in src/app/actions — see
-// src/lib/embeddings.ts). Run with:
+// CollabBoardPost/group Conversation/Post row that doesn't have one yet
+// (new rows get theirs at creation time via the Server Actions in
+// src/app/actions — see src/lib/embeddings.ts). Run with:
 //   npx tsx scripts/backfill-embeddings.ts
 //
 // Safe to re-run: it only ever selects rows where "embedding" IS NULL.
@@ -13,6 +13,7 @@ import {
   updateCircleEmbedding,
   updateCollabEmbedding,
   updatePostEmbedding,
+  updateConversationEmbedding,
 } from "@/lib/embeddings";
 
 // OpenAI's embeddings endpoint accepts many requests/min, but there's no
@@ -73,6 +74,22 @@ async function backfillCollabs() {
   }
 }
 
+async function backfillConversations() {
+  let total = 0;
+  while (true) {
+    const rows = await prisma.$queryRaw<
+      { id: string; name: string }[]
+    >`SELECT "id", "name" FROM "Conversation" WHERE "isGroup" = true AND "name" IS NOT NULL AND "embedding" IS NULL LIMIT ${BATCH_SIZE}`;
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      await updateConversationEmbedding(row.id, row);
+    }
+    total += rows.length;
+    console.log(`Group chats: backfilled ${total}`);
+    await sleep(BATCH_DELAY_MS);
+  }
+}
+
 async function backfillPosts() {
   let total = 0;
   while (true) {
@@ -97,6 +114,7 @@ async function main() {
   await backfillUsers();
   await backfillCircles();
   await backfillCollabs();
+  await backfillConversations();
   await backfillPosts();
   console.log("Backfill complete.");
 }

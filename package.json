@@ -15,7 +15,8 @@
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts"
+    "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts",
+    "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

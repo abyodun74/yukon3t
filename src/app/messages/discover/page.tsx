@@ -2,6 +2,20 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
+import { getEmbedding, toPgVector } from "@/lib/embeddings";
+import { nearestGroupIds } from "@/lib/search-embeddings";
+
+const GROUP_INCLUDE = {
+  _count: { select: { members: true } },
+  createdBy: { select: { name: true } },
+} as const;
+
+// Below this many exact substring matches, a query's words probably just
+// don't appear verbatim in any group name — that's the signal to also try
+// semantic matches (e.g. "soccer" finding a group named "Football Fans").
+// Same threshold search/page.tsx uses for its own exact/semantic split.
+const SPARSE_THRESHOLD = 5;
+const TAKE = 40;
 
 export default async function DiscoverGroupsPage({
   searchParams,
@@ -11,20 +25,40 @@ export default async function DiscoverGroupsPage({
   const me = await getOnboardedUserOrRedirect();
   const { q } = await searchParams;
 
-  const groups = await prisma.conversation.findMany({
-    where: {
-      isGroup: true,
-      discoverable: true,
-      NOT: { members: { some: { userId: me.id } } },
-      ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
-    },
-    include: {
-      _count: { select: { members: true } },
-      createdBy: { select: { name: true } },
-    },
+  const baseWhere = {
+    isGroup: true as const,
+    discoverable: true,
+    NOT: { members: { some: { userId: me.id } } },
+  };
+
+  const exactGroups = await prisma.conversation.findMany({
+    where: { ...baseWhere, ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}) },
+    include: GROUP_INCLUDE,
     orderBy: { createdAt: "desc" },
-    take: 40,
+    take: TAKE,
   });
+
+  let groups = exactGroups;
+  if (q && exactGroups.length < SPARSE_THRESHOLD) {
+    const embedding = await getEmbedding(q);
+    if (embedding) {
+      const candidateIds = await nearestGroupIds(toPgVector(embedding));
+      const exactIds = new Set(exactGroups.map((g) => g.id));
+      const newIds = candidateIds.filter((id) => !exactIds.has(id));
+      if (newIds.length) {
+        const smartGroups = await prisma.conversation.findMany({
+          where: { ...baseWhere, id: { in: newIds } },
+          include: GROUP_INCLUDE,
+        });
+        // nearestGroupIds already returns ids ranked nearest-first — re-sort
+        // the fetched rows back into that order rather than Prisma's
+        // arbitrary `id in [...]` order.
+        const rank = new Map(newIds.map((id, i) => [id, i]));
+        smartGroups.sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+        groups = [...exactGroups, ...smartGroups].slice(0, TAKE);
+      }
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">

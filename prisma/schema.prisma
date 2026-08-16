@@ -897,6 +897,12 @@ model Conversation {
   createdById  String?
   createdAt    DateTime @default(now())
 
+  // Smart search for Discover groups (src/lib/search-embeddings.ts) as a
+  // fallback when exact substring search on the group name comes back
+  // sparse. See User.embedding — same Unsupported/$queryRaw pattern, embeds
+  // name only (groups have no description field).
+  embedding Unsupported("vector(1536)")?
+
   createdBy    User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
   members      ConversationMember[]
   messages     Message[]

@@ -20,6 +20,7 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { updateConversationEmbedding } from "@/lib/embeddings";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -93,6 +94,7 @@ export async function createGroupChat(formData: FormData) {
       },
     },
   });
+  await updateConversationEmbedding(conversation.id, { name });
 
   revalidatePath("/messages");
   redirect(`/messages/${conversation.id}`);
@@ -173,6 +175,7 @@ export async function renameGroupChat(conversationId: string, formData: FormData
   }
 
   await prisma.conversation.update({ where: { id: conversationId }, data: { name } });
+  await updateConversationEmbedding(conversationId, { name });
 
   revalidatePath(`/messages/${conversationId}`);
   revalidatePath("/messages");

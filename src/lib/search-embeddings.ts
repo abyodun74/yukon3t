@@ -73,6 +73,28 @@ export async function nearestPostIds(
   return rows.filter((r) => r.distance <= maxDistance).map((r) => r.id);
 }
 
+/**
+ * Standalone nearest-neighbor lookup against Conversation.embedding, same
+ * shape as nearestPostIds above — used by messages/discover/page.tsx as a
+ * fallback when an exact substring match on the group name comes back
+ * sparse. Returns bare candidate ids; the caller re-fetches them through
+ * its own typed query so discoverable/membership/visibility rules live in
+ * exactly one place (see this file's top-of-file comment).
+ */
+export async function nearestGroupIds(
+  vector: string,
+  { limit = CANDIDATE_LIMIT, maxDistance = MAX_DISTANCE }: { limit?: number; maxDistance?: number } = {},
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Candidate[]>`
+    SELECT "id", "embedding" <=> ${vector}::vector AS distance
+    FROM "Conversation"
+    WHERE "embedding" IS NOT NULL
+    ORDER BY distance ASC
+    LIMIT ${limit}
+  `;
+  return rows.filter((r) => r.distance <= maxDistance).map((r) => r.id);
+}
+
 function rankMap(candidates: Candidate[]) {
   return new Map(candidates.map((c, index) => [c.id, index]));
 }
