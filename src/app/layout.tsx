@@ -53,6 +53,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Next.js only emits the framework's default `width=device-width,
+  // initial-scale=1` viewport meta tag when this export is absent — once we
+  // provide our own `viewport` object (for themeColor below), it replaces
+  // the default wholesale rather than merging with it. Without these two
+  // fields the page shipped with no viewport meta tag at all, so mobile
+  // WebViews (confirmed on the Android/Capacitor build) fell back to a
+  // desktop-width layout viewport and rendered the whole app zoomed out and
+  // off-center, clipping content symmetrically at both edges once
+  // globals.css's `overflow-x: hidden` kicked in.
+  width: "device-width",
+  initialScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f6f2" },
     { media: "(prefers-color-scheme: dark)", color: "#14181a" },
