@@ -138,6 +138,9 @@ const SWIPE_REPLY_THRESHOLD_PX = 56;
 // Drag is clamped past the threshold so the bubble can't be flung
 // arbitrarily far off its row while the finger/pointer is still down.
 const SWIPE_MAX_DRAG_PX = 80;
+// Matches the menu's own w-40 — used to check available viewport space
+// before deciding which side it should open on.
+const MESSAGE_MENU_WIDTH_PX = 160;
 
 function CorrectionList({
   corrections,
@@ -205,6 +208,14 @@ function MessageBubble({
   onReply: (message: MessageData) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Which side the dropdown's own edge pins to (it opens toward the
+  // opposite side). Defaults to the old mine-based guess so the first
+  // paint before any click is reasonable, but the real decision happens in
+  // toggleMenu, which measures actual space against the viewport — the
+  // menu's anchor (the "..." button) can end up near either screen edge
+  // regardless of whose message it is, e.g. next to a wide incoming bubble.
+  const [menuAlign, setMenuAlign] = useState<"left" | "right">(mine ? "right" : "left");
+  const menuAnchorRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [editError, setEditError] = useState<string | null>(null);
@@ -280,6 +291,21 @@ function MessageBubble({
       const result = await toggleMessageReaction(message.id, emoji);
       if (!result.error) onReacted(message.id, result.reactions);
     });
+  }
+
+  function toggleMenu() {
+    if (!menuOpen) {
+      const rect = menuAnchorRef.current?.getBoundingClientRect();
+      if (rect) {
+        const spaceRight = window.innerWidth - rect.left;
+        const spaceLeft = rect.right;
+        // Open toward whichever side actually has room; fall back to the
+        // side with more (rather than less) space if neither fully fits,
+        // so an extremely narrow viewport still clips the smaller amount.
+        setMenuAlign(spaceRight >= MESSAGE_MENU_WIDTH_PX || spaceRight >= spaceLeft ? "left" : "right");
+      }
+    }
+    setMenuOpen((v) => !v);
   }
 
   function openCorrection() {
@@ -581,11 +607,11 @@ function MessageBubble({
       </div>
 
       {!deleted && !editing && (
-        <div className="relative flex shrink-0 items-center pb-1">
+        <div ref={menuAnchorRef} className="relative flex shrink-0 items-center pb-1">
           <EmojiPickerButton onSelect={toggleReaction} />
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={toggleMenu}
             aria-label="Message options"
             className="rounded-full p-1 text-foreground-soft hover:bg-line"
           >
@@ -594,8 +620,8 @@ function MessageBubble({
           {menuOpen && (
             <div
               className={cn(
-                "absolute top-full z-20 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
-                mine ? "right-0" : "left-0",
+                "absolute top-full z-20 mt-1 w-40 max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
+                menuAlign === "right" ? "right-0" : "left-0",
               )}
             >
               <button

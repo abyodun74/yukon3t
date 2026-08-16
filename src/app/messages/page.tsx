@@ -13,7 +13,16 @@ export default async function MessagesPage() {
       members: { include: { user: { select: { id: true, name: true } } } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
-    orderBy: { createdAt: "desc" },
+  });
+
+  // Ordering by conversation.createdAt (when the thread was first created)
+  // would leave an old thread pinned near the bottom even after a fresh
+  // reply just landed in it — sort by the most recent activity instead,
+  // falling back to the thread's own createdAt for a still-empty one.
+  conversations.sort((a, b) => {
+    const aTime = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
+    const bTime = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
+    return bTime - aTime;
   });
 
   return (
