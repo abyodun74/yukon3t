@@ -97,11 +97,17 @@ export default async function DiscoverPage({
         conversations neither of you signed up for.
       </p>
 
-      <form className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+      {/* Grid (not flex-wrap) on mobile — 3 selects plus a button in a
+          wrapping flex row has no predictable line count on a narrow phone
+          screen (anywhere from 2 to 4 lines depending on device width and
+          locale-driven label length), eating an unpredictable amount of
+          vertical space above the actual results. A fixed 2-column grid is
+          exactly 2 rows on mobile, every time. */}
+      <form className="mt-6 grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <select
           name="intent"
           defaultValue={intent ?? ""}
-          className="rounded-lg border border-line bg-surface px-3 py-2"
+          className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
           <option value="">Any intent</option>
           {intentTagValues.map((tag) => (
@@ -113,7 +119,7 @@ export default async function DiscoverPage({
         <select
           name="country"
           defaultValue={country ?? ""}
-          className="rounded-lg border border-line bg-surface px-3 py-2"
+          className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
           <option value="">Any country</option>
           {COUNTRIES.map((c) => (
@@ -125,7 +131,7 @@ export default async function DiscoverPage({
         <select
           name="sort"
           defaultValue={sort}
-          className="rounded-lg border border-line bg-surface px-3 py-2"
+          className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
           <option value="relevant">Most relevant</option>
           <option value="recent">Most recent</option>
@@ -133,7 +139,7 @@ export default async function DiscoverPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-accent px-4 py-2 font-medium text-accent-ink"
+          className="w-full rounded-lg bg-accent px-4 py-2 font-medium text-accent-ink sm:w-auto"
         >
           Filter
         </button>
