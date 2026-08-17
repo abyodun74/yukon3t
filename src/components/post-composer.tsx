@@ -20,7 +20,14 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component.
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
-const MAX_VIDEO_SECONDS = 180;
+// Live in-browser recording (MediaRecorder, held in tab memory the whole
+// time) stays short — a multi-hour recording would risk exhausting the
+// tab's memory long before the user ever hits stop. A video picked from
+// the device's own file system has no such constraint (it's already a
+// file on disk, streamed straight to the PUT), so it gets a much longer
+// allowance — see MAX_UPLOAD_VIDEO_SECONDS.
+const MAX_RECORD_VIDEO_SECONDS = 180;
+const MAX_UPLOAD_VIDEO_SECONDS = 240 * 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
@@ -29,6 +36,14 @@ const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   TIKTOK: "TikTok",
   DAILYMOTION: "Dailymotion",
 };
+
+function formatSecondsLabel(seconds: number) {
+  if (seconds % 60 === 0 && seconds >= 60) {
+    const minutes = seconds / 60;
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+  return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
 
 // datetime-local inputs want "YYYY-MM-DDTHH:mm" in the viewer's own local
 // time — Date#toISOString() is UTC, so the offset has to be subtracted out
@@ -189,54 +204,43 @@ export function PostComposer({
       return;
     }
 
+    // Attach synchronously rather than waiting on the <video> element's
+    // loadedmetadata event — that event can take a while (or, on some
+    // Android devices/codecs, never fire at all, nor does onerror) to
+    // resolve for a large file. Gating attachment on it left `video` state
+    // null in the meantime, so a user who picked a valid video and hit
+    // "Post" before it resolved fell through to the generic "attach a
+    // photo/video" validation error despite having picked one. Duration is
+    // now checked in the background below and only removes the video
+    // after the fact if it's too long — the common case (post submitted
+    // any time after the picker closes) never sees that window at all.
+    setImages([]);
+    setUrlImages([]);
+    setEmbedUrl(null);
+    setVideo(file);
+    setStatus("idle");
+    setErrorText(null);
+
     const url = URL.createObjectURL(file);
     const probe = document.createElement("video");
     probe.preload = "metadata";
     probe.src = url;
-
-    // Some Android devices/codecs never fire loadedmetadata for a file this
-    // <video> element can't decode (nor onerror, in a few cases) — without
-    // this, picking such a video left `video` state null with no feedback,
-    // so submitting the post fell through to the generic "attach a photo/
-    // video" validation error even though a video had been picked. A
-    // duration probe failure is a client-side nicety, not a security
-    // boundary, so it fails open (attaches the video unchecked) rather than
-    // leaving the user stuck. Same pattern as story-upload-modal.tsx.
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      URL.revokeObjectURL(url);
-    };
-    const attach = () => {
-      setImages([]);
-      setUrlImages([]);
-      setEmbedUrl(null);
-      setVideo(file);
-      setStatus("idle");
-      setErrorText(null);
-    };
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      finish();
-      attach();
-    }, 4000);
-
     probe.onloadedmetadata = () => {
-      if (settled) return;
-      finish();
-      if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
+      URL.revokeObjectURL(url);
+      if (Number.isFinite(probe.duration) && probe.duration > MAX_UPLOAD_VIDEO_SECONDS) {
+        // Only clear it if this is still the video that was picked — a
+        // second, different pick before this one's metadata resolved
+        // shouldn't clobber it.
+        setVideo((current) => (current === file ? null : current));
         setStatus("error");
-        setErrorText(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
-        return;
+        setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
       }
-      attach();
     };
     probe.onerror = () => {
-      if (settled) return;
-      finish();
-      attach();
+      // Can't determine duration — fails open (video stays attached
+      // unchecked) rather than blocking a post over a client-side probe
+      // that isn't a security boundary anyway.
+      URL.revokeObjectURL(url);
     };
   }
 
@@ -679,7 +683,7 @@ export function PostComposer({
 
       {showRecorder && (
         <VideoRecorderModal
-          maxSeconds={MAX_VIDEO_SECONDS}
+          maxSeconds={MAX_RECORD_VIDEO_SECONDS}
           onClose={() => setShowRecorder(false)}
           onRecorded={(file) => {
             setShowRecorder(false);
