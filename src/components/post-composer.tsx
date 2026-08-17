@@ -20,7 +20,7 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component.
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
-const MAX_VIDEO_SECONDS = 60;
+const MAX_VIDEO_SECONDS = 180;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
@@ -193,19 +193,50 @@ export function PostComposer({
     const probe = document.createElement("video");
     probe.preload = "metadata";
     probe.src = url;
-    probe.onloadedmetadata = () => {
+
+    // Some Android devices/codecs never fire loadedmetadata for a file this
+    // <video> element can't decode (nor onerror, in a few cases) — without
+    // this, picking such a video left `video` state null with no feedback,
+    // so submitting the post fell through to the generic "attach a photo/
+    // video" validation error even though a video had been picked. A
+    // duration probe failure is a client-side nicety, not a security
+    // boundary, so it fails open (attaches the video unchecked) rather than
+    // leaving the user stuck. Same pattern as story-upload-modal.tsx.
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       URL.revokeObjectURL(url);
-      if (probe.duration > MAX_VIDEO_SECONDS) {
-        setStatus("error");
-        setErrorText(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
-        return;
-      }
+    };
+    const attach = () => {
       setImages([]);
       setUrlImages([]);
       setEmbedUrl(null);
       setVideo(file);
       setStatus("idle");
       setErrorText(null);
+    };
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      finish();
+      attach();
+    }, 4000);
+
+    probe.onloadedmetadata = () => {
+      if (settled) return;
+      finish();
+      if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
+        setStatus("error");
+        setErrorText(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
+        return;
+      }
+      attach();
+    };
+    probe.onerror = () => {
+      if (settled) return;
+      finish();
+      attach();
     };
   }
 

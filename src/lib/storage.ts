@@ -68,7 +68,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 ]);
 
 export const MAX_POST_IMAGES = 4;
-export const MAX_VIDEO_DURATION_SECONDS = 60;
+export const MAX_VIDEO_DURATION_SECONDS = 180;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_STORY_VIDEO_SECONDS = 120;
