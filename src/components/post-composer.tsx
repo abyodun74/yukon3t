@@ -6,6 +6,7 @@ import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Uploa
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
+import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -69,6 +70,8 @@ function errorMessage(code: string) {
       return "That link isn't valid — check it starts with http:// or https://.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
+    case "stale_deployment":
+      return STALE_DEPLOYMENT_MESSAGE;
     default:
       return "Couldn't post — try again.";
   }
@@ -381,14 +384,22 @@ export function PostComposer({
             // dropped packet) would otherwise throw away that upload and
             // show a scary "couldn't reach the server" error for something
             // a moment's retry would have gotten past. Same retry helper
-            // uploadFileDirect already uses for exactly this reason.
-            result = await withRetry(() => createPost(fd), 3, 1000);
-          } catch {
+            // uploadFileDirect already uses for exactly this reason. A
+            // stale Server Action id (this tab open since before a
+            // redeploy) is excluded from retrying — see isStaleDeploymentError.
+            result = await withRetry(
+              () => createPost(fd),
+              3,
+              1000,
+              false,
+              (err) => !isStaleDeploymentError(err),
+            );
+          } catch (err) {
             // A rejected server-action call (e.g. no connectivity) would
             // otherwise be an uncaught exception that crashes the whole
             // page instead of showing a normal composer error.
             setStatus("error");
-            setErrorText(errorMessage("network"));
+            setErrorText(isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network"));
             return;
           }
           if (result.error) {
@@ -684,7 +695,18 @@ export function PostComposer({
         </button>
       </div>
       {status === "error" && errorText && (
-        <p className="mt-1 text-xs text-danger">{errorText}</p>
+        <p className="mt-1 text-xs text-danger">
+          {errorText}
+          {errorText === STALE_DEPLOYMENT_MESSAGE && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="ml-1.5 font-medium underline"
+            >
+              Refresh
+            </button>
+          )}
+        </p>
       )}
 
       {showRecorder && (

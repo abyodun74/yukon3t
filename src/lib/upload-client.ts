@@ -2,6 +2,7 @@
 
 import { requestUploadUrl } from "@/app/actions/media";
 import type { UploadKind } from "@/lib/storage";
+import { isStaleDeploymentError } from "@/lib/stale-deployment";
 
 export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -124,12 +125,17 @@ export async function withRetry<T>(
   attempts = 2,
   delayMs = 800,
   waitForVisible = false,
+  // Lets a caller opt certain errors out of retrying at all — e.g. a stale
+  // Server Action id after a redeploy (see stale-deployment.ts) will never
+  // succeed no matter how many times it's retried, so burning the full
+  // attempt budget on it just delays showing the (actionable) error.
+  shouldRetry: (err: unknown) => boolean = () => true,
 ): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fn();
     } catch (err) {
-      if (attempt >= attempts) throw err;
+      if (attempt >= attempts || !shouldRetry(err)) throw err;
       if (waitForVisible) await waitForForeground();
       await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
     }
@@ -230,9 +236,19 @@ export async function uploadFileDirect(
 
   let result;
   try {
-    result = await withRetry(() => withTimeout(requestUrlFn(fd), MIN_ATTEMPT_TIMEOUT_MS));
-  } catch {
-    return { ok: false, error: "network" };
+    // A stale Server Action id (see stale-deployment.ts) is excluded from
+    // retrying — no number of attempts will make the old-deploy request
+    // resolve, so failing fast here just gets to the (actionable) error
+    // sooner instead of burning the whole retry budget on it.
+    result = await withRetry(
+      () => withTimeout(requestUrlFn(fd), MIN_ATTEMPT_TIMEOUT_MS),
+      2,
+      800,
+      false,
+      (err) => !isStaleDeploymentError(err),
+    );
+  } catch (err) {
+    return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
   }
   if (result.error || !result.uploadUrl || !result.publicUrl || !result.key) {
     return { ok: false, error: result.error ?? "invalid" };
