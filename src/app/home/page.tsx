@@ -5,6 +5,7 @@ import { PostComposer } from "@/components/post-composer";
 import { PostFeedSection } from "@/components/post-feed-section";
 import { StreakBanner } from "@/components/streak-banner";
 import { StoryTray } from "@/components/story-tray";
+import { LiveStreamStrip } from "@/components/live-stream-strip";
 import { AdSlot } from "@/components/ad-slot";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
@@ -106,6 +107,10 @@ export default async function HomePage({
 
       <div className="mt-6">
         <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
+      </div>
+
+      <div className="mt-4">
+        <LiveStreamStrip />
       </div>
 
       <div className="mt-6">

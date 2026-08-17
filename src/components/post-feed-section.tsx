@@ -23,6 +23,14 @@ function reviveDates(post: PostCardData): PostCardData {
           eventAt: post.repostOf.eventAt ? new Date(post.repostOf.eventAt) : null,
         }
       : null,
+    sharedPost: post.sharedPost
+      ? {
+          ...post.sharedPost,
+          createdAt: new Date(post.sharedPost.createdAt),
+          editedAt: post.sharedPost.editedAt ? new Date(post.sharedPost.editedAt) : null,
+          eventAt: post.sharedPost.eventAt ? new Date(post.sharedPost.eventAt) : null,
+        }
+      : null,
   };
 }
 

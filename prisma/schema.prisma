@@ -214,6 +214,9 @@ model User {
   collabParticipations        CollabParticipant[]
   collabSessionParticipations CollabSessionParticipant[]
 
+  liveStreamsHosted   LiveStream[]
+  liveStreamsWatching LiveStreamViewer[]
+
   stories        Story[]
   storyViews     StoryView[]
   storyReactions StoryReaction[]
@@ -286,6 +289,7 @@ model Circle {
   posts         Post[]
   channels      Channel[]
   notifications Notification[]
+  liveStreams   LiveStream[]
 
   @@index([category])
 }
@@ -473,17 +477,26 @@ model Post {
 
   repostOfId String?
 
+  // Set when this post is a "share into a Circle" of another post — unlike
+  // repostOfId, never unique per (authorId, sharedPostId): a user can share
+  // the same post into multiple Circles, or the same Circle more than once,
+  // so sharing must not carry repost's toggle/undo semantics (see
+  // shareToCircle in actions/shares.ts).
+  sharedPostId String?
+
   likeCount    Int @default(0)
   commentCount Int @default(0)
   repostCount  Int @default(0)
   shareCount   Int @default(0)
   rsvpCount    Int @default(0)
 
-  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  circle   Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  channel  Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  repostOf Post?    @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
-  reposts  Post[]   @relation("PostRepost")
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  circle     Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  channel    Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  repostOf   Post?    @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts    Post[]   @relation("PostRepost")
+  sharedPost Post?    @relation("PostShare", fields: [sharedPostId], references: [id], onDelete: Cascade)
+  shareEmbeds Post[]  @relation("PostShare")
 
   likes         Like[]
   comments      Comment[]
@@ -495,6 +508,7 @@ model Post {
   @@index([circleId])
   @@index([authorId])
   @@index([repostOfId])
+  @@index([sharedPostId])
   // Match the home feed's actual query shape (each OR branch filtered by
   // moderationStatus, the whole result ordered by createdAt) — without
   // these, that OR+sort increasingly needs to sort a large intermediate
@@ -736,6 +750,50 @@ model CollabSessionParticipant {
 
   @@unique([collabId, userId])
   @@index([collabId])
+}
+
+enum LiveStreamStatus {
+  LIVE
+  ENDED
+}
+
+/**
+ * A host-broadcasts/viewers-watch WebRTC room (see createLiveStreamRoom's
+ * owner_only_broadcast Daily property) — unlike Collab's persistent session
+ * room, each live stream is a one-off, ends explicitly (or via room expiry),
+ * and is never reused.
+ */
+model LiveStream {
+  id        String           @id @default(cuid())
+  hostId    String
+  circleId  String?
+  title     String
+  status    LiveStreamStatus @default(LIVE)
+  roomName  String
+  roomUrl   String
+  startedAt DateTime         @default(now())
+  endedAt   DateTime?
+
+  host    User     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  circle  Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  viewers LiveStreamViewer[]
+
+  @@index([status])
+  @@index([hostId])
+}
+
+/** Presence, not history — mirrors CollabSessionParticipant. */
+model LiveStreamViewer {
+  id           String   @id @default(cuid())
+  liveStreamId String
+  userId       String
+  joinedAt     DateTime @default(now())
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([liveStreamId, userId])
+  @@index([liveStreamId])
 }
 
 enum StoryMediaType {

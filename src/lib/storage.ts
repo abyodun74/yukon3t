@@ -40,25 +40,23 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
 };
 
 // Every video kind shares one byte cap — durations (MAX_*_SECONDS below)
-// are what actually keep message/story clips short in practice; the byte
-// cap alone was too tight for ordinary phone-recorded 1080p/4K footage even
-// at the old per-kind values, so there's no reason to size it per kind. 500MB
-// comfortably fits a 2-minute clip even at 4K HEVC bitrates (~450MB worst
-// case), which the 200MB predecessor of this cap did not.
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+// are what actually keep message/story clips short in practice. 2GB
+// comfortably fits large phone-recorded 4K clips well beyond the old 500MB
+// cap, which users were bumping into on longer/higher-bitrate footage.
+const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
-  avatar: 5 * 1024 * 1024,
-  "post-image": 8 * 1024 * 1024,
+  avatar: 12 * 1024 * 1024,
+  "post-image": 25 * 1024 * 1024,
   "video-thumb": 3 * 1024 * 1024,
   "post-video": MAX_VIDEO_BYTES,
   "message-audio": 5 * 1024 * 1024,
   "message-video": MAX_VIDEO_BYTES,
-  "message-image": 8 * 1024 * 1024,
-  "circle-cover": 5 * 1024 * 1024,
-  "story-image": 8 * 1024 * 1024,
+  "message-image": 25 * 1024 * 1024,
+  "circle-cover": 12 * 1024 * 1024,
+  "story-image": 25 * 1024 * 1024,
   "story-video": MAX_VIDEO_BYTES,
-  "ad-image": 8 * 1024 * 1024,
+  "ad-image": 25 * 1024 * 1024,
   "ad-video": MAX_VIDEO_BYTES,
 };
 
@@ -135,10 +133,10 @@ export async function createUploadUrl({
   const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
   const bucket = process.env.R2_BUCKET_NAME!;
 
-  // 500MB over a slow mobile upload can take well past 5 minutes; a video
-  // kind gets a longer-lived presigned URL so the PUT doesn't start failing
+  // 2GB over a slow mobile upload can take well past an hour; a video kind
+  // gets a longer-lived presigned URL so the PUT doesn't start failing
   // partway through on a slow connection. Non-video kinds stay at 5 minutes.
-  const expiresIn = VIDEO_KINDS.has(kind) ? 3600 : 300;
+  const expiresIn = VIDEO_KINDS.has(kind) ? 7200 : 300;
   const uploadUrl = await getSignedUrl(
     client(),
     new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),

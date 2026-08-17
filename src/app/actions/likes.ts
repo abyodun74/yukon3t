@@ -68,3 +68,24 @@ export async function toggleLike(postId: string) {
   revalidatePostViews(post);
   return { error: null, liked: true, likeCount: updated.likeCount };
 }
+
+const LIKERS_LIMIT = 100;
+
+/**
+ * Who-liked-this list — unlike getStoryViewers, this is visible to anyone
+ * (the like count itself is already public on every post), not just the
+ * post's author. Callers pass the same already-root-resolved postId they'd
+ * pass to toggleLike (see interactionTargetId in post-card.tsx).
+ */
+export async function getPostLikers(postId: string) {
+  await requireVerifiedUser();
+
+  const likes = await prisma.like.findMany({
+    where: { postId },
+    orderBy: { createdAt: "desc" },
+    take: LIKERS_LIMIT,
+    include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+  });
+
+  return { likers: likes.map((l) => l.user) };
+}

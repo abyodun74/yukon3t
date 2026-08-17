@@ -4,11 +4,12 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
+import { LikersModal } from "@/components/likers-modal";
+import { ShareModal } from "@/components/share-modal";
 import { toggleLike } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
-import { recordShare } from "@/app/actions/shares";
 import { cn } from "@/lib/utils";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
@@ -46,6 +47,7 @@ export type PostCardData = EmbeddedPost & {
   repostedByMe: boolean;
   rsvpGoingByMe: boolean;
   repostOf: EmbeddedPost | null;
+  sharedPost: EmbeddedPost | null;
 };
 
 function EventBlock({
@@ -258,8 +260,8 @@ export function PostCard({
   viewerId: string;
   viewerIsAdmin?: boolean;
 }) {
-  const displayPost = post.repostOf ?? post;
-  const interactionTargetId = post.repostOf?.id ?? post.id;
+  const displayPost = post.sharedPost ?? post.repostOf ?? post;
+  const interactionTargetId = post.sharedPost?.id ?? post.repostOf?.id ?? post.id;
 
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -268,12 +270,12 @@ export function PostCard({
   const [shareCount, setShareCount] = useState(post.shareCount);
   const [going, setGoing] = useState(post.rsvpGoingByMe);
   const [rsvpCount, setRsvpCount] = useState(post.rsvpCount);
-  const [copied, setCopied] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxVideo, setLightboxVideo] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [isLikePending, startLikeTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
-  const [isSharePending, startShareTransition] = useTransition();
   const [isRsvpPending, startRsvpTransition] = useTransition();
 
   // post.content/editedAt (this row's own text — the repost caption when
@@ -358,33 +360,18 @@ export function PostCard({
     });
   }
 
-  function handleShare() {
-    const url = `${window.location.origin}/post/${interactionTargetId}`;
-    navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
-    startShareTransition(async () => {
-      const result = await recordShare(interactionTargetId);
-      if (!result.error && result.shareCount !== undefined) {
-        setShareCount(result.shareCount);
-      }
-    });
-  }
+  const isQuoting = Boolean(post.repostOf || post.sharedPost);
 
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
-      {post.repostOf && (
+      {(post.repostOf || post.sharedPost) && (
         <Link
-          href={`/u/${post.repostOf.author.id}`}
+          href={`/u/${post.author.id}`}
           className="mb-2 flex items-center gap-1.5 text-xs text-foreground-soft hover:text-accent"
         >
-          <Repeat2 size={14} />
-          Reposted from{" "}
-          <span className="font-medium">{post.repostOf.author.name}</span>
+          {post.repostOf ? <Repeat2 size={14} /> : <Share2 size={14} />}
+          {post.repostOf ? "Reposted by" : "Shared by"}{" "}
+          <span className="font-medium">{post.author.name}</span>
         </Link>
       )}
 
@@ -420,7 +407,7 @@ export function PostCard({
         </div>
       </div>
 
-      {post.repostOf && (editing || content) && (
+      {isQuoting && (editing || content) && (
         editing ? (
           <div className="mt-2">
             <textarea
@@ -475,11 +462,11 @@ export function PostCard({
       />
 
       <MediaBlock
-        post={post.repostOf ? displayPost : { ...displayPost, content }}
+        post={isQuoting ? displayPost : { ...displayPost, content }}
         onOpenImage={(index) => setLightboxIndex(index)}
         onOpenVideo={() => setLightboxVideo(true)}
         editing={
-          !post.repostOf && editing
+          !isQuoting && editing
             ? {
                 draft: editDraft,
                 onDraftChange: setEditDraft,
@@ -493,18 +480,25 @@ export function PostCard({
       />
 
       <div className="mt-3 flex items-center gap-5 border-t border-line pt-2 text-xs text-foreground-soft">
-        <button
-          type="button"
-          disabled={isLikePending}
-          onClick={handleLike}
-          className={cn(
-            "flex items-center gap-1.5 hover:text-danger",
-            liked && "text-danger",
+        <span className={cn("flex items-center gap-1.5", liked && "text-danger")}>
+          <button
+            type="button"
+            disabled={isLikePending}
+            onClick={handleLike}
+            className="flex items-center hover:text-danger"
+          >
+            <Heart size={16} fill={liked ? "currentColor" : "none"} />
+          </button>
+          {likeCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setLikersOpen(true)}
+              className="hover:text-danger hover:underline"
+            >
+              {likeCount}
+            </button>
           )}
-        >
-          <Heart size={16} fill={liked ? "currentColor" : "none"} />
-          {likeCount > 0 && likeCount}
-        </button>
+        </span>
 
         <Link
           href={`/post/${interactionTargetId}`}
@@ -529,14 +523,12 @@ export function PostCard({
 
         <button
           type="button"
-          disabled={isSharePending}
-          onClick={handleShare}
+          onClick={() => setShareModalOpen(true)}
           className="flex items-center gap-1.5 hover:text-accent"
         >
           <Share2 size={16} />
           {shareCount > 0 && shareCount}
         </button>
-        {copied && <span className="text-success">Link copied</span>}
       </div>
 
       {lightboxIndex !== null && (
@@ -549,6 +541,16 @@ export function PostCard({
       )}
       {lightboxVideo && displayPost.videoUrl && (
         <Lightbox video={displayPost.videoUrl} onClose={() => setLightboxVideo(false)} />
+      )}
+      {likersOpen && (
+        <LikersModal postId={interactionTargetId} onClose={() => setLikersOpen(false)} />
+      )}
+      {shareModalOpen && (
+        <ShareModal
+          postId={interactionTargetId}
+          onClose={() => setShareModalOpen(false)}
+          onShareCountChange={setShareCount}
+        />
       )}
     </div>
   );

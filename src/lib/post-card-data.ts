@@ -27,6 +27,7 @@ type EmbeddedPostRow = {
 
 type PostRow = EmbeddedPostRow & {
   repostOf: EmbeddedPostRow | null;
+  sharedPost: EmbeddedPostRow | null;
 };
 
 // Shared `include` shape for any `prisma.post.findMany`/`findUnique` call
@@ -35,6 +36,9 @@ type PostRow = EmbeddedPostRow & {
 export const postCardInclude = {
   author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
   repostOf: {
+    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
+  },
+  sharedPost: {
     include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
   },
 } as const;
@@ -46,7 +50,7 @@ export const postCardInclude = {
  * engagement always aggregates on the original post, never the repost row.
  */
 export async function attachViewerState<T extends PostRow>(posts: T[], viewerId: string) {
-  const targetIds = [...new Set(posts.map((p) => p.repostOf?.id ?? p.id))];
+  const targetIds = [...new Set(posts.map((p) => p.sharedPost?.id ?? p.repostOf?.id ?? p.id))];
 
   const [likes, myReposts, myRsvps] = targetIds.length
     ? await Promise.all([
@@ -70,7 +74,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
   const rsvpGoingSet = new Set(myRsvps.map((r) => r.postId));
 
   return posts.map((post) => {
-    const target = post.repostOf ?? post;
+    const target = post.sharedPost ?? post.repostOf ?? post;
     return {
       id: post.id,
       content: post.content,
@@ -95,6 +99,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       repostedByMe: repostedSet.has(target.id),
       rsvpGoingByMe: rsvpGoingSet.has(target.id),
       repostOf: post.repostOf,
+      sharedPost: post.sharedPost,
     };
   });
 }

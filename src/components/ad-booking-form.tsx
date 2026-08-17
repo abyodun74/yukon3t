@@ -12,10 +12,10 @@ import {
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
@@ -88,7 +88,7 @@ export function AdBookingForm() {
     }
     const resized = await resizeImageFile(f);
     if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 8MB or smaller.");
+      setError("Images must be 25MB or smaller.");
       return;
     }
     setError(null);
@@ -104,7 +104,7 @@ export function AdBookingForm() {
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 500MB or smaller.");
+      setError("Video must be 2GB or smaller.");
       return;
     }
 

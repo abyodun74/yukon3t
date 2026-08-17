@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
 
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
@@ -29,11 +29,11 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
 
     startTransition(async () => {
       // Resize before the size check — a raw phone photo routinely exceeds
-      // 5MB, but the resized version essentially never does.
+      // 12MB, but the resized version essentially never does.
       const resized = await resizeImageFile(file);
       if (resized.size > MAX_AVATAR_BYTES) {
         setStatus("error");
-        setMessage("Image must be 5MB or smaller.");
+        setMessage("Image must be 12MB or smaller.");
         return;
       }
 
@@ -72,7 +72,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           result.error === "moderation"
             ? "That photo didn't pass our content guidelines and wasn't saved."
             : result.error === "too_large"
-              ? "Image must be 5MB or smaller."
+              ? "Image must be 12MB or smaller."
               : "Couldn't save your photo — try again.",
         );
         return;
@@ -118,7 +118,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           {status === "uploading" ? "Uploading..." : "Change photo"}
         </button>
         <p className="mt-1 text-xs text-foreground-soft">
-          JPEG, PNG, or WebP, up to 5MB. No sexually explicit content.
+          JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
         </p>
         {message && (
           <p

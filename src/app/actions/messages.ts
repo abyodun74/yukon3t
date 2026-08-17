@@ -839,3 +839,29 @@ export async function markMessagesDelivered() {
     data: { deliveredAt: new Date() },
   });
 }
+
+/** Lightweight conversation list backing the post Share modal's "Send to a friend" picker — only threads the caller is already a member of. */
+export async function getMyConversationsForShare() {
+  const user = await requireVerifiedUser();
+
+  const conversations = await prisma.conversation.findMany({
+    where: { members: { some: { userId: user.id } } },
+    select: {
+      id: true,
+      isGroup: true,
+      name: true,
+      members: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+    },
+  });
+
+  return {
+    conversations: conversations.map((c) => {
+      const other = c.members.find((m) => m.user.id !== user.id)?.user;
+      return {
+        id: c.id,
+        label: c.isGroup ? (c.name ?? "Group") : (other?.name ?? "Unknown"),
+        avatarUrl: c.isGroup ? null : (other?.avatarUrl ?? null),
+      };
+    }),
+  };
+}

@@ -15,11 +15,11 @@ import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 4;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component.
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
@@ -66,7 +66,7 @@ function imageUrlErrorMessage(code: string) {
     case "invalid_content_type":
       return "That link isn't a JPEG, PNG, or WebP image.";
     case "too_large":
-      return "That image is too large (max 8MB).";
+      return "That image is too large (max 25MB).";
     case "fetch_failed":
       return "Couldn't fetch that image — check the link and try again.";
     case "not_configured":
@@ -140,14 +140,14 @@ export function PostComposer({
     if (!files) return;
     const picked = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
     // Resize before the size check — a raw phone photo routinely exceeds
-    // 8MB, but the resized version essentially never does, so this check
+    // 25MB, but the resized version essentially never does, so this check
     // is really just a backstop against a resize failure (rare, fails
     // open to the original file) rather than the normal path.
     const next = await Promise.all(picked.map(resizeImageFile));
     const tooBig = next.find((f) => f.size > MAX_IMAGE_BYTES);
     if (tooBig) {
       setStatus("error");
-      setErrorText("Images must be 8MB or smaller each.");
+      setErrorText("Images must be 25MB or smaller each.");
       return;
     }
     setVideo(null);
@@ -185,7 +185,7 @@ export function PostComposer({
     }
     if (file.size > MAX_VIDEO_BYTES) {
       setStatus("error");
-      setErrorText("Video must be 500MB or smaller.");
+      setErrorText("Video must be 2GB or smaller.");
       return;
     }
 

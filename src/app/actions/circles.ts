@@ -600,3 +600,16 @@ export async function createPost(formData: FormData) {
   revalidatePath(`/u/${user.id}`);
   return { error: null };
 }
+
+/** Circles the caller is a member of — backs the "Share to a Circle" picker. */
+export async function getMyCircles() {
+  const user = await requireVerifiedUser();
+
+  const memberships = await prisma.circleMembership.findMany({
+    where: { userId: user.id },
+    include: { circle: { select: { id: true, name: true, slug: true, coverImageUrl: true } } },
+    orderBy: { circle: { name: "asc" } },
+  });
+
+  return { circles: memberships.map((m) => m.circle) };
+}

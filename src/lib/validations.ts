@@ -362,6 +362,17 @@ export const repostSchema = z.object({
   caption: z.string().trim().max(500).optional().default(""),
 });
 
+export const shareToCircleSchema = z.object({
+  postId: z.string().cuid(),
+  circleId: z.string().cuid(),
+  caption: z.string().trim().max(500).optional().default(""),
+});
+
+export const liveStreamTitleSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  circleId: z.string().cuid().optional(),
+});
+
 export const moderationActionSchema = z.object({
   reportId: z.string().cuid(),
   action: z.enum([

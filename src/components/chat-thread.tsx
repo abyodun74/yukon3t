@@ -35,10 +35,10 @@ const POLL_INTERVAL_MS = 2000;
 // already uses for its own MAX_VIDEO_SECONDS).
 const MAX_AUDIO_NOTE_SECONDS = 60;
 const MAX_VIDEO_NOTE_SECONDS = 30;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
-const MAX_VIDEO_UPLOAD_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 
@@ -903,11 +903,11 @@ export function ChatThread({
       return;
     }
     // Resize before the size check — see post-composer.tsx's pickImages
-    // for why (a raw phone photo routinely exceeds 8MB; the resized
+    // for why (a raw phone photo routinely exceeds 25MB; the resized
     // version essentially never does).
     const resized = await resizeImageFile(file);
     if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 8MB or smaller.");
+      setError("Images must be 25MB or smaller.");
       return;
     }
     setPendingAudio(null);
@@ -923,7 +923,7 @@ export function ChatThread({
       return;
     }
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-      setError("Video must be 500MB or smaller.");
+      setError("Video must be 2GB or smaller.");
       return;
     }
     setPendingAudio(null);

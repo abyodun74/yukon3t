@@ -7,12 +7,12 @@ import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component (same pattern
 // chat-thread.tsx uses for its own MAX_*_BYTES constants).
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
@@ -75,7 +75,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     }
     const resized = await resizeImageFile(f);
     if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 8MB or smaller.");
+      setError("Images must be 25MB or smaller.");
       return;
     }
     setError(null);
@@ -91,7 +91,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 500MB or smaller.");
+      setError("Video must be 2GB or smaller.");
       return;
     }
 

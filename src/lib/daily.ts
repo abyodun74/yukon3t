@@ -152,6 +152,32 @@ export async function createCollabRoom({
   }
 }
 
+/**
+ * Creates a one-off live-stream room. `owner_only_broadcast` is what makes
+ * this a broadcast (host talks, viewers watch) instead of an ordinary group
+ * call — Daily forces every non-owner participant into view-only (their own
+ * camera/mic can't be unmuted) until the owner explicitly grants them
+ * access, so CallFrame's prebuilt UI needs no custom video logic for this at
+ * all. Unlike createCollabRoom, this isn't meant to be reused — a fresh room
+ * is created per stream and expires a few hours after it's created.
+ */
+export async function createLiveStreamRoom({
+  name,
+  expiresInSeconds = 60 * 60 * 6,
+}: {
+  name: string;
+  expiresInSeconds?: number;
+}) {
+  return createRoom(name, {
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    owner_only_broadcast: true,
+    enable_chat: true,
+    enable_emoji_reactions: true,
+    eject_at_room_exp: true,
+    enable_prejoin_ui: false,
+  });
+}
+
 export type DailyRecording = {
   id: string;
   status: string;

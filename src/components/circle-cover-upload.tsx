@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 
-const MAX_COVER_BYTES = 5 * 1024 * 1024;
+const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export function CircleCoverUpload({
@@ -39,7 +39,7 @@ export function CircleCoverUpload({
       const resized = await resizeImageFile(file);
       if (resized.size > MAX_COVER_BYTES) {
         setStatus("error");
-        setMessage("Image must be 5MB or smaller.");
+        setMessage("Image must be 12MB or smaller.");
         return;
       }
 
@@ -76,7 +76,7 @@ export function CircleCoverUpload({
           result.error === "moderation"
             ? "That photo didn't pass our content guidelines and wasn't saved."
             : result.error === "too_large"
-              ? "Image must be 5MB or smaller."
+              ? "Image must be 12MB or smaller."
               : result.error === "forbidden"
                 ? "Only the Circle's owner or co-admins can change its picture."
                 : "Couldn't save that photo — try again.",
@@ -125,7 +125,7 @@ export function CircleCoverUpload({
           {status === "uploading" ? "Uploading..." : "Change Circle picture"}
         </button>
         <p className="mt-1 text-xs text-foreground-soft">
-          JPEG, PNG, or WebP, up to 5MB. No sexually explicit content.
+          JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
         </p>
         {message && (
           <p
