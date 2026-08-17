@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -376,7 +376,13 @@ export function PostComposer({
 
           let result;
           try {
-            result = await createPost(fd);
+            // By this point any media has already been uploaded — a single
+            // transient failure here (a brief 503 from the server, a
+            // dropped packet) would otherwise throw away that upload and
+            // show a scary "couldn't reach the server" error for something
+            // a moment's retry would have gotten past. Same retry helper
+            // uploadFileDirect already uses for exactly this reason.
+            result = await withRetry(() => createPost(fd), 3, 1000);
           } catch {
             // A rejected server-action call (e.g. no connectivity) would
             // otherwise be an uncaught exception that crashes the whole
