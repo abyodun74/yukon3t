@@ -23,8 +23,8 @@ android {
         // com.yukon3t.app across every track (including old/unpublished
         // drafts on the pre-existing TWA listing) — confirmed as 3, so this
         // starts at 4. Bump this on every subsequent release.
-        versionCode 4
-        versionName "1.1"
+        versionCode 5
+        versionName "1.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
