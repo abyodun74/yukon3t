@@ -82,7 +82,7 @@ export async function resizeImageFile(file: File): Promise<File> {
  * again. A no-op outside a browser (SSR) or in a context with no
  * Page Visibility API.
  */
-function waitForForeground(): Promise<void> {
+export function waitForForeground(): Promise<void> {
   if (typeof document === "undefined" || document.visibilityState === "visible") {
     return Promise.resolve();
   }
@@ -260,7 +260,12 @@ export async function uploadFileDirect(
         ),
       putAttempts,
       800,
-      isVideo,
+      // Not just video: any kind can land here mid-transition from a file
+      // picker Activity backgrounding/resuming the WebView (see
+      // resizeImageFile callers, which now wait for foreground before even
+      // reading the picked file) — waitForForeground is a no-op once the
+      // page is already visible, so this costs nothing on the common path.
+      true,
     );
   } catch {
     return { ok: false, error: "network" };

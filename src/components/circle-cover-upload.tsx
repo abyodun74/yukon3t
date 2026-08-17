@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
+import { uploadFileDirect, resizeImageFile, waitForForeground } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
@@ -36,6 +36,11 @@ export function CircleCoverUpload({
     setMessage(null);
 
     startTransition(async () => {
+      // Wait for the picker Activity's pause/resume transition to fully
+      // settle before resizing — see post-composer.tsx's pickImages for why
+      // (resizing during that window can produce a Blob the WebView evicts,
+      // later failing the upload with net::ERR_UPLOAD_FILE_CHANGED).
+      await waitForForeground();
       const resized = await resizeImageFile(file);
       if (resized.size > MAX_COVER_BYTES) {
         setStatus("error");

@@ -4,7 +4,12 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import {
+  uploadFileDirect,
+  captureVideoFrameFromFile,
+  resizeImageFile,
+  waitForForeground,
+} from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -73,6 +78,11 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       setError("Use a JPEG, PNG, or WebP image.");
       return;
     }
+    // Wait for the picker Activity's pause/resume transition to fully
+    // settle before resizing — see post-composer.tsx's pickImages for why
+    // (resizing during that window can produce a Blob the WebView evicts,
+    // later failing the upload with net::ERR_UPLOAD_FILE_CHANGED).
+    await waitForForeground();
     const resized = await resizeImageFile(f);
     if (resized.size > MAX_IMAGE_BYTES) {
       setError("Images must be 8MB or smaller.");

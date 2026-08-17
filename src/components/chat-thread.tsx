@@ -18,7 +18,12 @@ import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { UserLink } from "@/components/user-link";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import {
+  uploadFileDirect,
+  captureVideoFrameFromFile,
+  resizeImageFile,
+  waitForForeground,
+} from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
@@ -902,6 +907,11 @@ export function ChatThread({
       setError("Use a JPEG, PNG, or WebP image.");
       return;
     }
+    // Wait for the picker Activity's pause/resume transition to fully
+    // settle before resizing — see post-composer.tsx's pickImages for why
+    // (resizing during that window can produce a Blob the WebView evicts,
+    // later failing the upload with net::ERR_UPLOAD_FILE_CHANGED).
+    await waitForForeground();
     // Resize before the size check — see post-composer.tsx's pickImages
     // for why (a raw phone photo routinely exceeds 8MB; the resized
     // version essentially never does).
