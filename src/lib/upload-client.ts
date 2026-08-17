@@ -59,8 +59,18 @@ export async function resizeImageFile(file: File): Promise<File> {
     );
     if (!blob) return file;
 
+    // Rebuilding from a plain ArrayBuffer rather than returning the
+    // canvas.toBlob() Blob directly matters: on the installed Android app,
+    // that Blob can come back backed by an already-stale temp file — even
+    // an immediate, fully-foregrounded <img> preview of it fails instantly
+    // with net::ERR_UPLOAD_FILE_CHANGED, and the same failure hits the
+    // eventual upload PUT of the exact same object. A File built from raw
+    // bytes has no such file backing to go stale, which fixes both the
+    // preview (every caller here builds its thumbnail via
+    // URL.createObjectURL on this return value) and the upload.
+    const buf = await blob.arrayBuffer();
     const ext = outputType === "image/png" ? "png" : "jpg";
-    return new File([blob], file.name.replace(/\.\w+$/, `.${ext}`), { type: outputType });
+    return new File([buf], file.name.replace(/\.\w+$/, `.${ext}`), { type: outputType });
   } catch {
     return file;
   } finally {
@@ -234,6 +244,22 @@ export async function uploadFileDirect(
   // inferred type is, so the two behave differently here).
   const { uploadUrl, publicUrl, key } = result;
 
+  // Android WebView (confirmed on the installed app, not just theorized —
+  // see the investigation this comment came out of) can hand back a
+  // canvas.toBlob() Blob that's already backed by a stale/invalid temp
+  // file: the very first read of it — even just an <img> preview, with the
+  // page fully foregrounded and no backgrounding involved — fails
+  // instantly with net::ERR_UPLOAD_FILE_CHANGED. Passing that Blob/File
+  // straight into fetch()'s body hits the same file-freshness check.
+  // Reading it into a plain in-memory ArrayBuffer up front sidesteps the
+  // check entirely, since an ArrayBuffer body has no file backing to go
+  // stale. Only safe for the resized/size-capped kinds here — video files
+  // can run into the hundreds of MB, where forcing the whole thing into one
+  // contiguous in-memory buffer risks exhausting the WebView's heap, so
+  // video keeps streaming straight from the File/Blob as before.
+  const isVideo = VIDEO_KINDS.has(kind);
+  const putBody: BodyInit = isVideo ? uploadFile : await uploadFile.arrayBuffer();
+
   let putRes;
   try {
     // Retrying re-sends to the exact same presigned URL/key (not a fresh
@@ -244,7 +270,6 @@ export async function uploadFileDirect(
     // waitForForeground above. The video-kind presigned URL is valid for an
     // hour (see createUploadUrl), so waiting for the app to be reopened
     // still has plenty of room even after a long backgrounded stretch.
-    const isVideo = VIDEO_KINDS.has(kind);
     const putAttempts = isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
     const timeoutMs = attemptTimeoutMs(uploadFile.size);
     putRes = await withRetry(
@@ -254,18 +279,13 @@ export async function uploadFileDirect(
           {
             method: "PUT",
             headers: { "Content-Type": uploadFile.type },
-            body: uploadFile,
+            body: putBody,
           },
           timeoutMs,
         ),
       putAttempts,
       800,
-      // Not just video: any kind can land here mid-transition from a file
-      // picker Activity backgrounding/resuming the WebView (see
-      // resizeImageFile callers, which now wait for foreground before even
-      // reading the picked file) — waitForForeground is a no-op once the
-      // page is already visible, so this costs nothing on the common path.
-      true,
+      isVideo,
     );
   } catch {
     return { ok: false, error: "network" };
@@ -294,7 +314,18 @@ export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null>
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
-      (blob) => resolve(blob ? new File([blob], "thumb.jpg", { type: "image/jpeg" }) : null),
+      // See resizeImageFile above for why this reads into a plain
+      // ArrayBuffer instead of wrapping the canvas.toBlob() Blob directly.
+      (blob) => {
+        if (!blob) {
+          resolve(null);
+          return;
+        }
+        blob
+          .arrayBuffer()
+          .then((buf) => resolve(new File([buf], "thumb.jpg", { type: "image/jpeg" })))
+          .catch(() => resolve(null));
+      },
       "image/jpeg",
       IMAGE_RESIZE_QUALITY,
     );

@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
-import {
-  uploadFileDirect,
-  captureVideoFrameFromFile,
-  resizeImageFile,
-  waitForForeground,
-} from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -144,15 +139,6 @@ export function PostComposer({
   async function pickImages(files: FileList | null) {
     if (!files) return;
     const picked = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
-    // The picker Activity returning control here backgrounds and resumes
-    // the WebView right around this point — resizing (canvas.toBlob)
-    // immediately during that transition can produce a Blob whose backing
-    // store the WebView evicts, which later fails the upload with
-    // net::ERR_UPLOAD_FILE_CHANGED even though the page looks fully
-    // foregrounded by then. Waiting for a real visible state first avoids
-    // creating the Blob during the fragile window; a no-op if already
-    // foregrounded.
-    await waitForForeground();
     // Resize before the size check — a raw phone photo routinely exceeds
     // 8MB, but the resized version essentially never does, so this check
     // is really just a backstop against a resize failure (rare, fails

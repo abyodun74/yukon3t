@@ -8,7 +8,6 @@ import {
   captureVideoFrameFromFile,
   resizeImageFile,
   withRetry,
-  waitForForeground,
 } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
@@ -87,11 +86,6 @@ export function AdBookingForm() {
       setError("Use a JPEG, PNG, or WebP image.");
       return;
     }
-    // Wait for the picker Activity's pause/resume transition to fully
-    // settle before resizing — see post-composer.tsx's pickImages for why
-    // (resizing during that window can produce a Blob the WebView evicts,
-    // later failing the upload with net::ERR_UPLOAD_FILE_CHANGED).
-    await waitForForeground();
     const resized = await resizeImageFile(f);
     if (resized.size > MAX_IMAGE_BYTES) {
       setError("Images must be 8MB or smaller.");

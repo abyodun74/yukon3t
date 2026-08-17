@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { uploadFileDirect, resizeImageFile, waitForForeground } from "@/lib/upload-client";
+import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -28,16 +28,6 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
     setMessage(null);
 
     startTransition(async () => {
-      // The picker Activity returning control here backgrounds and resumes
-      // the WebView right around this point — resizing (canvas.toBlob)
-      // immediately during that transition can produce a Blob whose backing
-      // store the WebView evicts, which later fails the upload with
-      // net::ERR_UPLOAD_FILE_CHANGED even though the page looks fully
-      // foregrounded by then. Waiting for a real visible state first avoids
-      // creating the Blob during the fragile window; a no-op if already
-      // foregrounded.
-      await waitForForeground();
-
       // Resize before the size check — a raw phone photo routinely exceeds
       // 5MB, but the resized version essentially never does.
       const resized = await resizeImageFile(file);
