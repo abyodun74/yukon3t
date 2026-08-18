@@ -32,8 +32,14 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
 
   useEffect(() => {
-    if (state.phase !== "ringing") return undefined;
+    if (state.phase !== "ringing" && state.phase !== "in-call") return undefined;
     const callId = state.callId;
+    // Ringing needs a snappy interval so "Calling" -> "Ringing" -> accepted
+    // feels responsive; once in-call this is purely a fallback for the
+    // other party hanging up (see the "in-call" branch below), so a lighter
+    // interval is enough and avoids hammering the server for the whole
+    // call's duration.
+    const intervalMs = state.phase === "ringing" ? 2000 : 5000;
     const interval = setInterval(async () => {
       const result = await getCallStatus(callId);
       if (result.error) return;
@@ -48,9 +54,15 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       } else if (result.status === "DECLINED") {
         setState({ phase: "ended", message: `${calleeName} declined the call.` });
       } else if (result.status === "ENDED" || result.status === "MISSED") {
-        setState({ phase: "ended", message: "Call ended." });
+        // Normally the callee hanging up ejects us from the Daily room,
+        // which fires CallFrame's "left-meeting" -> onLeave below. This is
+        // the fallback for when that ejection is delayed or never arrives
+        // (deleteCallRoom in daily.ts is best-effort) — the DB status is
+        // the source of truth either way, so just tear down locally without
+        // calling endCall() again (it's already ENDED/MISSED server-side).
+        setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
       }
-    }, 2000);
+    }, intervalMs);
     return () => clearInterval(interval);
   }, [state, calleeName]);
 

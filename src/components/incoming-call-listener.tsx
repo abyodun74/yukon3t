@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
-import { getIncomingCall, respondToCall, endCall } from "@/app/actions/calls";
+import { Capacitor } from "@capacitor/core";
+import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
 import { CallFrame } from "@/components/call-frame";
 import { usePolling } from "@/lib/use-polling";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 
 const POLL_INTERVAL_MS = 5000;
+// Lighter than POLL_INTERVAL_MS: this only runs as a fallback for the other
+// party hanging up (see the active-call poll below), not to drive the UI.
+const ACTIVE_CALL_POLL_MS = 5000;
 
 type IncomingCall = {
   id: string;
@@ -39,6 +43,22 @@ export function IncomingCallListener() {
 
   usePolling(poll, POLL_INTERVAL_MS, !activeCall);
 
+  // Fallback for the caller hanging up mid-call: normally that ejects us
+  // from the Daily room, which fires CallFrame's "left-meeting" -> onLeave
+  // below. But deleteCallRoom (daily.ts) is best-effort, so if that ejection
+  // is delayed or never arrives, this catches the DB's Call.status flipping
+  // to ENDED/MISSED independently and tears the call down locally.
+  const pollActiveCallStatus = useCallback(async () => {
+    const call = activeCallRef.current;
+    if (!call) return;
+    const result = await getCallStatus(call.callId);
+    if (result.error) return;
+    if (result.status === "ENDED" || result.status === "MISSED" || result.status === "DECLINED") {
+      setActiveCall((current) => (current?.callId === call.callId ? null : current));
+    }
+  }, []);
+  usePolling(pollActiveCallStatus, ACTIVE_CALL_POLL_MS, !!activeCall);
+
   // Plays the callee's chosen ringtone on loop for as long as a call is
   // actually ringing, and stops the moment it isn't — accepted, declined,
   // hung up by the caller, or this component unmounts.
@@ -56,22 +76,78 @@ export function IncomingCallListener() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incoming?.id, ringtone]);
 
-  async function accept() {
-    if (!incoming) return;
-    const result = await respondToCall(incoming.id, true);
+  // Callable by callId directly (not just from `incoming` state) so the
+  // notification-tap deep-link handler below can accept/decline a call this
+  // component's own poll hasn't necessarily caught up to yet.
+  const acceptCall = useCallback(async (callId: string) => {
+    const result = await respondToCall(callId, true);
     if (result.error || !result.roomUrl || !result.token) {
-      setIncoming(null);
+      setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
-    setActiveCall({ callId: incoming.id, roomUrl: result.roomUrl, token: result.token, type: result.type });
-    setIncoming(null);
+    setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type });
+    setIncoming((current) => (current?.id === callId ? null : current));
+  }, []);
+
+  const declineCall = useCallback(async (callId: string) => {
+    await respondToCall(callId, false);
+    setIncoming((current) => (current?.id === callId ? null : current));
+  }, []);
+
+  async function accept() {
+    if (incoming) await acceptCall(incoming.id);
   }
 
   async function decline() {
-    if (!incoming) return;
-    await respondToCall(incoming.id, false);
-    setIncoming(null);
+    if (incoming) await declineCall(incoming.id);
   }
+
+  // Native Android only: the incoming-call notification (CallMessagingService,
+  // native side) opens yukon3t://call?callId=...&action=accept|decline when
+  // its Accept/Decline actions are tapped — this is what lets a call raised
+  // while the phone was asleep/backgrounded actually be answered/declined,
+  // routed through the same respondToCall flow the in-app buttons use.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let cancelled = false;
+    let listener: { remove: () => void } | undefined;
+
+    function handleUrl(url: string | undefined) {
+      if (!url) return;
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return;
+      }
+      if (parsed.protocol !== "yukon3t:" || parsed.hostname !== "call") return;
+      const callId = parsed.searchParams.get("callId");
+      const action = parsed.searchParams.get("action");
+      if (!callId) return;
+      if (action === "accept") acceptCall(callId);
+      else if (action === "decline") declineCall(callId);
+      // No action (notification body tap) — just foregrounding the app is
+      // enough; the regular poll above picks up the ringing banner.
+    }
+
+    (async () => {
+      const { App } = await import("@capacitor/app");
+      if (cancelled) return;
+      // Cold start: the app was launched by the notification tap, so
+      // appUrlOpen (below) never fires for this original launch intent —
+      // getLaunchUrl() is what surfaces it instead.
+      const launch = await App.getLaunchUrl().catch(() => undefined);
+      if (!cancelled) handleUrl(launch?.url);
+      // Warm start: app already running, singleTask launch mode routes the
+      // tap through onNewIntent, which the plugin surfaces as this event.
+      listener = await App.addListener("appUrlOpen", (event) => handleUrl(event.url));
+    })();
+
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+  }, [acceptCall, declineCall]);
 
   if (activeCall) {
     return (

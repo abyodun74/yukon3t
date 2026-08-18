@@ -23,8 +23,11 @@ android {
         // com.yukon3t.app across every track (including old/unpublished
         // drafts on the pre-existing TWA listing) — confirmed as 3, so this
         // starts at 4. Bump this on every subsequent release.
-        versionCode 5
-        versionName "1.2"
+        // 6: adds native background/asleep call handling (CallMessagingService,
+        // CallForegroundService) — see android/SUBMISSION.md section 9 for the
+        // new USE_FULL_SCREEN_INTENT Play Console declaration this needs.
+        versionCode 6
+        versionName "1.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -65,6 +68,17 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // CallMessagingService (see src/main/java/com/yukon3t/app/) extends
+    // FirebaseMessagingService directly, so unlike other Firebase usage in
+    // this app — which only goes through the @capacitor-firebase/messaging
+    // plugin's own :capacitor-firebase-messaging module — the app module
+    // needs its own compile dependency here; that plugin module declares
+    // this as `implementation`, so it isn't exposed transitively to :app.
+    // Version pinned to match that module's own default
+    // (node_modules/@capacitor-firebase/messaging/android/build.gradle's
+    // firebaseMessagingVersion) so both resolve to the same Firebase
+    // Messaging SDK version on the shared classpath.
+    implementation "com.google.firebase:firebase-messaging:25.0.1"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

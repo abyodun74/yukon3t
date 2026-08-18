@@ -174,7 +174,22 @@ release (Google's "new developer" policy). Start with an **Internal
 testing** track to sanity-check the build, then move to **Closed testing**
 to satisfy that requirement, then **Production**.
 
-## 9. Target API level
+## 9. Restricted permissions declaration (full-screen incoming-call notifications)
+
+`AndroidManifest.xml` requests `USE_FULL_SCREEN_INTENT`, which lets an
+incoming-call notification wake/light the screen over the lock screen like a
+real phone call (see `CallForegroundService`/`CallMessagingService`) instead
+of a silent background push. Google Play classifies this as a **Restricted
+Permission**: before submitting, go to Play Console → App content →
+Permissions declaration, and declare the use case as "calling" (this app's
+1:1 voice/video calling feature via Daily.co — see `src/lib/daily.ts`). Apps
+that aren't registered as the device's default phone/dialer app get real
+scrutiny here — budget for a possible review round-trip. If it's rejected,
+the app still works by dropping `setFullScreenIntent` in
+`CallForegroundService` and falling back to a plain high-importance heads-up
+notification; nothing else in the calling/notification flow depends on it.
+
+## 10. Target API level
 
 Play Console enforces a minimum `targetSdkVersion` (whatever Google's
 current policy requires — typically the latest or previous Android major

@@ -25,10 +25,14 @@ export type IncomingCallPayload = {
 /**
  * Sends a data-only FCM message (not a "notification" payload) to every
  * device registered for a user — the native Android app's own
- * FirebaseMessagingService decides how to display it, so it can use a
- * proper call-style notification channel (system ringtone, full-screen
- * intent) instead of a generic auto-displayed one, which is the whole
- * reason FCM exists here alongside the Web Push path in push.ts.
+ * CallMessagingService (android/app/src/main/java/com/yukon3t/app/) decides
+ * how to display it, using a proper call-style notification channel
+ * (system ringtone, full-screen intent over the lock screen via
+ * CallForegroundService) instead of a generic auto-displayed one, which is
+ * the whole reason FCM exists here alongside the Web Push path in push.ts —
+ * this is also what lets an incoming call still ring while the phone is
+ * asleep/Doze-throttled, when incoming-call-listener.tsx's own JS polling
+ * would otherwise be frozen.
  * Best-effort, same as sendPushToUser — a send failure should never break
  * the call action that triggered it. No-op until the Firebase project env
  * vars above are set.

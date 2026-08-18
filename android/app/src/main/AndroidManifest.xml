@@ -22,7 +22,43 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Notification-tap deep link for incoming calls raised by
+                 CallForegroundService/CallActionReceiver — a plain custom
+                 scheme (not an https App Link) since it's only ever opened
+                 from within this app's own notifications, so no
+                 assetlinks.json domain verification is needed. Read by
+                 incoming-call-listener.tsx via @capacitor/app's
+                 getLaunchUrl()/appUrlOpen. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="yukon3t" android:host="call" />
+            </intent-filter>
+
         </activity>
+
+        <!-- Handles incoming_call/call_cancelled data pushes (src/lib/fcm.ts)
+             while backgrounded/asleep — see CallMessagingService's own doc
+             comment. Declared alongside, not instead of,
+             @capacitor-firebase/messaging's own MessagingService below,
+             which still owns FCM token issuance. -->
+        <service
+            android:name=".CallMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -60,4 +96,17 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- CallForegroundService: keeps the process Doze-exempt while a call is
+         ringing, so the ring isn't delayed/killed while the phone sleeps.
+         FOREGROUND_SERVICE_PHONE_CALL is mandatory at target/compile SDK 34+
+         for a foregroundServiceType="phoneCall" service; both are "normal"
+         permissions granted at install, no runtime prompt. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- Lets the incoming-call notification wake/light the screen over the
+         lock screen like a real call, instead of a silent background push.
+         Google Play treats this as a Restricted Permission requiring a
+         declared use case in Play Console (App content > Permissions) —
+         see android/SUBMISSION.md before the next release. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 </manifest>

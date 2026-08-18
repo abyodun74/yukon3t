@@ -109,6 +109,21 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "Will I still get calls if my phone is asleep or locked?",
+        a: (
+          <>
+            Yes — an incoming call rings and lights up your screen over the
+            lock screen even while your phone is asleep or in a
+            battery-saving/Doze state, the same as a regular phone call.
+            Accept or decline right from that screen, or tap it to open the
+            app. This needs notification permission for YuKon3t to be turned
+            on (Android asks for this the first time you sign in) — if calls
+            aren&apos;t waking your phone, check Settings → Apps → YuKon3t →
+            Notifications.
+          </>
+        ),
+      },
     ],
   },
   {
@@ -147,6 +162,61 @@ const sections: Section[] = [
             Open the &ldquo;⋯&rdquo; menu on any post for delete (your own
             posts) or report (anyone&apos;s). Reports go to our moderation
             queue and are reviewed with a stated reason either way.
+          </>
+        ),
+      },
+      {
+        q: "How do I share a post?",
+        a: (
+          <>
+            Tap the share icon on any post for a menu: copy the link, share
+            via your device&apos;s own share sheet, send it straight to a
+            friend as a message, or share it into a Circle. Device sharing
+            attaches the actual photo or video where possible (not just a
+            bare link), so apps like WhatsApp or Messages show the real post.
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Going Live",
+    items: [
+      {
+        q: "How do I start or join a live stream?",
+        a: (
+          <>
+            Tap &ldquo;Go Live&rdquo; above the Home feed, give it a title,
+            and optionally scope it to a Circle instead of everyone. To join
+            someone else&apos;s stream, tap their avatar in the &ldquo;Live
+            now&rdquo; strip and choose to watch, or ask to join the stage.
+          </>
+        ),
+      },
+      {
+        q: "What's the difference between watching, joining as a guest, and joining as a co-host?",
+        a: (
+          <>
+            <strong>Watching</strong> is read-only — no camera or mic access.{" "}
+            <strong>Guest</strong> and <strong>co-host</strong> both put your
+            camera and mic on the stage in a split-screen view alongside the
+            host (co-host is meant for someone helping present, guest for
+            someone dropping in briefly, but they work the same way). There
+            are 3 stage spots total, shared between guests and co-hosts, on
+            top of the host — watching has no limit.
+          </>
+        ),
+      },
+      {
+        q: "Can I record a Go Live stream, or take a screenshot?",
+        a: (
+          <>
+            The host and any co-hosts can tap &ldquo;Record&rdquo; to start a
+            cloud recording — once stopped, it shows up in a Recordings list
+            on the stream with a download link. Anyone in the stream can tap
+            &ldquo;Screenshot&rdquo; to save a frame; your browser will ask
+            you to confirm what to capture, since that&apos;s how a
+            screenshot of live video works across browsers.
           </>
         ),
       },
