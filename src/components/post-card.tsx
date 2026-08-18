@@ -548,6 +548,10 @@ export function PostCard({
       {shareModalOpen && (
         <ShareModal
           postId={interactionTargetId}
+          content={displayPost.content}
+          mediaType={displayPost.mediaType}
+          mediaUrls={displayPost.mediaUrls}
+          videoUrl={displayPost.videoUrl}
           onClose={() => setShareModalOpen(false)}
           onShareCountChange={setShareCount}
         />

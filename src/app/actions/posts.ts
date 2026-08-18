@@ -53,10 +53,23 @@ export async function deletePost(postId: string) {
     return { error: "forbidden" };
   }
 
-  // Cascades (onDelete: Cascade on Post.repostOf) remove any reposts of this
-  // post along with it — a post is always public, so there's no separate
-  // "delete for me" state to track the way there is for a private message.
-  await prisma.post.delete({ where: { id: postId } });
+  // Cascades (onDelete: Cascade on Post.repostOf/sharedPost) remove any
+  // reposts/shares of this post along with it — a post is always public, so
+  // there's no separate "delete for me" state to track the way there is for
+  // a private message. Deleting a post that is itself a repost or a share
+  // (repostOfId/sharedPostId set) doesn't cascade anywhere, but must still
+  // decrement the original's repostCount/shareCount — those were bumped
+  // when the repost/share row was created (see repost()/shareToCircle() in
+  // reposts.ts/shares.ts) and would otherwise stay permanently inflated.
+  await prisma.$transaction([
+    prisma.post.delete({ where: { id: postId } }),
+    ...(post.repostOfId
+      ? [prisma.post.update({ where: { id: post.repostOfId }, data: { repostCount: { decrement: 1 } } })]
+      : []),
+    ...(post.sharedPostId
+      ? [prisma.post.update({ where: { id: post.sharedPostId }, data: { shareCount: { decrement: 1 } } })]
+      : []),
+  ]);
 
   const mediaUrls = [
     ...post.mediaUrls,
@@ -72,5 +85,7 @@ export async function deletePost(postId: string) {
   revalidatePath("/home");
   revalidatePath(`/u/${post.authorId}`);
   revalidatePath(`/post/${postId}`);
+  if (post.repostOfId) revalidatePath(`/post/${post.repostOfId}`);
+  if (post.sharedPostId) revalidatePath(`/post/${post.sharedPostId}`);
   return { error: null };
 }

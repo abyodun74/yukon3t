@@ -12,13 +12,33 @@ type Circle = { id: string; name: string; slug: string; coverImageUrl: string | 
 
 type View = "root" | "friends" | "circles";
 
+/** Fetches a media URL into a File the Web Share API can attach — best-effort, never throws (returns null on any failure: CORS, network, unsupported type). */
+async function fetchAsFile(url: string, name: string): Promise<File | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new File([blob], name, { type: blob.type });
+  } catch {
+    return null;
+  }
+}
+
 /** Share destinations for a post — copy link, native device share, send to a friend (DM), or share into a Circle. */
 export function ShareModal({
   postId,
+  content,
+  mediaType,
+  mediaUrls,
+  videoUrl,
   onClose,
   onShareCountChange,
 }: {
   postId: string;
+  content: string;
+  mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
+  mediaUrls: string[];
+  videoUrl: string | null;
   onClose: () => void;
   onShareCountChange: (count: number) => void;
 }) {
@@ -27,6 +47,7 @@ export function ShareModal({
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [circles, setCircles] = useState<Circle[] | null>(null);
   const [sentToId, setSentToId] = useState<string | null>(null);
+  const [sharingViaDevice, setSharingViaDevice] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/post/${postId}` : "";
@@ -61,8 +82,36 @@ export function ShareModal({
     bumpShareCount();
   }
 
-  function nativeShare() {
-    navigator.share({ url }).then(bumpShareCount).catch(() => {});
+  async function nativeShare() {
+    const shareData: ShareData = { url, text: content || undefined };
+
+    // Attach the actual photo/video so whatever the OS share sheet sends
+    // this to (WhatsApp, Instagram, SMS, ...) shows the real post instead
+    // of a bare yukon3t.com link most of those don't unfurl richly. Only
+    // attempted when the platform supports file sharing and the media can
+    // actually be fetched (R2 CORS, network) — falls back to the plain
+    // text+url share (still not just a link) on any failure.
+    if (mediaType === "IMAGE" || mediaType === "VIDEO") {
+      setSharingViaDevice(true);
+      try {
+        const sources = mediaType === "VIDEO" ? (videoUrl ? [videoUrl] : []) : mediaUrls;
+        const files = (
+          await Promise.all(
+            sources.map((src, i) =>
+              fetchAsFile(src, `post-${postId}-${i}.${mediaType === "VIDEO" ? "mp4" : "jpg"}`),
+            ),
+          )
+        ).filter((f): f is File => f !== null);
+
+        if (files.length === sources.length && files.length > 0 && navigator.canShare?.({ files })) {
+          shareData.files = files;
+        }
+      } finally {
+        setSharingViaDevice(false);
+      }
+    }
+
+    navigator.share(shareData).then(bumpShareCount).catch(() => {});
   }
 
   function sendToConversation(conversationId: string) {
@@ -121,11 +170,12 @@ export function ShareModal({
             {canNativeShare && (
               <button
                 type="button"
+                disabled={sharingViaDevice}
                 onClick={nativeShare}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <ShareIcon size={16} />
-                Share via device
+                {sharingViaDevice ? "Preparing…" : "Share via device"}
               </button>
             )}
             <button
@@ -176,7 +226,7 @@ export function ShareModal({
           <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
             {circles === null && <li className="px-2 py-1 text-sm text-foreground-soft">Loading…</li>}
             {circles?.length === 0 && (
-              <li className="px-2 py-1 text-sm text-foreground-soft">You haven't joined any Circles yet.</li>
+              <li className="px-2 py-1 text-sm text-foreground-soft">You haven&apos;t joined any Circles yet.</li>
             )}
             {circles?.map((circle) => (
               <li key={circle.id}>
