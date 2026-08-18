@@ -156,10 +156,12 @@ export async function createCollabRoom({
  * Creates a one-off live-stream room. `owner_only_broadcast` is what makes
  * this a broadcast (host talks, viewers watch) instead of an ordinary group
  * call — Daily forces every non-owner participant into view-only (their own
- * camera/mic can't be unmuted) until the owner explicitly grants them
- * access, so CallFrame's prebuilt UI needs no custom video logic for this at
- * all. Unlike createCollabRoom, this isn't meant to be reused — a fresh room
- * is created per stream and expires a few hours after it's created.
+ * camera/mic can't be unmuted) until granted access via a meeting token's
+ * `permissions.canSend` (see createMeetingToken/joinLiveStream, used for
+ * GUEST/COHOST), so CallFrame's prebuilt UI needs no custom video logic for
+ * this at all. Unlike createCollabRoom, this isn't meant to be reused — a
+ * fresh room is created per stream and expires a few hours after it's
+ * created.
  */
 export async function createLiveStreamRoom({
   name,
@@ -168,14 +170,23 @@ export async function createLiveStreamRoom({
   name: string;
   expiresInSeconds?: number;
 }) {
-  return createRoom(name, {
+  const baseProperties = {
     exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
     owner_only_broadcast: true,
     enable_chat: true,
     enable_emoji_reactions: true,
+    enable_screenshare: true,
     eject_at_room_exp: true,
     enable_prejoin_ui: false,
-  });
+  };
+  try {
+    // Cloud recording needs a Daily plan that supports it — attempted first
+    // since most do, with a plain fallback below so a plan that doesn't
+    // support it still gets a working room, just without the record button.
+    return await createRoom(name, { ...baseProperties, enable_recording: "cloud" });
+  } catch {
+    return await createRoom(name, baseProperties);
+  }
 }
 
 export type DailyRecording = {

@@ -373,6 +373,9 @@ export const liveStreamTitleSchema = z.object({
   circleId: z.string().cuid().optional(),
 });
 
+/** GUEST/COHOST request a stage slot (see joinLiveStream); omitted/undefined means watch-only. */
+export const liveStreamJoinRoleSchema = z.enum(["GUEST", "COHOST"]).optional();
+
 export const moderationActionSchema = z.object({
   reportId: z.string().cuid(),
   action: z.enum([

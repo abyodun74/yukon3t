@@ -757,6 +757,13 @@ enum LiveStreamStatus {
   ENDED
 }
 
+/** VIEWER is watch-only; GUEST/COHOST can unmute camera/mic (see createLiveStreamRoom's owner_only_broadcast + createMeetingToken's permissions). */
+enum LiveStreamRole {
+  VIEWER
+  GUEST
+  COHOST
+}
+
 /**
  * A host-broadcasts/viewers-watch WebRTC room (see createLiveStreamRoom's
  * owner_only_broadcast Daily property) — unlike Collab's persistent session
@@ -782,12 +789,20 @@ model LiveStream {
   @@index([hostId])
 }
 
-/** Presence, not history — mirrors CollabSessionParticipant. */
+/**
+ * Presence, not history — mirrors CollabSessionParticipant. Despite the name,
+ * this now covers everyone present (watch-only viewers as well as
+ * GUEST/COHOST stage participants) — `role` distinguishes them. The host's
+ * own row is also stored here (role is irrelevant for them, since isOwner
+ * comes from LiveStream.hostId directly) but is excluded from viewer/stage
+ * tallies in the live-streams actions.
+ */
 model LiveStreamViewer {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   liveStreamId String
   userId       String
-  joinedAt     DateTime @default(now())
+  role         LiveStreamRole @default(VIEWER)
+  joinedAt     DateTime       @default(now())
 
   liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)

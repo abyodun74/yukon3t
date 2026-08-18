@@ -13,17 +13,27 @@ export function CallFrame({
   token,
   type,
   onLeave,
+  onCallObject,
+  onRecordingChange,
+  activeSpeakerMode,
 }: {
   roomUrl: string;
   token: string;
   type: "AUDIO" | "VIDEO";
   onLeave: () => void;
+  /** Hands the parent the live DailyCall instance (and null on teardown) so it can drive things daily-js supports but the prebuilt UI doesn't expose a button for, e.g. call.startRecording()/stopRecording(). */
+  onCallObject?: (call: DailyCall | null) => void;
+  onRecordingChange?: (recording: boolean) => void;
+  /** Daily defaults to fullscreening whoever's talking; pass false to default to a tiled grid (split screen) instead — used for Go Live so the host and any co-hosts/guests show side by side. */
+  activeSpeakerMode?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callRef = useRef<DailyCall | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let handleRecordingStarted: (() => void) | null = null;
+    let handleRecordingStopped: (() => void) | null = null;
 
     // Dynamic import, not a static one: this package touches browser globals
     // at module load, so it must never be evaluated during SSR of this
@@ -35,11 +45,17 @@ export function CallFrame({
         showLeaveButton: true,
         showFullscreenButton: true,
         iframeStyle: { width: "100%", height: "100%", border: "0" },
+        ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
       });
       callRef.current = call;
 
       call.on("left-meeting", onLeave);
+      handleRecordingStarted = () => onRecordingChange?.(true);
+      handleRecordingStopped = () => onRecordingChange?.(false);
+      call.on("recording-started", handleRecordingStarted);
+      call.on("recording-stopped", handleRecordingStopped);
       call.join({ url: roomUrl, token, startVideoOff: type === "AUDIO" });
+      onCallObject?.(call);
     });
 
     return () => {
@@ -47,6 +63,9 @@ export function CallFrame({
       const call = callRef.current;
       if (call) {
         call.off("left-meeting", onLeave);
+        if (handleRecordingStarted) call.off("recording-started", handleRecordingStarted);
+        if (handleRecordingStopped) call.off("recording-stopped", handleRecordingStopped);
+        onCallObject?.(null);
         call.destroy();
         callRef.current = null;
       }
