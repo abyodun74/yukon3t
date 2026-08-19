@@ -10,6 +10,7 @@ import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteObject, dele
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -174,21 +175,7 @@ export async function createStory(formData: FormData) {
     return { error: "server_error" as const };
   }
 
-  const subscribers = await prisma.subscription.findMany({
-    where: { subscribedToId: user.id },
-    select: { id: true, subscriberId: true },
-  });
-  if (subscribers.length > 0) {
-    await prisma.notification.createMany({
-      data: subscribers.map((s) => ({
-        recipientId: s.subscriberId,
-        actorId: user.id,
-        type: "SUBSCRIPTION_STORY" as const,
-        storyId: story.id,
-        subscriptionId: s.id,
-      })),
-    });
-  }
+  await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId: story.id });
 
   revalidatePath(`/u/${user.id}`);
   return { error: null };

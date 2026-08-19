@@ -9,6 +9,7 @@ import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 import {
   MEDIA_LIMITS,
   verifyUploadedSize,
@@ -97,6 +98,7 @@ export async function createCircle(formData: FormData) {
       })),
     });
   }
+  await notifySubscribers(user.id, "SUBSCRIPTION_CIRCLE_CREATED", { circleId: circle.id });
 
   revalidatePath("/circles");
   redirect(`/circles/${circle.slug}`);
@@ -188,6 +190,7 @@ export async function joinCircle(circleId: string) {
         })),
       });
     }
+    await notifySubscribers(user.id, "SUBSCRIPTION_CIRCLE_JOINED", { circleId });
   }
   revalidatePath("/circles");
   return { error: null, requested: false };
@@ -595,25 +598,10 @@ export async function createPost(formData: FormData) {
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
-  // Notify subscribers of new content — same createMany fan-out shape as
-  // CIRCLE_JOINED above. Skipped for flagged content: subscribers shouldn't
-  // be pointed at a post that isn't publicly visible.
+  // Notify subscribers of new content. Skipped for flagged content —
+  // subscribers shouldn't be pointed at a post that isn't publicly visible.
   if (moderationStatus === "PUBLISHED") {
-    const subscribers = await prisma.subscription.findMany({
-      where: { subscribedToId: user.id },
-      select: { id: true, subscriberId: true },
-    });
-    if (subscribers.length > 0) {
-      await prisma.notification.createMany({
-        data: subscribers.map((s) => ({
-          recipientId: s.subscriberId,
-          actorId: user.id,
-          type: "SUBSCRIPTION_POST" as const,
-          postId: post.id,
-          subscriptionId: s.id,
-        })),
-      });
-    }
+    await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
   }
 
   revalidatePath("/circles", "layout");

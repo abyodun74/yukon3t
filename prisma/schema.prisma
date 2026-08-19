@@ -649,6 +649,19 @@ enum NotificationType {
   // Same as SUBSCRIPTION_POST but for a new Story — fan-out on createStory,
   // see actions/stories.ts.
   SUBSCRIPTION_STORY
+  // Sent to every subscriber when a user they subscribe to reposts a post.
+  SUBSCRIPTION_REPOST
+  // Sent to every subscriber when a user they subscribe to starts a live
+  // stream.
+  SUBSCRIPTION_LIVE
+  // Sent to every subscriber when a user they subscribe to RSVPs to an
+  // event post.
+  SUBSCRIPTION_RSVP
+  // Sent to every subscriber when a user they subscribe to joins a Circle.
+  SUBSCRIPTION_CIRCLE_JOINED
+  // Sent to every subscriber when a user they subscribe to creates a new
+  // Circle.
+  SUBSCRIPTION_CIRCLE_CREATED
 }
 
 model Notification {
@@ -664,6 +677,7 @@ model Notification {
   collabId       String?
   storyId        String?
   subscriptionId String?
+  liveStreamId   String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
@@ -677,6 +691,7 @@ model Notification {
   collab       CollabBoardPost? @relation(fields: [collabId], references: [id], onDelete: Cascade)
   story        Story?           @relation(fields: [storyId], references: [id], onDelete: Cascade)
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -800,6 +815,7 @@ model LiveStream {
   host    User     @relation(fields: [hostId], references: [id], onDelete: Cascade)
   circle  Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
   viewers LiveStreamViewer[]
+  notifications Notification[]
 
   @@index([status])
   @@index([hostId])

@@ -21,6 +21,11 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   COLLAB_JOINED: "joined your collaboration",
   SUBSCRIPTION_POST: "posted something new",
   SUBSCRIPTION_STORY: "added a new story",
+  SUBSCRIPTION_REPOST: "reposted something",
+  SUBSCRIPTION_LIVE: "started a live stream",
+  SUBSCRIPTION_RSVP: "is going to an event",
+  SUBSCRIPTION_CIRCLE_JOINED: "joined a Circle",
+  SUBSCRIPTION_CIRCLE_CREATED: "created a new Circle",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -64,6 +65,7 @@ export async function toggleRsvp(postId: string) {
       },
     });
   }
+  await notifySubscribers(user.id, "SUBSCRIPTION_RSVP", { postId: post.id });
 
   revalidatePostViews(post);
   return { error: null, going: true, rsvpCount: updated.rsvpCount };

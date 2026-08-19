@@ -14,6 +14,7 @@ import {
 } from "@/lib/daily";
 import { getCircleMembership } from "@/lib/circle-permissions";
 import { liveStreamTitleSchema, liveStreamJoinRoleSchema } from "@/lib/validations";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -81,6 +82,7 @@ export async function startLiveStream(formData: FormData) {
     where: { id: liveStream.id },
     data: { roomName: room.name, roomUrl: room.url },
   });
+  await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
 
   revalidatePath("/home");
   return { error: null, liveStreamId: liveStream.id, roomUrl: room.url, token };

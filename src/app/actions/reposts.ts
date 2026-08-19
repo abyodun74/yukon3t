@@ -7,6 +7,7 @@ import { repostSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 
 export async function repost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -103,6 +104,7 @@ export async function repost(formData: FormData) {
       postId: rootId,
     },
   });
+  await notifySubscribers(user.id, "SUBSCRIPTION_REPOST", { postId: rootId });
 
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);

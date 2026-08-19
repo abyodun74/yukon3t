@@ -27,7 +27,12 @@ type NotificationData = {
     | "GROUP_ADDED"
     | "COLLAB_JOINED"
     | "SUBSCRIPTION_POST"
-    | "SUBSCRIPTION_STORY";
+    | "SUBSCRIPTION_STORY"
+    | "SUBSCRIPTION_REPOST"
+    | "SUBSCRIPTION_LIVE"
+    | "SUBSCRIPTION_RSVP"
+    | "SUBSCRIPTION_CIRCLE_JOINED"
+    | "SUBSCRIPTION_CIRCLE_CREATED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -35,9 +40,11 @@ type NotificationData = {
   circle: { slug: string } | null;
   conversationId: string | null;
   collab: { id: string } | null;
+  liveStreamId: string | null;
 };
 
 function hrefFor(notification: NotificationData) {
+  if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.circle) return `/circles/${notification.circle.slug}`;
   if (notification.collab) return `/collab/${notification.collab.id}`;
