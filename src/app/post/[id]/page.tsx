@@ -55,6 +55,7 @@ export default async function PostDetailPage({
           username: post.author.username,
           avatarUrl: post.author.avatarUrl,
           trustBand: post.author.trustBand,
+          openToIntents: post.author.openToIntents,
         },
       },
     ],

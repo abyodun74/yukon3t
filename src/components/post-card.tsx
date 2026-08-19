@@ -15,6 +15,8 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
+import { SubscribeButton } from "@/components/subscribe-button";
+import { PostConnectPopover } from "@/components/post-connect-popover";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { formatDateTime } from "@/lib/format-date";
 
@@ -34,8 +36,17 @@ type EmbeddedPost = {
   eventLocation: string | null;
   createdAt: Date;
   editedAt: Date | null;
-  author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
+  author: {
+    id: string;
+    name: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+    trustBand: string;
+    openToIntents: string[];
+  };
 };
+
+type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
 export type PostCardData = EmbeddedPost & {
   likeCount: number;
@@ -48,6 +59,10 @@ export type PostCardData = EmbeddedPost & {
   rsvpGoingByMe: boolean;
   repostOf: EmbeddedPost | null;
   sharedPost: EmbeddedPost | null;
+  connectionStatus: ConnectionStatus;
+  connectionIsRequester: boolean;
+  conversationId: string | null;
+  subscribedByMe: boolean;
 };
 
 function EventBlock({
@@ -529,6 +544,23 @@ export function PostCard({
           <Share2 size={16} />
           {shareCount > 0 && shareCount}
         </button>
+
+        {viewerId !== displayPost.author.id && (
+          <>
+            <PostConnectPopover
+              targetId={displayPost.author.id}
+              openToIntents={displayPost.author.openToIntents}
+              status={post.connectionStatus}
+              isRequester={post.connectionIsRequester}
+              conversationId={post.conversationId}
+            />
+            <SubscribeButton
+              targetId={displayPost.author.id}
+              initiallySubscribed={post.subscribedByMe}
+              variant="icon"
+            />
+          </>
+        )}
       </div>
 
       {lightboxIndex !== null && (

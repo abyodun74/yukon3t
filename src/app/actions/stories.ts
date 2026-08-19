@@ -150,8 +150,9 @@ export async function createStory(formData: FormData) {
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
 
+  let story;
   try {
-    await prisma.story.create({
+    story = await prisma.story.create({
       data: {
         authorId: user.id,
         mediaType,
@@ -171,6 +172,22 @@ export async function createStory(formData: FormData) {
     console.error("[createStory] failed to create story row after successful upload", err);
     await cleanupUploads();
     return { error: "server_error" as const };
+  }
+
+  const subscribers = await prisma.subscription.findMany({
+    where: { subscribedToId: user.id },
+    select: { id: true, subscriberId: true },
+  });
+  if (subscribers.length > 0) {
+    await prisma.notification.createMany({
+      data: subscribers.map((s) => ({
+        recipientId: s.subscriberId,
+        actorId: user.id,
+        type: "SUBSCRIPTION_STORY" as const,
+        storyId: story.id,
+        subscriptionId: s.id,
+      })),
+    });
   }
 
   revalidatePath(`/u/${user.id}`);

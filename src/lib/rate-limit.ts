@@ -67,6 +67,7 @@ export const rateLimiters = {
   postCreate: makeLimiter(10, "5 m"),
   report: makeLimiter(10, "10 m"),
   connectionRequest: makeLimiter(20, "10 m"),
+  subscribe: makeLimiter(30, "10 m"),
   circleCreate: makeLimiter(5, "1 h"),
   groupChatCreate: makeLimiter(5, "1 h"),
   mediaUpload: makeLimiter(20, "10 m"),

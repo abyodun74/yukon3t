@@ -19,6 +19,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   MESSAGE: "sent you a message",
   GROUP_ADDED: "added you to a group chat",
   COLLAB_JOINED: "joined your collaboration",
+  SUBSCRIPTION_POST: "posted something new",
+  SUBSCRIPTION_STORY: "added a new story",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

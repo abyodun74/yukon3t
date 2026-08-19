@@ -25,7 +25,9 @@ type NotificationData = {
     | "CIRCLE_JOIN_APPROVED"
     | "MESSAGE"
     | "GROUP_ADDED"
-    | "COLLAB_JOINED";
+    | "COLLAB_JOINED"
+    | "SUBSCRIPTION_POST"
+    | "SUBSCRIPTION_STORY";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

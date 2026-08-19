@@ -14,6 +14,7 @@ const EVENT_LABELS: Record<AnalyticsEventType, string> = {
   CALL_STARTED: "Calls started",
   CIRCLE_JOINED: "Circles joined",
   CIRCLE_CREATED: "Circles created",
+  SUBSCRIBED: "Subscriptions",
 };
 
 async function countsSince(daysAgo: number) {

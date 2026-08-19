@@ -10,7 +10,8 @@ export type AnalyticsEventType =
   | "MESSAGE_SENT"
   | "CALL_STARTED"
   | "CIRCLE_JOINED"
-  | "CIRCLE_CREATED";
+  | "CIRCLE_CREATED"
+  | "SUBSCRIBED";
 
 /**
  * First-party, privacy-minimal product-usage log — a handful of key

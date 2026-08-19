@@ -595,6 +595,27 @@ export async function createPost(formData: FormData) {
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
+  // Notify subscribers of new content — same createMany fan-out shape as
+  // CIRCLE_JOINED above. Skipped for flagged content: subscribers shouldn't
+  // be pointed at a post that isn't publicly visible.
+  if (moderationStatus === "PUBLISHED") {
+    const subscribers = await prisma.subscription.findMany({
+      where: { subscribedToId: user.id },
+      select: { id: true, subscriberId: true },
+    });
+    if (subscribers.length > 0) {
+      await prisma.notification.createMany({
+        data: subscribers.map((s) => ({
+          recipientId: s.subscriberId,
+          actorId: user.id,
+          type: "SUBSCRIPTION_POST" as const,
+          postId: post.id,
+          subscriptionId: s.id,
+        })),
+      });
+    }
+  }
+
   revalidatePath("/circles", "layout");
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);

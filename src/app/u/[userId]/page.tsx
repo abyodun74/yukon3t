@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
@@ -60,6 +61,11 @@ export default async function PublicProfilePage({
           })
         )?.id ?? null
       : null;
+
+  const [subscriberCount, subscribingCount] = await Promise.all([
+    prisma.subscription.count({ where: { subscribedToId: user.id } }),
+    prisma.subscription.count({ where: { subscriberId: user.id } }),
+  ]);
 
   const canSeePosts =
     !iBlockedThem &&
@@ -125,6 +131,16 @@ export default async function PublicProfilePage({
             <p className="text-sm text-foreground-soft">
               {user.country ?? "Unknown location"}
             </p>
+            <div className="mt-1 flex items-center gap-3 text-xs">
+              <Link href={`/u/${user.id}/subscribers`} className="hover:text-accent hover:underline">
+                <span className="font-semibold">{subscriberCount}</span>{" "}
+                <span className="text-foreground-soft">Subscribers</span>
+              </Link>
+              <Link href={`/u/${user.id}/subscribing`} className="hover:text-accent hover:underline">
+                <span className="font-semibold">{subscribingCount}</span>{" "}
+                <span className="text-foreground-soft">Subscribing</span>
+              </Link>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

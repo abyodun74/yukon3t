@@ -225,6 +225,12 @@ model User {
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
 
+  // Subscriptions: one-directional "follow" — distinct from Connection
+  // (mutual, intent-tag-gated). subscriptions = who I subscribe to;
+  // subscribers = who subscribes to me.
+  subscriptions Subscription[] @relation("SubscriptionSubscriber")
+  subscribers   Subscription[] @relation("SubscriptionTarget")
+
   sentMessages         Message[]            @relation("MessageSender")
   conversations        ConversationMember[]
   messageReactions     MessageReaction[]
@@ -637,6 +643,12 @@ enum NotificationType {
   // Sent to a collab's author and any co-admins when a new participant
   // joins — same shape as CIRCLE_JOINED (see joinCollab in actions/collab.ts).
   COLLAB_JOINED
+  // Sent to every subscriber when a user they subscribe to creates a new
+  // Post — fan-out on createPost, see actions/circles.ts.
+  SUBSCRIPTION_POST
+  // Same as SUBSCRIPTION_POST but for a new Story — fan-out on createStory,
+  // see actions/stories.ts.
+  SUBSCRIPTION_STORY
 }
 
 model Notification {
@@ -650,6 +662,8 @@ model Notification {
   circleId       String?
   conversationId String?
   collabId       String?
+  storyId        String?
+  subscriptionId String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
@@ -661,6 +675,8 @@ model Notification {
   circle       Circle?          @relation(fields: [circleId], references: [id], onDelete: Cascade)
   conversation Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   collab       CollabBoardPost? @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  story        Story?           @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -831,6 +847,7 @@ model Story {
   views  StoryView[]
   reactions StoryReaction[]
   replies   Message[]
+  notifications Notification[]
 
   // Backs both "my active stories" (profile page) and the expiry cron's
   // sweep for rows past expiresAt.
@@ -969,6 +986,28 @@ model Connection {
 
   @@unique([requesterId, targetId])
   @@index([targetId])
+}
+
+/**
+ * One-directional "follow" — subscribing to a user needs no approval (unlike
+ * Connection's PENDING/ACCEPTED handshake) and grants no DM conversation.
+ * Subscribing to someone notifies you (SUBSCRIPTION_POST/SUBSCRIPTION_STORY)
+ * whenever they post new content — see the fan-out in createPost/createStory.
+ */
+model Subscription {
+  id             String   @id @default(cuid())
+  subscriberId   String
+  subscribedToId String
+  createdAt      DateTime @default(now())
+
+  subscriber   User @relation("SubscriptionSubscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscribedTo User @relation("SubscriptionTarget", fields: [subscribedToId], references: [id], onDelete: Cascade)
+
+  notifications Notification[]
+
+  @@unique([subscriberId, subscribedToId])
+  @@index([subscribedToId])
+  @@index([subscriberId])
 }
 
 model Conversation {
@@ -1317,6 +1356,7 @@ enum AnalyticsEventType {
   CALL_STARTED
   CIRCLE_JOINED
   CIRCLE_CREATED
+  SUBSCRIBED
 }
 
 /**

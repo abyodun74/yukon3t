@@ -22,8 +22,17 @@ type EmbeddedPostRow = {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
-  author: { id: string; name: string | null; username: string | null; avatarUrl: string | null; trustBand: string };
+  author: {
+    id: string;
+    name: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+    trustBand: string;
+    openToIntents: string[];
+  };
 };
+
+type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
 type PostRow = EmbeddedPostRow & {
   repostOf: EmbeddedPostRow | null;
@@ -34,12 +43,12 @@ type PostRow = EmbeddedPostRow & {
 // that will be rendered through `<PostCard>` — keeps every call site's
 // selection in sync with what attachViewerState()/PostCard actually need.
 export const postCardInclude = {
-  author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
+  author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
   repostOf: {
-    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
+    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } } },
   },
   sharedPost: {
-    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
+    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } } },
   },
 } as const;
 
@@ -51,8 +60,15 @@ export const postCardInclude = {
  */
 export async function attachViewerState<T extends PostRow>(posts: T[], viewerId: string) {
   const targetIds = [...new Set(posts.map((p) => p.sharedPost?.id ?? p.repostOf?.id ?? p.id))];
+  const authorIds = [
+    ...new Set(
+      posts
+        .map((p) => (p.sharedPost ?? p.repostOf ?? p).author.id)
+        .filter((id) => id !== viewerId),
+    ),
+  ];
 
-  const [likes, myReposts, myRsvps] = targetIds.length
+  const [likes, myReposts, myRsvps, connections, subscriptions] = targetIds.length
     ? await Promise.all([
         prisma.like.findMany({
           where: { userId: viewerId, postId: { in: targetIds } },
@@ -66,15 +82,66 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
           where: { userId: viewerId, postId: { in: targetIds } },
           select: { postId: true },
         }),
+        authorIds.length
+          ? prisma.connection.findMany({
+              where: {
+                OR: [
+                  { requesterId: viewerId, targetId: { in: authorIds } },
+                  { requesterId: { in: authorIds }, targetId: viewerId },
+                ],
+              },
+            })
+          : Promise.resolve([]),
+        authorIds.length
+          ? prisma.subscription.findMany({
+              where: { subscriberId: viewerId, subscribedToId: { in: authorIds } },
+              select: { subscribedToId: true },
+            })
+          : Promise.resolve([]),
       ])
-    : [[], [], []];
+    : [[], [], [], [], []];
 
   const likedSet = new Set(likes.map((l) => l.postId));
   const repostedSet = new Set(myReposts.map((r) => r.repostOfId as string));
   const rsvpGoingSet = new Set(myRsvps.map((r) => r.postId));
+  const subscribedSet = new Set(subscriptions.map((s) => s.subscribedToId));
+
+  const connectionByAuthorId = new Map<
+    string,
+    { status: ConnectionStatus; isRequester: boolean }
+  >();
+  for (const c of connections) {
+    const otherId = c.requesterId === viewerId ? c.targetId : c.requesterId;
+    connectionByAuthorId.set(otherId, { status: c.status, isRequester: c.requesterId === viewerId });
+  }
+
+  // For any author the viewer is already ACCEPTED-connected to, resolve the
+  // shared 2-person conversation so the Connect popover can link straight
+  // into the chat — same batched approach as /connections/page.tsx.
+  const acceptedAuthorIds = authorIds.filter(
+    (id) => connectionByAuthorId.get(id)?.status === "ACCEPTED",
+  );
+  const conversations = acceptedAuthorIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          isGroup: false,
+          AND: [
+            { members: { some: { userId: viewerId } } },
+            { members: { some: { userId: { in: acceptedAuthorIds } } } },
+          ],
+        },
+        include: { members: { select: { userId: true } } },
+      })
+    : [];
+  const conversationIdByAuthorId = new Map<string, string>();
+  for (const c of conversations) {
+    const other = c.members.find((m) => m.userId !== viewerId);
+    if (other) conversationIdByAuthorId.set(other.userId, c.id);
+  }
 
   return posts.map((post) => {
     const target = post.sharedPost ?? post.repostOf ?? post;
+    const connection = connectionByAuthorId.get(target.author.id);
     return {
       id: post.id,
       content: post.content,
@@ -100,6 +167,10 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       rsvpGoingByMe: rsvpGoingSet.has(target.id),
       repostOf: post.repostOf,
       sharedPost: post.sharedPost,
+      connectionStatus: connection?.status ?? null,
+      connectionIsRequester: connection?.isRequester ?? false,
+      conversationId: conversationIdByAuthorId.get(target.author.id) ?? null,
+      subscribedByMe: subscribedSet.has(target.author.id),
     };
   });
 }
