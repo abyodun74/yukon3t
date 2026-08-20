@@ -65,3 +65,5 @@ deno.lock
 /android/keystore.properties
 /android/*.jks
 /android/*.keystore
+
+.env*
