@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Circle as RecordIcon, Download, Eye, Users } from "lucide-react";
-import type { DailyCall, DailyParticipant } from "@daily-co/daily-js";
-import { CallFrame } from "@/components/call-frame";
+import type { DailyParticipant } from "@daily-co/daily-js";
+import { useCallSession } from "@/lib/call-session";
 import {
   joinLiveStream,
   leaveLiveStream,
@@ -106,8 +106,7 @@ export function LiveStreamRoom({
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
   const [screenshotBusy, setScreenshotBusy] = useState(false);
   const router = useRouter();
-  const callRef = useRef<DailyCall | null>(null);
-  const [hostCall, setHostCall] = useState<DailyCall | null>(null);
+  const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
 
   // Split from doJoin below: this only fires the request and reacts to its
@@ -174,12 +173,12 @@ export function LiveStreamRoom({
   // (kept fresh by poll()) and grants canSend to anyone holding a GUEST/
   // COHOST stage slot.
   useEffect(() => {
-    if (!isHost || !hostCall) return;
+    if (!isHost || !dailyCall) return;
 
     function grantIfEligible(p: DailyParticipant) {
       if (p.local || p.permissions.canSend === true) return;
       if (!stageUserIdsRef.current.has(p.user_id)) return;
-      hostCall!.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
+      dailyCall!.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
     }
 
     async function handleJoined(ev: { participant: DailyParticipant }) {
@@ -193,12 +192,31 @@ export function LiveStreamRoom({
       grantIfEligible(p);
     }
 
-    Object.values(hostCall.participants()).forEach(grantIfEligible);
-    hostCall.on("participant-joined", handleJoined);
+    Object.values(dailyCall.participants()).forEach(grantIfEligible);
+    dailyCall.on("participant-joined", handleJoined);
     return () => {
-      hostCall.off("participant-joined", handleJoined);
+      dailyCall.off("participant-joined", handleJoined);
     };
-  }, [isHost, hostCall, liveStreamId]);
+  }, [isHost, dailyCall, liveStreamId]);
+
+  // Recording state used to live inside CallFrame's onRecordingChange prop —
+  // now that CallFrame only renders once, globally (GlobalCallFrame), this
+  // subscribes to the same Daily events directly via the shared call object.
+  useEffect(() => {
+    if (!dailyCall) return;
+    function onStarted() {
+      setRecording(true);
+    }
+    function onStopped() {
+      setRecording(false);
+    }
+    dailyCall.on("recording-started", onStarted);
+    dailyCall.on("recording-stopped", onStopped);
+    return () => {
+      dailyCall.off("recording-started", onStarted);
+      dailyCall.off("recording-stopped", onStopped);
+    };
+  }, [dailyCall]);
 
   async function handleLeave() {
     if (isHost) {
@@ -210,13 +228,32 @@ export function LiveStreamRoom({
     router.push("/home");
   }
 
+  // Hands the fullscreen/minimizable UI off to the root-mounted
+  // GlobalCallFrame the moment we've joined the room (see call-session.tsx)
+  // — LiveStreamRoom's own stage/chat/recording controls below stay
+  // rendered as independently `fixed` overlays, which stack correctly on
+  // top of GlobalCallFrame's video by z-index alone regardless of not being
+  // DOM-nested inside it.
+  useEffect(() => {
+    if (!active) return;
+    startSession({
+      key: `live:${liveStreamId}`,
+      roomUrl: active.roomUrl,
+      token: active.token,
+      type: "VIDEO",
+      activeSpeakerMode: false,
+      label: title,
+      onLeave: handleLeave,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.roomUrl, active?.token, liveStreamId]);
+
   async function toggleRecording() {
-    const call = callRef.current;
-    if (!call) return;
+    if (!dailyCall) return;
     if (recording) {
-      await call.stopRecording();
+      await dailyCall.stopRecording();
     } else {
-      await call.startRecording();
+      await dailyCall.startRecording();
     }
   }
 
@@ -333,18 +370,6 @@ export function LiveStreamRoom({
 
   return (
     <>
-      <CallFrame
-        roomUrl={active.roomUrl}
-        token={active.token}
-        type="VIDEO"
-        onLeave={handleLeave}
-        onCallObject={(call) => {
-          callRef.current = call;
-          if (isHost) setHostCall(call);
-        }}
-        onRecordingChange={setRecording}
-        activeSpeakerMode={false}
-      />
       <div className="fixed left-3 top-3 z-[70] flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white">
         <span className="flex items-center gap-1 font-semibold text-danger">
           <span className="h-1.5 w-1.5 rounded-full bg-danger" />

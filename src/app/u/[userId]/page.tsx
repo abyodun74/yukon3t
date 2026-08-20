@@ -14,16 +14,19 @@ import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
+// Same cursor + "Load more" pattern as /connections/page.tsx.
+const POSTS_PAGE_SIZE = 20;
+
 export default async function PublicProfilePage({
   params,
   searchParams,
 }: {
   params: Promise<{ userId: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; postsBefore?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
-  const { error, saved } = await searchParams;
+  const { error, saved, postsBefore } = await searchParams;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -77,11 +80,13 @@ export default async function PublicProfilePage({
     ? await prisma.post.findMany({
         where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
         orderBy: { createdAt: "desc" },
-        take: 30,
+        take: POSTS_PAGE_SIZE,
+        ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
         include: postCardInclude,
       })
     : [];
   const posts = await attachViewerState(rawPosts, me.id);
+  const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
   const activeStories = canSeePosts
     ? await prisma.story.findMany({
@@ -215,6 +220,14 @@ export default async function PublicProfilePage({
               ? "Nothing posted yet — share a photo, a short video, or an update."
               : "No posts yet."}
           </p>
+        )}
+        {canSeePosts && postsHaveMore && (
+          <Link
+            href={`/u/${user.id}?postsBefore=${posts[posts.length - 1].id}`}
+            className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            Load more
+          </Link>
         )}
       </div>
     </div>

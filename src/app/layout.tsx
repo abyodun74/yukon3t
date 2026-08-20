@@ -7,6 +7,8 @@ import { AppSplash } from "@/components/app-splash";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
+import { GlobalCallFrame } from "@/components/global-call-frame";
+import { CallSessionProvider } from "@/lib/call-session";
 import { FcmTokenBridge } from "@/components/fcm-token-bridge";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { auth } from "@/lib/auth";
@@ -96,37 +98,40 @@ export default async function RootLayout({
           <div className="aurora-blob" />
           <div className="aurora-blob" />
         </div>
-        <AppSplash />
-        <CapacitorBridge />
-        <RegisterServiceWorker />
-        <OfflineBanner />
-        <Nav session={session} theme={theme} />
-        {session?.user && <IncomingCallListener />}
-        {session?.user && <FcmTokenBridge />}
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">
-          <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
-            <a href="/faq" className="hover:text-accent">
-              FAQ
-            </a>
-            <a href="/legal/guidelines" className="hover:text-accent">
-              Community Guidelines
-            </a>
-            <a href="/legal/privacy" className="hover:text-accent">
-              Privacy
-            </a>
-            <a href="/legal/terms" className="hover:text-accent">
-              Terms
-            </a>
-            <a href="/legal/disclaimer" className="hover:text-accent">
-              Disclaimer
-            </a>
-            <a href="/advertise" className="hover:text-accent">
-              Advertise
-            </a>
-          </div>
-          <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
-        </footer>
+        <CallSessionProvider>
+          <AppSplash />
+          <CapacitorBridge />
+          <RegisterServiceWorker />
+          <OfflineBanner />
+          <Nav session={session} theme={theme} />
+          {session?.user && <IncomingCallListener />}
+          {session?.user && <GlobalCallFrame />}
+          {session?.user && <FcmTokenBridge />}
+          <main className="flex-1">{children}</main>
+          <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">
+            <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
+              <a href="/faq" className="hover:text-accent">
+                FAQ
+              </a>
+              <a href="/legal/guidelines" className="hover:text-accent">
+                Community Guidelines
+              </a>
+              <a href="/legal/privacy" className="hover:text-accent">
+                Privacy
+              </a>
+              <a href="/legal/terms" className="hover:text-accent">
+                Terms
+              </a>
+              <a href="/legal/disclaimer" className="hover:text-accent">
+                Disclaimer
+              </a>
+              <a href="/advertise" className="hover:text-accent">
+                Advertise
+              </a>
+            </div>
+            <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
+          </footer>
+        </CallSessionProvider>
       </body>
     </html>
   );

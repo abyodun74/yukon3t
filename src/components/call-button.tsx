@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
-import { CallFrame } from "@/components/call-frame";
+import { useCallSession } from "@/lib/call-session";
 
 type CallType = "AUDIO" | "VIDEO";
 
@@ -30,6 +30,26 @@ function callErrorMessage(code?: string) {
 /** Voice/video call buttons for a connection — used on their profile and in the DM thread header. */
 export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeName: string }) {
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
+  const { startSession, endSession } = useCallSession();
+
+  // Hands the fullscreen/minimizable UI off to the root-mounted
+  // GlobalCallFrame the moment the call connects, so navigating away doesn't
+  // hang up (see src/lib/call-session.tsx).
+  useEffect(() => {
+    if (state.phase !== "in-call") return;
+    startSession({
+      key: `call:${state.callId}`,
+      roomUrl: state.roomUrl,
+      token: state.token,
+      type: state.type,
+      label: calleeName,
+      onLeave: () => {
+        endCall(state.callId);
+        setState({ phase: "idle" });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
 
   useEffect(() => {
     if (state.phase !== "ringing" && state.phase !== "in-call") return undefined;
@@ -55,16 +75,22 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
         setState({ phase: "ended", message: `${calleeName} declined the call.` });
       } else if (result.status === "ENDED" || result.status === "MISSED") {
         // Normally the callee hanging up ejects us from the Daily room,
-        // which fires CallFrame's "left-meeting" -> onLeave below. This is
-        // the fallback for when that ejection is delayed or never arrives
-        // (deleteCallRoom in daily.ts is best-effort) — the DB status is
-        // the source of truth either way, so just tear down locally without
-        // calling endCall() again (it's already ENDED/MISSED server-side).
+        // which fires the session's onLeave (registered above) via
+        // GlobalCallFrame. This is the fallback for when that ejection is
+        // delayed or never arrives (deleteCallRoom in daily.ts is best-
+        // effort) — the DB status is the source of truth either way, so
+        // just tear down locally without calling endCall() again (it's
+        // already ENDED/MISSED server-side). Also closes the global call
+        // widget directly, in case this fires before Daily's own
+        // "left-meeting" event does — safe to check `state` (not `s`) here
+        // since this closure is re-created fresh each time `state` changes
+        // (see the effect's dependency array below).
+        if (state.phase === "in-call") endSession();
         setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
       }
     }, intervalMs);
     return () => clearInterval(interval);
-  }, [state, calleeName]);
+  }, [state, calleeName, endSession]);
 
   useEffect(() => {
     if (state.phase !== "ended") return undefined;
@@ -99,8 +125,11 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
     });
   }
 
+  // Only reachable from the "ringing" dialog's Cancel button below — once
+  // in-call, hanging up goes through GlobalCallFrame (Daily's "left-meeting"
+  // -> the onLeave passed to startSession above), not this function.
   function cancel() {
-    if (state.phase === "ringing" || state.phase === "in-call") {
+    if (state.phase === "ringing") {
       endCall(state.callId);
     }
     setState({ phase: "idle" });
@@ -176,18 +205,6 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
             </div>
           </div>
         </div>
-      )}
-
-      {state.phase === "in-call" && (
-        <CallFrame
-          roomUrl={state.roomUrl}
-          token={state.token}
-          type={state.type}
-          onLeave={() => {
-            endCall(state.callId);
-            setState({ phase: "idle" });
-          }}
-        />
       )}
 
       {state.phase === "ended" && (

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
@@ -16,16 +17,19 @@ import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 
+// Same cursor + "Load more" pattern as /connections/page.tsx.
+const POSTS_PAGE_SIZE = 20;
+
 export default async function CirclePage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ channel?: string }>;
+  searchParams: Promise<{ channel?: string; postsBefore?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { slug } = await params;
-  const { channel: requestedSlug } = await searchParams;
+  const { channel: requestedSlug, postsBefore } = await searchParams;
 
   const circle = await prisma.circle.findUnique({
     where: { slug },
@@ -77,11 +81,13 @@ export default async function CirclePage({
       ? await prisma.post.findMany({
           where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
-          take: 30,
+          take: POSTS_PAGE_SIZE,
+          ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
           include: postCardInclude,
         })
       : [];
   const posts = await attachViewerState(rawPosts, me.id);
+  const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
   const allMembers = canModerate
     ? await prisma.circleMembership.findMany({
@@ -200,6 +206,17 @@ export default async function CirclePage({
                         ))}
                         {posts.length === 0 && (
                           <p className="text-sm text-foreground-soft">No posts yet — be the first.</p>
+                        )}
+                        {postsHaveMore && (
+                          <Link
+                            href={`/circles/${circle.slug}?${new URLSearchParams({
+                              ...(activeChannel?.slug ? { channel: activeChannel.slug } : {}),
+                              postsBefore: posts[posts.length - 1].id,
+                            }).toString()}`}
+                            className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+                          >
+                            Load more
+                          </Link>
                         )}
                       </div>
                     </>

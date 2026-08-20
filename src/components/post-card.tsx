@@ -17,6 +17,7 @@ import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { PostConnectPopover } from "@/components/post-connect-popover";
+import { TruncatedText } from "@/components/truncated-text";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { formatDateTime } from "@/lib/format-date";
 
@@ -182,9 +183,10 @@ function MediaBlock({
         </div>
       ) : (
         post.content && (
-          <p className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}>
-            {post.content}
-          </p>
+          <TruncatedText
+            text={post.content}
+            className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}
+          />
         )
       )}
 
@@ -462,9 +464,10 @@ export function PostCard({
             </div>
           </div>
         ) : (
-          <p className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft">
-            {content}
-          </p>
+          <TruncatedText
+            text={content}
+            className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft"
+          />
         )
       )}
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
-import { CallFrame } from "@/components/call-frame";
+import { useCallSession } from "@/lib/call-session";
 import { usePolling } from "@/lib/use-polling";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 
@@ -19,17 +19,25 @@ type IncomingCall = {
   caller: { id: string; name: string | null };
 };
 
-type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO" | "VIDEO" };
+type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO" | "VIDEO"; callerName: string };
 
 /** Mounted once, app-wide, for any signed-in user — polls for a ring the same way ChatThread polls for messages. */
 export function IncomingCallListener() {
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
+  const { startSession, endSession } = useCallSession();
 
   const activeCallRef = useRef(activeCall);
   useEffect(() => {
     activeCallRef.current = activeCall;
+  });
+
+  // Read by acceptCall (below) to label the minimized call widget — a plain
+  // dependency-array entry would recreate acceptCall on every poll tick.
+  const incomingRef = useRef(incoming);
+  useEffect(() => {
+    incomingRef.current = incoming;
   });
 
   const poll = useCallback(async () => {
@@ -54,10 +62,29 @@ export function IncomingCallListener() {
     const result = await getCallStatus(call.callId);
     if (result.error) return;
     if (result.status === "ENDED" || result.status === "MISSED" || result.status === "DECLINED") {
+      endSession();
       setActiveCall((current) => (current?.callId === call.callId ? null : current));
     }
-  }, []);
+  }, [endSession]);
   usePolling(pollActiveCallStatus, ACTIVE_CALL_POLL_MS, !!activeCall);
+
+  // Hands the fullscreen/minimizable UI off to the root-mounted
+  // GlobalCallFrame the moment the call connects (see call-session.tsx).
+  useEffect(() => {
+    if (!activeCall) return;
+    startSession({
+      key: `call:${activeCall.callId}`,
+      roomUrl: activeCall.roomUrl,
+      token: activeCall.token,
+      type: activeCall.type,
+      label: activeCall.callerName,
+      onLeave: () => {
+        endCall(activeCall.callId);
+        setActiveCall(null);
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCall?.callId]);
 
   // Plays the callee's chosen ringtone on loop for as long as a call is
   // actually ringing, and stops the moment it isn't — accepted, declined,
@@ -85,7 +112,9 @@ export function IncomingCallListener() {
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
-    setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type });
+    const callerName =
+      incomingRef.current?.id === callId ? incomingRef.current.caller.name ?? "Someone" : "Someone";
+    setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName });
     setIncoming((current) => (current?.id === callId ? null : current));
   }, []);
 
@@ -149,19 +178,9 @@ export function IncomingCallListener() {
     };
   }, [acceptCall, declineCall]);
 
-  if (activeCall) {
-    return (
-      <CallFrame
-        roomUrl={activeCall.roomUrl}
-        token={activeCall.token}
-        type={activeCall.type}
-        onLeave={() => {
-          endCall(activeCall.callId);
-          setActiveCall(null);
-        }}
-      />
-    );
-  }
+  // Once active, the call itself renders via the root-mounted GlobalCallFrame
+  // (see the startSession effect above) — nothing left to render here.
+  if (activeCall) return null;
 
   if (!incoming) return null;
 

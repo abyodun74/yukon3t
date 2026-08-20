@@ -73,9 +73,8 @@ export function CallFrame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomUrl, token]);
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-black">
-      <div ref={containerRef} className="h-full w-full" />
-    </div>
-  );
+  // Positioning is the caller's job — src/components/global-call-frame.tsx
+  // is the only place this is rendered, and it decides fullscreen vs
+  // minimized sizing.
+  return <div ref={containerRef} className="h-full w-full" />;
 }

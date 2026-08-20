@@ -21,6 +21,10 @@ type SortOption = (typeof SORT_OPTIONS)[number];
 
 const CURRENT_AFFAIRS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
+// Same cursor + "Load more" pattern as /connections/page.tsx, scoped to just
+// the Posts section — People/Circles/Collabs/Group chats aren't paginated.
+const POSTS_PAGE_SIZE = 20;
+
 // A plain helper (not the page component itself) so the Date.now() read
 // doesn't trip react-hooks' purity check, which scans PascalCase component
 // bodies for impure calls — same reason admin/analytics/page.tsx computes
@@ -45,10 +49,10 @@ function sortLabel(sort: SortOption) {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sort?: string; country?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; country?: string; postsBefore?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { q: rawQuery, sort: sortParam, country } = await searchParams;
+  const { q: rawQuery, sort: sortParam, country, postsBefore } = await searchParams;
   const q = (rawQuery ?? "").trim();
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
@@ -81,6 +85,7 @@ export default async function SearchPage({
   > = [];
   let smart: Awaited<ReturnType<typeof semanticSearch>> | null = null;
   let blockedIds: string[] = [];
+  let postsHaveMore = false;
 
   if (q.length >= 2) {
     const [blockedIdsResult, postsWhere] = await Promise.all([
@@ -175,7 +180,8 @@ export default async function SearchPage({
             : sort === "oldest"
               ? { createdAt: "asc" }
               : { likeCount: "desc" },
-        take: 20,
+        take: POSTS_PAGE_SIZE,
+        ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
         include: postCardInclude,
       }),
       prisma.conversation.findMany({
@@ -202,15 +208,18 @@ export default async function SearchPage({
     collabs = collabsResult;
     posts = await attachViewerState(rawPostsResult, me.id);
     groupChats = groupChatsResult;
+    postsHaveMore = rawPostsResult.length === POSTS_PAGE_SIZE;
 
     // "Relevant" is the only sort mode smart search applies to — "recent"/
     // "oldest"/"current" are explicit requests for chronological order, which
     // a semantic-similarity ranking would fight rather than serve. Only
     // triggers when the exact substring match came back sparse, since that's
-    // the actual signal that the query's words weren't exact hits.
+    // the actual signal that the query's words weren't exact hits — and only
+    // on the first page, since it's meant to backfill a thin *initial*
+    // result set, not to keep firing on every "Load more" posts click.
     const exactCount = people.length + circles.length + collabs.length + posts.length + groupChats.length;
     const SPARSE_THRESHOLD = 5;
-    if (sort === "relevant" && exactCount < SPARSE_THRESHOLD) {
+    if (sort === "relevant" && exactCount < SPARSE_THRESHOLD && !postsBefore) {
       const smartResult = await semanticSearch(q, me.id, { excludeUserIds: [me.id, ...blockedIds] });
       const exactPeopleIds = new Set(people.map((p) => p.id));
       const exactCircleIds = new Set(circles.map((c) => c.id));
@@ -417,6 +426,19 @@ export default async function SearchPage({
             {posts.map((post) => (
               <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
             ))}
+            {postsHaveMore && (
+              <Link
+                href={`/search?${new URLSearchParams({
+                  q,
+                  ...(sort !== "relevant" ? { sort } : {}),
+                  ...(country ? { country } : {}),
+                  postsBefore: posts[posts.length - 1].id,
+                }).toString()}`}
+                className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
+              >
+                Load more
+              </Link>
+            )}
           </div>
         </div>
       )}
