@@ -9,6 +9,14 @@ import { RingtonePicker } from "@/components/ringtone-picker";
 import { InviteContactsButton } from "@/components/invite-contacts-button";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 
+// Server Actions inherit the page's maxDuration (set at the page level, not
+// the action file — see Next.js docs). AccountDangerZone's exportMyData is
+// an intentionally unbounded full-account dump (posts, messages, Circle
+// memberships, etc.) — it was silently capped at whatever the un-configured
+// default was (10s on Hobby). Now that Vercel Pro allows raising this,
+// giving it real headroom for accounts with a lot of history.
+export const maxDuration = 60;
+
 export default async function SettingsPage({
   searchParams,
 }: {
