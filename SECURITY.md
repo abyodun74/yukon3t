@@ -18,6 +18,80 @@
 - **SSRF-guarded remote image fetch** (`src/lib/fetch-remote-image.ts`) — "add an image from a URL" in the post composer has our server fetch a user-supplied URL, so it's the one place this app makes an outbound request to an address a user picks. Guarded by: resolving DNS ourselves and refusing to connect to any private/loopback/link-local/CGNAT/multicast/reserved address (including `169.254.169.254`, the cloud metadata endpoint) before ever calling `fetch()`; `redirect: "manual"` so a public-looking URL can't 302 into an internal one; content-type allowlist (JPEG/PNG/WebP only); and a streamed size cap that aborts mid-download rather than buffering an oversized response first. Documented residual gap: this doesn't pin the TCP connection to the exact IP we checked, so it isn't fully DNS-rebinding-proof — `fetch()` re-resolves the hostname itself at connect time, after our check already passed. Accepted as the realistic threat-model tradeoff for this app; a fully pinned connection would need a custom low-level dispatcher.
 - **Video embeds (YouTube/Vimeo) don't route through our moderation** — a pasted video link is parsed into a `provider` + `videoId` pair via a strict per-host allowlist (`src/lib/video-embed.ts`); nothing else about the URL (query params, path beyond the ID) is ever stored or trusted, and the iframe `src` is always rebuilt server-side from just those two values — never the raw pasted string — so no attacker-controlled string can become an iframe src. The linked video's actual content is moderated by YouTube/Vimeo, not by this app's `moderateMedia`; only the post's own caption text goes through our moderation gate. CSP `frame-src` (`src/proxy.ts`) is locked to exactly `youtube-nocookie.com` and `player.vimeo.com`.
 
+## Security sweep — 2026-08-19: findings and fixes
+
+A full-app review (auth/session, every `src/app/actions/*.ts` for IDOR,
+every API route/webhook, mobile manifest) turned up and fixed:
+
+- **Private Circle posts were readable via direct `/post/[id]` URL**,
+  bypassing Circle membership entirely — that page's `canView` only checked
+  the author's global `postsVisibility` and connection status, never
+  `post.circleId`, unlike the feed's `getVisiblePostsWhere` (`src/lib/post-visibility.ts`).
+  A signed-in non-member who got a post id from a notification, share link,
+  or by guessing could view a private Circle's post and comments. Fixed by
+  wiring the page to `getVisiblePostsWhere` directly; added a `canViewPost`
+  helper (same file) and applied it to `toggleLike`, `createComment`,
+  `toggleRsvp`, `repost`, and both `recordShare`/`shareToCircle` — none of
+  those previously verified Circle access before acting on a client-supplied
+  `postId`, and `repost`/`shareToCircle` specifically could have republished
+  a private Circle's post outside it.
+- **`getCollabRecordingLink`/`getLiveStreamRecordingLink` didn't verify a
+  `recordingId` belonged to the caller's own room** before minting a Daily
+  download link — any participant of *any* collab/stream (or, for the
+  live-stream variant, any verified user at all — the function took no room
+  parameter) could pass in a `recordingId` scoped to a different, possibly
+  private session. Fixed by cross-checking against `listRoomRecordings` for
+  that specific room first; `getLiveStreamRecordingLink` now requires
+  `liveStreamId` as a parameter.
+- **`unsubscribeFromPush` deleted any `PushSubscription` row matching the
+  given `endpoint`, with no owner check** — fixed to scope by `userId` too,
+  matching `unregisterFcmToken`'s existing pattern.
+- **`setPassword` let a hijacked/stolen session cookie be escalated into a
+  durable password-login backdoor** — updating an *existing* password
+  required no re-authentication and didn't invalidate other sessions or
+  notify anyone. An attacker with only transient session access (XSS,
+  malware, a shared device) could set a password of their choosing and
+  retain account access indefinitely, long after the original stolen cookie
+  expired or the victim "logged out." Fixed: changing an existing password
+  now requires the current password (rate-limited) and sets
+  `sessionInvalidatedAt`, forcing every other session — including any
+  attacker-held copy of the stolen cookie — to re-authenticate. See "Session
+  revocation" above.
+- **IP-scoped auth rate limiters used the raw, unparsed `x-forwarded-for`
+  header** instead of the app's own `getClientIp()` (which takes only the
+  first hop) — inconsistent with the safer pattern already used for
+  `/advertise`. Unified onto `getClientIp()` for sign-in, password login/
+  signup/reset-request.
+- **Android `allowBackup="true"`** meant the WebView's cookie storage
+  (including the live session cookie, since the native app is a thin WebView
+  over `https://yukon3t.com` — see CLAUDE.md) was eligible for Android's
+  default app-data backup/restore, a session-jacking vector via device
+  backup/migration or `adb backup` on older Android versions. Set to
+  `"false"` in `android/app/src/main/AndroidManifest.xml`. **Native-code
+  change — only reaches real users through a new Play Store release**, per
+  the mobile note in CLAUDE.md.
+- Corrected stale docs (this file and `CLAUDE.md`) claiming sessions use the
+  Prisma `"database"` strategy — the app actually uses `"jwt"` for both
+  sign-in paths; neither ever writes to the `Session` table. Left uncorrected
+  documentation like this is itself a risk: it invites a future change to
+  assume DB-row deletion revokes a session, when only `sessionInvalidatedAt`
+  does.
+
+**Reviewed and found sound, no changes made**: webhook signature
+verification (Stripe, cron `Authorization: Bearer` via `timingSafeEqual`),
+the SSRF guard in `fetch-remote-image.ts` (DNS-resolved-IP blocklist checked
+before connecting, `redirect: "manual"`, streamed size cap), presigned
+upload key scoping in `storage.ts`, CSP/HSTS/frame headers, cookie flags and
+session-fixation resistance on both sign-in paths, CSRF (Server Actions'
+built-in origin check), user-supplied URL rendering (`linkUrl` fields are
+scheme-restricted to `http`/`https` before ever reaching an `<a href>`),
+Android/iOS network security config (no ATS exceptions, no cleartext, no
+custom trust anchors), `npm audit` (0 findings, prod and dev). Every other
+`src/app/actions/*.ts` file — messages, connections, circles, channels,
+collab, comment edit/delete/hide, calls, blocks, reports/moderation,
+profile, and all `requireAdmin`-gated actions — correctly re-derives the
+actor and checks ownership/membership before writing.
+
 ## Known gaps / accepted risk
 
 - **Phone/ID verification was descoped** from the MVP to stay under the $200 budget (SMS OTP costs money per verification). Trust score is computed from free signals only (email verified, account age, profile completeness, report history). See the plan's budget-reconciliation note.
@@ -33,23 +107,41 @@
 **Username/password auth** (`src/app/actions/password-auth.ts`) is additive to
 the existing magic-link flow, not a replacement — either method signs into
 the same account. It's implemented as fully custom server actions, not
-NextAuth's own Credentials provider, because Auth.js does not support
-Credentials with the `"database"` session strategy this app already uses
-(Credentials effectively requires `"jwt"`, and mixing session strategies
-per-provider isn't supported). Instead, `loginWithPassword` writes directly
-to the same `Session` table NextAuth uses and sets the identical cookie
-Auth.js would (`src/lib/auth-cookie.ts`, name computed from whether
-`AUTH_URL` is `https://`) — verified compatible with `auth()` everywhere
-else in the app via real end-to-end tests (signup → verify → login →
-`page-guards` onboarding redirect all worked without touching a single
-other file). Passwords are hashed with `bcryptjs` (12 rounds, pure JS — no
-native build step, chosen specifically to avoid Windows dev-machine
-native-module pain). Email verification is a single-use token in the same
-`VerificationToken` table NextAuth's adapter uses; login is rejected until
-`emailVerified` is set. Existing magic-link-only users can add a
+NextAuth's own Credentials provider, because Auth.js's Credentials provider
+doesn't support this app's status/verification-gated login logic (locked-out/
+unverified/suspended accounts, etc.). Sessions use the **`"jwt"` strategy**
+(`src/lib/auth.ts`) for both sign-in methods — despite the schema having a
+`Session` table (kept for the Prisma adapter's other uses), neither path
+writes a row to it. Instead, `loginWithPassword` hand-encodes a JWT cookie
+identical in shape/secret/name to the one Auth.js's own callbacks would
+produce (`src/lib/session-token.ts`, cookie name from `src/lib/auth-cookie.ts`
+computed from whether `AUTH_URL` is `https://`) — verified compatible with
+`auth()` everywhere else in the app via real end-to-end tests (signup →
+verify → login → `page-guards` onboarding redirect all worked without
+touching a single other file). Passwords are hashed with `bcryptjs` (12
+rounds, pure JS — no native build step, chosen specifically to avoid Windows
+dev-machine native-module pain). Email verification is a single-use token in
+the same `VerificationToken` table NextAuth's adapter uses; login is rejected
+until `emailVerified` is set. Existing magic-link-only users can add a
 username/password from Settings (`setPassword` action) without needing
 their old password (there isn't one) — just proves ownership via their
-existing session.
+existing session; changing an *existing* password now re-requires the
+current password and invalidates every other session
+(`sessionInvalidatedAt`) — see "Session revocation" below.
+
+**Session revocation, since JWTs are stateless**: there is no server-side
+token to delete on logout, ban, suspend, or password change. `requireUser()`
+(`src/lib/auth-guards.ts`) instead checks `User.sessionInvalidatedAt` against
+the JWT's own `issuedAt` claim on every request — any token issued before
+that timestamp is rejected and the user must sign in again. This is set on
+password reset (`resetPassword`) and on password change (`setPassword`);
+plain `signOut()` only clears the local cookie and does **not** set
+`sessionInvalidatedAt` (a captured/replayed copy of the cookie stays valid
+until its `maxAge` naturally expires — the same tradeoff most stateless-JWT
+apps make, since there's no per-device session identity to revoke
+individually). Any future "log out this device" or "kill session" feature
+must go through `sessionInvalidatedAt` (or a real per-session revocation
+list), not the unused `Session` table.
 
 **Age verification**: `User.birthDate`, required at password sign-up and
 at onboarding (for magic-link users), enforced via `isOldEnough()` in

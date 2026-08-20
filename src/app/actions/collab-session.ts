@@ -135,8 +135,21 @@ export async function listCollabRecordings(collabId: string) {
 export async function getCollabRecordingLink(collabId: string, recordingId: string) {
   const user = await requireVerifiedUser();
 
-  const membership = await getCollabMembership(collabId, user.id);
-  if (!membership) {
+  const [collab, membership] = await Promise.all([
+    prisma.collabBoardPost.findUnique({ where: { id: collabId }, select: { roomName: true } }),
+    getCollabMembership(collabId, user.id),
+  ]);
+  if (!collab?.roomName || !membership) {
+    return { error: "forbidden" as const };
+  }
+
+  // getRecordingAccessLink takes only a bare recordingId with no room scoping
+  // of its own — without cross-checking it against this collab's own room,
+  // any participant of *any* collab could pass in a recordingId belonging to
+  // a different (possibly private) collab and get a valid download link for
+  // it. Daily is the source of truth for which recordings belong to a room.
+  const recordings = await listRoomRecordings(collab.roomName);
+  if (!recordings.some((r) => r.id === recordingId)) {
     return { error: "forbidden" as const };
   }
 

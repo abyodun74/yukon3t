@@ -5,6 +5,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { canViewPost } from "@/lib/post-visibility";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -28,6 +29,9 @@ export async function toggleRsvp(postId: string) {
     include: { circle: { select: { slug: true } } },
   });
   if (!post || post.moderationStatus !== "PUBLISHED" || !post.eventAt) {
+    return { error: "not_found" };
+  }
+  if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
   }
 

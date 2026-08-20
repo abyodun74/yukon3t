@@ -1,7 +1,6 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -19,15 +18,12 @@ import { issueSessionCookie } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
 import { requireAdmin } from "@/lib/auth-guards";
 import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
+import { getClientIp as clientIp } from "@/lib/client-ip";
 
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 4;
 const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
-
-async function clientIp() {
-  return (await headers()).get("x-forwarded-for") ?? "unknown";
-}
 
 /**
  * Sign-up no longer collects a username up front (just email + password +

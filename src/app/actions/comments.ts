@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+import { canViewPost } from "@/lib/post-visibility";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -31,6 +32,9 @@ export async function createComment(formData: FormData) {
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post || post.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" };
+  }
+  if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
   }
 

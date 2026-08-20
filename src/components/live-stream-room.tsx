@@ -271,7 +271,7 @@ export function LiveStreamRoom({
 
   async function downloadRecording(recordingId: string) {
     setFetchingLinkId(recordingId);
-    const result = await getLiveStreamRecordingLink(recordingId);
+    const result = await getLiveStreamRecordingLink(liveStreamId, recordingId);
     setFetchingLinkId(null);
     if (result.error || !result.url) return;
     window.open(result.url, "_blank", "noopener,noreferrer");

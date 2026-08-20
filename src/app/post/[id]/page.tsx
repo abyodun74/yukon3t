@@ -7,6 +7,7 @@ import { CommentList } from "@/components/comment-list";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 
 export default async function PostDetailPage({
   params,
@@ -28,21 +29,20 @@ export default async function PostDetailPage({
     notFound();
   }
 
-  const canView =
-    isOwnPost ||
-    me.isAdmin ||
-    post.author.postsVisibility === "PUBLIC" ||
-    Boolean(
-      await prisma.connection.findFirst({
-        where: {
-          status: "ACCEPTED",
-          OR: [
-            { requesterId: me.id, targetId: post.authorId },
-            { requesterId: post.authorId, targetId: me.id },
-          ],
-        },
-      }),
-    );
+  // Reuses the feed's exact visibility rules (Circle membership, blocked
+  // users, HIDDEN, postsVisibility) rather than a separate hand-rolled check
+  // here — a prior version of this page only checked postsVisibility/
+  // connections and never verified Circle membership at all, letting anyone
+  // signed in view a private Circle's posts (and their comments) just by
+  // knowing the post id, e.g. from a notification or share link.
+  let canView = isOwnPost || me.isAdmin;
+  if (!canView) {
+    const visible = await prisma.post.findFirst({
+      where: { id, ...(await getVisiblePostsWhere(me.id)) },
+      select: { id: true },
+    });
+    canView = Boolean(visible);
+  }
   if (!canView) notFound();
 
   const [postWithState] = await attachViewerState(

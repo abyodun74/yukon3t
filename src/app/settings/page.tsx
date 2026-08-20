@@ -47,7 +47,11 @@ export default async function SettingsPage({
         <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "username_taken"
             ? "That username is taken — try another."
-            : "Please check your inputs."}
+            : error === "current_password_invalid"
+              ? "Current password is incorrect."
+              : error === "rate_limited"
+                ? "Too many attempts — try again in a few minutes."
+                : "Please check your inputs."}
         </p>
       )}
 
@@ -183,6 +187,17 @@ export default async function SettingsPage({
               Username: <span className="font-medium">{user.username}</span>
             </p>
           )}
+          {user.passwordHash && (
+            <div>
+              <label className="block text-sm font-medium">Current password</label>
+              <PasswordInput
+                name="currentPassword"
+                required
+                maxLength={72}
+                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium">
               {user.passwordHash ? "New password" : "Password"}
@@ -195,6 +210,11 @@ export default async function SettingsPage({
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
             />
           </div>
+          {user.passwordHash && (
+            <p className="text-xs text-foreground-soft">
+              Changing your password signs you out everywhere else.
+            </p>
+          )}
           <button
             type="submit"
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"

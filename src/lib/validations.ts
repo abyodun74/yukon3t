@@ -80,6 +80,11 @@ export const loginSchema = z.object({
 
 export const setPasswordSchema = z.object({
   password: passwordSchema,
+  // Only required when the user already has a passwordHash (checked
+  // imperatively in the setPassword action, not here, since that depends on
+  // DB state the schema itself can't see) — prevents a hijacked session
+  // cookie from being escalated into a durable password-login backdoor.
+  currentPassword: z.string().max(72).optional(),
 });
 
 export const forgotPasswordSchema = z.object({

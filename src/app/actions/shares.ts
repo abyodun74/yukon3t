@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { shareToCircleSchema } from "@/lib/validations";
 import { canAccessChannel } from "@/lib/channel-permissions";
+import { canViewPost } from "@/lib/post-visibility";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Shared by every share destination: bumps shareCount, records the Share row, and notifies the original author. */
@@ -39,6 +40,9 @@ export async function recordShare(postId: string) {
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post || post.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" };
+  }
+  if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
   }
 
@@ -84,6 +88,12 @@ export async function shareToCircle(formData: FormData) {
     ? await prisma.post.findUnique({ where: { id: rootId } })
     : target;
   if (!root || root.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" };
+  }
+  // Without this, a post from a private Circle could be quoted into a
+  // different Circle the sharer belongs to, republishing its content across
+  // a boundary the original Circle's members never agreed to.
+  if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" };
   }
 

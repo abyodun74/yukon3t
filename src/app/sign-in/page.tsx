@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { headers } from "next/headers";
+import { getClientIp } from "@/lib/client-ip";
 import { redirect } from "next/navigation";
 import { loginWithPassword, resendVerificationEmail } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
@@ -13,7 +13,7 @@ async function sendMagicLink(formData: FormData) {
     redirect("/sign-in?error=invalid");
   }
 
-  const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
+  const ip = await getClientIp();
   const allowed = await checkRateLimit("signIn", `signin:${ip}:${email}`);
   if (!allowed) {
     redirect("/sign-in?error=rate_limited");

@@ -36,7 +36,7 @@ export async function subscribeToPush(subscription: SubscriptionInput) {
 }
 
 export async function unsubscribeFromPush(endpoint: string) {
-  await requireUser();
-  await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+  const user = await requireUser();
+  await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: user.id } });
   return { error: null };
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { canViewPost } from "@/lib/post-visibility";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -27,6 +28,9 @@ export async function toggleLike(postId: string) {
     include: { circle: { select: { slug: true } } },
   });
   if (!post || post.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" };
+  }
+  if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
   }
 

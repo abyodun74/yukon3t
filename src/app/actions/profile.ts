@@ -11,7 +11,7 @@ import {
   setPasswordSchema,
   usernameSchema,
 } from "@/lib/validations";
-import { hashPassword } from "@/lib/passwords";
+import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { recomputeTrustScore } from "@/lib/trust";
 import { moderateText } from "@/lib/moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -155,9 +155,30 @@ export async function updateRingtone(formData: FormData) {
 
 export async function setPassword(formData: FormData) {
   const user = await requireUser();
-  const parsed = setPasswordSchema.safeParse({ password: formData.get("password") });
+  const parsed = setPasswordSchema.safeParse({
+    password: formData.get("password"),
+    currentPassword: formData.get("currentPassword") || undefined,
+  });
   if (!parsed.success) {
     redirect("/settings?error=invalid");
+  }
+
+  // A password change is a credential-issuance event, not a profile edit —
+  // without re-proving the existing password, anyone who merely rides a
+  // stolen/hijacked session cookie (XSS, malware, a shared device) could
+  // silently install a password-login backdoor that outlives the cookie
+  // itself. Only enforced once a password already exists; the very first
+  // "set a password" from a magic-link-only account has nothing to re-prove.
+  if (user.passwordHash) {
+    const allowed = await checkRateLimit("passwordLogin", user.id);
+    if (!allowed) {
+      redirect("/settings?error=rate_limited");
+    }
+    const currentValid =
+      parsed.data.currentPassword && (await verifyPassword(parsed.data.currentPassword, user.passwordHash));
+    if (!currentValid) {
+      redirect("/settings?error=current_password_invalid");
+    }
   }
 
   let username = user.username;
@@ -174,7 +195,15 @@ export async function setPassword(formData: FormData) {
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
-  await prisma.user.update({ where: { id: user.id }, data: { username, passwordHash } });
+  await prisma.user.update({
+    where: { id: user.id },
+    // Invalidates every other outstanding session (JWT strategy has no
+    // server-side token to revoke individually — see requireUser's
+    // sessionInvalidatedAt check) — the same mechanism the forgot-password
+    // reset flow already relies on, closing off a hijacked cookie the
+    // instant the real owner changes their password.
+    data: { username, passwordHash, sessionInvalidatedAt: new Date() },
+  });
 
   revalidatePath("/settings");
   redirect("/settings?saved=1");

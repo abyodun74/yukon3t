@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { canViewPost } from "@/lib/post-visibility";
 
 export async function repost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -37,6 +38,13 @@ export async function repost(formData: FormData) {
     ? await prisma.post.findUnique({ where: { id: rootId } })
     : target;
   if (!root || root.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" };
+  }
+  // A repost creates a new, circle-less post crediting the root — without
+  // this check, reposting a post from a private Circle the caller isn't a
+  // member of would republish it to the caller's public profile/feed,
+  // leaking its content outside the Circle boundary entirely.
+  if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" };
   }
 

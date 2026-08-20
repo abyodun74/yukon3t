@@ -321,9 +321,30 @@ export async function listLiveStreamRecordings(liveStreamId: string) {
   };
 }
 
-/** Fetches a fresh, short-lived download link for a recording. */
-export async function getLiveStreamRecordingLink(recordingId: string) {
+/**
+ * Fetches a fresh, short-lived download link for a recording. Requires the
+ * caller's own liveStreamId (previously took only a bare recordingId, which
+ * getRecordingAccessLink itself can't scope to a room) so this can verify
+ * the recording actually belongs to that stream's own room before minting a
+ * link — otherwise any verified user who obtained a recordingId from one
+ * stream (e.g. via listLiveStreamRecordings) could pass it here unscoped and
+ * download a recording from a different, possibly Circle-restricted, stream.
+ */
+export async function getLiveStreamRecordingLink(liveStreamId: string, recordingId: string) {
   await requireVerifiedUser();
+
+  const liveStream = await prisma.liveStream.findUnique({
+    where: { id: liveStreamId },
+    select: { roomName: true },
+  });
+  if (!liveStream?.roomName) {
+    return { error: "unavailable" as const };
+  }
+
+  const recordings = await listRoomRecordings(liveStream.roomName);
+  if (!recordings.some((r) => r.id === recordingId)) {
+    return { error: "unavailable" as const };
+  }
 
   try {
     const url = await getRecordingAccessLink(recordingId);

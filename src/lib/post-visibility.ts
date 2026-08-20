@@ -53,3 +53,20 @@ export async function getVisiblePostsWhere(viewerId: string) {
     },
   };
 }
+
+/**
+ * Whether a single post is visible to a given viewer — same rules as
+ * getVisiblePostsWhere (Circle membership, blocked users, HIDDEN,
+ * postsVisibility), just scoped to one id instead of a feed query. Use this
+ * before any engagement action (like/comment/RSVP/repost/share) touches a
+ * postId supplied by the client — the id alone doesn't prove the caller was
+ * ever allowed to see that post (e.g. a private Circle's post shared outside
+ * it, or leaked via a notification).
+ */
+export async function canViewPost(postId: string, viewerId: string) {
+  const post = await prisma.post.findFirst({
+    where: { id: postId, ...(await getVisiblePostsWhere(viewerId)) },
+    select: { id: true },
+  });
+  return Boolean(post);
+}
