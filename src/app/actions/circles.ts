@@ -598,6 +598,12 @@ export async function createPost(formData: FormData) {
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
+  // Video-body scanning (Hive) happens on the moderate-videos cron, not
+  // here — the post publishes immediately with videoModeratedAt still null,
+  // same "publish immediately, flag retroactively if needed" approach as
+  // text/image moderation, but Hive's Visual Moderation API is a
+  // synchronous call best kept out of this user-facing request path.
+
   // Notify subscribers of new content. Skipped for flagged content —
   // subscribers shouldn't be pointed at a post that isn't publicly visible.
   if (moderationStatus === "PUBLISHED") {

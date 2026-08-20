@@ -8,6 +8,7 @@ import { PasswordInput } from "@/components/password-input";
 import { RingtonePicker } from "@/components/ringtone-picker";
 import { InviteContactsButton } from "@/components/invite-contacts-button";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
+import { PhoneVerificationForm } from "@/components/phone-verification-form";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
 // the action file — see Next.js docs). AccountDangerZone's exportMyData is
@@ -230,6 +231,16 @@ export default async function SettingsPage({
             {user.passwordHash ? "Update password" : "Set password"}
           </button>
         </form>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Phone verification</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Optional — verifying a phone number raises your trust score.
+        </p>
+        <div className="mt-4">
+          <PhoneVerificationForm phone={user.phone} phoneVerifiedAt={user.phoneVerifiedAt} />
+        </div>
       </div>
 
       <AccountDangerZone />

@@ -21,14 +21,14 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component.
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
-// Live in-browser recording (MediaRecorder, held in tab memory the whole
-// time) stays short — a multi-hour recording would risk exhausting the
-// tab's memory long before the user ever hits stop. A video picked from
-// the device's own file system has no such constraint (it's already a
-// file on disk, streamed straight to the PUT), so it gets a much longer
-// allowance — see MAX_UPLOAD_VIDEO_SECONDS.
-const MAX_RECORD_VIDEO_SECONDS = 180;
-const MAX_UPLOAD_VIDEO_SECONDS = 240 * 60;
+// Both capped at 60s to match Hive's Visual Moderation API's own video
+// length limit (src/lib/hive.ts) — a video posted longer than this could
+// never get the full-body moderation scan, only the thumbnail+caption
+// check. Previously 180s (recording) / 240min (upload) purely for
+// in-browser-memory reasons; now bounded by moderation coverage instead,
+// which is the tighter constraint anyway.
+const MAX_RECORD_VIDEO_SECONDS = 60;
+const MAX_UPLOAD_VIDEO_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {

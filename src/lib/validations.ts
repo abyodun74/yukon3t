@@ -87,6 +87,18 @@ export const setPasswordSchema = z.object({
   currentPassword: z.string().max(72).optional(),
 });
 
+// E.164: "+" then 8-15 digits — normalized client-side before submit,
+// re-validated here since this is what actually gets sent to Twilio.
+export const phoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{7,14}$/, "Enter a valid phone number with country code.");
+
+export const verifyPhoneCodeSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().trim().regex(/^\d{4,10}$/, "Enter the code we sent you."),
+});
+
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });

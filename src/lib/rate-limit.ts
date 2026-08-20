@@ -89,6 +89,13 @@ export const rateLimiters = {
   // sign-in (see getClientIp), so there's no account identifier to key on.
   adUpload: makeLimiter(10, "10 m"),
   adBookingCreate: makeLimiter(5, "1 h"),
+  // Guards SMS send cost/abuse (each call is a real Twilio charge) — separate
+  // from phoneVerifyCheck below, which guards brute-forcing a submitted code
+  // rather than triggering new sends. Twilio Verify has its own internal
+  // rate limiting too; this is defense-in-depth, same as every other
+  // user-facing action in this app.
+  phoneVerifyRequest: makeLimiter(5, "1 h"),
+  phoneVerifyCheck: makeLimiter(10, "1 h"),
 };
 
 export async function checkRateLimit(

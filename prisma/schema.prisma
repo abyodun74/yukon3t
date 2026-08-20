@@ -122,6 +122,14 @@ model User {
   username      String?     @unique
   passwordHash  String?
   birthDate     DateTime?
+
+  // Only written at successful OTP confirmation (src/app/actions/phone-
+  // verification.ts), never at request time — an abandoned/unconfirmed
+  // attempt never touches this column, so @unique can't be violated by a
+  // half-finished verification flow. Twilio Verify owns the OTP code's
+  // entire lifecycle; no code is ever generated or stored here.
+  phone           String?   @unique
+  phoneVerifiedAt DateTime?
   name          String?
   avatarUrl     String?
   bio           String?     @db.Text
@@ -455,6 +463,14 @@ model Post {
   mediaUrls         String[]         @default([])
   videoUrl          String?
   videoThumbnailUrl String?
+  // Video-body moderation (src/lib/hive.ts, called synchronously from the
+  // moderate-videos cron) — separate from moderationStatus, which is still
+  // driven by the caption+thumbnail check at publish time
+  // (src/lib/moderation.ts). Set once Hive's verdict is in; doubles as the
+  // "needs checking" filter — null means still pending (or Hive not
+  // configured, in which case it stays null forever and is simply never
+  // picked up by the cron).
+  videoModeratedAt DateTime?
   // EMBED posts store only a provider + the extracted video id, never the
   // raw pasted URL — the iframe src is always rebuilt server-side from these
   // two known-safe values, so nothing attacker-controlled ever becomes an
@@ -530,6 +546,9 @@ model Post {
   // Matches each category section's own feed query shape on Home, same
   // reasoning as the circleId/authorId composite indexes above.
   @@index([feedCategory, moderationStatus, createdAt])
+  // Backs the moderate-videos cron's scan for video posts still awaiting a
+  // Hive verdict (mediaType VIDEO, videoModeratedAt IS NULL).
+  @@index([mediaType, videoModeratedAt])
 }
 
 model Comment {

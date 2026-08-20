@@ -68,10 +68,10 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 ]);
 
 export const MAX_POST_IMAGES = 4;
-// Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS (videos picked from
-// the device's file system, not live in-browser recording — see that
-// file's MAX_RECORD_VIDEO_SECONDS for the shorter live-recording cap).
-export const MAX_VIDEO_DURATION_SECONDS = 240 * 60;
+// Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS/MAX_RECORD_VIDEO_SECONDS
+// (both 60s) — bounded by Hive's Visual Moderation API's own video length
+// limit (src/lib/hive.ts), not an upload/memory constraint.
+export const MAX_VIDEO_DURATION_SECONDS = 60;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_STORY_VIDEO_SECONDS = 120;
@@ -136,13 +136,13 @@ export async function createUploadUrl({
   const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
   const bucket = process.env.R2_BUCKET_NAME!;
 
-  // 2GB over a slow mobile upload can take well past an hour, and posts now
-  // allow videos up to 240 minutes long (see MAX_UPLOAD_VIDEO_SECONDS in
-  // post-composer.tsx) — a video kind gets a longer-lived presigned URL so
-  // the PUT (plus its retries, see PUT_ATTEMPTS_VIDEO in upload-client.ts,
-  // which all reuse this same URL rather than requesting a fresh one) don't
-  // start failing partway through on a slow connection. Non-video kinds
-  // stay at 5 minutes.
+  // 2GB (MAX_VIDEO_BYTES) over a slow mobile upload can take well past an
+  // hour, independent of the 60s content-duration cap — a short clip can
+  // still be a large, high-bitrate file. A video kind gets a longer-lived
+  // presigned URL so the PUT (plus its retries, see PUT_ATTEMPTS_VIDEO in
+  // upload-client.ts, which all reuse this same URL rather than requesting
+  // a fresh one) don't start failing partway through on a slow connection.
+  // Non-video kinds stay at 5 minutes.
   const expiresIn = VIDEO_KINDS.has(kind) ? 21_600 : 300;
   const uploadUrl = await getSignedUrl(
     client(),

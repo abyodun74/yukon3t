@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isOldEnough, MIN_AGE, usernameSchema, signUpSchema } from "@/lib/validations";
+import { isOldEnough, MIN_AGE, usernameSchema, signUpSchema, phoneSchema } from "@/lib/validations";
 
 describe("isOldEnough", () => {
   it("accepts someone whose birthday already passed this year at the minimum age", () => {
@@ -61,5 +61,28 @@ describe("signUpSchema", () => {
     const result = signUpSchema.safeParse({ ...validBase, email: "  Jane@Example.COM  ", birthDate });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.email).toBe("jane@example.com");
+  });
+});
+
+describe("phoneSchema", () => {
+  it("accepts a well-formed E.164 number", () => {
+    expect(phoneSchema.safeParse("+14155551234").success).toBe(true);
+  });
+
+  it("rejects a number missing the leading +", () => {
+    expect(phoneSchema.safeParse("14155551234").success).toBe(false);
+  });
+
+  it("rejects a number starting with a 0 country code digit", () => {
+    expect(phoneSchema.safeParse("+0123456789").success).toBe(false);
+  });
+
+  it("rejects non-digit characters", () => {
+    expect(phoneSchema.safeParse("+1 415 555 1234").success).toBe(false);
+    expect(phoneSchema.safeParse("+1-415-555-1234").success).toBe(false);
+  });
+
+  it("trims surrounding whitespace before validating", () => {
+    expect(phoneSchema.safeParse("  +14155551234  ").success).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { computeTrustScore, bandFromScore } from "@/lib/trust";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const baseSignals = {
   emailVerified: null as Date | null,
+  phoneVerifiedAt: null as Date | null,
   createdAt: new Date(),
   bio: null as string | null,
   country: null as string | null,
@@ -19,6 +20,15 @@ describe("computeTrustScore", () => {
 
   it("awards 30 points for a verified email", () => {
     expect(computeTrustScore({ ...baseSignals, emailVerified: new Date() })).toBe(30);
+  });
+
+  it("awards 15 points for a verified phone", () => {
+    expect(computeTrustScore({ ...baseSignals, phoneVerifiedAt: new Date() })).toBe(15);
+  });
+
+  it("stacks email and phone verification additively", () => {
+    const verified = { ...baseSignals, emailVerified: new Date(), phoneVerifiedAt: new Date() };
+    expect(computeTrustScore(verified)).toBe(45);
   });
 
   it("awards up to 30 points for account age, capped at ~6 weeks", () => {
@@ -51,6 +61,7 @@ describe("computeTrustScore", () => {
   it("never exceeds 100 or drops below 0", () => {
     const maxed = {
       emailVerified: new Date(),
+      phoneVerifiedAt: new Date(),
       createdAt: new Date(Date.now() - 365 * DAY_MS),
       bio: "Hi",
       country: "Kenya",

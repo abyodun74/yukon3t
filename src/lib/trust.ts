@@ -15,6 +15,7 @@ export function dayNumber(date: Date) {
 
 export type TrustSignals = {
   emailVerified: Date | null;
+  phoneVerifiedAt: Date | null;
   createdAt: Date;
   bio: string | null;
   country: string | null;
@@ -27,6 +28,10 @@ export type TrustSignals = {
 export function computeTrustScore(signals: TrustSignals): number {
   let score = 0;
   if (signals.emailVerified) score += 30;
+  // Roughly half email's weight — phone verification is an optional bonus
+  // signal (Settings, post-signup), not mandatory-at-signup like email, so
+  // it shouldn't dominate the score the way email does.
+  if (signals.phoneVerifiedAt) score += 15;
 
   const accountAgeDays = (Date.now() - signals.createdAt.getTime()) / DAY_MS;
   score += Math.min(30, Math.floor(accountAgeDays / 7) * 5); // up to 30 pts over ~6 weeks
@@ -45,6 +50,7 @@ export function computeTrustScore(signals: TrustSignals): number {
 
 const trustFieldsSelect = {
   emailVerified: true,
+  phoneVerifiedAt: true,
   createdAt: true,
   bio: true,
   country: true,
@@ -80,6 +86,7 @@ export async function recordActivity(userId: string) {
 
   const score = computeTrustScore({
     emailVerified: user.emailVerified,
+    phoneVerifiedAt: user.phoneVerifiedAt,
     createdAt: user.createdAt,
     bio: user.bio,
     country: user.country,
@@ -100,7 +107,11 @@ export async function recordActivity(userId: string) {
   });
 }
 
-/** Recomputes and persists a user's trust score from free, non-paid signals. */
+// Recomputes and persists a user's trust score. Originally "free, non-paid
+// signals only" (phone/ID verification was descoped from the MVP over
+// exactly that cost concern — see SECURITY.md) — phoneVerifiedAt is the
+// first signal here that corresponds to a real per-verification cost
+// (Twilio Verify), now that phone verification has been built.
 export async function recomputeTrustScore(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -110,6 +121,7 @@ export async function recomputeTrustScore(userId: string) {
 
   const score = computeTrustScore({
     emailVerified: user.emailVerified,
+    phoneVerifiedAt: user.phoneVerifiedAt,
     createdAt: user.createdAt,
     bio: user.bio,
     country: user.country,
