@@ -11,6 +11,9 @@ import { CollabSessionRoom } from "@/components/collab-session-room";
 import { CloseCollabButton } from "@/components/close-collab-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
 import { ChatThread } from "@/components/chat-thread";
+import { PostConnectPopover } from "@/components/post-connect-popover";
+import { SubscribeButton } from "@/components/subscribe-button";
+import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { collabTypeLabels } from "@/lib/collab-labels";
 import { isCollabAdmin } from "@/lib/collab-permissions";
 
@@ -25,12 +28,19 @@ export default async function CollabDetailPage({
   const collab = await prisma.collabBoardPost.findUnique({
     where: { id },
     include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
+      author: {
+        select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true },
+      },
       participants: { where: { userId: me.id } },
       _count: { select: { participants: true } },
     },
   });
   if (!collab) notFound();
+
+  const engagement = engagementStatusFor(
+    await getAuthorEngagementStatus(me.id, [collab.author.id]),
+    collab.author.id,
+  );
 
   const isParticipant = collab.participants.length > 0;
   const isOwner = collab.authorId === me.id;
@@ -139,11 +149,29 @@ export default async function CollabDetailPage({
             </span>
           )}
         </div>
-        <ReportTrigger
-          targetType="COLLAB_POST"
-          targetId={collab.id}
-          reportedUserId={collab.author.id}
-        />
+        <div className="flex items-center gap-3">
+          {collab.author.id !== me.id && (
+            <>
+              <PostConnectPopover
+                targetId={collab.author.id}
+                openToIntents={collab.author.openToIntents}
+                status={engagement.connectionStatus}
+                isRequester={engagement.connectionIsRequester}
+                conversationId={engagement.conversationId}
+              />
+              <SubscribeButton
+                targetId={collab.author.id}
+                initiallySubscribed={engagement.subscribedByMe}
+                variant="icon"
+              />
+            </>
+          )}
+          <ReportTrigger
+            targetType="COLLAB_POST"
+            targetId={collab.id}
+            reportedUserId={collab.author.id}
+          />
+        </div>
       </div>
 
       <div className="mt-8">

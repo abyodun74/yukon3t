@@ -177,6 +177,60 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "What's the difference between Connect and Subscribe?",
+        a: (
+          <>
+            <strong>Connect</strong> is the existing mutual friend request —
+            you pick why you want to connect (friendship, cultural exchange,
+            professional, community, or travel tips), the other person has to
+            accept, and it unlocks messaging and calls between you.{" "}
+            <strong>Subscribe</strong> is one-directional and needs no
+            approval — subscribing to someone means you get notified whenever
+            they post, add a story, repost something, go live, RSVP to an
+            event, or join/create a Circle. You can subscribe to someone
+            without being connected to them, and vice versa. Both icons sit
+            next to the share icon on every post you see — Home, a
+            Circle&apos;s feed, search results, and Collab Board postings.
+          </>
+        ),
+      },
+      {
+        q: "How do I see who I'm subscribed to, or who's subscribed to me?",
+        a: (
+          <>
+            Open anyone&apos;s profile — yours included — and tap the
+            &ldquo;Subscribers&rdquo; or &ldquo;Subscribing&rdquo; count near
+            their name for the full list. You can subscribe or unsubscribe to
+            anyone directly from those lists, not just from a post.
+          </>
+        ),
+      },
+      {
+        q: "Why does a long post get cut off with a \"Show more\" link?",
+        a: (
+          <>
+            Posts past a certain length are truncated in feeds so a single
+            long post doesn&apos;t push everything else down the page — tap
+            &ldquo;Show more&rdquo; to read the rest in place, and &ldquo;Show
+            less&rdquo; to collapse it again. This applies wherever posts are
+            listed, and to a repost&apos;s own caption too.
+          </>
+        ),
+      },
+      {
+        q: "Is there a way to see older posts on a profile, in a Circle, or in search results?",
+        a: (
+          <>
+            Yes — scroll to the bottom of Home, a profile&apos;s posts, a
+            Circle&apos;s channel feed, or a Search results page and tap
+            &ldquo;Load more&rdquo; to fetch the next batch. (Home separately
+            checks for brand-new posts every 20&ndash;30 seconds and adds
+            those to the top automatically — that&apos;s different from
+            &ldquo;Load more,&rdquo; which reaches further back.)
+          </>
+        ),
+      },
     ],
   },
   {
@@ -217,6 +271,19 @@ const sections: Section[] = [
             &ldquo;Screenshot&rdquo; to save a frame; your browser will ask
             you to confirm what to capture, since that&apos;s how a
             screenshot of live video works across browsers.
+          </>
+        ),
+      },
+      {
+        q: "Can I keep using the app during a call or a Go Live stream?",
+        a: (
+          <>
+            Yes — tap the minimize icon (top-right on a call, bottom-right on
+            a live stream) to shrink it to a small video widget docked in the
+            corner while you browse anywhere else in the app. The call or
+            stream keeps running the whole time; tap the widget&apos;s
+            expand icon to bring it back full-screen, or its hang-up icon to
+            end it without expanding first.
           </>
         ),
       },

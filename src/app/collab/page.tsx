@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { ReportTrigger } from "@/components/report-form";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
+import { PostConnectPopover } from "@/components/post-connect-popover";
+import { SubscribeButton } from "@/components/subscribe-button";
+import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { collabTypeLabels as typeLabels } from "@/lib/collab-labels";
 
 type SortOption = "recent" | "oldest";
@@ -13,7 +16,7 @@ export default async function CollabPage({
 }: {
   searchParams: Promise<{ sort?: string }>;
 }) {
-  await getOnboardedUserOrRedirect();
+  const me = await getOnboardedUserOrRedirect();
   const { sort: sortParam } = await searchParams;
   const sort: SortOption = sortParam === "oldest" ? "oldest" : "recent";
 
@@ -22,10 +25,17 @@ export default async function CollabPage({
     orderBy: { createdAt: sort === "oldest" ? "asc" : "desc" },
     take: 40,
     include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
+      author: {
+        select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true },
+      },
       _count: { select: { participants: true } },
     },
   });
+
+  const engagementByAuthorId = await getAuthorEngagementStatus(
+    me.id,
+    posts.map((p) => p.author.id),
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -63,7 +73,9 @@ export default async function CollabPage({
       </form>
 
       <div className="mt-8 space-y-4">
-        {posts.map((post) => (
+        {posts.map((post) => {
+          const engagement = engagementStatusFor(engagementByAuthorId, post.author.id);
+          return (
           <div key={post.id} className="rounded-xl border border-line p-4">
             <Link href={`/collab/${post.id}`} className="block">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -93,14 +105,33 @@ export default async function CollabPage({
                 />
                 <TrustBadge band={post.author.trustBand} />
               </div>
-              <ReportTrigger
-                targetType="COLLAB_POST"
-                targetId={post.id}
-                reportedUserId={post.author.id}
-              />
+              <div className="flex items-center gap-3">
+                {post.author.id !== me.id && (
+                  <>
+                    <PostConnectPopover
+                      targetId={post.author.id}
+                      openToIntents={post.author.openToIntents}
+                      status={engagement.connectionStatus}
+                      isRequester={engagement.connectionIsRequester}
+                      conversationId={engagement.conversationId}
+                    />
+                    <SubscribeButton
+                      targetId={post.author.id}
+                      initiallySubscribed={engagement.subscribedByMe}
+                      variant="icon"
+                    />
+                  </>
+                )}
+                <ReportTrigger
+                  targetType="COLLAB_POST"
+                  targetId={post.id}
+                  reportedUserId={post.author.id}
+                />
+              </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         {posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
             Nothing posted yet — start the first collaboration.
