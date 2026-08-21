@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
@@ -117,6 +118,14 @@ export default async function CollabDetailPage({
             isParticipant={isParticipant}
             isOwner={isOwner}
           />
+          {canModerate && (
+            <Link
+              href={`/collab/${collab.id}/edit`}
+              className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft hover:border-accent hover:text-foreground"
+            >
+              Edit
+            </Link>
+          )}
           {collab.status === "OPEN" && (isOwner || me.isAdmin) && (
             <CloseCollabButton collabId={collab.id} />
           )}

@@ -7,8 +7,14 @@ import { MultiSelect } from "@/components/multi-select";
 const MAX_COUNTRIES = 20;
 
 /** Countries-involved picker for a Collab post, with a "worldwide" escape hatch instead of forcing every country to be enumerated one at a time. */
-export function CollabCountriesField() {
-  const [worldwide, setWorldwide] = useState(false);
+export function CollabCountriesField({
+  defaultWorldwide = false,
+  defaultCountries = [],
+}: {
+  defaultWorldwide?: boolean;
+  defaultCountries?: string[];
+}) {
+  const [worldwide, setWorldwide] = useState(defaultWorldwide);
 
   return (
     <div>
@@ -29,6 +35,7 @@ export function CollabCountriesField() {
           <MultiSelect
             name="countries"
             options={COUNTRIES}
+            defaultValues={defaultCountries}
             placeholder="Search countries..."
             max={MAX_COUNTRIES}
           />

@@ -79,17 +79,27 @@ export async function startCall(formData: FormData) {
     return { error: "call_service_unavailable" as const };
   }
 
+  let token: string;
+  let calleeToken: string;
+  try {
+    // Both tokens minted now, up front, rather than the callee's being
+    // minted later when they accept — see the Call.calleeToken comment in
+    // schema.prisma for why that round trip used to add latency to the
+    // moment the callee actually taps Accept.
+    [token, calleeToken] = await Promise.all([
+      createMeetingToken({ roomName: room.name, userId: user.id, userName: user.name ?? "Caller", isOwner: true }),
+      createMeetingToken({ roomName: room.name, userId: calleeId, userName: callee.name ?? "Guest", isOwner: false }),
+    ]);
+  } catch {
+    await deleteCallRoom(room.name);
+    return { error: "call_service_unavailable" as const };
+  }
+
   const call = await prisma.call.create({
-    data: { callerId: user.id, calleeId, type, roomName: room.name, roomUrl: room.url },
+    data: { callerId: user.id, calleeId, type, roomName: room.name, roomUrl: room.url, calleeToken },
   });
 
   try {
-    const token = await createMeetingToken({
-      roomName: room.name,
-      userId: user.id,
-      userName: user.name ?? "Caller",
-      isOwner: true,
-    });
     await sendPushToUser(calleeId, {
       title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
       body: `${user.name ?? "Someone"} is calling you`,
@@ -177,12 +187,18 @@ export async function respondToCall(callId: string, accept: boolean) {
   }
 
   try {
-    const token = await createMeetingToken({
-      roomName: call.roomName,
-      userId: user.id,
-      userName: user.name ?? "Guest",
-      isOwner: false,
-    });
+    // Already minted by startCall and stored on the row — the common path
+    // needs no Daily REST call here at all. Falls back to minting on the
+    // spot only for a pre-existing Call row that predates this column (or
+    // one where minting failed at startCall time for some other reason).
+    const token =
+      call.calleeToken ??
+      (await createMeetingToken({
+        roomName: call.roomName,
+        userId: user.id,
+        userName: user.name ?? "Guest",
+        isOwner: false,
+      }));
     await prisma.call.update({
       where: { id: callId },
       data: { status: "ACCEPTED", respondedAt: new Date() },

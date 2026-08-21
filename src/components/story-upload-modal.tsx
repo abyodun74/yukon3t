@@ -6,6 +6,7 @@ import { Camera, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -47,6 +48,8 @@ function errorMessage(code: string) {
       return "Story uploads aren't set up yet.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
+    case "stale_deployment":
+      return STALE_DEPLOYMENT_MESSAGE;
     case "server_error":
       return "Your video uploaded, but posting it failed — try again in a moment.";
     default:
@@ -181,8 +184,8 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       let result;
       try {
         result = await createStory(fd);
-      } catch {
-        setError(errorMessage("network"));
+      } catch (err) {
+        setError(isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network"));
         return;
       }
       if (result.error) {

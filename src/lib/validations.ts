@@ -181,7 +181,10 @@ export const postSchema = z
     // ids, not Prisma's cuid() — a strict cuid check here rejects every
     // post to any Circle created before that migration.
     channelId: z.string().min(1).optional(),
-    content: z.string().trim().max(2000).optional().default(""),
+    // No practical cap on post length — raised from 2000 so "show more"
+    // can expand posts of any size. Still bounded (not fully unlimited) so a
+    // single request can't ship an arbitrarily huge payload.
+    content: z.string().trim().max(50000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
     mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK"]).optional().default("NONE"),

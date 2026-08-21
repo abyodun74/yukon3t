@@ -86,6 +86,16 @@ export function IncomingCallListener() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.callId]);
 
+  // Warms the dynamic import CallFrame does on mount as soon as we know a
+  // call is ringing, instead of only starting that fetch after Accept is
+  // tapped — by the time acceptCall's response comes back, the chunk is
+  // already cached and CallFrame's own `import()` resolves instantly.
+  useEffect(() => {
+    if (!incoming) return;
+    import("@daily-co/daily-js");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming?.id]);
+
   // Plays the callee's chosen ringtone on loop for as long as a call is
   // actually ringing, and stops the moment it isn't — accepted, declined,
   // hung up by the caller, or this component unmounts.

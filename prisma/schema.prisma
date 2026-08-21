@@ -1311,6 +1311,12 @@ model Call {
   status      CallStatus @default(RINGING)
   roomName    String
   roomUrl     String
+  // Minted for the callee at startCall time (alongside the caller's own
+  // token), not on-demand when they accept — a live Daily REST round trip
+  // used to sit on the critical path between the callee tapping Accept and
+  // the call actually connecting. Nullable so a Call row that somehow never
+  // got one (token mint failure path) still falls back to minting on accept.
+  calleeToken String?
   createdAt   DateTime   @default(now())
   // Set the first time the callee's own client (IncomingCallListener, polled
   // app-wide while signed in) actually observes this RINGING call — i.e. the

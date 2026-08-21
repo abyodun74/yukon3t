@@ -423,7 +423,7 @@ export function PostComposer({
       <textarea
         ref={contentRef}
         name="content"
-        maxLength={2000}
+        maxLength={50000}
         rows={3}
         placeholder={placeholder}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"

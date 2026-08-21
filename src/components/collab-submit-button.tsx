@@ -8,7 +8,13 @@ import { useFormStatus } from "react-dom";
  * createCollabPost twice before the redirect navigates away — that race was
  * producing duplicate collaboration posts.
  */
-export function CollabSubmitButton() {
+export function CollabSubmitButton({
+  label = "Post",
+  pendingLabel = "Posting...",
+}: {
+  label?: string;
+  pendingLabel?: string;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -17,7 +23,7 @@ export function CollabSubmitButton() {
       disabled={pending}
       className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
     >
-      {pending ? "Posting..." : "Post"}
+      {pending ? pendingLabel : label}
     </button>
   );
 }

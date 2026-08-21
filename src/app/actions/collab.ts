@@ -75,6 +75,65 @@ export async function createCollabPost(formData: FormData) {
   redirect(`/collab/${post.id}`);
 }
 
+/**
+ * Author or co-admin: edits a collab's title/type/description/countries in
+ * place after it's been posted (and regardless of whether anyone has already
+ * joined or a session has started — there's no lifecycle lock on this data,
+ * unlike a chat message). Re-runs moderation and refreshes the embedding
+ * exactly like createCollabPost, since the text is changing.
+ */
+export async function updateCollabPost(id: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const collab = await prisma.collabBoardPost.findUnique({ where: { id } });
+  if (!collab) {
+    redirect("/collab");
+  }
+  const membership = await getCollabMembership(id, user.id);
+  if (!isCollabAdmin(collab, membership, user)) {
+    redirect(`/collab/${id}`);
+  }
+
+  const allowed = await checkRateLimit("collabModerate", user.id);
+  if (!allowed) {
+    redirect(`/collab/${id}/edit?error=rate_limited`);
+  }
+
+  const parsed = collabPostSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    type: formData.get("type"),
+    worldwide: formData.get("worldwide") === "on",
+    countries: formData.getAll("countries"),
+  });
+  if (!parsed.success) {
+    redirect(`/collab/${id}/edit?error=invalid`);
+  }
+  const { title, description, type, worldwide, countries } = parsed.data;
+
+  const modResult = await moderateText(`${title}\n${description}`);
+  if (!modResult.allowed) {
+    redirect(`/collab/${id}/edit?error=moderation`);
+  }
+
+  await prisma.collabBoardPost.update({
+    where: { id },
+    data: {
+      title,
+      description,
+      type,
+      worldwide,
+      countries: worldwide ? [] : countries,
+    },
+  });
+
+  await updateCollabEmbedding(id, { title, description });
+
+  revalidatePath("/collab");
+  revalidatePath(`/collab/${id}`);
+  redirect(`/collab/${id}`);
+}
+
 export async function closeCollabPost(id: string) {
   const user = await requireVerifiedUser();
   await prisma.collabBoardPost.updateMany({

@@ -156,7 +156,7 @@ function MediaBlock({
                 editing.onCancel();
               }
             }}
-            maxLength={2000}
+            maxLength={50000}
             rows={3}
             autoFocus
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
@@ -438,7 +438,7 @@ export function PostCard({
                   cancelEdit();
                 }
               }}
-              maxLength={2000}
+              maxLength={50000}
               rows={2}
               autoFocus
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm italic outline-none focus:border-accent"
