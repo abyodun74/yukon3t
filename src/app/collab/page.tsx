@@ -82,12 +82,12 @@ export default async function CollabPage({
                 <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
                   {typeLabels[post.type]}
                 </span>
-                <span className="text-right text-xs text-foreground-soft">
+                <span className="break-words text-right text-xs text-foreground-soft">
                   {post.worldwide ? "Worldwide" : post.countries.join(", ")}
                 </span>
               </div>
-              <h2 className="mt-2 font-semibold hover:text-accent">{post.title}</h2>
-              <p className="mt-1 text-sm text-foreground-soft">{post.description}</p>
+              <h2 className="mt-2 break-words font-semibold hover:text-accent">{post.title}</h2>
+              <p className="mt-1 break-words text-sm text-foreground-soft">{post.description}</p>
               <p className="mt-1 text-xs text-foreground-soft">
                 {post._count.participants} participant{post._count.participants === 1 ? "" : "s"}
               </p>

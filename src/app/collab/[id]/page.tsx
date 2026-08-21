@@ -105,13 +105,13 @@ export default async function CollabDetailPage({
         <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
           {collabTypeLabels[collab.type]}
         </span>
-        <span className="text-xs text-foreground-soft">
+        <span className="break-words text-xs text-foreground-soft">
           {collab.worldwide ? "Worldwide" : collab.countries.join(", ")}
         </span>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">{collab.title}</h1>
+        <h1 className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
         <div className="flex items-center gap-2">
           <CollabParticipantButton
             collabId={collab.id}
@@ -135,7 +135,7 @@ export default async function CollabDetailPage({
         </div>
       </div>
 
-      <p className="mt-2 text-sm text-foreground-soft">{collab.description}</p>
+      <p className="mt-2 break-words text-sm text-foreground-soft">{collab.description}</p>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
