@@ -189,7 +189,23 @@ the app still works by dropping `setFullScreenIntent` in
 `CallForegroundService` and falling back to a plain high-importance heads-up
 notification; nothing else in the calling/notification flow depends on it.
 
-## 10. Target API level
+## 10. Restricted permissions declaration (ignore battery optimizations)
+
+`AndroidManifest.xml` also requests
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, which lets
+`CallForegroundPlugin.requestIgnoreBatteryOptimizations()` show the system
+"allow app to ignore battery optimizations?" dialog the first time a call
+starts on a given install. This exists because some OEMs run their own
+background-process freezer on top of stock Android's Doze/App Standby —
+Samsung's One UI "sleeping apps" battery manager was observed (via on-device
+logcat) freezing this app's process mid-call even with the `phoneCall`
+foreground service running. Also a Play Restricted Permission: declare the
+use case as "calling" in Play Console → App content → Permissions
+declaration, same section as `USE_FULL_SCREEN_INTENT` above. If rejected, the
+app still works — the prompt just never fires, and this app-side mitigation
+falls back to whatever OEM-specific whitelisting the user does manually.
+
+## 11. Target API level
 
 Play Console enforces a minimum `targetSdkVersion` (whatever Google's
 current policy requires — typically the latest or previous Android major

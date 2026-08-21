@@ -109,4 +109,13 @@
          declared use case in Play Console (App content > Permissions) —
          see android/SUBMISSION.md before the next release. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Lets CallForegroundPlugin.requestIgnoreBatteryOptimizations() show the
+         system "allow app to ignore battery optimizations?" dialog — some
+         OEMs (Samsung's One UI "sleeping apps" battery manager, notably) can
+         still freeze this process mid-call despite the phoneCall foreground
+         service above, and this is the only way to get out from under that
+         short of the user finding the equivalent OEM settings screen
+         manually. Also a Play Restricted Permission — see
+         android/SUBMISSION.md. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>
