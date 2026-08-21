@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
+import { startActiveCallForeground, stopActiveCallForeground } from "@/lib/call-foreground-native";
 
 export type StartSessionInput = {
   /** Dedupe key — e.g. `call:${callId}` or `live:${liveStreamId}`. Starting a
@@ -58,12 +59,14 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     }
     setSession(next);
     setMinimized(false);
+    startActiveCallForeground(next.key, next.label, next.type === "VIDEO");
   }, []);
 
   const endSession = useCallback(() => {
     setSession(null);
     setMinimized(false);
     setDailyCall(null);
+    stopActiveCallForeground();
   }, []);
 
   const minimize = useCallback(() => setMinimized(true), []);

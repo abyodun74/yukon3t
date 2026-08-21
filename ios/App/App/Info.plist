@@ -35,6 +35,15 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<!-- Keeps WKWebView's audio session (and so the Daily call's WebRTC
+		     audio) alive once the app is backgrounded mid-call, instead of
+		     iOS suspending it a few seconds after the app leaves the
+		     foreground. Video isn't visible while backgrounded either way
+		     (no CallKit/PiP here) but the call's audio keeps flowing and the
+		     call itself is never dropped. See CallForegroundService.java for
+		     the Android-side equivalent (a foreground service, since Android
+		     has no background-audio-mode declaration like this one). -->
+		<string>audio</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
