@@ -324,7 +324,7 @@ export function LiveStreamRoom({
     const stageFull = stageCount >= stageCapacity;
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-sm font-medium">{title}</p>
+        <p className="break-words text-sm font-medium">{title}</p>
         <p className="mt-1 text-xs text-foreground-soft">
           {stageCount}/{stageCapacity} co-host/guest spots filled
         </p>

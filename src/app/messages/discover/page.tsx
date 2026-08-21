@@ -101,7 +101,7 @@ export default async function DiscoverGroupsPage({
             href={`/messages/${group.id}`}
             className="rounded-xl border border-line p-4 hover:border-accent"
           >
-            <h2 className="font-semibold">{group.name ?? "Group"}</h2>
+            <h2 className="break-words font-semibold">{group.name ?? "Group"}</h2>
             <p className="mt-1 text-xs text-foreground-soft">
               Started by {group.createdBy?.name ?? "Unknown"}
             </p>

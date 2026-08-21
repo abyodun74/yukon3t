@@ -159,7 +159,7 @@ export default async function PublicProfilePage({
         </div>
       </div>
 
-      {user.bio && <p className="mt-4 text-sm">{user.bio}</p>}
+      {user.bio && <p className="mt-4 break-words text-sm">{user.bio}</p>}
 
       {user.interests.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5">

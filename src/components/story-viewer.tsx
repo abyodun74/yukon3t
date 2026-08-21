@@ -348,7 +348,7 @@ export function StoryViewer({
             </div>
           ) : (
             <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
-              {story.caption && <p className="text-sm text-white">{story.caption}</p>}
+              {story.caption && <p className="break-words text-sm text-white">{story.caption}</p>}
               {reactionCounts.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {reactionCounts.map((r) => (
@@ -374,7 +374,7 @@ export function StoryViewer({
         </div>
       ) : (
         <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
-          {story.caption && <p className="mb-2 text-sm text-white">{story.caption}</p>}
+          {story.caption && <p className="mb-2 break-words text-sm text-white">{story.caption}</p>}
           {reactionCounts.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {reactionCounts.map((r) => (

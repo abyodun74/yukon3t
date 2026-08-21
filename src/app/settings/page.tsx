@@ -135,7 +135,7 @@ export default async function SettingsPage({
                 key={b.id}
                 className="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm"
               >
-                <Link href={`/u/${b.blocked.id}`} className="hover:text-accent">
+                <Link href={`/u/${b.blocked.id}`} className="min-w-0 break-words hover:text-accent">
                   {b.blocked.name ?? "Deleted account"}
                 </Link>
                 <BlockButton

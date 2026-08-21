@@ -46,7 +46,7 @@ export function GroupNameEditor({
   }
 
   if (!canEdit) {
-    return <h1 className="text-lg font-semibold">{name}</h1>;
+    return <h1 className="min-w-0 break-words text-lg font-semibold">{name}</h1>;
   }
 
   if (!editing) {

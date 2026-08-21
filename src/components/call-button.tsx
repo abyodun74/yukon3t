@@ -168,7 +168,7 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
             <p className="text-sm text-foreground-soft">{state.calleeRinging ? "Ringing" : "Calling"}</p>
-            <p className="mt-1 text-lg font-semibold">{calleeName}</p>
+            <p className="mt-1 break-words text-lg font-semibold">{calleeName}</p>
             <button
               type="button"
               onClick={cancel}

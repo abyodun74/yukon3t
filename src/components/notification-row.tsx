@@ -75,7 +75,7 @@ export function NotificationRow({ notification }: { notification: NotificationDa
           <UserAvatar avatarUrl={notification.actor.avatarUrl} name={notification.actor.name} size={20} />
         )}
         <span>
-          {hasActor && <span className="font-semibold">{notification.actor.name}</span>}
+          {hasActor && <span className="break-words font-semibold">{notification.actor.name}</span>}
           {hasActor && " "}
           {NOTIFICATION_VERB[notification.type]}
           <span

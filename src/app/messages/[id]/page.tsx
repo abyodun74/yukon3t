@@ -47,7 +47,7 @@ export default async function ConversationPage({
     return (
       <div className="mx-auto max-w-lg px-4 py-14">
         <BackButton fallbackHref="/messages" />
-        <h1 className="mt-4 text-2xl font-semibold">{conversation.name ?? "Group"}</h1>
+        <h1 className="mt-4 break-words text-2xl font-semibold">{conversation.name ?? "Group"}</h1>
         <p className="mt-1 text-sm text-foreground-soft">
           You&apos;re not a member of this group yet.
         </p>

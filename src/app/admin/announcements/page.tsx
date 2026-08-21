@@ -32,8 +32,8 @@ export default async function AdminAnnouncementsPage() {
         {announcements.map((a) => (
           <div key={a.id} className="flex items-start justify-between gap-3 rounded-xl border border-line p-4">
             <div className="min-w-0">
-              <h2 className="font-semibold">{a.title}</h2>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground-soft">{a.body}</p>
+              <h2 className="break-words font-semibold">{a.title}</h2>
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">{a.body}</p>
               <p className="mt-2 text-xs text-foreground-soft">{a.createdAt.toLocaleString()}</p>
             </div>
             <DeleteAnnouncementButton id={a.id} />

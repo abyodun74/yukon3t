@@ -79,7 +79,7 @@ export default async function AdminUsersPage({
             <div key={u.id} className="rounded-xl border border-line p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className="break-words font-medium">
                     {u.name ?? u.username ?? "(no name set)"}
                   </p>
                   <p className="text-xs text-foreground-soft">

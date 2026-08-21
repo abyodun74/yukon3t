@@ -82,7 +82,7 @@ function EventBlock({
   if (!post.eventAt) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-background px-3 py-2">
-      <div className="text-xs text-foreground-soft">
+      <div className="min-w-0 text-xs text-foreground-soft">
         <div className="flex items-center gap-1.5">
           <Calendar size={13} />
           {/* toLocaleString depends on the runtime's timezone, which differs
@@ -102,8 +102,8 @@ function EventBlock({
         </div>
         {post.eventLocation && (
           <div className="mt-0.5 flex items-center gap-1.5">
-            <MapPin size={13} />
-            <span>{post.eventLocation}</span>
+            <MapPin size={13} className="shrink-0" />
+            <span className="break-words">{post.eventLocation}</span>
           </div>
         )}
       </div>

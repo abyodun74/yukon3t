@@ -28,8 +28,8 @@ export async function AdSlot() {
             )}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold">{ad.companyName}</p>
-            <p className="text-sm">{ad.headline}</p>
+            <p className="break-words font-semibold">{ad.companyName}</p>
+            <p className="break-words text-sm">{ad.headline}</p>
             <p className="mt-1 line-clamp-2 text-xs text-foreground-soft">{ad.body}</p>
           </div>
         </div>

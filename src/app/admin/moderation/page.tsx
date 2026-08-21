@@ -230,7 +230,7 @@ export default async function ModerationQueuePage() {
               </span>
               <span>{report.createdAt.toLocaleString()}</span>
             </div>
-            <p className="mt-2 text-sm">{report.reason}</p>
+            <p className="mt-2 break-words text-sm">{report.reason}</p>
             {report.reportedUser && (
               <p className="mt-1 text-xs text-foreground-soft">
                 Against: {report.reportedUser.name} ({report.reportedUser.status})
@@ -387,21 +387,21 @@ export default async function ModerationQueuePage() {
         {flaggedPosts.map((post) => (
           <div key={post.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Post by {post.author.name}</p>
-            <p className="mt-1 text-sm">{post.content || "(media post, no caption)"}</p>
+            <p className="mt-1 break-words text-sm">{post.content || "(media post, no caption)"}</p>
             <FlaggedContentActions contentType="POST" contentId={post.id} />
           </div>
         ))}
         {flaggedComments.map((comment) => (
           <div key={comment.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
-            <p className="mt-1 text-sm">{comment.content}</p>
+            <p className="mt-1 break-words text-sm">{comment.content}</p>
             <FlaggedContentActions contentType="COMMENT" contentId={comment.id} />
           </div>
         ))}
         {flaggedMessages.map((message) => (
           <div key={message.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Message from {message.sender.name}</p>
-            <p className="mt-1 text-sm">{message.content}</p>
+            <p className="mt-1 break-words text-sm">{message.content}</p>
             <FlaggedContentActions contentType="MESSAGE" contentId={message.id} />
           </div>
         ))}
@@ -420,7 +420,7 @@ export default async function ModerationQueuePage() {
         {hiddenComments.map((comment) => (
           <div key={comment.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
-            <p className="mt-1 text-sm">{comment.content}</p>
+            <p className="mt-1 break-words text-sm">{comment.content}</p>
             <FlaggedContentActions contentType="COMMENT" contentId={comment.id} />
           </div>
         ))}
@@ -444,7 +444,7 @@ export default async function ModerationQueuePage() {
             <p className="text-xs text-foreground-soft">
               {group.length} copies by {group[0].author.name ?? "Unknown"}
             </p>
-            <p className="mt-1 text-sm">{group[0].content}</p>
+            <p className="mt-1 break-words text-sm">{group[0].content}</p>
             <div className="mt-2 space-y-1">
               {group.slice(1).map((post) => (
                 <div key={post.id} className="flex items-center justify-between gap-2">

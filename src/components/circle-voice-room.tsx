@@ -60,12 +60,12 @@ export function CircleVoiceRoom({ channelId, canJoin }: { channelId: string; can
   return (
     <div className="rounded-xl border border-line p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm">
-          <Mic size={16} className="text-foreground-soft" />
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          <Mic size={16} className="shrink-0 text-foreground-soft" />
           {participants.length === 0 ? (
             <span className="text-foreground-soft">No one&apos;s in the voice room</span>
           ) : (
-            <span>
+            <span className="min-w-0 break-words">
               {participants.length} talking:{" "}
               <span className="text-foreground-soft">{participants.map((p) => p.name).join(", ")}</span>
             </span>

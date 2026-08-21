@@ -214,7 +214,20 @@ const sections: Section[] = [
             long post doesn&apos;t push everything else down the page — tap
             &ldquo;Show more&rdquo; to read the rest in place, and &ldquo;Show
             less&rdquo; to collapse it again. This applies wherever posts are
-            listed, and to a repost&apos;s own caption too.
+            listed, and to a repost&apos;s own caption too. There&apos;s no
+            meaningful limit on how long a post itself can be — write as much
+            as you need, and readers can always expand it.
+          </>
+        ),
+      },
+      {
+        q: "I got a message saying \"A new version of the app is available — refresh the page to continue\" while posting.",
+        a: (
+          <>
+            This shows up if your tab had been open since before we shipped
+            an update — it&apos;s not a connection problem, just a stale page.
+            Refresh the page and try again; nothing you were about to post
+            gets lost from retrying.
           </>
         ),
       },
@@ -360,7 +373,9 @@ const sections: Section[] = [
             Tap the phone or video icon on a connection&apos;s profile or in
             your chat with them. They&apos;ll get a ring (with your chosen
             ringtone — pick one under Settings → Calls) and can accept or
-            decline.
+            decline. Accepting connects you into the call right away, even
+            if their phone was locked or the app was in the background when
+            it rang.
           </>
         ),
       },
@@ -416,6 +431,18 @@ const sections: Section[] = [
             collaboration&apos;s group chat (text, photos, and videos) and a
             live video session with screen sharing, in-call reactions, and
             recording.
+          </>
+        ),
+      },
+      {
+        q: "Can I edit a Collab Board after I've posted it?",
+        a: (
+          <>
+            Yes — the creator (or a co-admin) can tap &ldquo;Edit&rdquo; on
+            the board&apos;s page at any time to change the title, type,
+            description, or countries, even after people have joined or a
+            live session has already started. There&apos;s no lock on this —
+            edit it as your plans evolve.
           </>
         ),
       },

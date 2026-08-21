@@ -159,7 +159,7 @@ export function CommentCard({
           </div>
         </div>
       ) : (
-        <p className={cn("mt-1 whitespace-pre-wrap text-sm", isEmojiOnly(content) && "text-3xl leading-tight")}>
+        <p className={cn("mt-1 whitespace-pre-wrap break-words text-sm", isEmojiOnly(content) && "text-3xl leading-tight")}>
           {content}
         </p>
       )}

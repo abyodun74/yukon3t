@@ -118,7 +118,7 @@ export default async function CirclePage({
               className="h-12 w-12 shrink-0 rounded-xl object-cover"
             />
           )}
-          <h1 className="min-w-0 text-2xl font-semibold">{circle.name}</h1>
+          <h1 className="min-w-0 break-words text-2xl font-semibold">{circle.name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <CircleMembershipButton
@@ -133,7 +133,7 @@ export default async function CirclePage({
           )}
         </div>
       </div>
-      <p className="mt-2 text-sm text-foreground-soft">{circle.description}</p>
+      <p className="mt-2 break-words text-sm text-foreground-soft">{circle.description}</p>
       <p className="mt-1 text-xs text-foreground-soft">
         {circle._count.members} members
       </p>

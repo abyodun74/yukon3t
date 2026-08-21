@@ -59,8 +59,8 @@ export default async function AdminAdsPage() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold">{c.companyName}</p>
-                        <p className="text-sm">{c.headline}</p>
+                        <p className="break-words font-semibold">{c.companyName}</p>
+                        <p className="break-words text-sm">{c.headline}</p>
                         <p className="mt-1 line-clamp-2 text-xs text-foreground-soft">{c.body}</p>
                         <p className="mt-1 text-xs text-foreground-soft">
                           {c.contactName} &middot; {c.contactEmail}

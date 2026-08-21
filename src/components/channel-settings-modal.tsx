@@ -68,9 +68,9 @@ export function ChannelSettingsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-surface p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">#{channel.name} settings</h2>
-          <button type="button" onClick={() => setOpen(false)} className="text-foreground-soft">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="min-w-0 break-words text-sm font-semibold">#{channel.name} settings</h2>
+          <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-foreground-soft">
             <X size={16} />
           </button>
         </div>
@@ -165,7 +165,7 @@ export function ChannelSettingsModal({
             </button>
           ) : (
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-foreground-soft">Delete #{channel.name} and its posts?</span>
+              <span className="break-words text-foreground-soft">Delete #{channel.name} and its posts?</span>
               <button
                 type="button"
                 disabled={isPending}

@@ -64,8 +64,8 @@ export default async function MessagesPage() {
               href={`/messages/${c.id}`}
               className="flex items-center justify-between rounded-xl border border-line p-4 hover:border-accent"
             >
-              <div>
-                <p className={cn("font-medium", unread && "font-semibold")}>{label}</p>
+              <div className="min-w-0">
+                <p className={cn("break-words font-medium", unread && "font-semibold")}>{label}</p>
                 {last && (
                   <p
                     className={cn(

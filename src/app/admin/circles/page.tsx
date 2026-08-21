@@ -72,7 +72,7 @@ export default async function AdminCirclesPage() {
                 }`}
               >
                 <div className="min-w-0">
-                  <Link href={`/circles/${circle.slug}`} className="font-semibold hover:text-accent">
+                  <Link href={`/circles/${circle.slug}`} className="break-words font-semibold hover:text-accent">
                     {circle.name}
                   </Link>
                   <p className="text-xs text-foreground-soft">
@@ -116,7 +116,7 @@ export default async function AdminCirclesPage() {
                 }`}
               >
                 <div className="min-w-0">
-                  <Link href={`/collab/${collab.id}`} className="font-semibold hover:text-accent">
+                  <Link href={`/collab/${collab.id}`} className="break-words font-semibold hover:text-accent">
                     {collab.title}
                   </Link>
                   <p className="text-xs text-foreground-soft">

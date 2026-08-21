@@ -354,7 +354,7 @@ export default async function SearchPage({
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
                   {circle.category}
                 </p>
-                <h3 className="mt-1 font-semibold">{circle.name}</h3>
+                <h3 className="mt-1 break-words font-semibold">{circle.name}</h3>
                 <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                 <p className="mt-2 text-xs text-foreground-soft">
                   {circle._count.members} member{circle._count.members === 1 ? "" : "s"}
@@ -377,7 +377,7 @@ export default async function SearchPage({
                 href={`/messages/${group.id}`}
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
-                <h3 className="font-semibold">{group.name ?? "Group"}</h3>
+                <h3 className="break-words font-semibold">{group.name ?? "Group"}</h3>
                 <p className="mt-1 text-xs text-foreground-soft">
                   Started by {group.createdBy?.name ?? "Unknown"}
                 </p>
@@ -405,7 +405,7 @@ export default async function SearchPage({
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
                   {collabTypeLabels[collab.type]}
                 </p>
-                <h3 className="mt-1 font-semibold">{collab.title}</h3>
+                <h3 className="mt-1 break-words font-semibold">{collab.title}</h3>
                 <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
                 <p className="mt-2 text-xs text-foreground-soft">
                   by {collab.author.name} · {collab._count.participants} participant
@@ -496,7 +496,7 @@ export default async function SearchPage({
                     className="rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category}</p>
-                    <h4 className="mt-1 font-semibold">{circle.name}</h4>
+                    <h4 className="mt-1 break-words font-semibold">{circle.name}</h4>
                     <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">
                       {circle._count.members} member{circle._count.members === 1 ? "" : "s"}
@@ -522,7 +522,7 @@ export default async function SearchPage({
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
                       {collabTypeLabels[collab.type]}
                     </p>
-                    <h4 className="mt-1 font-semibold">{collab.title}</h4>
+                    <h4 className="mt-1 break-words font-semibold">{collab.title}</h4>
                     <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">
                       by {collab.author.name} · {collab._count.participants} participant

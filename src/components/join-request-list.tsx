@@ -28,7 +28,7 @@ export function JoinRequestList({
       </p>
       {requests.map((r) => (
         <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
-          <span>{r.name}</span>
+          <span className="min-w-0 break-words">{r.name}</span>
           <div className="flex gap-2">
             <button
               type="button"

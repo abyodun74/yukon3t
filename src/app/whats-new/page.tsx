@@ -24,8 +24,8 @@ export default async function WhatsNewPage() {
       <div className="mt-6 space-y-4">
         {announcements.map((a) => (
           <div key={a.id} className="rounded-xl border border-line p-4">
-            <h2 className="font-semibold">{a.title}</h2>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground-soft">{a.body}</p>
+            <h2 className="break-words font-semibold">{a.title}</h2>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">{a.body}</p>
             <p className="mt-2 text-xs text-foreground-soft">
               {a.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
             </p>
