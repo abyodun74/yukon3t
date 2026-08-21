@@ -107,7 +107,9 @@ export function IncomingCallListener() {
   // notification-tap deep-link handler below can accept/decline a call this
   // component's own poll hasn't necessarily caught up to yet.
   const acceptCall = useCallback(async (callId: string) => {
+    console.log("[deeplink-debug] acceptCall invoked", callId);
     const result = await respondToCall(callId, true);
+    console.log("[deeplink-debug] respondToCall result", result);
     if (result.error || !result.roomUrl || !result.token) {
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
@@ -142,16 +144,24 @@ export function IncomingCallListener() {
     let listener: { remove: () => void } | undefined;
 
     function handleUrl(url: string | undefined) {
+      // TEMPORARY diagnostic logging — remove once the native-Accept-button
+      // deep link bug is root-caused.
+      console.log("[deeplink-debug] handleUrl called with", url);
       if (!url) return;
       let parsed: URL;
       try {
         parsed = new URL(url);
-      } catch {
+      } catch (e) {
+        console.log("[deeplink-debug] URL parse failed", String(e));
         return;
       }
-      if (parsed.protocol !== "yukon3t:" || parsed.hostname !== "call") return;
+      if (parsed.protocol !== "yukon3t:" || parsed.hostname !== "call") {
+        console.log("[deeplink-debug] not a call deep link, ignoring", parsed.protocol, parsed.hostname);
+        return;
+      }
       const callId = parsed.searchParams.get("callId");
       const action = parsed.searchParams.get("action");
+      console.log("[deeplink-debug] parsed", { callId, action });
       if (!callId) return;
       if (action === "accept") acceptCall(callId);
       else if (action === "decline") declineCall(callId);
@@ -165,11 +175,19 @@ export function IncomingCallListener() {
       // Cold start: the app was launched by the notification tap, so
       // appUrlOpen (below) never fires for this original launch intent —
       // getLaunchUrl() is what surfaces it instead.
-      const launch = await App.getLaunchUrl().catch(() => undefined);
+      const launch = await App.getLaunchUrl().catch((e) => {
+        console.log("[deeplink-debug] getLaunchUrl threw", String(e));
+        return undefined;
+      });
+      console.log("[deeplink-debug] getLaunchUrl result", launch);
       if (!cancelled) handleUrl(launch?.url);
       // Warm start: app already running, singleTask launch mode routes the
       // tap through onNewIntent, which the plugin surfaces as this event.
-      listener = await App.addListener("appUrlOpen", (event) => handleUrl(event.url));
+      listener = await App.addListener("appUrlOpen", (event) => {
+        console.log("[deeplink-debug] appUrlOpen event fired", event);
+        handleUrl(event.url);
+      });
+      console.log("[deeplink-debug] listeners attached");
     })();
 
     return () => {
