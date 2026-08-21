@@ -26,8 +26,13 @@ android {
         // 6: adds native background/asleep call handling (CallMessagingService,
         // CallForegroundService) — see android/SUBMISSION.md section 9 for the
         // new USE_FULL_SCREEN_INTENT Play Console declaration this needs.
-        versionCode 6
-        versionName "1.3"
+        // 7: extends CallForegroundService to cover the whole call, not just
+        // ringing (CallForegroundPlugin), plus the ignore-battery-optimizations
+        // prompt for OEM battery managers (Samsung's One UI, notably) that
+        // otherwise freeze the process mid-call — see SUBMISSION.md section 10
+        // for the new REQUEST_IGNORE_BATTERY_OPTIMIZATIONS declaration this needs.
+        versionCode 7
+        versionName "1.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
