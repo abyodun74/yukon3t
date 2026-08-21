@@ -38,9 +38,15 @@ export type IncomingCallPayload = {
  * vars above are set.
  */
 async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
-  if (!isFcmConfigured || !app) return;
+  // TEMPORARY diagnostic logging — remove once the missing-ringtone
+  // intermittency is root-caused. See src/lib/fcm.ts history/PR for context.
+  if (!isFcmConfigured || !app) {
+    console.log("[fcm-debug] not configured, skipping send", { userId, type: data.type });
+    return;
+  }
 
   const tokens = await prisma.fcmToken.findMany({ where: { userId } });
+  console.log("[fcm-debug] tokens found", { userId, type: data.type, count: tokens.length });
   if (tokens.length === 0) return;
 
   // Genuinely best-effort, matching sendPushToUser's contract: callers like
@@ -81,9 +87,23 @@ async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
         },
       },
     });
-  } catch {
+  } catch (err) {
+    console.log("[fcm-debug] sendEachForMulticast threw", { userId, type: data.type, err: String(err) });
     return;
   }
+
+  console.log(
+    "[fcm-debug] send result",
+    {
+      userId,
+      type: data.type,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      errors: response.responses
+        .map((r, i) => (r.success ? null : { token: tokens[i].token.slice(-8), code: r.error?.code, message: r.error?.message }))
+        .filter(Boolean),
+    },
+  );
 
   const staleTokenIds: string[] = [];
   response.responses.forEach((r, i) => {
