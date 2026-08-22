@@ -23,9 +23,19 @@ const run = promisify(execFile);
 const SITE_ID = "bbcb23d0-2759-4457-a964-d5a823bd5df4";
 
 async function netlifyApi(method, data) {
+  // On Windows, execFile+shell:true just concatenates argv elements into a
+  // single command-line string with no escaping (Node docs, DEP0190) — the
+  // default shell (cmd.exe) then swallows a raw JSON string's double quotes
+  // entirely (cmd.exe treats a bare `"` as toggling its own quoted mode).
+  // cmd.exe's own escape for a literal quote inside a quoted argument is a
+  // doubled `""`, so wrap the whole JSON blob in one quoted argument with
+  // every embedded `"` doubled — this is what actually reaches the child
+  // process's argv as the intended literal JSON string.
+  const json = JSON.stringify(data);
+  const dataArg = `"${json.replace(/"/g, '""')}"`;
   const { stdout } = await run(
     "npx",
-    ["netlify", "api", method, "--data", JSON.stringify(data)],
+    ["netlify", "api", method, "--data", dataArg],
     { shell: true, maxBuffer: 10 * 1024 * 1024 },
   );
   return JSON.parse(stdout);
