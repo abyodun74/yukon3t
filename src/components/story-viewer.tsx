@@ -83,15 +83,20 @@ export function StoryViewer({
   const showViewers = story ? viewersOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
 
+  // Checks the boundary against `index` directly and calls onClose as a
+  // plain function call, rather than from inside setIndex's updater — the
+  // updater can run synchronously as part of applying this component's own
+  // state update, and calling a different component's setState from within
+  // it (onClose ultimately updates StoryTrayViewer/StoryTray's state) is
+  // exactly what React's "Cannot update a component while rendering a
+  // different component" warning flags.
   const next = useCallback(() => {
-    setIndex((i) => {
-      if (i + 1 >= stories.length) {
-        onClose();
-        return i;
-      }
-      return i + 1;
-    });
-  }, [stories.length, onClose]);
+    if (index + 1 >= stories.length) {
+      onClose();
+      return;
+    }
+    setIndex(index + 1);
+  }, [index, stories.length, onClose]);
 
   const prev = useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));

@@ -43,13 +43,17 @@ export function StoryTrayViewer({
       authorAvatarUrl={group.authorAvatarUrl}
       isOwner={group.isMe}
       onClose={() => {
-        setAuthorIndex((i) => {
-          if (i + 1 >= groups.length) {
-            onClose();
-            return i;
-          }
-          return i + 1;
-        });
+        // Same reasoning as StoryViewer's own `next`: check the boundary
+        // against `authorIndex` directly and call onClose as a plain
+        // function call, not from inside setAuthorIndex's updater — calling
+        // a different component's setState (StoryTray's) from within it
+        // triggers React's "Cannot update a component while rendering a
+        // different component" warning.
+        if (authorIndex + 1 >= groups.length) {
+          onClose();
+          return;
+        }
+        setAuthorIndex(authorIndex + 1);
       }}
     />
   );
