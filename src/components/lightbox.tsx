@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ZoomableImage } from "@/components/zoomable-image";
 
 /** Full-screen media viewer for a post's images or video — Escape/click-outside/arrow-key navigable. */
 export function Lightbox({
@@ -62,13 +63,11 @@ export function Lightbox({
               <ChevronLeft size={28} />
             </button>
           )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={images[index]}
-            alt=""
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] max-w-full rounded-lg object-contain"
-          />
+          {/* Keyed on index so pinch/pan/zoom state resets on every
+              prev/next navigation instead of carrying over onto the next
+              image. */}
+          <ZoomableImage key={index} src={images[index]} />
+
           {images.length > 1 && (
             <button
               type="button"
