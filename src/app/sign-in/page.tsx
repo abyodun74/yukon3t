@@ -5,6 +5,7 @@ import { getClientIp } from "@/lib/client-ip";
 import { redirect } from "next/navigation";
 import { loginWithPassword, resendVerificationEmail } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
+import { SubmitButton } from "@/components/submit-button";
 
 async function sendMagicLink(formData: FormData) {
   "use server";
@@ -85,12 +86,11 @@ export default async function SignInPage({
             placeholder="Password"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
-          <button
-            type="submit"
+          <SubmitButton
+            label="Sign in"
+            pendingLabel="Signing in..."
             className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink shadow-[var(--shadow-sm)] hover:-translate-y-0.5"
-          >
-            Sign in
-          </button>
+          />
         </form>
         <p className="mt-3 flex items-center justify-between text-xs text-foreground-soft">
           <Link href="/forgot-password" className="font-medium text-accent hover:underline">
@@ -137,12 +137,11 @@ export default async function SignInPage({
             placeholder="you@example.com"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
-          <button
-            type="submit"
+          <SubmitButton
+            label="Send sign-in link"
+            pendingLabel="Sending..."
             className="w-full rounded-lg border border-line px-4 py-2.5 text-sm font-semibold hover:border-accent hover:text-accent"
-          >
-            Send sign-in link
-          </button>
+          />
         </form>
       </div>
     </div>

@@ -22,7 +22,19 @@ const PICKER_WIDTH = 300;
 const PICKER_HEIGHT = 360;
 const VIEWPORT_MARGIN = 8;
 
-type Position = { top: number; left: number };
+type Position = { top: number; left: number; width: number; height: number };
+
+/**
+ * window.visualViewport (not window.innerWidth/innerHeight) is what
+ * actually shrinks when a mobile on-screen keyboard opens — this button
+ * also sits in the comment/message composer, where the keyboard is up by
+ * the time someone taps it. Falls back to the layout viewport for browsers
+ * without the API.
+ */
+function getViewportSize() {
+  const vv = typeof window !== "undefined" ? window.visualViewport : null;
+  return { width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
+}
 
 /**
  * The picker is rendered via a portal, positioned with `fixed` coordinates
@@ -33,21 +45,31 @@ type Position = { top: number; left: number };
  * silently clipped (and its "visible" — but unclickable — remainder
  * swallows clicks meant for whatever sits behind it). A portal escapes
  * that clipping and lets us flip/clamp against the actual viewport.
+ *
+ * Width/height are also clamped to the viewport, not just position — on
+ * a narrow phone (or any viewport shorter than ~376px once the keyboard is
+ * up) the fixed 300x360 size itself doesn't fit, and clamping only the
+ * top/left coordinates against a size larger than the viewport pushes the
+ * box partly off-screen rather than shrinking it to fit.
  */
 function computePosition(rect: DOMRect): Position {
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const openUp = spaceBelow < PICKER_HEIGHT + VIEWPORT_MARGIN && rect.top > spaceBelow;
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+  const width = Math.min(PICKER_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
+  const height = Math.min(PICKER_HEIGHT, viewportHeight - VIEWPORT_MARGIN * 2);
+
+  const spaceBelow = viewportHeight - rect.bottom;
+  const openUp = spaceBelow < height + VIEWPORT_MARGIN && rect.top > spaceBelow;
 
   const top = openUp
-    ? Math.max(VIEWPORT_MARGIN, rect.top - PICKER_HEIGHT - VIEWPORT_MARGIN)
-    : Math.min(rect.bottom + VIEWPORT_MARGIN, window.innerHeight - PICKER_HEIGHT - VIEWPORT_MARGIN);
+    ? Math.max(VIEWPORT_MARGIN, rect.top - height - VIEWPORT_MARGIN)
+    : Math.min(rect.bottom + VIEWPORT_MARGIN, viewportHeight - height - VIEWPORT_MARGIN);
 
   const left = Math.min(
-    Math.max(VIEWPORT_MARGIN, rect.right - PICKER_WIDTH),
-    window.innerWidth - PICKER_WIDTH - VIEWPORT_MARGIN,
+    Math.max(VIEWPORT_MARGIN, rect.right - width),
+    viewportWidth - width - VIEWPORT_MARGIN,
   );
 
-  return { top, left };
+  return { top, left, width, height };
 }
 
 export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => void }) {
@@ -68,10 +90,17 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
     // Any scroll (message list, page) invalidates the computed position — close rather than chase it.
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
+    // window's resize event doesn't fire when the on-screen keyboard
+    // opens/closes in iOS Safari (only visualViewport's does) — without
+    // this, the popup's now-stale size/position would linger open through
+    // a keyboard toggle instead of closing like it does for every other
+    // viewport change.
+    window.visualViewport?.addEventListener("resize", close);
     return () => {
       document.removeEventListener("mousedown", close);
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
+      window.visualViewport?.removeEventListener("resize", close);
     };
   }, [open]);
 
@@ -101,8 +130,8 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
             <EmojiPicker
               theme={THEME_AUTO}
               emojiStyle={EMOJI_STYLE_NATIVE}
-              width={PICKER_WIDTH}
-              height={PICKER_HEIGHT}
+              width={position.width}
+              height={position.height}
               // Bigger glyphs in the picker grid itself — easier to tell
               // similar emoji apart when tapping on mobile.
               style={{ "--epr-emoji-size": "28px" } as CSSProperties}

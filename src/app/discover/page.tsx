@@ -26,7 +26,7 @@ export default async function DiscoverPage({
   const { intent, country, sort: sortParam, page: pageParam } = await searchParams;
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
-    : "relevant";
+    : "recent";
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
 
   const blockedIds = await getBlockedEitherWayIds(me.id);

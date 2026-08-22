@@ -23,6 +23,7 @@ type EmbeddedPostRow = {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
+  reactions: { emoji: string; userId: string }[];
   author: {
     id: string;
     name: string | null;
@@ -43,11 +44,18 @@ type PostRow = EmbeddedPostRow & {
 // selection in sync with what attachViewerState()/PostCard actually need.
 export const postCardInclude = {
   author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
+  reactions: { select: { emoji: true, userId: true } },
   repostOf: {
-    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } } },
+    include: {
+      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   },
   sharedPost: {
-    include: { author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } } },
+    include: {
+      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   },
 } as const;
 
@@ -112,6 +120,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       repostCount: target.repostCount,
       shareCount: target.shareCount,
       rsvpCount: target.rsvpCount,
+      reactions: target.reactions,
       likedByMe: likedSet.has(target.id),
       repostedByMe: repostedSet.has(target.id),
       rsvpGoingByMe: rsvpGoingSet.has(target.id),

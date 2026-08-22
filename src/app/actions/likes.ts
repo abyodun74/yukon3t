@@ -5,6 +5,9 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { canViewPost } from "@/lib/post-visibility";
+import { isEmojiOnly } from "@/lib/emoji";
+
+const REACTION_SELECT = { emoji: true, userId: true } as const;
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -71,6 +74,54 @@ export async function toggleLike(postId: string) {
 
   revalidatePostViews(post);
   return { error: null, liked: true, likeCount: updated.likeCount };
+}
+
+/**
+ * Toggles the caller's emoji reaction on a post: picking the emoji they
+ * already reacted with removes it, picking a different one replaces it —
+ * one active reaction per user per post, same as comment/message
+ * reactions. Separate from the Like/heart button (toggleLike above), which
+ * keeps its own dedicated count and notification.
+ */
+export async function togglePostReaction(postId: string, emoji: string) {
+  const user = await requireVerifiedUser();
+
+  if (!isEmojiOnly(emoji, 1)) {
+    return { error: "invalid" as const };
+  }
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: { circle: { select: { slug: true } } },
+  });
+  if (!post || post.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (!(await canViewPost(postId, user.id))) {
+    return { error: "not_found" as const };
+  }
+
+  const existing = await prisma.postReaction.findUnique({
+    where: { postId_userId: { postId, userId: user.id } },
+  });
+
+  if (existing?.emoji === emoji) {
+    await prisma.postReaction.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.postReaction.upsert({
+      where: { postId_userId: { postId, userId: user.id } },
+      create: { postId, userId: user.id, emoji },
+      update: { emoji },
+    });
+  }
+
+  const reactions = await prisma.postReaction.findMany({
+    where: { postId },
+    select: REACTION_SELECT,
+  });
+
+  revalidatePostViews(post);
+  return { error: null, reactions };
 }
 
 const LIKERS_LIMIT = 100;

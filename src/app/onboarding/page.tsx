@@ -6,6 +6,7 @@ import { COUNTRIES } from "@/lib/countries";
 import { LANGUAGES } from "@/lib/languages";
 import { INTERESTS } from "@/lib/interests";
 import { MultiSelect } from "@/components/multi-select";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function OnboardingPage({
   searchParams,
@@ -151,12 +152,11 @@ export default async function OnboardingPage({
           </div>
         </div>
 
-        <button
-          type="submit"
+        <SubmitButton
+          label="Continue"
+          pendingLabel="Saving..."
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Continue
-        </button>
+        />
       </form>
     </div>
   );

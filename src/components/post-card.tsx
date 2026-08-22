@@ -6,7 +6,7 @@ import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
-import { toggleLike } from "@/app/actions/likes";
+import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
@@ -18,6 +18,8 @@ import { UserLink } from "@/components/user-link";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { TruncatedText } from "@/components/truncated-text";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { ReactionBar } from "@/components/reaction-bar";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { formatDateTime } from "@/lib/format-date";
 
@@ -55,6 +57,7 @@ export type PostCardData = EmbeddedPost & {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
+  reactions: { emoji: string; userId: string }[];
   likedByMe: boolean;
   repostedByMe: boolean;
   rsvpGoingByMe: boolean;
@@ -282,6 +285,7 @@ export function PostCard({
 
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
+  const [reactions, setReactions] = useState(post.reactions);
   const [reposted, setReposted] = useState(post.repostedByMe);
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [shareCount, setShareCount] = useState(post.shareCount);
@@ -292,6 +296,7 @@ export function PostCard({
   const [likersOpen, setLikersOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [isLikePending, startLikeTransition] = useTransition();
+  const [, startReactionTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
   const [isRsvpPending, startRsvpTransition] = useTransition();
 
@@ -346,6 +351,13 @@ export function PostCard({
         setLiked(!nextLiked);
         setLikeCount((c) => c + (nextLiked ? -1 : 1));
       }
+    });
+  }
+
+  function toggleReaction(emoji: string) {
+    startReactionTransition(async () => {
+      const result = await togglePostReaction(interactionTargetId, emoji);
+      if (!result.error) setReactions(result.reactions);
     });
   }
 
@@ -518,6 +530,8 @@ export function PostCard({
           )}
         </span>
 
+        <EmojiPickerButton onSelect={toggleReaction} />
+
         <Link
           href={`/post/${interactionTargetId}`}
           className="flex items-center gap-1.5 hover:text-accent"
@@ -565,6 +579,8 @@ export function PostCard({
           </>
         )}
       </div>
+
+      <ReactionBar reactions={reactions} currentUserId={viewerId} onToggle={toggleReaction} />
 
       {lightboxIndex !== null && (
         <Lightbox

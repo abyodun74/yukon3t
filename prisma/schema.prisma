@@ -254,6 +254,7 @@ model User {
   likes            Like[]
   comments         Comment[]
   commentReactions CommentReaction[]
+  postReactions    PostReaction[]
   shares           Share[]
   postRsvps        PostRsvp[]
 
@@ -521,6 +522,7 @@ model Post {
   shareEmbeds Post[]  @relation("PostShare")
 
   likes         Like[]
+  reactions     PostReaction[]
   comments      Comment[]
   shares        Share[]
   rsvps         PostRsvp[]
@@ -602,6 +604,25 @@ model Like {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+  @@index([postId])
+}
+
+/**
+ * One active emoji reaction per user per post — separate from Like (the
+ * heart), same shape as CommentReaction/MessageReaction: picking a new
+ * emoji replaces it, re-picking the same one removes it.
+ */
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
   @@index([postId])
 }
 
