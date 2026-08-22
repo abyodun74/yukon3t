@@ -25,6 +25,18 @@ public class CallActionReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        // An uncaught exception in a BroadcastReceiver crashes the whole app
+        // process, not just this notification tap — same reasoning as
+        // CallForegroundService's own top-level try/catch.
+        try {
+            handleReceive(context, intent);
+        } catch (Throwable t) {
+            // Nothing more to do — the notification tap failed, but at
+            // least the app itself stays up for the user to open normally.
+        }
+    }
+
+    private void handleReceive(Context context, Intent intent) {
         String callId = intent.getStringExtra(EXTRA_CALL_ID);
         if (callId == null) return;
 

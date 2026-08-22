@@ -23,8 +23,6 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
-import java.io.IOException;
-
 /**
  * Keeps the process alive and Doze-exempt while a call is ringing, so the
  * ring isn't silently delayed/killed if the phone is asleep — foreground
@@ -126,6 +124,25 @@ public class CallForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Last-resort safety net: an uncaught exception anywhere below
+        // crashes the whole app process, not just this service — Android
+        // version upgrades have repeatedly tightened foreground-service/
+        // notification enforcement (stricter startForeground() timing and
+        // type-matching checks, SecurityExceptions for previously-tolerated
+        // patterns) in ways that only surface at runtime on the newer OS, not
+        // at compile/lint time. Ringing is best-effort in the first place —
+        // the in-app call UI (call-button.tsx) already has its own
+        // JS-side handling of an incoming call, so failing to show this
+        // native notification should degrade the ring, not kill the app.
+        try {
+            return handleStartCommand(intent);
+        } catch (Throwable t) {
+            stopSelfCleanly();
+            return START_NOT_STICKY;
+        }
+    }
+
+    private int handleStartCommand(Intent intent) {
         if (intent == null) {
             stopSelfCleanly();
             return START_NOT_STICKY;
@@ -219,15 +236,34 @@ public class CallForegroundService extends Service {
             .addAction(0, "Accept", acceptIntent)
             .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(FOREGROUND_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL);
-        } else {
-            startForeground(FOREGROUND_NOTIFICATION_ID, notification);
-        }
+        startForegroundSafely(FOREGROUND_NOTIFICATION_ID, notification);
         // Also posted under its own (callId-derived) id so CallActionReceiver
         // and CallMessagingService's cancel-on-call_cancelled path can target
         // this specific call's notification directly.
         NotificationManagerCompat.from(this).notify(notificationId(callId), notification);
+    }
+
+    /**
+     * startForeground() with a foreground service type is where Android has
+     * repeatedly tightened runtime enforcement release over release —
+     * mismatched/unsupported type checks, timing checks, and
+     * ForegroundServiceStartNotAllowedException (API 31+) can all throw here
+     * in ways that weren't previously enforced, on OS versions newer than
+     * whatever this was last verified against. If that happens, still post
+     * the notification (via NotificationManagerCompat, in the two call sites
+     * above/below) rather than crash the whole app — the ring/call-in-progress
+     * alert only loses its Doze/App-Standby exemption, it doesn't disappear.
+     */
+    private void startForegroundSafely(int id, Notification notification) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL);
+            } else {
+                startForeground(id, notification);
+            }
+        } catch (Throwable t) {
+            NotificationManagerCompat.from(this).notify(id, notification);
+        }
     }
 
     private void showActiveCallNotification(String label, boolean isVideo) {
@@ -257,11 +293,7 @@ public class CallForegroundService extends Service {
             .setContentIntent(contentIntent)
             .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(ACTIVE_CALL_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL);
-        } else {
-            startForeground(ACTIVE_CALL_NOTIFICATION_ID, notification);
-        }
+        startForegroundSafely(ACTIVE_CALL_NOTIFICATION_ID, notification);
     }
 
     private void ensureActiveCallChannel() {
@@ -320,6 +352,11 @@ public class CallForegroundService extends Service {
         stopRingtone();
         try {
             Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            // Some OEM ROMs/profiles return null here (no default ringtone
+            // set) — setDataSource(context, null) throws an unchecked
+            // NullPointerException, not IOException/IllegalStateException,
+            // so this was previously uncaught and would crash the service.
+            if (ringtoneUri == null) return;
             MediaPlayer player = new MediaPlayer();
             player.setAudioAttributes(
                 new AudioAttributes.Builder()
@@ -332,10 +369,13 @@ public class CallForegroundService extends Service {
             player.prepare();
             player.start();
             ringtonePlayer = player;
-        } catch (IOException | IllegalStateException e) {
+        } catch (Exception e) {
             // Best-effort — the notification's own channel sound (set in
             // ensureChannel) still plays once even if this loop fails to
-            // start, so a ring is never fully silent.
+            // start, so a ring is never fully silent. Catches broadly
+            // (not just IOException/IllegalStateException) since MediaPlayer
+            // can also throw SecurityException/IllegalArgumentException
+            // depending on OEM/Android version.
             ringtonePlayer = null;
         }
     }

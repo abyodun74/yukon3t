@@ -31,8 +31,17 @@ android {
         // prompt for OEM battery managers (Samsung's One UI, notably) that
         // otherwise freeze the process mid-call — see SUBMISSION.md section 10
         // for the new REQUEST_IGNORE_BATTERY_OPTIMIZATIONS declaration this needs.
-        versionCode 7
-        versionName "1.4"
+        // 8: hardens the whole call path (CallForegroundService,
+        // CallForegroundPlugin, CallActionReceiver, CallMessagingService)
+        // against an uncaught exception crashing the entire app — reported
+        // as app-wide crashes on Android 16 specifically while a call was
+        // ringing/active, most likely from newer OS-level enforcement around
+        // startForeground()/notification behavior that wasn't previously
+        // strict enough to throw. No exact repro/stack trace was available,
+        // so this is defensive (fail-safe, degrade gracefully) rather than a
+        // fix for one identified line.
+        versionCode 8
+        versionName "1.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

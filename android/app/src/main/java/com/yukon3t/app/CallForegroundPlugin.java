@@ -27,16 +27,29 @@ public class CallForegroundPlugin extends Plugin {
 
     @PluginMethod
     public void startActiveCall(PluginCall call) {
-        String callId = call.getString("callId", "active-call");
-        String label = call.getString("label", "Call");
-        boolean isVideo = Boolean.TRUE.equals(call.getBoolean("isVideo", false));
-        CallForegroundService.startActiveCall(getContext(), callId, label, isVideo);
+        // An uncaught exception on a Capacitor plugin method crashes the
+        // whole app (this runs on the bridge's own thread, not inside a try/
+        // catch Capacitor provides for you) — call-session.tsx only invokes
+        // this to keep the process Doze-exempt mid-call, so failing quietly
+        // and still resolving is far better than taking down an active call.
+        try {
+            String callId = call.getString("callId", "active-call");
+            String label = call.getString("label", "Call");
+            boolean isVideo = Boolean.TRUE.equals(call.getBoolean("isVideo", false));
+            CallForegroundService.startActiveCall(getContext(), callId, label, isVideo);
+        } catch (Throwable t) {
+            // Best-effort — the call itself (WebView/Daily) keeps running regardless.
+        }
         call.resolve();
     }
 
     @PluginMethod
     public void stopActiveCall(PluginCall call) {
-        CallForegroundService.stopActiveCall(getContext());
+        try {
+            CallForegroundService.stopActiveCall(getContext());
+        } catch (Throwable t) {
+            // Best-effort.
+        }
         call.resolve();
     }
 

@@ -28,6 +28,18 @@ public class CallMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
+        // An uncaught exception here crashes the whole app process, not just
+        // this push handler — same reasoning as CallForegroundService's own
+        // top-level try/catch. A missed ring is recoverable (the caller's
+        // side still times out normally); a crashed app is not.
+        try {
+            handleMessageReceived(remoteMessage);
+        } catch (Throwable t) {
+            // Nothing more to do — best-effort delivery of a background push.
+        }
+    }
+
+    private void handleMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Map<String, String> data = remoteMessage.getData();
         String type = data.get("type");
         if (type == null) return;
