@@ -178,6 +178,18 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I react to a post with something other than a heart?",
+        a: (
+          <>
+            Yes — the smiley icon next to the heart on any post opens a full
+            emoji picker. Pick any emoji to react; picking the same one again
+            removes it, and picking a different one swaps it. This is
+            separate from the heart/Like button, so you can Like a post and
+            add an emoji reaction at the same time.
+          </>
+        ),
+      },
+      {
         q: "What's the difference between Connect and Subscribe?",
         a: (
           <>
@@ -313,6 +325,17 @@ const sections: Section[] = [
             disappears automatically after 24 hours. Tap the &ldquo;+&rdquo;
             on your own profile picture to add one — anyone who can see your
             profile can view it while it&apos;s active.
+          </>
+        ),
+      },
+      {
+        q: "Can I post more than one Story in the same day?",
+        a: (
+          <>
+            Yes — once you have an active Story, a small &ldquo;+&rdquo;
+            badge appears on your story ring (both on Home and your profile)
+            so you can keep adding more without limit, in addition to tapping
+            the ring itself to view your existing stack.
           </>
         ),
       },
