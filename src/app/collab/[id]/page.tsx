@@ -112,7 +112,7 @@ export default async function CollabDetailPage({
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <h1 className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <CollabParticipantButton
             collabId={collab.id}
             isParticipant={isParticipant}

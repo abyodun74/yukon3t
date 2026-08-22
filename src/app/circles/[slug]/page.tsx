@@ -120,7 +120,7 @@ export default async function CirclePage({
           )}
           <h1 className="min-w-0 break-words text-2xl font-semibold">{circle.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <CircleMembershipButton
             circleId={circle.id}
             isMember={isMember}
