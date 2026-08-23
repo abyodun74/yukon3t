@@ -40,8 +40,25 @@ android {
         // strict enough to throw. No exact repro/stack trace was available,
         // so this is defensive (fail-safe, degrade gracefully) rather than a
         // fix for one identified line.
-        versionCode 8
-        versionName "1.5"
+        // 9: the actual root cause behind 8, found via on-device logcat —
+        // Android 16 (targetSdk 36) requires MANAGE_OWN_CALLS (or the
+        // DIALER role) in addition to FOREGROUND_SERVICE_PHONE_CALL to
+        // start a foregroundServiceType="phoneCall" service; without it,
+        // startForeground() threw and the ring fell back to a plain
+        // (non-foreground, non-Doze-exempt) notification. Adding the
+        // permission is the real fix; version 8's try/catch hardening stays
+        // as defense in depth.
+        // 10: removed CallActionReceiver — its BroadcastReceiver-mediated
+        // context.startActivity() call to launch MainActivity from a
+        // notification's Accept/Decline action was intermittently silent
+        // on-device (Samsung/Android 16): no exception, the tap just didn't
+        // open the app. The notification's Accept/Decline PendingIntents now
+        // launch MainActivity directly (PendingIntent.getActivity), the same
+        // always-reliable path the notification body tap already used;
+        // MainActivity.onCreate/onNewIntent now does the immediate
+        // stop-ringing/cancel-notification work the receiver used to do.
+        versionCode 10
+        versionName "1.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

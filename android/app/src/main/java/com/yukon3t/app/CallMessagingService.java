@@ -1,5 +1,7 @@
 package com.yukon3t.app;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationManagerCompat;
 
@@ -26,6 +28,10 @@ import java.util.Map;
  */
 public class CallMessagingService extends FirebaseMessagingService {
 
+    // Only used for the Log.e call below (an unexpected failure) — see
+    // CallForegroundService's own TAG field for why this stays sparse.
+    private static final String TAG = "YuKon3tCall";
+
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         // An uncaught exception here crashes the whole app process, not just
@@ -35,7 +41,7 @@ public class CallMessagingService extends FirebaseMessagingService {
         try {
             handleMessageReceived(remoteMessage);
         } catch (Throwable t) {
-            // Nothing more to do — best-effort delivery of a background push.
+            Log.e(TAG, "onMessageReceived threw", t);
         }
     }
 

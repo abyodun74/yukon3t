@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -43,6 +44,12 @@ import androidx.core.content.ContextCompat;
  * from under it.
  */
 public class CallForegroundService extends Service {
+
+    // Only used for the two Log.e calls below (unexpected failures) — kept
+    // deliberately sparse. The app-wide-crash fix means a failure here now
+    // degrades silently instead of crashing, which is safer but would
+    // otherwise leave a real regression completely unobservable.
+    private static final String TAG = "YuKon3tCall";
 
     private static final String CHANNEL_ID = "incoming_calls";
     private static final String ACTIVE_CALL_CHANNEL_ID = "active_call";
@@ -137,6 +144,7 @@ public class CallForegroundService extends Service {
         try {
             return handleStartCommand(intent);
         } catch (Throwable t) {
+            Log.e(TAG, "onStartCommand threw — degrading instead of crashing", t);
             stopSelfCleanly();
             return START_NOT_STICKY;
         }
@@ -219,8 +227,8 @@ public class CallForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        PendingIntent acceptIntent = actionIntent(callId, CallActionReceiver.ACTION_ACCEPT);
-        PendingIntent declineIntent = actionIntent(callId, CallActionReceiver.ACTION_DECLINE);
+        PendingIntent acceptIntent = actionIntent(callId, "accept");
+        PendingIntent declineIntent = actionIntent(callId, "decline");
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
@@ -237,9 +245,10 @@ public class CallForegroundService extends Service {
             .build();
 
         startForegroundSafely(FOREGROUND_NOTIFICATION_ID, notification);
-        // Also posted under its own (callId-derived) id so CallActionReceiver
-        // and CallMessagingService's cancel-on-call_cancelled path can target
-        // this specific call's notification directly.
+        // Also posted under its own (callId-derived) id so MainActivity's
+        // deep-link handler and CallMessagingService's cancel-on-
+        // call_cancelled path can target this specific call's notification
+        // directly.
         NotificationManagerCompat.from(this).notify(notificationId(callId), notification);
     }
 
@@ -262,6 +271,7 @@ public class CallForegroundService extends Service {
                 startForeground(id, notification);
             }
         } catch (Throwable t) {
+            Log.e(TAG, "startForeground threw for id=" + id + " — falling back to a plain notification", t);
             NotificationManagerCompat.from(this).notify(id, notification);
         }
     }
@@ -314,12 +324,29 @@ public class CallForegroundService extends Service {
         manager.createNotificationChannel(channel);
     }
 
+    /**
+     * Launches MainActivity directly with the accept/decline deep link,
+     * rather than routing through a BroadcastReceiver that then calls
+     * context.startActivity() itself (the previous CallActionReceiver
+     * design). That indirection is a known-flaky pattern on Android:
+     * launching an Activity from inside a BroadcastReceiver's onReceive
+     * relies on a background-activity-launch exemption carrying over
+     * through the extra hop, and on-device testing (this device, Samsung/
+     * Android 16) showed it intermittently doing nothing at all — no
+     * exception, no log, the tap simply didn't open the app. A notification
+     * action's PendingIntent.getActivity() is the same first-class,
+     * always-allowed launch path as tapping the notification body (which
+     * already worked reliably), so this removes the flaky step instead of
+     * working around it. MainActivity.onCreate/onNewIntent now does the
+     * immediate stop-ringing/cancel-notification work CallActionReceiver
+     * used to do, so behavior is otherwise unchanged.
+     */
     private PendingIntent actionIntent(String callId, String action) {
-        Intent intent = new Intent(this, CallActionReceiver.class)
-            .setAction(action)
-            .putExtra(EXTRA_CALL_ID, callId);
+        Uri uri = Uri.parse("yukon3t://call?callId=" + Uri.encode(callId) + "&action=" + action);
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri, this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int requestCode = (callId + action).hashCode();
-        return PendingIntent.getBroadcast(
+        return PendingIntent.getActivity(
             this,
             requestCode,
             intent,
@@ -376,6 +403,7 @@ public class CallForegroundService extends Service {
             // (not just IOException/IllegalStateException) since MediaPlayer
             // can also throw SecurityException/IllegalArgumentException
             // depending on OEM/Android version.
+            Log.e(TAG, "startRingtone failed, falling back to the channel's own sound", e);
             ringtonePlayer = null;
         }
     }

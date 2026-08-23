@@ -56,10 +56,6 @@
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
-        <receiver
-            android:name=".CallActionReceiver"
-            android:exported="false" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -103,6 +99,17 @@
          permissions granted at install, no runtime prompt. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- As of Android 16 (targetSdk 36), starting a foregroundServiceType=
+         "phoneCall" service also requires the app to hold this permission
+         (or the DIALER role) in addition to FOREGROUND_SERVICE_PHONE_CALL —
+         confirmed via on-device logcat: without it, startForeground() throws
+         SecurityException "requires ... any of [MANAGE_OWN_CALLS,
+         android.app.role.DIALER]" and the ring loses its foreground-service
+         Doze exemption. This is the "normal" permission self-managed-calling
+         apps (ones that handle their own calls without being a full dialer,
+         like this one) declare for exactly this — no runtime prompt, no
+         ConnectionService/Telecom integration required just to hold it. -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- Lets the incoming-call notification wake/light the screen over the
          lock screen like a real call, instead of a silent background push.
          Google Play treats this as a Restricted Permission requiring a
