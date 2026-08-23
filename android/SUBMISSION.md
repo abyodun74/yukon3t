@@ -215,3 +215,16 @@ requirement](https://developer.android.com/google/play/requirements/target-sdk)
 before your first submission; Capacitor 8's default should already be
 current as of this scaffold's creation, but Play's requirement moves forward
 roughly yearly.
+
+## 12. MANAGE_OWN_CALLS (Android 16 foreground-service requirement)
+
+`AndroidManifest.xml` also requests `MANAGE_OWN_CALLS`, added after
+on-device testing on Android 16 (API 36) showed `CallForegroundService`
+crashing/silently failing: as of that OS version,
+`FOREGROUND_SERVICE_PHONE_CALL` alone is no longer sufficient to start a
+`foregroundServiceType="phoneCall"` service — the app must also hold
+`MANAGE_OWN_CALLS` (or the `DIALER` role), confirmed via the exact
+`SecurityException` message in logcat. Unlike `USE_FULL_SCREEN_INTENT` and
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` above, this is a normal permission —
+granted automatically at install, no Play Console Restricted Permissions
+declaration needed, no runtime prompt shown to the user.
