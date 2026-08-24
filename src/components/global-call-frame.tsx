@@ -1,8 +1,12 @@
 "use client";
 
-import { Maximize2, Minimize2, PhoneOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Maximize2, Minimize2, PhoneOff, Upload, X } from "lucide-react";
 import { CallFrame } from "@/components/call-frame";
 import { useCallSession } from "@/lib/call-session";
+import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
+
+const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
 /**
  * The single place <CallFrame> gets mounted, root-rendered (src/app/layout.tsx)
@@ -13,6 +17,51 @@ import { useCallSession } from "@/lib/call-session";
  */
 export function GlobalCallFrame() {
   const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand } = useCallSession();
+  const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // A material shared in one session shouldn't bleed into whatever's
+  // started next (or reappear if you leave and rejoin the same one). Reset
+  // during render (React's supported pattern for this) rather than in an
+  // effect, which would cost an extra render pass for the exact same result.
+  const prevSessionKeyRef = useRef(session?.key);
+  if (prevSessionKeyRef.current !== session?.key) {
+    prevSessionKeyRef.current = session?.key;
+    setSharedMaterial(null);
+    setUploadError(null);
+  }
+
+  // sendAppMessage only reaches *other* participants (see collab-material.ts),
+  // so this is how everyone but the uploader sees a shared file appear —
+  // the uploader's own copy is set directly in uploadMaterial below.
+  useEffect(() => {
+    if (!dailyCall) return;
+    const handleAppMessage = (ev: { data: unknown }) => {
+      const material = collabMaterialFromAppMessage(ev.data);
+      if (material) setSharedMaterial(material);
+    };
+    dailyCall.on("app-message", handleAppMessage);
+    return () => {
+      dailyCall.off("app-message", handleAppMessage);
+    };
+  }, [dailyCall]);
+
+  async function uploadMaterial(file: File | undefined) {
+    if (!file || !session?.collab) return;
+    setUploadError(null);
+    setUploadingMaterial(true);
+    const result = await shareCollabMaterial({ file, conversationId: session.collab.conversationId, dailyCall });
+    setUploadingMaterial(false);
+    if (!result.ok) {
+      setUploadError(
+        result.error === "upload_failed" ? "Couldn't upload that file — try again." : "Uploaded, but couldn't share it — try again.",
+      );
+      return;
+    }
+    setSharedMaterial(result.material);
+  }
 
   if (!session) return null;
 
@@ -75,6 +124,49 @@ export function GlobalCallFrame() {
             </button>
           </div>
         )}
+
+        {!minimized && sharedMaterial && (
+          // A floating panel over the call, not inside Daily's own iframe —
+          // that's cross-origin, so this is the only place content Daily
+          // didn't render itself can actually appear "in" the session. Sits
+          // above the video (z-[60] on the wrapper) but below the Leave/
+          // Minimize/Upload controls (z-[80]) so those stay reachable.
+          <div className="pointer-events-none fixed inset-x-4 top-4 z-[70] flex justify-center">
+            <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
+              <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+                <span className="min-w-0 truncate text-xs font-medium">{sharedMaterial.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setSharedMaterial(null)}
+                  title="Close"
+                  className="shrink-0 rounded-md p-1 text-foreground-soft hover:bg-background"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto bg-background">
+                {sharedMaterial.contentType.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={sharedMaterial.url} alt={sharedMaterial.name} className="mx-auto max-h-[65vh] object-contain" />
+                ) : sharedMaterial.contentType === "application/pdf" ? (
+                  <iframe src={sharedMaterial.url} title={sharedMaterial.name} className="h-[65vh] w-full" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-foreground-soft">
+                    <span>Preview isn&apos;t available for this file type.</span>
+                    <a
+                      href={sharedMaterial.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
+                    >
+                      Open {sharedMaterial.name}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {!minimized && (
@@ -88,6 +180,35 @@ export function GlobalCallFrame() {
         // every corner near the top is already spoken for between those
         // and Daily's own built-in controls.
         <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-1.5">
+          {uploadError && (
+            <span className="max-w-[10rem] truncate rounded-md bg-danger/90 px-2 py-1 text-xs text-white">
+              {uploadError}
+            </span>
+          )}
+          {session.collab && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={MATERIAL_ACCEPT}
+                className="hidden"
+                onChange={(e) => uploadMaterial(e.target.files?.[0])}
+              />
+              <button
+                type="button"
+                disabled={uploadingMaterial}
+                // The pre-join card's own "Upload material" button (see
+                // collab-session-room.tsx) sits behind this fullscreen
+                // wrapper once a session is joined — this is the only
+                // reachable trigger for it once you're actually in the call.
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload material to share with participants"
+                className="rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80 disabled:opacity-50"
+              >
+                <Upload size={14} />
+              </button>
+            </>
+          )}
           <button
             type="button"
             // App-level leave control alongside Minimize, not just Daily's

@@ -23,6 +23,11 @@ export type StartSessionInput = {
    * once when the call actually ends, regardless of whether the component
    * that started it is still mounted. */
   onLeave: () => void;
+  /** Set only for a Collab session — lets GlobalCallFrame offer the
+   * "Upload material" control and shared-material overlay while fullscreen
+   * (see collab-material.ts), which needs to work regardless of whether
+   * CollabSessionRoom's own page is even still mounted underneath. */
+  collab?: { collabId: string; conversationId: string };
 };
 
 type CallSessionContextValue = {

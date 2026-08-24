@@ -9,8 +9,7 @@ import {
   listCollabRecordings,
   getCollabRecordingLink,
 } from "@/app/actions/collab-session";
-import { sendMessage } from "@/app/actions/messages";
-import { uploadFileDirect } from "@/lib/upload-client";
+import { shareCollabMaterial } from "@/lib/collab-material";
 import { useCallSession } from "@/lib/call-session";
 import { usePolling } from "@/lib/use-polling";
 
@@ -77,7 +76,7 @@ export function CollabSessionRoom({
   const [uploading, setUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { startSession } = useCallSession();
+  const { startSession, dailyCall } = useCallSession();
 
   const collabIdRef = useRef(collabId);
   useEffect(() => {
@@ -116,6 +115,10 @@ export function CollabSessionRoom({
       token: result.token,
       type: "VIDEO",
       label: title,
+      // Lets GlobalCallFrame offer "Upload material" and the shared-
+      // material overlay while fullscreen, where this card is covered up
+      // and unreachable — see collab-material.ts.
+      collab: conversationId ? { collabId, conversationId } : undefined,
       onLeave: () => {
         leaveCollabSession(collabId);
         setJoined(false);
@@ -146,22 +149,17 @@ export function CollabSessionRoom({
     if (!file || !conversationId) return;
     setError(null);
     setUploading(true);
-    const uploaded = await uploadFileDirect(file, "collab-material");
-    if (!uploaded.ok) {
-      setUploading(false);
-      setError("Couldn't upload that file — try again.");
-      return;
-    }
-    // Posted as a plain text message (a name + link) rather than a new
-    // MessageMediaType — the existing group chat already reaches every
-    // participant and needs no schema change to carry a document link.
-    const fd = new FormData();
-    fd.set("conversationId", conversationId);
-    fd.set("content", `📎 Shared a file: ${file.name}\n${uploaded.publicUrl}`);
-    const sent = await sendMessage(fd);
+    // Also broadcasts to the live call (see shareCollabMaterial) if one's
+    // active and this card hasn't been covered up by it yet — e.g.
+    // uploading right before starting, or while minimized.
+    const result = await shareCollabMaterial({ file, conversationId, dailyCall });
     setUploading(false);
-    if (sent.error) {
-      setError("Uploaded, but couldn't share it in chat — try again.");
+    if (!result.ok) {
+      setError(
+        result.error === "upload_failed"
+          ? "Couldn't upload that file — try again."
+          : "Uploaded, but couldn't share it in chat — try again.",
+      );
     }
   }
 
