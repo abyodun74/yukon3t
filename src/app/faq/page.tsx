@@ -14,8 +14,8 @@ const sections: Section[] = [
             On desktop, the top bar has links to Home, Discover, Circles,
             Collab Boards, Connections, Messages, and your Profile. On a
             phone, the five most-used sections (Home, Circles, Collab,
-            Messages, Profile) sit in a bottom tab bar — tap the ☰ menu in
-            the top-right for Discover, Connections, Settings, and (for
+            Messages, Discover) sit in a bottom tab bar — tap the ☰ menu in
+            the top-right for Profile, Connections, Settings, and (for
             admins) Moderation tools.
           </>
         ),
@@ -25,7 +25,7 @@ const sections: Section[] = [
         a: (
           <>
             Yes, on a phone: swipe right anywhere on the screen to move
-            forward through Home → Circles → Collab → Messages → Profile,
+            forward through Home → Circles → Collab → Messages → Discover,
             wrapping back around to Home. Swipe left to move backward through
             the same tabs, wrapping the other way.
           </>
@@ -454,17 +454,53 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "How do I pick a category for my Circle?",
+        a: (
+          <>
+            Search for it when creating the Circle — the list covers general
+            topics (Travel, Culture, Technology &amp; Startups, and more)
+            plus specific job types and professions (Bookkeeping, Civil
+            Engineer, Cybersecurity Analyst, Linux Administrator, and dozens
+            more), so you can land on exactly the right one instead of a
+            generic &ldquo;Professional&rdquo; bucket.
+          </>
+        ),
+      },
+      {
         q: "What's a Collab Board?",
         a: (
           <>
-            A place to find cross-country skill exchanges, volunteering,
-            study groups, and projects. Posts can be scoped to specific
-            countries or marked &ldquo;worldwide&rdquo; if you&apos;re open
-            to collaborators from anywhere. Tap a posting to join it — once
-            you&apos;re a participant, you get access to that
-            collaboration&apos;s group chat (text, photos, and videos) and a
-            live video session with screen sharing, uploaded materials, and
-            recording.
+            A place to find cross-country skill exchanges, mentorship,
+            professional services, events, and projects — the
+            &ldquo;Type&rdquo; field is a searchable list (skill exchange,
+            tax advising, bookkeeping &amp; accounting, career counseling,
+            sales &amp; marketing, and dozens more) rather than a fixed
+            handful of options. Posts can be scoped to specific countries or
+            marked &ldquo;worldwide.&rdquo; Once you&apos;re a participant,
+            you get access to that collaboration&apos;s group chat (text,
+            photos, and videos) and a live video session with screen sharing,
+            uploaded materials, and recording.
+          </>
+        ),
+      },
+      {
+        q: "What's the difference between a public and a private Collab Board?",
+        a: (
+          <>
+            <strong>Public</strong>{" "}
+            collaborations are announced to everyone
+            and listed on the Collab Board — anyone can tap &ldquo;Request to
+            Join,&rdquo; and the organizer or a co-admin screens each request
+            (Approve/Decline) before granting access.{" "}
+            <strong>Private</strong>{" "}
+            collaborations are invite-only: the
+            organizer picks specific connections to invite, either when
+            posting or later via &ldquo;Invite people&rdquo; on the
+            collaboration&apos;s page, and they&apos;re never listed or
+            searchable — only the organizer and whoever&apos;s been invited
+            or already joined can see them at all. An invited person sees an
+            Accept/Decline banner on the collaboration&apos;s page until they
+            respond.
           </>
         ),
       },
@@ -472,16 +508,21 @@ const sections: Section[] = [
         q: "How does starting or joining a Collab session work?",
         a: (
           <>
-            Tap &ldquo;Start / join session&rdquo; on the collaboration&apos;s
-            page. If nobody&apos;s in it yet, you&apos;re connected right
-            away — no extra confirmation. If a session&apos;s already
-            underway, you&apos;ll get a quick &ldquo;ready to join?&rdquo;
-            prompt first, since walking in on people already talking is a
-            bigger interruption than starting fresh — decline it and nothing
-            happens, you&apos;re not added to the call. Either way, the call
-            opens full-screen automatically; tap the minimize icon (bottom
-            right) to shrink it to a small widget while you use the rest of
-            the app, the same as a 1:1 call.
+            Only the organizer or a co-admin can start a session from
+            cold — they&apos;ll see a &ldquo;Start session&rdquo; button on
+            the collaboration&apos;s page, and tapping it connects them right
+            away, no extra confirmation. Everyone else only sees a
+            &ldquo;Join session&rdquo; button once one&apos;s already
+            underway (before that, the page just shows &ldquo;Waiting for the
+            organizer to start the session&rdquo;). If a session&apos;s
+            already underway when you go to start or join it, you&apos;ll get
+            a quick &ldquo;ready to join?&rdquo; prompt first, since walking
+            in on people already talking is a bigger interruption than
+            starting fresh — decline it and nothing happens, you&apos;re not
+            added to the call. Either way, the call opens full-screen
+            automatically; tap the minimize icon (bottom right) to shrink it
+            to a small widget while you use the rest of the app, the same as
+            a 1:1 call.
           </>
         ),
       },
@@ -512,6 +553,20 @@ const sections: Section[] = [
             session, not the collaboration itself — the session stays open
             for anyone still in it, and you can start / join it again
             anytime from the collab&apos;s page.
+          </>
+        ),
+      },
+      {
+        q: "How do I invite someone to a private collaboration, or approve a request to join a public one?",
+        a: (
+          <>
+            For a private collaboration, the organizer or a co-admin taps
+            &ldquo;Invite people&rdquo; on its page and searches their
+            connections — an &ldquo;Invited&rdquo; list on the page shows
+            each invite&apos;s status (pending, joined, or declined). For a
+            public one, pending requests show up in a &ldquo;Join
+            requests&rdquo; list on the page with Approve/Decline buttons —
+            approving adds them as a participant right away.
           </>
         ),
       },
@@ -621,6 +676,18 @@ const sections: Section[] = [
             Use &ldquo;Forgot password&rdquo; on the sign-in page. You can
             also sign in with just your email link if you&apos;d rather not
             use a password at all.
+          </>
+        ),
+      },
+      {
+        q: "How do I set my interests, or find a specific job or profession?",
+        a: (
+          <>
+            Search for it in onboarding or under Settings → Edit profile →
+            Interests — besides general interests, the list includes
+            specific job titles and professions (like Tax Advising, System
+            Administrator, or UX Designer), so you&apos;re not limited to
+            broad categories.
           </>
         ),
       },
