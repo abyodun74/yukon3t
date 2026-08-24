@@ -8,6 +8,9 @@ import { UserLink } from "@/components/user-link";
 import { ReportTrigger } from "@/components/report-form";
 import { CollabParticipantButton } from "@/components/collab-participant-button";
 import { CollabParticipantManager } from "@/components/collab-participant-manager";
+import { CollabJoinRequestManager } from "@/components/collab-join-request-manager";
+import { CollabInviteManager } from "@/components/collab-invite-manager";
+import { CollabInviteResponse } from "@/components/collab-invite-response";
 import { CollabSessionRoom } from "@/components/collab-session-room";
 import { CloseCollabButton } from "@/components/close-collab-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
@@ -16,7 +19,7 @@ import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { collabTypeLabels } from "@/lib/collab-labels";
-import { isCollabAdmin } from "@/lib/collab-permissions";
+import { isCollabAdmin, canViewCollab } from "@/lib/collab-permissions";
 
 export default async function CollabDetailPage({
   params,
@@ -38,12 +41,26 @@ export default async function CollabDetailPage({
   });
   if (!collab) notFound();
 
+  const isParticipant = collab.participants.length > 0;
+
+  // Fetched before the visibility gate below — an invitee who isn't a
+  // participant yet still needs to reach this page to see the accept/
+  // decline banner (see canViewCollab).
+  const myInvite =
+    !isParticipant && collab.visibility === "PRIVATE"
+      ? await prisma.collabInvite.findFirst({
+          where: { collabId: collab.id, inviteeId: me.id, status: "PENDING" },
+          include: { inviter: { select: { name: true } } },
+        })
+      : null;
+
+  if (!canViewCollab(collab, isParticipant, me, !!myInvite)) notFound();
+
   const engagement = engagementStatusFor(
     await getAuthorEngagementStatus(me.id, [collab.author.id]),
     collab.author.id,
   );
 
-  const isParticipant = collab.participants.length > 0;
   const isOwner = collab.authorId === me.id;
   const canModerate = isCollabAdmin(collab, collab.participants[0] ?? null, me);
   const canJoinSession = isParticipant || isOwner;
@@ -55,6 +72,54 @@ export default async function CollabDetailPage({
         include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
       })
     : [];
+
+  const pendingJoinRequests =
+    canModerate && collab.visibility === "PUBLIC"
+      ? await prisma.collabJoinRequest.findMany({
+          where: { collabId: collab.id, status: "PENDING" },
+          orderBy: { createdAt: "asc" },
+          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+        })
+      : [];
+
+  const collabInvites =
+    canModerate && collab.visibility === "PRIVATE"
+      ? await prisma.collabInvite.findMany({
+          where: { collabId: collab.id },
+          orderBy: { createdAt: "asc" },
+          include: { invitee: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+        })
+      : [];
+
+  // Candidates for inviting more people — the organizer's accepted
+  // connections, minus anyone already a participant or already invited.
+  const inviteCandidates =
+    canModerate && collab.visibility === "PRIVATE"
+      ? await (async () => {
+          const excludeIds = new Set([
+            ...allParticipants.map((p) => p.userId),
+            ...collabInvites.map((i) => i.inviteeId),
+          ]);
+          const accepted = await prisma.connection.findMany({
+            where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
+            include: {
+              requester: { select: { id: true, name: true } },
+              target: { select: { id: true, name: true } },
+            },
+          });
+          return accepted
+            .map((c) => (c.requesterId === me.id ? c.target : c.requester))
+            .filter((u) => !excludeIds.has(u.id))
+            .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
+        })()
+      : [];
+
+  const myPendingJoinRequest =
+    !isParticipant && !canModerate && collab.visibility === "PUBLIC"
+      ? await prisma.collabJoinRequest.findUnique({
+          where: { collabId_userId: { collabId: collab.id, userId: me.id } },
+        })
+      : null;
 
   const conversation = collab.conversationId
     ? await prisma.conversation.findUnique({
@@ -102,9 +167,16 @@ export default async function CollabDetailPage({
       <BackButton fallbackHref="/collab" />
 
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-        <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-          {collabTypeLabels[collab.type]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
+            {collabTypeLabels[collab.type]}
+          </span>
+          {collab.visibility === "PRIVATE" && (
+            <span className="rounded-full bg-line px-2.5 py-0.5 text-xs font-medium text-foreground-soft">
+              Private
+            </span>
+          )}
+        </div>
         <span className="break-words text-xs text-foreground-soft">
           {collab.worldwide ? "Worldwide" : collab.countries.join(", ")}
         </span>
@@ -113,11 +185,14 @@ export default async function CollabDetailPage({
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <h1 className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <CollabParticipantButton
-            collabId={collab.id}
-            isParticipant={isParticipant}
-            isOwner={isOwner}
-          />
+          {(isOwner || isParticipant || collab.visibility === "PUBLIC") && (
+            <CollabParticipantButton
+              collabId={collab.id}
+              isParticipant={isParticipant}
+              isOwner={isOwner}
+              hasPendingRequest={!!myPendingJoinRequest}
+            />
+          )}
           {canModerate && (
             <Link
               href={`/collab/${collab.id}/edit`}
@@ -136,6 +211,12 @@ export default async function CollabDetailPage({
       </div>
 
       <p className="mt-2 break-words text-sm text-foreground-soft">{collab.description}</p>
+
+      {myInvite && (
+        <div className="mt-3">
+          <CollabInviteResponse inviteId={myInvite.id} inviterName={myInvite.inviter.name} />
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -187,6 +268,8 @@ export default async function CollabDetailPage({
         <CollabSessionRoom
           collabId={collab.id}
           canJoin={canJoinSession}
+          canStart={canModerate}
+          hasSessionRoom={!!collab.roomName}
           title={collab.title}
           conversationId={collab.conversationId}
         />
@@ -204,6 +287,18 @@ export default async function CollabDetailPage({
             <CollabParticipantManager collabId={collab.id} participants={allParticipants} />
           </div>
         </div>
+      )}
+
+      {canModerate && collab.visibility === "PUBLIC" && (
+        <CollabJoinRequestManager requests={pendingJoinRequests} />
+      )}
+
+      {canModerate && collab.visibility === "PRIVATE" && (
+        <CollabInviteManager
+          collabId={collab.id}
+          invites={collabInvites}
+          candidates={inviteCandidates}
+        />
       )}
 
       <div className="mt-8">

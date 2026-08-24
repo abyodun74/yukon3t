@@ -256,6 +256,10 @@ export const collabPostSchema = z
     type: z.enum(["SKILL_EXCHANGE", "VOLUNTEER", "STUDY_GROUP", "PROJECT"]),
     worldwide: z.coerce.boolean().optional().default(false),
     countries: z.array(z.string().trim().min(2).max(60)).max(20).optional().default([]),
+    visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
+    // Only meaningful (and required) when visibility is PRIVATE — who the
+    // organizer is inviting up front. See createCollabPost.
+    inviteeIds: z.array(z.string().cuid()).max(50).optional().default([]),
   })
   // Worldwide posts skip the country list entirely; anything else still
   // needs at least one — the 10-country cap this replaced was read as "this
@@ -264,7 +268,15 @@ export const collabPostSchema = z
   .refine((data) => data.worldwide || data.countries.length > 0, {
     message: "Pick at least one country, or mark this worldwide.",
     path: ["countries"],
+  })
+  .refine((data) => data.visibility !== "PRIVATE" || data.inviteeIds.length > 0, {
+    message: "Invite at least one person, or make this collaboration public.",
+    path: ["inviteeIds"],
   });
+
+export const collabInviteSchema = z.object({
+  inviteeIds: z.array(z.string().cuid()).min(1).max(50),
+});
 
 export const adBookingSchema = z.object({
   companyName: z.string().trim().min(2).max(100),

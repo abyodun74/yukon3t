@@ -21,13 +21,30 @@ export default async function CollabPage({
   const sort: SortOption = sortParam === "oldest" ? "oldest" : "recent";
 
   const posts = await prisma.collabBoardPost.findMany({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", visibility: "PUBLIC" },
     orderBy: { createdAt: sort === "oldest" ? "asc" : "desc" },
     take: 40,
     include: {
       author: {
         select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true },
       },
+      _count: { select: { participants: true } },
+    },
+  });
+
+  // Private collabs are never listed above — surface the viewer's own ones
+  // here instead, so they're reachable from somewhere other than a
+  // notification link.
+  const privatePosts = await prisma.collabBoardPost.findMany({
+    where: {
+      status: "OPEN",
+      visibility: "PRIVATE",
+      OR: [{ authorId: me.id }, { participants: { some: { userId: me.id } } }],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: {
+      author: { select: { id: true, name: true, username: true, avatarUrl: true } },
       _count: { select: { participants: true } },
     },
   });
@@ -138,6 +155,40 @@ export default async function CollabPage({
           </p>
         )}
       </div>
+
+      {privatePosts.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+            Your private collaborations
+          </h2>
+          <p className="mt-1 text-xs text-foreground-soft">
+            Only visible to you and whoever&apos;s invited — not shown on the board above.
+          </p>
+          <div className="mt-3 space-y-3">
+            {privatePosts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/collab/${post.id}`}
+                className="block rounded-xl border border-line p-4 hover:border-accent"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
+                    {typeLabels[post.type]}
+                  </span>
+                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] text-foreground-soft">
+                    Private
+                  </span>
+                </div>
+                <h3 className="mt-2 break-words font-semibold">{post.title}</h3>
+                <p className="mt-1 text-xs text-foreground-soft">
+                  by {post.author.name} ·{" "}
+                  {post._count.participants} participant{post._count.participants === 1 ? "" : "s"}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

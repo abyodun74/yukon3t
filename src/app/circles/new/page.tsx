@@ -1,6 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { createCircle } from "@/app/actions/circles";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
+import { MultiSelect } from "@/components/multi-select";
 
 export default async function NewCirclePage({
   searchParams,
@@ -40,21 +41,17 @@ export default async function NewCirclePage({
         </div>
         <div>
           <label className="block text-sm font-medium">Category</label>
-          <select
-            name="category"
-            required
-            defaultValue=""
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          >
-            <option value="" disabled>
-              Select a category...
-            </option>
-            {CIRCLE_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            General topics plus specific job types — search e.g. &quot;Cybersecurity Analyst&quot; or &quot;Bookkeeping&quot;.
+          </p>
+          <div className="mt-1">
+            <MultiSelect
+              name="category"
+              options={CIRCLE_CATEGORIES}
+              placeholder="Search categories..."
+              max={1}
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium">Theme</label>

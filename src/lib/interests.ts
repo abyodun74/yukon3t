@@ -1,4 +1,6 @@
-export const INTERESTS = [
+import { JOB_TITLES } from "@/lib/job-titles";
+
+const GENERAL_INTERESTS = [
   "Travel", "Backpacking", "Road Trips", "Food & Cooking", "Coffee Culture",
   "Photography", "Videography", "Music", "Live Concerts", "Dancing",
   "Reading", "Writing", "Poetry", "Film & TV", "Theatre",
@@ -23,3 +25,8 @@ export const INTERESTS = [
   "Pharmaceuticals & Biotech", "Insurance", "Social Work", "Veterinary Medicine", "Military & Defense",
   "Design (UX/UI & Product)", "Sports & Athletics", "Culinary Arts & Chefs", "Environmental Science", "Supply Chain & Procurement",
 ] as const;
+
+// General interests plus every specific job title/occupation (see
+// job-titles.ts) — lets someone search "Linux Administrator" or "Bookkeeping"
+// directly instead of only the broad occupation buckets above.
+export const INTERESTS = [...GENERAL_INTERESTS, ...JOB_TITLES] as const;

@@ -116,10 +116,10 @@ enum Ringtone {
 }
 
 model User {
-  id            String      @id @default(cuid())
-  email         String      @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   emailVerified DateTime?
-  username      String?     @unique
+  username      String?   @unique
   passwordHash  String?
   birthDate     DateTime?
 
@@ -128,22 +128,22 @@ model User {
   // attempt never touches this column, so @unique can't be violated by a
   // half-finished verification flow. Twilio Verify owns the OTP code's
   // entire lifecycle; no code is ever generated or stored here.
-  phone           String?   @unique
+  phone           String?     @unique
   phoneVerifiedAt DateTime?
-  name          String?
-  avatarUrl     String?
-  bio           String?     @db.Text
-  country       String?
-  languages     String[]    @default([])
-  interests     String[]    @default([])
+  name            String?
+  avatarUrl       String?
+  bio             String?     @db.Text
+  country         String?
+  languages       String[]    @default([])
+  interests       String[]    @default([])
   // Lowercased mirror of `interests`, kept in sync at write time (see
   // completeOnboarding/updateProfile in actions/profile.ts). Prisma's `has`
   // filter on a String[] is case-sensitive with no case-insensitive variant,
   // so exact search (search/page.tsx) matches against this instead of
   // `interests` directly — otherwise a query like "travel" would miss a
   // stored interest of "Travel".
-  interestsLower String[]  @default([])
-  openToIntents IntentTag[] @default([])
+  interestsLower  String[]    @default([])
+  openToIntents   IntentTag[] @default([])
 
   // Embedding of name+username+bio+interests, used by smart/semantic search
   // (src/lib/search-embeddings.ts) as a fallback when exact substring search
@@ -211,16 +211,19 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  circleMemberships   CircleMembership[]
-  ownedCircles        Circle[]                 @relation("CircleOwner")
-  circleJoinRequests  CircleJoinRequest[]
-  posts               Post[]
-  collabPosts         CollabBoardPost[]
+  circleMemberships           CircleMembership[]
+  ownedCircles                Circle[]                   @relation("CircleOwner")
+  circleJoinRequests          CircleJoinRequest[]
+  posts                       Post[]
+  collabPosts                 CollabBoardPost[]
   channelsCreated             Channel[]
   channelMemberships          ChannelMembership[]
   channelVoiceParticipations  ChannelVoiceParticipant[]
   collabParticipations        CollabParticipant[]
   collabSessionParticipations CollabSessionParticipant[]
+  collabJoinRequests          CollabJoinRequest[]
+  sentCollabInvites           CollabInvite[]             @relation("CollabInviter")
+  receivedCollabInvites       CollabInvite[]             @relation("CollabInvitee")
 
   liveStreamsHosted   LiveStream[]
   liveStreamsWatching LiveStreamViewer[]
@@ -309,7 +312,9 @@ model Circle {
   @@index([category])
 }
 
-/** Mirrors GroupJoinRequest (used for private Conversations) — a PRIVATE Circle's owner/co-admins approve or decline these instead of joinCircle adding a member instantly. */
+/**
+ * Mirrors GroupJoinRequest (used for private Conversations) — a PRIVATE Circle's owner/co-admins approve or decline these instead of joinCircle adding a member instantly.
+ */
 model CircleJoinRequest {
   id          String            @id @default(cuid())
   circleId    String
@@ -450,20 +455,20 @@ enum EmbedProvider {
 }
 
 model Post {
-  id                String           @id @default(cuid())
-  authorId          String
-  circleId          String?
+  id                  String           @id @default(cuid())
+  authorId            String
+  circleId            String?
   // Set alongside circleId whenever the post was made in a specific text
   // Channel — circleId itself is still always set too (derived from
   // channel.circleId at write time) so every existing circleId-scoped query/
   // index (home feed, moderation queue, admin/circles) keeps working
   // untouched; channelId only narrows within that.
-  channelId         String?
-  content           String           @db.Text
-  mediaType         PostMediaType    @default(NONE)
-  mediaUrls         String[]         @default([])
-  videoUrl          String?
-  videoThumbnailUrl String?
+  channelId           String?
+  content             String           @db.Text
+  mediaType           PostMediaType    @default(NONE)
+  mediaUrls           String[]         @default([])
+  videoUrl            String?
+  videoThumbnailUrl   String?
   // Video-body moderation (src/lib/hive.ts, called synchronously from the
   // moderate-videos cron) — separate from moderationStatus, which is still
   // driven by the caption+thumbnail check at publish time
@@ -471,29 +476,29 @@ model Post {
   // "needs checking" filter — null means still pending (or Hive not
   // configured, in which case it stays null forever and is simply never
   // picked up by the cron).
-  videoModeratedAt DateTime?
+  videoModeratedAt    DateTime?
   // EMBED posts store only a provider + the extracted video id, never the
   // raw pasted URL — the iframe src is always rebuilt server-side from these
   // two known-safe values, so nothing attacker-controlled ever becomes an
   // iframe src.
-  embedProvider     EmbedProvider?
-  embedId           String?
+  embedProvider       EmbedProvider?
+  embedId             String?
   // LINK posts: any http(s) URL that isn't a recognized video provider,
   // stored raw and rendered only as a plain <a href> (never an iframe src,
   // unlike embedProvider/embedId above) — protocol-checked at write time in
   // normalizeLinkUrl().
-  linkUrl           String?
-  intentTag         IntentTag?
+  linkUrl             String?
+  intentTag           IntentTag?
   // Which Home feed section this post is filed under (src/app/home/page.tsx).
-  feedCategory      FeedCategory     @default(GENERAL)
-  moderationStatus  ModerationStatus @default(PUBLISHED)
-  eventAt           DateTime?
-  eventLocation     String?
+  feedCategory        FeedCategory     @default(GENERAL)
+  moderationStatus    ModerationStatus @default(PUBLISHED)
+  eventAt             DateTime?
+  eventLocation       String?
   // Set once a "starts soon" reminder has gone out (see the event-reminders
   // cron route) so the same event never notifies attendees twice.
   eventReminderSentAt DateTime?
-  createdAt         DateTime         @default(now())
-  editedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  editedAt            DateTime?
 
   // See User.embedding — embeds content only.
   embedding Unsupported("vector(1536)")?
@@ -513,13 +518,13 @@ model Post {
   shareCount   Int @default(0)
   rsvpCount    Int @default(0)
 
-  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  circle     Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  channel    Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  repostOf   Post?    @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
-  reposts    Post[]   @relation("PostRepost")
-  sharedPost Post?    @relation("PostShare", fields: [sharedPostId], references: [id], onDelete: Cascade)
-  shareEmbeds Post[]  @relation("PostShare")
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  circle      Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  channel     Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  repostOf    Post?    @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts     Post[]   @relation("PostRepost")
+  sharedPost  Post?    @relation("PostShare", fields: [sharedPostId], references: [id], onDelete: Cascade)
+  shareEmbeds Post[]   @relation("PostShare")
 
   likes         Like[]
   reactions     PostReaction[]
@@ -702,6 +707,16 @@ enum NotificationType {
   // Sent to every subscriber when a user they subscribe to creates a new
   // Circle.
   SUBSCRIPTION_CIRCLE_CREATED
+  // Sent to a PUBLIC collab's organizer and any co-admins when someone
+  // requests to join — same shape as CIRCLE_JOIN_REQUEST.
+  COLLAB_JOIN_REQUEST
+  // Sent to the requester when their CollabJoinRequest is approved.
+  COLLAB_JOIN_APPROVED
+  // Sent to a specific user when a PRIVATE collab's organizer/co-admin
+  // invites them (see inviteToCollab in actions/collab.ts).
+  COLLAB_INVITE
+  // Sent to the inviter when their CollabInvite is accepted.
+  COLLAB_INVITE_ACCEPTED
 }
 
 model Notification {
@@ -749,18 +764,29 @@ enum CollabStatus {
   CLOSED
 }
 
+enum CollabVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 model CollabBoardPost {
-  id          String       @id @default(cuid())
+  id          String           @id @default(cuid())
   authorId    String
   title       String
-  description String       @db.Text
+  description String           @db.Text
   type        CollabType
   // Mutually exclusive with `countries`: worldwide posts ignore it entirely
   // (kept empty) rather than requiring every country to be enumerated.
-  worldwide   Boolean      @default(false)
-  countries   String[]     @default([])
-  status      CollabStatus @default(OPEN)
-  createdAt   DateTime     @default(now())
+  worldwide   Boolean          @default(false)
+  countries   String[]         @default([])
+  status      CollabStatus     @default(OPEN)
+  // PUBLIC collabs are listed/searched by everyone and gate joining behind a
+  // CollabJoinRequest the organizer screens. PRIVATE collabs are never
+  // listed/searched — the organizer invites specific users via CollabInvite
+  // instead, and only the organizer + invited/joined users can see it at all
+  // (see canViewCollab in collab-permissions.ts).
+  visibility  CollabVisibility @default(PUBLIC)
+  createdAt   DateTime         @default(now())
 
   // See User.embedding — embeds title+description.
   embedding Unsupported("vector(1536)")?
@@ -776,13 +802,55 @@ model CollabBoardPost {
   conversationId String?       @unique
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
-  author       User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  participants CollabParticipant[]
+  author              User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  participants        CollabParticipant[]
   sessionParticipants CollabSessionParticipant[]
-  notifications Notification[]
+  joinRequests        CollabJoinRequest[]
+  invites             CollabInvite[]
+  notifications       Notification[]
 
   @@index([type])
   @@index([status])
+  @@index([visibility])
+}
+
+/**
+ * Mirrors CircleJoinRequest — a PUBLIC collab's organizer/co-admins approve or decline these instead of joinCollab adding a participant instantly.
+ */
+model CollabJoinRequest {
+  id          String            @id @default(cuid())
+  collabId    String
+  userId      String
+  status      JoinRequestStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  respondedAt DateTime?
+
+  collab CollabBoardPost @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collabId, userId])
+  @@index([collabId, status])
+}
+
+/**
+ * Mirrors Connection's PENDING/ACCEPTED/DECLINED handshake — a PRIVATE collab's organizer/co-admins target specific users here instead of them self-requesting.
+ */
+model CollabInvite {
+  id          String           @id @default(cuid())
+  collabId    String
+  inviterId   String
+  inviteeId   String
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+
+  collab  CollabBoardPost @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  inviter User            @relation("CollabInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User            @relation("CollabInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([collabId, inviteeId])
+  @@index([collabId, status])
+  @@index([inviteeId, status])
 }
 
 enum CollabRole {
@@ -791,7 +859,9 @@ enum CollabRole {
   OWNER
 }
 
-/** Static "joined this collaboration" membership — mirrors CircleMembership. */
+/**
+ * Static "joined this collaboration" membership — mirrors CircleMembership.
+ */
 model CollabParticipant {
   id       String     @id @default(cuid())
   userId   String
@@ -828,7 +898,9 @@ enum LiveStreamStatus {
   ENDED
 }
 
-/** VIEWER is watch-only; GUEST/COHOST can unmute camera/mic (see createLiveStreamRoom's owner_only_broadcast + createMeetingToken's permissions). */
+/**
+ * VIEWER is watch-only; GUEST/COHOST can unmute camera/mic (see createLiveStreamRoom's owner_only_broadcast + createMeetingToken's permissions).
+ */
 enum LiveStreamRole {
   VIEWER
   GUEST
@@ -852,9 +924,9 @@ model LiveStream {
   startedAt DateTime         @default(now())
   endedAt   DateTime?
 
-  host    User     @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  circle  Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  viewers LiveStreamViewer[]
+  host          User               @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  circle        Circle?            @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  viewers       LiveStreamViewer[]
   notifications Notification[]
 
   @@index([status])
@@ -888,7 +960,9 @@ enum StoryMediaType {
   VIDEO
 }
 
-/** A profile story — always has a media file (unlike a Post, which can be text-only) and disappears 24h after posting. */
+/**
+ * A profile story — always has a media file (unlike a Post, which can be text-only) and disappears 24h after posting.
+ */
 model Story {
   id                String         @id @default(cuid())
   authorId          String
@@ -899,10 +973,10 @@ model Story {
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
 
-  author User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  views  StoryView[]
-  reactions StoryReaction[]
-  replies   Message[]
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views         StoryView[]
+  reactions     StoryReaction[]
+  replies       Message[]
   notifications Notification[]
 
   // Backs both "my active stories" (profile page) and the expiry cron's
@@ -977,7 +1051,7 @@ enum AdStatus {
  * for the rare case someone books while signed in.
  */
 model AdCampaign {
-  id      String @id @default(cuid())
+  id               String  @id @default(cuid())
   advertiserUserId String?
 
   companyName  String
@@ -997,8 +1071,8 @@ model AdCampaign {
   priceCents Int
   currency   String @default("usd")
 
-  status          AdStatus @default(DRAFT)
-  rejectionReason String?  @db.Text
+  status          AdStatus  @default(DRAFT)
+  rejectionReason String?   @db.Text
   reviewedAt      DateTime?
   reviewedBy      String?
 
@@ -1080,10 +1154,10 @@ model Conversation {
   // name only (groups have no description field).
   embedding Unsupported("vector(1536)")?
 
-  createdBy    User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  members      ConversationMember[]
-  messages     Message[]
-  joinRequests GroupJoinRequest[]
+  createdBy       User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members         ConversationMember[]
+  messages        Message[]
+  joinRequests    GroupJoinRequest[]
   collabBoardPost CollabBoardPost?
   notifications   Notification[]
 }

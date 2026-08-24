@@ -26,6 +26,8 @@ function joinErrorMessage(code?: string) {
       return "Live sessions aren't set up yet.";
     case "not_a_participant":
       return "Join this collaboration first to start the session.";
+    case "not_started":
+      return "The organizer or a co-admin hasn't started this session yet.";
     case "rate_limited":
       return "Slow down a little and try again.";
     default:
@@ -57,11 +59,17 @@ function formatRecordingLabel(recording: Recording) {
 export function CollabSessionRoom({
   collabId,
   canJoin,
+  canStart,
+  hasSessionRoom,
   title,
   conversationId,
 }: {
   collabId: string;
   canJoin: boolean;
+  /** Organizer or co-admin — the only roles allowed to start a session from cold (see joinCollabSession). Everyone else can only join one already underway. */
+  canStart: boolean;
+  /** Whether this collab's session room has ever been started — a regular participant needs this to know there's something to join. */
+  hasSessionRoom: boolean;
   /** Shown in the minimized call widget once the session is joined. */
   title: string;
   /** The Collab's own group chat — "Upload material" posts shared files here. Every CollabBoardPost gets one at creation (see createCollabPost), so this is really only ever null defensively. */
@@ -96,6 +104,11 @@ export function CollabSessionRoom({
   }, []);
 
   usePolling(poll, POLL_INTERVAL_MS, !joined);
+
+  // Live presence (from polling) covers the case where the organizer just
+  // started it during this page view; hasSessionRoom covers "started before,
+  // everyone's since left" — either one means there's something to join.
+  const sessionActive = participants.length > 0 || hasSessionRoom;
 
   async function doJoin() {
     setError(null);
@@ -211,13 +224,19 @@ export function CollabSessionRoom({
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={join}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
-            >
-              Start / join session
-            </button>
+            {canStart || sessionActive ? (
+              <button
+                type="button"
+                onClick={join}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
+              >
+                {sessionActive ? "Join session" : "Start session"}
+              </button>
+            ) : (
+              <span className="text-xs text-foreground-soft">
+                Waiting for the organizer to start the session
+              </span>
+            )}
           </div>
         )}
       </div>

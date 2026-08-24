@@ -1,15 +1,31 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
+import { prisma } from "@/lib/prisma";
 import { createCollabPost } from "@/app/actions/collab";
 import { CollabCountriesField } from "@/components/collab-countries-field";
 import { CollabSubmitButton } from "@/components/collab-submit-button";
+import { CollabVisibilityField } from "@/components/collab-visibility-field";
 
 export default async function NewCollabPostPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await getOnboardedUserOrRedirect();
+  const me = await getOnboardedUserOrRedirect();
   const { error } = await searchParams;
+
+  // Candidates for a private collab's invite list — same "my accepted
+  // connections" query messages/[id]/page.tsx uses for group-add candidates.
+  const accepted = await prisma.connection.findMany({
+    where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
+    include: {
+      requester: { select: { id: true, name: true } },
+      target: { select: { id: true, name: true } },
+    },
+  });
+  const inviteeCandidates = accepted.map((c) => {
+    const other = c.requesterId === me.id ? c.target : c.requester;
+    return { value: other.id, label: other.name ?? "Unknown" };
+  });
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
@@ -54,6 +70,7 @@ export default async function NewCollabPostPage({
           </select>
         </div>
         <CollabCountriesField />
+        <CollabVisibilityField candidates={inviteeCandidates} />
         <div>
           <label className="block text-sm font-medium">What is this collaboration?</label>
           <p className="mt-0.5 text-xs text-foreground-soft">

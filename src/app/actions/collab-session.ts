@@ -44,6 +44,12 @@ export async function joinCollabSession(collabId: string) {
   let roomUrl = collab.roomUrl;
 
   if (!roomName || !roomUrl) {
+    // Only the organizer or a co-admin can start a session from cold —
+    // a regular participant can join one already underway, but can't spin
+    // one up on their own.
+    if (membership.role !== "OWNER" && membership.role !== "MODERATOR") {
+      return { error: "not_started" as const };
+    }
     try {
       const room = await createCollabRoom({
         name: `collab-session-${collabId}`,

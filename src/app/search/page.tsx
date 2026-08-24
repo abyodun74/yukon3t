@@ -148,6 +148,7 @@ export default async function SearchPage({
       prisma.collabBoardPost.findMany({
         where: {
           status: "OPEN",
+          visibility: "PUBLIC",
           ...(country ? { OR: [{ worldwide: true }, { countries: { has: country } }] } : {}),
           ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
           AND: [
