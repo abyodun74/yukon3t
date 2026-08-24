@@ -12,8 +12,12 @@ const securityHeaders = [
   // https://*.daily.co only, see src/proxy.ts) is the actual boundary on
   // what can be embedded at all, so broadening this doesn't hand camera
   // access to arbitrary third-party content — nothing else can be framed
-  // here regardless of what this header allows.
-  { key: "Permissions-Policy", value: "camera=*, microphone=*, geolocation=()" },
+  // here regardless of what this header allows. display-capture is the
+  // same story for screen share (call-frame.tsx's customTrayButtons
+  // screenshare button): without it explicitly allowed here, the browser
+  // silently denies getDisplayMedia() inside the cross-origin iframe — no
+  // error, the picker just never opens.
+  { key: "Permissions-Policy", value: "camera=*, microphone=*, display-capture=*, geolocation=()" },
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",

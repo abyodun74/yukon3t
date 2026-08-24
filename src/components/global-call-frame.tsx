@@ -87,14 +87,30 @@ export function GlobalCallFrame() {
         // the same level as that div to actually win. Bottom-right since
         // every corner near the top is already spoken for between those
         // and Daily's own built-in controls.
-        <button
-          type="button"
-          onClick={minimize}
-          title="Minimize"
-          className="fixed bottom-4 right-4 z-[80] rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80"
-        >
-          <Minimize2 size={14} />
-        </button>
+        <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-1.5">
+          <button
+            type="button"
+            // App-level leave control alongside Minimize, not just Daily's
+            // own in-iframe leave button — same .leave() call as the
+            // minimized widget's hang-up button below, kept reachable even
+            // fullscreen so leaving never depends on finding Daily's own
+            // control inside the call UI (e.g. tucked under its "..." menu
+            // on a narrow viewport).
+            onClick={() => dailyCall?.leave()}
+            title="Leave session"
+            className="rounded-md bg-danger p-1.5 text-white hover:opacity-90"
+          >
+            <PhoneOff size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={minimize}
+            title="Minimize"
+            className="rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80"
+          >
+            <Minimize2 size={14} />
+          </button>
+        </div>
       )}
     </>
   );
