@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Home, Users, Handshake, MessageCircle, User, Search } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, MessageCircle, Search } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
@@ -66,15 +66,15 @@ function navLinks(userId: string) {
 }
 
 // The 5 primary destinations, shown as a fixed bottom bar on small screens
-// (Instagram/WhatsApp/TikTok pattern) — Connections and Discover move into
+// (Instagram/WhatsApp/TikTok pattern) — Connections and Profile move into
 // the secondary hamburger menu to keep this to 5 tabs.
-function bottomTabs(userId: string) {
+function bottomTabs() {
   return [
     { href: "/home", label: "Home", icon: Home },
     { href: "/circles", label: "Circles", icon: Users },
     { href: "/collab", label: "Collab", icon: Handshake },
     { href: "/messages", label: "Messages", icon: MessageCircle },
-    { href: `/u/${userId}`, label: "Profile", icon: User },
+    { href: "/discover", label: "Discover", icon: Search },
   ];
 }
 
@@ -87,14 +87,14 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   // below — bottomTabs() returns a fresh array each render, which would
   // otherwise tear down and re-add the swipe listeners on every render.
   const userId = session?.user?.id;
-  const tabs = useMemo(() => (userId ? bottomTabs(userId) : []), [userId]);
+  const tabs = useMemo(() => (userId ? bottomTabs() : []), [userId]);
   const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
   const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
 
   // Swipe right steps forward through the bottom tab bar and wraps around
-  // (Home → Circles → Collab → Messages → Profile → Home → ...); swipe left
-  // steps backward and wraps the other way (Profile → Messages → Collab →
-  // Circles → Home → Profile → ...) — the two gestures are mirror images of
+  // (Home → Circles → Collab → Messages → Discover → Home → ...); swipe left
+  // steps backward and wraps the other way (Discover → Messages → Collab →
+  // Circles → Home → Discover → ...) — the two gestures are mirror images of
   // each other. Touch-only — the bar itself is `md:hidden`, so gating on
   // touchstart/touchend rather than a pointer gesture naturally keeps this a
   // mobile-only behavior without an extra viewport check. Only armed on the
@@ -146,11 +146,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dy) > Math.abs(dx)) return;
 
       if (dx > 0) {
-        // Swipe right: step forward, wrapping Profile back around to Home.
+        // Swipe right: step forward, wrapping Discover back around to Home.
         const nextIndex = (tabIndex + 1) % tabs.length;
         router.push(tabs[nextIndex].href);
       } else {
-        // Swipe left: step backward, wrapping Home back around to Profile.
+        // Swipe left: step backward, wrapping Home back around to Discover.
         const prevIndex = (tabIndex - 1 + tabs.length) % tabs.length;
         router.push(tabs[prevIndex].href);
       }
@@ -323,14 +323,14 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
           <div className="border-t border-line px-4 py-3 md:hidden">
             <nav className="flex flex-col gap-1 text-sm font-medium">
               <Link
-                href="/discover"
+                href={`/u/${session.user.id}`}
                 onClick={() => setOpen(false)}
                 className={cn(
                   "rounded-lg px-3 py-2 hover:bg-line",
-                  pathname === "/discover" ? "text-accent" : "text-foreground-soft",
+                  pathname === `/u/${session.user.id}` ? "text-accent" : "text-foreground-soft",
                 )}
               >
-                Discover
+                Profile
               </Link>
               <Link
                 href="/connections"
