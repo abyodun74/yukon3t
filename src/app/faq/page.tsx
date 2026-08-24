@@ -390,6 +390,17 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "When I open a chat, does it jump straight to the newest message?",
+        a: (
+          <>
+            No — opening a conversation lands you at the top, next to their
+            name and the call buttons, not scrolled down into old messages.
+            It only auto-scrolls to the newest message for ones that arrive
+            while you&apos;re already sitting in that chat.
+          </>
+        ),
+      },
+      {
         q: "How do voice and video calls work?",
         a: (
           <>
@@ -452,8 +463,55 @@ const sections: Section[] = [
             to collaborators from anywhere. Tap a posting to join it — once
             you&apos;re a participant, you get access to that
             collaboration&apos;s group chat (text, photos, and videos) and a
-            live video session with screen sharing, in-call reactions, and
+            live video session with screen sharing, uploaded materials, and
             recording.
+          </>
+        ),
+      },
+      {
+        q: "How does starting or joining a Collab session work?",
+        a: (
+          <>
+            Tap &ldquo;Start / join session&rdquo; on the collaboration&apos;s
+            page. If nobody&apos;s in it yet, you&apos;re connected right
+            away — no extra confirmation. If a session&apos;s already
+            underway, you&apos;ll get a quick &ldquo;ready to join?&rdquo;
+            prompt first, since walking in on people already talking is a
+            bigger interruption than starting fresh — decline it and nothing
+            happens, you&apos;re not added to the call. Either way, the call
+            opens full-screen automatically; tap the minimize icon (bottom
+            right) to shrink it to a small widget while you use the rest of
+            the app, the same as a 1:1 call.
+          </>
+        ),
+      },
+      {
+        q: "Can I share my screen or upload material during a Collab session?",
+        a: (
+          <>
+            Tap the screen icon in the call controls (or the call&apos;s
+            &ldquo;…&rdquo; More menu, if the tray is too narrow to show every
+            icon) to share your screen with everyone in the session. This
+            only works from a desktop browser — phone browsers and the
+            installed Android app can&apos;t grant screen-capture permission
+            to a page at all, a limitation of mobile browsers generally, not
+            something specific to YuKon3t. For documents or images, tap the
+            upload icon next to Leave/Minimize instead — the file opens
+            immediately as a shared panel for everyone currently in the call,
+            and stays posted in the collaboration&apos;s chat afterward for
+            anyone who joins later.
+          </>
+        ),
+      },
+      {
+        q: "How do I leave a Collab session?",
+        a: (
+          <>
+            Tap the red hang-up icon next to Minimize (or on the minimized
+            widget if you&apos;ve already shrunk it). This leaves the
+            session, not the collaboration itself — the session stays open
+            for anyone still in it, and you can start / join it again
+            anytime from the collab&apos;s page.
           </>
         ),
       },
