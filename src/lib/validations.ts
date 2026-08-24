@@ -226,6 +226,7 @@ export const uploadKindValues = [
   "story-video",
   "ad-image",
   "ad-video",
+  "collab-material",
 ] as const;
 
 export const requestUploadSchema = z.object({

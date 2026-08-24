@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Video } from "lucide-react";
+import { Download, Upload, Video } from "lucide-react";
 import {
   joinCollabSession,
   leaveCollabSession,
@@ -9,13 +9,16 @@ import {
   listCollabRecordings,
   getCollabRecordingLink,
 } from "@/app/actions/collab-session";
-import { CallFrame } from "@/components/call-frame";
+import { sendMessage } from "@/app/actions/messages";
+import { uploadFileDirect } from "@/lib/upload-client";
+import { useCallSession } from "@/lib/call-session";
 import { usePolling } from "@/lib/use-polling";
 
 const POLL_INTERVAL_MS = 5000;
+const MATERIAL_ACCEPT =
+  ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
 type Participant = { id: string; name: string };
-type ActiveRoom = { roomUrl: string; token: string };
 type Recording = { id: string; startedAt: number; durationSeconds: number | null };
 
 function joinErrorMessage(code?: string) {
@@ -41,17 +44,40 @@ function formatRecordingLabel(recording: Recording) {
 }
 
 /**
- * Persistent, drop-in group video session for a Collab — screen share,
- * in-call chat, emoji reactions, hand-raising, and cloud recording all come
- * for free from Daily's prebuilt call UI (see CallFrame + createCollabRoom),
- * no bespoke WebRTC UI needed here.
+ * Persistent, drop-in group video session for a Collab — screen share (every
+ * participant, not just the organizer, since createCollabRoom's
+ * enable_screenshare applies room-wide), in-call chat, emoji reactions,
+ * hand-raising, and cloud recording all come for free from Daily's prebuilt
+ * call UI (see CallFrame + createCollabRoom), no bespoke WebRTC UI needed
+ * here. The call itself is handed off to the app-wide CallSessionProvider/
+ * GlobalCallFrame (src/lib/call-session.tsx) the moment it's joined, so it
+ * opens fullscreen and survives navigation, same as a 1:1 call — this
+ * component only ever renders the pre-join card and the join-in-progress
+ * confirm dialog.
  */
-export function CollabSessionRoom({ collabId, canJoin }: { collabId: string; canJoin: boolean }) {
+export function CollabSessionRoom({
+  collabId,
+  canJoin,
+  title,
+  conversationId,
+}: {
+  collabId: string;
+  canJoin: boolean;
+  /** Shown in the minimized call widget once the session is joined. */
+  title: string;
+  /** The Collab's own group chat — "Upload material" posts shared files here. Every CollabBoardPost gets one at creation (see createCollabPost), so this is really only ever null defensively. */
+  conversationId: string | null;
+}) {
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [active, setActive] = useState<ActiveRoom | null>(null);
+  const [joined, setJoined] = useState(false);
+  const [confirmingJoin, setConfirmingJoin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { startSession } = useCallSession();
 
   const collabIdRef = useRef(collabId);
   useEffect(() => {
@@ -70,21 +96,73 @@ export function CollabSessionRoom({ collabId, canJoin }: { collabId: string; can
     }
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS, !active);
+  usePolling(poll, POLL_INTERVAL_MS, !joined);
 
-  async function join() {
+  async function doJoin() {
     setError(null);
     const result = await joinCollabSession(collabId);
     if (result.error || !result.roomUrl || !result.token) {
       setError(joinErrorMessage(result.error ?? undefined));
       return;
     }
-    setActive({ roomUrl: result.roomUrl, token: result.token });
+    setJoined(true);
+    // Hands off to the root-mounted GlobalCallFrame — it always mounts
+    // fullscreen (see global-call-frame.tsx), only shrinking to the corner
+    // widget if the participant explicitly hits its Minimize button, never
+    // on join.
+    startSession({
+      key: `collab:${collabId}`,
+      roomUrl: result.roomUrl,
+      token: result.token,
+      type: "VIDEO",
+      label: title,
+      onLeave: () => {
+        leaveCollabSession(collabId);
+        setJoined(false);
+      },
+    });
   }
 
-  function leave() {
-    leaveCollabSession(collabId);
-    setActive(null);
+  // Starting a session nobody's in yet needs no confirmation — clicking the
+  // button already *is* the "ready to join" answer. Walking into one already
+  // underway is a bigger interruption (camera/mic about to go live in front
+  // of people already mid-conversation), so that path alone gets a
+  // lightweight "ready to join, or leave it?" prompt instead of Daily's own
+  // prejoin lobby (disabled room-wide, see createCollabRoom).
+  function join() {
+    if (participants.length > 0) {
+      setConfirmingJoin(true);
+      return;
+    }
+    doJoin();
+  }
+
+  function confirmJoin() {
+    setConfirmingJoin(false);
+    doJoin();
+  }
+
+  async function uploadMaterial(file: File | undefined) {
+    if (!file || !conversationId) return;
+    setError(null);
+    setUploading(true);
+    const uploaded = await uploadFileDirect(file, "collab-material");
+    if (!uploaded.ok) {
+      setUploading(false);
+      setError("Couldn't upload that file — try again.");
+      return;
+    }
+    // Posted as a plain text message (a name + link) rather than a new
+    // MessageMediaType — the existing group chat already reaches every
+    // participant and needs no schema change to carry a document link.
+    const fd = new FormData();
+    fd.set("conversationId", conversationId);
+    fd.set("content", `📎 Shared a file: ${file.name}\n${uploaded.publicUrl}`);
+    const sent = await sendMessage(fd);
+    setUploading(false);
+    if (sent.error) {
+      setError("Uploaded, but couldn't share it in chat — try again.");
+    }
   }
 
   async function downloadRecording(recordingId: string) {
@@ -100,7 +178,7 @@ export function CollabSessionRoom({ collabId, canJoin }: { collabId: string; can
 
   return (
     <div className="rounded-xl border border-line p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm">
           <Video size={16} className="text-foreground-soft" />
           {participants.length === 0 ? (
@@ -112,14 +190,37 @@ export function CollabSessionRoom({ collabId, canJoin }: { collabId: string; can
             </span>
           )}
         </div>
-        {canJoin && !active && (
-          <button
-            type="button"
-            onClick={join}
-            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
-          >
-            Start / join session
-          </button>
+        {canJoin && !joined && (
+          <div className="flex shrink-0 items-center gap-2">
+            {conversationId && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={MATERIAL_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => uploadMaterial(e.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload material to share with participants"
+                  className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  <Upload size={14} />
+                  {uploading ? "Uploading…" : "Upload material"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={join}
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
+            >
+              Start / join session
+            </button>
+          </div>
         )}
       </div>
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
@@ -146,8 +247,32 @@ export function CollabSessionRoom({ collabId, canJoin }: { collabId: string; can
         </div>
       )}
 
-      {active && (
-        <CallFrame roomUrl={active.roomUrl} token={active.token} type="VIDEO" onLeave={leave} />
+      {confirmingJoin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
+            <p className="text-sm font-medium">A session is already in progress</p>
+            <p className="mt-1 text-sm text-foreground-soft">
+              {participants.map((p) => p.name).join(", ")}{" "}
+              {participants.length === 1 ? "is" : "are"} already in this session. Ready to join?
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={confirmJoin}
+                className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
+              >
+                Yes, join now
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingJoin(false)}
+                className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+              >
+                Leave — not now
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

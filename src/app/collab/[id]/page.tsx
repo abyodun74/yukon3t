@@ -184,7 +184,12 @@ export default async function CollabDetailPage({
       </div>
 
       <div className="mt-8">
-        <CollabSessionRoom collabId={collab.id} canJoin={canJoinSession} />
+        <CollabSessionRoom
+          collabId={collab.id}
+          canJoin={canJoinSession}
+          title={collab.title}
+          conversationId={collab.conversationId}
+        />
       </div>
 
       {canModerate && (

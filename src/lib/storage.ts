@@ -19,7 +19,8 @@ export type UploadKind =
   | "story-image"
   | "story-video"
   | "ad-image"
-  | "ad-video";
+  | "ad-video"
+  | "collab-material";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -37,6 +38,19 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  // Material shared into a Collab session's chat — documents in addition to
+  // the image types every other image kind already allows, since a shared
+  // "material" is as often a PDF/slide deck as it is a photo.
+  "collab-material": {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/plain": "txt",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  },
 };
 
 // Every video kind shares one byte cap — durations (MAX_*_SECONDS below)
@@ -58,6 +72,7 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "story-video": MAX_VIDEO_BYTES,
   "ad-image": 25 * 1024 * 1024,
   "ad-video": MAX_VIDEO_BYTES,
+  "collab-material": 25 * 1024 * 1024,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([

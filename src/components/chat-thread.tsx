@@ -785,7 +785,19 @@ export function ChatThread({
 
   usePolling(poll, POLL_INTERVAL_MS);
 
+  // Skips the very first run: without this, opening a conversation (e.g.
+  // tapping a user to message them) immediately smooth-scrolled the whole
+  // page down to the latest message, burying the header above — including
+  // the Call button — off-screen before the user ever saw it. Landing at
+  // the top on open (browsers do this natively) and auto-scrolling only for
+  // messages that arrive *after* that keeps the header reachable while still
+  // following an active conversation.
+  const isFirstMessagesEffectRef = useRef(true);
   useEffect(() => {
+    if (isFirstMessagesEffectRef.current) {
+      isFirstMessagesEffectRef.current = false;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 

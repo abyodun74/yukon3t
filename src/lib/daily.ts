@@ -141,6 +141,12 @@ export async function createCollabRoom({
     enable_emoji_reactions: true,
     enable_hand_raising: true,
     eject_at_room_exp: true,
+    // Same reasoning as createCallRoom: our own UI already gates joining
+    // (see joinCollabSession's canJoin check, and CollabSessionRoom's own
+    // "session already in progress" confirm step) — Daily's own camera/mic
+    // "prejoin" lobby with its own Join button would just be a second,
+    // redundant confirmation on top of that.
+    enable_prejoin_ui: false,
   };
   try {
     // Cloud recording needs a Daily plan that supports it — attempted first
