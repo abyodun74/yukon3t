@@ -253,7 +253,7 @@ export const collabPostSchema = z
   .object({
     title: z.string().trim().min(5).max(100),
     description: z.string().trim().min(20).max(2000),
-    type: z.enum(["SKILL_EXCHANGE", "VOLUNTEER", "STUDY_GROUP", "PROJECT"]),
+    type: z.string().trim().min(2).max(60),
     worldwide: z.coerce.boolean().optional().default(false),
     countries: z.array(z.string().trim().min(2).max(60)).max(20).optional().default([]),
     visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),

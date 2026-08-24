@@ -7,7 +7,6 @@ import { UserLink } from "@/components/user-link";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
-import { collabTypeLabels as typeLabels } from "@/lib/collab-labels";
 
 type SortOption = "recent" | "oldest";
 
@@ -97,7 +96,7 @@ export default async function CollabPage({
             <Link href={`/collab/${post.id}`} className="block">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-                  {typeLabels[post.type]}
+                  {post.type}
                 </span>
                 <span className="break-words text-right text-xs text-foreground-soft">
                   {post.worldwide ? "Worldwide" : post.countries.join(", ")}
@@ -173,7 +172,7 @@ export default async function CollabPage({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-                    {typeLabels[post.type]}
+                    {post.type}
                   </span>
                   <span className="rounded-full bg-line px-2 py-0.5 text-[11px] text-foreground-soft">
                     Private

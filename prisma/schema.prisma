@@ -752,13 +752,6 @@ model Notification {
   @@index([recipientId, createdAt])
 }
 
-enum CollabType {
-  SKILL_EXCHANGE
-  VOLUNTEER
-  STUDY_GROUP
-  PROJECT
-}
-
 enum CollabStatus {
   OPEN
   CLOSED
@@ -774,7 +767,11 @@ model CollabBoardPost {
   authorId    String
   title       String
   description String           @db.Text
-  type        CollabType
+  // Free-text (like Circle.category), not an enum — an open-ended,
+  // searchable set of collaboration types (see COLLAB_TYPES in
+  // collab-types.ts) rather than a small fixed list needing a migration
+  // every time a new type is wanted.
+  type        String
   // Mutually exclusive with `countries`: worldwide posts ignore it entirely
   // (kept empty) rather than requiring every country to be enumerated.
   worldwide   Boolean          @default(false)

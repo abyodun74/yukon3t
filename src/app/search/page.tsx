@@ -6,7 +6,6 @@ import { PostCard } from "@/components/post-card";
 import { UserAvatar } from "@/components/user-link";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { COUNTRIES } from "@/lib/countries";
-import { collabTypeLabels } from "@/lib/collab-labels";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { SearchBar } from "@/components/search-bar";
@@ -404,7 +403,7 @@ export default async function SearchPage({
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                  {collabTypeLabels[collab.type]}
+                  {collab.type}
                 </p>
                 <h3 className="mt-1 break-words font-semibold">{collab.title}</h3>
                 <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
@@ -521,7 +520,7 @@ export default async function SearchPage({
                     className="rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                      {collabTypeLabels[collab.type]}
+                      {collab.type}
                     </p>
                     <h4 className="mt-1 break-words font-semibold">{collab.title}</h4>
                     <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>

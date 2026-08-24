@@ -4,6 +4,8 @@ import { createCollabPost } from "@/app/actions/collab";
 import { CollabCountriesField } from "@/components/collab-countries-field";
 import { CollabSubmitButton } from "@/components/collab-submit-button";
 import { CollabVisibilityField } from "@/components/collab-visibility-field";
+import { MultiSelect } from "@/components/multi-select";
+import { COLLAB_TYPES } from "@/lib/collab-types";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -31,8 +33,8 @@ export default async function NewCollabPostPage({
     <div className="mx-auto max-w-lg px-4 py-14">
       <h1 className="text-2xl font-semibold">Post a collaboration</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Skill exchange, volunteering, study groups, or projects that cross
-        borders.
+        Skill exchanges, mentorship, professional services, events, and
+        projects that cross borders.
       </p>
 
       {error && (
@@ -58,16 +60,12 @@ export default async function NewCollabPostPage({
         </div>
         <div>
           <label className="block text-sm font-medium">Type</label>
-          <select
-            name="type"
-            required
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-          >
-            <option value="SKILL_EXCHANGE">Skill Exchange</option>
-            <option value="VOLUNTEER">Volunteer</option>
-            <option value="STUDY_GROUP">Study Group</option>
-            <option value="PROJECT">Project</option>
-          </select>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Search e.g. &quot;Tax Advising&quot;, &quot;Mentorship&quot;, or &quot;Sales &amp; Marketing&quot;.
+          </p>
+          <div className="mt-1">
+            <MultiSelect name="type" options={COLLAB_TYPES} placeholder="Search collaboration types..." max={1} />
+          </div>
         </div>
         <CollabCountriesField />
         <CollabVisibilityField candidates={inviteeCandidates} />
