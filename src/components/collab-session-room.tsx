@@ -230,7 +230,7 @@ export function CollabSessionRoom({
                 onClick={join}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
               >
-                {sessionActive ? "Join session" : "Start session"}
+                {canStart ? "Start session" : "Join session"}
               </button>
             ) : (
               <span className="text-xs text-foreground-soft">
