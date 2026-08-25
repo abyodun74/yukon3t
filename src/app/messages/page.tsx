@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { Plus, Users } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { MarkDelivered } from "@/components/mark-delivered";
-import { cn } from "@/lib/utils";
+import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
 
 export default async function MessagesPage() {
   const me = await getOnboardedUserOrRedirect();
@@ -10,8 +11,14 @@ export default async function MessagesPage() {
   const conversations = await prisma.conversation.findMany({
     where: { members: { some: { userId: me.id } } },
     include: {
-      members: { include: { user: { select: { id: true, name: true } } } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      members: {
+        include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+      },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { content: true, mediaType: true, moderationStatus: true, createdAt: true, senderId: true },
+      },
     },
   });
 
@@ -25,69 +32,64 @@ export default async function MessagesPage() {
     return bTime - aTime;
   });
 
+  const items: InboxItem[] = conversations.map((c) => {
+    const myMembership = c.members.find((m) => m.user.id === me.id);
+    const other = c.members.find((m) => m.user.id !== me.id)?.user;
+    const label = c.isGroup ? (c.name ?? "Group") : (other?.name ?? "Unknown");
+    const last = c.messages[0];
+    const unread = Boolean(
+      last &&
+        last.senderId !== me.id &&
+        (!myMembership?.lastReadAt || last.createdAt > myMembership.lastReadAt),
+    );
+    return {
+      id: c.id,
+      label,
+      isGroup: c.isGroup,
+      avatarUrl: c.isGroup ? null : (other?.avatarUrl ?? null),
+      last: last
+        ? {
+            content: last.content,
+            mediaType: last.mediaType,
+            moderationStatus: last.moderationStatus,
+            createdAt: last.createdAt,
+            mine: last.senderId === me.id,
+            // Only meaningful for groups — a DM's preview never needs to
+            // say who sent it, since the row itself is already that person.
+            senderName: c.members.find((m) => m.user.id === last.senderId)?.user.name ?? null,
+          }
+        : null,
+      unread,
+    };
+  });
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <MarkDelivered />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Messages</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Link
             href="/messages/discover"
-            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+            aria-label="Discover groups"
+            title="Discover groups"
+            className="rounded-full p-2 text-foreground-soft hover:bg-line hover:text-accent"
           >
-            Discover groups
+            <Users size={20} />
           </Link>
           <Link
             href="/messages/new"
-            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+            aria-label="New group"
+            title="New group"
+            className="rounded-full p-2 text-foreground-soft hover:bg-line hover:text-accent"
           >
-            New group
+            <Plus size={20} />
           </Link>
         </div>
       </div>
-      <div className="mt-6 space-y-2">
-        {conversations.map((c) => {
-          const myMembership = c.members.find((m) => m.user.id === me.id);
-          const other = c.members.find((m) => m.user.id !== me.id)?.user;
-          const label = c.isGroup
-            ? (c.name ?? "Group")
-            : (other?.name ?? "Unknown");
-          const last = c.messages[0];
-          const unread = Boolean(
-            last &&
-              last.senderId !== me.id &&
-              (!myMembership?.lastReadAt || last.createdAt > myMembership.lastReadAt),
-          );
-          return (
-            <Link
-              key={c.id}
-              href={`/messages/${c.id}`}
-              className="flex items-center justify-between rounded-xl border border-line p-4 hover:border-accent"
-            >
-              <div className="min-w-0">
-                <p className={cn("break-words font-medium", unread && "font-semibold")}>{label}</p>
-                {last && (
-                  <p
-                    className={cn(
-                      "mt-1 line-clamp-1 text-sm",
-                      unread ? "font-medium text-foreground" : "text-foreground-soft",
-                    )}
-                  >
-                    {last.moderationStatus === "PUBLISHED"
-                      ? last.content
-                      : "Message under review"}
-                  </p>
-                )}
-              </div>
-              {unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />}
-            </Link>
-          );
-        })}
-        {conversations.length === 0 && (
-          <p className="text-sm text-foreground-soft">
-            No conversations yet. Connect with someone from Discover first.
-          </p>
-        )}
+
+      <div className="mt-5">
+        <MessagesInboxList items={items} />
       </div>
     </div>
   );

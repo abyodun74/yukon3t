@@ -22,7 +22,7 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 
 // 2s rather than the old 5s so a thread feels close to real-time without
 // standing up a WebSocket/SSE server — usePolling already pauses while the
@@ -801,6 +801,23 @@ export function ChatThread({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // Message ids that should ease in on this render — tracked separately
+  // from messages.length because a poll can also replace the whole array
+  // (an edit or reaction landing elsewhere in the thread) without actually
+  // adding anything, and that shouldn't replay the entrance animation on
+  // every bubble.
+  const knownMessageIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)));
+  const [justAddedIds, setJustAddedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const prevIds = knownMessageIdsRef.current;
+    const added = messages.filter((m) => !prevIds.has(m.id)).map((m) => m.id);
+    knownMessageIdsRef.current = new Set(messages.map((m) => m.id));
+    if (added.length === 0) return;
+    setJustAddedIds(new Set(added));
+    const timer = setTimeout(() => setJustAddedIds(new Set()), 400);
+    return () => clearTimeout(timer);
+  }, [messages]);
+
   async function uploadPendingMedia(): Promise<
     | { error: string }
     | { mediaType: "NONE" }
@@ -978,7 +995,9 @@ export function ChatThread({
         {messages.map((m, i) => {
           const mine = m.senderId === currentUserId;
           const prev = messages[i - 1];
-          const grouped = Boolean(prev && prev.senderId === m.senderId);
+          const showDateSeparator =
+            !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
+          const grouped = Boolean(prev && prev.senderId === m.senderId && !showDateSeparator);
           const sender = isGroup && !mine && !grouped ? memberById.get(m.senderId) : undefined;
           const seenByNames =
             i === lastMineIndex
@@ -987,22 +1006,35 @@ export function ChatThread({
                   .map((mem) => mem.name)
               : undefined;
           return (
-            <div
-              key={m.id}
-              className={cn("flex", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-3")}
-            >
-              <MessageBubble
-                message={m}
-                mine={mine}
-                currentUserId={currentUserId}
-                sender={sender}
-                seenByNames={seenByNames}
-                onDeleted={handleDeleted}
-                onEdited={handleEdited}
-                onReacted={handleReacted}
-                onCorrected={handleCorrected}
-                onReply={setReplyTarget}
-              />
+            <div key={m.id}>
+              {showDateSeparator && (
+                <div className="my-4 flex items-center justify-center">
+                  <span className="rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-medium text-foreground-soft">
+                    {formatDaySeparator(m.createdAt)}
+                  </span>
+                </div>
+              )}
+              <div
+                className={cn(
+                  "flex",
+                  mine ? "justify-end" : "justify-start",
+                  showDateSeparator ? "mt-1" : grouped ? "mt-0.5" : "mt-3",
+                  justAddedIds.has(m.id) && "animate-message-in",
+                )}
+              >
+                <MessageBubble
+                  message={m}
+                  mine={mine}
+                  currentUserId={currentUserId}
+                  sender={sender}
+                  seenByNames={seenByNames}
+                  onDeleted={handleDeleted}
+                  onEdited={handleEdited}
+                  onReacted={handleReacted}
+                  onCorrected={handleCorrected}
+                  onReply={setReplyTarget}
+                />
+              </div>
             </div>
           );
         })}
