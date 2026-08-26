@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Circle as RecordIcon, Download, Eye, Users } from "lucide-react";
+import { Camera, Check, Circle as RecordIcon, Download, Eye, Users, X } from "lucide-react";
 import type { DailyParticipant } from "@daily-co/daily-js";
 import { useCallSession } from "@/lib/call-session";
 import {
@@ -11,6 +11,10 @@ import {
   endLiveStream,
   getLiveStreamViewerCount,
   getLiveStreamStageUserIds,
+  getLiveStreamStageRequests,
+  respondToStageRequest,
+  cancelStageRequest,
+  getMyLiveStreamStatus,
   listLiveStreamRecordings,
   getLiveStreamRecordingLink,
 } from "@/app/actions/live-streams";
@@ -22,6 +26,11 @@ type ActiveRoom = { roomUrl: string; token: string };
 type StageRole = "GUEST" | "COHOST";
 type Role = "VIEWER" | StageRole;
 type Recording = { id: string; startedAt: number; durationSeconds: number | null };
+type StageRequest = {
+  id: string;
+  role: StageRole;
+  user: { id: string; name: string | null; avatarUrl: string | null };
+};
 
 function joinErrorMessage(code?: string) {
   switch (code) {
@@ -96,7 +105,6 @@ export function LiveStreamRoom({
   const [active, setActive] = useState<ActiveRoom | null>(null);
   const [role, setRole] = useState<Role>("VIEWER");
   const [error, setError] = useState<string | null>(initiallyEnded ? "not_found" : null);
-  const [chooserError, setChooserError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
   const [stageCount, setStageCount] = useState(0);
   const [stageCapacity, setStageCapacity] = useState(3);
@@ -105,9 +113,22 @@ export function LiveStreamRoom({
   const [showRecordings, setShowRecordings] = useState(false);
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
   const [screenshotBusy, setScreenshotBusy] = useState(false);
+  // Non-null while this participant has asked for a stage slot and the host
+  // hasn't decided yet — drives the "waiting for approval" banner below.
+  const [pendingStageRole, setPendingStageRole] = useState<StageRole | null>(null);
+  const [cancellingRequest, setCancellingRequest] = useState(false);
+  // Shown once, right at the moment a pending request flips to DECLINED (see
+  // the PENDING→DECLINED transition check in poll below) — not derived
+  // straight from server state, since that would keep re-showing it forever
+  // on every subsequent poll tick.
+  const [declinedNotice, setDeclinedNotice] = useState(false);
+  // Host-only: who's currently asking for a stage slot.
+  const [stageRequests, setStageRequests] = useState<StageRequest[]>([]);
+  const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
+  const lastRequestStatusRef = useRef<"PENDING" | "APPROVED" | "DECLINED" | null>(null);
 
   // Split from doJoin below: this only fires the request and reacts to its
   // result inside the .then() callback, so the effect that calls it (for the
@@ -117,17 +138,14 @@ export function LiveStreamRoom({
   const requestJoin = useCallback(
     (selectedRole?: StageRole) => {
       joinLiveStream(liveStreamId, selectedRole).then((result) => {
-        if (result.error === "stage_full") {
-          setChooserError("That stage just filled up — try watching instead.");
-          setPhase("choosing");
-          return;
-        }
         if (result.error || !result.roomUrl || !result.token) {
           setError(result.error ?? "unknown");
           setPhase("error");
           return;
         }
         setRole(result.role ?? "VIEWER");
+        setPendingStageRole(result.pendingStageRequest ?? null);
+        setDeclinedNotice(false);
         setActive({ roomUrl: result.roomUrl, token: result.token });
         setPhase("active");
       });
@@ -136,7 +154,6 @@ export function LiveStreamRoom({
   );
 
   function doJoin(selectedRole?: StageRole) {
-    setChooserError(null);
     setPhase("joining");
     requestJoin(selectedRole);
   }
@@ -146,6 +163,31 @@ export function LiveStreamRoom({
     requestJoin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveStreamId, initiallyEnded, isHost]);
+
+  function doCancelRequest() {
+    if (cancellingRequest) return;
+    setCancellingRequest(true);
+    cancelStageRequest(liveStreamId).then(() => {
+      setCancellingRequest(false);
+      setPendingStageRole(null);
+      lastRequestStatusRef.current = null;
+    });
+  }
+
+  function respondToRequest(requestId: string, approve: boolean) {
+    if (respondingRequestId) return;
+    setRespondingRequestId(requestId);
+    respondToStageRequest(requestId, approve).then((result) => {
+      setRespondingRequestId(null);
+      // Drop it from the list optimistically either way — a "stage_full"
+      // rejection on approve still means this particular request is done
+      // (declined by capacity), and the next poll tick will re-add it if
+      // that assumption was somehow wrong.
+      if (!result.error || result.error === "stage_full") {
+        setStageRequests((prev) => prev.filter((r) => r.id !== requestId));
+      }
+    });
+  }
 
   const poll = useCallback(async () => {
     const [{ count, stageCount: sc, stageCapacity: cap }, { recordings: recs }] = await Promise.all([
@@ -158,8 +200,25 @@ export function LiveStreamRoom({
     setRecordings(recs);
 
     if (isHost) {
-      const { userIds } = await getLiveStreamStageUserIds(liveStreamId);
+      const [{ userIds }, { requests }] = await Promise.all([
+        getLiveStreamStageUserIds(liveStreamId),
+        getLiveStreamStageRequests(liveStreamId),
+      ]);
       stageUserIdsRef.current = new Set(userIds);
+      setStageRequests(requests);
+    } else {
+      const status = await getMyLiveStreamStatus(liveStreamId);
+      setRole(status.role);
+      const prevStatus = lastRequestStatusRef.current;
+      lastRequestStatusRef.current = status.requestStatus;
+      if (status.requestStatus === "PENDING") {
+        setPendingStageRole(status.requestedRole);
+      } else {
+        setPendingStageRole(null);
+        if (status.requestStatus === "DECLINED" && prevStatus === "PENDING") {
+          setDeclinedNotice(true);
+        }
+      }
     }
   }, [liveStreamId, isHost]);
 
@@ -338,22 +397,24 @@ export function LiveStreamRoom({
           </button>
           <button
             type="button"
-            disabled={stageFull}
             onClick={() => doJoin("GUEST")}
-            className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Join as guest
+            Ask to join as guest
           </button>
           <button
             type="button"
-            disabled={stageFull}
             onClick={() => doJoin("COHOST")}
-            className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Join as co-host
+            Ask to join as co-host
           </button>
         </div>
-        {chooserError && <p className="mt-3 text-xs text-danger">{chooserError}</p>}
+        <p className="mt-3 text-[11px] text-foreground-soft">
+          {stageFull
+            ? "The stage is full right now, but you can still ask — a spot may open up."
+            : "The host approves guest/co-host requests before you go live on stage."}
+        </p>
       </div>
     );
   }
@@ -423,7 +484,77 @@ export function LiveStreamRoom({
         {showRecordings && recordings.length > 0 && (
           <div className="w-64 rounded-lg bg-black/80 p-3 text-white">{renderRecordingsPanel("dark")}</div>
         )}
+        {isHost && stageRequests.length > 0 && (
+          <div className="w-64 rounded-lg bg-black/80 p-3 text-white">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+              Waiting to join the stage
+            </p>
+            <ul className="mt-1.5 space-y-2">
+              {stageRequests.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 truncate">
+                    {r.user.name ?? "Someone"}
+                    <span className="text-white/60"> · {r.role === "COHOST" ? "co-host" : "guest"}</span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={respondingRequestId === r.id}
+                      onClick={() => respondToRequest(r.id, true)}
+                      title="Approve"
+                      aria-label={`Approve ${r.user.name ?? "this request"}`}
+                      className="rounded-full bg-accent p-1 text-accent-ink disabled:opacity-50"
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={respondingRequestId === r.id}
+                      onClick={() => respondToRequest(r.id, false)}
+                      title="Decline"
+                      aria-label={`Decline ${r.user.name ?? "this request"}`}
+                      className="rounded-full border border-white/30 p-1 text-white disabled:opacity-50"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+
+      {!isHost && pendingStageRole && (
+        <div className="fixed inset-x-0 top-14 z-[70] flex justify-center px-3">
+          <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+            <span>Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…</span>
+            <button
+              type="button"
+              disabled={cancellingRequest}
+              onClick={doCancelRequest}
+              className="shrink-0 font-semibold text-white/80 underline disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {!isHost && !pendingStageRole && declinedNotice && (
+        <div className="fixed inset-x-0 top-14 z-[70] flex justify-center px-3">
+          <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+            <span>The host declined your stage request.</span>
+            <button
+              type="button"
+              onClick={() => setDeclinedNotice(false)}
+              aria-label="Dismiss"
+              className="shrink-0 text-white/80"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

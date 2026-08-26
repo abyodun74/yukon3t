@@ -990,7 +990,7 @@ export function ChatThread({
   const lastMineIndex = isGroup ? messages.findLastIndex((m) => m.senderId === currentUserId) : -1;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="flex h-[calc(100dvh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
         {messages.map((m, i) => {
           const mine = m.senderId === currentUserId;
@@ -1097,7 +1097,7 @@ export function ChatThread({
         </div>
       )}
 
-      <div className="mt-3 flex items-end gap-2 rounded-xl border border-line p-2">
+      <div className="mt-3 flex shrink-0 items-end gap-2 rounded-xl border border-line bg-background p-2">
         <input
           ref={imageInputRef}
           type="file"

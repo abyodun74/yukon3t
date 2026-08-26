@@ -15,7 +15,7 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3

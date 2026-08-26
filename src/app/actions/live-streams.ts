@@ -115,16 +115,22 @@ export async function endLiveStream(liveStreamId: string) {
  * Mints a meeting token for the room. Plain viewers get a view-only token —
  * owner_only_broadcast on the room (see createLiveStreamRoom) is what
  * actually keeps them from unmuting camera/mic. A caller can instead request
- * `role: "GUEST"` or `"COHOST"` to take one of MAX_STAGE_PARTICIPANTS stage
- * slots alongside the host — their LiveStreamViewer row records the role,
- * and the host's client (see live-stream-room.tsx + getLiveStreamStageUserIds
- * below) polls for who's on stage and grants them camera/mic access via
- * call.updateParticipant() once they join the Daily room. That grant can only
- * come from the actual room owner acting live — Daily's meeting-tokens API
- * has no per-participant permissions override a joiner's own token can carry
- * (its `permissions` property is rejected outright by their API), so nothing
- * here can encode the role directly into the token itself. The host's own
- * join (isHost) always ignores the requested role — they're identified by
+ * `role: "GUEST"` or `"COHOST"` to ask for one of MAX_STAGE_PARTICIPANTS
+ * stage slots alongside the host — as of the stage-request workflow below,
+ * that request no longer grants the role immediately: it creates a PENDING
+ * LiveStreamStageRequest and the caller still joins as a plain VIEWER,
+ * watching, until the host explicitly approves it via respondToStageRequest.
+ * Once approved (or immediately, for someone re-joining who was already
+ * GUEST/COHOST from an earlier approval on this same stream), their
+ * LiveStreamViewer row records the role, and the host's client (see
+ * live-stream-room.tsx + getLiveStreamStageUserIds below) polls for who's on
+ * stage and grants them camera/mic access via call.updateParticipant() once
+ * they're in the Daily room. That grant can only come from the actual room
+ * owner acting live — Daily's meeting-tokens API has no per-participant
+ * permissions override a joiner's own token can carry (its `permissions`
+ * property is rejected outright by their API), so nothing here can encode
+ * the role directly into the token itself. The host's own join (isHost)
+ * always ignores the requested role — they're identified by
  * LiveStream.hostId, not by their LiveStreamViewer row, and are excluded
  * from both the viewer and stage tallies below.
  */
@@ -155,21 +161,40 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
 
   const isHost = liveStream.hostId === user.id;
   let role: "VIEWER" | "GUEST" | "COHOST" = "VIEWER";
+  // Non-null only when this call just filed (or re-filed) a pending
+  // request rather than landing directly on stage — the client uses this to
+  // show a "waiting for the host" state instead of full stage controls.
+  let pendingStageRequest: "GUEST" | "COHOST" | null = null;
 
   if (!isHost && parsedRole.data) {
-    const [stageCount, existing] = await Promise.all([
-      prisma.liveStreamViewer.count({
-        where: { liveStreamId, role: { in: ["GUEST", "COHOST"] }, userId: { not: liveStream.hostId } },
-      }),
-      prisma.liveStreamViewer.findUnique({
+    const existing = await prisma.liveStreamViewer.findUnique({
+      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+    });
+    // Only skip the approval flow when their existing role already covers
+    // what they're asking for now — COHOST covers any request (it's the
+    // higher tier: it also carries GUEST's canSend grant, plus recording),
+    // and an exact role match is obviously already covered. A GUEST asking
+    // to become COHOST is a real privilege escalation (recording access —
+    // see canRecord in live-stream-room.tsx) and must still go through a
+    // fresh approval below, not be silently satisfied by their old GUEST
+    // role.
+    const alreadyOnStage = existing?.role === "COHOST" || existing?.role === parsedRole.data;
+    if (alreadyOnStage) {
+      // Already approved earlier on this same stream (e.g. a reconnect
+      // after a dropped connection, or asking again for the same role) —
+      // rejoin straight onto the stage rather than making them ask again.
+      role = existing!.role;
+    } else {
+      // Capacity is checked at approval time (respondToStageRequest), not
+      // here — a request is allowed to sit pending even while the stage is
+      // momentarily full, in case a slot opens up.
+      await prisma.liveStreamStageRequest.upsert({
         where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
-      }),
-    ]);
-    const alreadyOnStage = existing?.role === "GUEST" || existing?.role === "COHOST";
-    if (!alreadyOnStage && stageCount >= MAX_STAGE_PARTICIPANTS) {
-      return { error: "stage_full" as const };
+        create: { liveStreamId, userId: user.id, role: parsedRole.data, status: "PENDING" },
+        update: { role: parsedRole.data, status: "PENDING", respondedAt: null },
+      });
+      pendingStageRequest = parsedRole.data;
     }
-    role = parsedRole.data;
   }
 
   let token: string;
@@ -190,7 +215,123 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
     update: { joinedAt: new Date(), role: isHost ? "COHOST" : role },
   });
 
-  return { error: null, roomUrl: liveStream.roomUrl, token, role };
+  return { error: null, roomUrl: liveStream.roomUrl, token, role, pendingStageRequest };
+}
+
+/**
+ * Host-only: pending GUEST/COHOST requests waiting on a decision, oldest
+ * first (so the host works through them in the order they came in). Polled
+ * by live-stream-room.tsx alongside getLiveStreamStageUserIds.
+ */
+export async function getLiveStreamStageRequests(liveStreamId: string) {
+  const user = await requireVerifiedUser();
+
+  const liveStream = await prisma.liveStream.findUnique({
+    where: { id: liveStreamId },
+    select: { hostId: true },
+  });
+  if (!liveStream || liveStream.hostId !== user.id) {
+    return { requests: [] };
+  }
+
+  const requests = await prisma.liveStreamStageRequest.findMany({
+    where: { liveStreamId, status: "PENDING" },
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+  });
+
+  return {
+    requests: requests.map((r) => ({ id: r.id, role: r.role as "GUEST" | "COHOST", user: r.user })),
+  };
+}
+
+/**
+ * Host-only: approves or declines a pending stage request. Approving is what
+ * actually turns it into a LiveStreamViewer role change — respondToStageRequest
+ * is the only place that happens for a non-host outside of the
+ * already-on-stage reconnect shortcut in joinLiveStream above. Capacity
+ * (MAX_STAGE_PARTICIPANTS) is enforced here, not at request time, since a
+ * request can sit pending through a momentarily full stage.
+ */
+export async function respondToStageRequest(requestId: string, approve: boolean) {
+  const user = await requireVerifiedUser();
+
+  const request = await prisma.liveStreamStageRequest.findUnique({
+    where: { id: requestId },
+    include: { liveStream: { select: { hostId: true } } },
+  });
+  if (!request) {
+    return { error: "not_found" as const };
+  }
+  if (request.liveStream.hostId !== user.id) {
+    return { error: "forbidden" as const };
+  }
+  // Already handled (e.g. a double-click, or the requester cancelled in the
+  // meantime) — idempotent no-op rather than an error.
+  if (request.status !== "PENDING") {
+    return { error: null };
+  }
+
+  if (approve) {
+    const stageCount = await prisma.liveStreamViewer.count({
+      where: {
+        liveStreamId: request.liveStreamId,
+        role: { in: ["GUEST", "COHOST"] },
+        userId: { not: request.liveStream.hostId },
+      },
+    });
+    if (stageCount >= MAX_STAGE_PARTICIPANTS) {
+      return { error: "stage_full" as const };
+    }
+
+    await prisma.liveStreamViewer.upsert({
+      where: { liveStreamId_userId: { liveStreamId: request.liveStreamId, userId: request.userId } },
+      create: { liveStreamId: request.liveStreamId, userId: request.userId, role: request.role },
+      update: { role: request.role },
+    });
+  }
+
+  await prisma.liveStreamStageRequest.update({
+    where: { id: requestId },
+    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+  });
+
+  return { error: null };
+}
+
+/** Requester-only: withdraws their own still-pending stage request, so they can go back to just watching without waiting on a host decision. */
+export async function cancelStageRequest(liveStreamId: string) {
+  const user = await requireVerifiedUser();
+  await prisma.liveStreamStageRequest.deleteMany({
+    where: { liveStreamId, userId: user.id, status: "PENDING" },
+  });
+  return { error: null };
+}
+
+/**
+ * Polled by a requester's own client while a stage request is outstanding,
+ * to detect the host's decision (or an in-progress rejoin's already-on-stage
+ * role) without forcing a full rejoin of the room.
+ */
+export async function getMyLiveStreamStatus(liveStreamId: string) {
+  const user = await requireVerifiedUser();
+
+  const [request, viewer] = await Promise.all([
+    prisma.liveStreamStageRequest.findUnique({
+      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+      select: { status: true, role: true },
+    }),
+    prisma.liveStreamViewer.findUnique({
+      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+      select: { role: true },
+    }),
+  ]);
+
+  return {
+    role: (viewer?.role ?? "VIEWER") as "VIEWER" | "GUEST" | "COHOST",
+    requestStatus: request?.status ?? null,
+    requestedRole: (request?.role ?? null) as "GUEST" | "COHOST" | null,
+  };
 }
 
 export async function leaveLiveStream(liveStreamId: string) {

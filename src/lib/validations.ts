@@ -188,7 +188,7 @@ export const postSchema = z
     intentTag: z.enum(intentTagValues).optional(),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
     mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK"]).optional().default("NONE"),
-    mediaUrls: z.array(z.string().url()).max(4).optional().default([]),
+    mediaUrls: z.array(z.string().url()).max(10).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
     // Raw pasted link — for mediaType EMBED, server-side input to

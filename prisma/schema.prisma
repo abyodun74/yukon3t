@@ -225,8 +225,9 @@ model User {
   sentCollabInvites           CollabInvite[]             @relation("CollabInviter")
   receivedCollabInvites       CollabInvite[]             @relation("CollabInvitee")
 
-  liveStreamsHosted   LiveStream[]
-  liveStreamsWatching LiveStreamViewer[]
+  liveStreamsHosted       LiveStream[]
+  liveStreamsWatching     LiveStreamViewer[]
+  liveStreamStageRequests LiveStreamStageRequest[]
 
   stories        Story[]
   storyViews     StoryView[]
@@ -921,9 +922,10 @@ model LiveStream {
   startedAt DateTime         @default(now())
   endedAt   DateTime?
 
-  host          User               @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  circle        Circle?            @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  host          User                     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  circle        Circle?                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
   viewers       LiveStreamViewer[]
+  stageRequests LiveStreamStageRequest[]
   notifications Notification[]
 
   @@index([status])
@@ -950,6 +952,33 @@ model LiveStreamViewer {
 
   @@unique([liveStreamId, userId])
   @@index([liveStreamId])
+}
+
+/**
+ * A pending ask to move from plain VIEWER onto the stage as GUEST/COHOST —
+ * mirrors GroupJoinRequest/CollabJoinRequest's PENDING/APPROVED/DECLINED
+ * shape. joinLiveStream creates one of these instead of granting the stage
+ * role outright; only respondToStageRequest (host-only) turns an APPROVED
+ * request into an actual LiveStreamViewer role change (and, from there, the
+ * existing canSend grant in live-stream-room.tsx picks it up on its next
+ * poll). Kept separate from LiveStreamViewer rather than adding a "pending"
+ * role there, so presence (who's in the room) and the approval workflow
+ * (who asked to be on stage) don't get tangled into one enum.
+ */
+model LiveStreamStageRequest {
+  id           String            @id @default(cuid())
+  liveStreamId String
+  userId       String
+  role         LiveStreamRole
+  status       JoinRequestStatus @default(PENDING)
+  createdAt    DateTime          @default(now())
+  respondedAt  DateTime?
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([liveStreamId, userId])
+  @@index([liveStreamId, status])
 }
 
 enum StoryMediaType {

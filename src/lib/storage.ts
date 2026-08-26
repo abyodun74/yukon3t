@@ -82,7 +82,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "ad-video",
 ]);
 
-export const MAX_POST_IMAGES = 4;
+export const MAX_POST_IMAGES = 10;
 // Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS/MAX_RECORD_VIDEO_SECONDS
 // (both 60s) — bounded by Hive's Visual Moderation API's own video length
 // limit (src/lib/hive.ts), not an upload/memory constraint.
