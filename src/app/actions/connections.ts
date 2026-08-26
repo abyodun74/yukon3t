@@ -141,3 +141,102 @@ export async function respondToConnection(connectionId: string, accept: boolean)
   revalidatePath("/connections");
   return { error: null };
 }
+
+/**
+ * Starts a DM with someone the caller isn't connected to yet — Instagram/
+ * Messenger's "message request" pattern. Reuses the Connection model as the
+ * backing "do you want to talk to this person" state (rather than adding a
+ * parallel request concept) so the rest of the app — posts visibility,
+ * the /connections list, notifications — already understands it; the
+ * recipient sees the normal "wants to connect" affordance, just triggered
+ * by a message instead of an explicit Connect tap. The conversation itself
+ * is created immediately (unlike the normal Connect flow, where it's only
+ * created on accept in respondToConnection) so the message has somewhere
+ * to land while the connection is still pending.
+ */
+export async function startDirectMessage(targetId: string) {
+  const user = await requireVerifiedUser();
+
+  if (targetId === user.id) {
+    return { error: "invalid" as const };
+  }
+
+  const allowed = await checkRateLimit("connectionRequest", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!target || target.status !== "ACTIVE") {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, targetId)) {
+    return { error: "not_found" as const };
+  }
+
+  // Already talking — the existing thread is the answer regardless of
+  // connection status (e.g. a still-pending request from a previous call
+  // to this same action).
+  const existingConversation = await prisma.conversation.findFirst({
+    where: {
+      isGroup: false,
+      AND: [{ members: { some: { userId: user.id } } }, { members: { some: { userId: targetId } } }],
+    },
+    select: { id: true },
+  });
+  if (existingConversation) {
+    return { error: null, conversationId: existingConversation.id };
+  }
+
+  const existingConnection = await prisma.connection.findFirst({
+    where: {
+      OR: [
+        { requesterId: user.id, targetId },
+        { requesterId: targetId, targetId: user.id },
+      ],
+    },
+  });
+
+  if (!existingConnection) {
+    const intentTag = target.openToIntents[0] ?? "FRIENDSHIP";
+    const connection = await prisma.connection.create({
+      data: { requesterId: user.id, targetId, intentTag },
+    });
+    await prisma.notification.create({
+      data: {
+        recipientId: targetId,
+        actorId: user.id,
+        type: "CONNECTION_REQUEST",
+        connectionId: connection.id,
+      },
+    });
+  } else if (existingConnection.status === "DECLINED") {
+    // A previously-declined request shouldn't stay declined forever just
+    // because someone reconsiders and messages instead — re-open it as a
+    // fresh pending request from whoever is messaging now.
+    await prisma.connection.update({
+      where: { id: existingConnection.id },
+      data: { requesterId: user.id, targetId, status: "PENDING", respondedAt: null },
+    });
+    await prisma.notification.create({
+      data: {
+        recipientId: targetId,
+        actorId: user.id,
+        type: "CONNECTION_REQUEST",
+        connectionId: existingConnection.id,
+      },
+    });
+  }
+  // PENDING or ACCEPTED: left as-is — either already awaiting a response,
+  // or (this shouldn't normally happen, since an accepted connection
+  // already gets a conversation in respondToConnection) already mutual.
+
+  const conversation = await prisma.conversation.create({
+    data: { members: { create: [{ userId: user.id }, { userId: targetId }] } },
+  });
+  await track("CONNECTION_REQUESTED", user.id, { targetId, via: "message" });
+
+  revalidatePath(`/messages/${conversation.id}`);
+  revalidatePath("/connections");
+  return { error: null, conversationId: conversation.id };
+}

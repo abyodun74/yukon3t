@@ -2,10 +2,48 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { requestConnection } from "@/app/actions/connections";
+import { useRouter } from "next/navigation";
+import { requestConnection, startDirectMessage } from "@/app/actions/connections";
 import { intentLabels } from "@/lib/validations";
 
 type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
+
+/**
+ * Starts (or jumps straight to) a DM with someone the caller isn't
+ * connected to yet — a "message request", not a full Connect flow. Shown
+ * alongside Connect in every non-accepted state so messaging never has to
+ * wait on an accepted connection; the recipient gets the usual "wants to
+ * connect" prompt inside the conversation itself (see ChatThread).
+ */
+function MessageRequestButton({ targetId }: { targetId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState(false);
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          setError(false);
+          startTransition(async () => {
+            const result = await startDirectMessage(targetId);
+            if (result.error || !result.conversationId) {
+              setError(true);
+              return;
+            }
+            router.push(`/messages/${result.conversationId}`);
+          });
+        }}
+        className="rounded-md border border-line px-3 py-1 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        Message
+      </button>
+      {error && <span className="text-xs text-danger">Couldn&apos;t start that chat</span>}
+    </div>
+  );
+}
 
 export function ConnectButton({
   targetId,
@@ -39,19 +77,32 @@ export function ConnectButton({
   }
 
   if (status === "PENDING" && isRequester) {
-    return <p className="text-xs text-foreground-soft">Request sent</p>;
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-xs text-foreground-soft">Request sent</p>
+        <MessageRequestButton targetId={targetId} />
+      </div>
+    );
   }
 
   if (status === "PENDING" && !isRequester) {
     return (
-      <Link href="/connections" className="text-xs font-medium text-accent hover:underline">
-        Wants to connect — respond in Connections
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href="/connections" className="text-xs font-medium text-accent hover:underline">
+          Wants to connect — respond in Connections
+        </Link>
+        <MessageRequestButton targetId={targetId} />
+      </div>
     );
   }
 
   if (localStatus === "sent") {
-    return <p className="text-xs text-success">Request sent</p>;
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-xs text-success">Request sent</p>
+        <MessageRequestButton targetId={targetId} />
+      </div>
+    );
   }
 
   return (
@@ -83,9 +134,8 @@ export function ConnectButton({
       >
         Connect
       </button>
-      {localStatus === "error" && (
-        <span className="text-xs text-danger">Failed</span>
-      )}
+      {localStatus === "error" && <span className="text-xs text-danger">Failed</span>}
+      <MessageRequestButton targetId={targetId} />
     </div>
   );
 }

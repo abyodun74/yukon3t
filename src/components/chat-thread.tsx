@@ -1042,7 +1042,7 @@ export function ChatThread({
           <p className="text-sm text-foreground-soft">
             {isGroup
               ? "Say hello to the group!"
-              : "Say hello — remember, you can only DM after both of you accepted the connection request."}
+              : "Say hello — if you're not connected yet, this doubles as a connection request."}
           </p>
         )}
         <div ref={bottomRef} />

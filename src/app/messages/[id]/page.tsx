@@ -12,6 +12,7 @@ import { LeaveGroupButton } from "@/components/leave-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
 import { UserLink } from "@/components/user-link";
+import { ConnectionRequestBanner } from "@/components/connection-request-banner";
 
 export default async function ConversationPage({
   params,
@@ -76,6 +77,25 @@ export default async function ConversationPage({
     avatarUrl: m.user.avatarUrl,
     lastReadAt: m.lastReadAt,
   }));
+
+  // DMs opened via startDirectMessage (actions/connections.ts) exist before
+  // either side has accepted a connection — surface that as a prompt right
+  // in the thread (see ConnectionRequestBanner) rather than only on
+  // /connections, since that's where the recipient is actually looking
+  // when they open the message that got them here.
+  const pendingConnection =
+    !conversation.isGroup && other
+      ? await prisma.connection.findFirst({
+          where: {
+            status: "PENDING",
+            OR: [
+              { requesterId: me.id, targetId: other.id },
+              { requesterId: other.id, targetId: me.id },
+            ],
+          },
+          select: { id: true, requesterId: true },
+        })
+      : null;
 
   const pendingRequests =
     conversation.isGroup && conversation.createdById === me.id
@@ -190,6 +210,15 @@ export default async function ConversationPage({
         <div className="mt-4">
           <JoinRequestList
             requests={pendingRequests.map((r) => ({ id: r.id, name: r.user.name ?? "Unknown" }))}
+          />
+        </div>
+      )}
+      {pendingConnection && other && (
+        <div className="mt-4">
+          <ConnectionRequestBanner
+            connectionId={pendingConnection.id}
+            otherName={other.name ?? "them"}
+            iAmRequester={pendingConnection.requesterId === me.id}
           />
         </div>
       )}

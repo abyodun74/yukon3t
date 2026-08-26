@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { DailyCall, DailyEventObjectCustomButtonClick } from "@daily-co/daily-js";
+import type {
+  DailyCall,
+  DailyCustomTrayButtons,
+  DailyEventObjectAvailableDevicesUpdated,
+  DailyEventObjectCustomButtonClick,
+  DailyMediaDeviceInfo,
+} from "@daily-co/daily-js";
 
 const SCREEN_SHARE_BUTTON_ID = "screenshare";
+const AUDIO_OUTPUT_BUTTON_ID = "audiooutput";
 
 // Inline data URI, not a hosted asset — daily-js's customTrayButtons API
 // wants a real iconPath URL, and this is a static monitor glyph with no
@@ -14,6 +21,19 @@ const SCREEN_SHARE_ICON =
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
   );
+const SPEAKER_ICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 9 8 9 13 4 13 20 8 15 3 15 3 9"/><path d="M17 7a6 6 0 0 1 0 10"/><path d="M20 4a10 10 0 0 1 0 16"/></svg>',
+  );
+
+/** Loud-speaker-ish label — the deviceId "default" is common across
+ *  platforms, but the actual output name is the only reliable signal for
+ *  which entry is the phone's own loudspeaker (vs. earpiece/Bluetooth/wired
+ *  headset), since deviceIds and ordering otherwise vary by browser. */
+function isSpeakerDevice(device: MediaDeviceInfo) {
+  return /speaker/i.test(device.label);
+}
 
 /**
  * Embeds Daily's own prebuilt call UI (mute/camera/hang-up controls already
@@ -54,6 +74,7 @@ export function CallFrame({
     let handleRecordingStopped: (() => void) | null = null;
     let handleCustomButtonClick: ((ev: DailyEventObjectCustomButtonClick) => void) | null = null;
     let syncScreenShareButton: (() => void) | null = null;
+    let handleAvailableDevicesUpdated: ((ev: DailyEventObjectAvailableDevicesUpdated) => void) | null = null;
 
     // Dynamic import, not a static one: this package touches browser globals
     // at module load, so it must never be evaluated during SSR of this
@@ -61,18 +82,24 @@ export function CallFrame({
     import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
       if (cancelled || !containerRef.current) return;
 
+      // Mutated in place and always pushed as a whole via
+      // updateCustomTrayButtons — Daily removes any button whose key is
+      // missing from a given update call, so the screen-share and audio
+      // -output buttons must always be sent together or one wipes the other.
+      const trayButtons: DailyCustomTrayButtons = {
+        [SCREEN_SHARE_BUTTON_ID]: {
+          iconPath: SCREEN_SHARE_ICON,
+          label: "Share screen",
+          tooltip: "Share your screen",
+        },
+      };
+
       const call = DailyIframe.createFrame(containerRef.current, {
         showLeaveButton: true,
         showFullscreenButton: true,
         iframeStyle: { width: "100%", height: "100%", border: "0" },
         ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
-        customTrayButtons: {
-          [SCREEN_SHARE_BUTTON_ID]: {
-            iconPath: SCREEN_SHARE_ICON,
-            label: "Share screen",
-            tooltip: "Share your screen",
-          },
-        },
+        customTrayButtons: trayButtons,
       });
       callRef.current = call;
 
@@ -87,21 +114,62 @@ export function CallFrame({
       // customTrayButtons has no built-in toggle/pressed concept.
       syncScreenShareButton = () => {
         const sharing = Boolean(call.participants().local?.screen);
-        call.updateCustomTrayButtons({
-          [SCREEN_SHARE_BUTTON_ID]: {
-            iconPath: SCREEN_SHARE_ICON,
-            label: sharing ? "Stop sharing" : "Share screen",
-            tooltip: sharing ? "Stop sharing your screen" : "Share your screen",
-            visualState: sharing ? "active" : "default",
-          },
-        });
+        trayButtons[SCREEN_SHARE_BUTTON_ID] = {
+          iconPath: SCREEN_SHARE_ICON,
+          label: sharing ? "Stop sharing" : "Share screen",
+          tooltip: sharing ? "Stop sharing your screen" : "Share your screen",
+          visualState: sharing ? "active" : "default",
+        };
+        call.updateCustomTrayButtons({ ...trayButtons });
       };
-      handleCustomButtonClick = (ev) => {
-        if (ev.button_id !== SCREEN_SHARE_BUTTON_ID) return;
-        if (call.participants().local?.screen) {
-          call.stopScreenShare();
+
+      // Audio output (speaker) selection. Only added to the tray once more
+      // than one output device is known — most desktop browsers report
+      // exactly one until a headset is plugged in, and a single-option
+      // "switch" button would just be a dead click. Phones typically report
+      // at least the earpiece/receiver plus "Speakerphone", so this is where
+      // the button actually shows up in practice.
+      let outputDevices: DailyMediaDeviceInfo[] = [];
+      let outputIndex = 0;
+      const syncOutputButton = () => {
+        if (outputDevices.length > 1) {
+          const current = outputDevices[outputIndex];
+          const onSpeaker = Boolean(current && isSpeakerDevice(current));
+          trayButtons[AUDIO_OUTPUT_BUTTON_ID] = {
+            iconPath: SPEAKER_ICON,
+            label: onSpeaker ? "Speaker" : (current?.label || "Audio output").slice(0, 24),
+            tooltip: "Switch audio output (speaker, earpiece, headset...)",
+            visualState: onSpeaker ? "active" : "default",
+          };
         } else {
-          call.startScreenShare();
+          delete trayButtons[AUDIO_OUTPUT_BUTTON_ID];
+        }
+        call.updateCustomTrayButtons({ ...trayButtons });
+      };
+      const applyOutputDevices = (devices: DailyMediaDeviceInfo[]) => {
+        outputDevices = devices.filter((d) => d.kind === "audiooutput");
+        if (outputIndex >= outputDevices.length) outputIndex = 0;
+        syncOutputButton();
+      };
+      handleAvailableDevicesUpdated = (ev) => applyOutputDevices(ev.availableDevices as DailyMediaDeviceInfo[]);
+      call.on("available-devices-updated", handleAvailableDevicesUpdated);
+      // The event above only fires on a subsequent change — this covers the
+      // devices already available the moment the call starts.
+      call.enumerateDevices().then(({ devices }) => applyOutputDevices(devices));
+
+      handleCustomButtonClick = (ev) => {
+        if (ev.button_id === SCREEN_SHARE_BUTTON_ID) {
+          if (call.participants().local?.screen) {
+            call.stopScreenShare();
+          } else {
+            call.startScreenShare();
+          }
+          return;
+        }
+        if (ev.button_id === AUDIO_OUTPUT_BUTTON_ID) {
+          if (outputDevices.length === 0) return;
+          outputIndex = (outputIndex + 1) % outputDevices.length;
+          call.setOutputDeviceAsync({ outputDeviceId: outputDevices[outputIndex].deviceId }).then(syncOutputButton);
         }
       };
       call.on("custom-button-click", handleCustomButtonClick);
@@ -124,6 +192,7 @@ export function CallFrame({
           call.off("local-screen-share-started", syncScreenShareButton);
           call.off("local-screen-share-stopped", syncScreenShareButton);
         }
+        if (handleAvailableDevicesUpdated) call.off("available-devices-updated", handleAvailableDevicesUpdated);
         onCallObject?.(null);
         call.destroy();
         callRef.current = null;

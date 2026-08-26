@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { StoryUploadModal } from "@/components/story-upload-modal";
+import { Lightbox } from "@/components/lightbox";
 
 /**
  * Wraps a profile's avatar with an Instagram-style story ring (only shown
@@ -28,6 +29,7 @@ export function ProfileStoryRing({
 }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const hasStories = stories.length > 0;
 
   return (
@@ -35,9 +37,12 @@ export function ProfileStoryRing({
       <div className="relative h-16 w-16 shrink-0">
         <button
           type="button"
-          disabled={!hasStories}
-          onClick={() => setViewerOpen(true)}
-          aria-label={hasStories ? "View story" : undefined}
+          disabled={!hasStories && !avatarUrl}
+          // Stories take priority when present (they're the time-sensitive
+          // content); otherwise tapping the photo just enlarges it for a
+          // clearer look, rather than being a dead tap like before.
+          onClick={() => (hasStories ? setViewerOpen(true) : setPhotoOpen(true))}
+          aria-label={hasStories ? "View story" : avatarUrl ? "Enlarge profile photo" : undefined}
           className={cn(
             "h-16 w-16 overflow-hidden rounded-full border bg-surface",
             hasStories ? "border-2 border-accent" : "border border-line",
@@ -77,6 +82,10 @@ export function ProfileStoryRing({
       )}
 
       {uploadOpen && <StoryUploadModal onClose={() => setUploadOpen(false)} />}
+
+      {photoOpen && avatarUrl && (
+        <Lightbox images={[avatarUrl]} index={0} onIndexChange={() => {}} onClose={() => setPhotoOpen(false)} />
+      )}
     </>
   );
 }

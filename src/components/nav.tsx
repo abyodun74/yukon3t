@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Home, Users, Handshake, MessageCircle, Search } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, MessageCircle, Search, UserPlus } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
@@ -240,6 +240,14 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             {session?.user ? (
               <>
                 <Link
+                  href="/invite"
+                  aria-label="Invite friends"
+                  title="Invite friends"
+                  className="hidden rounded-full p-1.5 text-foreground-soft hover:bg-line hover:text-accent sm:block"
+                >
+                  <UserPlus size={20} />
+                </Link>
+                <Link
                   href="/faq"
                   className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                 >
@@ -346,6 +354,16 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     {pendingConnections > 9 ? "9+" : pendingConnections}
                   </span>
                 )}
+              </Link>
+              <Link
+                href="/invite"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "rounded-lg px-3 py-2 hover:bg-line",
+                  pathname === "/invite" ? "text-accent" : "text-foreground-soft",
+                )}
+              >
+                Invite friends
               </Link>
               <div className="my-2 border-t border-line" />
               <Link
