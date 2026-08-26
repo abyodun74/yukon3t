@@ -75,6 +75,7 @@ export function CallFrame({
     let handleCustomButtonClick: ((ev: DailyEventObjectCustomButtonClick) => void) | null = null;
     let syncScreenShareButton: (() => void) | null = null;
     let handleAvailableDevicesUpdated: ((ev: DailyEventObjectAvailableDevicesUpdated) => void) | null = null;
+    let handleJoinedMeeting: (() => void) | null = null;
 
     // Dynamic import, not a static one: this package touches browser globals
     // at module load, so it must never be evaluated during SSR of this
@@ -131,7 +132,19 @@ export function CallFrame({
       // the button actually shows up in practice.
       let outputDevices: DailyMediaDeviceInfo[] = [];
       let outputIndex = 0;
+      // updateCustomTrayButtons() throws ("only supported after join") if
+      // called before the call has actually joined the meeting — and
+      // enumerateDevices()/"available-devices-updated" can both resolve
+      // while join() is still in flight, race-losing against it. That throw
+      // was surfacing from inside a device-update callback running during
+      // the join handshake, aborting the connection outright (rings fine,
+      // then silently fails to connect on accept). Deferring the tray
+      // update until "joined-meeting" — and re-applying it once devices are
+      // already known by the time that fires — fixes this without losing
+      // the feature.
+      let joined = false;
       const syncOutputButton = () => {
+        if (!joined) return;
         if (outputDevices.length > 1) {
           const current = outputDevices[outputIndex];
           const onSpeaker = Boolean(current && isSpeakerDevice(current));
@@ -153,8 +166,16 @@ export function CallFrame({
       };
       handleAvailableDevicesUpdated = (ev) => applyOutputDevices(ev.availableDevices as DailyMediaDeviceInfo[]);
       call.on("available-devices-updated", handleAvailableDevicesUpdated);
+      handleJoinedMeeting = () => {
+        joined = true;
+        syncOutputButton();
+      };
+      call.on("joined-meeting", handleJoinedMeeting);
       // The event above only fires on a subsequent change — this covers the
-      // devices already available the moment the call starts.
+      // devices already available the moment the call starts. Safe to call
+      // before join (enumerateDevices() itself has no post-join guard) —
+      // only applying its result to the tray does, which syncOutputButton
+      // now accounts for.
       call.enumerateDevices().then(({ devices }) => applyOutputDevices(devices));
 
       handleCustomButtonClick = (ev) => {
@@ -193,6 +214,7 @@ export function CallFrame({
           call.off("local-screen-share-stopped", syncScreenShareButton);
         }
         if (handleAvailableDevicesUpdated) call.off("available-devices-updated", handleAvailableDevicesUpdated);
+        if (handleJoinedMeeting) call.off("joined-meeting", handleJoinedMeeting);
         onCallObject?.(null);
         call.destroy();
         callRef.current = null;
