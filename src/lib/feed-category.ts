@@ -31,6 +31,12 @@ const CATEGORY_ANCHORS: Partial<Record<FeedCategory, string>> = {
   NEWS: "Local and international news — current events, breaking news, world affairs, community news, journalism.",
   RELIGIOUS_SPIRITUAL:
     "Religious and spiritual — Quran recitation, Bible verses, prayer, sermons, faith, worship, scripture, religious teachings, devotionals, spirituality.",
+  FINANCIAL_TIPS:
+    "Financial tips — personal finance, budgeting, saving money, investing, stocks, side hustles, debt payoff, financial literacy, money management advice.",
+  HEALTH_WELLNESS:
+    "Health and wellness — fitness, exercise, nutrition, diet, mental health, self-care, sleep, medical advice, wellness routines, healthy living.",
+  MOTIVATIONAL:
+    "Motivational — inspirational quotes, encouragement, personal growth, mindset, discipline, goal-setting, life advice, overcoming adversity, success stories.",
 };
 
 // A category's anchor text never changes at runtime, so its embedding is
