@@ -344,6 +344,46 @@ export function LiveStreamRoom({
     };
   }, [isHost, dailyCall, liveStreamId]);
 
+  // The other half of the grant above, on the approved guest/co-host's own
+  // client: getting canSend permission from the host does NOT itself turn
+  // their camera/mic on. They originally joined an owner_only_broadcast
+  // room, so Daily's prebuilt UI decided at that moment — correctly, at the
+  // time — not to expose any camera/mic controls to them at all. Since that
+  // decision was made once at join time, it never revisits itself just
+  // because a permission changed mid-call; nothing here previously told it
+  // to. Reacting to this participant's own "participant-updated" the
+  // instant canSend actually includes video/audio is what actually starts
+  // their stream — this is the concrete cause behind "approved as a
+  // co-host but the stream still only shows one screen" rather than
+  // anything to do with how the video grid itself is laid out.
+  useEffect(() => {
+    if (isHost || !dailyCall) return;
+    let enabled = false;
+
+    function canSendKind(canSend: boolean | Set<string>, kind: "video" | "audio") {
+      return typeof canSend === "boolean" ? canSend : canSend.has(kind);
+    }
+
+    function tryEnable(p: DailyParticipant) {
+      if (!p.local || enabled) return;
+      if (!canSendKind(p.permissions.canSend, "video") && !canSendKind(p.permissions.canSend, "audio")) return;
+      enabled = true;
+      dailyCall!.setLocalVideo(true);
+      dailyCall!.setLocalAudio(true);
+    }
+
+    const local = dailyCall.participants().local;
+    if (local) tryEnable(local);
+
+    function handleUpdated(ev: { participant: DailyParticipant }) {
+      tryEnable(ev.participant);
+    }
+    dailyCall.on("participant-updated", handleUpdated);
+    return () => {
+      dailyCall.off("participant-updated", handleUpdated);
+    };
+  }, [isHost, dailyCall]);
+
   // Recording state used to live inside CallFrame's onRecordingChange prop —
   // now that CallFrame only renders once, globally (GlobalCallFrame), this
   // subscribes to the same Daily events directly via the shared call object.
