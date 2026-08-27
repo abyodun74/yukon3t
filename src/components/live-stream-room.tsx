@@ -485,27 +485,34 @@ export function LiveStreamRoom({
           <div className="w-64 rounded-lg bg-black/80 p-3 text-white">{renderRecordingsPanel("dark")}</div>
         )}
         {isHost && stageRequests.length > 0 && (
-          <div className="w-64 rounded-lg bg-black/80 p-3 text-white">
+          <div className="w-72 rounded-lg bg-black/80 p-3 text-white">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
               Waiting to join the stage
             </p>
-            <ul className="mt-1.5 space-y-2">
+            <ul className="mt-1.5 space-y-2.5">
               {stageRequests.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
                   <span className="min-w-0 truncate">
                     {r.user.name ?? "Someone"}
                     <span className="text-white/60"> · {r.role === "COHOST" ? "co-host" : "guest"}</span>
                   </span>
-                  <div className="flex shrink-0 items-center gap-1">
+                  {/* Explicit 40px (h-10 w-10) tap targets — the icons
+                      themselves are small, but on a real phone (not a mouse
+                      cursor) the old p-1/12px-icon buttons were well under
+                      Apple/Material's ~44px minimum touch target and were
+                      genuinely hard to hit reliably in the mobile app's
+                      WebView, stacked this close together next to the
+                      Record/Screenshot controls. */}
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
                       disabled={respondingRequestId === r.id}
                       onClick={() => respondToRequest(r.id, true)}
                       title="Approve"
                       aria-label={`Approve ${r.user.name ?? "this request"}`}
-                      className="rounded-full bg-accent p-1 text-accent-ink disabled:opacity-50"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
                     >
-                      <Check size={12} />
+                      <Check size={18} />
                     </button>
                     <button
                       type="button"
@@ -513,9 +520,9 @@ export function LiveStreamRoom({
                       onClick={() => respondToRequest(r.id, false)}
                       title="Decline"
                       aria-label={`Decline ${r.user.name ?? "this request"}`}
-                      className="rounded-full border border-white/30 p-1 text-white disabled:opacity-50"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white disabled:opacity-50"
                     >
-                      <X size={12} />
+                      <X size={18} />
                     </button>
                   </div>
                 </li>
