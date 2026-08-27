@@ -431,7 +431,18 @@ export function LiveStreamRoom({
 
   return (
     <>
-      <div className="fixed left-3 top-3 z-[70] flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white">
+      {/* top offsets below add env(safe-area-inset-top) on top of the old
+          fixed spacing — both native shells render edge-to-edge under the
+          status bar/notch (see layout.tsx's viewportFit: "cover" comment),
+          so a bare `top-3`/`top-14` placed these controls partly or fully
+          behind the status bar/notch in the actual mobile app, even though
+          they looked fine in an ordinary browser tab (which always reserves
+          its own chrome above the page). env() is 0 on anything that isn't
+          edge-to-edge, so this is a no-op there. */}
+      <div
+        className="fixed left-3 z-[70] flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white"
+        style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
+      >
         <span className="flex items-center gap-1 font-semibold text-danger">
           <span className="h-1.5 w-1.5 rounded-full bg-danger" />
           LIVE
@@ -447,7 +458,10 @@ export function LiveStreamRoom({
         </span>
       </div>
 
-      <div className="fixed top-3 z-[70] flex flex-col items-end gap-2" style={{ right: "0.75rem" }}>
+      <div
+        className="fixed z-[70] flex flex-col items-end gap-2"
+        style={{ right: "0.75rem", top: "calc(0.75rem + env(safe-area-inset-top))" }}
+      >
         <div className="flex items-center gap-2">
           {canRecord && (
             <button
@@ -533,7 +547,10 @@ export function LiveStreamRoom({
       </div>
 
       {!isHost && pendingStageRole && (
-        <div className="fixed inset-x-0 top-14 z-[70] flex justify-center px-3">
+        <div
+          className="fixed inset-x-0 z-[70] flex justify-center px-3"
+          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+        >
           <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
             <span>Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…</span>
             <button
@@ -548,7 +565,10 @@ export function LiveStreamRoom({
         </div>
       )}
       {!isHost && !pendingStageRole && declinedNotice && (
-        <div className="fixed inset-x-0 top-14 z-[70] flex justify-center px-3">
+        <div
+          className="fixed inset-x-0 z-[70] flex justify-center px-3"
+          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+        >
           <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
             <span>The host declined your stage request.</span>
             <button

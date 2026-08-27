@@ -66,6 +66,17 @@ export const viewport: Viewport = {
   // globals.css's `overflow-x: hidden` kicked in.
   width: "device-width",
   initialScale: 1,
+  // Both native shells deliberately render edge-to-edge under the status
+  // bar/notch (capacitor.config.ts's iOS contentInset: "automatic", and
+  // Android's StatusBar plugin default of overlaysWebView: true) rather than
+  // leaving a hard gap above the page. Without `viewport-fit=cover` in the
+  // meta tag, though, `env(safe-area-inset-*)` reports 0 everywhere — the
+  // spec only populates it once the layout viewport is told it's allowed to
+  // extend into the safe area — so nothing in the app could actually react
+  // to the notch/status bar/home indicator. This is what makes those env()
+  // values usable (see live-stream-room.tsx's top-anchored overlays for the
+  // first real consumer).
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f6f2" },
     { media: "(prefers-color-scheme: dark)", color: "#14181a" },
