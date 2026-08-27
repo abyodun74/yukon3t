@@ -230,7 +230,15 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
     });
 
     return { error: null, roomUrl: liveStream.roomUrl, token, role, pendingStageRequest };
-  } catch {
+  } catch (err) {
+    // Swallowing this silently was itself a gap: the client-facing "try
+    // again" UX now works (see live-stream-room.tsx), but with nothing
+    // logged here there was no way to tell what's actually causing this —
+    // a genuine device network issue, the Postgres pool termination race
+    // (see the comment above), or something else entirely. Logging it is
+    // what makes the next occurrence actually diagnosable via Netlify
+    // function logs instead of another guess.
+    console.error("joinLiveStream failed:", err);
     return { error: "unavailable" as const };
   }
 }

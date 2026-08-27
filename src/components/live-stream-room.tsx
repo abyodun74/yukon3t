@@ -18,6 +18,7 @@ import {
   listLiveStreamRecordings,
   getLiveStreamRecordingLink,
 } from "@/app/actions/live-streams";
+import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { usePolling } from "@/lib/use-polling";
 
 const POLL_INTERVAL_MS = 5000;
@@ -45,6 +46,8 @@ function joinErrorMessage(code?: string) {
     case "unavailable":
     case "network":
       return "Couldn't connect — check your connection and try again.";
+    case "stale_deployment":
+      return STALE_DEPLOYMENT_MESSAGE;
     default:
       return "Couldn't join the stream — try again.";
   }
@@ -153,7 +156,7 @@ export function LiveStreamRoom({
           setActive({ roomUrl: result.roomUrl, token: result.token });
           setPhase("active");
         })
-        .catch(() => {
+        .catch((err) => {
           // A rejected call (network drop, or the Server Action itself
           // throwing — e.g. a transient DB hiccup, see live-streams.ts's
           // own hardening) used to leave this screen stuck on "Joining
@@ -162,7 +165,15 @@ export function LiveStreamRoom({
           // loading text indefinitely with no way forward but leaving the
           // page. Route it through the same error phase as a normal
           // {error: ...} result, with a retry action, instead.
-          setError("network");
+          //
+          // A stale Server Action id (this tab's been open since before a
+          // redeploy) is its own case, not ordinary flakiness — retrying
+          // never helps, only a refresh does, since the old action id will
+          // never be found again. post-composer.tsx hit this exact failure
+          // mode first ("the entire cause of a burst of 'couldn't reach the
+          // server' reports during a run of back-to-back deploys" per
+          // stale-deployment.ts's own comment) — same fix here.
+          setError(isStaleDeploymentError(err) ? "stale_deployment" : "network");
           setPhase("error");
         });
     },
@@ -396,27 +407,40 @@ export function LiveStreamRoom({
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="text-sm text-foreground-soft">{joinErrorMessage(error ?? undefined)}</p>
         <div className="mt-4 flex items-center justify-center gap-2">
-          {/* Most of what lands here (a dropped connection, the transient
-              DB hiccup live-streams.ts now guards against) is worth a plain
-              retry, not a trip back to Home — host retries the same
-              auto-join; a viewer/requester goes back to "choosing" since
-              their exact prior selection (watch/guest/co-host) isn't
-              tracked in state. */}
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              if (isHost) {
-                setPhase("joining");
-                requestJoin();
-              } else {
-                setPhase("choosing");
-              }
-            }}
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
-          >
-            Try again
-          </button>
+          {error === "stale_deployment" ? (
+            // Retrying with the same "Try again" click would just hit the
+            // exact same already-gone Server Action id again — only a real
+            // reload picks up the new deployment's JS bundle.
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
+            >
+              Refresh
+            </button>
+          ) : (
+            // Most of what lands here (a dropped connection, the transient
+            // DB hiccup live-streams.ts now guards against) is worth a
+            // plain retry, not a trip back to Home — host retries the same
+            // auto-join; a viewer/requester goes back to "choosing" since
+            // their exact prior selection (watch/guest/co-host) isn't
+            // tracked in state.
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                if (isHost) {
+                  setPhase("joining");
+                  requestJoin();
+                } else {
+                  setPhase("choosing");
+                }
+              }}
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
+            >
+              Try again
+            </button>
+          )}
           <button
             type="button"
             onClick={() => router.push("/home")}
