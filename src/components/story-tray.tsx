@@ -27,7 +27,7 @@ function Ring({
   onAdd?: () => void;
 }) {
   return (
-    <div className="relative flex w-16 shrink-0 flex-col items-center gap-1">
+    <div className="relative flex w-16 min-w-0 shrink-0 flex-col items-center gap-1">
       <button type="button" onClick={onClick} className="flex flex-col items-center gap-1">
         <span
           className={cn(

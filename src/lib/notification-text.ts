@@ -8,6 +8,7 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   CONNECTION_ACCEPTED: "accepted your connection request",
   POST_LIKE: "liked your post",
   POST_COMMENT: "commented on your post",
+  COMMENT_REPLY: "replied to your comment",
   POST_REPOST: "reposted your post",
   POST_SHARE: "shared your post",
   EVENT_RSVP: "is going to your event",

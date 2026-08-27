@@ -87,7 +87,7 @@ export async function createComment(formData: FormData) {
         data: {
           recipientId: parentComment.authorId,
           actorId: user.id,
-          type: "POST_COMMENT",
+          type: "COMMENT_REPLY",
           postId,
           commentId: comment.id,
         },

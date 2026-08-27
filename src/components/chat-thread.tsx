@@ -19,6 +19,7 @@ import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
+import { Lightbox } from "@/components/lightbox";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
@@ -240,6 +241,7 @@ function MessageBubble({
   const [correcting, setCorrecting] = useState(false);
   const [correctionDraft, setCorrectionDraft] = useState("");
   const [correctionError, setCorrectionError] = useState<string | null>(null);
+  const [imageOpen, setImageOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
@@ -525,11 +527,26 @@ function MessageBubble({
                 </video>
               )}
               {message.mediaType === "IMAGE" && message.mediaUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- R2-hosted user upload, not a local/optimizable asset
-                <img
-                  src={message.mediaUrl}
-                  alt=""
-                  className="max-h-72 w-full rounded-lg object-contain"
+                <button
+                  type="button"
+                  onClick={() => setImageOpen(true)}
+                  className="block w-full cursor-zoom-in"
+                  aria-label="View image full-screen"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- R2-hosted user upload, not a local/optimizable asset */}
+                  <img
+                    src={message.mediaUrl}
+                    alt=""
+                    className="max-h-72 w-full rounded-lg object-contain"
+                  />
+                </button>
+              )}
+              {imageOpen && message.mediaUrl && (
+                <Lightbox
+                  images={[message.mediaUrl]}
+                  index={0}
+                  onIndexChange={() => {}}
+                  onClose={() => setImageOpen(false)}
                 />
               )}
               {message.content && (
@@ -1075,7 +1092,12 @@ export function ChatThread({
       </div>
 
       {replyTarget && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line border-l-2 border-l-accent px-3 py-2 text-xs">
+        // relative + z-[60] keeps this above the emoji picker's portaled
+        // z-50 overlay, which can open upward far enough to otherwise cover
+        // this banner when the composer sits near the bottom of a short
+        // viewport (e.g. with the on-screen keyboard open) — losing sight of
+        // who you're replying to, or the cancel button, mid-pick.
+        <div className="relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line border-l-2 border-l-accent bg-background px-3 py-2 text-xs">
           <Reply size={14} className="shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-accent">

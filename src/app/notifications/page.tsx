@@ -29,8 +29,8 @@ export default async function NotificationsPage() {
       </div>
 
       <div className="mt-6 space-y-1">
-        {notifications.map((notification) => (
-          <NotificationRow key={notification.id} notification={notification} />
+        {notifications.map((notification, i) => (
+          <NotificationRow key={notification.id} notification={notification} index={i} />
         ))}
         {notifications.length === 0 && (
           <p className="text-sm text-foreground-soft">

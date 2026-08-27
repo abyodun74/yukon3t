@@ -697,6 +697,10 @@ enum NotificationType {
   CONNECTION_ACCEPTED
   POST_LIKE
   POST_COMMENT
+  // Sent to a comment's author when someone replies to that comment
+  // specifically (as opposed to POST_COMMENT, sent to the post's author for
+  // any top-level or nested comment) — see createComment in actions/comments.ts.
+  COMMENT_REPLY
   POST_REPOST
   POST_SHARE
   EVENT_RSVP

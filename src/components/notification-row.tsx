@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { markAsRead } from "@/app/actions/notifications";
@@ -15,6 +16,7 @@ type NotificationData = {
     | "CONNECTION_ACCEPTED"
     | "POST_LIKE"
     | "POST_COMMENT"
+    | "COMMENT_REPLY"
     | "POST_REPOST"
     | "POST_SHARE"
     | "EVENT_RSVP"
@@ -65,7 +67,16 @@ function hrefFor(notification: NotificationData) {
   return `/u/${notification.actor.id}`;
 }
 
-export function NotificationRow({ notification }: { notification: NotificationData }) {
+export function NotificationRow({
+  notification,
+  index = 0,
+}: {
+  notification: NotificationData;
+  // Drives the same staggered fade/slide-in used by the messages inbox
+  // (see .inbox-row in globals.css) so the list animates in when you tap
+  // the bell, instead of appearing all at once.
+  index?: number;
+}) {
   const unread = !notification.readAt;
   const hasActor = notificationHasActor(notification.type);
 
@@ -75,8 +86,9 @@ export function NotificationRow({ notification }: { notification: NotificationDa
       onClick={() => {
         if (unread) markAsRead(notification.id);
       }}
+      style={{ "--row-delay": `${Math.min(index, 10) * 30}ms` } as CSSProperties}
       className={cn(
-        "block rounded-lg border-l-2 px-3 py-3 text-sm hover:bg-line",
+        "inbox-row block rounded-lg border-l-2 px-3 py-3 text-sm hover:bg-line",
         unread ? "border-accent bg-accent/5" : "border-transparent",
       )}
     >
