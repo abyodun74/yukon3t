@@ -180,7 +180,22 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+      {/* paddingTop extends this header's own background up into the status
+          bar/notch instead of leaving its content sitting right at y:0 —
+          both native shells render edge-to-edge under it (see layout.tsx's
+          viewportFit: "cover" comment), so without this the logo/nav row
+          rendered directly under the OS status bar, confirmed via a real
+          user's screenshot of a conversation page: no app header visible at
+          all above the status bar, the page's own in-flow content (the
+          conversation's name/call-icon row) starting right where the status
+          bar ends. This is the one place that needed the fix, not each
+          page's own header row — every page shares this sticky header, so
+          fixing it here clears the status bar everywhere at once. env() is
+          0 anywhere that isn't edge-to-edge, so a no-op elsewhere. */}
+      <header
+        className="sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link
             href="/"
