@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { circleSchema, postSchema, confirmCircleCoverUploadSchema } from "@/lib/validations";
+import { circleSchema, postSchema, confirmCircleCoverUploadSchema, updateCircleNameSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
@@ -266,6 +266,47 @@ export async function deleteCircle(circleId: string) {
 
   revalidatePath("/circles");
   redirect("/circles");
+}
+
+/**
+ * Owner or co-admin: renames a Circle. The slug (used in its URL) is
+ * deliberately left untouched — regenerating it on every rename would break
+ * existing links/bookmarks/notifications pointing at the old one.
+ */
+export async function updateCircleName(circleId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const membership = await getCircleMembership(circleId, user.id);
+  if (!isCircleAdmin(circle, membership, user)) {
+    return { error: "forbidden" as const };
+  }
+
+  const parsed = updateCircleNameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const { name } = parsed.data;
+
+  const modResult = await moderateText(name);
+  if (!modResult.allowed) {
+    return { error: "moderation" as const };
+  }
+
+  await prisma.circle.update({ where: { id: circleId }, data: { name } });
+  await updateCircleEmbedding(circleId, { name, description: circle.description, category: circle.category });
+
+  revalidatePath(`/circles/${circle.slug}`);
+  revalidatePath("/circles");
+  return { error: null };
 }
 
 /**

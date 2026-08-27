@@ -63,7 +63,14 @@ function Ring({
             )}
           </span>
         </span>
-        <span className="w-full truncate text-center text-[11px] text-foreground-soft">{label}</span>
+        {/* Wraps onto a second line instead of ellipsis-truncating a long
+            name onto one — min-w-0 keeps this from being the thing that
+            forces the 64px tile wider (see the Ring wrapper's own min-w-0
+            for the same reasoning), line-clamp-2 is just a backstop for a
+            name that's still too long even wrapped. */}
+        <span className="line-clamp-2 min-w-0 w-full break-words text-center text-[11px] leading-tight text-foreground-soft">
+          {label}
+        </span>
       </button>
       {onAdd && hasStories && (
         <button

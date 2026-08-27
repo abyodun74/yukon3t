@@ -130,6 +130,10 @@ export const circleSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
 });
 
+export const updateCircleNameSchema = z.object({
+  name: z.string().trim().min(3).max(60),
+});
+
 export const announcementSchema = z.object({
   title: z.string().trim().min(3).max(120),
   body: z.string().trim().min(10).max(4000),

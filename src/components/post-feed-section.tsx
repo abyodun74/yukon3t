@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PostCard, type PostCardData } from "@/components/post-card";
 import { usePolling } from "@/lib/use-polling";
 
@@ -110,6 +110,35 @@ export function PostFeedSection({
     }
   }, [category, posts, hasMore, loadingMore, allPostsScope]);
 
+  // Always points at the latest loadMore (which itself changes identity
+  // every time `posts` grows) without needing to tear down and recreate the
+  // observer below on every fetch — only `hasMore` flipping false/true
+  // should do that.
+  const loadMoreRef = useRef(loadMore);
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
+
+  // Fires loadMore automatically once the sentinel at the bottom scrolls
+  // near the viewport — a generous 600px rootMargin starts the next page
+  // fetching well before it's actually reached, so more posts are already
+  // in place by the time you scroll to them instead of a visible pause.
+  // Replaces the old tap-to-load-more button entirely.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore]);
+
   if (posts.length === 0) return null;
 
   return (
@@ -118,14 +147,9 @@ export function PostFeedSection({
         <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
       ))}
       {hasMore && (
-        <button
-          type="button"
-          onClick={loadMore}
-          disabled={loadingMore}
-          className="block w-full rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
-        >
-          {loadingMore ? "Loading..." : "Load more"}
-        </button>
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {loadingMore && <span className="text-xs text-foreground-soft">Loading more...</span>}
+        </div>
       )}
     </div>
   );
