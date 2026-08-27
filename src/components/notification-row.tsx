@@ -36,7 +36,9 @@ type NotificationData = {
     | "SUBSCRIPTION_LIVE"
     | "SUBSCRIPTION_RSVP"
     | "SUBSCRIPTION_CIRCLE_JOINED"
-    | "SUBSCRIPTION_CIRCLE_CREATED";
+    | "SUBSCRIPTION_CIRCLE_CREATED"
+    | "VOICE_CHANNEL_INVITE"
+    | "VOICE_CHANNEL_INVITE_ACCEPTED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -45,11 +47,15 @@ type NotificationData = {
   conversationId: string | null;
   collab: { id: string } | null;
   liveStreamId: string | null;
+  channel: { slug: string } | null;
 };
 
 function hrefFor(notification: NotificationData) {
   if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;
+  if (notification.channel && notification.circle) {
+    return `/circles/${notification.circle.slug}?channel=${notification.channel.slug}`;
+  }
   if (notification.circle) return `/circles/${notification.circle.slug}`;
   if (notification.collab) return `/collab/${notification.collab.id}`;
   if (notification.conversationId) return `/messages/${notification.conversationId}`;

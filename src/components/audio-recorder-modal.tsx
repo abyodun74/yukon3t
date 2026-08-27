@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Circle, Mic, Square, X } from "lucide-react";
+import { useAudioRecorder } from "@/lib/use-audio-recorder";
 
 /** In-browser microphone recording for a chat voice note — same lifecycle/shape as VideoRecorderModal, just audio-only (no camera preview). */
 export function AudioRecorderModal({
@@ -13,76 +13,11 @@ export function AudioRecorderModal({
   onClose: () => void;
   maxSeconds: number;
 }) {
-  const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-      })
-      .catch((err: unknown) => {
-        console.error("getUserMedia failed:", err);
-        const name = err instanceof DOMException ? err.name : "Unknown";
-        const message =
-          {
-            NotAllowedError: "Microphone access was denied. Check your browser's site permissions (and your OS privacy settings) and try again.",
-            NotFoundError: "No microphone was found on this device.",
-            NotReadableError: "Your microphone is already in use by another app.",
-            SecurityError: "This page isn't running in a secure context (mic access needs HTTPS, or localhost for dev).",
-          }[name] ?? `Couldn't access your microphone (${name}).`;
-        setError(message);
-      });
-    return () => {
-      cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (tickRef.current) clearInterval(tickRef.current);
-    };
-  }, []);
-
-  function stopRecording() {
-    recorderRef.current?.stop();
-    if (tickRef.current) clearInterval(tickRef.current);
-    setRecording(false);
-  }
-
-  function startRecording() {
-    const stream = streamRef.current;
-    if (!stream) return;
-    chunksRef.current = [];
-    const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data);
-    };
-    recorder.onstop = () => {
-      // Force the plain "audio/webm" type (no codecs= parameter) so it
-      // matches storage.ts's exact content-type allowlist for message-audio.
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      onRecorded(new File([blob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" }));
-    };
-    recorder.start();
-    recorderRef.current = recorder;
-    setSeconds(0);
-    setRecording(true);
-    tickRef.current = setInterval(() => {
-      setSeconds((s) => {
-        const next = s + 1;
-        if (next >= maxSeconds) stopRecording();
-        return next;
-      });
-    }, 1000);
-  }
+  const { start, stop, seconds, recording, error } = useAudioRecorder({
+    maxSeconds,
+    onRecorded,
+    fileNamePrefix: "voice-note",
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -108,7 +43,7 @@ export function AudioRecorderModal({
               {!recording ? (
                 <button
                   type="button"
-                  onClick={startRecording}
+                  onClick={start}
                   className="flex items-center gap-1.5 rounded-full bg-danger px-4 py-2 text-sm font-medium text-white"
                 >
                   <Circle size={14} fill="currentColor" /> Record
@@ -116,7 +51,7 @@ export function AudioRecorderModal({
               ) : (
                 <button
                   type="button"
-                  onClick={stopRecording}
+                  onClick={stop}
                   className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium"
                 >
                   <Square size={14} fill="currentColor" /> Stop

@@ -17,6 +17,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -41,6 +42,23 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
+
+function dictationErrorMessage(code: string) {
+  switch (code) {
+    case "not_configured":
+      return "Dictation isn't set up yet.";
+    case "too_large":
+      return "That clip is too large.";
+    case "rate_limited":
+      return "You're dictating too fast — slow down a little.";
+    case "unavailable":
+      return "Couldn't transcribe that clip — try again.";
+    case "invalid":
+      return "Couldn't transcribe that clip — try again.";
+    default:
+      return "Couldn't reach the server — check your connection and try again.";
+  }
+}
 
 type MessageMediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE";
 
@@ -724,6 +742,7 @@ export function ChatThread({
   const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [showDictation, setShowDictation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -966,6 +985,13 @@ export function ChatThread({
     textareaRef.current?.focus();
   }
 
+  function appendDictatedText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setContent((prev) => (prev ? `${prev} ${trimmed}` : trimmed));
+    textareaRef.current?.focus();
+  }
+
   function handleDeleted(messageId: string, mode: "me" | "everyone") {
     setMessages((prev) =>
       mode === "me"
@@ -1182,6 +1208,16 @@ export function ChatThread({
               },
             ]}
           />
+          <button
+            type="button"
+            onClick={() => setShowDictation(true)}
+            disabled={showDictation}
+            title="Dictate text"
+            aria-label="Dictate text"
+            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+          >
+            <Mic size={16} />
+          </button>
         </div>
         {/* One circular action button that toggles mic ↔ send, like both
             reference apps — not a mic button and a send button sitting
@@ -1211,6 +1247,14 @@ export function ChatThread({
         )}
       </div>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+
+      {showDictation && (
+        <DictationRecorder
+          onTranscribed={appendDictatedText}
+          onError={(code) => setError(dictationErrorMessage(code))}
+          onDone={() => setShowDictation(false)}
+        />
+      )}
 
       {showAudioRecorder && (
         <AudioRecorderModal

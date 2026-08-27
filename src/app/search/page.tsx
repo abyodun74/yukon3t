@@ -10,6 +10,7 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { SearchBar } from "@/components/search-bar";
 import { semanticSearch } from "@/lib/search-embeddings";
+import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 
 type SearchPostRow = Awaited<
   ReturnType<typeof prisma.post.findMany<{ include: typeof postCardInclude }>>
@@ -93,6 +94,9 @@ export default async function SearchPage({
     ]);
     blockedIds = [...blockedIdsResult];
     const currentSince = currentAffairsCutoff();
+    const matchingCategories = CIRCLE_CATEGORIES.filter((c) =>
+      c.toLowerCase().includes(q.toLowerCase()),
+    );
 
     const [peopleResult, circlesResult, collabsResult, rawPostsResult, groupChatsResult] = await Promise.all([
       prisma.user.findMany({
@@ -132,7 +136,7 @@ export default async function SearchPage({
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { description: { contains: q, mode: "insensitive" } },
-            { category: { contains: q, mode: "insensitive" } },
+            { category: { hasSome: matchingCategories } },
           ],
         },
         orderBy:
@@ -352,7 +356,7 @@ export default async function SearchPage({
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                  {circle.category}
+                  {circle.category.join(", ")}
                 </p>
                 <h3 className="mt-1 break-words font-semibold">{circle.name}</h3>
                 <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
@@ -495,7 +499,7 @@ export default async function SearchPage({
                     href={`/circles/${circle.slug}`}
                     className="rounded-xl border border-line p-4 hover:border-accent"
                   >
-                    <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
                     <h4 className="mt-1 break-words font-semibold">{circle.name}</h4>
                     <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">

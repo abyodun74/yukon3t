@@ -224,6 +224,8 @@ model User {
   collabJoinRequests          CollabJoinRequest[]
   sentCollabInvites           CollabInvite[]             @relation("CollabInviter")
   receivedCollabInvites       CollabInvite[]             @relation("CollabInvitee")
+  sentVoiceInvites            ChannelVoiceInvite[]       @relation("VoiceInviteInviter")
+  receivedVoiceInvites        ChannelVoiceInvite[]       @relation("VoiceInviteInvitee")
 
   liveStreamsHosted       LiveStream[]
   liveStreamsWatching     LiveStreamViewer[]
@@ -293,7 +295,10 @@ model Circle {
   name          String
   slug          String           @unique
   description   String           @db.Text
-  category      String
+  // Up to 5 categories per Circle (see circleSchema in lib/validations.ts) —
+  // stored as an array even though most Circles pick just one, so search/
+  // filtering/embeddings all treat it uniformly.
+  category      String[]
   coverImageUrl String?
   visibility    CircleVisibility @default(PUBLIC)
   createdById   String
@@ -310,7 +315,7 @@ model Circle {
   notifications Notification[]
   liveStreams   LiveStream[]
 
-  @@index([category])
+  @@index([category], type: Gin)
 }
 
 /**
@@ -393,9 +398,36 @@ model Channel {
   posts             Post[]
   members           ChannelMembership[]
   voiceParticipants ChannelVoiceParticipant[]
+  voiceInvites      ChannelVoiceInvite[]
+  notifications     Notification[]
 
   @@unique([circleId, slug])
   @@index([circleId, position])
+}
+
+/**
+ * A social invite to join a voice Channel's room — distinct from
+ * ChannelVoiceParticipant (presence-only, exists only while actually in the
+ * room). Mirrors CollabInvite's shape/lifecycle. Accepting is a pure RSVP:
+ * it doesn't itself add a ChannelVoiceParticipant row, the invitee still
+ * calls joinCircleVoiceRoom separately when ready.
+ */
+model ChannelVoiceInvite {
+  id          String           @id @default(cuid())
+  channelId   String
+  inviterId   String
+  inviteeId   String
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  inviter User    @relation("VoiceInviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User    @relation("VoiceInviteInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, inviteeId])
+  @@index([channelId, status])
+  @@index([inviteeId, status])
 }
 
 /**
@@ -718,6 +750,11 @@ enum NotificationType {
   COLLAB_INVITE
   // Sent to the inviter when their CollabInvite is accepted.
   COLLAB_INVITE_ACCEPTED
+  // Sent to a specific circle member when another member invites them to
+  // join a voice Channel's room (see inviteToVoiceChannel in actions/circle-voice.ts).
+  VOICE_CHANNEL_INVITE
+  // Sent to the inviter when their ChannelVoiceInvite is accepted.
+  VOICE_CHANNEL_INVITE_ACCEPTED
 }
 
 model Notification {
@@ -734,6 +771,7 @@ model Notification {
   storyId        String?
   subscriptionId String?
   liveStreamId   String?
+  channelId      String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
@@ -748,6 +786,7 @@ model Notification {
   story        Story?           @relation(fields: [storyId], references: [id], onDelete: Cascade)
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -921,6 +960,10 @@ model LiveStream {
   roomUrl   String
   startedAt DateTime         @default(now())
   endedAt   DateTime?
+  // Bumped by recordLiveStreamHeartbeat whenever the host or a COHOST polls
+  // while the stream is open — always holds the most recent activity among
+  // all of them (see the auto-end-inactive-streams cron), never per-user.
+  lastHostActivityAt DateTime?
 
   host          User                     @relation(fields: [hostId], references: [id], onDelete: Cascade)
   circle        Circle?                  @relation(fields: [circleId], references: [id], onDelete: Cascade)

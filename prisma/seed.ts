@@ -24,17 +24,17 @@ async function main() {
   const circles = [
     {
       name: "World Travelers",
-      category: "Travel",
+      category: ["Travel"],
       description: "Trade tips, meet up, and plan cross-border trips together.",
     },
     {
       name: "Language Exchange Corner",
-      category: "Culture",
+      category: ["Culture"],
       description: "Practice a new language with native speakers, platonically.",
     },
     {
       name: "Remote Builders",
-      category: "Professional",
+      category: ["Professional"],
       description: "Indie hackers and remote workers collaborating across time zones.",
     },
   ];

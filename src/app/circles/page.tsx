@@ -55,7 +55,7 @@ export default async function CirclesPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                      {circle.category}
+                      {circle.category.join(", ")}
                     </p>
                     {circle.visibility === "PRIVATE" && (
                       <span

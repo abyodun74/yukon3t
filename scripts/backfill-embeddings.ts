@@ -46,7 +46,7 @@ async function backfillCircles() {
   let total = 0;
   while (true) {
     const rows = await prisma.$queryRaw<
-      { id: string; name: string; description: string; category: string }[]
+      { id: string; name: string; description: string; category: string[] }[]
     >`SELECT "id", "name", "description", "category" FROM "Circle" WHERE "embedding" IS NULL LIMIT ${BATCH_SIZE}`;
     if (rows.length === 0) break;
     for (const row of rows) {

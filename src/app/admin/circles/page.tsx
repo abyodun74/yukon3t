@@ -76,7 +76,7 @@ export default async function AdminCirclesPage() {
                     {circle.name}
                   </Link>
                   <p className="text-xs text-foreground-soft">
-                    {circle.category} &middot; {circle._count.members} member
+                    {circle.category.join(", ")} &middot; {circle._count.members} member
                     {circle._count.members === 1 ? "" : "s"} &middot; {circle._count.posts} post
                     {circle._count.posts === 1 ? "" : "s"} &middot; created by{" "}
                     {circle.createdBy.name ?? "Unknown"} on {circle.createdAt.toLocaleDateString()}

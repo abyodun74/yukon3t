@@ -112,6 +112,39 @@ export async function endLiveStream(liveStreamId: string) {
 }
 
 /**
+ * Polled by the host and any COHOST from live-stream-room.tsx's existing
+ * poll loop — bumps LiveStream.lastHostActivityAt so the
+ * end-inactive-streams cron knows the stream is still being actively run.
+ * Plain viewers/guests silently no-op (not an error) since they don't drive
+ * this signal.
+ */
+export async function recordLiveStreamHeartbeat(liveStreamId: string) {
+  const user = await requireVerifiedUser();
+
+  const liveStream = await prisma.liveStream.findUnique({ where: { id: liveStreamId } });
+  if (!liveStream || liveStream.status !== "LIVE") {
+    return { error: "not_found" as const };
+  }
+
+  const isHost = liveStream.hostId === user.id;
+  if (!isHost) {
+    const viewer = await prisma.liveStreamViewer.findUnique({
+      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+      select: { role: true },
+    });
+    if (viewer?.role !== "COHOST") {
+      return { error: null };
+    }
+  }
+
+  await prisma.liveStream.update({
+    where: { id: liveStreamId },
+    data: { lastHostActivityAt: new Date() },
+  });
+  return { error: null };
+}
+
+/**
  * Mints a meeting token for the room. Plain viewers get a view-only token —
  * owner_only_broadcast on the room (see createLiveStreamRoom) is what
  * actually keeps them from unmuting camera/mic. A caller can instead request

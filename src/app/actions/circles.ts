@@ -36,7 +36,7 @@ export async function createCircle(formData: FormData) {
   const parsed = circleSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    category: formData.get("category"),
+    category: formData.getAll("category"),
     visibility: formData.get("visibility") || undefined,
   });
   if (!parsed.success) {

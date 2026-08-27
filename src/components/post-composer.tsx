@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Upload, Video, X } from "lucide-react";
+import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
@@ -12,6 +12,7 @@ import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { DictationRecorder } from "@/components/dictation-recorder";
 import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +73,8 @@ function errorMessage(code: string) {
       return "Couldn't reach the server — check your connection and try again.";
     case "stale_deployment":
       return STALE_DEPLOYMENT_MESSAGE;
+    case "unavailable":
+      return "Couldn't transcribe that clip — try again.";
     default:
       return "Couldn't post — try again.";
   }
@@ -122,6 +125,7 @@ export function PostComposer({
   const [showEmbedInput, setShowEmbedInput] = useState(false);
   const [embedUrlValue, setEmbedUrlValue] = useState("");
   const [embedError, setEmbedError] = useState<string | null>(null);
+  const [showDictation, setShowDictation] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -138,6 +142,14 @@ export function PostComposer({
     const el = contentRef.current;
     if (!el) return;
     el.setRangeText(emoji, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, "end");
+    el.focus();
+  }
+
+  function appendDictatedText(text: string) {
+    const el = contentRef.current;
+    const trimmed = text.trim();
+    if (!el || !trimmed) return;
+    el.value = el.value ? `${el.value} ${trimmed}` : trimmed;
     el.focus();
   }
 
@@ -682,6 +694,16 @@ export function PostComposer({
             <Calendar size={16} />
           </button>
           <EmojiPickerButton onSelect={insertEmoji} />
+          <button
+            type="button"
+            onClick={() => setShowDictation(true)}
+            disabled={showDictation}
+            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+            title="Dictate text"
+            aria-label="Dictate text"
+          >
+            <Mic size={16} />
+          </button>
           <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">
             Posts are prescreened for safety before they appear.
           </p>
@@ -694,6 +716,17 @@ export function PostComposer({
           {status === "uploading" && isPending ? "Posting..." : "Post"}
         </button>
       </div>
+      {showDictation && (
+        <DictationRecorder
+          onTranscribed={appendDictatedText}
+          onError={(code) => {
+            setStatus("error");
+            setErrorText(errorMessage(code));
+          }}
+          onDone={() => setShowDictation(false)}
+        />
+      )}
+
       {status === "error" && errorText && (
         <p className="mt-1 text-xs text-danger">
           {errorText}

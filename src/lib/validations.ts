@@ -126,7 +126,7 @@ export const ringtoneSchema = z.object({
 export const circleSchema = z.object({
   name: z.string().trim().min(3).max(60),
   description: z.string().trim().min(10).max(1000),
-  category: z.string().trim().min(2).max(40),
+  category: z.array(z.string().trim().min(2).max(40)).min(1).max(5),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
 });
 
@@ -227,6 +227,7 @@ export const uploadKindValues = [
   "ad-image",
   "ad-video",
   "collab-material",
+  "voice-dictation",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -426,6 +427,10 @@ export const adminDeleteUserSchema = z.object({
   userId: z.string().cuid(),
   confirmHandle: z.string().trim().min(1),
   reason: z.string().trim().min(5).max(1000),
+});
+
+export const transcribeAudioSchema = z.object({
+  key: z.string().min(1),
 });
 
 export const flaggedContentActionSchema = z.object({

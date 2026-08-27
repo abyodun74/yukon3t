@@ -96,6 +96,11 @@ export const rateLimiters = {
   // user-facing action in this app.
   phoneVerifyRequest: makeLimiter(5, "1 h"),
   phoneVerifyCheck: makeLimiter(10, "1 h"),
+  // Each call is a real OpenAI Whisper charge, same reasoning as
+  // phoneVerifyRequest above (real per-call cost) — a tight bucket keeps
+  // spend bounded per user.
+  transcribeAudio: makeLimiter(10, "1 h"),
+  voiceChannelInvite: makeLimiter(30, "10 m"),
 };
 
 export async function checkRateLimit(

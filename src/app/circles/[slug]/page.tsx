@@ -11,11 +11,13 @@ import { CircleCoverUpload } from "@/components/circle-cover-upload";
 import { CircleMemberManager } from "@/components/circle-member-manager";
 import { CircleJoinRequestManager } from "@/components/circle-join-request-manager";
 import { ChannelList } from "@/components/channel-list";
+import { CircleSwitcher } from "@/components/circle-switcher";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
 import { PostCard } from "@/components/post-card";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin } from "@/lib/circle-permissions";
+import { getMyCircles } from "@/app/actions/circles";
 
 // Same cursor + "Load more" pattern as /connections/page.tsx.
 const POSTS_PAGE_SIZE = 20;
@@ -31,17 +33,20 @@ export default async function CirclePage({
   const { slug } = await params;
   const { channel: requestedSlug, postsBefore } = await searchParams;
 
-  const circle = await prisma.circle.findUnique({
-    where: { slug },
-    include: {
-      _count: { select: { members: true } },
-      members: { where: { userId: me.id } },
-      channels: {
-        orderBy: { position: "asc" },
-        include: { members: { select: { userId: true } } },
+  const [circle, { circles: myCircles }] = await Promise.all([
+    prisma.circle.findUnique({
+      where: { slug },
+      include: {
+        _count: { select: { members: true } },
+        members: { where: { userId: me.id } },
+        channels: {
+          orderBy: { position: "asc" },
+          include: { members: { select: { userId: true } } },
+        },
       },
-    },
-  });
+    }),
+    getMyCircles(),
+  ]);
 
   if (!circle) notFound();
 
@@ -89,7 +94,7 @@ export default async function CirclePage({
   const posts = await attachViewerState(rawPosts, me.id);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
-  const allMembers = canModerate
+  const allMembers = isMember || isOwner
     ? await prisma.circleMembership.findMany({
         where: { circleId: circle.id },
         orderBy: { joinedAt: "asc" },
@@ -101,7 +106,7 @@ export default async function CirclePage({
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackButton fallbackHref="/circles" />
       <div className="mt-1 flex items-center gap-1.5">
-        <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
         {circle.visibility === "PRIVATE" && (
           <span title="Private Circle" className="flex items-center text-foreground-soft">
             <Lock size={12} />
@@ -152,7 +157,9 @@ export default async function CirclePage({
 
           {canModerate && <CircleJoinRequestManager requests={pendingJoinRequests} />}
 
-          <div className="mt-8 grid gap-6 md:grid-cols-[200px_1fr]">
+          <div className="mt-8 grid gap-6 md:grid-cols-[64px_200px_1fr]">
+            <CircleSwitcher circles={myCircles} activeCircleId={circle.id} />
+
             <ChannelList
               circleId={circle.id}
               circleSlug={circle.slug}
@@ -187,6 +194,7 @@ export default async function CirclePage({
                         key={activeChannel.id}
                         channelId={activeChannel.id}
                         canJoin={isMember || isOwner}
+                        circleMembers={allMembers.map((m) => m.user)}
                       />
                     </div>
                   ) : (

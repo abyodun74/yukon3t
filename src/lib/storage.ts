@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
@@ -20,7 +21,8 @@ export type UploadKind =
   | "story-video"
   | "ad-image"
   | "ad-video"
-  | "collab-material";
+  | "collab-material"
+  | "voice-dictation";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -29,6 +31,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "message-audio": { "audio/webm": "webm" },
+  "voice-dictation": { "audio/webm": "webm" },
   // Recorded voice/video notes are always webm (MediaRecorder's output);
   // mp4 is here too because "attach from device" lets a user pick a video
   // their phone actually recorded, which is virtually always mp4.
@@ -73,6 +76,10 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "ad-image": 25 * 1024 * 1024,
   "ad-video": MAX_VIDEO_BYTES,
   "collab-material": 25 * 1024 * 1024,
+  // Short-lived speech-to-text clips (record -> transcribe -> delete) —
+  // smaller than message-audio's 5MB since these never persist past the
+  // transcribeAudio action itself.
+  "voice-dictation": 3 * 1024 * 1024,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
@@ -89,6 +96,7 @@ export const MAX_POST_IMAGES = 10;
 export const MAX_VIDEO_DURATION_SECONDS = 60;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
+export const MAX_DICTATION_SECONDS = 120;
 export const MAX_STORY_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -251,6 +259,30 @@ export async function verifyUploadedSize({
     // as "too large") rather than letting the exception propagate.
     console.error(`[storage] failed to verify uploaded size for ${key}`, err);
     return false;
+  }
+}
+
+/**
+ * Downloads an owned object's bytes for server-side processing (e.g. handing
+ * a recorded clip to Whisper) — the caller already has the raw key, so this
+ * skips the SSRF-guarded public-URL fetch machinery (fetch-remote-image.ts)
+ * that's built for arbitrary user-pasted URLs, not our own bucket. Callers
+ * must have already confirmed ownership (e.g. via verifyUploadedSize) before
+ * calling this — it does not repeat that check itself.
+ */
+export async function downloadObject(
+  key: string,
+): Promise<{ body: Uint8Array; contentType: string } | null> {
+  const bucket = process.env.R2_BUCKET_NAME!;
+
+  try {
+    const object = await client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!object.Body) return null;
+    const body = await object.Body.transformToByteArray();
+    return { body, contentType: object.ContentType ?? "application/octet-stream" };
+  } catch (err) {
+    console.error(`[storage] failed to download object ${key}`, err);
+    return null;
   }
 }
 

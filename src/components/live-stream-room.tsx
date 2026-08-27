@@ -17,6 +17,7 @@ import {
   getMyLiveStreamStatus,
   listLiveStreamRecordings,
   getLiveStreamRecordingLink,
+  recordLiveStreamHeartbeat,
 } from "@/app/actions/live-streams";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { usePolling } from "@/lib/use-polling";
@@ -238,6 +239,10 @@ export function LiveStreamRoom({
     setStageCapacity(cap);
     setRecordings(recs);
 
+    if (isHost || role === "COHOST") {
+      recordLiveStreamHeartbeat(liveStreamId);
+    }
+
     if (isHost) {
       const [{ userIds }, { requests }] = await Promise.all([
         getLiveStreamStageUserIds(liveStreamId),
@@ -259,7 +264,7 @@ export function LiveStreamRoom({
         }
       }
     }
-  }, [liveStreamId, isHost]);
+  }, [liveStreamId, isHost, role]);
 
   usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
 

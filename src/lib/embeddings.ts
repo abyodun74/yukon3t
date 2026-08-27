@@ -74,9 +74,9 @@ export async function updateUserEmbedding(userId: string, fields: {
 export async function updateCircleEmbedding(circleId: string, fields: {
   name: string;
   description: string;
-  category: string;
+  category: string[];
 }) {
-  const text = [fields.name, fields.category, fields.description].filter(Boolean).join("\n");
+  const text = [fields.name, ...fields.category, fields.description].filter(Boolean).join("\n");
   const embedding = await getEmbedding(text);
   if (!embedding) return;
   await prisma.$executeRaw`UPDATE "Circle" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${circleId}`;
