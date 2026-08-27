@@ -42,6 +42,9 @@ function joinErrorMessage(code?: string) {
       return "This stream has ended.";
     case "rate_limited":
       return "Slow down a little and try again.";
+    case "unavailable":
+    case "network":
+      return "Couldn't connect — check your connection and try again.";
     default:
       return "Couldn't join the stream — try again.";
   }
@@ -137,18 +140,31 @@ export function LiveStreamRoom({
   // rule wants.
   const requestJoin = useCallback(
     (selectedRole?: StageRole) => {
-      joinLiveStream(liveStreamId, selectedRole).then((result) => {
-        if (result.error || !result.roomUrl || !result.token) {
-          setError(result.error ?? "unknown");
+      joinLiveStream(liveStreamId, selectedRole)
+        .then((result) => {
+          if (result.error || !result.roomUrl || !result.token) {
+            setError(result.error ?? "unknown");
+            setPhase("error");
+            return;
+          }
+          setRole(result.role ?? "VIEWER");
+          setPendingStageRole(result.pendingStageRequest ?? null);
+          setDeclinedNotice(false);
+          setActive({ roomUrl: result.roomUrl, token: result.token });
+          setPhase("active");
+        })
+        .catch(() => {
+          // A rejected call (network drop, or the Server Action itself
+          // throwing — e.g. a transient DB hiccup, see live-streams.ts's
+          // own hardening) used to leave this screen stuck on "Joining
+          // live stream…" forever, since nothing here ever ran without a
+          // .catch(). Confirmed live: a real user's screen sat on that
+          // loading text indefinitely with no way forward but leaving the
+          // page. Route it through the same error phase as a normal
+          // {error: ...} result, with a retry action, instead.
+          setError("network");
           setPhase("error");
-          return;
-        }
-        setRole(result.role ?? "VIEWER");
-        setPendingStageRole(result.pendingStageRequest ?? null);
-        setDeclinedNotice(false);
-        setActive({ roomUrl: result.roomUrl, token: result.token });
-        setPhase("active");
-      });
+        });
     },
     [liveStreamId],
   );
@@ -167,26 +183,38 @@ export function LiveStreamRoom({
   function doCancelRequest() {
     if (cancellingRequest) return;
     setCancellingRequest(true);
-    cancelStageRequest(liveStreamId).then(() => {
-      setCancellingRequest(false);
-      setPendingStageRole(null);
-      lastRequestStatusRef.current = null;
-    });
+    cancelStageRequest(liveStreamId)
+      .then(() => {
+        setCancellingRequest(false);
+        setPendingStageRole(null);
+        lastRequestStatusRef.current = null;
+      })
+      // Without this, a rejected call left `cancellingRequest` true
+      // forever — the Cancel button permanently disabled with no way to
+      // retry short of leaving the page. Same class of bug as
+      // requestJoin's missing .catch() above: just re-enable and let them
+      // try again.
+      .catch(() => setCancellingRequest(false));
   }
 
   function respondToRequest(requestId: string, approve: boolean) {
     if (respondingRequestId) return;
     setRespondingRequestId(requestId);
-    respondToStageRequest(requestId, approve).then((result) => {
-      setRespondingRequestId(null);
-      // Drop it from the list optimistically either way — a "stage_full"
-      // rejection on approve still means this particular request is done
-      // (declined by capacity), and the next poll tick will re-add it if
-      // that assumption was somehow wrong.
-      if (!result.error || result.error === "stage_full") {
-        setStageRequests((prev) => prev.filter((r) => r.id !== requestId));
-      }
-    });
+    respondToStageRequest(requestId, approve)
+      .then((result) => {
+        setRespondingRequestId(null);
+        // Drop it from the list optimistically either way — a "stage_full"
+        // rejection on approve still means this particular request is done
+        // (declined by capacity), and the next poll tick will re-add it if
+        // that assumption was somehow wrong.
+        if (!result.error || result.error === "stage_full") {
+          setStageRequests((prev) => prev.filter((r) => r.id !== requestId));
+        }
+      })
+      // Same reasoning as doCancelRequest above — a rejected call must
+      // still clear respondingRequestId, or these Approve/Decline buttons
+      // stay disabled forever for this request.
+      .catch(() => setRespondingRequestId(null));
   }
 
   const poll = useCallback(async () => {
@@ -367,13 +395,36 @@ export function LiveStreamRoom({
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="text-sm text-foreground-soft">{joinErrorMessage(error ?? undefined)}</p>
-        <button
-          type="button"
-          onClick={() => router.push("/home")}
-          className="mt-4 rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          Back to Home
-        </button>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          {/* Most of what lands here (a dropped connection, the transient
+              DB hiccup live-streams.ts now guards against) is worth a plain
+              retry, not a trip back to Home — host retries the same
+              auto-join; a viewer/requester goes back to "choosing" since
+              their exact prior selection (watch/guest/co-host) isn't
+              tracked in state. */}
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              if (isHost) {
+                setPhase("joining");
+                requestJoin();
+              } else {
+                setPhase("choosing");
+              }
+            }}
+            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/home")}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            Back to Home
+          </button>
+        </div>
         {renderRecordingsPanel("themed")}
       </div>
     );
