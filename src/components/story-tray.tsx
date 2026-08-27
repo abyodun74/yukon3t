@@ -29,18 +29,39 @@ function Ring({
   return (
     <div className="relative flex w-16 min-w-0 shrink-0 flex-col items-center gap-1">
       <button type="button" onClick={onClick} className="flex flex-col items-center gap-1">
+        {/*
+          Two-layer ring, same technique Instagram uses: an outer circle
+          painted with the ring color/gradient, a background-colored gap
+          (border-background) as breathing room, then the avatar itself —
+          without that gap the ring color bleeds straight into the photo and
+          reads as a flat colored border instead of a distinct ring.
+          hasUnseen gets the signature warm gradient; already-seen stories
+          fall back to a plain neutral ring (Instagram does the same); no
+          stories at all (bare "Your story" placeholder) gets no ring.
+        */}
         <span
           className={cn(
-            "flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-surface",
-            hasUnseen ? "border-2 border-accent" : hasStories ? "border-2 border-line" : "border border-line",
+            "flex h-16 w-16 items-center justify-center rounded-full p-[2px]",
+            hasUnseen
+              ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600"
+              : hasStories
+                ? "bg-line"
+                : "",
           )}
         >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-xs text-foreground-soft">{fallbackLetter.slice(0, 1)}</span>
-          )}
+          <span
+            className={cn(
+              "flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface",
+              hasStories ? "border-2 border-background" : "border border-line",
+            )}
+          >
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-xs text-foreground-soft">{fallbackLetter.slice(0, 1)}</span>
+            )}
+          </span>
         </span>
         <span className="w-full truncate text-center text-[11px] text-foreground-soft">{label}</span>
       </button>
@@ -83,7 +104,7 @@ export function StoryTray({
 
   return (
     <>
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      <div className="flex gap-4 overflow-x-auto pb-1">
         <Ring
           avatarUrl={myGroup?.authorAvatarUrl ?? meAvatarUrl}
           label="Your story"

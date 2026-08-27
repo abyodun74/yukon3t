@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { X, Eye, Trash2, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { UserLink } from "@/components/user-link";
 import {
   viewStory,
@@ -16,6 +17,11 @@ import { formatDateTime } from "@/lib/format-date";
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
+// A pointer that moved at least this far horizontally before release is a
+// swipe (move to the next/previous person's stack), not a tap (move within
+// this person's own stories) — checked before the hold-duration tap check
+// below, so a slow drag doesn't get misread as a hold-to-pause release.
+const SWIPE_THRESHOLD_PX = 60;
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
 export type StoryData = {
@@ -49,6 +55,9 @@ export function StoryViewer({
   authorAvatarUrl,
   isOwner,
   onClose,
+  direction,
+  onNextAuthor,
+  onPrevAuthor,
 }: {
   stories: StoryData[];
   startIndex: number;
@@ -57,6 +66,12 @@ export function StoryViewer({
   authorAvatarUrl: string | null;
   isOwner: boolean;
   onClose: () => void;
+  /** Which way this mount should glide in from — set by the tray wrapper alongside onNextAuthor/onPrevAuthor. Omitted (e.g. a single-author profile viewer) means no entrance glide. */
+  direction?: "next" | "prev";
+  /** A swipe (see SWIPE_THRESHOLD_PX), or naturally reaching the end of `stories`, calls this instead of onClose when provided — the tray wrapper uses it to move to the next person's stack rather than exiting. */
+  onNextAuthor?: () => void;
+  /** A rightward swipe calls this when provided — the tray wrapper uses it to move to the previous person's stack. No-op (not undefined-guarded to onClose) if there's nobody before this one. */
+  onPrevAuthor?: () => void;
 }) {
   const [index, setIndex] = useState(startIndex);
   const [progress, setProgress] = useState(0);
@@ -77,6 +92,7 @@ export function StoryViewer({
   const elapsedRef = useRef(0);
   const seenRef = useRef<Set<string>>(new Set());
   const pointerDownAtRef = useRef(0);
+  const pointerStartXRef = useRef(0);
   const router = useRouter();
 
   const story = stories[index];
@@ -92,11 +108,12 @@ export function StoryViewer({
   // different component" warning flags.
   const next = useCallback(() => {
     if (index + 1 >= stories.length) {
-      onClose();
+      if (onNextAuthor) onNextAuthor();
+      else onClose();
       return;
     }
     setIndex(index + 1);
-  }, [index, stories.length, onClose]);
+  }, [index, stories.length, onClose, onNextAuthor]);
 
   const prev = useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));
@@ -159,16 +176,30 @@ export function StoryViewer({
     else video.play().catch(() => {});
   }, [paused, showViewers, story]);
 
-  function handlePointerDown() {
+  function handlePointerDown(e: PointerEvent<HTMLButtonElement>) {
     pointerDownAtRef.current = Date.now();
+    pointerStartXRef.current = e.clientX;
     setPaused(true);
   }
 
-  function handlePointerUp(direction: "prev" | "next") {
+  function handlePointerUp(e: PointerEvent<HTMLButtonElement>, tapDirection: "prev" | "next") {
     const held = Date.now() - pointerDownAtRef.current;
+    const deltaX = e.clientX - pointerStartXRef.current;
     setPaused(false);
+
+    // A real horizontal swipe always means "move between people", regardless
+    // of which tap zone (left third vs right two-thirds) it started or ended
+    // in and regardless of which story is currently showing — this is what
+    // makes it read as distinct from a tap, which only steps through this
+    // same person's own stories.
+    if (Math.abs(deltaX) >= SWIPE_THRESHOLD_PX) {
+      if (deltaX < 0) onNextAuthor?.();
+      else onPrevAuthor?.();
+      return;
+    }
+
     if (held < TAP_MAX_HOLD_MS) {
-      if (direction === "prev") prev();
+      if (tapDirection === "prev") prev();
       else next();
     }
   }
@@ -206,8 +237,14 @@ export function StoryViewer({
   if (!story) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black">
-      <div className="absolute inset-0 flex items-center justify-center">
+    <div
+      className={cn(
+        "fixed inset-0 z-[70] overflow-hidden bg-black",
+        direction === "next" && "story-glide-next",
+        direction === "prev" && "story-glide-prev",
+      )}
+    >
+      <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={story.mediaUrl} alt="" className="max-h-full max-w-full object-contain" />
@@ -235,7 +272,7 @@ export function StoryViewer({
           aria-label="Previous story"
           className="h-full w-1/3"
           onPointerDown={handlePointerDown}
-          onPointerUp={() => handlePointerUp("prev")}
+          onPointerUp={(e) => handlePointerUp(e, "prev")}
           onPointerLeave={() => setPaused(false)}
         />
         <button
@@ -243,7 +280,7 @@ export function StoryViewer({
           aria-label="Next story"
           className="h-full w-2/3"
           onPointerDown={handlePointerDown}
-          onPointerUp={() => handlePointerUp("next")}
+          onPointerUp={(e) => handlePointerUp(e, "next")}
           onPointerLeave={() => setPaused(false)}
         />
       </div>
