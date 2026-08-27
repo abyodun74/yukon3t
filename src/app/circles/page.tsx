@@ -41,7 +41,7 @@ export default async function CirclesPage() {
             <Link
               key={circle.id}
               href={`/circles/${circle.slug}`}
-              className="rounded-xl border border-line p-4 hover:border-accent"
+              className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
             >
               <div className="flex items-center gap-3">
                 {circle.coverImageUrl && (
@@ -53,8 +53,8 @@ export default async function CirclesPage() {
                   />
                 )}
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-medium uppercase tracking-wide text-teal">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
                       {circle.category.join(", ")}
                     </p>
                     {circle.visibility === "PRIVATE" && (

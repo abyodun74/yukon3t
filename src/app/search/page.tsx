@@ -353,9 +353,9 @@ export default async function SearchPage({
               <Link
                 key={circle.id}
                 href={`/circles/${circle.slug}`}
-                className="rounded-xl border border-line p-4 hover:border-accent"
+                className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
               >
-                <p className="text-xs font-medium uppercase tracking-wide text-teal">
+                <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
                   {circle.category.join(", ")}
                 </p>
                 <h3 className="mt-1 break-words font-semibold">{circle.name}</h3>
@@ -497,9 +497,9 @@ export default async function SearchPage({
                   <Link
                     key={circle.id}
                     href={`/circles/${circle.slug}`}
-                    className="rounded-xl border border-line p-4 hover:border-accent"
+                    className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
                   >
-                    <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
+                    <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
                     <h4 className="mt-1 break-words font-semibold">{circle.name}</h4>
                     <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">

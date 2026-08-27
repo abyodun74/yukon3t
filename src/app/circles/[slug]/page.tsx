@@ -105,8 +105,8 @@ export default async function CirclePage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackButton fallbackHref="/circles" />
-      <div className="mt-1 flex items-center gap-1.5">
-        <p className="text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
         {circle.visibility === "PRIVATE" && (
           <span title="Private Circle" className="flex items-center text-foreground-soft">
             <Lock size={12} />
