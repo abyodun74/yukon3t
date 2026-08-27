@@ -119,7 +119,18 @@ export default async function RootLayout({
           {session?.user && <GlobalCallFrame />}
           {session?.user && <FcmTokenBridge />}
           <main className="flex-1">{children}</main>
-          <footer className="border-t border-line py-8 text-center text-sm text-foreground-soft">
+          {/* Signed-in mobile users already have a dedicated bottom tab bar
+              (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
+              above) covering navigation — this marketing-site-style footer
+              (FAQ/legal links) has no reason to also appear there. Confirmed
+              live via a real user's screenshot: it was rendering between the
+              message composer and that tab bar on an actual conversation
+              screen, pure clutter competing for scarce phone-screen height.
+              Signed-out visitors (landing/legal/FAQ pages) and desktop still
+              get it — hidden only for the case that's actually a problem. */}
+          <footer
+            className={`border-t border-line py-8 text-center text-sm text-foreground-soft ${session?.user ? "hidden md:block" : ""}`}
+          >
             <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
               <a href="/faq" className="hover:text-accent">
                 FAQ
