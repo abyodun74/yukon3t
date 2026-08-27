@@ -431,119 +431,133 @@ export function LiveStreamRoom({
 
   return (
     <>
-      {/* top offsets below add env(safe-area-inset-top) on top of the old
-          fixed spacing — both native shells render edge-to-edge under the
-          status bar/notch (see layout.tsx's viewportFit: "cover" comment),
-          so a bare `top-3`/`top-14` placed these controls partly or fully
-          behind the status bar/notch in the actual mobile app, even though
-          they looked fine in an ordinary browser tab (which always reserves
-          its own chrome above the page). env() is 0 on anything that isn't
-          edge-to-edge, so this is a no-op there. */}
+      {/* A single wrapping flex row, not two independently `fixed` corners —
+          the old left-anchored info pill and right-anchored button column
+          had no shared container, so nothing stopped them overlapping once
+          their combined content (title + counts + Record/Screenshot/stage-
+          request panel) didn't fit side by side — confirmed on a real phone
+          screenshot (~412px wide) where "0/3" ran straight into "Record"
+          with no space between them. `flex-wrap` here means the right
+          group drops to its own line below the left pill instead, at any
+          viewport width, rather than painting on top of it. The top offset
+          adds env(safe-area-inset-top) on top of the old fixed spacing —
+          both native shells render edge-to-edge under the status bar/notch
+          (see layout.tsx's viewportFit: "cover" comment), so a bare
+          `top-3`/`top-14` placed these controls partly or fully behind the
+          status bar/notch in the actual mobile app, even though they looked
+          fine in an ordinary browser tab (which always reserves its own
+          chrome above the page). env() is 0 anywhere that isn't
+          edge-to-edge, so both of these are no-ops there. */}
       <div
-        className="fixed left-3 z-[70] flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white"
+        className="fixed inset-x-0 z-[70] flex flex-wrap items-start justify-between gap-2 px-3"
         style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
-        <span className="flex items-center gap-1 font-semibold text-danger">
-          <span className="h-1.5 w-1.5 rounded-full bg-danger" />
-          LIVE
-        </span>
-        <span className="max-w-[40vw] truncate">{title}</span>
-        <span className="flex items-center gap-1" title="Watching">
-          <Eye size={12} />
-          {viewerCount}
-        </span>
-        <span className="flex items-center gap-1" title="On stage">
-          <Users size={12} />
-          {stageCount}/{stageCapacity}
-        </span>
-      </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white">
+          <span className="flex items-center gap-1 font-semibold text-danger">
+            <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+            LIVE
+          </span>
+          <span className="max-w-[40vw] truncate">{title}</span>
+          <span className="flex items-center gap-1" title="Watching">
+            <Eye size={12} />
+            {viewerCount}
+          </span>
+          <span className="flex items-center gap-1" title="On stage">
+            <Users size={12} />
+            {stageCount}/{stageCapacity}
+          </span>
+        </div>
 
-      <div
-        className="fixed z-[70] flex flex-col items-end gap-2"
-        style={{ right: "0.75rem", top: "calc(0.75rem + env(safe-area-inset-top))" }}
-      >
-        <div className="flex items-center gap-2">
-          {canRecord && (
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {canRecord && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white ${
+                  recording ? "bg-danger" : "bg-black/60"
+                }`}
+              >
+                <RecordIcon size={10} className={recording ? "fill-white" : "fill-danger text-danger"} />
+                {recording ? "Stop recording" : "Record"}
+              </button>
+            )}
             <button
               type="button"
-              onClick={toggleRecording}
-              className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white ${
-                recording ? "bg-danger" : "bg-black/60"
-              }`}
+              disabled={screenshotBusy}
+              onClick={handleScreenshot}
+              className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
             >
-              <RecordIcon size={10} className={recording ? "fill-white" : "fill-danger text-danger"} />
-              {recording ? "Stop recording" : "Record"}
+              <Camera size={12} />
+              Screenshot
             </button>
+            {recordings.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowRecordings((v) => !v)}
+                className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                <Download size={12} />
+                Recordings ({recordings.length})
+              </button>
+            )}
+          </div>
+          {showRecordings && recordings.length > 0 && (
+            <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg bg-black/80 p-3 text-white">
+              {renderRecordingsPanel("dark")}
+            </div>
           )}
-          <button
-            type="button"
-            disabled={screenshotBusy}
-            onClick={handleScreenshot}
-            className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-          >
-            <Camera size={12} />
-            Screenshot
-          </button>
-          {recordings.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowRecordings((v) => !v)}
-              className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              <Download size={12} />
-              Recordings ({recordings.length})
-            </button>
+          {isHost && stageRequests.length > 0 && (
+            // max-w caps this at the viewport width (minus the same 0.75rem
+            // margin used on both sides) so it can never overflow off-screen
+            // on a narrow phone — w-72 is just the preferred width when
+            // there's room for it.
+            <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg bg-black/80 p-3 text-white">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                Waiting to join the stage
+              </p>
+              <ul className="mt-1.5 space-y-2.5">
+                {stageRequests.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate">
+                      {r.user.name ?? "Someone"}
+                      <span className="text-white/60"> · {r.role === "COHOST" ? "co-host" : "guest"}</span>
+                    </span>
+                    {/* Explicit 40px (h-10 w-10) tap targets — the icons
+                        themselves are small, but on a real phone (not a
+                        mouse cursor) the old p-1/12px-icon buttons were well
+                        under Apple/Material's ~44px minimum touch target and
+                        were genuinely hard to hit reliably in the mobile
+                        app's WebView, stacked this close together next to
+                        the Record/Screenshot controls. */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={respondingRequestId === r.id}
+                        onClick={() => respondToRequest(r.id, true)}
+                        title="Approve"
+                        aria-label={`Approve ${r.user.name ?? "this request"}`}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
+                      >
+                        <Check size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={respondingRequestId === r.id}
+                        onClick={() => respondToRequest(r.id, false)}
+                        title="Decline"
+                        aria-label={`Decline ${r.user.name ?? "this request"}`}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white disabled:opacity-50"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
-        {showRecordings && recordings.length > 0 && (
-          <div className="w-64 rounded-lg bg-black/80 p-3 text-white">{renderRecordingsPanel("dark")}</div>
-        )}
-        {isHost && stageRequests.length > 0 && (
-          <div className="w-72 rounded-lg bg-black/80 p-3 text-white">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-              Waiting to join the stage
-            </p>
-            <ul className="mt-1.5 space-y-2.5">
-              {stageRequests.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0 truncate">
-                    {r.user.name ?? "Someone"}
-                    <span className="text-white/60"> · {r.role === "COHOST" ? "co-host" : "guest"}</span>
-                  </span>
-                  {/* Explicit 40px (h-10 w-10) tap targets — the icons
-                      themselves are small, but on a real phone (not a mouse
-                      cursor) the old p-1/12px-icon buttons were well under
-                      Apple/Material's ~44px minimum touch target and were
-                      genuinely hard to hit reliably in the mobile app's
-                      WebView, stacked this close together next to the
-                      Record/Screenshot controls. */}
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={respondingRequestId === r.id}
-                      onClick={() => respondToRequest(r.id, true)}
-                      title="Approve"
-                      aria-label={`Approve ${r.user.name ?? "this request"}`}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
-                    >
-                      <Check size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={respondingRequestId === r.id}
-                      onClick={() => respondToRequest(r.id, false)}
-                      title="Decline"
-                      aria-label={`Decline ${r.user.name ?? "this request"}`}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white disabled:opacity-50"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
 
       {!isHost && pendingStageRole && (
@@ -551,8 +565,10 @@ export function LiveStreamRoom({
           className="fixed inset-x-0 z-[70] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
-          <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
-            <span>Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…</span>
+          <div className="flex max-w-full items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+            <span className="min-w-0">
+              Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…
+            </span>
             <button
               type="button"
               disabled={cancellingRequest}
@@ -569,8 +585,8 @@ export function LiveStreamRoom({
           className="fixed inset-x-0 z-[70] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
-          <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
-            <span>The host declined your stage request.</span>
+          <div className="flex max-w-full items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+            <span className="min-w-0">The host declined your stage request.</span>
             <button
               type="button"
               onClick={() => setDeclinedNotice(false)}
