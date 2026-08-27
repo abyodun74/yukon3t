@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
-import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Upload, Video, X } from "lucide-react";
+import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -1097,7 +1097,12 @@ export function ChatThread({
         </div>
       )}
 
-      <div className="mt-3 flex shrink-0 items-end gap-2 rounded-xl border border-line bg-background p-2">
+      {/* WhatsApp/Instagram-style composer: one continuous rounded pill
+          holding text entry + emoji + attach, with circular icon-only
+          action buttons (mic, send) outside it — not a bordered toolbar of
+          equal-weight icon buttons next to a plain text "Send" button, the
+          shape this replaced. */}
+      <div className="mt-3 flex shrink-0 items-end gap-2">
         <input
           ref={imageInputRef}
           type="file"
@@ -1120,82 +1125,90 @@ export function ChatThread({
           className="hidden"
           onChange={(e) => pickVideoFile(e.target.files?.[0])}
         />
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
+        <div className="flex flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
+          <EmojiPickerButton onSelect={insertEmoji} />
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            maxLength={4000}
+            rows={1}
+            placeholder={
+              pendingAudio || pendingVideo || pendingImage
+                ? "Add a caption (optional)..."
+                : `Message ${conversationLabel}...`
             }
-          }}
-          maxLength={4000}
-          rows={2}
-          placeholder={
-            pendingAudio || pendingVideo || pendingImage
-              ? "Add a caption (optional)..."
-              : `Message ${conversationLabel}...`
-          }
-          className="max-h-32 flex-1 resize-none bg-transparent px-3 py-2 text-sm outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            setPendingVideo(null);
-            setPendingImage(null);
-            setShowAudioRecorder(true);
-          }}
-          title="Record a voice note"
-          className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line"
-        >
-          <Mic size={16} />
-        </button>
-        <MediaPickerButton
-          icon={<ImagePlus size={16} />}
-          title="Add a photo"
-          options={[
-            {
-              label: "Upload from device",
-              icon: <Upload size={14} />,
-              onSelect: () => imageInputRef.current?.click(),
-            },
-            {
-              label: "Take a photo",
-              icon: <Camera size={14} />,
-              onSelect: () => cameraInputRef.current?.click(),
-            },
-          ]}
-        />
-        <MediaPickerButton
-          icon={<Video size={16} />}
-          title="Add a video"
-          options={[
-            {
-              label: "Upload from device",
-              icon: <Upload size={14} />,
-              onSelect: () => videoFileInputRef.current?.click(),
-            },
-            {
-              label: "Record live",
-              icon: <Circle size={14} className="text-danger" fill="currentColor" />,
-              onSelect: () => {
-                setPendingAudio(null);
-                setPendingImage(null);
-                setShowVideoRecorder(true);
+            className="max-h-32 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none"
+          />
+          <MediaPickerButton
+            icon={<ImagePlus size={16} />}
+            title="Add a photo"
+            options={[
+              {
+                label: "Upload from device",
+                icon: <Upload size={14} />,
+                onSelect: () => imageInputRef.current?.click(),
               },
-            },
-          ]}
-        />
-        <EmojiPickerButton onSelect={insertEmoji} />
-        <button
-          type="button"
-          disabled={isPending || (!content.trim() && !pendingAudio && !pendingVideo && !pendingImage)}
-          onClick={handleSend}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
-        >
-          Send
-        </button>
+              {
+                label: "Take a photo",
+                icon: <Camera size={14} />,
+                onSelect: () => cameraInputRef.current?.click(),
+              },
+            ]}
+          />
+          <MediaPickerButton
+            icon={<Video size={16} />}
+            title="Add a video"
+            options={[
+              {
+                label: "Upload from device",
+                icon: <Upload size={14} />,
+                onSelect: () => videoFileInputRef.current?.click(),
+              },
+              {
+                label: "Record live",
+                icon: <Circle size={14} className="text-danger" fill="currentColor" />,
+                onSelect: () => {
+                  setPendingAudio(null);
+                  setPendingImage(null);
+                  setShowVideoRecorder(true);
+                },
+              },
+            ]}
+          />
+        </div>
+        {/* One circular action button that toggles mic ↔ send, like both
+            reference apps — not a mic button and a send button sitting
+            side by side. Idle (nothing typed, nothing attached) always
+            means "record a voice note"; anything typed or attached means
+            "send". */}
+        {content.trim() || pendingAudio || pendingVideo || pendingImage ? (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleSend}
+            aria-label="Send"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
+          >
+            <Send size={17} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowAudioRecorder(true)}
+            title="Record a voice note"
+            aria-label="Record a voice note"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink"
+          >
+            <Mic size={18} />
+          </button>
+        )}
       </div>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
 
