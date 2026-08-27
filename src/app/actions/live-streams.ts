@@ -13,8 +13,9 @@ import {
   getRecordingAccessLink,
 } from "@/lib/daily";
 import { getCircleMembership } from "@/lib/circle-permissions";
-import { liveStreamTitleSchema, liveStreamJoinRoleSchema } from "@/lib/validations";
+import { liveStreamTitleSchema, liveStreamJoinRoleSchema, liveStreamCommentSchema } from "@/lib/validations";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { moderateText } from "@/lib/moderation";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -550,5 +551,91 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
     return { error: null, url };
   } catch {
     return { error: "unavailable" as const };
+  }
+}
+
+/**
+ * Posts a message to a live stream's own text-chat overlay — separate from
+ * Daily's built-in room chat (enabled on every room but rendered inside its
+ * cross-origin prebuilt iframe, so this app can't style/position it as the
+ * always-visible scrolling feed the UI actually shows). Same visibility
+ * rule as joining: a Circle-scoped stream requires membership.
+ */
+export async function sendLiveStreamComment(liveStreamId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("liveStreamComment", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const liveStream = await prisma.liveStream.findUnique({ where: { id: liveStreamId } });
+  if (!liveStream || liveStream.status !== "LIVE") {
+    return { error: "not_found" as const };
+  }
+  if (liveStream.circleId && !(await getCircleMembership(liveStream.circleId, user.id))) {
+    return { error: "not_a_member" as const };
+  }
+
+  const parsed = liveStreamCommentSchema.safeParse({ content: formData.get("content") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  const modResult = await moderateText(parsed.data.content);
+  if (!modResult.allowed) {
+    return { error: "moderation" as const };
+  }
+
+  await prisma.liveStreamComment.create({
+    data: { liveStreamId, authorId: user.id, content: parsed.data.content },
+  });
+
+  return { error: null };
+}
+
+/**
+ * Polled by the stream's chat overlay — same fail-soft shape as
+ * getLiveStreamViewerCount (a polling loop shouldn't surface a transient
+ * blip as a visible error). `afterId` is a plain cursor (this comment's id
+ * or later), not a timestamp, avoiding any clock-skew edge case between
+ * client and server.
+ */
+export async function getLiveStreamComments(liveStreamId: string, afterId?: string) {
+  try {
+    await requireVerifiedUser();
+
+    let afterCreatedAt: Date | undefined;
+    if (afterId) {
+      const after = await prisma.liveStreamComment.findUnique({
+        where: { id: afterId },
+        select: { createdAt: true },
+      });
+      afterCreatedAt = after?.createdAt;
+    }
+
+    const comments = await prisma.liveStreamComment.findMany({
+      where: {
+        liveStreamId,
+        ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      // Only caps the very first fetch (no cursor yet) — once polling is
+      // established, each tick only ever asks for what landed since the
+      // last one, which is never anywhere near this many.
+      take: afterId ? undefined : 30,
+      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+
+    return {
+      comments: comments.map((c) => ({
+        id: c.id,
+        content: c.content,
+        createdAt: c.createdAt,
+        author: c.author,
+      })),
+    };
+  } catch {
+    return { comments: [] };
   }
 }

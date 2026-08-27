@@ -79,6 +79,7 @@ export const rateLimiters = {
   shareToCircle: makeLimiter(20, "10 m"),
   liveStreamStart: makeLimiter(5, "10 m"),
   liveStreamJoin: makeLimiter(30, "1 m"),
+  liveStreamComment: makeLimiter(20, "1 m"),
   dataExport: makeLimiter(3, "1 h"),
   circleModerate: makeLimiter(30, "10 m"),
   channelManage: makeLimiter(30, "10 m"),

@@ -130,8 +130,9 @@ export const circleSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PUBLIC"),
 });
 
-export const updateCircleNameSchema = z.object({
+export const updateCircleDetailsSchema = z.object({
   name: z.string().trim().min(3).max(60),
+  category: z.array(z.string().trim().min(2).max(40)).min(1).max(5),
 });
 
 export const announcementSchema = z.object({
@@ -419,6 +420,10 @@ export const liveStreamTitleSchema = z.object({
 
 /** GUEST/COHOST request a stage slot (see joinLiveStream); omitted/undefined means watch-only. */
 export const liveStreamJoinRoleSchema = z.enum(["GUEST", "COHOST"]).optional();
+
+export const liveStreamCommentSchema = z.object({
+  content: z.string().trim().min(1).max(300),
+});
 
 export const moderationActionSchema = z.object({
   reportId: z.string().cuid(),

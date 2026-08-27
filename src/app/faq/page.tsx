@@ -185,7 +185,26 @@ const sections: Section[] = [
             emoji picker. Pick any emoji to react; picking the same one again
             removes it, and picking a different one swaps it. This is
             separate from the heart/Like button, so you can Like a post and
-            add an emoji reaction at the same time.
+            add an emoji reaction at the same time. The same picker (in posts,
+            comments, and chats) understands informal and non-English search
+            terms too — typing &ldquo;pray,&rdquo;
+            &ldquo;amen&rdquo;/&ldquo;ameen&rdquo;/&ldquo;aameen,&rdquo; or
+            &ldquo;sad&rdquo; surfaces a small &ldquo;Suggested&rdquo; row of
+            relevant emoji above the regular search results.
+          </>
+        ),
+      },
+      {
+        q: "Can I dictate a post instead of typing it?",
+        a: (
+          <>
+            Yes — tap the microphone icon in the post composer (or a chat
+            message box) to record a short voice clip; it&apos;s transcribed
+            and dropped into the text box for you to review and edit before
+            posting or sending. This is separate from the round mic/send
+            button in a chat, which instead sends the recording itself as a
+            voice note — the dictation mic sits next to the emoji button and
+            always produces editable text.
           </>
         ),
       },
@@ -247,12 +266,13 @@ const sections: Section[] = [
         q: "Is there a way to see older posts on a profile, in a Circle, or in search results?",
         a: (
           <>
-            Yes — scroll to the bottom of Home, a profile&apos;s posts, a
-            Circle&apos;s channel feed, or a Search results page and tap
-            &ldquo;Load more&rdquo; to fetch the next batch. (Home separately
-            checks for brand-new posts every 20&ndash;30 seconds and adds
-            those to the top automatically — that&apos;s different from
-            &ldquo;Load more,&rdquo; which reaches further back.)
+            Yes. On <strong>Home</strong>, older posts load in automatically
+            as you scroll — nothing to tap. A profile&apos;s posts, a
+            Circle&apos;s channel feed, and Search results pages still use a
+            &ldquo;Load more&rdquo; button at the bottom to fetch the next
+            batch. (Home separately checks for brand-new posts every
+            20&ndash;30 seconds and adds those to the top automatically —
+            that&apos;s different from loading further back in the feed.)
           </>
         ),
       },
@@ -300,6 +320,30 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Why did my live stream end on its own?",
+        a: (
+          <>
+            A stream ends itself automatically once the host and any
+            co-hosts have all been away for 30 minutes straight (no one with
+            hosting privileges still active in it) — this is a cleanup
+            measure so an abandoned stream doesn&apos;t sit &ldquo;live&rdquo;
+            indefinitely. A brand-new stream always gets a 30-minute grace
+            period regardless, so it&apos;s never ended before anyone&apos;s
+            had a real chance to join.
+          </>
+        ),
+      },
+      {
+        q: "Can people comment during a live stream?",
+        a: (
+          <>
+            Yes — a &ldquo;Write something...&rdquo; box sits over the
+            stream itself; anyone watching can type a comment and everyone
+            else sees it scroll in above it in real time.
+          </>
+        ),
+      },
+      {
         q: "Can I keep using the app during a call or a Go Live stream?",
         a: (
           <>
@@ -336,6 +380,20 @@ const sections: Section[] = [
             badge appears on your story ring (both on Home and your profile)
             so you can keep adding more without limit, in addition to tapping
             the ring itself to view your existing stack.
+          </>
+        ),
+      },
+      {
+        q: "How do I move between different people's Stories?",
+        a: (
+          <>
+            While viewing a Story, tap the right side of the screen to
+            advance through that same person&apos;s own Stories, or the left
+            side to go back through them. To jump to a different
+            person&apos;s Stories entirely, swipe left (next person) or right
+            (previous person) anywhere on the screen — swiping always moves
+            between people, regardless of which of their Stories you&apos;re
+            currently on.
           </>
         ),
       },
@@ -386,6 +444,16 @@ const sections: Section[] = [
             recording), plus a microphone icon for a recorded voice note.
             Any message you send can be deleted for yourself, or for
             everyone if you sent it.
+          </>
+        ),
+      },
+      {
+        q: "Can I see a photo in a chat full-screen?",
+        a: (
+          <>
+            Yes — tap any photo in a message to open it full-screen, the
+            same viewer used for post images (pinch or scroll to zoom, tap
+            outside or the X to close).
           </>
         ),
       },
@@ -462,7 +530,32 @@ const sections: Section[] = [
             plus specific job types and professions (Bookkeeping, Civil
             Engineer, Cybersecurity Analyst, Linux Administrator, and dozens
             more), so you can land on exactly the right one instead of a
-            generic &ldquo;Professional&rdquo; bucket.
+            generic &ldquo;Professional&rdquo; bucket. You can pick up to 5
+            categories for a single Circle if more than one genuinely fits.
+          </>
+        ),
+      },
+      {
+        q: "Can I rename my Circle or change its categories after creating it?",
+        a: (
+          <>
+            Yes — the owner or a co-admin can tap the pencil icon next to the
+            Circle&apos;s name on its page to change the name and/or its
+            categories at any time. Its URL never changes when you rename it,
+            so existing links and bookmarks to it keep working.
+          </>
+        ),
+      },
+      {
+        q: "How do I invite someone to a Circle's voice channel?",
+        a: (
+          <>
+            Open the voice channel and tap &ldquo;Invite&rdquo; to pick from
+            the Circle&apos;s members — any member can invite another, not
+            just the owner/co-admins. The channel shows a running count of
+            how many invites are pending, accepted, and declined. Accepting
+            an invite doesn&apos;t drop someone straight into the room by
+            itself — they still tap in to actually join, same as anyone else.
           </>
         ),
       },

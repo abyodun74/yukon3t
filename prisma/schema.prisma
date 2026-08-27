@@ -233,6 +233,7 @@ model User {
   liveStreamsHosted       LiveStream[]
   liveStreamsWatching     LiveStreamViewer[]
   liveStreamStageRequests LiveStreamStageRequest[]
+  liveStreamComments      LiveStreamComment[]
 
   stories        Story[]
   storyViews     StoryView[]
@@ -977,9 +978,34 @@ model LiveStream {
   viewers       LiveStreamViewer[]
   stageRequests LiveStreamStageRequest[]
   notifications Notification[]
+  comments      LiveStreamComment[]
 
   @@index([status])
   @@index([hostId])
+}
+
+/**
+ * A live text-chat message on a Go Live stream — separate from Daily's own
+ * built-in room chat (enabled on every room, see createLiveStreamRoom, but
+ * that lives inside Daily's cross-origin prebuilt iframe and can't be
+ * restyled/positioned by this app). This is what actually backs the
+ * always-visible scrolling comment feed on the stream itself. Polled, not a
+ * persistent chat archive — same "presence-ish, not a durable thread" spirit
+ * as LiveStreamViewer, though rows aren't deleted on cascade-independent
+ * cleanup the way presence rows are; they just stop being polled once the
+ * stream ends.
+ */
+model LiveStreamComment {
+  id           String   @id @default(cuid())
+  liveStreamId String
+  authorId     String
+  content      String   @db.Text
+  createdAt    DateTime @default(now())
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([liveStreamId, createdAt])
 }
 
 /**

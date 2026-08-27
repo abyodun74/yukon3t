@@ -13,7 +13,8 @@ import { CircleJoinRequestManager } from "@/components/circle-join-request-manag
 import { ChannelList } from "@/components/channel-list";
 import { CircleSwitcher } from "@/components/circle-switcher";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
-import { CircleNameEditModal } from "@/components/circle-name-edit-modal";
+import { CircleDetailsEditModal } from "@/components/circle-details-edit-modal";
+import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { PostCard } from "@/components/post-card";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
@@ -125,7 +126,14 @@ export default async function CirclePage({
             />
           )}
           <h1 className="min-w-0 break-words text-2xl font-semibold">{circle.name}</h1>
-          {canModerate && <CircleNameEditModal circleId={circle.id} name={circle.name} />}
+          {canModerate && (
+            <CircleDetailsEditModal
+              circleId={circle.id}
+              name={circle.name}
+              category={circle.category}
+              categoryOptions={CIRCLE_CATEGORIES}
+            />
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CircleMembershipButton

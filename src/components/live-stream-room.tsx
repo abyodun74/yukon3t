@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Circle as RecordIcon, Download, Eye, Users, X } from "lucide-react";
+import { Camera, Check, Circle as RecordIcon, Download, Eye, Send, Users, X } from "lucide-react";
 import type { DailyParticipant } from "@daily-co/daily-js";
 import { useCallSession } from "@/lib/call-session";
 import {
@@ -18,6 +18,8 @@ import {
   listLiveStreamRecordings,
   getLiveStreamRecordingLink,
   recordLiveStreamHeartbeat,
+  sendLiveStreamComment,
+  getLiveStreamComments,
 } from "@/app/actions/live-streams";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { usePolling } from "@/lib/use-polling";
@@ -32,6 +34,12 @@ type StageRequest = {
   id: string;
   role: StageRole;
   user: { id: string; name: string | null; avatarUrl: string | null };
+};
+type StreamComment = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  author: { id: string; name: string | null; avatarUrl: string | null };
 };
 
 function joinErrorMessage(code?: string) {
@@ -132,10 +140,15 @@ export function LiveStreamRoom({
   // Host-only: who's currently asking for a stage slot.
   const [stageRequests, setStageRequests] = useState<StageRequest[]>([]);
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+  const [comments, setComments] = useState<StreamComment[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
   const lastRequestStatusRef = useRef<"PENDING" | "APPROVED" | "DECLINED" | null>(null);
+  const lastCommentIdRef = useRef<string | undefined>(undefined);
+  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   // Split from doJoin below: this only fires the request and reacts to its
   // result inside the .then() callback, so the effect that calls it (for the
@@ -230,14 +243,20 @@ export function LiveStreamRoom({
   }
 
   const poll = useCallback(async () => {
-    const [{ count, stageCount: sc, stageCapacity: cap }, { recordings: recs }] = await Promise.all([
-      getLiveStreamViewerCount(liveStreamId),
-      listLiveStreamRecordings(liveStreamId),
-    ]);
+    const [{ count, stageCount: sc, stageCapacity: cap }, { recordings: recs }, { comments: fresh }] =
+      await Promise.all([
+        getLiveStreamViewerCount(liveStreamId),
+        listLiveStreamRecordings(liveStreamId),
+        getLiveStreamComments(liveStreamId, lastCommentIdRef.current),
+      ]);
     setViewerCount(count);
     setStageCount(sc);
     setStageCapacity(cap);
     setRecordings(recs);
+    if (fresh.length > 0) {
+      lastCommentIdRef.current = fresh[fresh.length - 1]!.id;
+      setComments((prev) => [...prev, ...fresh].slice(-100));
+    }
 
     if (isHost || role === "COHOST") {
       recordLiveStreamHeartbeat(liveStreamId);
@@ -267,6 +286,29 @@ export function LiveStreamRoom({
   }, [liveStreamId, isHost, role]);
 
   usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
+
+  // Keeps the newest comment in view as they arrive, the same way a normal
+  // chat thread does — this is a small always-visible strip, not something
+  // someone scrolls back through, so there's no "stick to bottom only if
+  // already there" logic to preserve a manual scroll-up like chat-thread.tsx
+  // has for full conversations.
+  useEffect(() => {
+    commentsEndRef.current?.scrollIntoView({ block: "end" });
+  }, [comments]);
+
+  function sendComment() {
+    const content = commentDraft.trim();
+    if (!content || sendingComment) return;
+    setSendingComment(true);
+    const fd = new FormData();
+    fd.set("content", content);
+    sendLiveStreamComment(liveStreamId, fd)
+      .then((result) => {
+        setSendingComment(false);
+        if (!result.error) setCommentDraft("");
+      })
+      .catch(() => setSendingComment(false));
+  }
 
   // owner_only_broadcast (see createLiveStreamRoom) can only be lifted for a
   // participant by the actual room owner acting live — a joiner's own token
@@ -554,31 +596,37 @@ export function LiveStreamRoom({
               <button
                 type="button"
                 onClick={toggleRecording}
-                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white ${
+                title={recording ? "Stop recording" : "Record"}
+                aria-label={recording ? "Stop recording" : "Record"}
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${
                   recording ? "bg-danger" : "bg-black/60"
                 }`}
               >
-                <RecordIcon size={10} className={recording ? "fill-white" : "fill-danger text-danger"} />
-                {recording ? "Stop recording" : "Record"}
+                <RecordIcon size={14} className={recording ? "fill-white" : "fill-danger text-danger"} />
               </button>
             )}
             <button
               type="button"
               disabled={screenshotBusy}
               onClick={handleScreenshot}
-              className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              title="Screenshot"
+              aria-label="Screenshot"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white disabled:opacity-50"
             >
-              <Camera size={12} />
-              Screenshot
+              <Camera size={14} />
             </button>
             {recordings.length > 0 && (
               <button
                 type="button"
                 onClick={() => setShowRecordings((v) => !v)}
-                className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white"
+                title={`Recordings (${recordings.length})`}
+                aria-label={`Recordings (${recordings.length})`}
+                className="relative flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white"
               >
-                <Download size={12} />
-                Recordings ({recordings.length})
+                <Download size={14} />
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-ink">
+                  {recordings.length}
+                </span>
               </button>
             )}
           </div>
@@ -660,6 +708,62 @@ export function LiveStreamRoom({
           </div>
         </div>
       )}
+
+      {/*
+        Fiber-style live chat overlay — comments scroll up from a fixed
+        point above the input, both left-anchored and width-capped rather
+        than spanning the full screen. Two things it deliberately stays
+        clear of, neither of which this app can move or resize (Daily's
+        cross-origin prebuilt iframe): Daily's own bottom-center control
+        tray (mute/camera/leave — hiding that isn't an option, it's the
+        only way to mute/unmute during the stream) and GlobalCallFrame's
+        own bottom-right Leave/Minimize buttons (z-[80]). The
+        `calc(4.5rem + env(safe-area-inset-bottom))` bottom offset sits
+        this whole block above Daily's tray height rather than trying to
+        dodge it horizontally, which would be guessing at a width this app
+        has no way to measure.
+      */}
+      <div
+        className="pointer-events-none fixed inset-x-3 z-[70] flex flex-col items-start gap-2"
+        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="max-h-[32vh] w-full max-w-[75%] overflow-y-auto sm:max-w-xs">
+          <div className="flex flex-col gap-1.5">
+            {comments.map((c) => (
+              <div
+                key={c.id}
+                className="w-fit max-w-full rounded-xl bg-black/50 px-2.5 py-1.5 text-xs text-white"
+              >
+                <span className="font-semibold">{c.author.name ?? "Someone"}</span>{" "}
+                <span className="break-words">{c.content}</span>
+              </div>
+            ))}
+            <div ref={commentsEndRef} />
+          </div>
+        </div>
+        <form
+          action={() => sendComment()}
+          className="pointer-events-auto flex w-full max-w-[75%] items-center gap-1.5 sm:max-w-xs"
+        >
+          <input
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            maxLength={300}
+            placeholder="Write something..."
+            aria-label="Write a comment"
+            className="min-w-0 flex-1 rounded-full bg-black/50 px-3 py-1.5 text-xs text-white placeholder-white/60 outline-none focus:bg-black/70"
+          />
+          <button
+            type="submit"
+            disabled={!commentDraft.trim() || sendingComment}
+            aria-label="Send comment"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
+          >
+            <Send size={14} />
+          </button>
+        </form>
+      </div>
+
       {!isHost && !pendingStageRole && declinedNotice && (
         <div
           className="fixed inset-x-0 z-[70] flex justify-center px-3"

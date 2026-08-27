@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { circleSchema, postSchema, confirmCircleCoverUploadSchema, updateCircleNameSchema } from "@/lib/validations";
+import { circleSchema, postSchema, confirmCircleCoverUploadSchema, updateCircleDetailsSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
@@ -269,11 +269,13 @@ export async function deleteCircle(circleId: string) {
 }
 
 /**
- * Owner or co-admin: renames a Circle. The slug (used in its URL) is
- * deliberately left untouched — regenerating it on every rename would break
- * existing links/bookmarks/notifications pointing at the old one.
+ * Owner or co-admin: renames a Circle and/or changes its categories (up to
+ * 5, same bounds as creation — see circleSchema). The slug (used in its
+ * URL) is deliberately left untouched regardless of a name change —
+ * regenerating it on every rename would break existing links/bookmarks/
+ * notifications pointing at the old one.
  */
-export async function updateCircleName(circleId: string, formData: FormData) {
+export async function updateCircleDetails(circleId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
   const allowed = await checkRateLimit("circleModerate", user.id);
@@ -290,19 +292,22 @@ export async function updateCircleName(circleId: string, formData: FormData) {
     return { error: "forbidden" as const };
   }
 
-  const parsed = updateCircleNameSchema.safeParse({ name: formData.get("name") });
+  const parsed = updateCircleDetailsSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.getAll("category"),
+  });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { name } = parsed.data;
+  const { name, category } = parsed.data;
 
   const modResult = await moderateText(name);
   if (!modResult.allowed) {
     return { error: "moderation" as const };
   }
 
-  await prisma.circle.update({ where: { id: circleId }, data: { name } });
-  await updateCircleEmbedding(circleId, { name, description: circle.description, category: circle.category });
+  await prisma.circle.update({ where: { id: circleId }, data: { name, category } });
+  await updateCircleEmbedding(circleId, { name, description: circle.description, category });
 
   revalidatePath(`/circles/${circle.slug}`);
   revalidatePath("/circles");
