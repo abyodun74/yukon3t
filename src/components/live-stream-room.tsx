@@ -143,6 +143,16 @@ export function LiveStreamRoom({
   const [comments, setComments] = useState<StreamComment[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
+  // True once this participant's own camera/mic have actually started
+  // sending (see the isHost===false effect below) — drives a manual
+  // "Turn on camera & mic" fallback button for approved guests/co-hosts.
+  // The automatic attempt in that effect fires from a Daily event handler,
+  // not a direct tap, and some browsers (this app's own Android WebView
+  // very much included) silently refuse to prompt for camera/mic
+  // permission outside a real user gesture — this button exists so there's
+  // always one available rather than leaving someone stuck approved but
+  // silently camera-off with no way to fix it themselves.
+  const [localMediaStarted, setLocalMediaStarted] = useState(false);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
@@ -296,6 +306,13 @@ export function LiveStreamRoom({
     commentsEndRef.current?.scrollIntoView({ block: "end" });
   }, [comments]);
 
+  function startMyCamera() {
+    if (!dailyCall) return;
+    dailyCall.setLocalVideo(true);
+    dailyCall.setLocalAudio(true);
+    setLocalMediaStarted(true);
+  }
+
   function sendComment() {
     const content = commentDraft.trim();
     if (!content || sendingComment) return;
@@ -370,6 +387,7 @@ export function LiveStreamRoom({
       enabled = true;
       dailyCall!.setLocalVideo(true);
       dailyCall!.setLocalAudio(true);
+      setLocalMediaStarted(true);
     }
 
     const local = dailyCall.participants().local;
@@ -746,6 +764,27 @@ export function LiveStreamRoom({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {!isHost && (role === "GUEST" || role === "COHOST") && !localMediaStarted && (
+        // The automatic attempt (see the isHost===false effect above) fires
+        // from a Daily event callback, not a tap — several browsers,
+        // Android WebView included, silently refuse to prompt for camera/
+        // mic permission outside a real user gesture. This button is that
+        // gesture, so being approved never leaves someone stuck camera-off
+        // with no way to fix it themselves.
+        <div
+          className="fixed inset-x-0 z-[70] flex justify-center px-3"
+          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+        >
+          <button
+            type="button"
+            onClick={startMyCamera}
+            className="rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-accent-ink"
+          >
+            You&apos;re on stage — tap to turn on your camera &amp; mic
+          </button>
         </div>
       )}
 

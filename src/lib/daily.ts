@@ -179,8 +179,18 @@ export async function createLiveStreamRoom({
   const baseProperties = {
     exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
     owner_only_broadcast: true,
-    enable_chat: true,
-    enable_emoji_reactions: true,
+    // Both off: this app now has its own custom live chat overlay
+    // (LiveStreamComment, see live-stream-room.tsx) that fully replaces
+    // Daily's built-in chat panel — leaving Daily's own on left it and our
+    // overlay rendering at once, both showing a "Write something..." box,
+    // stacked on top of each other. Daily's built-in emoji-reactions picker
+    // is the same story: it's cross-origin (can't be restyled/repositioned
+    // by this app, e.g. to center it) and duplicates the reaction pickers
+    // already used elsewhere in the app, so it's off rather than left
+    // floating in whatever spot Daily happens to place it. createCallRoom
+    // below (regular calls) already made this same enable_chat: false call.
+    enable_chat: false,
+    enable_emoji_reactions: false,
     enable_screenshare: true,
     eject_at_room_exp: true,
     enable_prejoin_ui: false,
