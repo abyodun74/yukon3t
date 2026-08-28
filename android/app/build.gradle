@@ -57,8 +57,15 @@ android {
         // always-reliable path the notification body tap already used;
         // MainActivity.onCreate/onNewIntent now does the immediate
         // stop-ringing/cancel-notification work the receiver used to do.
-        versionCode 10
-        versionName "1.7"
+        // 11: adds READ_CONTACTS + @capacitor-community/contacts for the
+        // "Choose from contacts" invite flow — the previous implementation
+        // relied on the web Contact Picker API (navigator.contacts), which
+        // isn't available inside this app's WebView, so the button silently
+        // did nothing on-device. See android/SUBMISSION.md section 13 before
+        // the next release — READ_CONTACTS needs its own Play Console
+        // data-safety disclosure even though it isn't a Restricted Permission.
+        versionCode 11
+        versionName "1.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

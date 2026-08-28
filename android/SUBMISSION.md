@@ -228,3 +228,19 @@ crashing/silently failing: as of that OS version,
 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` above, this is a normal permission —
 granted automatically at install, no Play Console Restricted Permissions
 declaration needed, no runtime prompt shown to the user.
+
+## 13. READ_CONTACTS (Data safety declaration, not a Restricted Permission)
+
+`AndroidManifest.xml` also requests `READ_CONTACTS`, added for the
+`@capacitor-community/contacts`-backed "Choose from contacts" invite flow
+(`src/components/invite-panel.tsx`). This is a normal *dangerous* permission
+(a runtime prompt is shown, same as Camera/Microphone) but it is **not** on
+Google's Restricted Permissions list, so it doesn't need the App content →
+Permissions declaration flow section 9/10 above do. It does need a row in
+the **Data safety** form (Play Console → App content → Data safety) —
+declare "Contacts" as collected, read-only, not shared with third parties,
+not used for tracking; used only to build the invite list shown on-device,
+never uploaded to or stored on the server (`getContacts()`'s result stays in
+component state and is discarded when the invite screen is left). Same
+category of disclosure as the Contacts row added to `ios/SUBMISSION.md`
+section 7's Nutrition Label table.

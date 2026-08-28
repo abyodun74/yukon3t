@@ -171,6 +171,7 @@ responsibility to get it right, not something to take on my word alone.
 | Payment Info | Only for advertisers booking ads, via Stripe — never full card numbers | Yes (advertiser contact) | No |
 | Product Interaction / Usage Data | Yes (sign-up, posts, calls, etc. — analytics events) | Yes | No |
 | Crash Data / Diagnostics | Yes (Sentry is configured) | Depends on your Sentry PII settings | No |
+| Contacts | Yes (read-only, `NSContactsUsageDescription` — lets you pick people to invite by text; never uploaded to the server or stored past the invite screen) | No | No |
 
 None of this is currently used for cross-app/cross-site **tracking** (as
 Apple defines it under ATT) based on the existing privacy policy's "we

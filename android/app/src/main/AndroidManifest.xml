@@ -87,6 +87,11 @@
     <!-- Audio capture for voice/video calls and recording video posts,
          matching NSMicrophoneUsageDescription on iOS. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Read-only access to the device contact list for the "Choose from
+         contacts" invite flow (@capacitor-community/contacts) — matching
+         NSContactsUsageDescription on iOS. No WRITE_CONTACTS: this app only
+         ever reads contacts to build an invite list, never modifies them. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Normal permissions (granted at install, no runtime prompt) for the
          voice/video call feature. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
