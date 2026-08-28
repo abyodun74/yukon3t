@@ -16,7 +16,7 @@ const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,i
  * unmounts, so the call itself is never interrupted.
  */
 export function GlobalCallFrame() {
-  const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand } = useCallSession();
+  const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -89,6 +89,11 @@ export function GlobalCallFrame() {
           activeSpeakerMode={session.activeSpeakerMode}
           onCallObject={setDailyCall}
           onLeave={() => {
+            // A leave() that's the first half of an internal reconnect (see
+            // reconnectingRef on CallSessionContext / live-stream-room.tsx's
+            // canSend-token-refresh flow) still fires "left-meeting" same as
+            // a real hangup — this is what tells the two apart.
+            if (reconnectingRef.current) return;
             session.onLeave();
             endSession();
           }}

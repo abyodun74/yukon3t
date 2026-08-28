@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import {
   startActiveCallForeground,
@@ -39,6 +48,18 @@ type CallSessionContextValue = {
   endSession: () => void;
   minimize: () => void;
   expand: () => void;
+  /**
+   * Daily's own documented pattern for picking up a new permission/token
+   * mid-call is leave() then join() again on the same call instance — not a
+   * bare join() while already joined (confirmed unsupported: it silently
+   * no-ops rather than reconnecting). But that leave() fires "left-meeting",
+   * which GlobalCallFrame's onLeave wires straight to endSession() — meant
+   * for a real hangup, not an internal reconnect (see live-stream-room.tsx's
+   * canSend-token-refresh flow). Setting this ref true around that
+   * leave()+join() pair tells GlobalCallFrame to skip endSession() for that
+   * one "left-meeting" event.
+   */
+  reconnectingRef: MutableRefObject<boolean>;
 };
 
 const CallSessionContext = createContext<CallSessionContextValue | null>(null);
@@ -60,6 +81,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     sessionRef.current = session;
   });
+  const reconnectingRef = useRef(false);
 
   const startSession = useCallback((next: StartSessionInput) => {
     if (sessionRef.current?.key === next.key) {
@@ -84,7 +106,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <CallSessionContext.Provider
-      value={{ session, minimized, dailyCall, setDailyCall, startSession, endSession, minimize, expand }}
+      value={{ session, minimized, dailyCall, setDailyCall, startSession, endSession, minimize, expand, reconnectingRef }}
     >
       {children}
     </CallSessionContext.Provider>
