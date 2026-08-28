@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Circle as RecordIcon, Download, Eye, Send, Users, X } from "lucide-react";
+import { Camera, Check, Circle as RecordIcon, Download, Eye, Send, Smile, Users, X } from "lucide-react";
 import type { DailyParticipant } from "@daily-co/daily-js";
 import { useCallSession } from "@/lib/call-session";
 import {
@@ -25,6 +25,8 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { usePolling } from "@/lib/use-polling";
 
 const POLL_INTERVAL_MS = 5000;
+// Same set as StoryViewer's QUICK_REACTIONS (src/components/story-viewer.tsx) for consistency.
+const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
 type ActiveRoom = { roomUrl: string; token: string };
 type StageRole = "GUEST" | "COHOST";
@@ -153,6 +155,8 @@ export function LiveStreamRoom({
   // always one available rather than leaving someone stuck approved but
   // silently camera-off with no way to fix it themselves.
   const [localMediaStarted, setLocalMediaStarted] = useState(false);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
@@ -279,6 +283,26 @@ export function LiveStreamRoom({
       ]);
       stageUserIdsRef.current = new Set(userIds);
       setStageRequests(requests);
+
+      // The other half of the canSend-grant effect below: that effect only
+      // re-checks eligibility on mount and on a brand-new "participant-
+      // joined" event. But per joinLiveStream's own design, a requester
+      // already joined the Daily room as a plain viewer the moment they
+      // asked for a stage slot — approval typically lands *after* they're
+      // already connected, not as a fresh join. Neither of that effect's
+      // two triggers ever fires again for an already-connected participant
+      // whose eligibility just changed, so an approval landing on someone
+      // already in the room silently never got acted on until they
+      // happened to reconnect. Re-scanning current participants against
+      // the just-refreshed stageUserIdsRef on every poll tick (here) is
+      // what actually catches that — within one 5s tick instead of never.
+      if (dailyCall) {
+        for (const p of Object.values(dailyCall.participants())) {
+          if (p.local || p.permissions.canSend === true) continue;
+          if (!stageUserIdsRef.current.has(p.user_id)) continue;
+          dailyCall.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
+        }
+      }
     } else {
       const status = await getMyLiveStreamStatus(liveStreamId);
       setRole(status.role);
@@ -293,7 +317,7 @@ export function LiveStreamRoom({
         }
       }
     }
-  }, [liveStreamId, isHost, role]);
+  }, [liveStreamId, isHost, role, dailyCall]);
 
   usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
 
@@ -311,6 +335,20 @@ export function LiveStreamRoom({
     dailyCall.setLocalVideo(true);
     dailyCall.setLocalAudio(true);
     setLocalMediaStarted(true);
+  }
+
+  // Broadcasts an ephemeral emoji reaction to everyone currently in the
+  // Daily room via sendAppMessage (same mechanism collab-material.ts uses
+  // to share a file mid-call) — no LiveStreamComment/DB row, this is a
+  // fire-and-forget visual, not a persisted message. Replaces Daily's own
+  // built-in reaction picker (now disabled, see createLiveStreamRoom in
+  // daily.ts) with one this app can actually center and style, at the cost
+  // of reactions only reaching people currently connected, not a durable
+  // history the way comments are.
+  function sendReaction(emoji: string) {
+    setReactionPickerOpen(false);
+    setFloatingReactions((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, emoji }]);
+    dailyCall?.sendAppMessage({ type: "live-reaction", emoji }, "*");
   }
 
   function sendComment() {
@@ -418,6 +456,22 @@ export function LiveStreamRoom({
     return () => {
       dailyCall.off("recording-started", onStarted);
       dailyCall.off("recording-stopped", onStopped);
+    };
+  }, [dailyCall]);
+
+  // Other participants' reactions arrive as app-messages (see sendReaction
+  // above) — this is what actually shows them float up on everyone else's
+  // screen, not just the sender's own optimistic add.
+  useEffect(() => {
+    if (!dailyCall) return;
+    function onAppMessage(ev: { data: unknown }) {
+      const data = ev.data as { type?: string; emoji?: string } | null;
+      if (data?.type !== "live-reaction" || typeof data.emoji !== "string") return;
+      setFloatingReactions((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, emoji: data.emoji! }]);
+    }
+    dailyCall.on("app-message", onAppMessage);
+    return () => {
+      dailyCall.off("app-message", onAppMessage);
     };
   }, [dailyCall]);
 
@@ -841,6 +895,56 @@ export function LiveStreamRoom({
             <Send size={14} />
           </button>
         </form>
+      </div>
+
+      {/*
+        Centered reaction trigger + floating display — replaces Daily's own
+        built-in reactions (now disabled in createLiveStreamRoom) with one
+        this app fully controls, since the whole point was to have it
+        actually centered rather than wherever Daily's cross-origin iframe
+        happened to place it. Sits centered horizontally at the same bottom
+        offset as the chat overlay, so it reads as a deliberate second
+        control next to it rather than competing for the same corner.
+      */}
+      <div
+        className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2"
+        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex h-16 flex-col-reverse items-center overflow-hidden">
+          {floatingReactions.map((r) => (
+            <span
+              key={r.id}
+              className="reaction-float text-2xl"
+              onAnimationEnd={() => setFloatingReactions((prev) => prev.filter((f) => f.id !== r.id))}
+            >
+              {r.emoji}
+            </span>
+          ))}
+        </div>
+        <div className="pointer-events-auto relative">
+          {reactionPickerOpen && (
+            <div className="absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/70 px-2 py-1.5 left-1/2">
+              {QUICK_REACTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => sendReaction(emoji)}
+                  className="rounded-full px-1.5 py-1 text-xl hover:bg-white/20"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setReactionPickerOpen((v) => !v)}
+            aria-label="React"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white"
+          >
+            <Smile size={16} />
+          </button>
+        </div>
       </div>
 
       {!isHost && !pendingStageRole && declinedNotice && (

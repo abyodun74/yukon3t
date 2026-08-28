@@ -473,13 +473,38 @@ textarea {
   animation: story-media-in 220ms ease-out both;
 }
 
+/* Live stream reactions — Daily's own built-in reaction picker is
+   cross-origin and can't be centered/restyled (see live-stream-room.tsx),
+   so this app renders its own: a tapped emoji rises from the reaction
+   button and fades out, the same "float up and vanish" language most
+   live-streaming apps use for reactions. */
+@keyframes reaction-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-120px) scale(1.1);
+  }
+}
+
+.reaction-float {
+  animation: reaction-float 2.2s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inbox-row,
   .unread-dot,
   .animate-message-in,
   .story-glide-next,
   .story-glide-prev,
-  .story-media-in {
+  .story-media-in,
+  .reaction-float {
     animation: none;
   }
 }
