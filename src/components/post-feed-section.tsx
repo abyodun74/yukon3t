@@ -148,7 +148,7 @@ export function PostFeedSection({
       ))}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-4">
-          {loadingMore && <span className="text-xs text-foreground-soft">Loading more...</span>}
+          {loadingMore && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
         </div>
       )}
     </div>

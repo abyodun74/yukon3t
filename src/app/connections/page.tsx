@@ -1,26 +1,17 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { ConnectionResponseButtons } from "@/components/connection-response-buttons";
-import { TrustBadge } from "@/components/trust-badge";
-import { UserLink } from "@/components/user-link";
-import Link from "next/link";
-import { intentLabels } from "@/lib/validations";
-import { isOnline } from "@/lib/presence";
+import { IncomingRequestsList, SentRequestsList, ConnectedList } from "@/components/connections-lists";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
-// an ever-growing single page. Paginated independently (same cursor +
-// "Load more" pattern as the Home feed) so the page stays a normal length
-// by default, same as everywhere else in the app.
+// an ever-growing single page. Paginated independently, same cursor
+// pagination as the Home feed, auto-loading further pages as the viewer
+// scrolls (see src/lib/use-infinite-scroll.ts) instead of a tap-to-load
+// "Load more" link.
 const PAGE_SIZE = 20;
 
-export default async function ConnectionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ incomingBefore?: string; sentBefore?: string; connectedBefore?: string }>;
-}) {
+export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
-  const { incomingBefore, sentBefore, connectedBefore } = await searchParams;
 
   const [incoming, outgoing, accepted] = await Promise.all([
     prisma.connection.findMany({
@@ -28,14 +19,12 @@ export default async function ConnectionsPage({
       include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
-      ...(incomingBefore ? { cursor: { id: incomingBefore }, skip: 1 } : {}),
     }),
     prisma.connection.findMany({
       where: { requesterId: me.id, status: "PENDING" },
       include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
-      ...(sentBefore ? { cursor: { id: sentBefore }, skip: 1 } : {}),
     }),
     prisma.connection.findMany({
       where: {
@@ -48,7 +37,6 @@ export default async function ConnectionsPage({
       },
       orderBy: { respondedAt: "desc" },
       take: PAGE_SIZE,
-      ...(connectedBefore ? { cursor: { id: connectedBefore }, skip: 1 } : {}),
     }),
   ]);
 
@@ -79,15 +67,6 @@ export default async function ConnectionsPage({
     if (other) conversationIdByUserId.set(other.userId, c.id);
   }
 
-  const preserveQuery = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams();
-    if (incomingBefore) params.set("incomingBefore", incomingBefore);
-    if (sentBefore) params.set("sentBefore", sentBefore);
-    if (connectedBefore) params.set("connectedBefore", connectedBefore);
-    for (const [key, value] of Object.entries(overrides)) params.set(key, value);
-    return `/connections?${params.toString()}`;
-  };
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-10">
       <div>
@@ -99,45 +78,7 @@ export default async function ConnectionsPage({
           Incoming requests
         </h2>
         <div className="mt-3 space-y-3">
-          {incoming.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-line p-4"
-            >
-              {/* min-w-0 lets this shrink below its content's natural
-                  width inside the flex row above — without it, a long
-                  name/username forces the whole row (and the page) wider
-                  than the viewport instead of letting UserLink's own
-                  truncate actually kick in. */}
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <UserLink
-                    userId={c.requester.id}
-                    name={c.requester.name}
-                    username={c.requester.username}
-                    avatarUrl={c.requester.avatarUrl}
-                    online={isOnline(c.requester.lastSeenAt)}
-                  />
-                  <TrustBadge band={c.requester.trustBand} />
-                </div>
-                <p className="text-xs text-foreground-soft">
-                  wants to connect for {intentLabels[c.intentTag]}
-                </p>
-              </div>
-              <ConnectionResponseButtons connectionId={c.id} />
-            </div>
-          ))}
-          {incoming.length === 0 && (
-            <p className="text-sm text-foreground-soft">No pending requests.</p>
-          )}
-          {incomingHasMore && (
-            <Link
-              href={preserveQuery({ incomingBefore: incoming[incoming.length - 1].id })}
-              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-            >
-              Load more
-            </Link>
-          )}
+          <IncomingRequestsList initialItems={incoming} initialHasMore={incomingHasMore} />
         </div>
       </section>
 
@@ -146,34 +87,7 @@ export default async function ConnectionsPage({
           Sent requests
         </h2>
         <div className="mt-3 space-y-3">
-          {outgoing.map((c) => (
-            <div key={c.id} className="rounded-xl border border-line p-4">
-              <div className="flex items-center gap-2">
-                <UserLink
-                  userId={c.target.id}
-                  name={c.target.name}
-                  username={c.target.username}
-                  avatarUrl={c.target.avatarUrl}
-                  online={isOnline(c.target.lastSeenAt)}
-                />
-                <TrustBadge band={c.target.trustBand} />
-              </div>
-              <p className="text-xs text-foreground-soft">
-                {intentLabels[c.intentTag]} — awaiting response
-              </p>
-            </div>
-          ))}
-          {outgoing.length === 0 && (
-            <p className="text-sm text-foreground-soft">No pending sent requests.</p>
-          )}
-          {sentHasMore && (
-            <Link
-              href={preserveQuery({ sentBefore: outgoing[outgoing.length - 1].id })}
-              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-            >
-              Load more
-            </Link>
-          )}
+          <SentRequestsList initialItems={outgoing} initialHasMore={sentHasMore} />
         </div>
       </section>
 
@@ -182,51 +96,18 @@ export default async function ConnectionsPage({
           Connected
         </h2>
         <div className="mt-3 space-y-3">
-          {accepted.map((c) => {
-            const other = c.requesterId === me.id ? c.target : c.requester;
-            const conversationId = conversationIdByUserId.get(other.id);
-            return (
-              <div
-                key={c.id}
-                className="flex items-center justify-between gap-2 rounded-xl border border-line p-4"
-              >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <UserLink
-                      userId={other.id}
-                      name={other.name}
-                      username={other.username}
-                      avatarUrl={other.avatarUrl}
-                      online={isOnline(other.lastSeenAt)}
-                    />
-                    <TrustBadge band={other.trustBand} />
-                  </div>
-                  <span className="text-xs text-foreground-soft">
-                    {intentLabels[c.intentTag]}
-                  </span>
-                </div>
-                {conversationId && (
-                  <Link
-                    href={`/messages/${conversationId}`}
-                    className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
-                  >
-                    Message
-                  </Link>
-                )}
-              </div>
-            );
-          })}
-          {accepted.length === 0 && (
-            <p className="text-sm text-foreground-soft">No connections yet.</p>
-          )}
-          {connectedHasMore && (
-            <Link
-              href={preserveQuery({ connectedBefore: accepted[accepted.length - 1].id })}
-              className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-            >
-              Load more
-            </Link>
-          )}
+          <ConnectedList
+            initialItems={accepted.map((c) => {
+              const other = c.requesterId === me.id ? c.target : c.requester;
+              return {
+                id: c.id,
+                other,
+                intentTag: c.intentTag,
+                conversationId: conversationIdByUserId.get(other.id) ?? null,
+              };
+            })}
+            initialHasMore={connectedHasMore}
+          />
         </div>
       </section>
     </div>

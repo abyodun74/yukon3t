@@ -34,7 +34,7 @@ export function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

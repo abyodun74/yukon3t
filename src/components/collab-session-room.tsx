@@ -265,8 +265,8 @@ export function CollabSessionRoom({
       )}
 
       {confirmingJoin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
+        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
             <p className="text-sm font-medium">A session is already in progress</p>
             <p className="mt-1 text-sm text-foreground-soft">
               {participants.map((p) => p.name).join(", ")}{" "}

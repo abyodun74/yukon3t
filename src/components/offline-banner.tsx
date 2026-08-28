@@ -32,7 +32,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="flex items-center justify-center gap-2 bg-danger px-4 py-2 text-center text-sm font-medium text-accent-ink"
+      className="animate-rise-in flex items-center justify-center gap-2 bg-danger px-4 py-2 text-center text-sm font-medium text-accent-ink"
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
       You&rsquo;re offline — some actions won&rsquo;t work until you&rsquo;re back online.

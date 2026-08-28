@@ -165,8 +165,8 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       </div>
 
       {state.phase === "ringing" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
+        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
             <p className="text-sm text-foreground-soft">{state.calleeRinging ? "Ringing" : "Calling"}</p>
             <p className="mt-1 break-words text-lg font-semibold">{calleeName}</p>
             <button
@@ -181,8 +181,8 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       )}
 
       {state.phase === "duplicate" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xs rounded-xl bg-surface p-5 text-center">
+        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
             <p className="text-sm font-medium">You already have a call with {calleeName}</p>
             <p className="mt-1 text-sm text-foreground-soft">
               A previous call is still ringing or active. Cancel it and start a new one?

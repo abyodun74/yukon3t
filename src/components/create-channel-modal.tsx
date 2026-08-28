@@ -50,8 +50,8 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-surface p-5">
+    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">New channel</h2>
           <button type="button" onClick={() => setOpen(false)} className="text-foreground-soft">

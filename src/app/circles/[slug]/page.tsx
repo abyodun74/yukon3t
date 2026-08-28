@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
@@ -15,13 +14,14 @@ import { CircleSwitcher } from "@/components/circle-switcher";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
 import { CircleDetailsEditModal } from "@/components/circle-details-edit-modal";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
-import { PostCard } from "@/components/post-card";
+import { CirclePostsList } from "@/components/circle-posts-list";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { getMyCircles } from "@/app/actions/circles";
 
-// Same cursor + "Load more" pattern as /connections/page.tsx.
+// Same cursor pagination as /connections/page.tsx, auto-loaded further pages
+// as the viewer scrolls (see CirclePostsList / loadMoreCirclePosts).
 const POSTS_PAGE_SIZE = 20;
 
 export default async function CirclePage({
@@ -29,11 +29,11 @@ export default async function CirclePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ channel?: string; postsBefore?: string }>;
+  searchParams: Promise<{ channel?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { slug } = await params;
-  const { channel: requestedSlug, postsBefore } = await searchParams;
+  const { channel: requestedSlug } = await searchParams;
 
   const [circle, { circles: myCircles }] = await Promise.all([
     prisma.circle.findUnique({
@@ -89,7 +89,6 @@ export default async function CirclePage({
           where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
           take: POSTS_PAGE_SIZE,
-          ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
           include: postCardInclude,
         })
       : [];
@@ -219,22 +218,21 @@ export default async function CirclePage({
                         )}
                       </div>
                       <div className="mt-6 space-y-4">
-                        {posts.map((post) => (
-                          <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
-                        ))}
                         {posts.length === 0 && (
                           <p className="text-sm text-foreground-soft">No posts yet — be the first.</p>
                         )}
-                        {postsHaveMore && (
-                          <Link
-                            href={`/circles/${circle.slug}?${new URLSearchParams({
-                              ...(activeChannel?.slug ? { channel: activeChannel.slug } : {}),
-                              postsBefore: posts[posts.length - 1].id,
-                            }).toString()}`}
-                            className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-                          >
-                            Load more
-                          </Link>
+                        {posts.length > 0 && (
+                          <CirclePostsList
+                            // Remounts (fresh client state) when the active
+                            // channel changes — same reasoning as Home's own
+                            // PostFeedSection key (src/app/home/page.tsx).
+                            key={activeChannel.id}
+                            channelId={activeChannel.id}
+                            initialPosts={posts}
+                            initialHasMore={postsHaveMore}
+                            viewerId={me.id}
+                            viewerIsAdmin={me.isAdmin}
+                          />
                         )}
                       </div>
                     </>

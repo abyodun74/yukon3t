@@ -266,11 +266,11 @@ const sections: Section[] = [
         q: "Is there a way to see older posts on a profile, in a Circle, or in search results?",
         a: (
           <>
-            Yes. On <strong>Home</strong>, older posts load in automatically
-            as you scroll — nothing to tap. A profile&apos;s posts, a
-            Circle&apos;s channel feed, and Search results pages still use a
-            &ldquo;Load more&rdquo; button at the bottom to fetch the next
-            batch. (Home separately checks for brand-new posts every
+            Yes — everywhere on YuKon3t, older items load in automatically as
+            you scroll, whether that&apos;s <strong>Home</strong>, a
+            profile&apos;s posts, a Circle&apos;s channel feed, search
+            results, Connections, or the subscribers/subscribing lists.
+            Nothing to tap. (Home separately checks for brand-new posts every
             20&ndash;30 seconds and adds those to the top automatically —
             that&apos;s different from loading further back in the feed.)
           </>

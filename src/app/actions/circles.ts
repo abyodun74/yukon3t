@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { circleSchema, postSchema, confirmCircleCoverUploadSchema, updateCircleDetailsSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
@@ -24,6 +24,9 @@ import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, updatePostEmbedding } from "@/lib/embeddings";
+import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+
+const CIRCLE_POSTS_PAGE_SIZE = 20;
 
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -673,4 +676,50 @@ export async function getMyCircles() {
   });
 
   return { circles: memberships.map((m) => m.circle) };
+}
+
+/**
+ * Auto-load-more for a Circle channel's post feed (/circles/[slug]) — called
+ * from the client via useInfiniteScroll (src/lib/use-infinite-scroll.ts).
+ * Re-derives the same read-access rule the page itself uses for its
+ * `accessibleChannels` filter (src/app/circles/[slug]/page.tsx) — a channel
+ * is readable if it's PUBLIC, the caller moderates the Circle, or the
+ * caller has an explicit ChannelMembership row. Deliberately not the
+ * stricter canAccessChannel (channel-permissions.ts), which additionally
+ * requires Circle membership — that's the *posting* rule, not the reading
+ * one, and a public Circle's public channels are readable by non-members.
+ */
+export async function loadMoreCirclePosts(channelId: string, cursor: string) {
+  const user = await requireUser();
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { circle: true, members: { select: { userId: true } } },
+  });
+  if (!channel || channel.type !== "TEXT") {
+    return { items: [], hasMore: false };
+  }
+  const circleMembership = await getCircleMembership(channel.circleId, user.id);
+  const canModerate = isCircleAdmin(channel.circle, circleMembership, user);
+  // A private Circle hides its channels/posts from non-members entirely,
+  // even a channel that's itself marked PUBLIC — matches the page's own
+  // `isPrivateNonMember` gate.
+  const isPrivateNonMember = channel.circle.visibility === "PRIVATE" && !circleMembership && !canModerate;
+  const canRead =
+    !isPrivateNonMember &&
+    (channel.visibility === "PUBLIC" || canModerate || channel.members.some((m) => m.userId === user.id));
+  if (!canRead) {
+    return { items: [], hasMore: false };
+  }
+
+  const rawPosts = await prisma.post.findMany({
+    where: { channelId: channel.id, moderationStatus: "PUBLISHED" },
+    orderBy: { createdAt: "desc" },
+    take: CIRCLE_POSTS_PAGE_SIZE,
+    cursor: { id: cursor },
+    skip: 1,
+    include: postCardInclude,
+  });
+  const items = await attachViewerState(rawPosts, user.id);
+  return { items, hasMore: rawPosts.length === CIRCLE_POSTS_PAGE_SIZE };
 }

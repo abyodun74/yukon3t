@@ -392,7 +392,7 @@ export function PostCard({
   const isQuoting = Boolean(post.repostOf || post.sharedPost);
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
+    <div className="animate-rise-in rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
       {(post.repostOf || post.sharedPost) && (
         <Link
           href={`/u/${post.author.id}`}

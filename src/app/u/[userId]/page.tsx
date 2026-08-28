@@ -9,14 +9,15 @@ import { ReportTrigger } from "@/components/report-form";
 import { BlockButton } from "@/components/block-button";
 import { CallButton } from "@/components/call-button";
 import { PostComposer } from "@/components/post-composer";
-import { PostCard } from "@/components/post-card";
+import { ProfilePostsList } from "@/components/profile-posts-list";
 import { EditProfileForm } from "@/components/edit-profile-form";
 import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isOnline } from "@/lib/presence";
 
-// Same cursor + "Load more" pattern as /connections/page.tsx.
+// Same cursor pagination as /connections/page.tsx, auto-loaded further pages
+// as the viewer scrolls (see ProfilePostsList / loadMoreProfilePosts).
 const POSTS_PAGE_SIZE = 20;
 
 export default async function PublicProfilePage({
@@ -24,11 +25,11 @@ export default async function PublicProfilePage({
   searchParams,
 }: {
   params: Promise<{ userId: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; postsBefore?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
-  const { error, saved, postsBefore } = await searchParams;
+  const { error, saved } = await searchParams;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -84,7 +85,6 @@ export default async function PublicProfilePage({
         where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
         orderBy: { createdAt: "desc" },
         take: POSTS_PAGE_SIZE,
-        ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
         include: postCardInclude,
       })
     : [];
@@ -126,7 +126,7 @@ export default async function PublicProfilePage({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4">
           <ProfileStoryRing
             userId={user.id}
             avatarUrl={user.avatarUrl}
@@ -136,7 +136,7 @@ export default async function PublicProfilePage({
             online={online}
           />
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold">{user.name}</h1>
+            <h1 className="break-words text-2xl font-semibold">{user.name}</h1>
             <p className="text-sm text-foreground-soft">
               {user.country ?? "Unknown location"}
             </p>
@@ -225,10 +225,6 @@ export default async function PublicProfilePage({
             {user.name} only shares posts with their connections.
           </p>
         )}
-        {canSeePosts &&
-          posts.map((post) => (
-            <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
-          ))}
         {canSeePosts && posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
             {isOwnProfile
@@ -236,13 +232,14 @@ export default async function PublicProfilePage({
               : "No posts yet."}
           </p>
         )}
-        {canSeePosts && postsHaveMore && (
-          <Link
-            href={`/u/${user.id}?postsBefore=${posts[posts.length - 1].id}`}
-            className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-          >
-            Load more
-          </Link>
+        {canSeePosts && posts.length > 0 && (
+          <ProfilePostsList
+            profileUserId={user.id}
+            initialPosts={posts}
+            initialHasMore={postsHaveMore}
+            viewerId={me.id}
+            viewerIsAdmin={me.isAdmin}
+          />
         )}
       </div>
     </div>

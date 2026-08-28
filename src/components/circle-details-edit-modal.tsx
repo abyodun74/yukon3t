@@ -63,8 +63,8 @@ export function CircleDetailsEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-surface p-5">
+    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="animate-modal-panel-in max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-surface p-5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Edit Circle</h2>
           <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-foreground-soft">

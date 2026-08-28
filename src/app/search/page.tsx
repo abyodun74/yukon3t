@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
 import { PostCard } from "@/components/post-card";
+import { SearchPostsList } from "@/components/search-posts-list";
 import { UserAvatar } from "@/components/user-link";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { COUNTRIES } from "@/lib/countries";
@@ -22,8 +23,9 @@ type SortOption = (typeof SORT_OPTIONS)[number];
 
 const CURRENT_AFFAIRS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
-// Same cursor + "Load more" pattern as /connections/page.tsx, scoped to just
-// the Posts section — People/Circles/Collabs/Group chats aren't paginated.
+// Same cursor pagination as /connections/page.tsx, scoped to just the Posts
+// section (People/Circles/Collabs/Group chats aren't paginated), auto-loaded
+// further pages as the viewer scrolls (see SearchPostsList / loadMoreSearchPosts).
 const POSTS_PAGE_SIZE = 20;
 
 // A plain helper (not the page component itself) so the Date.now() read
@@ -50,10 +52,10 @@ function sortLabel(sort: SortOption) {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sort?: string; country?: string; postsBefore?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; country?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { q: rawQuery, sort: sortParam, country, postsBefore } = await searchParams;
+  const { q: rawQuery, sort: sortParam, country } = await searchParams;
   const q = (rawQuery ?? "").trim();
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
@@ -186,7 +188,6 @@ export default async function SearchPage({
               ? { createdAt: "asc" }
               : { likeCount: "desc" },
         take: POSTS_PAGE_SIZE,
-        ...(postsBefore ? { cursor: { id: postsBefore }, skip: 1 } : {}),
         include: postCardInclude,
       }),
       prisma.conversation.findMany({
@@ -219,12 +220,14 @@ export default async function SearchPage({
     // "oldest"/"current" are explicit requests for chronological order, which
     // a semantic-similarity ranking would fight rather than serve. Only
     // triggers when the exact substring match came back sparse, since that's
-    // the actual signal that the query's words weren't exact hits — and only
-    // on the first page, since it's meant to backfill a thin *initial*
-    // result set, not to keep firing on every "Load more" posts click.
+    // the actual signal that the query's words weren't exact hits. This page
+    // itself only ever renders the first page of results (further pages are
+    // auto-loaded client-side by SearchPostsList/loadMoreSearchPosts, which
+    // doesn't call semanticSearch) so there's no separate "not the first
+    // page" case to guard against here.
     const exactCount = people.length + circles.length + collabs.length + posts.length + groupChats.length;
     const SPARSE_THRESHOLD = 5;
-    if (sort === "relevant" && exactCount < SPARSE_THRESHOLD && !postsBefore) {
+    if (sort === "relevant" && exactCount < SPARSE_THRESHOLD) {
       const smartResult = await semanticSearch(q, me.id, { excludeUserIds: [me.id, ...blockedIds] });
       const exactPeopleIds = new Set(people.map((p) => p.id));
       const exactCircleIds = new Set(circles.map((c) => c.id));
@@ -428,22 +431,18 @@ export default async function SearchPage({
             Posts
           </h2>
           <div className="mt-3 space-y-4">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
-            ))}
-            {postsHaveMore && (
-              <Link
-                href={`/search?${new URLSearchParams({
-                  q,
-                  ...(sort !== "relevant" ? { sort } : {}),
-                  ...(country ? { country } : {}),
-                  postsBefore: posts[posts.length - 1].id,
-                }).toString()}`}
-                className="block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-              >
-                Load more
-              </Link>
-            )}
+            <SearchPostsList
+              // Remounts (fresh client state) when the query/sort changes —
+              // same reasoning as Home's own PostFeedSection key (see
+              // src/app/home/page.tsx).
+              key={`${q}-${sort}`}
+              query={q}
+              sort={sort}
+              initialPosts={posts}
+              initialHasMore={postsHaveMore}
+              viewerId={me.id}
+              viewerIsAdmin={me.isAdmin}
+            />
           </div>
         </div>
       )}

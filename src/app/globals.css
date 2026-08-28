@@ -497,6 +497,79 @@ textarea {
   animation: reaction-float 2.2s ease-out both;
 }
 
+/* General-purpose entrance for anything rendered as a list row/card — post
+   cards in every feed (Home, a profile, a Circle channel, Search), and the
+   people/connection/subscription rows in Discover, Connections, and the
+   subscribers/subscribing lists. Same fade+rise language as .inbox-row,
+   generalized so any list can share it instead of every feature growing its
+   own bespoke keyframes. Plays once per mount — since every one of those
+   lists keys its rows by a stable id (post id, connection id, etc.), a row
+   that's already on screen never remounts (and so never replays this) when
+   more rows are appended above or below it by polling or auto-load-more. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Sentinel "Loading more..." text at the bottom of an auto-loading list —
+   a gentle pulse instead of static text, so it reads as active work
+   happening rather than a stalled/frozen list. */
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-loading-pulse {
+  animation: loading-pulse 1.4s ease-in-out infinite;
+}
+
+/* Every modal/dialog sitewide (share, report, likers, recorders, channel
+   settings, the lightbox, call prompts, etc.) shares this exact backdrop +
+   panel shape — a fade-in backdrop with the panel easing up and scaling in
+   from slightly below/small, instead of both just snapping into place. */
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-modal-backdrop-in {
+  animation: modal-backdrop-in 200ms ease both;
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-modal-panel-in {
+  animation: modal-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inbox-row,
   .unread-dot,
@@ -504,7 +577,11 @@ textarea {
   .story-glide-next,
   .story-glide-prev,
   .story-media-in,
-  .reaction-float {
+  .reaction-float,
+  .animate-rise-in,
+  .animate-loading-pulse,
+  .animate-modal-backdrop-in,
+  .animate-modal-panel-in {
     animation: none;
   }
 }

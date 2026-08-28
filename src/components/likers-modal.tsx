@@ -23,13 +23,13 @@ export function LikersModal({ postId, onClose }: { postId: string; onClose: () =
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="w-full max-w-sm rounded-xl bg-surface p-4"
+        className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

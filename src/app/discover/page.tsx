@@ -1,13 +1,10 @@
-import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { TrustBadge } from "@/components/trust-badge";
-import { ConnectButton } from "@/components/connect-button";
-import { UserLink } from "@/components/user-link";
+import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
-import { isOnline, onlineSince } from "@/lib/presence";
+import { onlineSince } from "@/lib/presence";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
@@ -34,14 +31,13 @@ const PAGE_SIZE = 30;
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; country?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ intent?: string; country?: string; sort?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const { intent, country, sort: sortParam, page: pageParam } = await searchParams;
+  const { intent, country, sort: sortParam } = await searchParams;
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
     : "recent";
-  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
 
   const blockedIds = await getBlockedEitherWayIds(me.id);
 
@@ -64,7 +60,6 @@ export default async function DiscoverPage({
             ? { createdAt: "asc" }
             : { trustScore: "desc" },
     take: PAGE_SIZE,
-    skip: (page - 1) * PAGE_SIZE,
   });
   const hasMore = people.length === PAGE_SIZE;
 
@@ -165,73 +160,22 @@ export default async function DiscoverPage({
       </form>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {people.map((person) => {
-          const connection = connectionByOtherId.get(person.id);
-          return (
-          <div key={person.id} className="min-w-0 rounded-xl border border-line p-4">
-            <div className="flex min-w-0 items-center justify-between">
-              <UserLink
-                userId={person.id}
-                name={person.name}
-                username={person.username}
-                avatarUrl={person.avatarUrl}
-                avatarSize={28}
-                className="font-semibold"
-                online={isOnline(person.lastSeenAt)}
-              />
-              <TrustBadge band={person.trustBand} />
-            </div>
-            <p className="mt-1 text-xs text-foreground-soft">
-              {person.country ?? "Unknown location"}
-            </p>
-            {person.bio && (
-              <p className="mt-2 line-clamp-3 break-words text-sm text-foreground-soft">
-                {person.bio}
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap gap-1">
-              {person.openToIntents.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-teal/10 px-2 py-0.5 text-[11px] text-teal"
-                >
-                  {intentLabels[tag]}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4">
-              <ConnectButton
-                targetId={person.id}
-                openToIntents={person.openToIntents}
-                status={connection?.status ?? null}
-                isRequester={connection?.requesterId === me.id}
-                conversationId={conversationIdByOtherId.get(person.id) ?? null}
-              />
-            </div>
-          </div>
-          );
-        })}
-        {people.length === 0 && (
-          <p className="text-sm text-foreground-soft">
-            {sort === "online"
-              ? "No one matching those filters is online right now — try again in a bit."
-              : "No one matches those filters yet — try broadening them."}
-          </p>
-        )}
+        <DiscoverPeopleList
+          initialItems={people.map((person) => {
+            const connection = connectionByOtherId.get(person.id);
+            return {
+              person,
+              connectionStatus: connection?.status ?? null,
+              isRequester: connection?.requesterId === me.id,
+              conversationId: conversationIdByOtherId.get(person.id) ?? null,
+            };
+          })}
+          initialHasMore={hasMore}
+          intent={intent}
+          country={country}
+          sort={sort}
+        />
       </div>
-      {hasMore && (
-        <Link
-          href={`/discover?${new URLSearchParams({
-            ...(intent ? { intent } : {}),
-            ...(country ? { country } : {}),
-            sort,
-            page: String(page + 1),
-          }).toString()}`}
-          className="mt-4 block rounded-lg border border-line px-4 py-2.5 text-center text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          Load more
-        </Link>
-      )}
     </div>
   );
 }

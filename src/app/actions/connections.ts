@@ -1,12 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { connectionRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { track } from "@/lib/analytics";
+
+// Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
+const CONNECTIONS_PAGE_SIZE = 20;
+
+const connectionUserSelect = {
+  id: true,
+  name: true,
+  username: true,
+  avatarUrl: true,
+  trustBand: true,
+  lastSeenAt: true,
+} as const;
 
 export async function requestConnection(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -239,4 +251,93 @@ export async function startDirectMessage(targetId: string) {
   revalidatePath(`/messages/${conversation.id}`);
   revalidatePath("/connections");
   return { error: null, conversationId: conversation.id };
+}
+
+/**
+ * Auto-load-more for the "Incoming requests" list on /connections — called
+ * from the client via useInfiniteScroll (src/lib/use-infinite-scroll.ts)
+ * once the sentinel at the bottom of the list scrolls into view. Same
+ * cursor pagination the page itself uses for its initial SSR page.
+ */
+export async function loadMoreIncomingConnections(cursor: string) {
+  const user = await requireUser();
+  const rows = await prisma.connection.findMany({
+    where: { targetId: user.id, status: "PENDING" },
+    include: { requester: { select: connectionUserSelect } },
+    orderBy: { createdAt: "desc" },
+    take: CONNECTIONS_PAGE_SIZE,
+    cursor: { id: cursor },
+    skip: 1,
+  });
+  return {
+    items: rows.map((c) => ({ id: c.id, requester: c.requester, intentTag: c.intentTag })),
+    hasMore: rows.length === CONNECTIONS_PAGE_SIZE,
+  };
+}
+
+/** Same as loadMoreIncomingConnections, for the "Sent requests" list. */
+export async function loadMoreSentConnections(cursor: string) {
+  const user = await requireUser();
+  const rows = await prisma.connection.findMany({
+    where: { requesterId: user.id, status: "PENDING" },
+    include: { target: { select: connectionUserSelect } },
+    orderBy: { createdAt: "desc" },
+    take: CONNECTIONS_PAGE_SIZE,
+    cursor: { id: cursor },
+    skip: 1,
+  });
+  return {
+    items: rows.map((c) => ({ id: c.id, target: c.target, intentTag: c.intentTag })),
+    hasMore: rows.length === CONNECTIONS_PAGE_SIZE,
+  };
+}
+
+/** Same as loadMoreIncomingConnections, for the "Connected" list. */
+export async function loadMoreAcceptedConnections(cursor: string) {
+  const user = await requireUser();
+  const rows = await prisma.connection.findMany({
+    where: {
+      status: "ACCEPTED",
+      OR: [{ requesterId: user.id }, { targetId: user.id }],
+    },
+    include: {
+      requester: { select: connectionUserSelect },
+      target: { select: connectionUserSelect },
+    },
+    orderBy: { respondedAt: "desc" },
+    take: CONNECTIONS_PAGE_SIZE,
+    cursor: { id: cursor },
+    skip: 1,
+  });
+
+  const otherIds = rows.map((c) => (c.requesterId === user.id ? c.target.id : c.requester.id));
+  const myConversations = otherIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          AND: [
+            { members: { some: { userId: user.id } } },
+            { members: { some: { userId: { in: otherIds } } } },
+          ],
+        },
+        include: { members: { select: { userId: true } } },
+      })
+    : [];
+  const conversationIdByUserId = new Map<string, string>();
+  for (const c of myConversations) {
+    const other = c.members.find((m) => m.userId !== user.id);
+    if (other) conversationIdByUserId.set(other.userId, c.id);
+  }
+
+  return {
+    items: rows.map((c) => {
+      const other = c.requesterId === user.id ? c.target : c.requester;
+      return {
+        id: c.id,
+        other,
+        intentTag: c.intentTag,
+        conversationId: conversationIdByUserId.get(other.id) ?? null,
+      };
+    }),
+    hasMore: rows.length === CONNECTIONS_PAGE_SIZE,
+  };
 }
