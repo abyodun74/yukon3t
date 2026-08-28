@@ -14,6 +14,7 @@ export type InboxItem = {
   label: string;
   isGroup: boolean;
   avatarUrl: string | null;
+  online: boolean;
   last: {
     content: string;
     mediaType: MediaType;
@@ -99,7 +100,7 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
                   <Users size={20} />
                 </div>
               ) : (
-                <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={52} />
+                <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={52} online={c.online} />
               )}
             </div>
 

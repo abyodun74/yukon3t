@@ -7,9 +7,23 @@ import { UserLink } from "@/components/user-link";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
+import { isOnline, onlineSince } from "@/lib/presence";
 
-const SORT_OPTIONS = ["relevant", "recent", "oldest"] as const;
+const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
+
+function sortLabel(sort: SortOption) {
+  switch (sort) {
+    case "relevant":
+      return "Most relevant";
+    case "recent":
+      return "Most recent";
+    case "oldest":
+      return "Oldest";
+    case "online":
+      return "Online now";
+  }
+}
 
 // Offset (not cursor) pagination — "relevant" sorts by trustScore, which
 // isn't unique, so a cursor keyed on it could skip or repeat rows at tie
@@ -39,13 +53,16 @@ export default async function DiscoverPage({
       discoverable: true,
       ...(intent ? { openToIntents: { has: intent as never } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
+      ...(sort === "online" ? { lastSeenAt: { gt: onlineSince() } } : {}),
     },
     orderBy:
-      sort === "recent"
-        ? { createdAt: "desc" }
-        : sort === "oldest"
-          ? { createdAt: "asc" }
-          : { trustScore: "desc" },
+      sort === "online"
+        ? { lastSeenAt: "desc" }
+        : sort === "recent"
+          ? { createdAt: "desc" }
+          : sort === "oldest"
+            ? { createdAt: "asc" }
+            : { trustScore: "desc" },
     take: PAGE_SIZE,
     skip: (page - 1) * PAGE_SIZE,
   });
@@ -133,9 +150,11 @@ export default async function DiscoverPage({
           defaultValue={sort}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
-          <option value="relevant">Most relevant</option>
-          <option value="recent">Most recent</option>
-          <option value="oldest">Oldest</option>
+          {SORT_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {sortLabel(option)}
+            </option>
+          ))}
         </select>
         <button
           type="submit"
@@ -158,6 +177,7 @@ export default async function DiscoverPage({
                 avatarUrl={person.avatarUrl}
                 avatarSize={28}
                 className="font-semibold"
+                online={isOnline(person.lastSeenAt)}
               />
               <TrustBadge band={person.trustBand} />
             </div>
@@ -193,7 +213,9 @@ export default async function DiscoverPage({
         })}
         {people.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            No one matches those filters yet — try broadening them.
+            {sort === "online"
+              ? "No one matching those filters is online right now — try again in a bit."
+              : "No one matches those filters yet — try broadening them."}
           </p>
         )}
       </div>

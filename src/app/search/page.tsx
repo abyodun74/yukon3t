@@ -11,6 +11,7 @@ import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { SearchBar } from "@/components/search-bar";
 import { semanticSearch } from "@/lib/search-embeddings";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
+import { isOnline } from "@/lib/presence";
 
 type SearchPostRow = Awaited<
   ReturnType<typeof prisma.post.findMany<{ include: typeof postCardInclude }>>
@@ -319,7 +320,7 @@ export default async function SearchPage({
               >
                 <div className="flex items-center justify-between">
                   <span className="flex min-w-0 items-center gap-2">
-                    <UserAvatar avatarUrl={person.avatarUrl} name={person.name} size={28} />
+                    <UserAvatar avatarUrl={person.avatarUrl} name={person.name} size={28} online={isOnline(person.lastSeenAt)} />
                     <span className="min-w-0 truncate">
                       <span className="font-semibold">{person.name}</span>
                       {person.username && (
@@ -468,7 +469,7 @@ export default async function SearchPage({
                   >
                     <div className="flex items-center justify-between">
                       <span className="flex min-w-0 items-center gap-2">
-                        <UserAvatar avatarUrl={person.avatarUrl} name={person.name} size={28} />
+                        <UserAvatar avatarUrl={person.avatarUrl} name={person.name} size={28} online={isOnline(person.lastSeenAt)} />
                         <span className="min-w-0 truncate">
                           <span className="font-semibold">{person.name}</span>
                           {person.username && (

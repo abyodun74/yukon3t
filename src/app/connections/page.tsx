@@ -5,6 +5,7 @@ import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import Link from "next/link";
 import { intentLabels } from "@/lib/validations";
+import { isOnline } from "@/lib/presence";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -24,14 +25,14 @@ export default async function ConnectionsPage({
   const [incoming, outgoing, accepted] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
-      include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
+      include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
       ...(incomingBefore ? { cursor: { id: incomingBefore }, skip: 1 } : {}),
     }),
     prisma.connection.findMany({
       where: { requesterId: me.id, status: "PENDING" },
-      include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } } },
+      include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
       ...(sentBefore ? { cursor: { id: sentBefore }, skip: 1 } : {}),
@@ -42,8 +43,8 @@ export default async function ConnectionsPage({
         OR: [{ requesterId: me.id }, { targetId: me.id }],
       },
       include: {
-        requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
-        target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
+        requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } },
+        target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } },
       },
       orderBy: { respondedAt: "desc" },
       take: PAGE_SIZE,
@@ -115,6 +116,7 @@ export default async function ConnectionsPage({
                     name={c.requester.name}
                     username={c.requester.username}
                     avatarUrl={c.requester.avatarUrl}
+                    online={isOnline(c.requester.lastSeenAt)}
                   />
                   <TrustBadge band={c.requester.trustBand} />
                 </div>
@@ -152,6 +154,7 @@ export default async function ConnectionsPage({
                   name={c.target.name}
                   username={c.target.username}
                   avatarUrl={c.target.avatarUrl}
+                  online={isOnline(c.target.lastSeenAt)}
                 />
                 <TrustBadge band={c.target.trustBand} />
               </div>
@@ -194,6 +197,7 @@ export default async function ConnectionsPage({
                       name={other.name}
                       username={other.username}
                       avatarUrl={other.avatarUrl}
+                      online={isOnline(other.lastSeenAt)}
                     />
                     <TrustBadge band={other.trustBand} />
                   </div>

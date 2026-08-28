@@ -4,6 +4,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { MarkDelivered } from "@/components/mark-delivered";
 import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
+import { isOnline } from "@/lib/presence";
 
 export default async function MessagesPage() {
   const me = await getOnboardedUserOrRedirect();
@@ -12,7 +13,7 @@ export default async function MessagesPage() {
     where: { members: { some: { userId: me.id } } },
     include: {
       members: {
-        include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        include: { user: { select: { id: true, name: true, avatarUrl: true, lastSeenAt: true } } },
       },
       messages: {
         orderBy: { createdAt: "desc" },
@@ -47,6 +48,7 @@ export default async function MessagesPage() {
       label,
       isGroup: c.isGroup,
       avatarUrl: c.isGroup ? null : (other?.avatarUrl ?? null),
+      online: c.isGroup ? false : isOnline(other?.lastSeenAt ?? null),
       last: last
         ? {
             content: last.content,

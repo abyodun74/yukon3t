@@ -102,6 +102,10 @@ export const rateLimiters = {
   // spend bounded per user.
   transcribeAudio: makeLimiter(10, "1 h"),
   voiceChannelInvite: makeLimiter(30, "10 m"),
+  // Client pings every ~45s (see presence-heartbeat.tsx) — this bucket is
+  // slack for tab-focus/visibility-change pings on top of the interval, not
+  // a real per-call cost concern like the paid-API limiters above.
+  presenceHeartbeat: makeLimiter(6, "1 m"),
 };
 
 export async function checkRateLimit(

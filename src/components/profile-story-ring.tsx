@@ -20,12 +20,14 @@ export function ProfileStoryRing({
   name,
   stories,
   isOwner,
+  online,
 }: {
   userId: string;
   avatarUrl: string | null;
   name: string;
   stories: StoryData[];
   isOwner: boolean;
+  online?: boolean;
 }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -66,6 +68,16 @@ export function ProfileStoryRing({
           >
             <Plus size={12} />
           </button>
+        )}
+        {/* Owner always sees the "+" add-story button in this same corner
+            instead — no reason to show yourself as online. */}
+        {!isOwner && online && (
+          <span
+            className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-success"
+            role="img"
+            aria-label="Online"
+            title="Online"
+          />
         )}
       </div>
 

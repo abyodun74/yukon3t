@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
@@ -13,6 +14,7 @@ import { EditProfileForm } from "@/components/edit-profile-form";
 import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { isOnline } from "@/lib/presence";
 
 // Same cursor + "Load more" pattern as /connections/page.tsx.
 const POSTS_PAGE_SIZE = 20;
@@ -32,6 +34,7 @@ export default async function PublicProfilePage({
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
 
   const isOwnProfile = user.id === me.id;
+  const online = isOnline(user.lastSeenAt);
 
   const iBlockedThem = isOwnProfile
     ? false
@@ -130,12 +133,24 @@ export default async function PublicProfilePage({
             name={user.name ?? "them"}
             stories={storiesForRing}
             isOwner={isOwnProfile}
+            online={online}
           />
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold">{user.name}</h1>
             <p className="text-sm text-foreground-soft">
               {user.country ?? "Unknown location"}
             </p>
+            {!isOwnProfile && (
+              <p className="text-xs text-foreground-soft">
+                {online ? (
+                  <span className="text-success">● Online now</span>
+                ) : user.lastSeenAt ? (
+                  `Last seen ${formatDistanceToNow(user.lastSeenAt, { addSuffix: true })}`
+                ) : (
+                  "Offline"
+                )}
+              </p>
+            )}
             <div className="mt-1 flex items-center gap-3 text-xs">
               <Link href={`/u/${user.id}/subscribers`} className="hover:text-accent hover:underline">
                 <span className="font-semibold">{subscriberCount}</span>{" "}

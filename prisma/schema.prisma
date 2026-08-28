@@ -163,6 +163,13 @@ model User {
   longestStreak Int       @default(0)
   lastActiveAt  DateTime?
 
+  // Updated every ~45s by a client-side heartbeat while the app is open and
+  // visible (src/components/presence-heartbeat.tsx) — deliberately separate
+  // from lastActiveAt, which only ticks once per calendar day and only from
+  // real content-creation actions for streak/trust purposes. "Online now"
+  // (src/lib/presence.ts) is derived from this column instead.
+  lastSeenAt DateTime?
+
   status           UserStatus @default(ACTIVE)
   suspensionReason String?
   deactivatedAt    DateTime?
@@ -287,6 +294,9 @@ model User {
   // equality filters, ordered by trustScore) — without this, that query
   // forces a full scan + sort as the user table grows.
   @@index([status, discoverable, trustScore])
+  // Same reasoning, for Discover's "Online now" sort (status + discoverable
+  // equality filters, lastSeenAt range + order).
+  @@index([status, discoverable, lastSeenAt])
 }
 
 enum CircleVisibility {

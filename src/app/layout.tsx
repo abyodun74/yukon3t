@@ -10,6 +10,7 @@ import { IncomingCallListener } from "@/components/incoming-call-listener";
 import { GlobalCallFrame } from "@/components/global-call-frame";
 import { CallSessionProvider } from "@/lib/call-session";
 import { FcmTokenBridge } from "@/components/fcm-token-bridge";
+import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
@@ -118,6 +119,7 @@ export default async function RootLayout({
           {session?.user && <IncomingCallListener />}
           {session?.user && <GlobalCallFrame />}
           {session?.user && <FcmTokenBridge />}
+          {session?.user && <PresenceHeartbeat />}
           <main className="flex-1">{children}</main>
           {/* Signed-in mobile users already have a dedicated bottom tab bar
               (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
