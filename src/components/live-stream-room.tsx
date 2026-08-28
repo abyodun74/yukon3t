@@ -28,6 +28,31 @@ const POLL_INTERVAL_MS = 5000;
 // Same set as StoryViewer's QUICK_REACTIONS (src/components/story-viewer.tsx) for consistency.
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
+/**
+ * Daily's own type defs claim `permissions.canSend` is `boolean |
+ * Set<string>`, but this app's own diagnostic overlay caught it reading
+ * false for a participant who was visibly, successfully broadcasting live
+ * video at the time — the real runtime value doesn't reliably match that
+ * shape (or a strict `.has()`/`.size` check on it doesn't behave as the
+ * type suggests). This is very likely what silently broke "turn the
+ * approved guest's camera on" in earlier attempts: the check that decided
+ * whether canSend now covers video/audio always evaluated false, so the
+ * code that should have called setLocalVideo/setLocalAudio never ran.
+ * Checked defensively against every plausible representation (boolean,
+ * Set, plain array, or a {video, audio, ...}-keyed object) instead of
+ * assuming one.
+ */
+function canSendKind(canSend: unknown, kind: "video" | "audio"): boolean {
+  if (canSend === true) return true;
+  if (!canSend) return false;
+  if (typeof (canSend as { has?: unknown }).has === "function") {
+    return (canSend as Set<string>).has(kind);
+  }
+  if (Array.isArray(canSend)) return canSend.includes(kind);
+  if (typeof canSend === "object") return Boolean((canSend as Record<string, unknown>)[kind]);
+  return false;
+}
+
 type ActiveRoom = { roomUrl: string; token: string };
 type StageRole = "GUEST" | "COHOST";
 type Role = "VIEWER" | StageRole;
@@ -300,7 +325,7 @@ export function LiveStreamRoom({
       // what actually catches that — within one 5s tick instead of never.
       if (dailyCall) {
         for (const p of Object.values(dailyCall.participants())) {
-          if (p.local || p.permissions.canSend === true) continue;
+          if (p.local || canSendKind(p.permissions.canSend, "video")) continue;
           if (!stageUserIdsRef.current.has(p.user_id)) continue;
           dailyCall.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
         }
@@ -378,14 +403,14 @@ export function LiveStreamRoom({
     if (!isHost || !dailyCall) return;
 
     function grantIfEligible(p: DailyParticipant) {
-      if (p.local || p.permissions.canSend === true) return;
+      if (p.local || canSendKind(p.permissions.canSend, "video")) return;
       if (!stageUserIdsRef.current.has(p.user_id)) return;
       dailyCall!.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
     }
 
     async function handleJoined(ev: { participant: DailyParticipant }) {
       const p = ev.participant;
-      if (p.local || p.permissions.canSend === true) return;
+      if (p.local || canSendKind(p.permissions.canSend, "video")) return;
       if (!stageUserIdsRef.current.has(p.user_id)) {
         // Poll may not have caught up yet — fetch fresh rather than miss the grant.
         const { userIds } = await getLiveStreamStageUserIds(liveStreamId);
@@ -416,10 +441,6 @@ export function LiveStreamRoom({
   useEffect(() => {
     if (isHost || !dailyCall) return;
     let enabled = false;
-
-    function canSendKind(canSend: boolean | Set<string>, kind: "video" | "audio") {
-      return typeof canSend === "boolean" ? canSend : canSend.has(kind);
-    }
 
     function tryEnable(p: DailyParticipant) {
       if (!p.local || enabled) return;
@@ -491,7 +512,7 @@ export function LiveStreamRoom({
       setDailyParticipants(
         all.map((p) => ({
           userName: p.local ? `${p.user_name || "me"} (me)` : p.user_name || "?",
-          canSend: typeof p.permissions.canSend === "boolean" ? p.permissions.canSend : p.permissions.canSend.size > 0,
+          canSend: canSendKind(p.permissions.canSend, "video") || canSendKind(p.permissions.canSend, "audio"),
         })),
       );
     }
