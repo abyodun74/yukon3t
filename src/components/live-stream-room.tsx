@@ -207,6 +207,11 @@ export function LiveStreamRoom({
   // always one available rather than leaving someone stuck approved but
   // silently camera-off with no way to fix it themselves.
   const [localMediaStarted, setLocalMediaStarted] = useState(false);
+  // TEMPORARY diagnostic — setLocalVideo/setLocalAudio return no promise, so
+  // a getUserMedia failure inside them is invisible. startCamera() (below)
+  // does return one; surfacing its rejection reason is the only way to see
+  // *why* the guest's camera never actually starts despite canSend:true.
+  const [cameraStartError, setCameraStartError] = useState<string | null>(null);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
   // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
@@ -388,9 +393,17 @@ export function LiveStreamRoom({
 
   function startMyCamera() {
     if (!dailyCall) return;
-    dailyCall.setLocalVideo(true);
-    dailyCall.setLocalAudio(true);
-    setLocalMediaStarted(true);
+    dailyCall
+      .startCamera({ videoSource: true, audioSource: true })
+      .then(() => {
+        dailyCall.setLocalVideo(true);
+        dailyCall.setLocalAudio(true);
+        setLocalMediaStarted(true);
+        setCameraStartError(null);
+      })
+      .catch((err: unknown) => {
+        setCameraStartError(err instanceof Error ? err.message : String(err));
+      });
   }
 
   // Broadcasts an ephemeral emoji reaction to everyone currently in the
@@ -475,9 +488,20 @@ export function LiveStreamRoom({
       if (!p.local || enabled) return;
       if (!canSendKind(p.permissions.canSend, "video") && !canSendKind(p.permissions.canSend, "audio")) return;
       enabled = true;
-      dailyCall!.setLocalVideo(true);
-      dailyCall!.setLocalAudio(true);
-      setLocalMediaStarted(true);
+      dailyCall!
+        .startCamera({ videoSource: true, audioSource: true })
+        .then(() => {
+          dailyCall!.setLocalVideo(true);
+          dailyCall!.setLocalAudio(true);
+          setLocalMediaStarted(true);
+          setCameraStartError(null);
+        })
+        .catch((err: unknown) => {
+          // Let the manual fallback button retry (it's a real click, so it
+          // isn't subject to whatever blocked this automatic attempt).
+          enabled = false;
+          setCameraStartError(err instanceof Error ? err.message : String(err));
+        });
     }
 
     const local = dailyCall.participants().local;
@@ -791,6 +815,7 @@ export function LiveStreamRoom({
               : dailyParticipants
                   .map((p) => `${p.userName}=canSend:${p.canSendRaw},video:${p.video},audio:${p.audio}`)
                   .join(" | ")}
+            {cameraStartError ? ` | startCamera error: ${cameraStartError}` : ""}
           </span>
         </div>
 
