@@ -388,20 +388,41 @@ export function LiveStreamRoom({
   // host's dailyCall.updateParticipant() only updates the *visible*
   // permissions.canSend metadata; it never actually unlocks the guest's
   // camera/mic. The moment poll() above notices the host approved us (role
-  // flips from VIEWER to GUEST/COHOST), re-running requestJoin fetches a
-  // fresh token that actually has canSend baked in (see createMeetingToken)
-  // and feeds it into `active`, which the effect below reacts to by
-  // reconnecting the Daily room with it — the only thing that actually
-  // starts the camera.
+  // flips from VIEWER to GUEST/COHOST), fetching a fresh token (now with
+  // canSend baked in — see createMeetingToken) and calling dailyCall.join()
+  // with it directly is what actually starts the camera.
+  //
+  // Deliberately NOT routed through requestJoin/setActive/startSession:
+  // that path feeds the new token into the shared call-session's `session`
+  // state, which GlobalCallFrame turns into a changed `token` prop on
+  // <CallFrame>, tearing down and recreating the whole Daily iframe.
+  // Confirmed live that this went wrong — the guest's screen went fully
+  // black (the iframe torn down and never resurfacing) rather than
+  // reconnecting. Calling .join() again directly on the *same*, still-
+  // mounted call object is the same reconnect Daily's own "promote a
+  // viewer to speaker" pattern uses, without touching CallFrame's mount
+  // lifecycle (or GlobalCallFrame's onLeave/endSession) at all.
   const prevRoleRef = useRef<Role>(role);
   useEffect(() => {
     const prevRole = prevRoleRef.current;
     prevRoleRef.current = role;
-    if (isHost || phase !== "active") return;
-    if (prevRole === "VIEWER" && (role === "GUEST" || role === "COHOST")) {
-      requestJoin(role);
-    }
-  }, [role, isHost, phase, requestJoin]);
+    if (isHost || phase !== "active" || !dailyCall) return;
+    if (prevRole !== "VIEWER" || (role !== "GUEST" && role !== "COHOST")) return;
+    joinLiveStream(liveStreamId, role)
+      .then((result) => {
+        if (result.error || !result.roomUrl || !result.token) return;
+        return dailyCall.join({ url: result.roomUrl, token: result.token }).then(() => {
+          // Belt-and-suspenders: a token minted with canSend should already
+          // join camera-on, but this guarantees it rather than assuming.
+          dailyCall.setLocalVideo(true);
+          dailyCall.setLocalAudio(true);
+          setLocalMediaStarted(true);
+        });
+      })
+      .catch((err: unknown) => {
+        setCameraStartError(err instanceof Error ? err.message : String(err));
+      });
+  }, [role, isHost, phase, dailyCall, liveStreamId]);
 
   // Keeps the newest comment in view as they arrive, the same way a normal
   // chat thread does — this is a small always-visible strip, not something
