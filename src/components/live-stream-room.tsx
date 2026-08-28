@@ -393,17 +393,15 @@ export function LiveStreamRoom({
 
   function startMyCamera() {
     if (!dailyCall) return;
-    dailyCall
-      .startCamera({ videoSource: true, audioSource: true })
-      .then(() => {
-        dailyCall.setLocalVideo(true);
-        dailyCall.setLocalAudio(true);
-        setLocalMediaStarted(true);
-        setCameraStartError(null);
-      })
-      .catch((err: unknown) => {
-        setCameraStartError(err instanceof Error ? err.message : String(err));
-      });
+    // startCamera() is a createCallObject()-only API ("only supported on
+    // custom callObject instances" — confirmed live) and throws outright on
+    // this app's prebuilt createFrame() instances. setLocalVideo/setLocalAudio
+    // are the real API surface here; they return no promise, so the
+    // "camera-error" listener below (not a .catch here) is what surfaces a
+    // getUserMedia failure.
+    dailyCall.setLocalVideo(true);
+    dailyCall.setLocalAudio(true);
+    setLocalMediaStarted(true);
   }
 
   // Broadcasts an ephemeral emoji reaction to everyone currently in the
@@ -488,20 +486,13 @@ export function LiveStreamRoom({
       if (!p.local || enabled) return;
       if (!canSendKind(p.permissions.canSend, "video") && !canSendKind(p.permissions.canSend, "audio")) return;
       enabled = true;
-      dailyCall!
-        .startCamera({ videoSource: true, audioSource: true })
-        .then(() => {
-          dailyCall!.setLocalVideo(true);
-          dailyCall!.setLocalAudio(true);
-          setLocalMediaStarted(true);
-          setCameraStartError(null);
-        })
-        .catch((err: unknown) => {
-          // Let the manual fallback button retry (it's a real click, so it
-          // isn't subject to whatever blocked this automatic attempt).
-          enabled = false;
-          setCameraStartError(err instanceof Error ? err.message : String(err));
-        });
+      // See startMyCamera above — startCamera() isn't valid on this
+      // prebuilt-frame instance; setLocalVideo/setLocalAudio is the real
+      // API, and the "camera-error" listener below is what would surface a
+      // getUserMedia failure from this call, since neither returns a promise.
+      dailyCall!.setLocalVideo(true);
+      dailyCall!.setLocalAudio(true);
+      setLocalMediaStarted(true);
     }
 
     const local = dailyCall.participants().local;
@@ -515,6 +506,24 @@ export function LiveStreamRoom({
       dailyCall.off("participant-updated", handleUpdated);
     };
   }, [isHost, dailyCall]);
+
+  // TEMPORARY diagnostic — setLocalVideo/setLocalAudio return no promise, so
+  // a getUserMedia failure inside them (permission denied, camera in use by
+  // another app, no camera present, etc.) is otherwise invisible. Daily's
+  // call-machine emits "camera-error" specifically for this, with a real
+  // message — this is what actually answers "why doesn't the guest's camera
+  // turn on" instead of guessing. Safe to remove alongside the rest of the
+  // diagnostic block once split-screen is confirmed fixed.
+  useEffect(() => {
+    if (!dailyCall) return;
+    function onCameraError(ev: { errorMsg?: { errorMsg?: string } }) {
+      setCameraStartError(ev.errorMsg?.errorMsg ?? "camera-error (no message)");
+    }
+    dailyCall.on("camera-error", onCameraError);
+    return () => {
+      dailyCall.off("camera-error", onCameraError);
+    };
+  }, [dailyCall]);
 
   // Recording state used to live inside CallFrame's onRecordingChange prop —
   // now that CallFrame only renders once, globally (GlobalCallFrame), this
