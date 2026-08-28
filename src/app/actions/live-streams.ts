@@ -251,13 +251,17 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
         roomName: liveStream.roomName,
         userId: user.id,
         userName: user.name ?? "Guest",
-        isOwner: isHost,
-        // Baking canSend into the token is what actually lifts
-        // owner_only_broadcast for an approved guest/co-host — see
-        // createMeetingToken. role is already "VIEWER" unless the
-        // alreadyOnStage branch above set it from an existing GUEST/COHOST
-        // row, so this is true exactly when they're actually approved.
-        canSend: isHost || role === "GUEST" || role === "COHOST",
+        // is_owner is what actually lifts owner_only_broadcast for an
+        // approved guest/co-host — see createMeetingToken. role is already
+        // "VIEWER" unless the alreadyOnStage branch above set it from an
+        // existing GUEST/COHOST row, so this is true exactly when they're
+        // actually approved. This does mean an approved stage participant
+        // becomes a real Daily meeting owner (can mute/eject others, admin
+        // recording, etc.) — an accepted tradeoff, not an oversight: it's
+        // the only thing Daily's own docs describe as lifting this
+        // restriction, and confirmed live that permissions.canSend alone
+        // does not.
+        isOwner: isHost || role === "GUEST" || role === "COHOST",
       });
     } catch {
       return { error: "call_service_unavailable" as const };

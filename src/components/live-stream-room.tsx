@@ -3,14 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Circle as RecordIcon, Download, Eye, Send, Smile, Users, X } from "lucide-react";
-import type { DailyParticipant } from "@daily-co/daily-js";
 import { useCallSession } from "@/lib/call-session";
 import {
   joinLiveStream,
   leaveLiveStream,
   endLiveStream,
   getLiveStreamViewerCount,
-  getLiveStreamStageUserIds,
   getLiveStreamStageRequests,
   respondToStageRequest,
   cancelStageRequest,
@@ -29,40 +27,13 @@ const POLL_INTERVAL_MS = 5000;
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
 /**
- * Daily's own type defs claim `permissions.canSend` is `boolean |
- * Set<string>`, but this app's own diagnostic overlay caught it reading
- * false for a participant who was visibly, successfully broadcasting live
- * video at the time — the real runtime value doesn't reliably match that
- * shape (or a strict `.has()`/`.size` check on it doesn't behave as the
- * type suggests). This is very likely what silently broke "turn the
- * approved guest's camera on" in earlier attempts: the check that decided
- * whether canSend now covers video/audio always evaluated false, so the
- * code that should have called setLocalVideo/setLocalAudio never ran.
- * Checked defensively against every plausible representation (boolean,
- * Set, plain array, or a {video, audio, ...}-keyed object) instead of
- * assuming one.
- */
-function canSendKind(canSend: unknown, kind: "video" | "audio"): boolean {
-  if (canSend === true) return true;
-  if (!canSend) return false;
-  if (typeof (canSend as { has?: unknown }).has === "function") {
-    return (canSend as Set<string>).has(kind);
-  }
-  if (Array.isArray(canSend)) return canSend.includes(kind);
-  if (typeof canSend === "object") return Boolean((canSend as Record<string, unknown>)[kind]);
-  return false;
-}
-
-/**
- * TEMPORARY — canSendKind above still reads false for a participant
- * visibly, successfully broadcasting live video (confirmed via the debug
- * overlay, twice now), so the real runtime shape of `permissions.canSend`
- * still isn't matched by any of the cases handled there. Daily's actual
- * call-machine logic is fetched dynamically from their CDN at runtime, not
- * present in the daily-js package installed here, so it can't be
- * determined by reading source — this dumps the exact raw value/type
- * instead of interpreting it, so the next test's screenshot shows the real
- * shape directly rather than another guess about it.
+ * TEMPORARY diagnostic — raw dump of permissions.canSend (still shown
+ * alongside owner/video/audio in the debug pill below, even though it
+ * turned out not to be what actually gates owner_only_broadcast — see the
+ * canSend-vs-is_owner findings around joinLiveStream's stage-approval
+ * flow). Daily's actual call-machine logic is fetched dynamically from
+ * their CDN at runtime, not present in the daily-js package installed
+ * here, so its exact runtime shape can't be determined by reading source.
  */
 function debugCanSend(canSend: unknown): string {
   if (canSend === true) return "true";
@@ -216,11 +187,10 @@ export function LiveStreamRoom({
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
   // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
   const [dailyParticipants, setDailyParticipants] = useState<
-    { userName: string; canSendRaw: string; video: boolean; audio: boolean }[]
+    { userName: string; canSendRaw: string; video: boolean; audio: boolean; owner: boolean }[]
   >([]);
   const router = useRouter();
   const { dailyCall, startSession, reconnectingRef } = useCallSession();
-  const stageUserIdsRef = useRef<Set<string>>(new Set());
   const lastRequestStatusRef = useRef<"PENDING" | "APPROVED" | "DECLINED" | null>(null);
   const lastCommentIdRef = useRef<string | undefined>(undefined);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -338,32 +308,8 @@ export function LiveStreamRoom({
     }
 
     if (isHost) {
-      const [{ userIds }, { requests }] = await Promise.all([
-        getLiveStreamStageUserIds(liveStreamId),
-        getLiveStreamStageRequests(liveStreamId),
-      ]);
-      stageUserIdsRef.current = new Set(userIds);
+      const { requests } = await getLiveStreamStageRequests(liveStreamId);
       setStageRequests(requests);
-
-      // The other half of the canSend-grant effect below: that effect only
-      // re-checks eligibility on mount and on a brand-new "participant-
-      // joined" event. But per joinLiveStream's own design, a requester
-      // already joined the Daily room as a plain viewer the moment they
-      // asked for a stage slot — approval typically lands *after* they're
-      // already connected, not as a fresh join. Neither of that effect's
-      // two triggers ever fires again for an already-connected participant
-      // whose eligibility just changed, so an approval landing on someone
-      // already in the room silently never got acted on until they
-      // happened to reconnect. Re-scanning current participants against
-      // the just-refreshed stageUserIdsRef on every poll tick (here) is
-      // what actually catches that — within one 5s tick instead of never.
-      if (dailyCall) {
-        for (const p of Object.values(dailyCall.participants())) {
-          if (p.local || canSendKind(p.permissions.canSend, "video")) continue;
-          if (!stageUserIdsRef.current.has(p.user_id)) continue;
-          dailyCall.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
-        }
-      }
     } else {
       const status = await getMyLiveStreamStatus(liveStreamId);
       setRole(status.role);
@@ -378,24 +324,26 @@ export function LiveStreamRoom({
         }
       }
     }
-  }, [liveStreamId, isHost, role, dailyCall]);
+  }, [liveStreamId, isHost, role]);
 
   usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
 
   // The token this session originally joined the Daily room with (see
-  // requestJoin/joinLiveStream) is a plain viewer token — it has no
-  // canSend permission and, confirmed live, granting it later via the
-  // host's dailyCall.updateParticipant() only updates the *visible*
-  // permissions.canSend metadata; it never actually unlocks the guest's
-  // camera/mic (Daily's own prebuilt UI never shows them camera/mic
-  // controls either, confirmed live — that decision is baked in at join,
-  // not reactive to a later permissions change). The moment poll() above
-  // notices the host approved us (role flips from VIEWER to GUEST/COHOST),
-  // fetching a fresh token with canSend actually baked in (see
-  // createMeetingToken) and reconnecting with it is what actually starts
-  // the camera.
+  // requestJoin/joinLiveStream) is a plain viewer token — not a meeting
+  // owner. In this room's owner_only_broadcast config, Daily's prebuilt UI
+  // gates its entire "you're joining as a viewer, camera/mic will remain
+  // off" screen on owner status specifically, confirmed live: neither the
+  // host's dailyCall.updateParticipant({ updatePermissions: { canSend } })
+  // nor a reissued token with permissions.canSend: true (a non-owner) ever
+  // changed it — the welcome screen came right back on reconnect either
+  // way, no camera. Only is_owner: true (see createMeetingToken) actually
+  // lifts it, which is why joinLiveStream now grants it to approved
+  // GUEST/COHOST stage members. The moment poll() above notices the host
+  // approved us (role flips from VIEWER to GUEST/COHOST), fetching a fresh
+  // is_owner token and reconnecting with it is what actually starts the
+  // camera.
   //
-  // Two dead ends already ruled out live, in order:
+  // Three dead ends already ruled out live, in order:
   // 1. Routing the new token through requestJoin/setActive/startSession —
   //    that feeds it into the shared call-session's `session` state, which
   //    GlobalCallFrame turns into a changed `token` prop on <CallFrame>,
@@ -408,6 +356,10 @@ export function LiveStreamRoom({
   //    (their npm changelog explicitly documents leave()-then-join() as the
   //    only supported way to rejoin an existing call instance); live
   //    testing matched that exactly — no error, but also no change at all.
+  // 3. Reissuing a token with permissions.canSend: true but is_owner still
+  //    false — the underlying permission model docs suggest this should
+  //    work, but owner_only_broadcast's prebuilt-UI gate empirically
+  //    doesn't respond to it; the "you're a viewer" screen came right back.
   //
   // leave() then join(), on the same still-mounted call object, is Daily's
   // actual documented pattern — but leave() fires "left-meeting", which
@@ -429,9 +381,8 @@ export function LiveStreamRoom({
           .leave()
           .then(() => dailyCall.join({ url: result.roomUrl, token: result.token }))
           .then(() => {
-            // Belt-and-suspenders: a token minted with canSend should
-            // already join camera-on, but this guarantees it rather than
-            // assuming.
+            // Belt-and-suspenders: an is_owner token should already join
+            // camera-on, but this guarantees it rather than assuming.
             dailyCall.setLocalVideo(true);
             dailyCall.setLocalAudio(true);
             setLocalMediaStarted(true);
@@ -494,81 +445,6 @@ export function LiveStreamRoom({
       })
       .catch(() => setSendingComment(false));
   }
-
-  // owner_only_broadcast (see createLiveStreamRoom) can only be lifted for a
-  // participant by the actual room owner acting live — a joiner's own token
-  // can't grant it to themselves (Daily's meeting-tokens API has no
-  // per-participant permissions override). The host cross-references each
-  // Daily participant's user_id (== our User.id) against stageUserIdsRef
-  // (kept fresh by poll()) and grants canSend to anyone holding a GUEST/
-  // COHOST stage slot.
-  useEffect(() => {
-    if (!isHost || !dailyCall) return;
-
-    function grantIfEligible(p: DailyParticipant) {
-      if (p.local || canSendKind(p.permissions.canSend, "video")) return;
-      if (!stageUserIdsRef.current.has(p.user_id)) return;
-      dailyCall!.updateParticipant(p.session_id, { updatePermissions: { canSend: true } });
-    }
-
-    async function handleJoined(ev: { participant: DailyParticipant }) {
-      const p = ev.participant;
-      if (p.local || canSendKind(p.permissions.canSend, "video")) return;
-      if (!stageUserIdsRef.current.has(p.user_id)) {
-        // Poll may not have caught up yet — fetch fresh rather than miss the grant.
-        const { userIds } = await getLiveStreamStageUserIds(liveStreamId);
-        stageUserIdsRef.current = new Set(userIds);
-      }
-      grantIfEligible(p);
-    }
-
-    Object.values(dailyCall.participants()).forEach(grantIfEligible);
-    dailyCall.on("participant-joined", handleJoined);
-    return () => {
-      dailyCall.off("participant-joined", handleJoined);
-    };
-  }, [isHost, dailyCall, liveStreamId]);
-
-  // The other half of the grant above, on the approved guest/co-host's own
-  // client: getting canSend permission from the host does NOT itself turn
-  // their camera/mic on. They originally joined an owner_only_broadcast
-  // room, so Daily's prebuilt UI decided at that moment — correctly, at the
-  // time — not to expose any camera/mic controls to them at all. Since that
-  // decision was made once at join time, it never revisits itself just
-  // because a permission changed mid-call; nothing here previously told it
-  // to. Reacting to this participant's own "participant-updated" the
-  // instant canSend actually includes video/audio is what actually starts
-  // their stream — this is the concrete cause behind "approved as a
-  // co-host but the stream still only shows one screen" rather than
-  // anything to do with how the video grid itself is laid out.
-  useEffect(() => {
-    if (isHost || !dailyCall) return;
-    let enabled = false;
-
-    function tryEnable(p: DailyParticipant) {
-      if (!p.local || enabled) return;
-      if (!canSendKind(p.permissions.canSend, "video") && !canSendKind(p.permissions.canSend, "audio")) return;
-      enabled = true;
-      // See startMyCamera above — startCamera() isn't valid on this
-      // prebuilt-frame instance; setLocalVideo/setLocalAudio is the real
-      // API, and the "camera-error" listener below is what would surface a
-      // getUserMedia failure from this call, since neither returns a promise.
-      dailyCall!.setLocalVideo(true);
-      dailyCall!.setLocalAudio(true);
-      setLocalMediaStarted(true);
-    }
-
-    const local = dailyCall.participants().local;
-    if (local) tryEnable(local);
-
-    function handleUpdated(ev: { participant: DailyParticipant }) {
-      tryEnable(ev.participant);
-    }
-    dailyCall.on("participant-updated", handleUpdated);
-    return () => {
-      dailyCall.off("participant-updated", handleUpdated);
-    };
-  }, [isHost, dailyCall]);
 
   // TEMPORARY diagnostic — setLocalVideo/setLocalAudio return no promise, so
   // a getUserMedia failure inside them (permission denied, camera in use by
@@ -640,6 +516,7 @@ export function LiveStreamRoom({
           canSendRaw: debugCanSend(p.permissions.canSend),
           video: p.video,
           audio: p.audio,
+          owner: p.owner,
         })),
       );
     }
@@ -885,7 +762,10 @@ export function LiveStreamRoom({
             {dailyParticipants.length === 0
               ? "none"
               : dailyParticipants
-                  .map((p) => `${p.userName}=canSend:${p.canSendRaw},video:${p.video},audio:${p.audio}`)
+                  .map(
+                    (p) =>
+                      `${p.userName}=owner:${p.owner},canSend:${p.canSendRaw},video:${p.video},audio:${p.audio}`,
+                  )
                   .join(" | ")}
             {cameraStartError ? ` | startCamera error: ${cameraStartError}` : ""}
           </span>
