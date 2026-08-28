@@ -210,7 +210,9 @@ export function LiveStreamRoom({
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
   // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
-  const [dailyParticipants, setDailyParticipants] = useState<{ userName: string; canSendRaw: string }[]>([]);
+  const [dailyParticipants, setDailyParticipants] = useState<
+    { userName: string; canSendRaw: string; video: boolean; audio: boolean }[]
+  >([]);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
@@ -540,6 +542,8 @@ export function LiveStreamRoom({
         all.map((p) => ({
           userName: p.local ? `${p.user_name || "me"} (me)` : p.user_name || "?",
           canSendRaw: debugCanSend(p.permissions.canSend),
+          video: p.video,
+          audio: p.audio,
         })),
       );
     }
@@ -784,7 +788,9 @@ export function LiveStreamRoom({
             Daily:{" "}
             {dailyParticipants.length === 0
               ? "none"
-              : dailyParticipants.map((p) => `${p.userName}=${p.canSendRaw}`).join(" | ")}
+              : dailyParticipants
+                  .map((p) => `${p.userName}=canSend:${p.canSendRaw},video:${p.video},audio:${p.audio}`)
+                  .join(" | ")}
           </span>
         </div>
 
