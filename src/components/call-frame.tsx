@@ -197,7 +197,17 @@ export function CallFrame({
       call.on("local-screen-share-started", syncScreenShareButton);
       call.on("local-screen-share-stopped", syncScreenShareButton);
 
-      call.join({ url: roomUrl, token, startVideoOff: type === "AUDIO" });
+      call.join({
+        url: roomUrl,
+        token,
+        startVideoOff: type === "AUDIO",
+        // Current Daily docs specify this as a join()-time property (older
+        // versions only documented it at createFrame() — kept above too,
+        // since it doesn't hurt) — passing it only at createFrame() is
+        // suspected of being why "Go Live"'s grid layout never actually
+        // took effect even for the host alone, confirmed live.
+        ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
+      });
       onCallObject?.(call);
     });
 

@@ -379,7 +379,13 @@ export function LiveStreamRoom({
         reconnectingRef.current = true;
         return dailyCall
           .leave()
-          .then(() => dailyCall.join({ url: result.roomUrl, token: result.token }))
+          .then(() =>
+            // activeSpeakerMode isn't sticky across a join() call on the
+            // same instance — re-passing it here keeps this reconnect in
+            // grid mode instead of it silently reverting to Daily's
+            // speaker-spotlight default (see call-frame.tsx's join() call).
+            dailyCall.join({ url: result.roomUrl, token: result.token, activeSpeakerMode: false }),
+          )
           .then(() => {
             // Belt-and-suspenders: an is_owner token should already join
             // camera-on, but this guarantees it rather than assuming.
