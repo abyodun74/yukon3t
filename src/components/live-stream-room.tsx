@@ -53,6 +53,33 @@ function canSendKind(canSend: unknown, kind: "video" | "audio"): boolean {
   return false;
 }
 
+/**
+ * TEMPORARY — canSendKind above still reads false for a participant
+ * visibly, successfully broadcasting live video (confirmed via the debug
+ * overlay, twice now), so the real runtime shape of `permissions.canSend`
+ * still isn't matched by any of the cases handled there. Daily's actual
+ * call-machine logic is fetched dynamically from their CDN at runtime, not
+ * present in the daily-js package installed here, so it can't be
+ * determined by reading source — this dumps the exact raw value/type
+ * instead of interpreting it, so the next test's screenshot shows the real
+ * shape directly rather than another guess about it.
+ */
+function debugCanSend(canSend: unknown): string {
+  if (canSend === true) return "true";
+  if (canSend === false) return "false";
+  if (canSend == null) return String(canSend);
+  if (canSend instanceof Set) return `Set[${[...canSend].join(",")}]`;
+  if (Array.isArray(canSend)) return `Arr[${canSend.join(",")}]`;
+  if (typeof canSend === "object") {
+    try {
+      return `Obj${JSON.stringify(canSend)}`;
+    } catch {
+      return `Obj{${Object.keys(canSend).join(",")}}`;
+    }
+  }
+  return `${typeof canSend}:${String(canSend)}`;
+}
+
 type ActiveRoom = { roomUrl: string; token: string };
 type StageRole = "GUEST" | "COHOST";
 type Role = "VIEWER" | StageRole;
@@ -183,7 +210,7 @@ export function LiveStreamRoom({
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
   // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
-  const [dailyParticipants, setDailyParticipants] = useState<{ userName: string; canSend: boolean }[]>([]);
+  const [dailyParticipants, setDailyParticipants] = useState<{ userName: string; canSendRaw: string }[]>([]);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
@@ -512,7 +539,7 @@ export function LiveStreamRoom({
       setDailyParticipants(
         all.map((p) => ({
           userName: p.local ? `${p.user_name || "me"} (me)` : p.user_name || "?",
-          canSend: canSendKind(p.permissions.canSend, "video") || canSendKind(p.permissions.canSend, "audio"),
+          canSendRaw: debugCanSend(p.permissions.canSend),
         })),
       );
     }
@@ -757,7 +784,7 @@ export function LiveStreamRoom({
             Daily:{" "}
             {dailyParticipants.length === 0
               ? "none"
-              : dailyParticipants.map((p) => `${p.userName}${p.canSend ? "🎥" : "🚫"}`).join(", ")}
+              : dailyParticipants.map((p) => `${p.userName}=${p.canSendRaw}`).join(" | ")}
           </span>
         </div>
 
