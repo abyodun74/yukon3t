@@ -946,8 +946,8 @@ export function LiveStreamRoom({
         // gesture, so being approved never leaves someone stuck camera-off
         // with no way to fix it themselves.
         <div
-          className="fixed inset-x-0 z-[70] flex justify-center px-3"
-          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+          className="fixed inset-x-0 z-[70] flex flex-col items-center gap-1 px-3"
+          style={{ top: "calc(6.5rem + env(safe-area-inset-top))" }}
         >
           <button
             type="button"
@@ -956,6 +956,12 @@ export function LiveStreamRoom({
           >
             You&apos;re on stage — tap to turn on your camera &amp; mic
           </button>
+          {/* TEMPORARY diagnostic — surfaces startCamera()'s rejection reason right next to the button that triggers it, since the top pill can get covered/clipped by this button. Remove alongside the rest of the diagnostic block once split-screen is confirmed fixed. */}
+          {cameraStartError && (
+            <span className="max-w-[90vw] rounded-full bg-danger/90 px-3 py-1 text-[10px] text-white">
+              startCamera error: {cameraStartError}
+            </span>
+          )}
         </div>
       )}
 
