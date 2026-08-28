@@ -382,6 +382,27 @@ export function LiveStreamRoom({
 
   usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
 
+  // The token this session originally joined the Daily room with (see
+  // requestJoin/joinLiveStream) is a plain viewer token — it has no
+  // canSend permission and, confirmed live, granting it later via the
+  // host's dailyCall.updateParticipant() only updates the *visible*
+  // permissions.canSend metadata; it never actually unlocks the guest's
+  // camera/mic. The moment poll() above notices the host approved us (role
+  // flips from VIEWER to GUEST/COHOST), re-running requestJoin fetches a
+  // fresh token that actually has canSend baked in (see createMeetingToken)
+  // and feeds it into `active`, which the effect below reacts to by
+  // reconnecting the Daily room with it — the only thing that actually
+  // starts the camera.
+  const prevRoleRef = useRef<Role>(role);
+  useEffect(() => {
+    const prevRole = prevRoleRef.current;
+    prevRoleRef.current = role;
+    if (isHost || phase !== "active") return;
+    if (prevRole === "VIEWER" && (role === "GUEST" || role === "COHOST")) {
+      requestJoin(role);
+    }
+  }, [role, isHost, phase, requestJoin]);
+
   // Keeps the newest comment in view as they arrive, the same way a normal
   // chat thread does — this is a small always-visible strip, not something
   // someone scrolls back through, so there's no "stick to bottom only if
@@ -983,14 +1004,19 @@ export function LiveStreamRoom({
         tray (mute/camera/leave — hiding that isn't an option, it's the
         only way to mute/unmute during the stream) and GlobalCallFrame's
         own bottom-right Leave/Minimize buttons (z-[80]). The
-        `calc(4.5rem + env(safe-area-inset-bottom))` bottom offset sits
-        this whole block above Daily's tray height rather than trying to
-        dodge it horizontally, which would be guessing at a width this app
-        has no way to measure.
+        `calc(7rem + env(safe-area-inset-bottom))` bottom offset sits this
+        whole block above Daily's tray height rather than trying to dodge it
+        horizontally, which would be guessing at a width this app has no way
+        to measure. 7rem (bumped up from 4.5rem — confirmed live the smaller
+        value overlapped the host's tray once it's showing labeled buttons,
+        e.g. "Turn off / Mute / Record / More", not just bare icons) is
+        still a guess at a height this app can't measure either, just a
+        more generous one for the cross-origin iframe's tallest known
+        tray variant.
       */}
       <div
         className="pointer-events-none fixed inset-x-3 z-[70] flex flex-col items-start gap-2"
-        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom))" }}
       >
         <div className="max-h-[32vh] w-full max-w-[75%] overflow-y-auto sm:max-w-xs">
           <div className="flex flex-col gap-1.5">
@@ -1040,7 +1066,7 @@ export function LiveStreamRoom({
       */}
       <div
         className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2"
-        style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex h-16 flex-col-reverse items-center overflow-hidden">
           {floatingReactions.map((r) => (

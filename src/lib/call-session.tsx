@@ -64,6 +64,16 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   const startSession = useCallback((next: StartSessionInput) => {
     if (sessionRef.current?.key === next.key) {
       setMinimized(false);
+      // A token refresh on the same session (e.g. a live-stream guest just
+      // got approved onto the stage and reconnected with a canSend-
+      // permissioned token — see live-stream-room.tsx) needs to actually
+      // reach CallFrame's [roomUrl, token]-keyed join effect so it tears
+      // down and rejoins with it. Anything else calling startSession again
+      // with the identical token (e.g. re-navigating to the same page)
+      // stays a no-op, same as before.
+      if (sessionRef.current.token !== next.token || sessionRef.current.roomUrl !== next.roomUrl) {
+        setSession(next);
+      }
       return;
     }
     setSession(next);

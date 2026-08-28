@@ -252,6 +252,12 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
         userId: user.id,
         userName: user.name ?? "Guest",
         isOwner: isHost,
+        // Baking canSend into the token is what actually lifts
+        // owner_only_broadcast for an approved guest/co-host — see
+        // createMeetingToken. role is already "VIEWER" unless the
+        // alreadyOnStage branch above set it from an existing GUEST/COHOST
+        // row, so this is true exactly when they're actually approved.
+        canSend: isHost || role === "GUEST" || role === "COHOST",
       });
     } catch {
       return { error: "call_service_unavailable" as const };

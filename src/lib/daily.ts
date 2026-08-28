@@ -60,11 +60,24 @@ export async function createMeetingToken({
   userId,
   userName,
   isOwner,
+  canSend,
 }: {
   roomName: string;
   userId: string;
   userName: string;
   isOwner: boolean;
+  /**
+   * Bakes send permission into the token itself — the only mechanism that
+   * actually lifts an owner_only_broadcast room's view-only restriction for
+   * a non-owner. Confirmed live: granting it later, mid-call, via the room
+   * owner's dailyCall.updateParticipant({ updatePermissions: { canSend } })
+   * only updates the *visible* permissions.canSend metadata everyone reads
+   * off the participant object — it does not actually unlock their camera/
+   * mic. The participant has to reconnect with a token minted with this set
+   * (see joinLiveStream's reconnect-on-approval flow) for Daily to actually
+   * let them send.
+   */
+  canSend?: boolean;
 }) {
   const res = await fetch("https://api.daily.co/v1/meeting-tokens", {
     method: "POST",
@@ -79,6 +92,7 @@ export async function createMeetingToken({
         user_name: userName,
         is_owner: isOwner,
         exp: Math.floor(Date.now() / 1000) + 60 * 60,
+        ...(canSend ? { permissions: { canSend: true } } : {}),
       },
     }),
   });
