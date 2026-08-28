@@ -157,6 +157,8 @@ export function LiveStreamRoom({
   const [localMediaStarted, setLocalMediaStarted] = useState(false);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
+  // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
+  const [dailyParticipants, setDailyParticipants] = useState<{ userName: string; canSend: boolean }[]>([]);
   const router = useRouter();
   const { dailyCall, startSession } = useCallSession();
   const stageUserIdsRef = useRef<Set<string>>(new Set());
@@ -475,6 +477,35 @@ export function LiveStreamRoom({
     };
   }, [dailyCall]);
 
+  // TEMPORARY diagnostic — surfaces what Daily's own client actually thinks
+  // is in the room, next to the "👥 1/3" pill (which only ever reflects our
+  // own DB's approved-stage-slot bookkeeping, not Daily's live room state).
+  // Screenshots alone couldn't settle whether two simultaneously-connected
+  // devices were genuinely seeing each other as Daily participants at all —
+  // this makes that directly visible instead of inferred. Safe to remove
+  // once the split-screen issue is confirmed fixed.
+  useEffect(() => {
+    if (!dailyCall) return;
+    function refresh() {
+      const all = Object.values(dailyCall!.participants());
+      setDailyParticipants(
+        all.map((p) => ({
+          userName: p.local ? `${p.user_name || "me"} (me)` : p.user_name || "?",
+          canSend: typeof p.permissions.canSend === "boolean" ? p.permissions.canSend : p.permissions.canSend.size > 0,
+        })),
+      );
+    }
+    refresh();
+    dailyCall.on("participant-joined", refresh);
+    dailyCall.on("participant-updated", refresh);
+    dailyCall.on("participant-left", refresh);
+    return () => {
+      dailyCall.off("participant-joined", refresh);
+      dailyCall.off("participant-updated", refresh);
+      dailyCall.off("participant-left", refresh);
+    };
+  }, [dailyCall]);
+
   async function handleLeave() {
     if (isHost) {
       await endLiveStream(liveStreamId);
@@ -699,6 +730,13 @@ export function LiveStreamRoom({
           <span className="flex items-center gap-1" title="On stage">
             <Users size={12} />
             {stageCount}/{stageCapacity}
+          </span>
+          {/* TEMPORARY diagnostic — see the dailyCall participant-tracking effect. Remove once split-screen is confirmed fixed. */}
+          <span className="flex items-center gap-1 border-l border-white/30 pl-2 text-[10px] text-white/70" title="Daily's own participant list, for debugging">
+            Daily:{" "}
+            {dailyParticipants.length === 0
+              ? "none"
+              : dailyParticipants.map((p) => `${p.userName}${p.canSend ? "🎥" : "🚫"}`).join(", ")}
           </span>
         </div>
 
