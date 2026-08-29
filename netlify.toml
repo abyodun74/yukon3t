@@ -1,5 +1,5 @@
 [build]
-  command = "next build --webpack"
+  command = "sh scripts/migrate-if-production.sh && next build --webpack"
   publish = ".next"
 
 # Next.js 16 defaults to Turbopack, but Netlify's Next.js Runtime edge
