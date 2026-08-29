@@ -10,6 +10,7 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { DictationRecorder } from "@/components/dictation-recorder";
@@ -126,6 +127,12 @@ export function PostComposer({
   const [embedUrlValue, setEmbedUrlValue] = useState("");
   const [embedError, setEmbedError] = useState<string | null>(null);
   const [showDictation, setShowDictation] = useState(false);
+  // Mirrors the (otherwise uncontrolled — see the textarea below)
+  // content field's live value, just for driving the emoji suggestion
+  // strip — doesn't control the textarea itself, so it stays in sync via
+  // the textarea's own onChange plus the two spots below that mutate
+  // contentRef.current directly (insertEmoji, appendDictatedText).
+  const [suggestionText, setSuggestionText] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -143,6 +150,7 @@ export function PostComposer({
     if (!el) return;
     el.setRangeText(emoji, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, "end");
     el.focus();
+    setSuggestionText(el.value);
   }
 
   function appendDictatedText(text: string) {
@@ -151,6 +159,7 @@ export function PostComposer({
     if (!el || !trimmed) return;
     el.value = el.value ? `${el.value} ${trimmed}` : trimmed;
     el.focus();
+    setSuggestionText(el.value);
   }
 
   // Object URLs are created once per image set (memoized on `images`), not
@@ -426,6 +435,7 @@ export function PostComposer({
             setIsEvent(false);
             setEventAt("");
             setEventLocation("");
+            setSuggestionText("");
             formRef.current?.reset();
             router.refresh();
           }
@@ -438,8 +448,10 @@ export function PostComposer({
         maxLength={50000}
         rows={3}
         placeholder={placeholder}
+        onChange={(e) => setSuggestionText(e.target.value)}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
+      <EmojiTypeSuggestions text={suggestionText} onSelect={insertEmoji} />
 
       {/* Only meaningful on the global Home feed's sections — Circle posts
           stay scoped to their Circle instead. */}
