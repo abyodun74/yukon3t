@@ -29,9 +29,9 @@ export default async function SignUpPage({
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">Create an account</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">
-        Sign up with your email and a password. We&apos;ll email you a link
-        to confirm your address before you can sign in. You can pick a
-        username later in Settings.
+        Sign up with your email and a password. We&apos;ll send you a code
+        by email or text to confirm your account before you can sign in. You
+        can pick a username later in Settings.
       </p>
 
       {message && (
@@ -70,6 +70,21 @@ export default async function SignUpPage({
             You must be at least 13 to use YuKon3t.
           </p>
         </div>
+        <fieldset>
+          <legend className="block text-xs font-medium text-foreground-soft">
+            Verify with
+          </legend>
+          <div className="mt-1 flex gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="radio" name="verificationMethod" value="EMAIL" defaultChecked />
+              Email code
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="verificationMethod" value="PHONE" />
+              Phone number
+            </label>
+          </div>
+        </fieldset>
         <button
           type="submit"
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"

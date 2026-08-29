@@ -65,12 +65,15 @@ export const usernameSchema = z
 
 export const passwordSchema = z.string().min(8).max(72);
 
+export const verificationMethodValues = ["EMAIL", "PHONE"] as const;
+
 export const signUpSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: passwordSchema,
   birthDate: z.coerce.date().refine(isOldEnough, {
     message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
   }),
+  verificationMethod: z.enum(verificationMethodValues),
 });
 
 export const loginSchema = z.object({

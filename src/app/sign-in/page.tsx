@@ -3,7 +3,7 @@ import { signIn } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { redirect } from "next/navigation";
-import { loginWithPassword, resendVerificationEmail } from "@/app/actions/password-auth";
+import { loginWithPassword, resendEmailOtp } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -28,7 +28,7 @@ function passwordErrorMessage(error: string | undefined) {
     case "invalid_credentials":
       return "Incorrect username/email or password.";
     case "unverified":
-      return "Confirm your email before signing in — check your inbox.";
+      return "Confirm your account before signing in — check your inbox or phone for a verification code.";
     case "rate_limited":
       return "Too many attempts. Please wait a few minutes and try again.";
     case "locked":
@@ -62,10 +62,10 @@ export default async function SignInPage({
           <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
             {error === "unverified" && email && (
-              <form action={resendVerificationEmail} className="mt-2">
+              <form action={resendEmailOtp} className="mt-2">
                 <input type="hidden" name="email" value={email} />
                 <button type="submit" className="font-medium underline">
-                  Resend confirmation email
+                  Resend confirmation code
                 </button>
               </form>
             )}

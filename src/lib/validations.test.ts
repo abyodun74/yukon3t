@@ -39,6 +39,7 @@ describe("signUpSchema", () => {
   const validBase = {
     email: "jane@example.com",
     password: "correct horse battery staple",
+    verificationMethod: "EMAIL" as const,
   };
 
   it("accepts a well-formed signup for someone old enough", () => {
@@ -61,6 +62,20 @@ describe("signUpSchema", () => {
     const result = signUpSchema.safeParse({ ...validBase, email: "  Jane@Example.COM  ", birthDate });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.email).toBe("jane@example.com");
+  });
+
+  it("accepts PHONE as the verification method", () => {
+    const birthDate = new Date();
+    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
+    const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "PHONE" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unrecognized verification method", () => {
+    const birthDate = new Date();
+    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
+    const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "FAX" });
+    expect(result.success).toBe(false);
   });
 });
 

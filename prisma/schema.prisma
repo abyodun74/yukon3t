@@ -133,6 +133,18 @@ model User {
   // entire lifecycle; no code is ever generated or stored here.
   phone           String?     @unique
   phoneVerifiedAt DateTime?
+
+  // Signup-time email OTP — separate from Auth.js's own VerificationToken
+  // table (magic-link) and unrelated to phone verification above. Cleared
+  // once emailVerified is set.
+  emailOtpCodeHash String?
+  emailOtpExpires  DateTime?
+  emailOtpAttempts Int       @default(0)
+
+  // Which channel this account is completing signup verification through —
+  // "EMAIL" | "PHONE". Set at signUpWithPassword, cleared once verified.
+  pendingVerificationMethod String?
+
   name            String?
   avatarUrl       String?
   bio             String?     @db.Text
