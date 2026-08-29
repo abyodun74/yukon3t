@@ -788,9 +788,23 @@ const sections: Section[] = [
         q: "Do I need to pick a username when I sign up?",
         a: (
           <>
-            No — signing up only asks for your email, a password, and your
-            date of birth. We assign you a starting username automatically,
-            and you can change it any time from Settings.
+            No — signing up only asks for your email, a password, your date
+            of birth, and how you&apos;d like to verify your account. We
+            assign you a starting username automatically, and you can change
+            it any time from Settings.
+          </>
+        ),
+      },
+      {
+        q: "How do I verify my account after signing up?",
+        a: (
+          <>
+            When you sign up, pick email or phone — we&apos;ll send a
+            6-digit code to whichever you choose, and you enter it on the
+            next screen to finish creating your account. Didn&apos;t get it
+            or the code expired? Just reopen that screen and a new one is
+            sent automatically, no need to hunt for a resend button (though
+            one&apos;s there too if you want to trigger it yourself).
           </>
         ),
       },
@@ -826,10 +840,10 @@ const sections: Section[] = [
         q: "What's a trust score / trust badge?",
         a: (
           <>
-            A signal built from things like email verification, account
-            age, profile completeness, and activity streaks, minus any
-            upheld reports against you. It&apos;s a reputation signal, not a
-            background check.
+            A signal built from things like email or phone verification,
+            account age, profile completeness, and activity streaks, minus
+            any upheld reports against you. It&apos;s a reputation signal,
+            not a background check.
           </>
         ),
       },
