@@ -94,3 +94,49 @@ export function getSuggestedEmojis(query: string): string[] {
   }
   return matches.slice(0, 8);
 }
+
+const MIN_PREFIX_LENGTH = 3;
+
+function wordMatchesKeyword(word: string, keyword: string, isTrailingWord: boolean): boolean {
+  if (word === keyword) return true;
+  // A completed word built on a shorter root already in the map — e.g.
+  // "sadly"/"saddest" against "sad" — matches without needing every
+  // inflection spelled out as its own key.
+  if (keyword.length >= MIN_PREFIX_LENGTH && word.startsWith(keyword)) return true;
+  // Only the word still being typed (the last one) gets the reverse
+  // leniency — "hap" matching toward "happy" — so a message doesn't light
+  // up with suggestions for every short, already-finished word it happens
+  // to be a prefix of.
+  if (isTrailingWord && word.length >= MIN_PREFIX_LENGTH && keyword.startsWith(word)) return true;
+  return false;
+}
+
+/**
+ * Scans a full message (not just one search term) for words that match a
+ * known keyword, surfacing every distinct emoji found — "happy birthday"
+ * suggests both a smile and a cake. Used to power a Gboard/iMessage-style
+ * suggestion strip above the composer as someone types (see
+ * emoji-type-suggestions.tsx), not the emoji picker's own search box (that's
+ * getSuggestedEmojis above).
+ */
+export function getMessageEmojiSuggestions(text: string): string[] {
+  const words = text.toLowerCase().match(/[a-z']+/g);
+  if (!words || words.length === 0) return [];
+
+  const matches: string[] = [];
+  const seen = new Set<string>();
+  const lastWordIndex = words.length - 1;
+  words.forEach((word, i) => {
+    if (word.length < 2) return;
+    const isTrailingWord = i === lastWordIndex;
+    for (const [keyword, emojis] of Object.entries(EMOJI_KEYWORD_SUGGESTIONS)) {
+      if (!wordMatchesKeyword(word, keyword, isTrailingWord)) continue;
+      for (const emoji of emojis) {
+        if (seen.has(emoji)) continue;
+        seen.add(emoji);
+        matches.push(emoji);
+      }
+    }
+  });
+  return matches.slice(0, 8);
+}

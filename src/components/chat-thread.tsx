@@ -13,6 +13,7 @@ import {
   removeCorrection,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -1144,6 +1145,8 @@ export function ChatThread({
           </button>
         </div>
       )}
+
+      <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
 
       {/* WhatsApp/Instagram-style composer: one continuous rounded pill
           holding text entry + emoji + attach, with circular icon-only
