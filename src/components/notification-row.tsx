@@ -40,7 +40,8 @@ type NotificationData = {
     | "SUBSCRIPTION_CIRCLE_JOINED"
     | "SUBSCRIPTION_CIRCLE_CREATED"
     | "VOICE_CHANNEL_INVITE"
-    | "VOICE_CHANNEL_INVITE_ACCEPTED";
+    | "VOICE_CHANNEL_INVITE_ACCEPTED"
+    | "MISSED_CALL";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

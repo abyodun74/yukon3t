@@ -7,7 +7,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
-import { sendFcmCallToUser, sendFcmCallCancelToUser } from "@/lib/fcm";
+import { sendFcmCallToUser } from "@/lib/fcm";
+import { notifyMissedCall } from "@/lib/missed-call";
 import { track } from "@/lib/analytics";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
@@ -230,11 +231,16 @@ export async function endCall(callId: string) {
   });
   await deleteCallRoom(call.roomName);
 
-  // The caller hanging up before the callee answered — the callee's native
-  // notification (if any) has no other way to find out the call is gone
-  // and would otherwise keep ringing/showing indefinitely.
+  // The caller hanging up before the callee answered, i.e. a missed call —
+  // clear the callee's native ringing notification (it has no other way to
+  // find out the call is gone) and let them know they missed it.
   if (wasRinging && call.callerId === user.id) {
-    await sendFcmCallCancelToUser(call.calleeId, call.id);
+    await notifyMissedCall({
+      callId: call.id,
+      callerId: user.id,
+      callerName: user.name ?? "Someone",
+      calleeId: call.calleeId,
+    });
   }
 
   return { error: null };

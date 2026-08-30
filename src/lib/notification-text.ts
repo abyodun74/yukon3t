@@ -33,6 +33,7 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   SUBSCRIPTION_CIRCLE_CREATED: "created a new Circle",
   VOICE_CHANNEL_INVITE: "invited you to a voice channel",
   VOICE_CHANNEL_INVITE_ACCEPTED: "accepted your voice channel invite",
+  MISSED_CALL: "called you",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

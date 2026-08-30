@@ -139,6 +139,17 @@ export async function sendFcmCallCancelToUser(userId: string, callId: string) {
   await sendFcmDataToUser(userId, { type: "call_cancelled", callId });
 }
 
+/**
+ * Distinct from call_cancelled above: that one only clears the ringing
+ * notification, this one leaves a "Missed call from X" notification behind
+ * — same data-message path, handled by CallMessagingService.java on the
+ * Android side (a no-op there until that's updated and shipped in a new
+ * Play Store release, per CLAUDE.md's native-code note).
+ */
+export async function sendFcmMissedCallToUser(userId: string, callId: string, callerName: string) {
+  await sendFcmDataToUser(userId, { type: "missed_call", callId, callerName });
+}
+
 export async function sendFcmEventReminderToUser(
   userId: string,
   payload: { postId: string; title: string },

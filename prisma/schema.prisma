@@ -785,6 +785,11 @@ enum NotificationType {
   VOICE_CHANNEL_INVITE
   // Sent to the inviter when their ChannelVoiceInvite is accepted.
   VOICE_CHANNEL_INVITE_ACCEPTED
+  // Sent to the callee when a voice/video call goes unanswered — either the
+  // caller hangs up while it's still RINGING (see endCall in
+  // actions/calls.ts) or nobody ever responds and the timeout-missed-calls
+  // cron marks it MISSED. actorId is the caller.
+  MISSED_CALL
 }
 
 model Notification {
