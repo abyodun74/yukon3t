@@ -20,6 +20,9 @@ const DUPLICATE_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  *    or collab post. An admin resolves it by dismissing, warning/suspending/
  *    banning the reported user, or removing the reported content outright
  *    (post/comment/message removed, Circle deleted, collab post closed).
+ *    A report left OPEN/REVIEWING for 72h with no admin action is
+ *    auto-dismissed by the resolve-stale-reports cron (see
+ *    src/lib/report-queue.ts) — no enforcement action, just queue hygiene.
  *  - Flagged content queue: content our automated moderation (see
  *    src/lib/moderation.ts) held back at creation time, before anyone
  *    reported it. An admin reviews it and either publishes it or removes it.
