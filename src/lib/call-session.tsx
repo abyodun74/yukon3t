@@ -26,6 +26,11 @@ export type StartSessionInput = {
   token: string;
   type: "AUDIO" | "VIDEO";
   activeSpeakerMode?: boolean;
+  /** "custom" renders LiveVideoFrame's own hand-rolled video grid instead
+   * of CallFrame's Daily Prebuilt iframe — used by live streams, see
+   * live-stream-room.tsx and src/components/live-video-frame.tsx for why.
+   * Omitted (Prebuilt) for regular calls/Collab, unaffected by this. */
+  renderer?: "prebuilt" | "custom";
   /** Shown in the minimized widget. */
   label: string;
   /** Caller's own cleanup (endCall()/setState/router.push, etc.) — invoked

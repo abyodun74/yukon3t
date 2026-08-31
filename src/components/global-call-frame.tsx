@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, Minimize2, PhoneOff, Upload, X } from "lucide-react";
 import { CallFrame } from "@/components/call-frame";
+import { LiveVideoFrame } from "@/components/live-video-frame";
 import { useCallSession } from "@/lib/call-session";
 import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
 
@@ -82,22 +83,36 @@ export function GlobalCallFrame() {
         // needed on desktop, not worth a resize-aware breakpoint for.
         style={minimized ? { bottom: "5rem" } : undefined}
       >
-        <CallFrame
-          roomUrl={session.roomUrl}
-          token={session.token}
-          type={session.type}
-          activeSpeakerMode={session.activeSpeakerMode}
-          onCallObject={setDailyCall}
-          onLeave={() => {
-            // A leave() that's the first half of an internal reconnect (see
-            // reconnectingRef on CallSessionContext / live-stream-room.tsx's
-            // canSend-token-refresh flow) still fires "left-meeting" same as
-            // a real hangup — this is what tells the two apart.
-            if (reconnectingRef.current) return;
-            session.onLeave();
-            endSession();
-          }}
-        />
+        {session.renderer === "custom" ? (
+          <LiveVideoFrame
+            roomUrl={session.roomUrl}
+            token={session.token}
+            onCallObject={setDailyCall}
+            onLeave={() => {
+              // Same reconnect-vs-real-hangup distinction as CallFrame below.
+              if (reconnectingRef.current) return;
+              session.onLeave();
+              endSession();
+            }}
+          />
+        ) : (
+          <CallFrame
+            roomUrl={session.roomUrl}
+            token={session.token}
+            type={session.type}
+            activeSpeakerMode={session.activeSpeakerMode}
+            onCallObject={setDailyCall}
+            onLeave={() => {
+              // A leave() that's the first half of an internal reconnect (see
+              // reconnectingRef on CallSessionContext / live-stream-room.tsx's
+              // canSend-token-refresh flow) still fires "left-meeting" same as
+              // a real hangup — this is what tells the two apart.
+              if (reconnectingRef.current) return;
+              session.onLeave();
+              endSession();
+            }}
+          />
+        )}
 
         {minimized && (
           // Positioned relative to the small widget itself — a self-

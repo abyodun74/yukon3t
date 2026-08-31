@@ -561,6 +561,7 @@ export function LiveStreamRoom({
       token: active.token,
       type: "VIDEO",
       activeSpeakerMode: false,
+      renderer: "custom",
       label: title,
       onLeave: handleLeave,
     });
