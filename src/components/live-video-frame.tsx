@@ -150,17 +150,20 @@ export function LiveVideoFrame({
     }
   }, [localScreenSharing]);
 
-  // owner_only_broadcast blocks a plain viewer from sending at all — this
-  // is the same "who's actually a broadcaster" test as the room's own
-  // permission model (see daily.ts's createLiveStreamRoom), just read back
-  // off the participant object instead of inferred from a token. Handles
-  // both shapes daily-js's own types allow for canSend (see
-  // DailyParticipantPermissions in @daily-co/daily-js) — the existing
-  // debugCanSend helper in live-stream-room.tsx exists for the same reason.
+  // is_owner is the ONLY reliable "can this participant actually broadcast"
+  // signal in this app's rooms — confirmed live (see the debug pill in
+  // live-stream-room.tsx): a plain viewer reports permissions.canSend:true
+  // too, since createMeetingToken (daily.ts) never sets permissions.canSend
+  // on any token, viewer or approved guest — canSend is just Daily's
+  // default value, not something this app's tokens ever restrict per
+  // participant. The actual restriction is owner_only_broadcast at the
+  // room level, which is only lifted by is_owner:true — the same thing
+  // daily.ts's createMeetingToken comment already documents, and which
+  // joinLiveStream grants to approved GUEST/COHOST members, not just the
+  // host. Trusting canSend here (an earlier version of this file did) drew
+  // a video tile for every connected viewer, not just actual broadcasters.
   function canBroadcast(p: DailyParticipant) {
-    if (p.owner) return true;
-    const canSend = p.permissions.canSend;
-    return canSend === true || (canSend instanceof Set && canSend.size > 0);
+    return p.owner;
   }
   const broadcasters = participants
     .filter(canBroadcast)
