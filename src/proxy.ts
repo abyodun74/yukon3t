@@ -7,10 +7,18 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // React dev mode uses eval() for debugging stack traces; never in production.
+  // The three Daily domains are for live streams' call-object bundle (see
+  // live-video-frame.tsx's createCallObject({ dailyConfig: { avoidEval: true } })
+  // — without avoidEval, Daily's default code path needs 'unsafe-eval'
+  // instead, which this app deliberately never allows in production; with
+  // it, the bundle loads via a plain <script> tag from these domains). Only
+  // needed for the call-object path — Prebuilt (regular calls, CallFrame)
+  // runs inside Daily's own cross-origin iframe with its own separate CSP.
+  const dailyScriptSrc = "https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net";
   const scriptSrc =
     process.env.NODE_ENV === "production"
-      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`;
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dailyScriptSrc}`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${dailyScriptSrc}`;
 
   // R2 public URL host powers <img>/<video> playback and (via connect-src)
   // fetch()-ing a post's own media back as a Blob; the R2 S3 API host is
@@ -42,13 +50,24 @@ export function proxy(request: NextRequest) {
     // native-share "attach the actual photo/video" path in share-modal.tsx,
     // which img-src/media-src alone don't cover since those only govern
     // passive <img>/<video> loads, not script-initiated fetch().
-    `connect-src 'self'${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}`,
-    // Daily.co calling embeds its own call UI in an iframe on its own
-    // subdomain (frame-src) — everything inside runs under Daily's CSP, not
-    // ours, so no connect-src/script-src changes are needed for it. Same
-    // reasoning for YouTube/Vimeo post embeds: the linked-video iframe (see
-    // src/lib/video-embed.ts) only ever points at these two exact origins,
-    // never an attacker-controlled one.
+    // Prebuilt (regular calls, CallFrame) embeds Daily's call UI in an
+    // iframe on Daily's own subdomain (frame-src below) — everything inside
+    // that runs under Daily's own CSP, not ours. Live streams
+    // (live-video-frame.tsx) use daily-js's call-object mode instead, which
+    // has no iframe at all — its WebRTC signaling/media runs directly in
+    // this page, so it needs its own connect-src entries (per Daily's own
+    // CSP guide) or it just hangs on "Connecting…" with no visible error,
+    // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
+    // scheme-only (not host-scoped) because Daily's signaling/TURN relay
+    // hosts are dynamically assigned, not a fixed domain.
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}`,
+    // blob: is call-object mode's echo-cancellation/audio-processing worker
+    // bundle (also per Daily's CSP guide) — with no worker-src at all this
+    // falls back to default-src 'self', which doesn't include blob:.
+    "worker-src 'self' blob:",
+    // Same reasoning as YouTube/Vimeo post embeds: the linked-video iframe
+    // (see src/lib/video-embed.ts) only ever points at these two exact
+    // origins, never an attacker-controlled one.
     "frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",

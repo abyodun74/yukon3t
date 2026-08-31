@@ -43,6 +43,12 @@ export function LiveVideoFrame({
 }) {
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
+  // join() rejecting (bad token, expired room, network drop) previously had
+  // nowhere to go — CallFrame's own join() call has the same gap, but
+  // there the Prebuilt iframe at least shows Daily's own error UI; here
+  // there's no fallback UI at all, so an uncaught rejection would otherwise
+  // leave the "Connecting…" placeholder up forever with no visible cause.
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +71,11 @@ export function LiveVideoFrame({
       // No container/iframe — createCallObject() (not createFrame()) is
       // Daily's "custom UI" mode: it drives the same underlying call but
       // renders nothing of its own, which is the whole point here.
-      call = DailyIframe.createCallObject();
+      // avoidEval: true loads the call-machine bundle via a <script> tag
+      // from Daily's CDN instead of a Function()-based eval — this app's
+      // CSP (src/proxy.ts) never allows 'unsafe-eval' in production, so
+      // without this the call object would fail to initialize at all.
+      call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
       callRef.current = call;
 
       call.on("participant-joined", refreshParticipants);
@@ -78,10 +88,16 @@ export function LiveVideoFrame({
       call.on("recording-started", handleRecordingStarted);
       call.on("recording-stopped", handleRecordingStopped);
 
-      call.join({ url: roomUrl, token }).then(() => {
-        if (cancelled) return;
-        refreshParticipants();
-      });
+      call
+        .join({ url: roomUrl, token })
+        .then(() => {
+          if (cancelled) return;
+          refreshParticipants();
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setJoinError(err instanceof Error ? err.message : "Couldn't connect");
+        });
 
       onCallObject?.(call);
     });
@@ -154,7 +170,9 @@ export function LiveVideoFrame({
   return (
     <div className="relative flex h-full w-full flex-col bg-black">
       {broadcasters.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-white/60">Connecting…</div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center text-sm text-white/60">
+          {joinError ? <span className="text-danger">{joinError}</span> : "Connecting…"}
+        </div>
       ) : (
         <div
           className="grid flex-1 gap-1 p-1"
