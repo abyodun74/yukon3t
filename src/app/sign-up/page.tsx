@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { signUpWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
+import { BirthDateSelect } from "@/components/birth-date-select";
+import { MIN_AGE } from "@/lib/validations";
 
 function errorMessage(error: string | undefined) {
   switch (error) {
@@ -60,12 +62,9 @@ export default async function SignUpPage({
           <label className="block text-xs font-medium text-foreground-soft">
             Date of birth
           </label>
-          <input
-            type="date"
-            name="birthDate"
-            required
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
-          />
+          <div className="mt-1">
+            <BirthDateSelect minAge={MIN_AGE} />
+          </div>
           <p className="mt-1 text-xs text-foreground-soft">
             You must be at least 13 to use YuKon3t.
           </p>
