@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Upload, Video, X } from "lucide-react";
+import { AlertCircle, Camera, Loader2, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -18,11 +18,16 @@ const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
-// createStory has no batch endpoint — each item is its own upload + DB row,
-// posted one at a time (see submit() below) — 5 keeps a single "share"
-// action from turning into an unbounded sequential upload run, and stays
-// comfortably under storyCreate's 10/hour rate limit even with a retry.
+// createStory has no batch endpoint — each item is its own upload + DB row —
+// 5 keeps a single "share" action from turning into an unbounded upload run,
+// and stays comfortably under storyCreate's 10/hour rate limit even with a
+// retry.
 const MAX_ITEMS = 5;
+
+type UploadState =
+  | { status: "uploading" }
+  | { status: "done"; mediaUrl: string; mediaThumbnailUrl?: string }
+  | { status: "error"; message: string };
 
 type StoryItem = {
   /** Local-only key for React/removal — never sent to the server. */
@@ -30,6 +35,7 @@ type StoryItem = {
   file: File;
   mediaType: "IMAGE" | "VIDEO";
   previewUrl: string;
+  upload: UploadState;
 };
 
 /**
@@ -78,7 +84,9 @@ async function processImageFile(f: File): Promise<{ item: StoryItem } | { error:
   if (!IMAGE_TYPES.includes(f.type)) return { error: "Use a JPEG, PNG, or WebP image." };
   const resized = await resizeImageFile(f);
   if (resized.size > MAX_IMAGE_BYTES) return { error: "Images must be 25MB or smaller." };
-  return { item: { id: makeId(), file: resized, mediaType: "IMAGE", previewUrl: URL.createObjectURL(resized) } };
+  return {
+    item: { id: makeId(), file: resized, mediaType: "IMAGE", previewUrl: URL.createObjectURL(resized), upload: { status: "uploading" } },
+  };
 }
 
 /**
@@ -117,7 +125,7 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
       URL.revokeObjectURL(probeUrl);
     };
     const toItem = (): { item: StoryItem } => ({
-      item: { id: makeId(), file: f, mediaType: "VIDEO", previewUrl: URL.createObjectURL(f) },
+      item: { id: makeId(), file: f, mediaType: "VIDEO", previewUrl: URL.createObjectURL(f), upload: { status: "uploading" } },
     });
     const timeout = setTimeout(() => {
       if (settled) return;
@@ -167,11 +175,57 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  function setItemUpload(id: string, upload: UploadState) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, upload } : i)));
+  }
+
+  /**
+   * Uploads a single item's media to R2 the moment it's added, rather than
+   * waiting for "Share" — the longer a picked video sits before it's
+   * actually read for upload, the more likely Android's content:// picker
+   * (Google Photos, a cloud-backed gallery, etc.) has already invalidated
+   * the underlying temp file out from under it, which surfaces as a plain
+   * "couldn't reach the server" failure with nothing actually wrong
+   * network-wise. A multi-item batch (pick more, write a caption, review
+   * the grid) makes that dwell time much longer than the old single-file
+   * flow's pick-then-immediately-tap-Share, so starting each upload
+   * immediately keeps that gap as small as it was before. Retried by
+   * tapping the failed item's own retry control, not by re-picking it.
+   */
+  async function startUpload(item: StoryItem) {
+    if (item.mediaType === "IMAGE") {
+      const result = await uploadFileDirect(item.file, "story-image");
+      if (!result.ok) {
+        setItemUpload(item.id, { status: "error", message: errorMessage(result.error) });
+        return;
+      }
+      setItemUpload(item.id, { status: "done", mediaUrl: result.publicUrl });
+      return;
+    }
+
+    const [videoResult, thumb] = await Promise.all([
+      uploadFileDirect(item.file, "story-video"),
+      captureVideoFrameFromFile(item.file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
+    ]);
+    if (!videoResult.ok) {
+      setItemUpload(item.id, { status: "error", message: errorMessage(videoResult.error) });
+      return;
+    }
+    setItemUpload(item.id, {
+      status: "done",
+      mediaUrl: videoResult.publicUrl,
+      mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined,
+    });
+  }
+
   function addResults(results: ({ item: StoryItem } | { error: string })[], overflow: number) {
     const newItems = results.filter((r): r is { item: StoryItem } => "item" in r).map((r) => r.item);
     const messages = [...new Set(results.filter((r): r is { error: string } => "error" in r).map((r) => r.error))];
     if (overflow > 0) messages.push(`You can add up to ${MAX_ITEMS} items per story batch — ${overflow} left out.`);
-    if (newItems.length) setItems((prev) => [...prev, ...newItems]);
+    if (newItems.length) {
+      setItems((prev) => [...prev, ...newItems]);
+      for (const item of newItems) startUpload(item);
+    }
     setError(messages.length ? messages.join(" ") : null);
   }
 
@@ -199,70 +253,53 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     });
   }
 
-  /** Uploads + posts a single item, isolated so one failure never blocks the rest of the batch (see submit()). */
-  async function postOneStory(item: StoryItem): Promise<{ ok: true } | { ok: false; message: string }> {
-    let media: { mediaUrl: string; mediaThumbnailUrl?: string };
-    if (item.mediaType === "IMAGE") {
-      const result = await uploadFileDirect(item.file, "story-image");
-      if (!result.ok) return { ok: false, message: errorMessage(result.error) };
-      media = { mediaUrl: result.publicUrl };
-    } else {
-      const [videoResult, thumb] = await Promise.all([
-        uploadFileDirect(item.file, "story-video"),
-        captureVideoFrameFromFile(item.file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
-      ]);
-      if (!videoResult.ok) return { ok: false, message: errorMessage(videoResult.error) };
-      media = { mediaUrl: videoResult.publicUrl, mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined };
-    }
-
+  /** Posts one already-uploaded item's story row — isolated so one failure never blocks the rest of the batch (see submit()). */
+  async function postOneStory(item: StoryItem & { upload: { status: "done"; mediaUrl: string; mediaThumbnailUrl?: string } }) {
     const fd = new FormData();
     fd.set("mediaType", item.mediaType);
-    fd.set("mediaUrl", media.mediaUrl);
-    if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
+    fd.set("mediaUrl", item.upload.mediaUrl);
+    if (item.upload.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", item.upload.mediaThumbnailUrl);
     if (caption.trim()) fd.set("caption", caption.trim());
 
     try {
       const result = await createStory(fd);
-      if (result.error) return { ok: false, message: errorMessage(result.error) };
-      return { ok: true };
+      if (result.error) return { ok: false as const, message: errorMessage(result.error) };
+      return { ok: true as const };
     } catch (err) {
-      return { ok: false, message: isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network") };
+      return { ok: false as const, message: isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network") };
     }
   }
 
   function submit() {
-    if (items.length === 0 || isPending) return;
+    const ready = items.filter((i): i is StoryItem & { upload: Extract<UploadState, { status: "done" }> } => i.upload.status === "done");
+    if (ready.length === 0 || isPending) return;
     setError(null);
     startTransition(async () => {
-      const total = items.length;
+      const total = ready.length;
       setProgress({ done: 0, total });
-      const failed: StoryItem[] = [];
+      const postedIds = new Set<string>();
       let firstFailureMessage: string | null = null;
 
       // Sequential, not Promise.all: each createStory call isn't
-      // idempotent (see the original single-item comment this replaces),
-      // so items post one at a time and a failure partway through leaves
-      // the earlier successes in place rather than racing duplicate writes
-      // on a blind retry.
-      for (const item of items) {
+      // idempotent, so items post one at a time and a failure partway
+      // through leaves the earlier successes in place rather than racing
+      // duplicate writes on a blind retry.
+      for (const item of ready) {
         const outcome = await postOneStory(item);
-        if (!outcome.ok) {
-          failed.push(item);
-          firstFailureMessage ??= outcome.message;
-        } else {
+        if (outcome.ok) {
+          postedIds.add(item.id);
           URL.revokeObjectURL(item.previewUrl);
+        } else {
+          firstFailureMessage ??= outcome.message;
         }
         setProgress((p) => (p ? { done: p.done + 1, total: p.total } : p));
       }
 
       setProgress(null);
-      setItems(failed);
+      setItems((prev) => prev.filter((i) => !postedIds.has(i.id)));
 
-      if (failed.length > 0) {
-        const postedCount = total - failed.length;
-        setError(
-          `${postedCount} of ${total} posted. ${failed.length} failed: ${firstFailureMessage ?? "try again."}`,
-        );
+      if (postedIds.size < total) {
+        setError(`${postedIds.size} of ${total} posted. ${total - postedIds.size} failed: ${firstFailureMessage ?? "try again."}`);
         return;
       }
 
@@ -272,6 +309,8 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   }
 
   const atCapacity = items.length >= MAX_ITEMS;
+  const readyCount = items.filter((i) => i.upload.status === "done").length;
+  const anyUploading = items.some((i) => i.upload.status === "uploading");
 
   return (
     <div className="animate-modal-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
@@ -330,6 +369,24 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                     <Video size={14} className="absolute bottom-1 left-1 text-white drop-shadow" />
                   </>
                 )}
+
+                {item.upload.status === "uploading" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <Loader2 size={20} className="animate-spin text-white" />
+                  </div>
+                )}
+                {item.upload.status === "error" && (
+                  <button
+                    type="button"
+                    onClick={() => startUpload(item)}
+                    title={`${item.upload.status === "error" ? item.upload.message : ""} — tap to retry`}
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-white"
+                  >
+                    <AlertCircle size={18} />
+                    <span className="text-[10px] font-medium">Tap to retry</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => removeItem(item.id)}
@@ -390,7 +447,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
         {items.length > 0 && (
           <>
             <p className="mt-2 text-center text-[11px] text-foreground-soft">
-              {items.length} of {MAX_ITEMS} — tap the × on an item to remove it.
+              {items.length} of {MAX_ITEMS} — tap the × to remove, or a failed item to retry it.
             </p>
             <input
               type="text"
@@ -407,7 +464,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
 
         <button
           type="button"
-          disabled={items.length === 0 || isPending}
+          disabled={readyCount === 0 || anyUploading || isPending}
           onClick={submit}
           className="mt-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
         >
@@ -415,9 +472,11 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
             ? progress
               ? `Posting ${progress.done}/${progress.total}...`
               : "Posting..."
-            : items.length > 1
-              ? `Share ${items.length} to your story`
-              : "Share to your story"}
+            : anyUploading
+              ? "Uploading..."
+              : readyCount > 1
+                ? `Share ${readyCount} to your story`
+                : "Share to your story"}
         </button>
         <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
       </div>
