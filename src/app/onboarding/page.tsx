@@ -27,6 +27,10 @@ export default async function OnboardingPage({
         This is what other members see. Be honest about your intent — it
         keeps this community usable for everyone.
       </p>
+      <p className="mt-2 text-sm font-medium text-foreground">
+        Every field below is required except Bio, which is optional. Your
+        account won&apos;t be created until the rest are filled in.
+      </p>
 
       {error === "invalid" && (
         <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
@@ -46,7 +50,9 @@ export default async function OnboardingPage({
 
       <form action={completeOnboarding} className="mt-6 space-y-5">
         <div>
-          <label className="block text-sm font-medium">Display name</label>
+          <label className="block text-sm font-medium">
+            Display name <span className="text-danger">*</span>
+          </label>
           <input
             name="name"
             required
@@ -58,7 +64,9 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Bio</label>
+          <label className="block text-sm font-medium">
+            Bio <span className="font-normal text-foreground-soft">(optional)</span>
+          </label>
           <textarea
             name="bio"
             maxLength={500}
@@ -69,7 +77,9 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Date of birth</label>
+          <label className="block text-sm font-medium">
+            Date of birth <span className="text-danger">*</span>
+          </label>
           <div className="mt-1">
             <BirthDateSelect
               defaultValue={user.birthDate?.toISOString().slice(0, 10)}
@@ -82,7 +92,9 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Country</label>
+          <label className="block text-sm font-medium">
+            Country <span className="text-danger">*</span>
+          </label>
           <select
             name="country"
             required
@@ -101,7 +113,12 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Languages</label>
+          <label className="block text-sm font-medium">
+            Languages <span className="text-danger">*</span>
+          </label>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Pick at least one language you speak.
+          </p>
           <div className="mt-1">
             <MultiSelect
               name="languages"
@@ -114,7 +131,9 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Interests</label>
+          <label className="block text-sm font-medium">
+            Interests <span className="text-danger">*</span>
+          </label>
           <p className="mt-0.5 text-xs text-foreground-soft">
             Pick at least one — this is how Circles and connections get
             matched to you.
@@ -132,8 +151,11 @@ export default async function OnboardingPage({
 
         <div>
           <label className="block text-sm font-medium">
-            What are you open to here?
+            What are you open to here? <span className="text-danger">*</span>
           </label>
+          <p className="mt-0.5 text-xs text-foreground-soft">
+            Pick at least one.
+          </p>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {intentTagValues.map((tag) => (
               <label
