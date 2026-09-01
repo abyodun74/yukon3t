@@ -177,7 +177,13 @@ export async function createStory(formData: FormData) {
 
   await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId: story.id });
 
+  // /home's story tray (the "Your story" ring + its "add more" badge, see
+  // story-tray.tsx) reads hasStories off this same data — without this,
+  // that tray only picks up a freshly-posted story via the client's own
+  // router.refresh() in this browser tab right now, not for a reload, a new
+  // tab, or the native app's WebView navigating there fresh.
   revalidatePath(`/u/${user.id}`);
+  revalidatePath("/home");
   return { error: null };
 }
 
@@ -204,6 +210,7 @@ export async function deleteStory(id: string) {
   );
 
   revalidatePath(`/u/${story.authorId}`);
+  revalidatePath("/home");
   return { error: null };
 }
 
