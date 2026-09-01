@@ -67,3 +67,4 @@ deno.lock
 /android/*.keystore
 
 .env*
+.vercel

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
@@ -18,6 +18,19 @@ const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+// createStory has no batch endpoint — each item is its own upload + DB row,
+// posted one at a time (see submit() below) — 5 keeps a single "share"
+// action from turning into an unbounded sequential upload run, and stays
+// comfortably under storyCreate's 10/hour rate limit even with a retry.
+const MAX_ITEMS = 5;
+
+type StoryItem = {
+  /** Local-only key for React/removal — never sent to the server. */
+  id: string;
+  file: File;
+  mediaType: "IMAGE" | "VIDEO";
+  previewUrl: string;
+};
 
 /**
  * Android's document picker often hands back a file from a content:// URI
@@ -57,51 +70,38 @@ function errorMessage(code: string) {
   }
 }
 
-export function StoryUploadModal({ onClose }: { onClose: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [mediaType, setMediaType] = useState<"IMAGE" | "VIDEO" | null>(null);
-  const [caption, setCaption] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+function makeId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
 
-  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+async function processImageFile(f: File): Promise<{ item: StoryItem } | { error: string }> {
+  if (!IMAGE_TYPES.includes(f.type)) return { error: "Use a JPEG, PNG, or WebP image." };
+  const resized = await resizeImageFile(f);
+  if (resized.size > MAX_IMAGE_BYTES) return { error: "Images must be 25MB or smaller." };
+  return { item: { id: makeId(), file: resized, mediaType: "IMAGE", previewUrl: URL.createObjectURL(resized) } };
+}
 
-  async function pickImage(f: File | undefined) {
-    if (!f) return;
-    if (!IMAGE_TYPES.includes(f.type)) {
-      setError("Use a JPEG, PNG, or WebP image.");
-      return;
-    }
-    const resized = await resizeImageFile(f);
-    if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 25MB or smaller.");
-      return;
-    }
-    setError(null);
-    setMediaType("IMAGE");
-    setFile(resized);
-  }
-
-  function pickVideo(rawFile: File | undefined) {
-    if (!rawFile) return;
+/**
+ * Wraps the same <video> metadata-probe pattern the single-file version
+ * used, as a Promise so it composes with Promise.all across a multi-file
+ * selection (see addVideos below).
+ */
+function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error: string }> {
+  return new Promise((resolve) => {
     const f = normalizeVideoFile(rawFile);
     if (!f) {
-      setError("Use an MP4 or WebM video.");
+      resolve({ error: "Use an MP4 or WebM video." });
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 2GB or smaller.");
+      resolve({ error: "Video must be 2GB or smaller." });
       return;
     }
 
-    const url = URL.createObjectURL(f);
+    const probeUrl = URL.createObjectURL(f);
     const probe = document.createElement("video");
     probe.preload = "metadata";
-    probe.src = url;
+    probe.src = probeUrl;
 
     // Some Android devices/codecs never fire loadedmetadata for a file this
     // <video> element can't decode (nor onerror, in a few cases) — without
@@ -114,88 +114,164 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(probeUrl);
     };
+    const toItem = (): { item: StoryItem } => ({
+      item: { id: makeId(), file: f, mediaType: "VIDEO", previewUrl: URL.createObjectURL(f) },
+    });
     const timeout = setTimeout(() => {
       if (settled) return;
       finish();
-      setError(null);
-      setMediaType("VIDEO");
-      setFile(f);
+      resolve(toItem());
     }, 4000);
 
     probe.onloadedmetadata = () => {
       if (settled) return;
       finish();
       if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
-        setError(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
+        resolve({ error: `Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.` });
         return;
       }
-      setError(null);
-      setMediaType("VIDEO");
-      setFile(f);
+      resolve(toItem());
     };
     probe.onerror = () => {
       if (settled) return;
       finish();
-      setError(null);
-      setMediaType("VIDEO");
-      setFile(f);
+      resolve(toItem());
     };
+  });
+}
+
+export function StoryUploadModal({ onClose }: { onClose: () => void }) {
+  const [items, setItems] = useState<StoryItem[]>([]);
+  const [caption, setCaption] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Revoking each item's object URL only on unmount (not on every items
+  // change) needs the latest array available without retriggering the
+  // cleanup effect — a ref mirror, kept current via its own effect (never
+  // written during render), is the standard way to do that.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  useEffect(() => {
+    return () => {
+      for (const item of itemsRef.current) URL.revokeObjectURL(item.previewUrl);
+    };
+  }, []);
+
+  function addResults(results: ({ item: StoryItem } | { error: string })[], overflow: number) {
+    const newItems = results.filter((r): r is { item: StoryItem } => "item" in r).map((r) => r.item);
+    const messages = [...new Set(results.filter((r): r is { error: string } => "error" in r).map((r) => r.error))];
+    if (overflow > 0) messages.push(`You can add up to ${MAX_ITEMS} items per story batch — ${overflow} left out.`);
+    if (newItems.length) setItems((prev) => [...prev, ...newItems]);
+    setError(messages.length ? messages.join(" ") : null);
+  }
+
+  async function addImages(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList);
+    const allowed = Math.max(0, MAX_ITEMS - items.length);
+    const results = await Promise.all(incoming.slice(0, allowed).map(processImageFile));
+    addResults(results, incoming.length - allowed);
+  }
+
+  async function addVideos(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList);
+    const allowed = Math.max(0, MAX_ITEMS - items.length);
+    const results = await Promise.all(incoming.slice(0, allowed).map(processVideoFile));
+    addResults(results, incoming.length - allowed);
+  }
+
+  function removeItem(id: string) {
+    setItems((prev) => {
+      const target = prev.find((i) => i.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((i) => i.id !== id);
+    });
+  }
+
+  /** Uploads + posts a single item, isolated so one failure never blocks the rest of the batch (see submit()). */
+  async function postOneStory(item: StoryItem): Promise<{ ok: true } | { ok: false; message: string }> {
+    let media: { mediaUrl: string; mediaThumbnailUrl?: string };
+    if (item.mediaType === "IMAGE") {
+      const result = await uploadFileDirect(item.file, "story-image");
+      if (!result.ok) return { ok: false, message: errorMessage(result.error) };
+      media = { mediaUrl: result.publicUrl };
+    } else {
+      const [videoResult, thumb] = await Promise.all([
+        uploadFileDirect(item.file, "story-video"),
+        captureVideoFrameFromFile(item.file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
+      ]);
+      if (!videoResult.ok) return { ok: false, message: errorMessage(videoResult.error) };
+      media = { mediaUrl: videoResult.publicUrl, mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined };
+    }
+
+    const fd = new FormData();
+    fd.set("mediaType", item.mediaType);
+    fd.set("mediaUrl", media.mediaUrl);
+    if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
+    if (caption.trim()) fd.set("caption", caption.trim());
+
+    try {
+      const result = await createStory(fd);
+      if (result.error) return { ok: false, message: errorMessage(result.error) };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network") };
+    }
   }
 
   function submit() {
-    if (!file || !mediaType || isPending) return;
+    if (items.length === 0 || isPending) return;
     setError(null);
     startTransition(async () => {
-      let media: { mediaUrl: string; mediaThumbnailUrl?: string };
-      if (mediaType === "IMAGE") {
-        const result = await uploadFileDirect(file, "story-image");
-        if (!result.ok) {
-          setError(errorMessage(result.error));
-          return;
+      const total = items.length;
+      setProgress({ done: 0, total });
+      const failed: StoryItem[] = [];
+      let firstFailureMessage: string | null = null;
+
+      // Sequential, not Promise.all: each createStory call isn't
+      // idempotent (see the original single-item comment this replaces),
+      // so items post one at a time and a failure partway through leaves
+      // the earlier successes in place rather than racing duplicate writes
+      // on a blind retry.
+      for (const item of items) {
+        const outcome = await postOneStory(item);
+        if (!outcome.ok) {
+          failed.push(item);
+          firstFailureMessage ??= outcome.message;
+        } else {
+          URL.revokeObjectURL(item.previewUrl);
         }
-        media = { mediaUrl: result.publicUrl };
-      } else {
-        const [videoResult, thumb] = await Promise.all([
-          uploadFileDirect(file, "story-video"),
-          captureVideoFrameFromFile(file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
-        ]);
-        if (!videoResult.ok) {
-          setError(errorMessage(videoResult.error));
-          return;
-        }
-        media = { mediaUrl: videoResult.publicUrl, mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined };
+        setProgress((p) => (p ? { done: p.done + 1, total: p.total } : p));
       }
 
-      const fd = new FormData();
-      fd.set("mediaType", mediaType);
-      fd.set("mediaUrl", media.mediaUrl);
-      if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
-      if (caption.trim()) fd.set("caption", caption.trim());
+      setProgress(null);
+      setItems(failed);
 
-      // Not retried, unlike the upload steps above: createStory isn't
-      // idempotent (no idempotency key), so if it actually succeeded
-      // server-side but the response itself got lost on a flaky
-      // connection, a blind retry would create a duplicate story — the
-      // exact bug already fixed once for collab posts. A failure here just
-      // surfaces normally; the file/caption stay filled in so the user can
-      // safely retry by tapping "Share to your story" again themselves.
-      let result;
-      try {
-        result = await createStory(fd);
-      } catch (err) {
-        setError(isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network"));
+      if (failed.length > 0) {
+        const postedCount = total - failed.length;
+        setError(
+          `${postedCount} of ${total} posted. ${failed.length} failed: ${firstFailureMessage ?? "try again."}`,
+        );
         return;
       }
-      if (result.error) {
-        setError(errorMessage(result.error));
-        return;
-      }
+
       router.refresh();
       onClose();
     });
   }
+
+  const atCapacity = items.length >= MAX_ITEMS;
 
   return (
     <div className="animate-modal-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
@@ -211,8 +287,12 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           ref={imageInputRef}
           type="file"
           accept={IMAGE_TYPES.join(",")}
+          multiple
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            addImages(e.target.files);
+            e.target.value = "";
+          }}
         />
         <input
           ref={cameraInputRef}
@@ -220,40 +300,66 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           accept={IMAGE_TYPES.join(",")}
           capture="environment"
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            addImages(e.target.files);
+            e.target.value = "";
+          }}
         />
         <input
           ref={videoInputRef}
           type="file"
           accept={VIDEO_TYPES.join(",")}
+          multiple
           className="hidden"
-          onChange={(e) => pickVideo(e.target.files?.[0])}
+          onChange={(e) => {
+            addVideos(e.target.files);
+            e.target.value = "";
+          }}
         />
 
-        {file && previewUrl ? (
-          <div className="relative mt-3 aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
-            {mediaType === "IMAGE" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="" className="h-full w-full object-contain" />
-            ) : (
-              <video src={previewUrl} controls className="h-full w-full object-contain" />
+        {items.length > 0 ? (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {items.map((item) => (
+              <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-black">
+                {item.mediaType === "IMAGE" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <>
+                    <video src={item.previewUrl} muted className="h-full w-full object-cover" />
+                    <Video size={14} className="absolute bottom-1 left-1 text-white drop-shadow" />
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  disabled={isPending}
+                  className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+
+            {!atCapacity && !isPending && (
+              <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-line">
+                <MediaPickerButton
+                  icon={<Upload size={16} />}
+                  title="Add more"
+                  options={[
+                    { label: "Add photos", icon: <Upload size={14} />, onSelect: () => imageInputRef.current?.click() },
+                    { label: "Take a photo", icon: <Camera size={14} />, onSelect: () => cameraInputRef.current?.click() },
+                    { label: "Add videos", icon: <Video size={14} />, onSelect: () => videoInputRef.current?.click() },
+                  ]}
+                />
+              </div>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setFile(null);
-                setMediaType(null);
-              }}
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"
-            >
-              <X size={14} />
-            </button>
           </div>
         ) : (
           <div className="mt-3 flex items-center justify-center gap-4 rounded-lg border border-dashed border-line py-10">
             <MediaPickerButton
               icon={<Upload size={18} />}
-              title="Add a photo"
+              title="Add photos"
               options={[
                 {
                   label: "Upload from device",
@@ -269,7 +375,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
             />
             <MediaPickerButton
               icon={<Video size={18} />}
-              title="Add a video"
+              title="Add videos"
               options={[
                 {
                   label: "Upload from device",
@@ -281,26 +387,37 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {file && (
-          <input
-            type="text"
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            maxLength={200}
-            placeholder="Add a caption (optional)"
-            className="mt-3 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          />
+        {items.length > 0 && (
+          <>
+            <p className="mt-2 text-center text-[11px] text-foreground-soft">
+              {items.length} of {MAX_ITEMS} — tap the × on an item to remove it.
+            </p>
+            <input
+              type="text"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              maxLength={200}
+              placeholder={items.length > 1 ? "Add a caption to all (optional)" : "Add a caption (optional)"}
+              className="mt-2 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </>
         )}
 
         {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 
         <button
           type="button"
-          disabled={!file || isPending}
+          disabled={items.length === 0 || isPending}
           onClick={submit}
           className="mt-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
         >
-          {isPending ? "Posting..." : "Share to your story"}
+          {isPending
+            ? progress
+              ? `Posting ${progress.done}/${progress.total}...`
+              : "Posting..."
+            : items.length > 1
+              ? `Share ${items.length} to your story`
+              : "Share to your story"}
         </button>
         <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
       </div>
