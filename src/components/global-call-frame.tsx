@@ -1,13 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, Minimize2, PhoneOff, Upload, X } from "lucide-react";
+import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, X } from "lucide-react";
 import { CallFrame } from "@/components/call-frame";
 import { LiveVideoFrame } from "@/components/live-video-frame";
 import { useCallSession } from "@/lib/call-session";
 import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
+import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
+import { onScreenCaptureDetected, type CaptureKind } from "@/lib/screen-capture-guard";
 
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
+
+type CaptureAlert = { kind: CaptureKind; source: "local" | "remote" };
+
+/** How long a capture alert banner stays up before self-dismissing. */
+const CAPTURE_ALERT_DURATION_MS = 6000;
+
+function captureAlertText(alert: CaptureAlert) {
+  const captureNoun = alert.kind === "recording" ? "started recording the screen" : "took a screenshot";
+  return alert.source === "local"
+    ? `You ${captureNoun} — the other participant was notified.`
+    : `The other participant ${captureNoun}.`;
+}
 
 /**
  * The single place <CallFrame> gets mounted, root-rendered (src/app/layout.tsx)
@@ -21,7 +35,9 @@ export function GlobalCallFrame() {
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [captureAlert, setCaptureAlert] = useState<CaptureAlert | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const captureAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // A material shared in one session shouldn't bleed into whatever's
   // started next (or reappear if you leave and rejoin the same one). Reset
@@ -32,22 +48,46 @@ export function GlobalCallFrame() {
     prevSessionKeyRef.current = session?.key;
     setSharedMaterial(null);
     setUploadError(null);
+    setCaptureAlert(null);
+  }
+
+  function showCaptureAlert(alert: CaptureAlert) {
+    setCaptureAlert(alert);
+    if (captureAlertTimeoutRef.current) clearTimeout(captureAlertTimeoutRef.current);
+    captureAlertTimeoutRef.current = setTimeout(() => setCaptureAlert(null), CAPTURE_ALERT_DURATION_MS);
   }
 
   // sendAppMessage only reaches *other* participants (see collab-material.ts),
   // so this is how everyone but the uploader sees a shared file appear —
-  // the uploader's own copy is set directly in uploadMaterial below.
+  // the uploader's own copy is set directly in uploadMaterial below. Same
+  // channel also carries the other participant's capture alerts.
   useEffect(() => {
     if (!dailyCall) return;
     const handleAppMessage = (ev: { data: unknown }) => {
       const material = collabMaterialFromAppMessage(ev.data);
       if (material) setSharedMaterial(material);
+      const captureKind = captureAlertFromAppMessage(ev.data);
+      if (captureKind) showCaptureAlert({ kind: captureKind, source: "remote" });
     };
     dailyCall.on("app-message", handleAppMessage);
     return () => {
       dailyCall.off("app-message", handleAppMessage);
     };
   }, [dailyCall]);
+
+  // Native screenshot/screen-recording detection (see
+  // src/lib/screen-capture-guard.ts) — watching starts/stops with the call
+  // session itself (call-session.tsx), this just reacts to what it reports.
+  // Re-subscribes whenever dailyCall changes so the closure below always
+  // broadcasts on the current call object (e.g. once it's set right after
+  // join, or across a reconnect's leave()+join() pair).
+  useEffect(() => {
+    if (!session) return;
+    return onScreenCaptureDetected((kind) => {
+      showCaptureAlert({ kind, source: "local" });
+      broadcastCaptureAlert(dailyCall, kind);
+    });
+  }, [session, dailyCall]);
 
   async function uploadMaterial(file: File | undefined) {
     if (!file || !session?.collab) return;
@@ -142,6 +182,29 @@ export function GlobalCallFrame() {
             >
               <PhoneOff size={14} />
             </button>
+          </div>
+        )}
+
+        {!minimized && captureAlert && (
+          // Sits above the sharedMaterial panel below (z-[75] > z-[70]) so a
+          // capture alert is never hidden behind an open material preview —
+          // this is a security-relevant notice, it should always win.
+          <div className="pointer-events-none fixed inset-x-4 top-4 z-[75] flex justify-center">
+            <div
+              role="alert"
+              className="pointer-events-auto flex items-center gap-2 rounded-lg border border-danger/40 bg-danger px-3 py-2 text-sm font-medium text-white shadow-lg"
+            >
+              <ShieldAlert size={16} className="shrink-0" />
+              <span>{captureAlertText(captureAlert)}</span>
+              <button
+                type="button"
+                onClick={() => setCaptureAlert(null)}
+                title="Dismiss"
+                className="shrink-0 rounded-md p-1 hover:bg-white/20"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
         )}
 

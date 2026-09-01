@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         // Must run before super.onCreate() — that's where BridgeActivity
         // actually builds the Bridge from the plugin list accumulated so far.
         registerPlugin(CallForegroundPlugin.class);
+        registerPlugin(ScreenCaptureGuardPlugin.class);
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
     }

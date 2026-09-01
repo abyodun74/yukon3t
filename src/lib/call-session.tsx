@@ -16,6 +16,7 @@ import {
   stopActiveCallForeground,
   requestIgnoreBatteryOptimizationsOnce,
 } from "@/lib/call-foreground-native";
+import { startScreenCaptureWatch, stopScreenCaptureWatch } from "@/lib/screen-capture-guard";
 
 export type StartSessionInput = {
   /** Dedupe key — e.g. `call:${callId}` or `live:${liveStreamId}`. Starting a
@@ -97,6 +98,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setMinimized(false);
     startActiveCallForeground(next.key, next.label, next.type === "VIDEO");
     requestIgnoreBatteryOptimizationsOnce();
+    startScreenCaptureWatch();
   }, []);
 
   const endSession = useCallback(() => {
@@ -104,6 +106,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setMinimized(false);
     setDailyCall(null);
     stopActiveCallForeground();
+    stopScreenCaptureWatch();
   }, []);
 
   const minimize = useCallback(() => setMinimized(true), []);
