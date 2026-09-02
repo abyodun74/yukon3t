@@ -463,7 +463,25 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       </header>
 
       {tabs.length > 0 && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden">
+        // paddingBottom extends this bar's own background down into the
+        // home-indicator/gesture-nav area instead of leaving its icons/
+        // labels sitting right at y:0 of the safe area — on newer Android
+        // (15+ enforces edge-to-edge for apps targeting API 35, regardless
+        // of what this app's own StatusBar plugin config asks for), the
+        // WebView draws behind the on-screen navigation bar too, not just
+        // the status bar. Without this, the tab bar's bottom edge — and on
+        // some devices/nav-bar heights, the row's whole bottom half —
+        // renders underneath it: confirmed via a real user's screenshot on
+        // a Samsung Galaxy Fold. Same env()-is-0-elsewhere no-op as the
+        // header's paddingTop above, and same as the other
+        // env(safe-area-inset-bottom) consumers already in this codebase
+        // (live-stream-room.tsx, live-video-frame.tsx) — unlike the top
+        // inset, this one isn't behind a legacy non-edge-to-edge flag, so
+        // it doesn't need capacitor-bridge.tsx's native-height fallback.
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           {tabs.map((tab) => {
             const active = pathname === tab.href;
             const Icon = tab.icon;

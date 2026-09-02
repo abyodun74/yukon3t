@@ -103,7 +103,13 @@ export default async function RootLayout({
         // background's `position: fixed; z-index: -1` (globals.css) stacks
         // correctly above body's own background paint instead of escaping
         // to the root and rendering behind it — see the comment there.
-        className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-16 md:pb-0" : ""}`}
+        //
+        // The reserved bottom padding has to grow by the same
+        // env(safe-area-inset-bottom) nav.tsx's bottom tab bar now pads
+        // itself with (Galaxy Fold edge-to-edge fix) — otherwise that
+        // bar's now-taller box covers a bit more of the last on-screen
+        // content than this padding leaves room for.
+        className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-[calc(4rem_+_env(safe-area-inset-bottom))] md:pb-0" : ""}`}
       >
         <div className="aurora-bg" aria-hidden>
           <div className="aurora-blob" />
