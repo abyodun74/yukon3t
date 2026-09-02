@@ -68,6 +68,64 @@ function getCategoryAnchorEmbedding(category: FeedCategory): Promise<number[] | 
 // — this sits in between.
 const CATEGORY_MAX_DISTANCE = 0.82;
 
+function cosineDistance(a: number[], b: number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  if (normA === 0 || normB === 0) return 1;
+  // Matches pgvector's `<=>` operator (1 - cosine similarity), which is
+  // what nearestPostIds/buildCategoryFilter below use — computed in JS here
+  // rather than round-tripping to Postgres since there are only ~10 anchors
+  // to compare against.
+  return 1 - dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * Auto-assigns a post's Home feed category from its own content — this is
+ * the "smart AI" behind the composer no longer asking authors to pick a
+ * Feed section (see post-composer.tsx/circles.ts's createPost). Embeds
+ * `text` once and picks whichever CATEGORY_ANCHORS entry it sits closest
+ * to by the same cosine distance buildCategoryFilter uses, so a post
+ * auto-tagged e.g. HEALTH_WELLNESS is guaranteed to also be the kind of
+ * post that tab's own semantic filter would surface. The embedding is
+ * returned alongside the category so the caller can persist it to
+ * Post.embedding without paying for a second OpenAI call.
+ *
+ * Falls back to GENERAL — same as a personal photo/update too sparse or
+ * generic to land confidently in any topic — whenever there's no
+ * embedding (no OPENAI_API_KEY configured, or the call failed/timed out)
+ * or no anchor clears CATEGORY_MAX_DISTANCE.
+ */
+export async function classifyPostCategory(
+  text: string,
+): Promise<{ category: FeedCategory; embedding: number[] | null }> {
+  const embedding = await getEmbedding(text);
+  if (!embedding) return { category: "GENERAL", embedding: null };
+
+  const anchorCategories = Object.keys(CATEGORY_ANCHORS) as FeedCategory[];
+  const anchorEmbeddings = await Promise.all(
+    anchorCategories.map((cat) => getCategoryAnchorEmbedding(cat)),
+  );
+
+  let best: { category: FeedCategory; distance: number } | null = null;
+  for (let i = 0; i < anchorCategories.length; i++) {
+    const anchor = anchorEmbeddings[i];
+    if (!anchor) continue;
+    const distance = cosineDistance(embedding, anchor);
+    if (!best || distance < best.distance) best = { category: anchorCategories[i], distance };
+  }
+
+  if (!best || best.distance > CATEGORY_MAX_DISTANCE) {
+    return { category: "GENERAL", embedding };
+  }
+  return { category: best.category, embedding };
+}
+
 /**
  * Returns the Prisma Post where-fragment for a Home feed category tab, or
  * undefined for the "All" tab (no filter). Combine with other where

@@ -23,7 +23,8 @@ import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
-import { updateCircleEmbedding, updatePostEmbedding } from "@/lib/embeddings";
+import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
+import { classifyPostCategory } from "@/lib/feed-category";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
@@ -482,7 +483,8 @@ export async function createPost(formData: FormData) {
     channelId: channelId ? String(channelId) : undefined,
     content: formData.get("content"),
     intentTag: formData.get("intentTag") || undefined,
-    feedCategory: formData.get("feedCategory") || undefined,
+    // feedCategory is no longer author-supplied — classifyPostCategory
+    // below assigns it automatically from the post's own content.
     mediaType: formData.get("mediaType") || "NONE",
     mediaUrls: mediaUrlsRaw ? JSON.parse(String(mediaUrlsRaw)) : [],
     videoUrl: formData.get("videoUrl") || undefined,
@@ -622,6 +624,16 @@ export async function createPost(formData: FormData) {
     }
   }
 
+  // Feed section is auto-assigned from the post's own content instead of
+  // the manual picker post-composer.tsx used to show — classifyPostCategory
+  // embeds [content, embed title] once and hands back that same vector, so
+  // it's reused for Post.embedding below instead of paying for a second
+  // OpenAI call.
+  const embedTitle = await embedTitlePromise;
+  const { category: feedCategory, embedding } = await classifyPostCategory(
+    [parsed.data.content, embedTitle].filter(Boolean).join("\n"),
+  );
+
   const post = await prisma.post.create({
     data: {
       authorId: user.id,
@@ -629,7 +641,7 @@ export async function createPost(formData: FormData) {
       channelId: parsed.data.channelId,
       content: parsed.data.content,
       intentTag: parsed.data.intentTag,
-      feedCategory: parsed.data.feedCategory,
+      feedCategory,
       mediaType,
       mediaUrls: mediaType === "IMAGE" ? mediaUrls : [],
       videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
@@ -642,8 +654,9 @@ export async function createPost(formData: FormData) {
       moderationStatus,
     },
   });
-  const embedTitle = await embedTitlePromise;
-  await updatePostEmbedding(post.id, [parsed.data.content, embedTitle].filter(Boolean).join("\n"));
+  if (embedding) {
+    await prisma.$executeRaw`UPDATE "Post" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${post.id}`;
+  }
   await recordActivity(user.id);
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
