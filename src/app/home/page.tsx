@@ -6,12 +6,13 @@ import { PostFeedSection } from "@/components/post-feed-section";
 import { StreakBanner } from "@/components/streak-banner";
 import { StoryTray } from "@/components/story-tray";
 import { LiveStreamStrip } from "@/components/live-stream-strip";
+import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
 import { dayNumber } from "@/lib/trust";
-import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
+import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 
 const PAGE_SIZE = 20;
@@ -67,7 +68,6 @@ export default async function HomePage({
   const posts = await attachViewerState(rawPosts, me.id);
   const hasMore = rawPosts.length === PAGE_SIZE;
 
-  const scopeQuery = allPostsScope ? "&scope=all" : "";
   const categoryQuery = category ? `&category=${category}` : "";
 
   return (
@@ -81,6 +81,10 @@ export default async function HomePage({
           activeToday={activeToday}
         />
         <LiveStreamStrip />
+      </div>
+
+      <div className="mt-4">
+        <CategoryTabs category={category} allPostsScope={allPostsScope} />
       </div>
 
       {me.isAdmin && (
@@ -106,28 +110,6 @@ export default async function HomePage({
 
       <div className="mt-6">
         <AdSlot />
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-1.5 overflow-x-auto">
-        <Link
-          href={`/home${scopeQuery ? `?scope=all` : ""}`}
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-            !category ? "border-accent bg-accent-soft text-accent" : "border-line text-foreground-soft"
-          }`}
-        >
-          All
-        </Link>
-        {feedCategoryValues.map((cat) => (
-          <Link
-            key={cat}
-            href={`/home?category=${cat}${scopeQuery}`}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-              category === cat ? "border-accent bg-accent-soft text-accent" : "border-line text-foreground-soft"
-            }`}
-          >
-            {feedCategoryLabels[cat]}
-          </Link>
-        ))}
       </div>
 
       <PostFeedSection
