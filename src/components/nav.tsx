@@ -191,10 +191,15 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
           bar ends. This is the one place that needed the fix, not each
           page's own header row — every page shares this sticky header, so
           fixing it here clears the status bar everywhere at once. env() is
-          0 anywhere that isn't edge-to-edge, so a no-op elsewhere. */}
+          0 anywhere that isn't edge-to-edge, so a no-op elsewhere.
+
+          On Android, env(safe-area-inset-top) alone isn't reliable — see
+          capacitor-bridge.tsx's getInfo() call, which sets
+          --status-bar-inset-top from Android's real WindowInsets API as a
+          fallback for whichever of the two ends up bigger. */}
       <header
         className="sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
+        style={{ paddingTop: "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))" }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link

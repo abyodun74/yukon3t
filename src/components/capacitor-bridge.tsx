@@ -48,6 +48,29 @@ export function CapacitorBridge() {
       // background, matching manifest.ts's theme_color.
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
 
+      // env(safe-area-inset-top) is what nav.tsx's header normally pads
+      // itself with, but on Android that value is unreliable: the status-bar
+      // plugin overlays the WebView using the legacy
+      // SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN flag rather than a real edge-to-edge
+      // WindowInsets dispatch, and Chromium's WebView doesn't always
+      // populate env(safe-area-inset-*) from that flag alone — confirmed via
+      // a real user's screenshot of the Collab page: the header rendered
+      // flush at y:0, overlapped by the status bar, on Android specifically.
+      // getInfo().height instead comes straight from Android's
+      // WindowInsets.Type.statusBars() API, so it's accurate regardless of
+      // that flag. Exposed as a CSS var so nav.tsx can fall back to it via
+      // max(env(...), var(...)) — a no-op on iOS, where env() already works.
+      StatusBar.getInfo()
+        .then((info) => {
+          if (info.height > 0) {
+            document.documentElement.style.setProperty(
+              "--status-bar-inset-top",
+              `${info.height}px`,
+            );
+          }
+        })
+        .catch(() => {});
+
       async function register(token: string) {
         const result = await registerFcmToken(token).catch(() => null);
         // Persisted so nav.tsx's existing sign-out handler — already

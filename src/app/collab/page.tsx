@@ -109,7 +109,7 @@ export default async function CollabPage({
               </p>
             </Link>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="text-xs text-foreground-soft">by</span>
                 <UserLink
                   userId={post.author.id}
