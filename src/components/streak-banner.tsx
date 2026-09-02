@@ -11,7 +11,7 @@ export function StreakBanner({
   if (currentStreak === 0) return null;
 
   return (
-    <div className="animate-rise-in mt-4 flex items-center justify-between rounded-xl border border-line px-4 py-2.5 text-sm">
+    <div className="animate-rise-in flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5 text-sm">
       <span>
         🔥 <strong>{currentStreak}-day streak</strong>
         {longestStreak > currentStreak && (

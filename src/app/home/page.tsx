@@ -72,46 +72,33 @@ export default async function HomePage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Home</h1>
-          <p className="mt-1 text-sm text-foreground-soft">
-            {allPostsScope
-              ? "Every published post on YuKon3t (admin view)."
-              : "Public posts from everyone, plus your Circles and connections."}
-          </p>
-        </div>
-        {me.isAdmin && (
-          <div className="flex overflow-hidden rounded-lg border border-line text-xs font-medium">
-            <Link
-              href={`/home${category ? `?category=${category}` : ""}`}
-              className={`px-3 py-1.5 ${!allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
-            >
-              Standard
-            </Link>
-            <Link
-              href={`/home?scope=all${categoryQuery}`}
-              className={`px-3 py-1.5 ${allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
-            >
-              Admin: include private posts
-            </Link>
-          </div>
-        )}
-      </div>
+      <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
 
-      <StreakBanner
-        currentStreak={me.currentStreak}
-        longestStreak={me.longestStreak}
-        activeToday={activeToday}
-      />
-
-      <div className="mt-6">
-        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
-      </div>
-
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <StreakBanner
+          currentStreak={me.currentStreak}
+          longestStreak={me.longestStreak}
+          activeToday={activeToday}
+        />
         <LiveStreamStrip />
       </div>
+
+      {me.isAdmin && (
+        <div className="mt-4 flex w-fit overflow-hidden rounded-lg border border-line text-xs font-medium">
+          <Link
+            href={`/home${category ? `?category=${category}` : ""}`}
+            className={`px-3 py-1.5 ${!allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
+          >
+            Standard
+          </Link>
+          <Link
+            href={`/home?scope=all${categoryQuery}`}
+            className={`px-3 py-1.5 ${allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
+          >
+            Admin: include private posts
+          </Link>
+        </div>
+      )}
 
       <div className="mt-6">
         <PostComposer placeholder="Share a photo, a short video, or an update..." />
