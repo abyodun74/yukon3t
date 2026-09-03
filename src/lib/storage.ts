@@ -90,10 +90,19 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 ]);
 
 export const MAX_POST_IMAGES = 10;
-// Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS/MAX_RECORD_VIDEO_SECONDS
-// (both 60s) — bounded by Hive's Visual Moderation API's own video length
-// limit (src/lib/hive.ts), not an upload/memory constraint.
-export const MAX_VIDEO_DURATION_SECONDS = 60;
+// Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS — the ceiling for a
+// picked-from-device post video. Recording (MAX_RECORD_VIDEO_SECONDS) stays
+// short separately; it's bounded by in-browser MediaRecorder memory, not
+// this.
+export const MAX_VIDEO_DURATION_SECONDS = 3600;
+// Hive's Visual Moderation API (src/lib/hive.ts) only scans up to 60s of
+// video content per call — a hard technical ceiling, not a policy choice.
+// A post video longer than this can't get the automated body scan, so
+// createPost (actions/circles.ts) routes it to moderationStatus FLAGGED for
+// manual admin review instead of publishing immediately, and marks it
+// videoModeratedAt up front so the moderate-videos cron never picks it up
+// and wastes/fails a Hive call on it.
+export const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;

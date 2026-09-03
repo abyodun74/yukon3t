@@ -12,6 +12,7 @@ import { recordActivity } from "@/lib/trust";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import {
   MEDIA_LIMITS,
+  HIVE_VIDEO_MODERATION_MAX_SECONDS,
   verifyUploadedSize,
   deleteObject,
   deleteOwnedObject,
@@ -489,6 +490,7 @@ export async function createPost(formData: FormData) {
     mediaUrls: mediaUrlsRaw ? JSON.parse(String(mediaUrlsRaw)) : [],
     videoUrl: formData.get("videoUrl") || undefined,
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
+    videoDurationSeconds: formData.get("videoDurationSeconds") || undefined,
     embedUrl: formData.get("embedUrl") || undefined,
     eventAt: formData.get("eventAt") || undefined,
     eventLocation: formData.get("eventLocation") || undefined,
@@ -496,7 +498,15 @@ export async function createPost(formData: FormData) {
   if (!parsed.success) {
     return { error: "invalid" };
   }
-  const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, eventAt, eventLocation } = parsed.data;
+  const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, videoDurationSeconds, eventAt, eventLocation } =
+    parsed.data;
+  // Hive's Visual Moderation API can't scan past 60s of content — a longer
+  // video skips the automated moderate-videos cron entirely (it would just
+  // fail/waste a call) and instead needs a human look before it's visible.
+  const videoNeedsManualReview =
+    mediaType === "VIDEO" &&
+    videoDurationSeconds !== undefined &&
+    videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
 
   if (parsed.data.circleId) {
     if (!parsed.data.channelId) {
@@ -622,6 +632,9 @@ export async function createPost(formData: FormData) {
       await cleanupUploads();
       return { error: "moderation", categories: modResult.flaggedCategories };
     }
+    if (videoNeedsManualReview) {
+      moderationStatus = "FLAGGED";
+    }
   }
 
   // Feed section is auto-assigned from the post's own content instead of
@@ -652,6 +665,12 @@ export async function createPost(formData: FormData) {
       eventAt,
       eventLocation,
       moderationStatus,
+      // Long videos never reach the moderate-videos cron (Hive can't scan
+      // past 60s anyway) — pre-claiming here keeps its
+      // `mediaType VIDEO, videoModeratedAt IS NULL` scan from picking them
+      // up and wasting/failing a Hive call on something it was never going
+      // to handle.
+      videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
     },
   });
   if (embedding) {
@@ -661,10 +680,12 @@ export async function createPost(formData: FormData) {
   await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
 
   // Video-body scanning (Hive) happens on the moderate-videos cron, not
-  // here — the post publishes immediately with videoModeratedAt still null,
-  // same "publish immediately, flag retroactively if needed" approach as
-  // text/image moderation, but Hive's Visual Moderation API is a
-  // synchronous call best kept out of this user-facing request path.
+  // here — a video 60s or under publishes immediately with videoModeratedAt
+  // still null, same "publish immediately, flag retroactively if needed"
+  // approach as text/image moderation, but Hive's Visual Moderation API is a
+  // synchronous call best kept out of this user-facing request path. A video
+  // over 60s skips this path entirely (videoNeedsManualReview above already
+  // set videoModeratedAt and moderationStatus FLAGGED at creation).
 
   // Notify subscribers of new content. Skipped for flagged content —
   // subscribers shouldn't be pointed at a post that isn't publicly visible.

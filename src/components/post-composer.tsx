@@ -22,14 +22,19 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // than imported, since storage.ts pulls in the server-only @aws-sdk/client-s3
 // SDK and can't be bundled into a "use client" component.
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
-// Both capped at 60s to match Hive's Visual Moderation API's own video
-// length limit (src/lib/hive.ts) — a video posted longer than this could
-// never get the full-body moderation scan, only the thumbnail+caption
-// check. Previously 180s (recording) / 240min (upload) purely for
-// in-browser-memory reasons; now bounded by moderation coverage instead,
-// which is the tighter constraint anyway.
+// In-browser recording stays short — bounded by MediaRecorder holding the
+// whole clip in memory on the recording device, not by moderation coverage.
 const MAX_RECORD_VIDEO_SECONDS = 60;
-const MAX_UPLOAD_VIDEO_SECONDS = 60;
+// Picking an existing file can go up to an hour. Kept in sync with
+// storage.ts's MAX_VIDEO_DURATION_SECONDS (duplicated locally rather than
+// imported — storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and
+// can't be bundled into a "use client" component). Anything over
+// HIVE_VIDEO_MODERATION_MAX_SECONDS still uploads fine, but publishes hidden
+// pending manual admin review instead of going out immediately — see
+// videoNeedsManualReview in actions/circles.ts — because Hive's Visual
+// Moderation API (src/lib/hive.ts) can't scan past 60s of content.
+const MAX_UPLOAD_VIDEO_SECONDS = 3600;
+const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
@@ -111,6 +116,7 @@ export function PostComposer({
   const [images, setImages] = useState<File[]>([]);
   const [urlImages, setUrlImages] = useState<string[]>([]);
   const [video, setVideo] = useState<File | null>(null);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -189,6 +195,7 @@ export function PostComposer({
       return;
     }
     setVideo(null);
+    setVideoDurationSeconds(null);
     setEmbedUrl(null);
     const remaining = Math.max(0, MAX_IMAGES - urlImages.length);
     setImages((prev) => [...prev, ...next].slice(0, remaining));
@@ -208,6 +215,7 @@ export function PostComposer({
       return;
     }
     setVideo(null);
+    setVideoDurationSeconds(null);
     setEmbedUrl(null);
     setUrlImages((prev) => [...prev, result.publicUrl].slice(0, MAX_IMAGES));
     setImageUrlValue("");
@@ -241,6 +249,7 @@ export function PostComposer({
     setUrlImages([]);
     setEmbedUrl(null);
     setVideo(file);
+    setVideoDurationSeconds(null);
     setStatus("idle");
     setErrorText(null);
 
@@ -250,19 +259,27 @@ export function PostComposer({
     probe.src = url;
     probe.onloadedmetadata = () => {
       URL.revokeObjectURL(url);
-      if (Number.isFinite(probe.duration) && probe.duration > MAX_UPLOAD_VIDEO_SECONDS) {
+      if (!Number.isFinite(probe.duration)) return;
+      if (probe.duration > MAX_UPLOAD_VIDEO_SECONDS) {
         // Only clear it if this is still the video that was picked — a
         // second, different pick before this one's metadata resolved
         // shouldn't clobber it.
         setVideo((current) => (current === file ? null : current));
         setStatus("error");
         setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
+        return;
       }
+      // Sent along with the post so the server can route anything over
+      // Hive's 60s scan limit to manual review instead of publishing it
+      // unmoderated — see videoNeedsManualReview in actions/circles.ts.
+      setVideoDurationSeconds(Math.round(probe.duration));
     };
     probe.onerror = () => {
       // Can't determine duration — fails open (video stays attached
       // unchecked) rather than blocking a post over a client-side probe
-      // that isn't a security boundary anyway.
+      // that isn't a security boundary anyway. The server simply won't get
+      // a videoDurationSeconds for this one, so if it's actually over 60s
+      // it'll still just publish immediately like before this change.
       URL.revokeObjectURL(url);
     };
   }
@@ -279,6 +296,7 @@ export function PostComposer({
     setImages([]);
     setUrlImages([]);
     setVideo(null);
+    setVideoDurationSeconds(null);
     setEmbedUrl(url);
     setEmbedError(null);
     setEmbedUrlValue("");
@@ -292,6 +310,7 @@ export function PostComposer({
         mediaUrls: string[];
         videoUrl?: string;
         videoThumbnailUrl?: string;
+        videoDurationSeconds?: number;
         embedUrl?: string;
       }
   > {
@@ -332,6 +351,7 @@ export function PostComposer({
         mediaUrls: [],
         videoUrl: videoResult.publicUrl,
         videoThumbnailUrl: thumbnailUrl?.ok ? thumbnailUrl.publicUrl : undefined,
+        videoDurationSeconds: videoDurationSeconds ?? undefined,
       };
     }
 
@@ -395,6 +415,7 @@ export function PostComposer({
           fd.set("mediaUrls", JSON.stringify(media.mediaUrls));
           if (media.videoUrl) fd.set("videoUrl", media.videoUrl);
           if (media.videoThumbnailUrl) fd.set("videoThumbnailUrl", media.videoThumbnailUrl);
+          if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
           let result;
@@ -430,6 +451,7 @@ export function PostComposer({
             setImages([]);
             setUrlImages([]);
             setVideo(null);
+            setVideoDurationSeconds(null);
             setEmbedUrl(null);
             setIsEvent(false);
             setEventAt("");
@@ -520,11 +542,25 @@ export function PostComposer({
       {imageUrlError && <p className="mt-1 text-xs text-danger">{imageUrlError}</p>}
 
       {video && (
-        <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
-          <span className="flex-1 truncate">{video.name}</span>
-          <button type="button" onClick={() => setVideo(null)} className="text-danger">
-            <X size={14} />
-          </button>
+        <div className="mt-2 rounded-lg border border-line px-3 py-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex-1 truncate">{video.name}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setVideo(null);
+                setVideoDurationSeconds(null);
+              }}
+              className="text-danger"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {videoDurationSeconds !== null && videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS && (
+            <p className="mt-1 text-foreground-soft">
+              Over {formatSecondsLabel(HIVE_VIDEO_MODERATION_MAX_SECONDS)} — this won&apos;t go live until an admin reviews it.
+            </p>
+          )}
         </div>
       )}
 

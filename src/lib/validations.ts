@@ -207,6 +207,14 @@ export const postSchema = z
     mediaUrls: z.array(z.string().url()).max(10).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
+    // Client-probed <video>.duration, in whole seconds — not a security
+    // boundary (nothing stops a client from lying), just the signal
+    // createPost uses to decide whether this video is short enough for
+    // Hive's automated scan or needs to route to manual review instead. A
+    // lowballed value only risks under-flagging a video that Hive's own
+    // moderate-videos cron would then also just fail/skip on, so there's no
+    // exploitable upside to lying here.
+    videoDurationSeconds: z.coerce.number().int().positive().optional(),
     // Raw pasted link — for mediaType EMBED, server-side input to
     // parseVideoEmbedUrl() (only the parsed provider+id is stored). For
     // mediaType LINK (any other http(s) URL), input to normalizeLinkUrl()
