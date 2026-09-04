@@ -536,6 +536,31 @@ model Post {
   // configured, in which case it stays null forever and is simply never
   // picked up by the cron).
   videoModeratedAt    DateTime?
+  // Client-probed <video>.duration at post creation, rounded to whole
+  // seconds — the signal createPost (actions/circles.ts) uses to decide
+  // whether a video is short enough for Hive's automated 60s-max scan or
+  // needs the long-form OpenAI review pipeline instead (src/lib/video-review.ts,
+  // driven by the moderate-long-videos cron). Not authoritative (a client
+  // could lie), just a routing hint — the review pipeline itself is what
+  // actually gates whether the video goes live.
+  videoDurationSeconds Int?
+  // Claims a FLAGGED long video (videoDurationSeconds over Hive's 60s cap)
+  // for the moderate-long-videos cron the same way videoModeratedAt claims
+  // one for the Hive cron — touched at the start of every cron tick that
+  // works on this post (src/lib/video-review.ts), not just the first one,
+  // since Cloudflare Stream processing a full-length video legitimately
+  // spans several 5-minute ticks. A claim older than the staleness window
+  // in the cron's query is up for grabs again, so a killed/timed-out run
+  // (which never reaches the code that would otherwise re-touch this)
+  // doesn't stall the post forever.
+  videoLongReviewClaimedAt DateTime?
+  // Cloudflare Stream video id once video-review.ts has kicked off (or
+  // resumed) that video's Stream copy — set on the first tick and reused by
+  // every later tick to poll status / request captions / build thumbnail
+  // URLs, so a long-running review survives across cron invocations instead
+  // of re-uploading to Stream on every tick. Cleaned up (Stream copy
+  // deleted, this cleared) once a final verdict is reached.
+  videoStreamUid       String?
   // EMBED posts store only a provider + the extracted video id, never the
   // raw pasted URL — the iframe src is always rebuilt server-side from these
   // two known-safe values, so nothing attacker-controlled ever becomes an
@@ -615,6 +640,10 @@ model Post {
   // Backs the moderate-videos cron's scan for video posts still awaiting a
   // Hive verdict (mediaType VIDEO, videoModeratedAt IS NULL).
   @@index([mediaType, videoModeratedAt])
+  // Backs the moderate-long-videos cron's scan for FLAGGED long videos still
+  // awaiting (or stale-claimed by a killed run and due for retry) the
+  // OpenAI review pipeline.
+  @@index([mediaType, moderationStatus, videoLongReviewClaimedAt])
 }
 
 model Comment {

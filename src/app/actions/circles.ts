@@ -659,6 +659,7 @@ export async function createPost(formData: FormData) {
       mediaUrls: mediaType === "IMAGE" ? mediaUrls : [],
       videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
       videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
+      videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined,
       embedProvider: embed?.provider,
       embedId: embed?.id,
       linkUrl: linkUrl ?? undefined,
