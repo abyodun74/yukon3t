@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
+import { startRingback, stopRingback } from "@/lib/ringback";
 
 type CallType = "AUDIO" | "VIDEO";
 
@@ -49,6 +50,16 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
+
+  // Ringback for the caller — the callee already gets a real ringtone
+  // natively (CallForegroundService's "incoming_calls" channel); this is
+  // the caller's-side equivalent while waiting for an answer, covering both
+  // the "Calling"/"Ringing" sub-states below.
+  useEffect(() => {
+    if (state.phase !== "ringing") return undefined;
+    startRingback();
+    return stopRingback;
   }, [state.phase]);
 
   useEffect(() => {

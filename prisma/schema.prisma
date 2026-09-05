@@ -819,6 +819,12 @@ enum NotificationType {
   // actions/calls.ts) or nobody ever responds and the timeout-missed-calls
   // cron marks it MISSED. actorId is the caller.
   MISSED_CALL
+  // Sent to a post/story/conversation's owner (or a profile's owner) when
+  // someone screenshots it outside of a call — the in-call case instead
+  // broadcasts directly to the other participant over Daily's app-message
+  // channel (see global-call-frame.tsx), never through this notification
+  // type. actorId is whoever took the screenshot.
+  SCREENSHOT_TAKEN
 }
 
 model Notification {

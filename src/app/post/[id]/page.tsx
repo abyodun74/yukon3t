@@ -5,6 +5,7 @@ import { PostCard } from "@/components/post-card";
 import { CommentComposer } from "@/components/comment-composer";
 import { CommentList } from "@/components/comment-list";
 import { BackButton } from "@/components/back-button";
+import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
@@ -88,6 +89,7 @@ export default async function PostDetailPage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <BackButton />
+      <ScreenshotContextTracker context={{ type: "post", id }} />
 
       <PostCard post={postWithState} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
 

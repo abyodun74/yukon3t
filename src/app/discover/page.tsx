@@ -4,6 +4,7 @@ import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
+import { getAcceptedConnectionIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
@@ -39,11 +40,14 @@ export default async function DiscoverPage({
     ? (sortParam as SortOption)
     : "recent";
 
-  const blockedIds = await getBlockedEitherWayIds(me.id);
+  const [blockedIds, connectedIds] = await Promise.all([
+    getBlockedEitherWayIds(me.id),
+    getAcceptedConnectionIds(me.id),
+  ]);
 
   const people = await prisma.user.findMany({
     where: {
-      id: { notIn: [me.id, ...blockedIds] },
+      id: { notIn: [me.id, ...blockedIds, ...connectedIds] },
       status: "ACTIVE",
       name: { not: null },
       discoverable: true,

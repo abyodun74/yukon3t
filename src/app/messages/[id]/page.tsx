@@ -13,6 +13,7 @@ import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
 import { UserLink } from "@/components/user-link";
 import { ConnectionRequestBanner } from "@/components/connection-request-banner";
+import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
 
 export default async function ConversationPage({
   params,
@@ -165,6 +166,7 @@ export default async function ConversationPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
+      <ScreenshotContextTracker context={{ type: "conversation", id }} />
       <BackButton fallbackHref="/messages" />
       <div className="flex items-center justify-between gap-2">
         {conversation.isGroup ? (

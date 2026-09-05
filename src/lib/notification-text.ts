@@ -34,6 +34,7 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   VOICE_CHANNEL_INVITE: "invited you to a voice channel",
   VOICE_CHANNEL_INVITE_ACCEPTED: "accepted your voice channel invite",
   MISSED_CALL: "called you",
+  SCREENSHOT_TAKEN: "took a screenshot",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

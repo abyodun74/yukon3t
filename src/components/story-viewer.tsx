@@ -14,6 +14,7 @@ import {
   replyToStory,
 } from "@/app/actions/stories";
 import { formatDateTime } from "@/lib/format-date";
+import { useScreenshotContext } from "@/lib/screenshot-context";
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
@@ -96,6 +97,7 @@ export function StoryViewer({
   const router = useRouter();
 
   const story = stories[index];
+  useScreenshotContext(story ? { type: "story", id: story.id } : null);
   const showViewers = story ? viewersOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
 

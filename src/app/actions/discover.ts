@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
+import { getAcceptedConnectionIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
@@ -32,11 +33,14 @@ export async function loadMoreDiscoverPeople(
   const intent = filters.intent;
   const country = filters.country;
 
-  const blockedIds = await getBlockedEitherWayIds(me.id);
+  const [blockedIds, connectedIds] = await Promise.all([
+    getBlockedEitherWayIds(me.id),
+    getAcceptedConnectionIds(me.id),
+  ]);
 
   const people = await prisma.user.findMany({
     where: {
-      id: { notIn: [me.id, ...blockedIds] },
+      id: { notIn: [me.id, ...blockedIds, ...connectedIds] },
       status: "ACTIVE",
       name: { not: null },
       discoverable: true,

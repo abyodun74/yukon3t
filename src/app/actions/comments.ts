@@ -9,6 +9,7 @@ import { moderateText } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
+import { pushActivityNotification } from "@/lib/notify-push";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -80,6 +81,7 @@ export async function createComment(formData: FormData) {
           commentId: comment.id,
         },
       });
+      await pushActivityNotification(post.authorId, "POST_COMMENT", user.name ?? "Someone", `/post/${postId}`);
     }
 
     if (parentComment && parentComment.authorId !== user.id && parentComment.authorId !== post.authorId) {
@@ -92,6 +94,7 @@ export async function createComment(formData: FormData) {
           commentId: comment.id,
         },
       });
+      await pushActivityNotification(parentComment.authorId, "COMMENT_REPLY", user.name ?? "Someone", `/post/${postId}`);
     }
   }
 

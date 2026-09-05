@@ -15,6 +15,7 @@ import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isOnline } from "@/lib/presence";
+import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
 
 // Same cursor pagination as /connections/page.tsx, auto-loaded further pages
 // as the viewer scrolls (see ProfilePostsList / loadMoreProfilePosts).
@@ -110,6 +111,7 @@ export default async function PublicProfilePage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
+      <ScreenshotContextTracker context={{ type: "profile", id: userId }} />
       <BackButton />
 
       {saved && (

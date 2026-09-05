@@ -22,6 +22,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { formatDateTime } from "@/lib/format-date";
+import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
 
@@ -144,6 +145,7 @@ function MediaBlock({
     isPending: boolean;
   };
 }) {
+  const videoRef = useAutoplayOnView<HTMLVideoElement>();
   return (
     <>
       {editing ? (
@@ -224,7 +226,11 @@ function MediaBlock({
       {post.mediaType === "VIDEO" && post.videoUrl && (
         <div className="relative mt-3">
           <video
+            ref={videoRef}
             controls
+            muted
+            loop
+            playsInline
             preload="metadata"
             poster={post.videoThumbnailUrl ?? undefined}
             className="max-h-96 w-full rounded-lg bg-black"

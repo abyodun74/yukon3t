@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { canViewPost } from "@/lib/post-visibility";
 import { isEmojiOnly } from "@/lib/emoji";
+import { pushActivityNotification } from "@/lib/notify-push";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -70,6 +71,7 @@ export async function toggleLike(postId: string) {
         postId: post.id,
       },
     });
+    await pushActivityNotification(post.authorId, "POST_LIKE", user.name ?? "Someone", `/post/${post.id}`);
   }
 
   revalidatePostViews(post);

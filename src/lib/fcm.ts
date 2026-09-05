@@ -150,6 +150,37 @@ export async function sendFcmMissedCallToUser(userId: string, callId: string, ca
   await sendFcmDataToUser(userId, { type: "missed_call", callId, callerName });
 }
 
+/**
+ * Sends a real FCM **notification** payload (unlike sendFcmDataToUser's
+ * data-only messages for calls) for ordinary social activity — likes,
+ * comments, connection requests, etc. Android auto-displays this in the
+ * system tray whenever the app is backgrounded or killed, with no native
+ * code involved; CallMessagingService still receives it if the app is
+ * foregrounded but won't match any of its existing `type` branches and
+ * no-ops, since the in-app bell notification already covers that case live.
+ * Best-effort, same contract as sendFcmDataToUser/sendPushToUser.
+ */
+export async function sendFcmActivityToUser(
+  userId: string,
+  payload: { title: string; body: string; type: string; url?: string },
+) {
+  if (!isFcmConfigured || !app) return;
+
+  const tokens = await prisma.fcmToken.findMany({ where: { userId } });
+  if (tokens.length === 0) return;
+
+  try {
+    await getMessaging(app).sendEachForMulticast({
+      tokens: tokens.map((t) => t.token),
+      notification: { title: payload.title, body: payload.body },
+      data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
+      android: { priority: "high" },
+    });
+  } catch {
+    // Best-effort — a push failure should never break the action that triggered it.
+  }
+}
+
 export async function sendFcmEventReminderToUser(
   userId: string,
   payload: { postId: string; title: string },

@@ -7,6 +7,7 @@ import { connectionRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { track } from "@/lib/analytics";
+import { pushActivityNotification } from "@/lib/notify-push";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
 const CONNECTIONS_PAGE_SIZE = 20;
@@ -80,6 +81,7 @@ export async function requestConnection(formData: FormData) {
       connectionId: connection.id,
     },
   });
+  await pushActivityNotification(targetId, "CONNECTION_REQUEST", user.name ?? "Someone", "/connections");
   await track("CONNECTION_REQUESTED", user.id, { targetId, intentTag });
 
   revalidatePath("/connections");
@@ -143,6 +145,7 @@ export async function respondToConnection(connectionId: string, accept: boolean)
         connectionId: updated.id,
       },
     });
+    await pushActivityNotification(updated.requesterId, "CONNECTION_ACCEPTED", user.name ?? "Someone", "/connections");
     await track("CONNECTION_ACCEPTED", user.id, { requesterId: updated.requesterId });
 
     revalidatePath("/messages");
