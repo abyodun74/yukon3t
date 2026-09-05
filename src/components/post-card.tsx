@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2 } from "lucide-react";
+import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
@@ -147,6 +147,7 @@ function MediaBlock({
   };
 }) {
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
+  const [muted, setMuted] = useState(true);
   return (
     <>
       {editing ? (
@@ -228,16 +229,37 @@ function MediaBlock({
         <div className="relative mt-3">
           <video
             ref={videoRef}
-            controls
-            muted
+            muted={muted}
             loop
             playsInline
             preload="metadata"
             poster={post.videoThumbnailUrl ?? undefined}
-            className="max-h-96 w-full rounded-lg bg-black"
+            // Edge-to-edge and tall (Instagram feed video convention), not
+            // capped/boxed — native browser `controls` (a scrubber/volume
+            // slider) are deliberately omitted in favor of just the sound
+            // toggle below, matching that same reference. Tapping the video
+            // itself toggles play/pause since there's no scrubber to do it.
+            className="aspect-[4/5] w-full cursor-pointer bg-black object-cover"
+            onClick={(e) => {
+              const el = e.currentTarget;
+              if (el.paused) el.play().catch(() => {});
+              else el.pause();
+            }}
           >
             <source src={post.videoUrl} />
           </video>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMuted((m) => !m);
+            }}
+            title={muted ? "Unmute" : "Mute"}
+            aria-label={muted ? "Unmute" : "Mute"}
+            className="absolute bottom-2 right-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+          >
+            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
           <button
             type="button"
             onClick={onOpenVideo}
