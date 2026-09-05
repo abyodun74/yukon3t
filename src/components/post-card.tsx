@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
@@ -148,6 +148,13 @@ function MediaBlock({
 }) {
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
   const [muted, setMuted] = useState(true);
+  // The `muted` JSX prop only reliably applies at mount — once a WebView
+  // video is already playing, toggling it doesn't flip the element's live
+  // audio output (the icon/UI updates, but sound never actually changes).
+  // Setting the DOM property directly is the correct, standard fix.
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted, videoRef]);
   return (
     <>
       {editing ? (
