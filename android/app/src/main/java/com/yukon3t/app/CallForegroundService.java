@@ -53,6 +53,7 @@ public class CallForegroundService extends Service {
 
     private static final String CHANNEL_ID = "incoming_calls";
     private static final String ACTIVE_CALL_CHANNEL_ID = "active_call";
+    private static final String MISSED_CALL_CHANNEL_ID = "missed_calls";
     private static final int FOREGROUND_NOTIFICATION_ID = 9001;
     private static final int ACTIVE_CALL_NOTIFICATION_ID = 9002;
     // Safety net: if nobody answers or declines, stop ringing natively
@@ -121,6 +122,57 @@ public class CallForegroundService extends Service {
 
     static int notificationId(String callId) {
         return callId.hashCode();
+    }
+
+    /**
+     * Posted directly via NotificationManagerCompat rather than going through
+     * the foreground-service start/stop machinery above — unlike ringing/
+     * active-call, a missed call isn't an ongoing state that needs to keep
+     * the process Doze-exempt, it's a one-shot "here's what you missed"
+     * notification, same as a real phone app. Reuses the ringing
+     * notification's id (notificationId(callId)) so if that's somehow still
+     * showing for this call, this replaces it instead of stacking.
+     */
+    static void showMissedCallNotification(Context context, String callId, String callerName) {
+        ensureMissedCallChannel(context);
+
+        Intent viewIntent = new Intent(context, MainActivity.class);
+        viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent contentIntent = PendingIntent.getActivity(
+            context,
+            notificationId(callId),
+            viewIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Notification notification = new NotificationCompat.Builder(context, MISSED_CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentTitle("Missed call")
+            .setContentText(callerName + " called you")
+            .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .build();
+
+        NotificationManagerCompat.from(context).notify(notificationId(callId), notification);
+    }
+
+    private static void ensureMissedCallChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager.getNotificationChannel(MISSED_CALL_CHANNEL_ID) != null) return;
+
+        // Default importance with the channel's normal notification sound —
+        // unlike the ringing channel, this shouldn't play the loud ringtone,
+        // the call is already over.
+        NotificationChannel channel = new NotificationChannel(
+            MISSED_CALL_CHANNEL_ID,
+            "Missed calls",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+        channel.setDescription("Shown when a voice or video call you didn't answer ends");
+        manager.createNotificationChannel(channel);
     }
 
     @Nullable

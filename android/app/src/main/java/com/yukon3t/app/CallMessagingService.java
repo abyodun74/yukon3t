@@ -69,6 +69,17 @@ public class CallMessagingService extends FirebaseMessagingService {
             // and restarted between the two pushes).
             NotificationManagerCompat.from(this).cancel(CallForegroundService.notificationId(callId));
             CallForegroundService.stopRinging(this, callId);
+        } else if ("missed_call".equals(type)) {
+            // Distinct from call_cancelled: that one only clears the ringing
+            // notification, this one leaves a normal (non-ongoing,
+            // tap-to-dismiss) "Missed call" notification behind, same as a
+            // real phone app — see CallForegroundService.showMissedCallNotification.
+            String callerName = data.get("callerName");
+            CallForegroundService.showMissedCallNotification(
+                this,
+                callId,
+                callerName != null ? callerName : "Someone"
+            );
         }
     }
 }
