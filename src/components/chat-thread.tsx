@@ -22,7 +22,7 @@ import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
-import { isEmojiOnly } from "@/lib/emoji";
+import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
@@ -644,7 +644,7 @@ function MessageBubble({
 
       {!deleted && !editing && (
         <div ref={menuAnchorRef} className="relative flex shrink-0 items-center pb-1">
-          <EmojiPickerButton onSelect={toggleReaction} />
+          <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
           <button
             type="button"
             onClick={toggleMenu}

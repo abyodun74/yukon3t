@@ -21,6 +21,7 @@ import { TruncatedText } from "@/components/truncated-text";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
+import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 
@@ -536,7 +537,7 @@ export function PostCard({
           )}
         </span>
 
-        <EmojiPickerButton onSelect={toggleReaction} />
+        <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
 
         <Link
           href={`/post/${interactionTargetId}`}

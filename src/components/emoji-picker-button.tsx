@@ -30,6 +30,11 @@ const PICKER_WIDTH = 300;
 const PICKER_HEIGHT = 360;
 const VIEWPORT_MARGIN = 8;
 const SUGGESTIONS_BAR_HEIGHT = 40;
+// A compact quick-reaction row (see the `quickReactions` prop) — sized to
+// content instead of the full picker's fixed box, same WhatsApp-style
+// long-press reaction bar pattern already used in story-viewer.tsx.
+const QUICK_BAR_HEIGHT = 44;
+const QUICK_BUTTON_WIDTH = 36;
 
 type Position = { top: number; left: number; width: number; height: number };
 
@@ -61,10 +66,10 @@ function getViewportSize() {
  * top/left coordinates against a size larger than the viewport pushes the
  * box partly off-screen rather than shrinking it to fit.
  */
-function computePosition(rect: DOMRect): Position {
+function computePosition(rect: DOMRect, desiredWidth = PICKER_WIDTH, desiredHeight = PICKER_HEIGHT): Position {
   const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-  const width = Math.min(PICKER_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
-  const height = Math.min(PICKER_HEIGHT, viewportHeight - VIEWPORT_MARGIN * 2);
+  const width = Math.min(desiredWidth, viewportWidth - VIEWPORT_MARGIN * 2);
+  const height = Math.min(desiredHeight, viewportHeight - VIEWPORT_MARGIN * 2);
 
   const spaceBelow = viewportHeight - rect.bottom;
   const openUp = spaceBelow < height + VIEWPORT_MARGIN && rect.top > spaceBelow;
@@ -81,8 +86,22 @@ function computePosition(rect: DOMRect): Position {
   return { top, left, width, height };
 }
 
-export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => void }) {
+export function EmojiPickerButton({
+  onSelect,
+  quickReactions,
+}: {
+  onSelect: (emoji: string) => void;
+  /**
+   * When given, the button opens to a small WhatsApp-style quick-reaction
+   * row first (no emoji-picker-react import triggered yet) instead of the
+   * full picker — tapping "+" then expands into the full picker below.
+   * Omit for uses that always want the full picker directly (e.g. the
+   * composer's insert-emoji-into-text button).
+   */
+  quickReactions?: string[];
+}) {
   const [open, setOpen] = useState(false);
+  const [showFullPicker, setShowFullPicker] = useState(!quickReactions);
   const [position, setPosition] = useState<Position | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -94,8 +113,10 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
   // library's own search doesn't know surfaces a small curated row above
   // its results instead of the search coming up empty. Cleaned up whenever
   // the picker closes, since a fresh input element exists on every reopen.
+  // Only relevant once the full picker is actually showing — the compact
+  // quick-reaction row below has no search input at all.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !showFullPicker) return;
 
     let inputEl: HTMLInputElement | null = null;
     function onInput(e: Event) {
@@ -115,7 +136,7 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
       observer.disconnect();
       inputEl?.removeEventListener("input", onInput);
     };
-  }, [open]);
+  }, [open, showFullPicker]);
 
   useEffect(() => {
     if (!open) return;
@@ -145,13 +166,29 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
 
   function toggleOpen() {
     if (!open && buttonRef.current) {
-      setPosition(computePosition(buttonRef.current.getBoundingClientRect()));
+      const startsWithQuickBar = Boolean(quickReactions);
+      setShowFullPicker(!startsWithQuickBar);
+      const rect = buttonRef.current.getBoundingClientRect();
+      const quickBarWidth = quickReactions ? (quickReactions.length + 1) * QUICK_BUTTON_WIDTH : PICKER_WIDTH;
+      setPosition(
+        startsWithQuickBar
+          ? computePosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
+          : computePosition(rect),
+      );
       // Cleared here (a plain event handler) rather than in the effect
       // above, so a stale "Suggested" row from the last time this was open
       // can't flash before the new search input's first keystroke.
       setSuggestions([]);
     }
     setOpen((v) => !v);
+  }
+
+  /** "+" on the compact quick-reaction row — expands the same popup into the full picker (triggering its dynamic import for the first time). */
+  function expandToFullPicker() {
+    if (buttonRef.current) {
+      setPosition(computePosition(buttonRef.current.getBoundingClientRect()));
+    }
+    setShowFullPicker(true);
   }
 
   return (
@@ -174,15 +211,11 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
             className="fixed z-50 flex flex-col overflow-hidden rounded-lg shadow-lg"
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
-            {suggestions.length > 0 && (
-              <div
-                className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface px-2"
-                style={{ height: SUGGESTIONS_BAR_HEIGHT }}
-              >
-                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-foreground-soft">
-                  Suggested
-                </span>
-                {suggestions.map((emoji) => (
+            {!showFullPicker && quickReactions ? (
+              // Compact WhatsApp-style quick-reaction row — no
+              // emoji-picker-react import triggered until "+" is tapped.
+              <div className="flex h-full items-center gap-1 bg-surface px-1.5">
+                {quickReactions.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
@@ -190,32 +223,67 @@ export function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => v
                       onSelect(emoji);
                       setOpen(false);
                     }}
-                    className="shrink-0 rounded-md p-1 text-xl hover:bg-line"
+                    className="shrink-0 rounded-full p-1.5 text-xl hover:bg-line"
                   >
                     {emoji}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={expandToFullPicker}
+                  title="More emoji"
+                  aria-label="More emoji"
+                  className="ml-auto shrink-0 rounded-full p-1.5 text-foreground-soft hover:bg-line"
+                >
+                  <Smile size={18} />
+                </button>
               </div>
+            ) : (
+              <>
+                {suggestions.length > 0 && (
+                  <div
+                    className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface px-2"
+                    style={{ height: SUGGESTIONS_BAR_HEIGHT }}
+                  >
+                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-foreground-soft">
+                      Suggested
+                    </span>
+                    {suggestions.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          onSelect(emoji);
+                          setOpen(false);
+                        }}
+                        className="shrink-0 rounded-md p-1 text-xl hover:bg-line"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <EmojiPicker
+                  theme={THEME_AUTO}
+                  emojiStyle={EMOJI_STYLE_NATIVE}
+                  width={position.width}
+                  // Borrows space from the picker itself when the suggestions
+                  // bar is showing, rather than adding to the popup's total
+                  // height — the popup's own box (set above) is already
+                  // clamped to fit the viewport, and growing past that on a
+                  // short/keyboard-open viewport is exactly the kind of
+                  // overflow this app has had to fix before.
+                  height={suggestions.length > 0 ? position.height - SUGGESTIONS_BAR_HEIGHT : position.height}
+                  // Bigger glyphs in the picker grid itself — easier to tell
+                  // similar emoji apart when tapping on mobile.
+                  style={{ "--epr-emoji-size": "28px" } as CSSProperties}
+                  onEmojiClick={(data) => {
+                    onSelect(data.emoji);
+                    setOpen(false);
+                  }}
+                />
+              </>
             )}
-            <EmojiPicker
-              theme={THEME_AUTO}
-              emojiStyle={EMOJI_STYLE_NATIVE}
-              width={position.width}
-              // Borrows space from the picker itself when the suggestions
-              // bar is showing, rather than adding to the popup's total
-              // height — the popup's own box (set above) is already
-              // clamped to fit the viewport, and growing past that on a
-              // short/keyboard-open viewport is exactly the kind of
-              // overflow this app has had to fix before.
-              height={suggestions.length > 0 ? position.height - SUGGESTIONS_BAR_HEIGHT : position.height}
-              // Bigger glyphs in the picker grid itself — easier to tell
-              // similar emoji apart when tapping on mobile.
-              style={{ "--epr-emoji-size": "28px" } as CSSProperties}
-              onEmojiClick={(data) => {
-                onSelect(data.emoji);
-                setOpen(false);
-              }}
-            />
           </div>,
           document.body,
         )}

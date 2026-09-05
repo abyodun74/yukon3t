@@ -1,5 +1,12 @@
 const EMOJI_CLUSTER_RE = /^[\p{Extended_Pictographic}‍️\u{1F3FB}-\u{1F3FF}]+$/u;
 
+// Shared quick-reaction set — a WhatsApp-style row of common reactions
+// shown before the full emoji picker (see EmojiPickerButton's
+// `quickReactions` prop), so posts, messages, and stories all offer the
+// same fast one-tap reactions instead of forcing the full picker open for
+// something this common.
+export const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
+
 /**
  * True when `text` is nothing but a handful of emoji (chat-app convention
  * for rendering emoji-only messages larger). Segments by grapheme cluster

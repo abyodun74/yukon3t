@@ -15,6 +15,7 @@ import {
 } from "@/app/actions/stories";
 import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
+import { QUICK_REACTIONS } from "@/lib/emoji";
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
@@ -23,7 +24,6 @@ const TAP_MAX_HOLD_MS = 250;
 // this person's own stories) — checked before the hold-duration tap check
 // below, so a slow drag doesn't get misread as a hold-to-pause release.
 const SWIPE_THRESHOLD_PX = 60;
-const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
 export type StoryData = {
   id: string;
