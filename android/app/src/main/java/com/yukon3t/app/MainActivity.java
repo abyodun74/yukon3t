@@ -3,10 +3,12 @@ package com.yukon3t.app;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.KeyEvent;
 
 import androidx.core.app.NotificationManagerCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -15,8 +17,28 @@ public class MainActivity extends BridgeActivity {
         // actually builds the Bridge from the plugin list accumulated so far.
         registerPlugin(CallForegroundPlugin.class);
         registerPlugin(ScreenCaptureGuardPlugin.class);
+        registerPlugin(VolumeButtonPlugin.class);
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
+    }
+
+    /**
+     * Forwards volume-up to VolumeButtonPlugin without consuming it — always
+     * calls super so Android's own volume change/UI happens exactly as it
+     * would with no listener at all. This is the only way to observe a
+     * hardware key press at all (there's no web API for it); onKeyDown
+     * rather than a dedicated key-event API since Capacitor plugins don't
+     * receive key events on their own.
+     */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            PluginHandle handle = getBridge().getPlugin("VolumeButton");
+            if (handle != null && handle.getInstance() instanceof VolumeButtonPlugin) {
+                ((VolumeButtonPlugin) handle.getInstance()).notifyVolumeUp();
+            }
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     // singleTask launch mode (see AndroidManifest.xml) redelivers an

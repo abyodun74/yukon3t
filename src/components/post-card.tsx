@@ -24,6 +24,7 @@ import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
+import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
 
@@ -147,7 +148,7 @@ function MediaBlock({
   };
 }) {
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useFeedVideoMuted();
   // The `muted` JSX prop only reliably applies at mount — once a WebView
   // video is already playing, toggling it doesn't flip the element's live
   // audio output (the icon/UI updates, but sound never actually changes).
@@ -259,7 +260,7 @@ function MediaBlock({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setMuted((m) => !m);
+              setMuted(!muted);
             }}
             title={muted ? "Unmute" : "Mute"}
             aria-label={muted ? "Unmute" : "Mute"}

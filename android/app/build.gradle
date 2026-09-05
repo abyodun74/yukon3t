@@ -67,8 +67,12 @@ android {
         // 12: adds native missed-call notifications (CallForegroundService,
         // CallMessagingService) — held back since 907c8cf pending Play Store
         // production access, now unlocked.
-        versionCode 12
-        versionName "1.9"
+        // 13: adds VolumeButtonPlugin — forwards the hardware volume-up key
+        // (MainActivity.onKeyDown) to JS so feed videos can auto-unmute,
+        // matching mainstream apps. Purely observational, never consumes
+        // the key event or touches any audio stream itself.
+        versionCode 13
+        versionName "1.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
