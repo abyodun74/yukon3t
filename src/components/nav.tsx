@@ -479,44 +479,8 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // inset, this one isn't behind a legacy non-edge-to-edge flag, so
         // it doesn't need capacitor-bridge.tsx's native-height fallback.
         <nav
-          ref={(el) => {
-            if (!el || typeof window === "undefined") return;
-            if ((el as HTMLElement & { _ykDiag?: boolean })._ykDiag) return;
-            (el as HTMLElement & { _ykDiag?: boolean })._ykDiag = true;
-            let banner: HTMLDivElement | null = null;
-            let ticks = 0;
-            const check = () => {
-              ticks++;
-              const iw = window.innerWidth;
-              const sw = document.documentElement.scrollWidth;
-              const navRect = el.getBoundingClientRect();
-              const offenders: string[] = [];
-              if (sw > iw) {
-                document.querySelectorAll<HTMLElement>("body *").forEach((n) => {
-                  const r = n.getBoundingClientRect();
-                  if (r.right > iw + 1 || r.left < -1) {
-                    offenders.push(
-                      `${n.tagName}.${[...n.classList].slice(0, 2).join(".")} L${Math.round(r.left)} R${Math.round(r.right)} W${Math.round(r.width)}`,
-                    );
-                  }
-                });
-              }
-              if (!banner) {
-                banner = document.createElement("div");
-                banner.style.cssText =
-                  "position:fixed;top:60px;left:0;right:0;z-index:99999;background:yellow;color:red;font-size:11px;padding:6px;white-space:pre-wrap;max-height:60vh;overflow:auto;";
-                document.body.appendChild(banner);
-              }
-              banner.textContent =
-                `tick=${ticks} iw=${iw} sw=${sw} vvw=${window.visualViewport?.width} dcw=${document.documentElement.clientWidth} bcw=${document.body.clientWidth} dpr=${window.devicePixelRatio}\n` +
-                `navRect L${Math.round(navRect.left)} R${Math.round(navRect.right)} W${Math.round(navRect.width)}\n` +
-                offenders.slice(0, 8).join("\n");
-              if (ticks < 6) setTimeout(check, 700);
-            };
-            check();
-          }}
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          style={{ paddingBottom: "env(safe-area-inset-bottom)", border: "6px solid lime", boxSizing: "border-box" }}
         >
           {tabs.map((tab) => {
             const active = pathname === tab.href;
