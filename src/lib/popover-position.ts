@@ -63,7 +63,27 @@ export function computePopoverPosition(rect: DOMRect, desiredWidth: number, desi
 
   const left = Math.min(Math.max(margin, rect.right - width), viewportWidth - width - margin);
 
-  const top = `max(${idealTop}px, calc(${margin}px + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))))`;
+  // Confirmed on-device (a colored-border diagnostic rendered on a real
+  // Android Capacitor build) that this WebView paints `position: fixed`
+  // at layout-viewport-relative coordinates even once the on-screen
+  // keyboard has scrolled the visual viewport away from the layout
+  // viewport's origin: a popup computed to sit ~54px below the visible
+  // top instead rendered ~7px below it — off by almost exactly
+  // visualViewport.offsetTop (the measured layout/visual scroll delta),
+  // confirmed via getBoundingClientRect() matching the intended value
+  // while the popup's actual on-screen border did not. Adding that
+  // offset back is a no-op whenever it's 0 (no keyboard-driven scroll,
+  // the common case), and even on an engine that already anchors fixed
+  // elements to the visual viewport correctly, over-adding it here only
+  // pushes the popup somewhat lower than ideal — mild, versus the
+  // confirmed failure otherwise (rendered off-screen under the status
+  // bar), so this stays unconditional rather than trying to detect which
+  // behavior a given engine has.
+  const vv = typeof window !== "undefined" ? window.visualViewport : null;
+  const vvOffsetTop = vv?.offsetTop ?? 0;
+  const vvOffsetLeft = vv?.offsetLeft ?? 0;
 
-  return { top, left, width, height };
+  const top = `max(${idealTop + vvOffsetTop}px, calc(${margin + vvOffsetTop}px + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))))`;
+
+  return { top, left: left + vvOffsetLeft, width, height };
 }
