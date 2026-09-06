@@ -152,11 +152,19 @@ export function GifPickerButton({
                 document.body.removeChild(probe);
                 const popupTop = el.parentElement ? getComputedStyle(el.parentElement).top : "?";
                 const popupRect = el.parentElement?.getBoundingClientRect();
-                const msg = `env=${envVal} var=${varVal} vv=${window.visualViewport?.height ?? "?"} ih=${window.innerHeight} dpr=${window.devicePixelRatio} popupTopCSS=${popupTop} popupRectTop=${popupRect?.top}`;
+                const msg = `env=${envVal}\nvar=${varVal}\nvv=${window.visualViewport?.height ?? "?"}\nih=${window.innerHeight}\ndpr=${window.devicePixelRatio}\npopupTopCSS=${popupTop}\npopupRectTop=${popupRect?.top}`;
                 el.textContent = msg;
                 console.log("YK3_DIAG " + msg);
               }}
-              style={{ fontSize: 9, color: "red", background: "yellow", padding: 2 }}
+              style={{
+                fontSize: 12,
+                color: "red",
+                background: "yellow",
+                padding: 4,
+                marginTop: 44,
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.5,
+              }}
             />
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
               <Search size={14} className="shrink-0 text-foreground-soft" />
