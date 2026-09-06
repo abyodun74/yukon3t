@@ -103,19 +103,39 @@ export function EmojiPickerButton({
     // Any scroll (message list, page) invalidates the computed position — close rather than chase it.
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
-    // window's resize event doesn't fire when the on-screen keyboard
-    // opens/closes in iOS Safari (only visualViewport's does) — without
-    // this, the popup's now-stale size/position would linger open through
-    // a keyboard toggle instead of closing like it does for every other
-    // viewport change.
-    window.visualViewport?.addEventListener("resize", close);
+
+    // Re-measure and reposition (not dismiss) on a viewport resize instead
+    // of closing — confirmed on-device (see GifPickerButton, which shares
+    // this same positioning code) that opening the on-screen keyboard right
+    // after this popup's initial position was computed against the
+    // pre-keyboard viewport left the popup's bottom portion hidden behind
+    // the keyboard for the whole session, since the "close on resize"
+    // behavior below never actually fired to correct for it.
+    function reposition() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const quickBarWidth = quickReactions ? (quickReactions.length + 1) * QUICK_BUTTON_WIDTH : PICKER_WIDTH;
+      setPosition(
+        !showFullPicker && quickReactions
+          ? computePopoverPosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
+          : computePopoverPosition(rect, PICKER_WIDTH, PICKER_HEIGHT),
+      );
+    }
+    window.visualViewport?.addEventListener("resize", reposition);
+    // Fallback for when the keyboard's open animation doesn't fire a
+    // visualViewport resize event at all on some Android WebView versions —
+    // one re-measure after the keyboard's typical animation window closes
+    // that gap regardless of whether the event fires.
+    const fallbackTimer = setTimeout(reposition, 350);
+
     return () => {
       document.removeEventListener("mousedown", close);
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
-      window.visualViewport?.removeEventListener("resize", close);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      clearTimeout(fallbackTimer);
     };
-  }, [open]);
+  }, [open, showFullPicker, quickReactions]);
 
   function toggleOpen() {
     if (!open && buttonRef.current) {

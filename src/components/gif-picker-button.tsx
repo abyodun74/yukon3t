@@ -45,13 +45,34 @@ export function GifPickerButton({
     }
     document.addEventListener("mousedown", close);
     window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    window.visualViewport?.addEventListener("resize", close);
+
+    // Re-measure and reposition (not dismiss) on a viewport resize — the
+    // search input's autoFocus opens the on-screen keyboard right after
+    // this popup's initial position was computed against the pre-keyboard
+    // viewport, so without this the popup can open assuming full-screen
+    // space below it and end up with its bottom portion (including results
+    // and the "Powered by GIPHY" attribution) hidden behind the keyboard.
+    function reposition() {
+      if (buttonRef.current) {
+        setPosition(computePopoverPosition(buttonRef.current.getBoundingClientRect(), PICKER_WIDTH, PICKER_HEIGHT));
+      }
+    }
+    window.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("resize", reposition);
+    // Fallback for when the keyboard's open animation doesn't fire a
+    // visualViewport resize event at all on some Android WebView versions
+    // (confirmed on-device: the popup stayed mis-sized under the keyboard
+    // for the whole session with no resize event ever correcting it) — one
+    // re-measure after the keyboard's typical animation window closes that
+    // gap regardless of whether the event fires.
+    const fallbackTimer = setTimeout(reposition, 350);
+
     return () => {
       document.removeEventListener("mousedown", close);
       window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-      window.visualViewport?.removeEventListener("resize", close);
+      window.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      clearTimeout(fallbackTimer);
     };
   }, [open]);
 
