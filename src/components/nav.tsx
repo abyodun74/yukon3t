@@ -80,6 +80,23 @@ function bottomTabs() {
 
 export function Nav({ session, theme }: { session: Session | null; theme: Theme }) {
   const [open, setOpen] = useState(false);
+  // The bottom tab bar's width is measured via visualViewport rather than
+  // left-0/right-0 (which resolve against the *layout* viewport) — on the
+  // Android Capacitor build this WebView renders `position: fixed` sized
+  // against a layout viewport that can be wider than what's actually
+  // visible, so inset-x-0 stretched the bar past the right edge of the
+  // screen and clipped the last tab. Undefined until the first effect
+  // runs (SSR-safe — no window here) — the CSS fallback in the
+  // className below covers that brief gap.
+  const [footerWidth, setFooterWidth] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setFooterWidth(vv.width);
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
+  }, []);
   const pathname = usePathname();
   const router = useRouter();
   const links = session?.user ? navLinks(session.user.id) : [];
@@ -480,7 +497,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // it doesn't need capacitor-bridge.tsx's native-height fallback.
         <nav
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)", border: "6px solid lime", boxSizing: "border-box" }}
+          style={{
+            paddingBottom: "env(safe-area-inset-bottom)",
+            width: footerWidth,
+            right: footerWidth !== undefined ? "auto" : undefined,
+          }}
         >
           {tabs.map((tab) => {
             const active = pathname === tab.href;
