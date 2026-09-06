@@ -2,13 +2,13 @@
 
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { searchGifs, isTenorConfigured } from "@/lib/tenor";
+import { searchGifs, isGiphyConfigured } from "@/lib/giphy";
 
 /** Shared GIF search for the message/comment/post composers — see GifPickerButton. */
-export async function searchTenorGifs(query: string) {
+export async function searchGiphyGifs(query: string) {
   const user = await requireVerifiedUser();
 
-  if (!isTenorConfigured) return { error: "not_configured" as const, gifs: [] };
+  if (!isGiphyConfigured) return { error: "not_configured" as const, gifs: [] };
 
   const allowed = await checkRateLimit("gifSearch", user.id);
   if (!allowed) return { error: "rate_limited" as const, gifs: [] };

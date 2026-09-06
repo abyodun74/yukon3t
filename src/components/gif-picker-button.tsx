@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Sticker } from "lucide-react";
-import { searchTenorGifs } from "@/app/actions/gifs";
+import { searchGiphyGifs } from "@/app/actions/gifs";
 import { computePopoverPosition, type PopoverPosition } from "@/lib/popover-position";
 
 const PICKER_WIDTH = 320;
@@ -63,7 +63,7 @@ export function GifPickerButton({
     if (!open || !trimmedQuery) return undefined;
     const requestId = ++requestIdRef.current;
     const timer = setTimeout(async () => {
-      const result = await searchTenorGifs(trimmedQuery);
+      const result = await searchGiphyGifs(trimmedQuery);
       if (requestIdRef.current !== requestId) return;
       setResolvedQuery(trimmedQuery);
       setNotConfigured(result.error === "not_configured");
@@ -135,7 +135,7 @@ export function GifPickerButton({
                     }}
                     className="block overflow-hidden rounded-md hover:opacity-80"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview thumbnail, not a local/optimizable asset */}
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview thumbnail, not a local/optimizable asset */}
                     <img src={gif.previewUrl} alt="" loading="lazy" className="h-24 w-full object-cover" />
                   </button>
                 ))}

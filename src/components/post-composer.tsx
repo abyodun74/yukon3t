@@ -119,7 +119,7 @@ export function PostComposer({
   const [video, setVideo] = useState<File | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
-  // A picked Tenor GIF URL — never uploaded, so it bypasses uploadAll's
+  // A picked Giphy GIF URL — never uploaded, so it bypasses uploadAll's
   // File-handling branches entirely.
   const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
@@ -590,7 +590,7 @@ export function PostComposer({
 
       {pendingGif && (
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
-          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF attached</span>
           <button type="button" onClick={() => setPendingGif(null)} className="text-danger">

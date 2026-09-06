@@ -10,7 +10,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
-import { isTenorUrl } from "@/lib/tenor";
+import { isGiphyUrl } from "@/lib/giphy";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -32,9 +32,9 @@ export async function createComment(formData: FormData) {
     return { error: "invalid" };
   }
   const { postId, parentId, content, gifUrl } = parsed.data;
-  // Never uploaded to this app — the Tenor host check is the only gate,
+  // Never uploaded to this app — the Giphy host check is the only gate,
   // same reasoning as sendMessage's/createPost's GIF handling.
-  if (gifUrl && !isTenorUrl(gifUrl)) {
+  if (gifUrl && !isGiphyUrl(gifUrl)) {
     return { error: "invalid" };
   }
 
@@ -58,7 +58,7 @@ export async function createComment(formData: FormData) {
   }
 
   // A GIF-only comment (no typed text) has nothing of this app's own to
-  // check — Tenor's catalog is pre-moderated, same reasoning as GIF
+  // check — Giphy's catalog is pre-moderated, same reasoning as GIF
   // messages/posts.
   const moderationStatus = content
     ? (await moderateText(content)).allowed

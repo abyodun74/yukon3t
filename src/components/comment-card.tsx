@@ -166,7 +166,7 @@ export function CommentCard({
             </p>
           )}
           {comment.gifUrl && (
-            // eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted GIF, not a local/optimizable asset
+            // eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset
             <img src={comment.gifUrl} alt="" className="mt-1 max-h-52 rounded-lg object-contain" />
           )}
         </>

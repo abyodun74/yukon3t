@@ -551,7 +551,7 @@ function MessageBubble({
                   className="block w-full cursor-zoom-in"
                   aria-label="View GIF full-screen"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted GIF, not a local/optimizable asset */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset */}
                   <img
                     src={message.mediaUrl}
                     alt=""
@@ -774,7 +774,7 @@ export function ChatThread({
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
-  // A picked Tenor GIF URL, not a File — never uploaded, so it skips
+  // A picked Giphy GIF URL, not a File — never uploaded, so it skips
   // uploadPendingMedia's File-handling branches entirely.
   const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
@@ -1178,7 +1178,7 @@ export function ChatThread({
       )}
       {pendingGif && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
-          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF ready to send</span>
           <button type="button" onClick={() => setPendingGif(null)} className="text-danger">

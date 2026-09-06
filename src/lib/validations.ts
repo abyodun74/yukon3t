@@ -411,8 +411,8 @@ const commentBaseSchema = z.object({
   postId: z.string().cuid(),
   parentId: z.string().cuid().optional(),
   content: z.string().trim().max(1000).optional().default(""),
-  // Tenor-hosted GIF, picked via the GIF button — validated as a real
-  // Tenor URL server-side (isTenorUrl) before ever being stored, comments
+  // Giphy-hosted GIF, picked via the GIF button — validated as a real
+  // Giphy URL server-side (isGiphyUrl) before ever being stored, comments
   // have no upload flow of their own to trust otherwise.
   gifUrl: z.string().url().optional(),
 });

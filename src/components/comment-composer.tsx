@@ -67,7 +67,7 @@ export function CommentComposer({
       />
       {pendingGif && (
         <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
-          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF attached</span>
           <button type="button" onClick={() => setPendingGif(null)} className="text-danger">

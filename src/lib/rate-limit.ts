@@ -110,7 +110,7 @@ export const rateLimiters = {
   // slack for tab-focus/visibility-change pings on top of the interval, not
   // a real per-call cost concern like the paid-API limiters above.
   presenceHeartbeat: makeLimiter(6, "1 m"),
-  // Each call is a real Tenor API request — generous enough for someone
+  // Each call is a real Giphy API request — generous enough for someone
   // typing/refining a search, tight enough to bound spend per user.
   gifSearch: makeLimiter(30, "1 m"),
 };

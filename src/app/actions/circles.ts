@@ -10,7 +10,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { notifySubscribers } from "@/lib/notify-subscribers";
-import { isTenorUrl } from "@/lib/tenor";
+import { isGiphyUrl } from "@/lib/giphy";
 import {
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
@@ -582,10 +582,10 @@ export async function createPost(formData: FormData) {
   }
 
   if (mediaType === "GIF") {
-    // Never uploaded to this app's R2 bucket (picked straight from Tenor
-    // search) — the Tenor host check is the only gate, same reasoning as
+    // Never uploaded to this app's R2 bucket (picked straight from Giphy
+    // search) — the Giphy host check is the only gate, same reasoning as
     // sendMessage's GIF branch (src/app/actions/messages.ts).
-    if (mediaUrls.length !== 1 || !isTenorUrl(mediaUrls[0])) {
+    if (mediaUrls.length !== 1 || !isGiphyUrl(mediaUrls[0])) {
       return { error: "invalid" };
     }
   }
@@ -627,7 +627,7 @@ export async function createPost(formData: FormData) {
     // inspect — a linked video is moderated by YouTube/Vimeo, not us, and a
     // plain link is just a URL) keeps the existing soft-flag behavior:
     // stored hidden, reviewable by an admin rather than silently discarded.
-    // A GIF joins this group too — Tenor's catalog is pre-moderated, so
+    // A GIF joins this group too — Giphy's catalog is pre-moderated, so
     // only the caption text (if any) needs checking here.
     const modResult = await moderateText(parsed.data.content);
     moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
