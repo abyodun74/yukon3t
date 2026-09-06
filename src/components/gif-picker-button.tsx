@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Sticker } from "lucide-react";
-import { searchGiphyGifs } from "@/app/actions/gifs";
+import { searchGiphyGifs, trendingGiphyGifs } from "@/app/actions/gifs";
 import { computePopoverPosition, type PopoverPosition } from "@/lib/popover-position";
 
 const PICKER_WIDTH = 320;
@@ -21,6 +21,11 @@ export function GifPickerButton({
   const [position, setPosition] = useState<PopoverPosition | null>(null);
   const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<{ id: string; gifUrl: string; previewUrl: string }[]>([]);
+  // The picker's default grid, loaded once per open — mirrors the
+  // WhatsApp/iMessage GIF tray showing a populated trending feed
+  // immediately instead of a blank "search to get started" state.
+  const [trending, setTrending] = useState<{ id: string; gifUrl: string; previewUrl: string }[]>([]);
+  const [trendingLoaded, setTrendingLoaded] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -32,8 +37,8 @@ export function GifPickerButton({
   const [resolvedQuery, setResolvedQuery] = useState("");
 
   const trimmedQuery = query.trim();
-  const visibleGifs = trimmedQuery ? gifs : [];
-  const loading = trimmedQuery !== "" && resolvedQuery !== trimmedQuery;
+  const visibleGifs = trimmedQuery ? gifs : trending;
+  const loading = trimmedQuery !== "" ? resolvedQuery !== trimmedQuery : !trendingLoaded;
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +105,13 @@ export function GifPickerButton({
       setGifs([]);
       setNotConfigured(false);
       setResolvedQuery("");
+      if (!trendingLoaded) {
+        trendingGiphyGifs().then((result) => {
+          setNotConfigured(result.error === "not_configured");
+          setTrending(result.gifs);
+          setTrendingLoaded(true);
+        });
+      }
     }
     setOpen((v) => !v);
   }
@@ -139,11 +151,10 @@ export function GifPickerButton({
               {notConfigured && (
                 <p className="p-3 text-center text-xs text-foreground-soft">GIF search isn&apos;t set up yet.</p>
               )}
-              {!notConfigured && trimmedQuery === "" && (
-                <p className="p-3 text-center text-xs text-foreground-soft">Search for a GIF to get started.</p>
-              )}
-              {!notConfigured && !loading && trimmedQuery !== "" && visibleGifs.length === 0 && (
-                <p className="p-3 text-center text-xs text-foreground-soft">No GIFs found for that search.</p>
+              {!notConfigured && !loading && visibleGifs.length === 0 && (
+                <p className="p-3 text-center text-xs text-foreground-soft">
+                  {trimmedQuery === "" ? "No trending GIFs right now." : "No GIFs found for that search."}
+                </p>
               )}
               <div className="grid grid-cols-2 gap-1.5">
                 {visibleGifs.map((gif) => (

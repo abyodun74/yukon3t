@@ -182,7 +182,7 @@ function CorrectionList({
       {corrections.map((c) => (
         <div
           key={c.id}
-          className="max-w-[min(75vw,26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
+          className="max-w-[min(calc(100vw-7.5rem),26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
         >
           <div className="flex items-center gap-2">
             <span className="font-medium text-foreground-soft">{c.author.name ?? "Someone"} suggests</span>
@@ -420,7 +420,14 @@ function MessageBubble({
             touchAction: "pan-y",
           }}
           className={cn(
-            "max-w-[min(75vw,26rem)] rounded-2xl px-3 py-2 text-sm",
+            // The bubble sits alongside a fixed-width reaction/menu button
+            // pair (~3.5rem, see the shrink-0 row below) inside a padded
+            // scroll container — a plain 75vw cap ignores both, so a
+            // near-max-width bubble (e.g. one with a reply-quote preview)
+            // pushed those buttons half off the left edge of the screen on
+            // narrow phones. Reserving that space in the cap keeps the
+            // whole row (buttons + gap + bubble) inside the viewport.
+            "max-w-[min(calc(100vw-7.5rem),26rem)] rounded-2xl px-3 py-2 text-sm",
             mine ? "bg-accent text-accent-ink" : "bg-surface",
           )}
         >
@@ -612,7 +619,7 @@ function MessageBubble({
         />
 
         {correcting && (
-          <div className="mt-1 max-w-[min(75vw,26rem)] rounded-lg border border-line bg-surface p-2">
+          <div className="mt-1 max-w-[min(calc(100vw-7.5rem),26rem)] rounded-lg border border-line bg-surface p-2">
             <textarea
               value={correctionDraft}
               onChange={(e) => setCorrectionDraft(e.target.value)}

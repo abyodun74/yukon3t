@@ -2,7 +2,7 @@
 
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { searchGifs, isGiphyConfigured } from "@/lib/giphy";
+import { searchGifs, trendingGifs, isGiphyConfigured } from "@/lib/giphy";
 
 /** Shared GIF search for the message/comment/post composers — see GifPickerButton. */
 export async function searchGiphyGifs(query: string) {
@@ -14,5 +14,18 @@ export async function searchGiphyGifs(query: string) {
   if (!allowed) return { error: "rate_limited" as const, gifs: [] };
 
   const gifs = await searchGifs(query);
+  return { error: null, gifs };
+}
+
+/** The picker's default grid, shown the moment it opens — see GifPickerButton. */
+export async function trendingGiphyGifs() {
+  const user = await requireVerifiedUser();
+
+  if (!isGiphyConfigured) return { error: "not_configured" as const, gifs: [] };
+
+  const allowed = await checkRateLimit("gifSearch", user.id);
+  if (!allowed) return { error: "rate_limited" as const, gifs: [] };
+
+  const gifs = await trendingGifs();
   return { error: null, gifs };
 }
