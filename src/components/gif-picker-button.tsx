@@ -150,7 +150,11 @@ export function GifPickerButton({
                 probe.style.height = "var(--status-bar-inset-top, -1px)";
                 const varVal = getComputedStyle(probe).height;
                 document.body.removeChild(probe);
-                el.textContent = `env=${envVal} var=${varVal} vv=${window.visualViewport?.height ?? "?"} ih=${window.innerHeight} dpr=${window.devicePixelRatio}`;
+                const popupTop = el.parentElement ? getComputedStyle(el.parentElement).top : "?";
+                const popupRect = el.parentElement?.getBoundingClientRect();
+                const msg = `env=${envVal} var=${varVal} vv=${window.visualViewport?.height ?? "?"} ih=${window.innerHeight} dpr=${window.devicePixelRatio} popupTopCSS=${popupTop} popupRectTop=${popupRect?.top}`;
+                el.textContent = msg;
+                console.log("YK3_DIAG " + msg);
               }}
               style={{ fontSize: 9, color: "red", background: "yellow", padding: 2 }}
             />
