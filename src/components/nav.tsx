@@ -481,23 +481,39 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         <nav
           ref={(el) => {
             if (!el || typeof window === "undefined") return;
-            const iw = window.innerWidth;
-            const sw = document.documentElement.scrollWidth;
-            if (sw <= iw) return;
-            const offenders: string[] = [];
-            document.querySelectorAll<HTMLElement>("body *").forEach((n) => {
-              const r = n.getBoundingClientRect();
-              if (r.right > iw + 1 || r.left < -1) {
-                offenders.push(
-                  `${n.tagName}.${[...n.classList].slice(0, 2).join(".")} L${Math.round(r.left)} R${Math.round(r.right)}`,
-                );
+            if ((el as HTMLElement & { _ykDiag?: boolean })._ykDiag) return;
+            (el as HTMLElement & { _ykDiag?: boolean })._ykDiag = true;
+            let banner: HTMLDivElement | null = null;
+            let ticks = 0;
+            const check = () => {
+              ticks++;
+              const iw = window.innerWidth;
+              const sw = document.documentElement.scrollWidth;
+              const navRect = el.getBoundingClientRect();
+              const offenders: string[] = [];
+              if (sw > iw) {
+                document.querySelectorAll<HTMLElement>("body *").forEach((n) => {
+                  const r = n.getBoundingClientRect();
+                  if (r.right > iw + 1 || r.left < -1) {
+                    offenders.push(
+                      `${n.tagName}.${[...n.classList].slice(0, 2).join(".")} L${Math.round(r.left)} R${Math.round(r.right)} W${Math.round(r.width)}`,
+                    );
+                  }
+                });
               }
-            });
-            const banner = document.createElement("div");
-            banner.style.cssText =
-              "position:fixed;top:60px;left:0;right:0;z-index:99999;background:yellow;color:red;font-size:11px;padding:6px;white-space:pre-wrap;max-height:60vh;overflow:auto;";
-            banner.textContent = `iw=${iw} sw=${sw}\n` + offenders.slice(0, 15).join("\n");
-            document.body.appendChild(banner);
+              const navOverflow = navRect.right > iw + 1 || navRect.left < -1;
+              if (sw > iw || navOverflow) {
+                if (!banner) {
+                  banner = document.createElement("div");
+                  banner.style.cssText =
+                    "position:fixed;top:60px;left:0;right:0;z-index:99999;background:yellow;color:red;font-size:11px;padding:6px;white-space:pre-wrap;max-height:60vh;overflow:auto;";
+                  document.body.appendChild(banner);
+                }
+                banner.textContent = `tick=${ticks} iw=${iw} sw=${sw}\nnavRect L${Math.round(navRect.left)} R${Math.round(navRect.right)} W${Math.round(navRect.width)}\n` + offenders.slice(0, 12).join("\n");
+              }
+              if (ticks < 8) setTimeout(check, 500);
+            };
+            check();
           }}
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
