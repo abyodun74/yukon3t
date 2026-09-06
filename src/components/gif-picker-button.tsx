@@ -152,7 +152,7 @@ export function GifPickerButton({
                 document.body.removeChild(probe);
                 const popupTop = el.parentElement ? getComputedStyle(el.parentElement).top : "?";
                 const popupRect = el.parentElement?.getBoundingClientRect();
-                const msg = `env=${envVal}\nvar=${varVal}\nvv=${window.visualViewport?.height ?? "?"}\nih=${window.innerHeight}\ndpr=${window.devicePixelRatio}\npopupTopCSS=${popupTop}\npopupRectTop=${popupRect?.top}`;
+                const msg = `env=${envVal}\nvar=${varVal}\nvv=${window.visualViewport?.height ?? "?"}\nih=${window.innerHeight}\ndpr=${window.devicePixelRatio}\npopupTopCSS=${popupTop}\npopupRectTop=${popupRect?.top}\nvvOffsetTop=${window.visualViewport?.offsetTop}\nscrollY=${window.scrollY}\nbannerRectTop=${el.getBoundingClientRect().top}`;
                 el.textContent = msg;
                 console.log("YK3_DIAG " + msg);
               }}
