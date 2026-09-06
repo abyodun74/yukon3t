@@ -2,7 +2,7 @@
 
 export const POPOVER_VIEWPORT_MARGIN = 8;
 
-export type PopoverPosition = { top: number; left: number; width: number; height: number };
+export type PopoverPosition = { top: string; left: number; width: number; height: number };
 
 /**
  * window.visualViewport (not window.innerWidth/innerHeight) is what
@@ -14,34 +14,6 @@ export type PopoverPosition = { top: number; left: number; width: number; height
 export function getViewportSize() {
   const vv = typeof window !== "undefined" ? window.visualViewport : null;
   return { width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
-}
-
-/**
- * How far the popup's top edge must stay clear of the true top of the
- * display — on the Android Capacitor build the status bar overlays the
- * WebView edge-to-edge (see capacitor-bridge.tsx), so `env(safe-area-inset-
- * top)` alone isn't reliable there and nav.tsx's header instead falls back
- * to a `--status-bar-inset-top` CSS var populated from the native
- * StatusBar plugin. A `position: fixed` popup positioned via a plain
- * viewport-height clamp (no such fallback) rendered flush against y:0 on
- * that build, its top clipped/overlapped by the status bar icons — same
- * failure nav.tsx already had to fix for its header, just not carried over
- * to this shared popover positioner. Probing `max(env(...), var(...))` via
- * a throwaway element (rather than reading the CSS var directly) keeps iOS
- * working too, where only env() is populated and the var is never set.
- */
-function getTopSafeAreaInset(): number {
-  if (typeof document === "undefined") return 0;
-  const probe = document.createElement("div");
-  probe.style.position = "fixed";
-  probe.style.top = "0";
-  probe.style.height = "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))";
-  probe.style.visibility = "hidden";
-  probe.style.pointerEvents = "none";
-  document.body.appendChild(probe);
-  const inset = parseFloat(getComputedStyle(probe).height) || 0;
-  document.body.removeChild(probe);
-  return inset;
 }
 
 /**
@@ -60,22 +32,38 @@ function getTopSafeAreaInset(): number {
  * up) a fixed desired size itself doesn't fit, and clamping only the
  * top/left coordinates against a size larger than the viewport pushes the
  * box partly off-screen rather than shrinking it to fit.
+ *
+ * `top` comes back as a CSS `max()` expression, not a plain number, for
+ * the same reason nav.tsx's header sets its padding that way instead of a
+ * JS-computed pixel value (see capacitor-bridge.tsx): on the Android
+ * Capacitor build the status bar overlays the WebView edge-to-edge, and
+ * the inset that corrects for it — `env(safe-area-inset-top)`, with a
+ * `--status-bar-inset-top` fallback populated by an async native
+ * StatusBar.getInfo() round-trip — isn't guaranteed to have a real value
+ * yet the instant a popup opens (e.g. right after a cold app launch, a
+ * button tapped before that round-trip resolves). A one-off JS snapshot
+ * of the inset bakes in whatever it read at that instant and never
+ * corrects itself; folding the same `max(env(...), var(...))` the header
+ * uses directly into the CSS `top` value instead means the browser
+ * re-resolves it on every repaint, so the popup self-corrects the moment
+ * the real inset lands, even if that's after this function already ran.
  */
 export function computePopoverPosition(rect: DOMRect, desiredWidth: number, desiredHeight: number): PopoverPosition {
   const { width: viewportWidth, height: viewportHeight } = getViewportSize();
   const margin = POPOVER_VIEWPORT_MARGIN;
-  const topClamp = margin + getTopSafeAreaInset();
   const width = Math.min(desiredWidth, viewportWidth - margin * 2);
   const height = Math.min(desiredHeight, viewportHeight - margin * 2);
 
   const spaceBelow = viewportHeight - rect.bottom;
   const openUp = spaceBelow < height + margin && rect.top > spaceBelow;
 
-  const top = openUp
-    ? Math.max(topClamp, rect.top - height - margin)
+  const idealTop = openUp
+    ? Math.max(margin, rect.top - height - margin)
     : Math.min(rect.bottom + margin, viewportHeight - height - margin);
 
   const left = Math.min(Math.max(margin, rect.right - width), viewportWidth - width - margin);
 
-  return { top: Math.max(topClamp, top), left, width, height };
+  const top = `max(${idealTop}px, calc(${margin}px + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))))`;
+
+  return { top, left, width, height };
 }
