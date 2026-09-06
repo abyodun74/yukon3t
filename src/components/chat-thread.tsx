@@ -1224,7 +1224,7 @@ export function ChatThread({
           className="hidden"
           onChange={(e) => pickVideoFile(e.target.files?.[0])}
         />
-        <div className="flex flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
+        <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
           <EmojiPickerButton onSelect={insertEmoji} />
           <GifPickerButton
             onSelect={(gifUrl) => {
@@ -1251,7 +1251,7 @@ export function ChatThread({
                 ? "Add a caption (optional)..."
                 : `Message ${conversationLabel}...`
             }
-            className="max-h-32 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none"
+            className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none"
           />
           <MediaPickerButton
             icon={<ImagePlus size={16} />}
