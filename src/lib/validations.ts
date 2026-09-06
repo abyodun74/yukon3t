@@ -203,7 +203,7 @@ export const postSchema = z
     content: z.string().trim().max(50000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
-    mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK"]).optional().default("NONE"),
+    mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK", "GIF"]).optional().default("NONE"),
     mediaUrls: z.array(z.string().url()).max(10).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
@@ -345,7 +345,7 @@ export const messageSchema = z
     conversationId: z.string().cuid().optional(),
     recipientId: z.string().cuid().optional(),
     content: z.string().trim().max(4000).optional().default(""),
-    mediaType: z.enum(["NONE", "AUDIO", "VIDEO", "IMAGE"]).optional().default("NONE"),
+    mediaType: z.enum(["NONE", "AUDIO", "VIDEO", "IMAGE", "GIF"]).optional().default("NONE"),
     mediaUrl: z.string().url().optional(),
     mediaThumbnailUrl: z.string().url().optional(),
     replyToMessageId: z.string().cuid().optional(),
@@ -407,13 +407,24 @@ export const reportSchema = z.object({
   reason: z.string().trim().min(10).max(1000),
 });
 
-export const commentSchema = z.object({
+const commentBaseSchema = z.object({
   postId: z.string().cuid(),
   parentId: z.string().cuid().optional(),
-  content: z.string().trim().min(1).max(1000),
+  content: z.string().trim().max(1000).optional().default(""),
+  // Tenor-hosted GIF, picked via the GIF button — validated as a real
+  // Tenor URL server-side (isTenorUrl) before ever being stored, comments
+  // have no upload flow of their own to trust otherwise.
+  gifUrl: z.string().url().optional(),
 });
 
-export const editCommentSchema = commentSchema.pick({ content: true });
+export const commentSchema = commentBaseSchema.refine(
+  (data) => data.content.length > 0 || !!data.gifUrl,
+  { message: "Comment must have text or a GIF." },
+);
+
+export const editCommentSchema = commentBaseSchema.pick({ content: true }).extend({
+  content: z.string().trim().min(1).max(1000),
+});
 
 export const repostSchema = z.object({
   postId: z.string().cuid(),

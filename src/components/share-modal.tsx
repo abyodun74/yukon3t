@@ -36,7 +36,7 @@ export function ShareModal({
 }: {
   postId: string;
   content: string;
-  mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
+  mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
   mediaUrls: string[];
   videoUrl: string | null;
   onClose: () => void;
@@ -91,15 +91,14 @@ export function ShareModal({
     // attempted when the platform supports file sharing and the media can
     // actually be fetched (R2 CORS, network) — falls back to the plain
     // text+url share (still not just a link) on any failure.
-    if (mediaType === "IMAGE" || mediaType === "VIDEO") {
+    if (mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF") {
       setSharingViaDevice(true);
       try {
         const sources = mediaType === "VIDEO" ? (videoUrl ? [videoUrl] : []) : mediaUrls;
+        const extension = mediaType === "VIDEO" ? "mp4" : mediaType === "GIF" ? "gif" : "jpg";
         const files = (
           await Promise.all(
-            sources.map((src, i) =>
-              fetchAsFile(src, `post-${postId}-${i}.${mediaType === "VIDEO" ? "mp4" : "jpg"}`),
-            ),
+            sources.map((src, i) => fetchAsFile(src, `post-${postId}-${i}.${extension}`)),
           )
         ).filter((f): f is File => f !== null);
 

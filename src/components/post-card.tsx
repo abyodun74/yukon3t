@@ -26,7 +26,7 @@ import { formatDateTime } from "@/lib/format-date";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 
-type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
+type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
 type EmbeddedPost = {
   id: string;
@@ -231,6 +231,13 @@ function MediaBlock({
             </button>
           ))}
         </div>
+      )}
+
+      {post.mediaType === "GIF" && post.mediaUrls.length > 0 && (
+        <button type="button" onClick={() => onOpenImage(0)} className="mt-3 block w-full cursor-zoom-in">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted GIF, not a local/optimizable asset */}
+          <img src={post.mediaUrls[0]} alt="" className="max-h-96 w-full rounded-lg object-cover" loading="lazy" />
+        </button>
       )}
 
       {post.mediaType === "VIDEO" && post.videoUrl && (

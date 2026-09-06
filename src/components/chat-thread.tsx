@@ -13,6 +13,7 @@ import {
   removeCorrection,
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
@@ -62,7 +63,7 @@ function dictationErrorMessage(code: string) {
   }
 }
 
-type MessageMediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE";
+type MessageMediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 
 type MessageData = {
   id: string;
@@ -148,6 +149,7 @@ function replyPreviewText(target: {
   if (target.mediaType === "IMAGE") return "Photo";
   if (target.mediaType === "VIDEO") return "Video";
   if (target.mediaType === "AUDIO") return "Voice note";
+  if (target.mediaType === "GIF") return "GIF";
   return target.content;
 }
 
@@ -542,6 +544,21 @@ function MessageBubble({
                   />
                 </button>
               )}
+              {message.mediaType === "GIF" && message.mediaUrl && (
+                <button
+                  type="button"
+                  onClick={() => setImageOpen(true)}
+                  className="block w-full cursor-zoom-in"
+                  aria-label="View GIF full-screen"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted GIF, not a local/optimizable asset */}
+                  <img
+                    src={message.mediaUrl}
+                    alt=""
+                    className="max-h-72 w-full rounded-lg object-contain"
+                  />
+                </button>
+              )}
               {imageOpen && message.mediaUrl && (
                 <Lightbox
                   images={[message.mediaUrl]}
@@ -757,6 +774,9 @@ export function ChatThread({
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
+  // A picked Tenor GIF URL, not a File — never uploaded, so it skips
+  // uploadPendingMedia's File-handling branches entirely.
+  const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
@@ -861,7 +881,11 @@ export function ChatThread({
     | { mediaType: "AUDIO"; mediaUrl: string }
     | { mediaType: "VIDEO"; mediaUrl: string; mediaThumbnailUrl?: string }
     | { mediaType: "IMAGE"; mediaUrl: string }
+    | { mediaType: "GIF"; mediaUrl: string }
   > {
+    if (pendingGif) {
+      return { mediaType: "GIF", mediaUrl: pendingGif };
+    }
     if (pendingAudio) {
       const result = await uploadFileDirect(pendingAudio, "message-audio");
       if (!result.ok) return { error: result.error };
@@ -894,16 +918,18 @@ export function ChatThread({
 
   function handleSend() {
     const text = content.trim();
-    if (!text && !pendingAudio && !pendingVideo && !pendingImage) return;
+    if (!text && !pendingAudio && !pendingVideo && !pendingImage && !pendingGif) return;
     if (isPending) return;
     const audio = pendingAudio;
     const video = pendingVideo;
     const image = pendingImage;
+    const gif = pendingGif;
     const replyTo = replyTarget;
     setContent("");
     setPendingAudio(null);
     setPendingVideo(null);
     setPendingImage(null);
+    setPendingGif(null);
     setReplyTarget(null);
     setError(null);
     startTransition(async () => {
@@ -914,6 +940,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setPendingGif(gif);
         setReplyTarget(replyTo);
         return;
       }
@@ -938,6 +965,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setPendingGif(gif);
         setReplyTarget(replyTo);
         return;
       }
@@ -953,6 +981,7 @@ export function ChatThread({
         setPendingAudio(audio);
         setPendingVideo(video);
         setPendingImage(image);
+        setPendingGif(gif);
         setReplyTarget(replyTo);
         return;
       }
@@ -978,6 +1007,7 @@ export function ChatThread({
     }
     setPendingAudio(null);
     setPendingVideo(null);
+    setPendingGif(null);
     setError(null);
     setPendingImage(resized);
   }
@@ -994,6 +1024,7 @@ export function ChatThread({
     }
     setPendingAudio(null);
     setPendingImage(null);
+    setPendingGif(null);
     setError(null);
     setPendingVideo(file);
   }
@@ -1145,6 +1176,16 @@ export function ChatThread({
           </button>
         </div>
       )}
+      {pendingGif && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+          <span className="flex-1 truncate">GIF ready to send</span>
+          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
 
@@ -1178,6 +1219,14 @@ export function ChatThread({
         />
         <div className="flex flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
           <EmojiPickerButton onSelect={insertEmoji} />
+          <GifPickerButton
+            onSelect={(gifUrl) => {
+              setPendingAudio(null);
+              setPendingVideo(null);
+              setPendingImage(null);
+              setPendingGif(gifUrl);
+            }}
+          />
           <textarea
             ref={textareaRef}
             value={content}
@@ -1191,7 +1240,7 @@ export function ChatThread({
             maxLength={4000}
             rows={1}
             placeholder={
-              pendingAudio || pendingVideo || pendingImage
+              pendingAudio || pendingVideo || pendingImage || pendingGif
                 ? "Add a caption (optional)..."
                 : `Message ${conversationLabel}...`
             }
@@ -1249,7 +1298,7 @@ export function ChatThread({
             side by side. Idle (nothing typed, nothing attached) always
             means "record a voice note"; anything typed or attached means
             "send". */}
-        {content.trim() || pendingAudio || pendingVideo || pendingImage ? (
+        {content.trim() || pendingAudio || pendingVideo || pendingImage || pendingGif ? (
           <button
             type="button"
             disabled={isPending}
@@ -1289,6 +1338,7 @@ export function ChatThread({
             setShowAudioRecorder(false);
             setPendingVideo(null);
             setPendingImage(null);
+            setPendingGif(null);
             setPendingAudio(file);
           }}
         />
@@ -1301,6 +1351,7 @@ export function ChatThread({
             setShowVideoRecorder(false);
             setPendingAudio(null);
             setPendingImage(null);
+            setPendingGif(null);
             setPendingVideo(file);
           }}
         />

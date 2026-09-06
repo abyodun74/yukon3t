@@ -10,6 +10,7 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -118,6 +119,9 @@ export function PostComposer({
   const [video, setVideo] = useState<File | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  // A picked Tenor GIF URL — never uploaded, so it bypasses uploadAll's
+  // File-handling branches entirely.
+  const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
@@ -147,7 +151,7 @@ export function PostComposer({
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const imageCount = images.length + urlImages.length;
-  const hasOtherMedia = Boolean(video) || Boolean(embedUrl);
+  const hasOtherMedia = Boolean(video) || Boolean(embedUrl) || Boolean(pendingGif);
   const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
 
   function insertEmoji(emoji: string) {
@@ -197,6 +201,7 @@ export function PostComposer({
     setVideo(null);
     setVideoDurationSeconds(null);
     setEmbedUrl(null);
+    setPendingGif(null);
     const remaining = Math.max(0, MAX_IMAGES - urlImages.length);
     setImages((prev) => [...prev, ...next].slice(0, remaining));
   }
@@ -217,6 +222,7 @@ export function PostComposer({
     setVideo(null);
     setVideoDurationSeconds(null);
     setEmbedUrl(null);
+    setPendingGif(null);
     setUrlImages((prev) => [...prev, result.publicUrl].slice(0, MAX_IMAGES));
     setImageUrlValue("");
     setShowImageUrlInput(false);
@@ -248,6 +254,7 @@ export function PostComposer({
     setImages([]);
     setUrlImages([]);
     setEmbedUrl(null);
+    setPendingGif(null);
     setVideo(file);
     setVideoDurationSeconds(null);
     setStatus("idle");
@@ -297,6 +304,7 @@ export function PostComposer({
     setUrlImages([]);
     setVideo(null);
     setVideoDurationSeconds(null);
+    setPendingGif(null);
     setEmbedUrl(url);
     setEmbedError(null);
     setEmbedUrlValue("");
@@ -306,7 +314,7 @@ export function PostComposer({
   async function uploadAll(): Promise<
     | { error: string }
     | {
-        mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK";
+        mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
         mediaUrls: string[];
         videoUrl?: string;
         videoThumbnailUrl?: string;
@@ -314,6 +322,10 @@ export function PostComposer({
         embedUrl?: string;
       }
   > {
+    if (pendingGif) {
+      return { mediaType: "GIF", mediaUrls: [pendingGif] };
+    }
+
     if (imageCount > 0) {
       // Each local image is an independent presigned-URL request + direct
       // PUT to R2 — uploading them one at a time in sequence was the main
@@ -376,7 +388,7 @@ export function PostComposer({
       className="rounded-xl border border-line p-4"
       action={(fd) => {
         const content = String(fd.get("content") ?? "").trim();
-        if (!content && imageCount === 0 && !video && !embedUrl && !isEvent) {
+        if (!content && imageCount === 0 && !video && !embedUrl && !pendingGif && !isEvent) {
           setStatus("error");
           setErrorText("Write something, attach a photo/video, or add event details first.");
           return;
@@ -453,6 +465,7 @@ export function PostComposer({
             setVideo(null);
             setVideoDurationSeconds(null);
             setEmbedUrl(null);
+            setPendingGif(null);
             setIsEvent(false);
             setEventAt("");
             setEventLocation("");
@@ -575,6 +588,17 @@ export function PostComposer({
         </div>
       )}
 
+      {pendingGif && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+          <span className="flex-1 truncate">GIF attached</span>
+          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {showEmbedInput && (
         <div className="mt-2 flex items-center gap-2">
           <input
@@ -684,7 +708,7 @@ export function PostComposer({
           <MediaPickerButton
             icon={<Video size={16} />}
             title="Add a video"
-            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl)}
+            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl) || Boolean(pendingGif)}
             options={[
               {
                 label: "Upload from device",
@@ -701,7 +725,7 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => setShowEmbedInput((v) => !v)}
-            disabled={imageCount > 0 || Boolean(video)}
+            disabled={imageCount > 0 || Boolean(video) || Boolean(pendingGif)}
             className={cn(
               "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
@@ -722,6 +746,7 @@ export function PostComposer({
             <Calendar size={16} />
           </button>
           <EmojiPickerButton onSelect={insertEmoji} />
+          <GifPickerButton onSelect={(gifUrl) => setPendingGif(gifUrl)} disabled={hasOtherMedia || imageCount > 0} />
           <button
             type="button"
             onClick={() => setShowDictation(true)}

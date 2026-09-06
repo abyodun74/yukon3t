@@ -2,12 +2,12 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Image as ImageIcon, Mic, MessageCircle, Search, Users, Video } from "lucide-react";
+import { Image as ImageIcon, Mic, MessageCircle, Search, Sticker, Users, Video } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { formatInboxTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
-type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE";
+type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 
 export type InboxItem = {
   id: string;
@@ -31,6 +31,7 @@ const MEDIA_PREVIEW: Record<Exclude<MediaType, "NONE">, { icon: typeof ImageIcon
   IMAGE: { icon: ImageIcon, label: "Photo" },
   VIDEO: { icon: Video, label: "Video" },
   AUDIO: { icon: Mic, label: "Voice message" },
+  GIF: { icon: Sticker, label: "GIF" },
 };
 
 function LastMessagePreview({ last, isGroup }: { last: InboxItem["last"]; isGroup: boolean }) {

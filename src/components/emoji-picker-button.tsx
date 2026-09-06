@@ -12,6 +12,8 @@ import { Smile } from "lucide-react";
 // index that's otherwise dead weight for the vast majority of page loads.
 import type { Theme, EmojiStyle } from "emoji-picker-react";
 import { getSuggestedEmojis } from "@/lib/emoji-suggestions";
+import { useEmojiStyle } from "@/lib/emoji-style";
+import { computePopoverPosition, type PopoverPosition } from "@/lib/popover-position";
 
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 // The library's own search input, found once it's mounted (see the
@@ -21,14 +23,12 @@ const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 // The label text is part of the library's public accessibility contract,
 // far less likely to change across versions than an internal class name.
 const SEARCH_INPUT_SELECTOR = 'input[aria-label="Type to search for an emoji"]';
-// String enums under the hood (Theme.AUTO === "auto", EmojiStyle.NATIVE ===
-// "native") — literal values avoid needing a runtime import of the enums.
+// String enums under the hood (Theme.AUTO === "auto") — literal values
+// avoid needing a runtime import of the enum.
 const THEME_AUTO = "auto" as Theme;
-const EMOJI_STYLE_NATIVE = "native" as EmojiStyle;
 
 const PICKER_WIDTH = 300;
 const PICKER_HEIGHT = 360;
-const VIEWPORT_MARGIN = 8;
 const SUGGESTIONS_BAR_HEIGHT = 40;
 // A compact quick-reaction row (see the `quickReactions` prop) — sized to
 // content instead of the full picker's fixed box, same WhatsApp-style
@@ -36,55 +36,7 @@ const SUGGESTIONS_BAR_HEIGHT = 40;
 const QUICK_BAR_HEIGHT = 44;
 const QUICK_BUTTON_WIDTH = 36;
 
-type Position = { top: number; left: number; width: number; height: number };
-
-/**
- * window.visualViewport (not window.innerWidth/innerHeight) is what
- * actually shrinks when a mobile on-screen keyboard opens — this button
- * also sits in the comment/message composer, where the keyboard is up by
- * the time someone taps it. Falls back to the layout viewport for browsers
- * without the API.
- */
-function getViewportSize() {
-  const vv = typeof window !== "undefined" ? window.visualViewport : null;
-  return { width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
-}
-
-/**
- * The picker is rendered via a portal, positioned with `fixed` coordinates
- * computed from the trigger button's own bounding rect — not CSS
- * `top-full`/`bottom-full` on a relatively-positioned ancestor. Buttons
- * live inside scrollable message lists, and an absolutely-positioned
- * popup taller than the remaining space in that scroll container gets
- * silently clipped (and its "visible" — but unclickable — remainder
- * swallows clicks meant for whatever sits behind it). A portal escapes
- * that clipping and lets us flip/clamp against the actual viewport.
- *
- * Width/height are also clamped to the viewport, not just position — on
- * a narrow phone (or any viewport shorter than ~376px once the keyboard is
- * up) the fixed 300x360 size itself doesn't fit, and clamping only the
- * top/left coordinates against a size larger than the viewport pushes the
- * box partly off-screen rather than shrinking it to fit.
- */
-function computePosition(rect: DOMRect, desiredWidth = PICKER_WIDTH, desiredHeight = PICKER_HEIGHT): Position {
-  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-  const width = Math.min(desiredWidth, viewportWidth - VIEWPORT_MARGIN * 2);
-  const height = Math.min(desiredHeight, viewportHeight - VIEWPORT_MARGIN * 2);
-
-  const spaceBelow = viewportHeight - rect.bottom;
-  const openUp = spaceBelow < height + VIEWPORT_MARGIN && rect.top > spaceBelow;
-
-  const top = openUp
-    ? Math.max(VIEWPORT_MARGIN, rect.top - height - VIEWPORT_MARGIN)
-    : Math.min(rect.bottom + VIEWPORT_MARGIN, viewportHeight - height - VIEWPORT_MARGIN);
-
-  const left = Math.min(
-    Math.max(VIEWPORT_MARGIN, rect.right - width),
-    viewportWidth - width - VIEWPORT_MARGIN,
-  );
-
-  return { top, left, width, height };
-}
+type Position = PopoverPosition;
 
 export function EmojiPickerButton({
   onSelect,
@@ -102,6 +54,7 @@ export function EmojiPickerButton({
 }) {
   const [open, setOpen] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(!quickReactions);
+  const [emojiStyle] = useEmojiStyle();
   const [position, setPosition] = useState<Position | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -172,8 +125,8 @@ export function EmojiPickerButton({
       const quickBarWidth = quickReactions ? (quickReactions.length + 1) * QUICK_BUTTON_WIDTH : PICKER_WIDTH;
       setPosition(
         startsWithQuickBar
-          ? computePosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
-          : computePosition(rect),
+          ? computePopoverPosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
+          : computePopoverPosition(rect, PICKER_WIDTH, PICKER_HEIGHT),
       );
       // Cleared here (a plain event handler) rather than in the effect
       // above, so a stale "Suggested" row from the last time this was open
@@ -186,7 +139,7 @@ export function EmojiPickerButton({
   /** "+" on the compact quick-reaction row — expands the same popup into the full picker (triggering its dynamic import for the first time). */
   function expandToFullPicker() {
     if (buttonRef.current) {
-      setPosition(computePosition(buttonRef.current.getBoundingClientRect()));
+      setPosition(computePopoverPosition(buttonRef.current.getBoundingClientRect(), PICKER_WIDTH, PICKER_HEIGHT));
     }
     setShowFullPicker(true);
   }
@@ -265,7 +218,7 @@ export function EmojiPickerButton({
                 )}
                 <EmojiPicker
                   theme={THEME_AUTO}
-                  emojiStyle={EMOJI_STYLE_NATIVE}
+                  emojiStyle={emojiStyle as EmojiStyle}
                   width={position.width}
                   // Borrows space from the picker itself when the suggestions
                   // bar is showing, rather than adding to the popup's total

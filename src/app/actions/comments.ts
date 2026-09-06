@@ -10,6 +10,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
+import { isTenorUrl } from "@/lib/tenor";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -25,11 +26,17 @@ export async function createComment(formData: FormData) {
     postId: formData.get("postId"),
     parentId: formData.get("parentId") || undefined,
     content: formData.get("content"),
+    gifUrl: formData.get("gifUrl") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" };
   }
-  const { postId, parentId, content } = parsed.data;
+  const { postId, parentId, content, gifUrl } = parsed.data;
+  // Never uploaded to this app — the Tenor host check is the only gate,
+  // same reasoning as sendMessage's/createPost's GIF handling.
+  if (gifUrl && !isTenorUrl(gifUrl)) {
+    return { error: "invalid" };
+  }
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post || post.moderationStatus !== "PUBLISHED") {
@@ -50,8 +57,14 @@ export async function createComment(formData: FormData) {
     }
   }
 
-  const modResult = await moderateText(content);
-  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+  // A GIF-only comment (no typed text) has nothing of this app's own to
+  // check — Tenor's catalog is pre-moderated, same reasoning as GIF
+  // messages/posts.
+  const moderationStatus = content
+    ? (await moderateText(content)).allowed
+      ? "PUBLISHED"
+      : "FLAGGED"
+    : "PUBLISHED";
 
   // Comment creation and the post's commentCount must land together —
   // a crash or a race between the two here would otherwise leave the
@@ -59,7 +72,7 @@ export async function createComment(formData: FormData) {
   // the same failure mode deleteComment already guards against below.
   const comment = await prisma.$transaction(async (tx) => {
     const created = await tx.comment.create({
-      data: { postId, authorId: user.id, parentId, content, moderationStatus },
+      data: { postId, authorId: user.id, parentId, content, gifUrl, moderationStatus },
     });
     if (moderationStatus === "PUBLISHED") {
       await tx.post.update({

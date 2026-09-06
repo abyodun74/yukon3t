@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { createComment } from "@/app/actions/comments";
+import { GifPickerButton } from "@/components/gif-picker-button";
 
 function errorMessage(code: string) {
   switch (code) {
@@ -25,6 +27,7 @@ export function CommentComposer({
   onDone?: () => void;
 }) {
   const [content, setContent] = useState("");
+  const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -34,11 +37,12 @@ export function CommentComposer({
       className="mt-2"
       action={() => {
         const trimmed = content.trim();
-        if (!trimmed) return;
+        if (!trimmed && !pendingGif) return;
         const fd = new FormData();
         fd.set("postId", postId);
         if (parentId) fd.set("parentId", parentId);
         fd.set("content", trimmed);
+        if (pendingGif) fd.set("gifUrl", pendingGif);
         startTransition(async () => {
           const result = await createComment(fd);
           if (result.error) {
@@ -46,6 +50,7 @@ export function CommentComposer({
             return;
           }
           setContent("");
+          setPendingGif(null);
           setErrorText(null);
           router.refresh();
           onDone?.();
@@ -60,10 +65,21 @@ export function CommentComposer({
         placeholder={parentId ? "Write a reply..." : "Write a comment..."}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
+      {pendingGif && (
+        <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Tenor-hosted preview, not a local/optimizable asset */}
+          <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+          <span className="flex-1 truncate">GIF attached</span>
+          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="mt-1.5 flex items-center gap-2">
+        <GifPickerButton onSelect={setPendingGif} />
         <button
           type="submit"
-          disabled={isPending || content.trim().length === 0}
+          disabled={isPending || (content.trim().length === 0 && !pendingGif)}
           className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
         >
           {parentId ? "Reply" : "Comment"}

@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
-import { getAcceptedConnectionIds } from "@/lib/connections";
+import { getConnectedOrPendingIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
@@ -35,7 +35,7 @@ export async function loadMoreDiscoverPeople(
 
   const [blockedIds, connectedIds] = await Promise.all([
     getBlockedEitherWayIds(me.id),
-    getAcceptedConnectionIds(me.id),
+    getConnectedOrPendingIds(me.id),
   ]);
 
   const people = await prisma.user.findMany({

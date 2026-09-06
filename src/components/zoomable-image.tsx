@@ -85,6 +85,13 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
     }
   }
 
+  /** A plain single tap/click, while zoomed in, snaps back to original size — without closing the lightbox (that's the backdrop's own onClick, stopped below via stopPropagation). No-op at the default scale so an ordinary tap still does nothing there. */
+  function resetIfZoomed() {
+    if (scale <= MIN_SCALE) return;
+    setScale(MIN_SCALE);
+    setTranslate({ x: 0, y: 0 });
+  }
+
   function handleTouchStart(e: TouchEvent<HTMLDivElement>) {
     setIsGesturing(true);
     if (e.touches.length === 2) {
@@ -136,6 +143,17 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
 
   function handleTouchEnd(e: TouchEvent<HTMLDivElement>) {
     if (e.touches.length === 0) {
+      // A released touch that barely moved is a tap, not the end of a pan —
+      // reset-if-zoomed for it. Harmlessly also fires on the first half of a
+      // genuine double-tap (briefly snapping back before toggleZoom re-zooms
+      // on the second tap), which happens within the ~300ms double-tap
+      // window and isn't perceptible.
+      const wasPan = gesture.current.mode === "pan";
+      const last = e.changedTouches[0];
+      if (last) {
+        const moved = Math.hypot(last.clientX - gesture.current.startPoint.x, last.clientY - gesture.current.startPoint.y);
+        if (!wasPan || moved < DOUBLE_TAP_MAX_MOVE_PX) resetIfZoomed();
+      }
       gesture.current.mode = "none";
       setIsGesturing(false);
       // A pinch that ends below the minimum should snap back rather than
@@ -178,7 +196,13 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
       ref={containerRef}
       className="flex h-full max-h-[90vh] w-full max-w-full items-center justify-center overflow-hidden"
       style={{ touchAction: "none" }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        // A click still fires after a mouse-drag pan — only treat it as a
+        // tap-to-reset if the pointer barely moved since mousedown.
+        const moved = Math.hypot(e.clientX - gesture.current.startPoint.x, e.clientY - gesture.current.startPoint.y);
+        if (moved < DOUBLE_TAP_MAX_MOVE_PX) resetIfZoomed();
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

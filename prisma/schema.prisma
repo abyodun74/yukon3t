@@ -504,6 +504,10 @@ enum PostMediaType {
   VIDEO
   EMBED
   LINK
+  // A Tenor-hosted GIF, picked via the GIF search button rather than
+  // uploaded — mediaUrl must be a Tenor CDN URL (see isTenorUrl in
+  // src/lib/tenor.ts), never a user-uploaded R2 object like IMAGE/VIDEO.
+  GIF
 }
 
 enum EmbedProvider {
@@ -655,6 +659,10 @@ model Comment {
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
   editedAt         DateTime?
+  // GIF-only for now (comments have no upload flow, unlike posts/messages)
+  // — must be a Tenor CDN URL, validated by isTenorUrl before this is ever
+  // set. No separate mediaType column since GIF is the only kind in scope.
+  gifUrl           String?
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -1365,6 +1373,8 @@ enum MessageMediaType {
   AUDIO
   VIDEO
   IMAGE
+  // A Tenor-hosted GIF — see PostMediaType.GIF, same rules apply.
+  GIF
 }
 
 model Message {

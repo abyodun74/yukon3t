@@ -9,6 +9,7 @@ import { RingtonePicker } from "@/components/ringtone-picker";
 import { InviteContactsButton } from "@/components/invite-contacts-button";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 import { PhoneVerificationForm } from "@/components/phone-verification-form";
+import { EmojiStyleSetting } from "@/components/emoji-style-setting";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
 // the action file — see Next.js docs). AccountDangerZone's exportMyData is
@@ -109,6 +110,16 @@ export default async function SettingsPage({
         </p>
         <div className="mt-4">
           <PushNotificationsToggle />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Emoji style</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Choose how emoji look everywhere in the app — reactions, messages, and posts.
+        </p>
+        <div className="mt-4">
+          <EmojiStyleSetting />
         </div>
       </div>
 

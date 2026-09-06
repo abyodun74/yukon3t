@@ -21,6 +21,7 @@ import { sendPushToUser } from "@/lib/push";
 import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
+import { isTenorUrl } from "@/lib/tenor";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -429,6 +430,14 @@ export async function sendMessage(formData: FormData) {
       await cleanupUploads();
       return { error: "too_large" as const };
     }
+  } else if (mediaType === "GIF") {
+    // Never uploaded to this app's R2 bucket (picked straight from Tenor
+    // search), so there's no ownership/size check to run — the Tenor host
+    // check is the only gate. Also skips this app's own moderation pipeline
+    // below, trusting Tenor's own pre-moderated catalog instead.
+    if (!mediaUrl || !isTenorUrl(mediaUrl)) {
+      return { error: "invalid" as const };
+    }
   }
 
   let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
@@ -489,7 +498,9 @@ export async function sendMessage(formData: FormData) {
         ? "Sent a photo"
         : mediaType === "VIDEO"
           ? "Sent a video"
-          : "Sent a voice note";
+          : mediaType === "GIF"
+            ? "Sent a GIF"
+            : "Sent a voice note";
   await Promise.all(
     recipientIds.map((recipientId) =>
       sendPushToUser(recipientId, {
