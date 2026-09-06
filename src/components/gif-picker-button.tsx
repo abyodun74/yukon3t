@@ -134,7 +134,7 @@ export function GifPickerButton({
         createPortal(
           <div
             ref={popupRef}
-            className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
+            className="fixed z-50 flex flex-col overflow-hidden rounded-lg border-4 border-lime-400 bg-surface shadow-lg"
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             {/* TEMP DIAGNOSTIC — remove before final ship */}
