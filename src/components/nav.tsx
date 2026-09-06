@@ -501,17 +501,17 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   }
                 });
               }
-              const navOverflow = navRect.right > iw + 1 || navRect.left < -1;
-              if (sw > iw || navOverflow) {
-                if (!banner) {
-                  banner = document.createElement("div");
-                  banner.style.cssText =
-                    "position:fixed;top:60px;left:0;right:0;z-index:99999;background:yellow;color:red;font-size:11px;padding:6px;white-space:pre-wrap;max-height:60vh;overflow:auto;";
-                  document.body.appendChild(banner);
-                }
-                banner.textContent = `tick=${ticks} iw=${iw} sw=${sw}\nnavRect L${Math.round(navRect.left)} R${Math.round(navRect.right)} W${Math.round(navRect.width)}\n` + offenders.slice(0, 12).join("\n");
+              if (!banner) {
+                banner = document.createElement("div");
+                banner.style.cssText =
+                  "position:fixed;top:60px;left:0;right:0;z-index:99999;background:yellow;color:red;font-size:11px;padding:6px;white-space:pre-wrap;max-height:60vh;overflow:auto;";
+                document.body.appendChild(banner);
               }
-              if (ticks < 8) setTimeout(check, 500);
+              banner.textContent =
+                `tick=${ticks} iw=${iw} sw=${sw} vvw=${window.visualViewport?.width} dcw=${document.documentElement.clientWidth} bcw=${document.body.clientWidth} dpr=${window.devicePixelRatio}\n` +
+                `navRect L${Math.round(navRect.left)} R${Math.round(navRect.right)} W${Math.round(navRect.width)}\n` +
+                offenders.slice(0, 8).join("\n");
+              if (ticks < 6) setTimeout(check, 700);
             };
             check();
           }}
