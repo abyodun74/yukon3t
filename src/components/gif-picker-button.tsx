@@ -134,44 +134,9 @@ export function GifPickerButton({
         createPortal(
           <div
             ref={popupRef}
-            className="fixed z-50 flex flex-col overflow-hidden rounded-lg bg-surface shadow-lg"
-            style={{
-              top: position.top,
-              left: position.left,
-              width: position.width,
-              height: position.height,
-              border: "6px solid lime",
-            }}
+            className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
+            style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
-            {/* TEMP DIAGNOSTIC — remove before final ship */}
-            <div
-              ref={(el) => {
-                if (!el) return;
-                const probe = document.createElement("div");
-                probe.style.position = "fixed";
-                probe.style.top = "0";
-                document.body.appendChild(probe);
-                probe.style.height = "env(safe-area-inset-top)";
-                const envVal = getComputedStyle(probe).height;
-                probe.style.height = "var(--status-bar-inset-top, -1px)";
-                const varVal = getComputedStyle(probe).height;
-                document.body.removeChild(probe);
-                const popupTop = el.parentElement ? getComputedStyle(el.parentElement).top : "?";
-                const popupRect = el.parentElement?.getBoundingClientRect();
-                const msg = `env=${envVal}\nvar=${varVal}\nvv=${window.visualViewport?.height ?? "?"}\nih=${window.innerHeight}\ndpr=${window.devicePixelRatio}\npopupTopCSS=${popupTop}\npopupRectTop=${popupRect?.top}\nvvOffsetTop=${window.visualViewport?.offsetTop}\nscrollY=${window.scrollY}\nbannerRectTop=${el.getBoundingClientRect().top}`;
-                el.textContent = msg;
-                console.log("YK3_DIAG " + msg);
-              }}
-              style={{
-                fontSize: 12,
-                color: "red",
-                background: "yellow",
-                padding: 4,
-                marginTop: 44,
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.5,
-              }}
-            />
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
               <Search size={14} className="shrink-0 text-foreground-soft" />
               <input
