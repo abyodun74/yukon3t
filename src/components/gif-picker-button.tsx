@@ -141,6 +141,12 @@ export function GifPickerButton({
                 ))}
               </div>
             </div>
+            {/* Required by Giphy's API terms whenever their search/content
+                is used — see the "Powered by GIPHY" attribution requirement
+                on the production-access application form. */}
+            <div className="shrink-0 border-t border-line px-2 py-1 text-center text-[10px] text-foreground-soft">
+              Powered by GIPHY
+            </div>
           </div>,
           document.body,
         )}
