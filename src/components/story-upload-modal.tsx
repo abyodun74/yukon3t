@@ -193,6 +193,12 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
    * tapping the failed item's own retry control, not by re-picking it.
    */
   async function startUpload(item: StoryItem) {
+    // Also covers the retry path (the failed tile's own onClick, below):
+    // without this, tapping "Tap to retry" left the item's status stuck at
+    // "error" for the whole re-upload — no spinner feedback that the tap
+    // did anything, and nothing stopped a second tap mid-retry from firing
+    // a duplicate concurrent upload of the same file.
+    setItemUpload(item.id, { status: "uploading" });
     if (item.mediaType === "IMAGE") {
       const result = await uploadFileDirect(item.file, "story-image");
       if (!result.ok) {
