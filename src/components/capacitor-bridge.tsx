@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
@@ -23,10 +24,13 @@ import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
  * registerFcmToken itself already requires a session and no-ops otherwise.
  */
 export function CapacitorBridge() {
+  const router = useRouter();
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     let tokenListener: { remove: () => void } | undefined;
+    let actionListener: { remove: () => void } | undefined;
     let cancelled = false;
 
     (async () => {
@@ -98,13 +102,31 @@ export function CapacitorBridge() {
       tokenListener = await FirebaseMessaging.addListener("tokenReceived", (event) => {
         register(event.token);
       });
+
+      // Fires when the user taps a push notification — sendFcmActivityToUser
+      // (src/lib/fcm.ts) puts the notification's target path in the `url`
+      // data field, matching public/sw.js's own "notificationclick" handler
+      // for the web-push path. Capacitor retains this event (see the plugin's
+      // `notifyListeners(..., true)` on the Android side) and replays it once
+      // this listener attaches, so a cold start from a notification tap is
+      // covered the same as tapping while the app is already running.
+      actionListener = await FirebaseMessaging.addListener(
+        "notificationActionPerformed",
+        (event) => {
+          const url = (event.notification.data as Record<string, unknown> | undefined)?.url;
+          if (typeof url === "string" && url.startsWith("/")) {
+            router.push(url);
+          }
+        },
+      );
     })();
 
     return () => {
       cancelled = true;
       tokenListener?.remove();
+      actionListener?.remove();
     };
-  }, []);
+  }, [router]);
 
   return null;
 }
