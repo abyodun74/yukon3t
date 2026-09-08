@@ -78,6 +78,18 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Why do some people disappear from Discover?",
+        a: (
+          <>
+            Discover only shows people you haven&apos;t already interacted
+            with, connection-wise — once you send or receive a connection
+            request, they drop out of Discover&apos;s results (whether it&apos;s
+            still pending or already accepted). If a request gets declined,
+            that person can reappear in Discover for a fresh attempt.
+          </>
+        ),
+      },
+      {
         q: "Why is Home split into sections like Occupational, Entertainment, Politics, and Sports?",
         a: (
           <>
@@ -121,6 +133,30 @@ const sections: Section[] = [
             on (Android asks for this the first time you sign in) — if calls
             aren&apos;t waking your phone, check Settings → Apps → YuKon3t →
             Notifications.
+          </>
+        ),
+      },
+      {
+        q: "What shows up as a notification on my phone?",
+        a: (
+          <>
+            Incoming calls, missed calls (with the caller&apos;s name), and
+            now likes, comments, and connection requests too — these arrive
+            as real Android notifications even when the app isn&apos;t open,
+            not just the bell icon inside the app. Tapping one opens the
+            relevant post, comment thread, or Connections list.
+          </>
+        ),
+      },
+      {
+        q: "Turning up my phone's volume unmutes a video in my feed — is that supposed to happen?",
+        a: (
+          <>
+            Yes, that&apos;s intentional. Feed videos share one sound
+            setting for the whole app (tap the speaker icon on any video, or
+            turn your phone&apos;s volume up) — unmuting applies to every
+            video in your feed, including ones you scroll to afterward, the
+            same way Instagram&apos;s feed works.
           </>
         ),
       },
@@ -181,16 +217,61 @@ const sections: Section[] = [
         q: "Can I react to a post with something other than a heart?",
         a: (
           <>
-            Yes — the smiley icon next to the heart on any post opens a full
-            emoji picker. Pick any emoji to react; picking the same one again
-            removes it, and picking a different one swaps it. This is
-            separate from the heart/Like button, so you can Like a post and
-            add an emoji reaction at the same time. The same picker (in posts,
-            comments, and chats) understands informal and non-English search
-            terms too — typing &ldquo;pray,&rdquo;
+            Yes — the smiley icon next to the heart on any post (or a
+            message) opens a quick row of common reactions first, plus a
+            &ldquo;+&rdquo; for the full emoji picker if you want something
+            else. Picking the same emoji again removes it, and picking a
+            different one swaps it. This is separate from the heart/Like
+            button, so you can Like a post and add an emoji reaction at the
+            same time. The full picker (in posts, comments, and chats)
+            understands informal and non-English search terms too — typing
+            &ldquo;pray,&rdquo;
             &ldquo;amen&rdquo;/&ldquo;ameen&rdquo;/&ldquo;aameen,&rdquo; or
             &ldquo;sad&rdquo; surfaces a small &ldquo;Suggested&rdquo; row of
             relevant emoji above the regular search results.
+          </>
+        ),
+      },
+      {
+        q: "Can I change how emoji look throughout the app?",
+        a: (
+          <>
+            Yes — under Settings → Emoji style, pick between native, Apple,
+            Google, Facebook, or Twitter/X rendering. Whatever you pick
+            applies everywhere emoji show up: reactions, the picker, and
+            messages.
+          </>
+        ),
+      },
+      {
+        q: "Can I send a GIF?",
+        a: (
+          <>
+            Yes — the GIF button (next to the emoji button) in the post
+            composer, a chat, or a comment box opens a search. Pick one to
+            attach it, the same way you&apos;d attach a photo.
+          </>
+        ),
+      },
+      {
+        q: "Why do videos in my feed play automatically with no sound?",
+        a: (
+          <>
+            Feed videos autoplay muted as you scroll to them, and pause once
+            you scroll past — tap the speaker icon on the video to unmute
+            (see &ldquo;Turning up my phone&apos;s volume unmutes a
+            video&rdquo; above), or tap the video itself to pause/resume.
+          </>
+        ),
+      },
+      {
+        q: "How do I zoom back out of a photo without closing the viewer?",
+        a: (
+          <>
+            Tap the zoomed-in photo once (a plain tap, not double-tap) to
+            snap it back to its original size — double-tap still zooms in
+            and out the same way it always has, this just adds a faster way
+            back to normal size without leaving the viewer.
           </>
         ),
       },
@@ -436,14 +517,14 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Can I send photos, videos, or voice notes in a chat?",
+        q: "Can I send photos, videos, voice notes, or GIFs in a chat?",
         a: (
           <>
             Yes — the chat composer has an &ldquo;Add a photo&rdquo; and
             &ldquo;Add a video&rdquo; button (device, camera, or live
-            recording), plus a microphone icon for a recorded voice note.
-            Any message you send can be deleted for yourself, or for
-            everyone if you sent it.
+            recording), a GIF button, plus a microphone icon for a recorded
+            voice note. Any message you send can be deleted for yourself, or
+            for everyone if you sent it.
           </>
         ),
       },
@@ -478,6 +559,16 @@ const sections: Section[] = [
             decline. Accepting connects you into the call right away, even
             if their phone was locked or the app was in the background when
             it rang.
+          </>
+        ),
+      },
+      {
+        q: "Why do I hear a ringing sound when I call someone?",
+        a: (
+          <>
+            That&apos;s the ringback tone, so you know the call is actually
+            going through while you wait for them to answer — it stops as
+            soon as they answer, decline, or you cancel.
           </>
         ),
       },
@@ -844,6 +935,20 @@ const sections: Section[] = [
             account age, profile completeness, and activity streaks, minus
             any upheld reports against you. It&apos;s a reputation signal,
             not a background check.
+          </>
+        ),
+      },
+      {
+        q: "Will someone know if I take a screenshot?",
+        a: (
+          <>
+            In the native Android and iOS apps, yes, in a few places: during
+            a voice/video call (both of you are notified instantly), and
+            when viewing someone else&apos;s post, story, direct message, or
+            profile — the owner gets a notification that you took a
+            screenshot. Screenshotting your own content never notifies
+            anyone. This isn&apos;t available in a regular browser, since
+            there&apos;s no reliable way to detect a screenshot there.
           </>
         ),
       },
