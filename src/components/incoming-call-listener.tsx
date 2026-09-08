@@ -77,6 +77,7 @@ export function IncomingCallListener() {
       roomUrl: activeCall.roomUrl,
       token: activeCall.token,
       type: activeCall.type,
+      renderer: "direct",
       label: activeCall.callerName,
       onLeave: () => {
         endCall(activeCall.callId);

@@ -30,8 +30,14 @@ export type StartSessionInput = {
   /** "custom" renders LiveVideoFrame's own hand-rolled video grid instead
    * of CallFrame's Daily Prebuilt iframe — used by live streams, see
    * live-stream-room.tsx and src/components/live-video-frame.tsx for why.
-   * Omitted (Prebuilt) for regular calls/Collab, unaffected by this. */
-  renderer?: "prebuilt" | "custom";
+   * "direct" renders DirectCallFrame — the same hand-rolled approach, but
+   * for a regular 1:1 call instead of a broadcaster grid, chosen so its
+   * draggable self-view has a real local MediaStreamTrack to attach to
+   * (Prebuilt's local track isn't actually playable from the parent page —
+   * see call-frame.tsx and direct-call-frame.tsx). Used by call-button.tsx
+   * and incoming-call-listener.tsx. Omitted (Prebuilt) for Collab, which
+   * can have more than the two participants DirectCallFrame assumes. */
+  renderer?: "prebuilt" | "custom" | "direct";
   /** Shown in the minimized widget. */
   label: string;
   /** Caller's own cleanup (endCall()/setState/router.push, etc.) — invoked

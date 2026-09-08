@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, X } from "lucide-react";
 import { CallFrame } from "@/components/call-frame";
 import { LiveVideoFrame } from "@/components/live-video-frame";
+import { DirectCallFrame } from "@/components/direct-call-frame";
 import { useCallSession } from "@/lib/call-session";
 import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
 import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
@@ -145,6 +146,19 @@ export function GlobalCallFrame() {
           <LiveVideoFrame
             roomUrl={session.roomUrl}
             token={session.token}
+            onCallObject={setDailyCall}
+            onLeave={() => {
+              // Same reconnect-vs-real-hangup distinction as CallFrame below.
+              if (reconnectingRef.current) return;
+              session.onLeave();
+              endSession();
+            }}
+          />
+        ) : session.renderer === "direct" ? (
+          <DirectCallFrame
+            roomUrl={session.roomUrl}
+            token={session.token}
+            type={session.type}
             onCallObject={setDailyCall}
             onLeave={() => {
               // Same reconnect-vs-real-hangup distinction as CallFrame below.

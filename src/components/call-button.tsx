@@ -43,6 +43,7 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
       roomUrl: state.roomUrl,
       token: state.token,
       type: state.type,
+      renderer: "direct",
       label: calleeName,
       onLeave: () => {
         endCall(state.callId);
