@@ -26,6 +26,46 @@ function captureAlertText(alert: CaptureAlert) {
 }
 
 /**
+ * TEMPORARY diagnostic — DraggableSelfView's tile silently renders nothing
+ * whenever local.tracks.video doesn't come out the way expected, with no
+ * way to see why on a real phone without USB debugging (same problem
+ * live-stream-room.tsx hit with its own "Daily:" debug pill). Surfaces the
+ * raw local video track state on-screen instead of guessing again. Polls
+ * on an interval in addition to the two events below since it's not yet
+ * confirmed those events reliably fire for local-only changes in a
+ * createFrame() (Prebuilt) call the way they do for createCallObject().
+ * Remove once the self-view is confirmed working live.
+ */
+function SelfViewDebugPill({ dailyCall }: { dailyCall: DailyCall }) {
+  const [info, setInfo] = useState("init");
+
+  useEffect(() => {
+    function sync() {
+      const local = dailyCall.participants().local;
+      const v = local?.tracks.video;
+      setInfo(
+        `local:${local ? "yes" : "no"} state:${v?.state ?? "n/a"} subscribed:${String(v?.subscribed ?? "n/a")} track:${v?.track ? "yes" : "no"} persistentTrack:${v?.persistentTrack ? "yes" : "no"}`,
+      );
+    }
+    sync();
+    dailyCall.on("participant-updated", sync);
+    dailyCall.on("joined-meeting", sync);
+    const interval = setInterval(sync, 1000);
+    return () => {
+      dailyCall.off("participant-updated", sync);
+      dailyCall.off("joined-meeting", sync);
+      clearInterval(interval);
+    };
+  }, [dailyCall]);
+
+  return (
+    <div className="fixed left-1/2 top-16 z-[66] -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-1 text-center text-[10px] text-white">
+      self-view debug: {info}
+    </div>
+  );
+}
+
+/**
  * Renders the local participant's own camera track (pulled straight off the
  * shared DailyCall object) into a plain, freely-draggable tile floating
  * over the fullscreen call view — the movable self-view WhatsApp/FaceTime
@@ -297,7 +337,10 @@ export function GlobalCallFrame() {
           // only for CallFrame/Prebuilt sessions (regular calls and
           // Collab), and only once dailyCall exists (CallFrame hands it up
           // via onCallObject right after createFrame(), not before).
-          <DraggableSelfView dailyCall={dailyCall} />
+          <>
+            <DraggableSelfView dailyCall={dailyCall} />
+            <SelfViewDebugPill dailyCall={dailyCall} />
+          </>
         )}
 
         {!minimized && captureAlert && (
