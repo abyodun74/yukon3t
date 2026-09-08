@@ -52,6 +52,14 @@ export function DirectCallFrame({
   const [outputIndex, setOutputIndex] = useState(0);
   const selfViewRef = useRef<HTMLDivElement>(null);
   const { position: selfViewPosition, handlers: selfViewHandlers } = useViewportDrag(selfViewRef);
+  // Tap-to-swap (FaceTime/Zoom-style): false is the normal layout (remote
+  // fullscreen, your own camera as the small draggable tile); true swaps
+  // them. Toggled by tapping the tile itself, whichever participant it
+  // currently holds — see the tile's onClick below. A tap and a drag start
+  // the same way (pointerdown on the tile), but the browser's own click
+  // event only fires when the pointer didn't move past its drag threshold,
+  // so this doesn't need its own separate tap-vs-drag detection.
+  const [selfViewIsMain, setSelfViewIsMain] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,24 +155,40 @@ export function DirectCallFrame({
 
   const onSpeaker = Boolean(outputDevices[outputIndex] && isSpeakerDevice(outputDevices[outputIndex]));
 
+  // The tile only ever holds whichever participant ISN'T currently the
+  // main view — undefined when that participant isn't actually available
+  // yet (e.g. swapped to "remote main" before remote has joined), which
+  // hides the tile entirely rather than showing an empty box.
+  const tileParticipant = selfViewIsMain ? remote : local && localVideoOn ? local : undefined;
+
   return (
     <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black">
-      {remote ? (
-        <RemoteVideo participant={remote} />
+      {remote && <RemoteAudio participant={remote} />}
+
+      {selfViewIsMain && local ? (
+        <SelfVideo participant={local} />
+      ) : remote ? (
+        <RemoteVideo participant={remote} className="h-full w-full object-contain" />
       ) : (
         <div className="flex flex-col items-center gap-1 px-4 text-center text-sm text-white/60">
           {joinError ? <span className="text-danger">{joinError}</span> : "Connecting…"}
         </div>
       )}
 
-      {type === "VIDEO" && local && localVideoOn && (
+      {type === "VIDEO" && tileParticipant && (
         <div
           ref={selfViewRef}
           {...selfViewHandlers}
+          onClick={() => setSelfViewIsMain((v) => !v)}
+          title="Drag to move, tap to swap with the main view"
           className="fixed z-10 h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
           style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "1rem", left: "1rem" }}
         >
-          <SelfVideo participant={local} />
+          {selfViewIsMain ? (
+            <RemoteVideo participant={tileParticipant} className="h-full w-full object-cover" />
+          ) : (
+            <SelfVideo participant={tileParticipant} />
+          )}
         </div>
       )}
 
@@ -225,12 +249,34 @@ export function DirectCallFrame({
   );
 }
 
-/** Remote participant: camera (or screen share, if they're sharing) plus their audio. */
-function RemoteVideo({ participant }: { participant: DailyParticipant }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+/**
+ * Remote participant's audio only — mounted once, unconditionally,
+ * regardless of whether their video is currently in the main slot or the
+ * draggable tile (see the tap-to-swap state in DirectCallFrame). Keeping
+ * it independent of that layout means swapping never has to tear down and
+ * recreate the audio element, which would otherwise blip the call audio
+ * on every tap.
+ */
+function RemoteAudio({ participant }: { participant: DailyParticipant }) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const videoTrack = participant.tracks.video;
   const audioTrack = participant.tracks.audio;
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.srcObject =
+      audioTrack.state === "playable" && audioTrack.persistentTrack
+        ? new MediaStream([audioTrack.persistentTrack])
+        : null;
+  }, [audioTrack.state, audioTrack.persistentTrack]);
+
+  return <audio ref={audioRef} autoPlay playsInline />;
+}
+
+/** Remote participant's video only (camera, or their screen share if they're sharing) — sized by whichever slot renders it. */
+function RemoteVideo({ participant, className }: { participant: DailyParticipant; className: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoTrack = participant.tracks.video;
   const screenTrack = participant.tracks.screenVideo;
   const displayTrack = screenTrack.state === "playable" ? screenTrack : videoTrack;
 
@@ -243,26 +289,11 @@ function RemoteVideo({ participant }: { participant: DailyParticipant }) {
         : null;
   }, [displayTrack.state, displayTrack.persistentTrack]);
 
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.srcObject =
-      audioTrack.state === "playable" && audioTrack.persistentTrack
-        ? new MediaStream([audioTrack.persistentTrack])
-        : null;
-  }, [audioTrack.state, audioTrack.persistentTrack]);
-
   const hasVideo = displayTrack.state === "playable";
 
   return (
     <>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className={`h-full w-full object-contain ${hasVideo ? "" : "hidden"}`}
-      />
-      <audio ref={audioRef} autoPlay playsInline />
+      <video ref={videoRef} autoPlay playsInline className={`${className} ${hasVideo ? "" : "hidden"}`} />
       {!hasVideo && (
         <span className="absolute text-sm text-white/60">{participant.user_name || "Connecting…"}</span>
       )}
