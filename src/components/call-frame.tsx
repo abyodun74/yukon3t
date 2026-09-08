@@ -98,6 +98,13 @@ export function CallFrame({
       const call = DailyIframe.createFrame(containerRef.current, {
         showLeaveButton: true,
         showFullscreenButton: true,
+        // Prebuilt's own built-in self-view tile is fixed in place — hidden
+        // here so global-call-frame.tsx's DraggableSelfView (a plain
+        // <video> bound to this same call object's local track, rendered
+        // outside this iframe) can stand in as a movable one instead. This
+        // only hides the on-screen tile; the camera itself stays on and
+        // still streams to the other participant exactly as before.
+        showLocalVideo: false,
         iframeStyle: { width: "100%", height: "100%", border: "0" },
         ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
         customTrayButtons: trayButtons,

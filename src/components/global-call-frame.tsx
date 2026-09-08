@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, X } from "lucide-react";
+import type { DailyCall } from "@daily-co/daily-js";
 import { CallFrame } from "@/components/call-frame";
 import { LiveVideoFrame } from "@/components/live-video-frame";
 import { useCallSession } from "@/lib/call-session";
 import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
 import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
 import { onScreenCaptureDetected, type CaptureKind } from "@/lib/screen-capture-guard";
+import { useViewportDrag } from "@/lib/use-viewport-drag";
 
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
@@ -24,27 +26,80 @@ function captureAlertText(alert: CaptureAlert) {
 }
 
 /**
+ * Renders the local participant's own camera track (pulled straight off the
+ * shared DailyCall object) into a plain, freely-draggable tile floating
+ * over the fullscreen call view — the movable self-view WhatsApp/FaceTime
+ * show during a video call. Daily Prebuilt's own built-in self-view tile is
+ * fixed in place and can't be repositioned from outside its cross-origin
+ * iframe, so call-frame.tsx hides it (`showLocalVideo: false`) and this
+ * stands in for it instead, reading the exact same track everyone else on
+ * the call already receives.
+ */
+function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
+  const tileRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
+  const { position, handlers } = useViewportDrag(tileRef);
+
+  useEffect(() => {
+    function sync() {
+      const track = dailyCall.participants().local?.tracks.video;
+      setVideoTrack(track?.state === "playable" ? (track.persistentTrack ?? null) : null);
+    }
+    sync();
+    // Fires for every participant's update, not just the local one — cheap
+    // to just re-derive from participants().local each time regardless of
+    // whose track actually changed, same pattern live-video-frame.tsx uses.
+    dailyCall.on("participant-updated", sync);
+    dailyCall.on("joined-meeting", sync);
+    return () => {
+      dailyCall.off("participant-updated", sync);
+      dailyCall.off("joined-meeting", sync);
+    };
+  }, [dailyCall]);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
+  }, [videoTrack]);
+
+  // Camera off (or not yet playable) — nothing useful to show or drag.
+  if (!videoTrack) return null;
+
+  return (
+    <div
+      ref={tileRef}
+      {...handlers}
+      className="fixed z-[65] h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
+      // Defaults to the top-left corner, clear of the fullscreen call's own
+      // top-4-centered capture-alert/shared-material overlays and the
+      // bottom-4-right Leave/Minimize controls — once dragged, `position`'s
+      // explicit left/top takes over entirely, same convention as the
+      // minimized widget below.
+      style={position ? { left: position.left, top: position.top } : { top: "1rem", left: "1rem" }}
+    >
+      {/* Mirrored like every other self-view (FaceTime, WhatsApp, Daily's
+          own hidden tile) — what you see is flipped, what the other
+          participant receives never is. */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="h-full w-full object-cover [transform:scaleX(-1)]"
+      />
+    </div>
+  );
+}
+
+/**
  * The single place <CallFrame> gets mounted, root-rendered (src/app/layout.tsx)
  * so it survives navigation regardless of which page/component started the
  * session (see call-session.tsx). Toggling `minimized` only changes this
  * wrapper's size/position — the underlying <CallFrame>/Daily iframe never
  * unmounts, so the call itself is never interrupted.
  */
-/** Minimized widget's default size (Tailwind h-40 w-64) — used to clamp a dragged position on-screen. */
-const MINIMIZED_WIDTH = 256;
-const MINIMIZED_HEIGHT = 160;
-/** Keeps the widget from being dragged fully off-screen or under the mobile bottom nav/browser chrome. */
-const DRAG_EDGE_MARGIN = 8;
-
-function clampDragPosition(left: number, top: number, width: number, height: number) {
-  const maxLeft = Math.max(DRAG_EDGE_MARGIN, window.innerWidth - width - DRAG_EDGE_MARGIN);
-  const maxTop = Math.max(DRAG_EDGE_MARGIN, window.innerHeight - height - DRAG_EDGE_MARGIN);
-  return {
-    left: Math.min(Math.max(DRAG_EDGE_MARGIN, left), maxLeft),
-    top: Math.min(Math.max(DRAG_EDGE_MARGIN, top), maxTop),
-  };
-}
-
 export function GlobalCallFrame() {
   const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
@@ -54,12 +109,7 @@ export function GlobalCallFrame() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
-  // Explicit left/top the minimized widget's been dragged to — null means
-  // "still at its default bottom-right corner" (the right-4/bottom:5rem
-  // positioning below). Pixel-based rather than a Tailwind corner because
-  // it can end up anywhere on screen once dragged.
-  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
-  const dragStateRef = useRef<{ pointerId: number; startClientX: number; startClientY: number; startLeft: number; startTop: number } | null>(null);
+  const minimizedDrag = useViewportDrag(widgetRef);
 
   // A material shared in one session shouldn't bleed into whatever's
   // started next (or reappear if you leave and rejoin the same one). Reset
@@ -71,39 +121,7 @@ export function GlobalCallFrame() {
     setSharedMaterial(null);
     setUploadError(null);
     setCaptureAlert(null);
-    setDragPos(null);
-  }
-
-  // The video itself is a cross-origin Daily iframe, which captures pointer
-  // events before they'd ever reach a handler on this wrapper — dragging
-  // has to happen via a transparent overlay sitting above the iframe (see
-  // the drag-handle div below), not the wrapper itself.
-  function handleDragPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    const el = widgetRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const startLeft = dragPos?.left ?? rect.left;
-    const startTop = dragPos?.top ?? rect.top;
-    dragStateRef.current = { pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startLeft, startTop };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  function handleDragPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const el = widgetRef.current;
-    const width = el?.offsetWidth ?? MINIMIZED_WIDTH;
-    const height = el?.offsetHeight ?? MINIMIZED_HEIGHT;
-    const dx = e.clientX - drag.startClientX;
-    const dy = e.clientY - drag.startClientY;
-    setDragPos(clampDragPosition(drag.startLeft + dx, drag.startTop + dy, width, height));
-  }
-
-  function handleDragPointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    dragStateRef.current = null;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    minimizedDrag.reset();
   }
 
   function showCaptureAlert(alert: CaptureAlert) {
@@ -167,7 +185,7 @@ export function GlobalCallFrame() {
         ref={widgetRef}
         className={
           minimized
-            ? `fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${dragPos ? "" : " right-4"}`
+            ? `fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${minimizedDrag.position ? "" : " right-4"}`
             : "fixed inset-0 z-[60] bg-black"
         }
         // bottom offset as an inline style, not a `bottom-*` Tailwind
@@ -178,13 +196,19 @@ export function GlobalCallFrame() {
         // `pb-16` on signed-in users) — a bit more clearance than strictly
         // needed on desktop, not worth a resize-aware breakpoint for.
         //
-        // Once dragged, dragPos's explicit left/top takes over from the
-        // right-4/bottom:5rem default corner entirely — mixing a dragged
-        // `left` with the still-applied `right-4` class works out fine in
-        // practice (the explicit `width` above wins per CSS's
-        // over-constrained rules), but the corner class is also dropped
-        // above just to keep the two positioning modes unambiguous.
-        style={minimized ? (dragPos ? { left: dragPos.left, top: dragPos.top } : { bottom: "5rem" }) : undefined}
+        // Once dragged, minimizedDrag.position's explicit left/top takes
+        // over from the right-4/bottom:5rem default corner entirely —
+        // mixing a dragged `left` with the still-applied `right-4` class
+        // works out fine in practice (the explicit `width` above wins per
+        // CSS's over-constrained rules), but the corner class is also
+        // dropped above just to keep the two positioning modes unambiguous.
+        style={
+          minimized
+            ? minimizedDrag.position
+              ? { left: minimizedDrag.position.left, top: minimizedDrag.position.top }
+              : { bottom: "5rem" }
+            : undefined
+        }
       >
         {session.renderer === "custom" ? (
           <LiveVideoFrame
@@ -224,10 +248,7 @@ export function GlobalCallFrame() {
           // cross-origin and would otherwise swallow the pointer events
           // this drag depends on before they ever reached this component.
           <div
-            onPointerDown={handleDragPointerDown}
-            onPointerMove={handleDragPointerMove}
-            onPointerUp={handleDragPointerUp}
-            onPointerCancel={handleDragPointerUp}
+            {...minimizedDrag.handlers}
             className="absolute inset-0 z-[5] cursor-grab touch-none select-none active:cursor-grabbing"
           />
         )}
@@ -261,6 +282,15 @@ export function GlobalCallFrame() {
               <PhoneOff size={14} />
             </button>
           </div>
+        )}
+
+        {!minimized && session.type === "VIDEO" && session.renderer !== "custom" && dailyCall && (
+          // LiveVideoFrame (the "custom" renderer, live streams only)
+          // already draws its own local tile inline in its grid — this is
+          // only for CallFrame/Prebuilt sessions (regular calls and
+          // Collab), and only once dailyCall exists (CallFrame hands it up
+          // via onCallObject right after createFrame(), not before).
+          <DraggableSelfView dailyCall={dailyCall} />
         )}
 
         {!minimized && captureAlert && (
