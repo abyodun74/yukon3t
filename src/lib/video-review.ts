@@ -2,16 +2,20 @@
 // storage.ts's HIVE_VIDEO_MODERATION_MAX_SECONDS and createPost's
 // videoNeedsManualReview) — these publish hidden (moderationStatus FLAGGED)
 // at creation time, and this is what turns that hidden state into a real
-// verdict: PUBLISHED if clean, deleted outright if flagged. Driven by the
-// moderate-long-videos cron, one post per tick.
+// verdict: PUBLISHED if clean, deleted outright if flagged.
 //
-// One call to advanceLongVideoReview covers exactly one cron tick's worth of
-// work. Cloudflare Stream processing a full-length video (copy/encode, then
-// caption generation) routinely spans several ticks, so this is written to
-// be safely called repeatedly against the same post: it re-derives what to
-// do next from Cloudflare's own live status rather than tracking its own
-// separate stage field, so a killed/timed-out tick just gets redone by the
-// next one with no lost progress beyond that one tick's API calls.
+// One call covers one step (in_progress) or the final verdict (clean/
+// flagged/error) — the moderate-long-videos route calls this in a loop
+// (reviewOnePost) until one of those terminal states comes back or its own
+// per-tick time budget runs out, so most videos now reach a verdict within
+// a single tick rather than one step per cron interval. Still written to be
+// safely called repeatedly against the same post regardless of who's
+// calling or how many times: it re-derives what to do next from
+// Cloudflare's own live status rather than tracking its own separate stage
+// field, so a killed/timed-out call just gets redone with no lost progress
+// beyond that one call's API calls. This is also why createPost can safely
+// kick off just the first step (createStreamCopy) eagerly at upload time —
+// whatever it hands off, this function picks up from exactly there.
 import {
   isStreamConfigured,
   createStreamCopy,

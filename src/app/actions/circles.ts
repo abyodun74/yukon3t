@@ -20,6 +20,7 @@ import {
   keyFromPublicUrl,
 } from "@/lib/storage";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
+import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
@@ -649,6 +650,20 @@ export async function createPost(formData: FormData) {
     }
   }
 
+  // Starts the long-video review's own slow part (Cloudflare copying and
+  // encoding the video) right now instead of leaving it to whenever the
+  // moderate-long-videos cron next discovers this post — that discovery lag
+  // used to be the single biggest source of delay between "uploaded" and
+  // "verdict" for a long video, bigger than the actual review work itself.
+  // Kicked off alongside classifyPostCategory below rather than awaited
+  // here, same reasoning as embedTitlePromise. Best-effort: createStreamCopy
+  // already fails closed to null on any error, and advanceLongVideoReview
+  // (video-review.ts) creates its own copy on the cron's first pass if this
+  // one never lands — so a failure here just falls back to the old timing,
+  // never blocks or fails the post itself.
+  const streamUidPromise =
+    videoNeedsManualReview && videoUrl && isStreamConfigured() ? createStreamCopy(videoUrl) : Promise.resolve(null);
+
   // Feed section is auto-assigned from the post's own content instead of
   // the manual picker post-composer.tsx used to show — classifyPostCategory
   // embeds [content, embed title] once and hands back that same vector, so
@@ -658,6 +673,7 @@ export async function createPost(formData: FormData) {
   const { category: feedCategory, embedding } = await classifyPostCategory(
     [parsed.data.content, embedTitle].filter(Boolean).join("\n"),
   );
+  const streamUid = await streamUidPromise;
 
   const post = await prisma.post.create({
     data: {
@@ -684,6 +700,7 @@ export async function createPost(formData: FormData) {
       // up and wasting/failing a Hive call on something it was never going
       // to handle.
       videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
+      videoStreamUid: streamUid ?? undefined,
     },
   });
   if (embedding) {
