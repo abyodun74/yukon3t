@@ -99,9 +99,18 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
     // whose track actually changed, same pattern live-video-frame.tsx uses.
     dailyCall.on("participant-updated", sync);
     dailyCall.on("joined-meeting", sync);
+    // Confirmed live (see SelfViewDebugPill below) that persistentTrack
+    // does become available on the local participant, but this component
+    // stayed stuck on its initial (empty) read regardless — "participant-
+    // updated" doesn't reliably fire for local-only track-state changes in
+    // a createFrame() (Prebuilt) call the way it does for a plain
+    // createCallObject() one. Short interval poll as the actual mechanism
+    // that catches it, same fallback the debug pill already relies on.
+    const interval = setInterval(sync, 1000);
     return () => {
       dailyCall.off("participant-updated", sync);
       dailyCall.off("joined-meeting", sync);
+      clearInterval(interval);
     };
   }, [dailyCall]);
 
