@@ -98,13 +98,15 @@ export function CallFrame({
       const call = DailyIframe.createFrame(containerRef.current, {
         showLeaveButton: true,
         showFullscreenButton: true,
-        // Prebuilt's own built-in self-view tile is fixed in place — hidden
-        // here so global-call-frame.tsx's DraggableSelfView (a plain
-        // <video> bound to this same call object's local track, rendered
-        // outside this iframe) can stand in as a movable one instead. This
-        // only hides the on-screen tile; the camera itself stays on and
-        // still streams to the other participant exactly as before.
-        showLocalVideo: false,
+        // A draggable stand-in for this tile (reading the local track from
+        // the parent page and rendering it in an external overlay) was
+        // tried and reverted — confirmed live that Prebuilt's local track
+        // metadata looks valid from the parent page (truthy
+        // persistentTrack) but isn't an actually-playable MediaStreamTrack
+        // outside the iframe's own cross-origin context: the video element
+        // just showed the browser's native "no playable source" icon.
+        // Daily's own built-in self-view (fixed in place, not draggable)
+        // stays on instead.
         iframeStyle: { width: "100%", height: "100%", border: "0" },
         ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
         customTrayButtons: trayButtons,

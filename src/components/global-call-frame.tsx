@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, X } from "lucide-react";
-import type { DailyCall } from "@daily-co/daily-js";
 import { CallFrame } from "@/components/call-frame";
 import { LiveVideoFrame } from "@/components/live-video-frame";
 import { useCallSession } from "@/lib/call-session";
@@ -23,166 +22,6 @@ function captureAlertText(alert: CaptureAlert) {
   return alert.source === "local"
     ? `You ${captureNoun} — the other participant was notified.`
     : `The other participant ${captureNoun}.`;
-}
-
-/**
- * TEMPORARY diagnostic — DraggableSelfView's tile silently renders nothing
- * whenever local.tracks.video doesn't come out the way expected, with no
- * way to see why on a real phone without USB debugging (same problem
- * live-stream-room.tsx hit with its own "Daily:" debug pill). Surfaces the
- * raw local video track state on-screen instead of guessing again. Polls
- * on an interval in addition to the two events below since it's not yet
- * confirmed those events reliably fire for local-only changes in a
- * createFrame() (Prebuilt) call the way they do for createCallObject().
- * Remove once the self-view is confirmed working live.
- */
-// Bumped every round so a reported pill matches a known code version —
-// otherwise there's no way to tell "still broken on the latest code" apart
-// from "still running whatever was loaded before the last fix" from a
-// bug report alone.
-const SELF_VIEW_DEBUG_VERSION = "v6";
-
-function SelfViewDebugPill({ dailyCall }: { dailyCall: DailyCall }) {
-  const [info, setInfo] = useState("init");
-
-  useEffect(() => {
-    function sync() {
-      const local = dailyCall.participants().local;
-      const v = local?.tracks.video;
-      setInfo(
-        `local:${local ? "yes" : "no"} state:${v?.state ?? "n/a"} subscribed:${String(v?.subscribed ?? "n/a")} track:${v?.track ? "yes" : "no"} persistentTrack:${v?.persistentTrack ? "yes" : "no"}`,
-      );
-    }
-    sync();
-    dailyCall.on("participant-updated", sync);
-    dailyCall.on("joined-meeting", sync);
-    const interval = setInterval(sync, 1000);
-    return () => {
-      dailyCall.off("participant-updated", sync);
-      dailyCall.off("joined-meeting", sync);
-      clearInterval(interval);
-    };
-  }, [dailyCall]);
-
-  return (
-    <div className="fixed left-1/2 top-16 z-[66] -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-1 text-center text-[10px] text-white">
-      self-view debug {SELF_VIEW_DEBUG_VERSION}: {info}
-    </div>
-  );
-}
-
-/**
- * Renders the local participant's own camera track (pulled straight off the
- * shared DailyCall object) into a plain, freely-draggable tile floating
- * over the fullscreen call view — the movable self-view WhatsApp/FaceTime
- * show during a video call. Daily Prebuilt's own built-in self-view tile is
- * fixed in place and can't be repositioned from outside its cross-origin
- * iframe, so call-frame.tsx hides it (`showLocalVideo: false`) and this
- * stands in for it instead, reading the exact same track everyone else on
- * the call already receives.
- */
-function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
-  const tileRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | null>(null);
-  const { position, handlers } = useViewportDrag(tileRef);
-
-  useEffect(() => {
-    function sync() {
-      // NOT gated on state === "playable" — that describes a *received*
-      // track, which a local (outgoing) track never reaches; Daily reports
-      // an active local camera as "sendable" instead (see DailyTrackState
-      // in @daily-co/daily-js's own types). persistentTrack itself is
-      // documented as possibly present in any non-"off" state, so checking
-      // for it directly — rather than gating on one specific state string —
-      // is both the simpler and the actually-correct condition here.
-      const track = dailyCall.participants().local?.tracks.video;
-      setVideoTrack(track?.persistentTrack ?? null);
-    }
-    sync();
-    // Fires for every participant's update, not just the local one — cheap
-    // to just re-derive from participants().local each time regardless of
-    // whose track actually changed, same pattern live-video-frame.tsx uses.
-    dailyCall.on("participant-updated", sync);
-    dailyCall.on("joined-meeting", sync);
-    // Confirmed live (see SelfViewDebugPill below) that persistentTrack
-    // does become available on the local participant, but this component
-    // stayed stuck on its initial (empty) read regardless — "participant-
-    // updated" doesn't reliably fire for local-only track-state changes in
-    // a createFrame() (Prebuilt) call the way it does for a plain
-    // createCallObject() one. Short interval poll as the actual mechanism
-    // that catches it, same fallback the debug pill already relies on.
-    const interval = setInterval(sync, 1000);
-    return () => {
-      dailyCall.off("participant-updated", sync);
-      dailyCall.off("joined-meeting", sync);
-      clearInterval(interval);
-    };
-  }, [dailyCall]);
-
-  // TEMPORARY diagnostic — the debug pill confirms Daily hands us a real
-  // persistentTrack, but the tile still isn't visibly appearing on a real
-  // device even after the polling fix. Rather than guess a third time,
-  // this tracks the actual <video> element's own playback state so it can
-  // be read directly off the tile itself. Remove alongside the early-
-  // return-null restoration once the self-view is confirmed working live.
-  const [videoDebug, setVideoDebug] = useState("no element yet");
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
-    function report() {
-      const current = videoRef.current;
-      if (!current) return;
-      setVideoDebug(
-        `ready:${current.readyState} dim:${current.videoWidth}x${current.videoHeight} paused:${current.paused} ` +
-          `src:${current.srcObject ? "set" : "none"}`,
-      );
-    }
-    report();
-    el.addEventListener("loadedmetadata", report);
-    el.addEventListener("playing", report);
-    el.addEventListener("error", report);
-    const interval = setInterval(report, 1000);
-    return () => {
-      el.removeEventListener("loadedmetadata", report);
-      el.removeEventListener("playing", report);
-      el.removeEventListener("error", report);
-      clearInterval(interval);
-    };
-  }, [videoTrack]);
-
-  return (
-    <div
-      ref={tileRef}
-      {...handlers}
-      // TEMPORARY: loud fuchsia background + placed just under the debug
-      // pill (not the top-1rem corner, in case that was clipped under a
-      // notch/status bar on some device) so this tile is unmissable if it's
-      // rendering at all — a previous round reported nothing visible even
-      // though this always renders regardless of track state, so the next
-      // report needs to rule out "it's there but blends into a dark call
-      // screen" as cleanly as it rules out "still on stale code" below.
-      className="fixed z-[65] flex h-32 w-24 cursor-grab touch-none select-none flex-col overflow-hidden rounded-xl border-4 border-yellow-300 bg-fuchsia-500 shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
-      style={position ? { left: position.left, top: position.top } : { top: "6rem", left: "1rem" }}
-    >
-      {/* Mirrored like every other self-view (FaceTime, WhatsApp, Daily's
-          own hidden tile) — what you see is flipped, what the other
-          participant receives never is. */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="h-full w-full flex-1 object-cover [transform:scaleX(-1)]"
-      />
-      {/* TEMPORARY diagnostic — see comment above videoDebug. */}
-      <span className="shrink-0 bg-black px-1 py-0.5 text-center text-[8px] font-bold leading-tight text-lime-400">
-        {SELF_VIEW_DEBUG_VERSION} track:{videoTrack ? "yes" : "no"} {videoDebug}
-      </span>
-    </div>
-  );
 }
 
 /**
@@ -374,18 +213,6 @@ export function GlobalCallFrame() {
               <PhoneOff size={14} />
             </button>
           </div>
-        )}
-
-        {!minimized && session.type === "VIDEO" && session.renderer !== "custom" && dailyCall && (
-          // LiveVideoFrame (the "custom" renderer, live streams only)
-          // already draws its own local tile inline in its grid — this is
-          // only for CallFrame/Prebuilt sessions (regular calls and
-          // Collab), and only once dailyCall exists (CallFrame hands it up
-          // via onCallObject right after createFrame(), not before).
-          <>
-            <DraggableSelfView dailyCall={dailyCall} />
-            <SelfViewDebugPill dailyCall={dailyCall} />
-          </>
         )}
 
         {!minimized && captureAlert && (
