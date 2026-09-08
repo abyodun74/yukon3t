@@ -114,20 +114,44 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
     };
   }, [dailyCall]);
 
+  // TEMPORARY diagnostic — the debug pill confirms Daily hands us a real
+  // persistentTrack, but the tile still isn't visibly appearing on a real
+  // device even after the polling fix. Rather than guess a third time,
+  // this tracks the actual <video> element's own playback state so it can
+  // be read directly off the tile itself. Remove alongside the early-
+  // return-null restoration once the self-view is confirmed working live.
+  const [videoDebug, setVideoDebug] = useState("no element yet");
+
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     el.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
+    function report() {
+      const current = videoRef.current;
+      if (!current) return;
+      setVideoDebug(
+        `ready:${current.readyState} dim:${current.videoWidth}x${current.videoHeight} paused:${current.paused} ` +
+          `src:${current.srcObject ? "set" : "none"}`,
+      );
+    }
+    report();
+    el.addEventListener("loadedmetadata", report);
+    el.addEventListener("playing", report);
+    el.addEventListener("error", report);
+    const interval = setInterval(report, 1000);
+    return () => {
+      el.removeEventListener("loadedmetadata", report);
+      el.removeEventListener("playing", report);
+      el.removeEventListener("error", report);
+      clearInterval(interval);
+    };
   }, [videoTrack]);
-
-  // Camera off, blocked, or not yet acquired — nothing to show or drag.
-  if (!videoTrack) return null;
 
   return (
     <div
       ref={tileRef}
       {...handlers}
-      className="fixed z-[65] h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
+      className="fixed z-[65] flex h-32 w-24 cursor-grab touch-none select-none flex-col overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
       // Defaults to the top-left corner, clear of the fullscreen call's own
       // top-4-centered capture-alert/shared-material overlays and the
       // bottom-4-right Leave/Minimize controls — once dragged, `position`'s
@@ -143,8 +167,13 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
         autoPlay
         playsInline
         muted
-        className="h-full w-full object-cover [transform:scaleX(-1)]"
+        className="h-full w-full flex-1 object-cover [transform:scaleX(-1)]"
       />
+      {/* TEMPORARY diagnostic — see comment above videoDebug. Tiny enough
+          not to obscure the tile if this does turn out to be working. */}
+      <span className="shrink-0 bg-black/80 px-1 py-0.5 text-center text-[7px] leading-tight text-lime-400">
+        track:{videoTrack ? "yes" : "no"} {videoDebug}
+      </span>
     </div>
   );
 }
