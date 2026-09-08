@@ -36,6 +36,12 @@ function captureAlertText(alert: CaptureAlert) {
  * createFrame() (Prebuilt) call the way they do for createCallObject().
  * Remove once the self-view is confirmed working live.
  */
+// Bumped every round so a reported pill matches a known code version —
+// otherwise there's no way to tell "still broken on the latest code" apart
+// from "still running whatever was loaded before the last fix" from a
+// bug report alone.
+const SELF_VIEW_DEBUG_VERSION = "v6";
+
 function SelfViewDebugPill({ dailyCall }: { dailyCall: DailyCall }) {
   const [info, setInfo] = useState("init");
 
@@ -60,7 +66,7 @@ function SelfViewDebugPill({ dailyCall }: { dailyCall: DailyCall }) {
 
   return (
     <div className="fixed left-1/2 top-16 z-[66] -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-1 text-center text-[10px] text-white">
-      self-view debug: {info}
+      self-view debug {SELF_VIEW_DEBUG_VERSION}: {info}
     </div>
   );
 }
@@ -151,13 +157,15 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
     <div
       ref={tileRef}
       {...handlers}
-      className="fixed z-[65] flex h-32 w-24 cursor-grab touch-none select-none flex-col overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
-      // Defaults to the top-left corner, clear of the fullscreen call's own
-      // top-4-centered capture-alert/shared-material overlays and the
-      // bottom-4-right Leave/Minimize controls — once dragged, `position`'s
-      // explicit left/top takes over entirely, same convention as the
-      // minimized widget below.
-      style={position ? { left: position.left, top: position.top } : { top: "1rem", left: "1rem" }}
+      // TEMPORARY: loud fuchsia background + placed just under the debug
+      // pill (not the top-1rem corner, in case that was clipped under a
+      // notch/status bar on some device) so this tile is unmissable if it's
+      // rendering at all — a previous round reported nothing visible even
+      // though this always renders regardless of track state, so the next
+      // report needs to rule out "it's there but blends into a dark call
+      // screen" as cleanly as it rules out "still on stale code" below.
+      className="fixed z-[65] flex h-32 w-24 cursor-grab touch-none select-none flex-col overflow-hidden rounded-xl border-4 border-yellow-300 bg-fuchsia-500 shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
+      style={position ? { left: position.left, top: position.top } : { top: "6rem", left: "1rem" }}
     >
       {/* Mirrored like every other self-view (FaceTime, WhatsApp, Daily's
           own hidden tile) — what you see is flipped, what the other
@@ -169,10 +177,9 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
         muted
         className="h-full w-full flex-1 object-cover [transform:scaleX(-1)]"
       />
-      {/* TEMPORARY diagnostic — see comment above videoDebug. Tiny enough
-          not to obscure the tile if this does turn out to be working. */}
-      <span className="shrink-0 bg-black/80 px-1 py-0.5 text-center text-[7px] leading-tight text-lime-400">
-        track:{videoTrack ? "yes" : "no"} {videoDebug}
+      {/* TEMPORARY diagnostic — see comment above videoDebug. */}
+      <span className="shrink-0 bg-black px-1 py-0.5 text-center text-[8px] font-bold leading-tight text-lime-400">
+        {SELF_VIEW_DEBUG_VERSION} track:{videoTrack ? "yes" : "no"} {videoDebug}
       </span>
     </div>
   );
