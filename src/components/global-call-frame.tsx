@@ -43,8 +43,15 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
 
   useEffect(() => {
     function sync() {
+      // NOT gated on state === "playable" — that describes a *received*
+      // track, which a local (outgoing) track never reaches; Daily reports
+      // an active local camera as "sendable" instead (see DailyTrackState
+      // in @daily-co/daily-js's own types). persistentTrack itself is
+      // documented as possibly present in any non-"off" state, so checking
+      // for it directly — rather than gating on one specific state string —
+      // is both the simpler and the actually-correct condition here.
       const track = dailyCall.participants().local?.tracks.video;
-      setVideoTrack(track?.state === "playable" ? (track.persistentTrack ?? null) : null);
+      setVideoTrack(track?.persistentTrack ?? null);
     }
     sync();
     // Fires for every participant's update, not just the local one — cheap
@@ -64,7 +71,7 @@ function DraggableSelfView({ dailyCall }: { dailyCall: DailyCall }) {
     el.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
   }, [videoTrack]);
 
-  // Camera off (or not yet playable) — nothing useful to show or drag.
+  // Camera off, blocked, or not yet acquired — nothing to show or drag.
   if (!videoTrack) return null;
 
   return (
