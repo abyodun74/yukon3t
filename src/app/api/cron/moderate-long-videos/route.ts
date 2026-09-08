@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { advanceLongVideoReview } from "@/lib/video-review";
 import { removeModeratedContent, cleanUpModeratedMedia } from "@/lib/content-moderation";
+import { notifyVideoModerationFailed } from "@/lib/video-moderation-notice";
 import { recomputeTrustScore } from "@/lib/trust";
 import { revalidatePath } from "next/cache";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
@@ -128,6 +129,12 @@ export async function GET(request: Request) {
       if (removed) {
         await cleanUpModeratedMedia(removed.mediaKeysToDelete);
         await recomputeTrustScore(removed.authorId);
+        // Tells the uploader why, with the specific violation type(s) — the
+        // synchronous rejection path (createPost in actions/circles.ts)
+        // already surfaces this to the uploader directly in-request; this
+        // is the async pipeline's equivalent since nothing else would ever
+        // tell them their post got silently removed.
+        await notifyVideoModerationFailed(removed.authorId, result.reasons);
       }
       break;
     }

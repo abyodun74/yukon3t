@@ -35,11 +35,15 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   VOICE_CHANNEL_INVITE_ACCEPTED: "accepted your voice channel invite",
   MISSED_CALL: "called you",
   SCREENSHOT_TAKEN: "took a screenshot",
+  // Fallback only — notifyVideoModerationFailed always sets
+  // Notification.message with the specific violation type(s), which
+  // notification-row.tsx prefers over this generic text.
+  VIDEO_MODERATION_FAILED: "A video you posted was removed for violating our content guidelines",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,
 // so the usual "{actor} {verb}" phrasing doesn't apply; NOTIFICATION_VERB
-// already returns a complete sentence for it.
+// (or Notification.message) already returns a complete sentence for these.
 export function notificationHasActor(type: NotificationType) {
-  return type !== "EVENT_REMINDER";
+  return type !== "EVENT_REMINDER" && type !== "VIDEO_MODERATION_FAILED";
 }

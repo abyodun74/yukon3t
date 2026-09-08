@@ -30,6 +30,21 @@ function captureAlertText(alert: CaptureAlert) {
  * wrapper's size/position — the underlying <CallFrame>/Daily iframe never
  * unmounts, so the call itself is never interrupted.
  */
+/** Minimized widget's default size (Tailwind h-40 w-64) — used to clamp a dragged position on-screen. */
+const MINIMIZED_WIDTH = 256;
+const MINIMIZED_HEIGHT = 160;
+/** Keeps the widget from being dragged fully off-screen or under the mobile bottom nav/browser chrome. */
+const DRAG_EDGE_MARGIN = 8;
+
+function clampDragPosition(left: number, top: number, width: number, height: number) {
+  const maxLeft = Math.max(DRAG_EDGE_MARGIN, window.innerWidth - width - DRAG_EDGE_MARGIN);
+  const maxTop = Math.max(DRAG_EDGE_MARGIN, window.innerHeight - height - DRAG_EDGE_MARGIN);
+  return {
+    left: Math.min(Math.max(DRAG_EDGE_MARGIN, left), maxLeft),
+    top: Math.min(Math.max(DRAG_EDGE_MARGIN, top), maxTop),
+  };
+}
+
 export function GlobalCallFrame() {
   const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
@@ -38,6 +53,13 @@ export function GlobalCallFrame() {
   const [captureAlert, setCaptureAlert] = useState<CaptureAlert | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const widgetRef = useRef<HTMLDivElement>(null);
+  // Explicit left/top the minimized widget's been dragged to — null means
+  // "still at its default bottom-right corner" (the right-4/bottom:5rem
+  // positioning below). Pixel-based rather than a Tailwind corner because
+  // it can end up anywhere on screen once dragged.
+  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
+  const dragStateRef = useRef<{ pointerId: number; startClientX: number; startClientY: number; startLeft: number; startTop: number } | null>(null);
 
   // A material shared in one session shouldn't bleed into whatever's
   // started next (or reappear if you leave and rejoin the same one). Reset
@@ -49,6 +71,39 @@ export function GlobalCallFrame() {
     setSharedMaterial(null);
     setUploadError(null);
     setCaptureAlert(null);
+    setDragPos(null);
+  }
+
+  // The video itself is a cross-origin Daily iframe, which captures pointer
+  // events before they'd ever reach a handler on this wrapper — dragging
+  // has to happen via a transparent overlay sitting above the iframe (see
+  // the drag-handle div below), not the wrapper itself.
+  function handleDragPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const el = widgetRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const startLeft = dragPos?.left ?? rect.left;
+    const startTop = dragPos?.top ?? rect.top;
+    dragStateRef.current = { pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startLeft, startTop };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handleDragPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const el = widgetRef.current;
+    const width = el?.offsetWidth ?? MINIMIZED_WIDTH;
+    const height = el?.offsetHeight ?? MINIMIZED_HEIGHT;
+    const dx = e.clientX - drag.startClientX;
+    const dy = e.clientY - drag.startClientY;
+    setDragPos(clampDragPosition(drag.startLeft + dx, drag.startTop + dy, width, height));
+  }
+
+  function handleDragPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragStateRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
   function showCaptureAlert(alert: CaptureAlert) {
@@ -109,9 +164,10 @@ export function GlobalCallFrame() {
   return (
     <>
       <div
+        ref={widgetRef}
         className={
           minimized
-            ? "fixed right-4 z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg"
+            ? `fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${dragPos ? "" : " right-4"}`
             : "fixed inset-0 z-[60] bg-black"
         }
         // bottom offset as an inline style, not a `bottom-*` Tailwind
@@ -121,7 +177,14 @@ export function GlobalCallFrame() {
         // work fallback. 5rem clears the mobile bottom nav (layout.tsx's
         // `pb-16` on signed-in users) — a bit more clearance than strictly
         // needed on desktop, not worth a resize-aware breakpoint for.
-        style={minimized ? { bottom: "5rem" } : undefined}
+        //
+        // Once dragged, dragPos's explicit left/top takes over from the
+        // right-4/bottom:5rem default corner entirely — mixing a dragged
+        // `left` with the still-applied `right-4` class works out fine in
+        // practice (the explicit `width` above wins per CSS's
+        // over-constrained rules), but the corner class is also dropped
+        // above just to keep the two positioning modes unambiguous.
+        style={minimized ? (dragPos ? { left: dragPos.left, top: dragPos.top } : { bottom: "5rem" }) : undefined}
       >
         {session.renderer === "custom" ? (
           <LiveVideoFrame
@@ -151,6 +214,21 @@ export function GlobalCallFrame() {
               session.onLeave();
               endSession();
             }}
+          />
+        )}
+
+        {minimized && (
+          // Transparent drag handle over the whole widget, above the Daily
+          // iframe (z-0) but below the Expand/Hang-up buttons (z-10) so
+          // those stay clickable — needed because the iframe is
+          // cross-origin and would otherwise swallow the pointer events
+          // this drag depends on before they ever reached this component.
+          <div
+            onPointerDown={handleDragPointerDown}
+            onPointerMove={handleDragPointerMove}
+            onPointerUp={handleDragPointerUp}
+            onPointerCancel={handleDragPointerUp}
+            className="absolute inset-0 z-[5] cursor-grab touch-none select-none active:cursor-grabbing"
           />
         )}
 

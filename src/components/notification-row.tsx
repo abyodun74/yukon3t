@@ -42,10 +42,12 @@ type NotificationData = {
     | "VOICE_CHANNEL_INVITE"
     | "VOICE_CHANNEL_INVITE_ACCEPTED"
     | "MISSED_CALL"
-    | "SCREENSHOT_TAKEN";
+    | "SCREENSHOT_TAKEN"
+    | "VIDEO_MODERATION_FAILED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
+  message: string | null;
   postId: string | null;
   circle: { slug: string } | null;
   conversationId: string | null;
@@ -66,6 +68,10 @@ function hrefFor(notification: NotificationData) {
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";
   }
+  // The post it'd otherwise link to no longer exists (removed by the
+  // moderation review that triggered this) — nothing more specific to
+  // send the reader to than their own profile/feed.
+  if (notification.type === "VIDEO_MODERATION_FAILED") return "/home";
   return `/u/${notification.actor.id}`;
 }
 
@@ -101,7 +107,7 @@ export function NotificationRow({
         <span>
           {hasActor && <span className="break-words font-semibold">{notification.actor.name}</span>}
           {hasActor && " "}
-          {NOTIFICATION_VERB[notification.type]}
+          {notification.message ?? NOTIFICATION_VERB[notification.type]}
           <span
             className="ml-2 text-xs text-foreground-soft"
             title={formatDateTime(notification.createdAt)}

@@ -833,6 +833,15 @@ enum NotificationType {
   // channel (see global-call-frame.tsx), never through this notification
   // type. actorId is whoever took the screenshot.
   SCREENSHOT_TAKEN
+  // Sent to a post's author when their video (over Hive's 60s scan limit)
+  // fails the automated long-video review and is removed — see
+  // advanceLongVideoReview in video-review.ts and the "flagged" case in
+  // the moderate-long-videos cron. System-generated, not "someone did
+  // something to you" — actorId is the author themself (no separate real
+  // actor exists), same reasoning as EVENT_REMINDER. Notification.message
+  // carries the specific violation type(s) so the in-app bell can show
+  // them, since NOTIFICATION_VERB alone can't express per-post detail.
+  VIDEO_MODERATION_FAILED
 }
 
 model Notification {
@@ -850,6 +859,11 @@ model Notification {
   subscriptionId String?
   liveStreamId   String?
   channelId      String?
+  // Dynamic system-generated text for notification types that can't be
+  // expressed by NOTIFICATION_VERB's single static-per-type string alone —
+  // currently only VIDEO_MODERATION_FAILED (the specific violation
+  // type(s)). Null for every other type, which keeps using the static verb.
+  message        String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 
