@@ -123,7 +123,7 @@ export function GifPickerButton({
         type="button"
         onClick={toggleOpen}
         disabled={disabled}
-        className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+        className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
         title="Add a GIF"
         aria-label="Add a GIF"
       >

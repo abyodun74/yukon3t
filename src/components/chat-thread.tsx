@@ -1148,7 +1148,7 @@ export function ChatThread({
             type="button"
             onClick={() => setReplyTarget(null)}
             aria-label="Cancel reply"
-            className="text-danger"
+            className="p-2 -m-2 text-danger"
           >
             <X size={14} />
           </button>
@@ -1159,7 +1159,12 @@ export function ChatThread({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Mic size={14} className="shrink-0 text-foreground-soft" />
           <span className="flex-1 truncate">Voice note ready to send</span>
-          <button type="button" onClick={() => setPendingAudio(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setPendingAudio(null)}
+            aria-label="Remove voice note"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>
@@ -1168,7 +1173,12 @@ export function ChatThread({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
           <span className="flex-1 truncate">Video ready to send</span>
-          <button type="button" onClick={() => setPendingVideo(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setPendingVideo(null)}
+            aria-label="Remove video"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>
@@ -1178,7 +1188,12 @@ export function ChatThread({
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview, not an optimizable remote image */}
           <img src={pendingImagePreviewUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">Photo ready to send</span>
-          <button type="button" onClick={() => setPendingImage(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setPendingImage(null)}
+            aria-label="Remove photo"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>
@@ -1188,7 +1203,12 @@ export function ChatThread({
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF ready to send</span>
-          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setPendingGif(null)}
+            aria-label="Remove GIF"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>

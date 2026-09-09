@@ -224,7 +224,7 @@ function MediaBlock({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={url}
-                alt=""
+                alt={post.content || `Photo posted by ${post.author.name}`}
                 className="max-h-96 w-full rounded-lg object-cover"
                 loading="lazy"
               />
@@ -236,7 +236,12 @@ function MediaBlock({
       {post.mediaType === "GIF" && post.mediaUrls.length > 0 && (
         <button type="button" onClick={() => onOpenImage(0)} className="mt-3 block w-full cursor-zoom-in">
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset */}
-          <img src={post.mediaUrls[0]} alt="" className="max-h-96 w-full rounded-lg object-cover" loading="lazy" />
+          <img
+            src={post.mediaUrls[0]}
+            alt={post.content || `GIF posted by ${post.author.name}`}
+            className="max-h-96 w-full rounded-lg object-cover"
+            loading="lazy"
+          />
         </button>
       )}
 
@@ -559,7 +564,8 @@ export function PostCard({
             type="button"
             disabled={isLikePending}
             onClick={handleLike}
-            className="flex items-center hover:text-danger"
+            aria-label={liked ? "Unlike" : "Like"}
+            className="flex items-center p-2 -m-2 hover:text-danger"
           >
             <Heart size={16} fill={liked ? "currentColor" : "none"} />
           </button>
@@ -578,7 +584,8 @@ export function PostCard({
 
         <Link
           href={`/post/${interactionTargetId}`}
-          className="flex items-center gap-1.5 hover:text-accent"
+          aria-label="Comment"
+          className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
         >
           <MessageSquare size={16} />
           {post.commentCount > 0 && post.commentCount}
@@ -588,8 +595,9 @@ export function PostCard({
           type="button"
           disabled={isRepostPending}
           onClick={handleRepost}
+          aria-label={reposted ? "Undo repost" : "Repost"}
           className={cn(
-            "flex items-center gap-1.5 hover:text-success",
+            "flex items-center gap-1.5 p-2 -m-2 hover:text-success",
             reposted && "text-success",
           )}
         >
@@ -600,7 +608,8 @@ export function PostCard({
         <button
           type="button"
           onClick={() => setShareModalOpen(true)}
-          className="flex items-center gap-1.5 hover:text-accent"
+          aria-label="Share"
+          className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
         >
           <Share2 size={16} />
           {shareCount > 0 && shareCount}

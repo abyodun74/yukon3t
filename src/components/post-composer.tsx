@@ -500,7 +500,8 @@ export function PostComposer({
               <button
                 type="button"
                 onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white"
+                aria-label="Remove image"
+                className="absolute right-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
               >
                 <X size={12} />
               </button>
@@ -514,7 +515,8 @@ export function PostComposer({
               <button
                 type="button"
                 onClick={() => setUrlImages((prev) => prev.filter((_, idx) => idx !== i))}
-                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white"
+                aria-label="Remove image"
+                className="absolute right-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
               >
                 <X size={12} />
               </button>
@@ -546,7 +548,8 @@ export function PostComposer({
               setShowImageUrlInput(false);
               setImageUrlError(null);
             }}
-            className="text-foreground-soft"
+            aria-label="Cancel"
+            className="p-2 -m-2 text-foreground-soft"
           >
             <X size={16} />
           </button>
@@ -564,7 +567,8 @@ export function PostComposer({
                 setVideo(null);
                 setVideoDurationSeconds(null);
               }}
-              className="text-danger"
+              aria-label="Remove video"
+              className="p-2 -m-2 text-danger"
             >
               <X size={14} />
             </button>
@@ -582,7 +586,12 @@ export function PostComposer({
           <span className="flex-1 truncate">
             {parsedEmbed ? `${EMBED_PROVIDER_LABELS[parsedEmbed.provider]} video linked` : embedUrl}
           </span>
-          <button type="button" onClick={() => setEmbedUrl(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setEmbedUrl(null)}
+            aria-label="Remove linked video"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>
@@ -593,7 +602,12 @@ export function PostComposer({
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF attached</span>
-          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+          <button
+            type="button"
+            onClick={() => setPendingGif(null)}
+            aria-label="Remove GIF"
+            className="p-2 -m-2 text-danger"
+          >
             <X size={14} />
           </button>
         </div>
@@ -727,10 +741,11 @@ export function PostComposer({
             onClick={() => setShowEmbedInput((v) => !v)}
             disabled={imageCount > 0 || Boolean(video) || Boolean(pendingGif)}
             className={cn(
-              "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
+              "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
             )}
             title="Add a link"
+            aria-label="Add a link"
           >
             <LinkIcon size={16} />
           </button>
@@ -738,10 +753,11 @@ export function PostComposer({
             type="button"
             onClick={() => setIsEvent((v) => !v)}
             className={cn(
-              "rounded-lg p-1.5 hover:bg-line",
+              "rounded-lg p-2.5 -m-1 hover:bg-line",
               isEvent ? "text-accent" : "text-foreground-soft",
             )}
             title={isEvent ? "Remove event details" : "Add event details"}
+            aria-label={isEvent ? "Remove event details" : "Add event details"}
           >
             <Calendar size={16} />
           </button>
@@ -751,7 +767,7 @@ export function PostComposer({
             type="button"
             onClick={() => setShowDictation(true)}
             disabled={showDictation}
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
+            className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
             title="Dictate text"
             aria-label="Dictate text"
           >

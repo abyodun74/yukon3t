@@ -63,8 +63,9 @@ export function MediaPickerButton({
         onClick={toggleOpen}
         disabled={disabled}
         title={title}
+        aria-label={title}
         className={cn(
-          "rounded-lg p-1.5 hover:bg-line disabled:opacity-40",
+          "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
           open ? "text-accent" : "text-foreground-soft",
         )}
       >

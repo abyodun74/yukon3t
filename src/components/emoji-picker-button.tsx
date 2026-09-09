@@ -170,7 +170,7 @@ export function EmojiPickerButton({
         ref={buttonRef}
         type="button"
         onClick={toggleOpen}
-        className="rounded-lg p-1.5 text-foreground-soft hover:bg-line"
+        className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"
         title="Add an emoji"
         aria-label="Add an emoji"
       >

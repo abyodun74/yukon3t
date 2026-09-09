@@ -110,7 +110,7 @@ export function CategoryTabs({
             tabRefs.current[i] = node;
           }}
           className={cn(
-            "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-300",
+            "shrink-0 rounded-full border px-3 py-2 text-xs font-medium transition-colors duration-300",
             i === activeIndex
               ? "border-accent bg-accent-soft text-accent"
               : "border-line text-foreground-soft",
