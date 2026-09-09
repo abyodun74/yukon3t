@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { resetPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -35,20 +36,24 @@ export default async function ResetPasswordPage({
 
       <form action={resetPassword} className="mt-6 w-full space-y-3">
         <input type="hidden" name="token" value={token} />
+        <label htmlFor="reset-password-new" className="sr-only">
+          New password
+        </label>
         <PasswordInput
+          id="reset-password-new"
           name="password"
           required
           minLength={8}
           maxLength={72}
+          autoComplete="new-password"
           placeholder="New password (min. 8 characters)"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
-        <button
-          type="submit"
+        <SubmitButton
+          label="Reset password"
+          pendingLabel="Resetting..."
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Reset password
-        </button>
+        />
       </form>
     </div>
   );

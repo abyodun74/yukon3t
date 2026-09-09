@@ -89,8 +89,11 @@ export function SignupPhoneVerificationForm({ initialPhone }: { initialPhone: st
         }}
       >
         <div>
-          <label className="block text-sm font-medium">Enter the code we sent you</label>
+          <label htmlFor="signup-phone-code" className="block text-sm font-medium">
+            Enter the code we sent you
+          </label>
           <input
+            id="signup-phone-code"
             name="code"
             required
             inputMode="numeric"
@@ -152,11 +155,15 @@ export function SignupPhoneVerificationForm({ initialPhone }: { initialPhone: st
       }}
     >
       <div>
-        <label className="block text-sm font-medium">Phone number</label>
+        <label htmlFor="signup-phone-number" className="block text-sm font-medium">
+          Phone number
+        </label>
         <input
+          id="signup-phone-number"
           name="phone"
           type="tel"
           required
+          autoComplete="tel"
           placeholder="+14155551234"
           className={INPUT_CLASS}
         />

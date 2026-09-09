@@ -73,16 +73,26 @@ export default async function SignInPage({
         )}
 
         <form action={loginWithPassword} className="mt-3 space-y-3">
+          <label htmlFor="identifier" className="sr-only">
+            Username or email
+          </label>
           <input
+            id="identifier"
             type="text"
             name="identifier"
             required
+            autoComplete="username"
             placeholder="Username or email"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
+          <label htmlFor="password" className="sr-only">
+            Password
+          </label>
           <PasswordInput
+            id="password"
             name="password"
             required
+            autoComplete="current-password"
             placeholder="Password"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
@@ -130,10 +140,15 @@ export default async function SignInPage({
         )}
 
         <form action={sendMagicLink} className="mt-3 space-y-3">
+          <label htmlFor="magic-link-email" className="sr-only">
+            Email address
+          </label>
           <input
+            id="magic-link-email"
             type="email"
             name="email"
             required
+            autoComplete="email"
             placeholder="you@example.com"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requestPasswordReset } from "@/app/actions/password-auth";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -34,19 +35,23 @@ export default async function ForgotPasswordPage({
       )}
 
       <form action={requestPasswordReset} className="mt-6 w-full space-y-3">
+        <label htmlFor="forgot-password-email" className="sr-only">
+          Email address
+        </label>
         <input
+          id="forgot-password-email"
           type="email"
           name="email"
           required
+          autoComplete="email"
           placeholder="you@example.com"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
-        <button
-          type="submit"
+        <SubmitButton
+          label="Send reset link"
+          pendingLabel="Sending..."
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Send reset link
-        </button>
+        />
       </form>
 
       <p className="mt-6 text-sm text-foreground-soft">

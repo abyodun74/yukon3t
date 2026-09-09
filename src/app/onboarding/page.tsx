@@ -50,24 +50,27 @@ export default async function OnboardingPage({
 
       <form action={completeOnboarding} className="mt-6 space-y-5">
         <div>
-          <label className="block text-sm font-medium">
+          <label htmlFor="onboarding-name" className="block text-sm font-medium">
             Display name <span className="text-danger">*</span>
           </label>
           <input
+            id="onboarding-name"
             name="name"
             required
             minLength={2}
             maxLength={60}
+            autoComplete="name"
             defaultValue={user.name ?? ""}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium">
+          <label htmlFor="onboarding-bio" className="block text-sm font-medium">
             Bio <span className="font-normal text-foreground-soft">(optional)</span>
           </label>
           <textarea
+            id="onboarding-bio"
             name="bio"
             maxLength={500}
             rows={3}
@@ -92,12 +95,14 @@ export default async function OnboardingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium">
+          <label htmlFor="onboarding-country" className="block text-sm font-medium">
             Country <span className="text-danger">*</span>
           </label>
           <select
+            id="onboarding-country"
             name="country"
             required
+            autoComplete="country-name"
             defaultValue={user.country ?? ""}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           >

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signUpWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
+import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { MIN_AGE } from "@/lib/validations";
 
@@ -43,18 +44,28 @@ export default async function SignUpPage({
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
+        <label htmlFor="signup-email" className="sr-only">
+          Email address
+        </label>
         <input
+          id="signup-email"
           type="email"
           name="email"
           required
+          autoComplete="email"
           placeholder="you@example.com"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
+        <label htmlFor="signup-password" className="sr-only">
+          Password
+        </label>
         <PasswordInput
+          id="signup-password"
           name="password"
           required
           minLength={8}
           maxLength={72}
+          autoComplete="new-password"
           placeholder="Password (min. 8 characters)"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
@@ -84,12 +95,11 @@ export default async function SignUpPage({
             </label>
           </div>
         </fieldset>
-        <button
-          type="submit"
+        <SubmitButton
+          label="Create account"
+          pendingLabel="Creating account..."
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Create account
-        </button>
+        />
       </form>
 
       <p className="mt-6 text-sm text-foreground-soft">

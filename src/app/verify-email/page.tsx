@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { resendEmailOtp, confirmEmailOtp, ensureFreshEmailOtp } from "@/app/actions/password-auth";
 import { readPendingVerification } from "@/lib/pending-verification";
+import { SubmitButton } from "@/components/submit-button";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_code: "That code didn't match — check it and try again.",
@@ -104,7 +105,11 @@ export default async function VerifyEmailPage({
       )}
 
       <form action={confirmEmailOtp} className="mt-6 w-full space-y-3">
+        <label htmlFor="verify-email-code" className="sr-only">
+          Verification code
+        </label>
         <input
+          id="verify-email-code"
           name="code"
           required
           inputMode="numeric"
@@ -113,21 +118,19 @@ export default async function VerifyEmailPage({
           placeholder="000000"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
         />
-        <button
-          type="submit"
+        <SubmitButton
+          label="Confirm email"
+          pendingLabel="Confirming..."
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-        >
-          Confirm email
-        </button>
+        />
       </form>
 
       <form action={resendEmailOtp} className="mt-4">
-        <button
-          type="submit"
+        <SubmitButton
+          label="Resend code"
+          pendingLabel="Resending..."
           className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          Resend code
-        </button>
+        />
       </form>
     </div>
   );
