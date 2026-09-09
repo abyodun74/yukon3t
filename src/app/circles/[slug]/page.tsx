@@ -19,6 +19,7 @@ import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { getMyCircles } from "@/app/actions/circles";
+import { CirclePostFab } from "@/components/circle-post-fab";
 
 // Same cursor pagination as /connections/page.tsx, auto-loaded further pages
 // as the viewer scrolls (see CirclePostsList / loadMoreCirclePosts).
@@ -210,7 +211,9 @@ export default async function CirclePage({
                     <>
                       <div className="mt-4">
                         {isMember || isOwner ? (
-                          <PostComposer circleId={circle.id} channelId={activeChannel.id} />
+                          <div id="circle-composer">
+                            <PostComposer circleId={circle.id} channelId={activeChannel.id} />
+                          </div>
                         ) : (
                           <p className="rounded-xl border border-line p-4 text-sm text-foreground-soft">
                             Join this Circle to post.
@@ -259,6 +262,8 @@ export default async function CirclePage({
           )}
         </>
       )}
+
+      <CirclePostFab />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { CirclesNewFab } from "@/components/circles-new-fab";
 
 export default async function CirclesPage() {
   const me = await getOnboardedUserOrRedirect();
@@ -17,7 +18,7 @@ export default async function CirclesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex items-center justify-between">
+      <div id="circles-header" className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Circles</h1>
           <p className="mt-1 text-sm text-foreground-soft">
@@ -90,6 +91,8 @@ export default async function CirclesPage() {
           </p>
         )}
       </div>
+
+      <CirclesNewFab />
     </div>
   );
 }

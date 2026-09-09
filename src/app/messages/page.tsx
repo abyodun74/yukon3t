@@ -4,6 +4,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { MarkDelivered } from "@/components/mark-delivered";
 import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
+import { MessagesQuickActions } from "@/components/messages-quick-actions";
 import { isOnline } from "@/lib/presence";
 
 export default async function MessagesPage() {
@@ -68,7 +69,7 @@ export default async function MessagesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <MarkDelivered />
-      <div className="flex items-center justify-between">
+      <div id="messages-header" className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Messages</h1>
         <div className="flex items-center gap-1">
           <Link
@@ -93,6 +94,8 @@ export default async function MessagesPage() {
       <div className="mt-5">
         <MessagesInboxList items={items} />
       </div>
+
+      <MessagesQuickActions />
     </div>
   );
 }
