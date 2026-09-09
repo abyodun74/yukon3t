@@ -8,6 +8,7 @@ export function CommentList({
   viewerId,
   viewerIsAdmin,
   canModerate = false,
+  onCommentCountChange,
 }: {
   comments: FlatComment[];
   postId: string;
@@ -16,6 +17,8 @@ export function CommentList({
   viewerIsAdmin: boolean;
   /** Viewer is the owner/co-admin of the post's Circle (if any). */
   canModerate?: boolean;
+  /** See CommentCard's own doc comment — only set by an inline-expanded (not server-rendered) comment section. */
+  onCommentCountChange?: (delta: number) => void;
 }) {
   const tree = buildCommentTree(comments);
 
@@ -38,6 +41,7 @@ export function CommentList({
             viewerId={viewerId}
             viewerIsAdmin={viewerIsAdmin}
             canModerate={canModerate}
+            onCommentCountChange={onCommentCountChange}
           />
         </div>
       ))}

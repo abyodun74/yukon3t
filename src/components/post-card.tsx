@@ -10,6 +10,7 @@ import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
+import { getPostComments } from "@/app/actions/comments";
 import { cn } from "@/lib/utils";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
@@ -20,11 +21,14 @@ import { PostConnectPopover } from "@/components/post-connect-popover";
 import { TruncatedText } from "@/components/truncated-text";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
+import { CommentComposer } from "@/components/comment-composer";
+import { CommentList } from "@/components/comment-list";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
+import type { FlatComment } from "@/lib/comment-tree";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
@@ -340,6 +344,7 @@ export function PostCard({
   const [shareCount, setShareCount] = useState(post.shareCount);
   const [going, setGoing] = useState(post.rsvpGoingByMe);
   const [rsvpCount, setRsvpCount] = useState(post.rsvpCount);
+  const [commentCount, setCommentCount] = useState(post.commentCount);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxVideo, setLightboxVideo] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
@@ -348,6 +353,46 @@ export function PostCard({
   const [, startReactionTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
   const [isRsvpPending, startRsvpTransition] = useTransition();
+
+  // Inline comments — expanding these fetches on demand (not server-
+  // rendered as part of Home/Circles' own page data) so commenting or
+  // reading replies never requires navigating away to /post/[id]. `comments
+  // === null` means "not fetched yet", distinct from an empty published
+  // list, so re-expanding after a collapse doesn't refetch unnecessarily.
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<FlatComment[] | null>(null);
+  const [commentsError, setCommentsError] = useState(false);
+  const [commentsCanModerate, setCommentsCanModerate] = useState(false);
+  const [isCommentsPending, startCommentsTransition] = useTransition();
+
+  function loadComments() {
+    setCommentsError(false);
+    startCommentsTransition(async () => {
+      const result = await getPostComments(interactionTargetId);
+      if (result.error) {
+        setCommentsError(true);
+        return;
+      }
+      setComments(result.comments);
+      setCommentsCanModerate(result.canModerate);
+    });
+  }
+
+  function toggleComments() {
+    const opening = !commentsOpen;
+    setCommentsOpen(opening);
+    if (opening && comments === null) loadComments();
+  }
+
+  // Shared by the top-level composer (always +1) and anything deeper in the
+  // tree (CommentList threads this through as onCommentCountChange — +1 for
+  // a reply, a negative delta for a delete/hide) so the action row's badge
+  // and the actual list stay in sync no matter where in the tree a change
+  // happened, without leaving Home to see it reflected.
+  function handleCommentCountChange(delta: number) {
+    setCommentCount((c) => c + delta);
+    loadComments();
+  }
 
   // post.content/editedAt (this row's own text — the repost caption when
   // it's a repost, otherwise the post body) shadowed in local state so an
@@ -599,14 +644,16 @@ export function PostCard({
 
         <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
 
-        <Link
-          href={`/post/${interactionTargetId}`}
-          aria-label="Comment"
-          className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
+        <button
+          type="button"
+          onClick={toggleComments}
+          aria-expanded={commentsOpen}
+          aria-label={commentsOpen ? "Hide comments" : "Comment"}
+          className={cn("flex items-center gap-1.5 p-2 -m-2 hover:text-accent", commentsOpen && "text-accent")}
         >
           <MessageSquare size={16} />
-          {post.commentCount > 0 && post.commentCount}
-        </Link>
+          {commentCount > 0 && commentCount}
+        </button>
 
         <button
           type="button"
@@ -651,6 +698,32 @@ export function PostCard({
       </div>
 
       <ReactionBar reactions={reactions} currentUserId={viewerId} onToggle={toggleReaction} />
+
+      {commentsOpen && (
+        <div className="mt-3 border-t border-line pt-3">
+          <CommentComposer
+            postId={interactionTargetId}
+            onDone={() => handleCommentCountChange(1)}
+          />
+          {isCommentsPending && comments === null && (
+            <p className="mt-3 animate-loading-pulse text-xs text-foreground-soft">Loading comments...</p>
+          )}
+          {commentsError && (
+            <p className="mt-3 text-xs text-danger">Couldn&apos;t load comments — try again.</p>
+          )}
+          {comments && (
+            <CommentList
+              comments={comments}
+              postId={interactionTargetId}
+              postAuthorId={displayPost.author.id}
+              viewerId={viewerId}
+              viewerIsAdmin={viewerIsAdmin}
+              canModerate={commentsCanModerate}
+              onCommentCountChange={handleCommentCountChange}
+            />
+          )}
+        </div>
+      )}
 
       {lightboxIndex !== null && (
         <Lightbox

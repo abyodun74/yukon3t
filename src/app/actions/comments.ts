@@ -299,3 +299,48 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
   revalidatePath(`/post/${comment.postId}`);
   return { error: null, reactions };
 }
+
+/**
+ * Client-fetch counterpart to the comment query src/app/post/[id]/page.tsx
+ * runs server-side — lets a comment thread be loaded on demand (e.g.
+ * PostCard's inline expand-in-place on Home/Circles, so commenting there
+ * doesn't require navigating to the standalone post page) rather than only
+ * ever being server-rendered as part of that one page. Reuses canViewPost,
+ * the same visibility gate createComment itself already trusts, so a
+ * private Circle post's comments can't be fetched by guessing its id any
+ * more than the comment itself could be.
+ */
+export async function getPostComments(postId: string) {
+  const user = await requireVerifiedUser();
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true, circleId: true },
+  });
+  if (!post) {
+    return { error: "not_found" as const };
+  }
+  if (!(await canViewPost(postId, user.id))) {
+    return { error: "not_found" as const };
+  }
+
+  const comments = await prisma.comment.findMany({
+    where: { postId, moderationStatus: { in: ["PUBLISHED", "REMOVED"] } },
+    orderBy: { createdAt: "asc" },
+    include: {
+      author: { select: { id: true, name: true, username: true, avatarUrl: true } },
+      reactions: { select: REACTION_SELECT },
+    },
+  });
+
+  let canModerate = false;
+  if (post.circleId) {
+    const circle = await prisma.circle.findUnique({ where: { id: post.circleId } });
+    if (circle) {
+      const membership = await getCircleMembership(post.circleId, user.id);
+      canModerate = isCircleAdmin(circle, membership, user);
+    }
+  }
+
+  return { error: null, comments, postAuthorId: post.authorId, canModerate };
+}

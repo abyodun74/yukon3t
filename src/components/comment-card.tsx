@@ -26,6 +26,7 @@ export function CommentCard({
   viewerIsAdmin,
   canModerate,
   depth = 0,
+  onCommentCountChange,
 }: {
   comment: CommentNode;
   postId: string;
@@ -34,6 +35,15 @@ export function CommentCard({
   viewerIsAdmin: boolean;
   canModerate: boolean;
   depth?: number;
+  // Set only by an inline-expanded comment section (PostCard) whose data
+  // isn't server-rendered, so any change anywhere in this tree — a new
+  // reply, a delete, a hide — needs an explicit refetch to show up and an
+  // explicit count delta to keep the action row's badge in sync.
+  // router.refresh() alone (still called by CommentComposer itself) only
+  // helps the standalone /post/[id] page, whose comments genuinely are part
+  // of that route's server data and whose own count badge is a fresh server
+  // value on every navigation there, not local state that can go stale.
+  onCommentCountChange?: (delta: number) => void;
 }) {
   const [replying, setReplying] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -201,6 +211,14 @@ export function CommentCard({
                     if (!result.error) {
                       setDeleted(true);
                       router.refresh();
+                      // Mirrors deleteComment's own removedPublishedCount:
+                      // this comment (unless already hidden) plus any
+                      // still-published direct replies — deleting a parent
+                      // takes its replies down with it.
+                      const removedCount =
+                        (removed ? 0 : 1) +
+                        comment.replies.filter((r) => r.moderationStatus === "PUBLISHED").length;
+                      if (removedCount > 0) onCommentCountChange?.(-removedCount);
                     }
                   });
                 }}
@@ -219,6 +237,7 @@ export function CommentCard({
                     if (!result.error) {
                       setRemoved(true);
                       router.refresh();
+                      onCommentCountChange?.(-1);
                     }
                   });
                 }}
@@ -241,7 +260,10 @@ export function CommentCard({
         <CommentComposer
           postId={postId}
           parentId={comment.id}
-          onDone={() => setReplying(false)}
+          onDone={() => {
+            setReplying(false);
+            onCommentCountChange?.(1);
+          }}
         />
       )}
       {comment.replies.map((reply) => (
@@ -254,6 +276,7 @@ export function CommentCard({
           viewerIsAdmin={viewerIsAdmin}
           canModerate={canModerate}
           depth={depth + 1}
+          onCommentCountChange={onCommentCountChange}
         />
       ))}
     </div>
