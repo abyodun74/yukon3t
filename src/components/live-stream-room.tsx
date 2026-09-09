@@ -1016,7 +1016,8 @@ export function LiveStreamRoom({
                   key={emoji}
                   type="button"
                   onClick={() => sendReaction(emoji)}
-                  className="rounded-full px-1.5 py-1 text-xl hover:bg-white/20"
+                  aria-label={`React with ${emoji}`}
+                  className="rounded-full px-2.5 py-2 text-xl hover:bg-white/20"
                 >
                   {emoji}
                 </button>
@@ -1045,7 +1046,7 @@ export function LiveStreamRoom({
               type="button"
               onClick={() => setDeclinedNotice(false)}
               aria-label="Dismiss"
-              className="shrink-0 text-white/80"
+              className="shrink-0 p-2 -m-1 text-white/80"
             >
               <X size={12} />
             </button>

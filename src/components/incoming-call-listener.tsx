@@ -203,20 +203,20 @@ export function IncomingCallListener() {
         <span className="font-semibold">{incoming.caller.name ?? "Someone"}</span> is calling
         {incoming.type === "VIDEO" ? " (video)" : ""}...
       </p>
-      <div className="mt-3 flex items-center justify-center gap-3">
+      <div className="mt-3 flex items-center justify-center gap-4">
         <button
           type="button"
           onClick={decline}
-          className="flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white"
+          className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white"
         >
-          <PhoneOff size={14} /> Decline
+          <PhoneOff size={16} /> Decline
         </button>
         <button
           type="button"
           onClick={accept}
-          className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white"
+          className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white"
         >
-          {incoming.type === "VIDEO" ? <Video size={14} /> : <Phone size={14} />} Accept
+          {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} Accept
         </button>
       </div>
     </div>

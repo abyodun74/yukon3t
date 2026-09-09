@@ -202,7 +202,7 @@ export function GlobalCallFrame() {
           // Positioned relative to the small widget itself — a self-
           // contained corner of its own, nothing else renders there, so no
           // stacking-context concerns like the fullscreen button below.
-          <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
             <span className="max-w-[7rem] truncate rounded-md bg-black/60 px-2 py-1 text-xs text-white">
               {session.label}
             </span>
@@ -210,7 +210,8 @@ export function GlobalCallFrame() {
               type="button"
               onClick={expand}
               title="Expand"
-              className="rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80"
+              aria-label="Expand"
+              className="rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80"
             >
               <Maximize2 size={14} />
             </button>
@@ -219,10 +220,13 @@ export function GlobalCallFrame() {
               // Daily's own leave button becomes impractically small at this
               // size — call .leave() directly and let the resulting
               // "left-meeting" event drive CallFrame's onLeave above, same
-              // cleanup path as a normal in-app hangup.
+              // cleanup path as a normal in-app hangup. Extra ms-1 keeps this
+              // separated from Expand — the highest-consequence control in
+              // the widget shouldn't sit flush against a low-stakes one.
               onClick={() => dailyCall?.leave()}
               title="Hang up"
-              className="rounded-md bg-danger p-1.5 text-white hover:opacity-90"
+              aria-label="Hang up"
+              className="ms-1 rounded-md bg-danger p-2.5 text-white hover:opacity-90"
             >
               <PhoneOff size={14} />
             </button>
@@ -244,7 +248,8 @@ export function GlobalCallFrame() {
                 type="button"
                 onClick={() => setCaptureAlert(null)}
                 title="Dismiss"
-                className="shrink-0 rounded-md p-1 hover:bg-white/20"
+                aria-label="Dismiss"
+                className="shrink-0 rounded-md p-2 -m-1 hover:bg-white/20"
               >
                 <X size={14} />
               </button>
@@ -266,7 +271,8 @@ export function GlobalCallFrame() {
                   type="button"
                   onClick={() => setSharedMaterial(null)}
                   title="Close"
-                  className="shrink-0 rounded-md p-1 text-foreground-soft hover:bg-background"
+                  aria-label="Close"
+                  className="shrink-0 rounded-md p-2 -m-1 text-foreground-soft hover:bg-background"
                 >
                   <X size={14} />
                 </button>
@@ -306,7 +312,7 @@ export function GlobalCallFrame() {
         // the same level as that div to actually win. Bottom-right since
         // every corner near the top is already spoken for between those
         // and Daily's own built-in controls.
-        <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-1.5">
+        <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-2">
           {uploadError && (
             <span className="max-w-[10rem] truncate rounded-md bg-danger/90 px-2 py-1 text-xs text-white">
               {uploadError}
@@ -330,7 +336,8 @@ export function GlobalCallFrame() {
                 // reachable trigger for it once you're actually in the call.
                 onClick={() => fileInputRef.current?.click()}
                 title="Upload material to share with participants"
-                className="rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80 disabled:opacity-50"
+                aria-label="Upload material to share with participants"
+                className="rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80 disabled:opacity-50"
               >
                 <Upload size={14} />
               </button>
@@ -343,10 +350,13 @@ export function GlobalCallFrame() {
             // minimized widget's hang-up button below, kept reachable even
             // fullscreen so leaving never depends on finding Daily's own
             // control inside the call UI (e.g. tucked under its "..." menu
-            // on a narrow viewport).
+            // on a narrow viewport). Extra ms-1 keeps it separated from
+            // Upload — the highest-consequence control here shouldn't sit
+            // flush against a low-stakes one.
             onClick={() => dailyCall?.leave()}
             title="Leave session"
-            className="rounded-md bg-danger p-1.5 text-white hover:opacity-90"
+            aria-label="Leave session"
+            className="ms-1 rounded-md bg-danger p-2.5 text-white hover:opacity-90"
           >
             <PhoneOff size={14} />
           </button>
@@ -354,7 +364,8 @@ export function GlobalCallFrame() {
             type="button"
             onClick={minimize}
             title="Minimize"
-            className="rounded-md bg-black/60 p-1.5 text-white hover:bg-black/80"
+            aria-label="Minimize"
+            className="ms-1 rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80"
           >
             <Minimize2 size={14} />
           </button>

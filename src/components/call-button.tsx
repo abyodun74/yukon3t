@@ -169,7 +169,8 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
           type="button"
           onClick={() => call("AUDIO")}
           title={`Voice call ${calleeName}`}
-          className="rounded-lg border border-line p-2 hover:border-accent hover:text-accent"
+          aria-label={`Voice call ${calleeName}`}
+          className="rounded-lg border border-line p-2.5 -m-0.5 hover:border-accent hover:text-accent"
         >
           <Phone size={16} />
         </button>
@@ -177,7 +178,8 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
           type="button"
           onClick={() => call("VIDEO")}
           title={`Video call ${calleeName}`}
-          className="rounded-lg border border-line p-2 hover:border-accent hover:text-accent"
+          aria-label={`Video call ${calleeName}`}
+          className="rounded-lg border border-line p-2.5 -m-0.5 hover:border-accent hover:text-accent"
         >
           <Video size={16} />
         </button>
