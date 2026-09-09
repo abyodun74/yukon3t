@@ -161,7 +161,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
+        // BridgeActivity's own onDestroy() (Capacitor) is declared public,
+        // widened from Activity's own protected — Java doesn't allow
+        // narrowing it back down in this subclass, hence public here too.
         lockScreenHandler.removeCallbacks(clearShowOverLockScreen);
         super.onDestroy();
     }
