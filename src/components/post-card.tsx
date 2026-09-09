@@ -439,9 +439,21 @@ export function PostCard({
   }
 
   const isQuoting = Boolean(post.repostOf || post.sharedPost);
+  // Content-adaptive density: a plain text update carries far less visual
+  // weight than a photo/video/event, so it gets a tighter card instead of
+  // the same padding a media post needs to breathe. Reposts/shares keep
+  // the full treatment regardless — the "Reposted by" line already makes
+  // those cards busier than a plain text post, adaptive density on top of
+  // that would just look inconsistent.
+  const isCompact = !isQuoting && displayPost.mediaType === "NONE" && !displayPost.eventAt;
 
   return (
-    <div className="animate-rise-in rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
+    <div
+      className={cn(
+        "animate-rise-in rounded-xl border border-line bg-surface shadow-[var(--shadow-sm)]",
+        isCompact ? "p-3" : "p-4",
+      )}
+    >
       {(post.repostOf || post.sharedPost) && (
         <Link
           href={`/u/${post.author.id}`}
@@ -558,7 +570,12 @@ export function PostCard({
         }
       />
 
-      <div className="mt-3 flex items-center gap-5 border-t border-line pt-2 text-xs text-foreground-soft">
+      <div
+        className={cn(
+          "flex items-center gap-5 text-xs text-foreground-soft",
+          isCompact ? "mt-2 pt-1" : "mt-3 border-t border-line pt-2",
+        )}
+      >
         <span className={cn("flex items-center gap-1.5", liked && "text-danger")}>
           <button
             type="button"
