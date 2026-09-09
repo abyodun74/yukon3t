@@ -74,6 +74,7 @@ export default async function CollabPage({
       <form className="mt-6 flex items-center gap-3 text-sm">
         <select
           name="sort"
+          aria-label="Sort by"
           defaultValue={sort}
           className="rounded-lg border border-line bg-surface px-3 py-2"
         >

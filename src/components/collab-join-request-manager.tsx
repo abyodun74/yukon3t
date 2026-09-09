@@ -37,7 +37,7 @@ export function CollabJoinRequestManager({ requests }: { requests: Request[] }) 
                 type="button"
                 disabled={isPending}
                 onClick={() => startTransition(async () => { await respondToCollabJoinRequest(r.id, true); })}
-                className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink disabled:opacity-50"
+                className="rounded-md bg-accent px-2.5 py-2 text-xs font-medium text-accent-ink disabled:opacity-50"
               >
                 Approve
               </button>
@@ -45,7 +45,7 @@ export function CollabJoinRequestManager({ requests }: { requests: Request[] }) 
                 type="button"
                 disabled={isPending}
                 onClick={() => startTransition(async () => { await respondToCollabJoinRequest(r.id, false); })}
-                className="rounded-md border border-line px-2.5 py-1 text-xs disabled:opacity-50"
+                className="rounded-md border border-line px-2.5 py-2 text-xs disabled:opacity-50"
               >
                 Decline
               </button>

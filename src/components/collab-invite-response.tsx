@@ -37,7 +37,7 @@ export function CollabInviteResponse({
               router.refresh();
             })
           }
-          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
           Accept
         </button>
@@ -55,7 +55,7 @@ export function CollabInviteResponse({
               router.push("/collab");
             })
           }
-          className="rounded-lg border border-line px-4 py-1.5 text-sm disabled:opacity-50"
+          className="rounded-lg border border-line px-4 py-2.5 text-sm disabled:opacity-50"
         >
           Decline
         </button>

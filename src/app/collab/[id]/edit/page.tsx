@@ -48,8 +48,11 @@ export default async function EditCollabPostPage({
 
       <form action={updateCollabPost.bind(null, id)} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium">Title</label>
+          <label htmlFor="collab-edit-title" className="block text-sm font-medium">
+            Title
+          </label>
           <input
+            id="collab-edit-title"
             name="title"
             required
             minLength={5}
@@ -72,8 +75,11 @@ export default async function EditCollabPostPage({
         </div>
         <CollabCountriesField defaultWorldwide={collab.worldwide} defaultCountries={collab.countries} />
         <div>
-          <label className="block text-sm font-medium">What is this collaboration?</label>
+          <label htmlFor="collab-edit-description" className="block text-sm font-medium">
+            What is this collaboration?
+          </label>
           <textarea
+            id="collab-edit-description"
             name="description"
             required
             minLength={20}
