@@ -19,12 +19,12 @@ export function ConnectionResponseButtons({ connectionId }: { connectionId: stri
     });
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-3">
       <button
         type="button"
         disabled={isPending}
         onClick={() => respond(true)}
-        className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-2.5 text-xs font-medium text-accent-ink disabled:opacity-50"
       >
         Accept
       </button>
@@ -32,7 +32,7 @@ export function ConnectionResponseButtons({ connectionId }: { connectionId: stri
         type="button"
         disabled={isPending}
         onClick={() => respond(false)}
-        className="rounded-md border border-line px-3 py-1.5 text-xs disabled:opacity-50"
+        className="rounded-md border border-line px-3 py-2.5 text-xs disabled:opacity-50"
       >
         Decline
       </button>

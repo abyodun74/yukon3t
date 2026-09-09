@@ -33,6 +33,7 @@ export function SearchBar({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search people, Circles, collaborations..."
+        aria-label="Search people, Circles, collaborations"
         className="w-full rounded-full border border-line bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-accent"
       />
     </form>

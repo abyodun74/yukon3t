@@ -216,42 +216,57 @@ export function AdBookingForm() {
     <div className="rounded-xl border border-line p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium">Company name</label>
+          <label htmlFor="ad-company-name" className="block text-sm font-medium">
+            Company name
+          </label>
           <input
+            id="ad-company-name"
             type="text"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             maxLength={100}
+            autoComplete="organization"
             className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Contact name</label>
+          <label htmlFor="ad-contact-name" className="block text-sm font-medium">
+            Contact name
+          </label>
           <input
+            id="ad-contact-name"
             type="text"
             value={contactName}
             onChange={(e) => setContactName(e.target.value)}
             maxLength={100}
+            autoComplete="name"
             className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Contact email</label>
+        <label htmlFor="ad-contact-email" className="block text-sm font-medium">
+          Contact email
+        </label>
         <input
+          id="ad-contact-email"
           type="email"
           value={contactEmail}
           onChange={(e) => setContactEmail(e.target.value)}
           placeholder="you@company.com"
+          autoComplete="email"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <p className="mt-1 text-xs text-foreground-soft">Your receipt and review status go here.</p>
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Headline</label>
+        <label htmlFor="ad-headline" className="block text-sm font-medium">
+          Headline
+        </label>
         <input
+          id="ad-headline"
           type="text"
           value={headline}
           onChange={(e) => setHeadline(e.target.value)}
@@ -262,8 +277,11 @@ export function AdBookingForm() {
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Ad copy</label>
+        <label htmlFor="ad-body" className="block text-sm font-medium">
+          Ad copy
+        </label>
         <textarea
+          id="ad-body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={280}
@@ -274,12 +292,16 @@ export function AdBookingForm() {
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Link URL</label>
+        <label htmlFor="ad-link-url" className="block text-sm font-medium">
+          Link URL
+        </label>
         <input
+          id="ad-link-url"
           type="url"
           value={linkUrl}
           onChange={(e) => setLinkUrl(e.target.value)}
           placeholder="https://yourcompany.com"
+          autoComplete="url"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
@@ -323,7 +345,8 @@ export function AdBookingForm() {
                 setFile(null);
                 setMediaType(null);
               }}
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"
+              aria-label="Remove media"
+              className="absolute right-1 top-1 rounded-full bg-black/60 p-2 text-white"
             >
               <X size={14} />
             </button>

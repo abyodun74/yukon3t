@@ -49,8 +49,11 @@ export default async function NewCollabPostPage({
 
       <form action={createCollabPost} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium">Title</label>
+          <label htmlFor="collab-title" className="block text-sm font-medium">
+            Title
+          </label>
           <input
+            id="collab-title"
             name="title"
             required
             minLength={5}
@@ -70,13 +73,16 @@ export default async function NewCollabPostPage({
         <CollabCountriesField />
         <CollabVisibilityField candidates={inviteeCandidates} />
         <div>
-          <label className="block text-sm font-medium">What is this collaboration?</label>
+          <label htmlFor="collab-description" className="block text-sm font-medium">
+            What is this collaboration?
+          </label>
           <p className="mt-0.5 text-xs text-foreground-soft">
             Describe the goal before people commit — what you&apos;re trying
             to build or exchange, what a collaborator would actually do, and
             any expectations up front.
           </p>
           <textarea
+            id="collab-description"
             name="description"
             required
             minLength={20}

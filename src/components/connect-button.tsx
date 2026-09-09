@@ -36,7 +36,7 @@ function MessageRequestButton({ targetId }: { targetId: string }) {
             router.push(`/messages/${result.conversationId}`);
           });
         }}
-        className="rounded-md border border-line px-3 py-1 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+        className="rounded-md border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
       >
         Message
       </button>
@@ -68,7 +68,7 @@ export function ConnectButton({
         <span className="text-xs font-medium text-success">Connected</span>
         <Link
           href={conversationId ? `/messages/${conversationId}` : "/messages"}
-          className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-ink"
+          className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink"
         >
           Message
         </Link>
@@ -107,10 +107,14 @@ export function ConnectButton({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <label htmlFor={`connect-intent-${targetId}`} className="sr-only">
+        Connect as
+      </label>
       <select
+        id={`connect-intent-${targetId}`}
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-        className="rounded-md border border-line bg-surface px-2 py-1 text-xs"
+        className="rounded-md border border-line bg-surface px-2 py-2 text-xs"
       >
         {openToIntents.map((tag) => (
           <option key={tag} value={tag}>
@@ -130,7 +134,7 @@ export function ConnectButton({
             setLocalStatus(result.error ? "error" : "sent");
           });
         }}
-        className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-ink disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink disabled:opacity-50"
       >
         Connect
       </button>

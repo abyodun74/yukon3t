@@ -30,7 +30,7 @@ export function FlaggedContentActions({
         type="button"
         disabled={isPending}
         onClick={() => run(approveFlaggedContent)}
-        className="rounded-md border border-line px-2.5 py-1 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+        className="rounded-md border border-line px-2.5 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
       >
         Publish
       </button>
@@ -38,7 +38,7 @@ export function FlaggedContentActions({
         type="button"
         disabled={isPending}
         onClick={() => run(removeFlaggedContent)}
-        className="rounded-md bg-danger px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-danger px-2.5 py-2 text-xs font-medium text-white disabled:opacity-50"
       >
         Remove
       </button>

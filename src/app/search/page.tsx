@@ -270,6 +270,7 @@ export default async function SearchPage({
           <input type="hidden" name="q" value={q} />
           <select
             name="sort"
+            aria-label="Sort by"
             defaultValue={sort}
             className="rounded-lg border border-line bg-surface px-3 py-2"
           >
@@ -281,6 +282,7 @@ export default async function SearchPage({
           </select>
           <select
             name="country"
+            aria-label="Filter by location"
             defaultValue={country ?? ""}
             className="rounded-lg border border-line bg-surface px-3 py-2"
           >

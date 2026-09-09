@@ -18,7 +18,7 @@ export function AdminDeletePostButton({ postId }: { postId: string }) {
           router.refresh();
         })
       }
-      className="rounded-md bg-danger px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+      className="rounded-md bg-danger px-2.5 py-2 text-xs font-medium text-white disabled:opacity-50"
     >
       {isPending ? "Deleting..." : "Delete duplicate"}
     </button>

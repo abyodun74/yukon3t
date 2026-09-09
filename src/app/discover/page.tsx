@@ -122,6 +122,7 @@ export default async function DiscoverPage({
       <form className="mt-6 grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <select
           name="intent"
+          aria-label="Filter by intent"
           defaultValue={intent ?? ""}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
@@ -134,6 +135,7 @@ export default async function DiscoverPage({
         </select>
         <select
           name="country"
+          aria-label="Filter by country"
           defaultValue={country ?? ""}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
@@ -146,6 +148,7 @@ export default async function DiscoverPage({
         </select>
         <select
           name="sort"
+          aria-label="Sort by"
           defaultValue={sort}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >

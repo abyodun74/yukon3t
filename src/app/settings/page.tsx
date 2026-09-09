@@ -5,6 +5,7 @@ import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { BlockButton } from "@/components/block-button";
 import { PasswordInput } from "@/components/password-input";
+import { SubmitButton } from "@/components/submit-button";
 import { RingtonePicker } from "@/components/ringtone-picker";
 import { InviteContactsButton } from "@/components/invite-contacts-button";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
@@ -72,8 +73,11 @@ export default async function SettingsPage({
         </p>
         <form action={updatePrivacy} className="mt-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium">Who can see your posts</label>
+            <label htmlFor="settings-posts-visibility" className="block text-sm font-medium">
+              Who can see your posts
+            </label>
             <select
+              id="settings-posts-visibility"
               name="postsVisibility"
               defaultValue={user.postsVisibility}
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
@@ -93,12 +97,11 @@ export default async function SettingsPage({
             />
             Show my profile in Discover
           </label>
-          <button
-            type="submit"
+          <SubmitButton
+            label="Save privacy settings"
+            pendingLabel="Saving..."
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          >
-            Save privacy settings
-          </button>
+          />
         </form>
       </div>
 
@@ -172,12 +175,11 @@ export default async function SettingsPage({
               <RingtonePicker defaultValue={user.ringtone} />
             </div>
           </div>
-          <button
-            type="submit"
+          <SubmitButton
+            label="Save ringtone"
+            pendingLabel="Saving..."
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          >
-            Save ringtone
-          </button>
+          />
         </form>
       </div>
 
@@ -191,13 +193,17 @@ export default async function SettingsPage({
         <form action={setPassword} className="mt-4 space-y-4">
           {!user.username && (
             <div>
-              <label className="block text-sm font-medium">Username</label>
+              <label htmlFor="settings-username" className="block text-sm font-medium">
+                Username
+              </label>
               <input
+                id="settings-username"
                 name="username"
                 required
                 minLength={3}
                 maxLength={20}
                 pattern="[a-zA-Z0-9_]+"
+                autoComplete="username"
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
             </div>
@@ -209,24 +215,30 @@ export default async function SettingsPage({
           )}
           {user.passwordHash && (
             <div>
-              <label className="block text-sm font-medium">Current password</label>
+              <label htmlFor="settings-current-password" className="block text-sm font-medium">
+                Current password
+              </label>
               <PasswordInput
+                id="settings-current-password"
                 name="currentPassword"
                 required
                 maxLength={72}
+                autoComplete="current-password"
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium">
+            <label htmlFor="settings-new-password" className="block text-sm font-medium">
               {user.passwordHash ? "New password" : "Password"}
             </label>
             <PasswordInput
+              id="settings-new-password"
               name="password"
               required
               minLength={8}
               maxLength={72}
+              autoComplete="new-password"
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
             />
           </div>
@@ -235,12 +247,11 @@ export default async function SettingsPage({
               Changing your password signs you out everywhere else.
             </p>
           )}
-          <button
-            type="submit"
+          <SubmitButton
+            label={user.passwordHash ? "Update password" : "Set password"}
+            pendingLabel={user.passwordHash ? "Updating..." : "Setting..."}
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          >
-            {user.passwordHash ? "Update password" : "Set password"}
-          </button>
+          />
         </form>
       </div>
 
