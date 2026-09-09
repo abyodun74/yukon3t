@@ -1069,14 +1069,20 @@ export function ChatThread({
   }
 
   const memberById = new Map(members.map((m) => [m.userId, m]));
-  const lastMineIndex = isGroup ? messages.findLastIndex((m) => m.senderId === currentUserId) : -1;
+  // "Delete for everyone" used to leave a "This message was deleted"
+  // tombstone bubble in place — now it's fully invisible instead, same as
+  // "delete for me" already was. The row itself stays in `messages` (the
+  // server keeps a blanked-out record, and reply-quotes still point at it
+  // via REPLY_TO_SELECT), it's just excluded from what actually renders.
+  const visibleMessages = messages.filter((m) => !m.deletedForEveryoneAt);
+  const lastMineIndex = isGroup ? visibleMessages.findLastIndex((m) => m.senderId === currentUserId) : -1;
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
-        {messages.map((m, i) => {
+        {visibleMessages.map((m, i) => {
           const mine = m.senderId === currentUserId;
-          const prev = messages[i - 1];
+          const prev = visibleMessages[i - 1];
           const showDateSeparator =
             !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
           const grouped = Boolean(prev && prev.senderId === m.senderId && !showDateSeparator);
