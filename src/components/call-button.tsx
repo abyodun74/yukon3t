@@ -66,12 +66,19 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
   useEffect(() => {
     if (state.phase !== "ringing" && state.phase !== "in-call") return undefined;
     const callId = state.callId;
-    // Ringing needs a snappy interval so "Calling" -> "Ringing" -> accepted
-    // feels responsive; once in-call this is purely a fallback for the
-    // other party hanging up (see the "in-call" branch below), so a lighter
-    // interval is enough and avoids hammering the server for the whole
-    // call's duration.
-    const intervalMs = state.phase === "ringing" ? 2000 : 5000;
+    // Ringing needs a snappy interval — this is the ONLY thing that tells
+    // the caller's side the callee has accepted (the callee's own tap
+    // starts joining immediately, with no polling involved on their end at
+    // all), so however long this interval is directly adds to how long the
+    // caller sits on "Ringing" after the callee has actually already said
+    // yes, before this side even starts its own WebRTC join. getCallStatus
+    // is a single indexed row lookup — cheap enough to poll this often for
+    // a window this short (bounded by the ~55s native ring timeout and the
+    // timeout-missed-calls cron either way). Once in-call this is purely a
+    // fallback for the other party hanging up (see the "in-call" branch
+    // below), so a much lighter interval is enough there and avoids
+    // hammering the server for the whole call's duration.
+    const intervalMs = state.phase === "ringing" ? 400 : 5000;
     const interval = setInterval(async () => {
       const result = await getCallStatus(callId);
       if (result.error) return;
