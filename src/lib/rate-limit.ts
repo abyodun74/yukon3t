@@ -113,6 +113,11 @@ export const rateLimiters = {
   // Each call is a real Giphy API request — generous enough for someone
   // typing/refining a search, tight enough to bound spend per user.
   gifSearch: makeLimiter(30, "1 m"),
+  // Each call is a real Safe Browsing API request (see src/lib/link-safety.ts)
+  // — generous enough that checking every link post someone taps through in
+  // a normal browsing session never gets throttled, tight enough that this
+  // endpoint can't be scripted into a free arbitrary-URL scanning proxy.
+  linkSafetyCheck: makeLimiter(30, "5 m"),
 };
 
 export async function checkRateLimit(

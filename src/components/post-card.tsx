@@ -23,6 +23,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
 import { CommentComposer } from "@/components/comment-composer";
 import { CommentList } from "@/components/comment-list";
+import { LinkSafetyModal } from "@/components/link-safety-modal";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
@@ -153,6 +154,7 @@ function MediaBlock({
 }) {
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
   const [muted, setMuted] = useFeedVideoMuted();
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
   // The `muted` JSX prop only reliably applies at mount — once a WebView
   // video is already playing, toggling it doesn't flip the element's live
   // audio output (the icon/UI updates, but sound never actually changes).
@@ -310,15 +312,19 @@ function MediaBlock({
       )}
 
       {post.mediaType === "LINK" && post.linkUrl && (
-        <a
-          href={post.linkUrl}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-accent hover:bg-line/40"
-        >
-          <ExternalLink size={14} className="shrink-0" />
-          <span className="truncate">{post.linkUrl}</span>
-        </a>
+        <>
+          <button
+            type="button"
+            onClick={() => setLinkModalOpen(true)}
+            className="mt-3 flex w-full items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-accent hover:bg-line/40"
+          >
+            <ExternalLink size={14} className="shrink-0" />
+            <span className="truncate">{post.linkUrl}</span>
+          </button>
+          {linkModalOpen && (
+            <LinkSafetyModal url={post.linkUrl} onClose={() => setLinkModalOpen(false)} />
+          )}
+        </>
       )}
     </>
   );
