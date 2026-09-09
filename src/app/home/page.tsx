@@ -8,6 +8,7 @@ import { StoryTray } from "@/components/story-tray";
 import { LiveStreamStrip } from "@/components/live-stream-strip";
 import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
+import { HomeQuickActions } from "@/components/home-quick-actions";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
@@ -72,9 +73,11 @@ export default async function HomePage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
+      <div id="home-story-tray">
+        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
+      </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div id="home-live-section" className="mt-4 flex flex-wrap items-center gap-3">
         <StreakBanner
           currentStreak={me.currentStreak}
           longestStreak={me.longestStreak}
@@ -104,7 +107,7 @@ export default async function HomePage({
         </div>
       )}
 
-      <div className="mt-6">
+      <div id="home-composer" className="mt-6">
         <PostComposer placeholder="Share a photo, a short video, or an update..." />
       </div>
 
@@ -141,6 +144,8 @@ export default async function HomePage({
           a Circle to see more.
         </p>
       )}
+
+      <HomeQuickActions />
     </div>
   );
 }
