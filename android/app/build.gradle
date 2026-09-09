@@ -81,8 +81,17 @@ android {
         // (API 26+) for any yukon3t://call intent, reverted 30s later. No
         // new permission and no new Play Console declaration — these are
         // plain Activity/Window APIs, not Restricted Permissions.
-        versionCode 14
-        versionName "1.11"
+        // 15: turns on R8 minification/shrinking/optimization for release
+        // builds (was off — Play Console's post-upload panel flagged "App
+        // optimization: Low" / "Obfuscation: 2%"), with proguard-rules.pro's
+        // yukon3t-specific keep rules for the manifest-instantiated call
+        // services and the @PluginMethod Capacitor plugins. Unlike 14, this
+        // is genuinely risky to ship blind — an R8 misconfiguration fails
+        // silently at runtime (calls/push/plugin methods just stop working,
+        // no build error) — needs a real on-device test pass before this
+        // versionCode is the one that actually gets uploaded.
+        versionCode 15
+        versionName "1.12"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -102,8 +111,27 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Was false — Play Console's post-upload quality panel flagged
+            // "App optimization: Low" / "Obfuscation: 2%" since R8 barely
+            // ran. This app is a thin WebView shell (the real app logic is
+            // JS served live from yukon3t.com, untouched by any of this) —
+            // the actual benefit is a smaller native-shell download plus a
+            // modest reverse-engineering bar on the small amount of native
+            // Java here, not a meaningful security uplift for the app as a
+            // whole. proguard-rules.pro's yukon3t-specific keep rules are
+            // what make this safe to flip: without them, R8 could strip or
+            // rename the manifest-instantiated call services or any
+            // @PluginMethod Capacitor calls from JS with no compile error.
+            // Needs a real on-device test pass (calls, push, camera,
+            // contacts, volume button) before this build ships — an R8
+            // misconfiguration fails silently at runtime, not at build time.
+            minifyEnabled true
+            shrinkResources true
+            // "-optimize" variant (omits classic ProGuard's -dontoptimize)
+            // so R8 actually performs its optimization passes, not just
+            // shrinking/obfuscation — this is specifically what Play
+            // Console's "R8 configuration" advisory was asking for.
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Unsigned (a plain assembleRelease/bundleRelease still succeeds,
             // just produces an unsigned artifact) until keystore.properties
             // exists — see the comment above.
