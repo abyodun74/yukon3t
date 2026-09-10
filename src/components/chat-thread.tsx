@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
@@ -23,6 +23,7 @@ import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { consumePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
@@ -809,6 +810,27 @@ export function ChatThread({
     };
   }, [pendingImagePreviewUrl]);
 
+  // Picks up media handed off by ShareTargetGate ("Send to a friend" picked
+  // this conversation from another app's Share sheet) — see
+  // share-target-store.ts. Runs once on mount; consumePendingShareMedia()
+  // itself only ever returns a value once. Only the first shared image is
+  // used — pendingImage is already a single-attachment slot here, same as
+  // every other path that sets it (the picker/camera buttons below).
+  // Deferred a microtask, not read synchronously in the effect body — see
+  // the matching comment in post-composer.tsx's own copy of this effect.
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      const shared = consumePendingShareMedia();
+      if (!shared) return;
+      if (shared.video) {
+        setPendingVideo(shared.video);
+      } else if (shared.images[0]) {
+        setPendingImage(shared.images[0]);
+      }
+      if (shared.text) setContent((prev) => (prev ? `${prev} ${shared.text}` : shared.text!));
+    });
+  }, []);
+
   // usePolling fires this immediately (mount, and on regaining tab focus)
   // as well as on the recurring interval — that immediate fire is the real
   // "mark as read" signal, not just a bonus of the polling mechanism.
@@ -1041,6 +1063,17 @@ export function ChatThread({
     textareaRef.current?.focus();
   }
 
+  // Handles an image pasted straight from the keyboard (Gboard's own
+  // suggestion strip, or a plain copy-paste) — same reasoning as
+  // post-composer.tsx's own handlePaste, routed through the identical
+  // pickImage() the picker/camera buttons already use.
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const file = e.clipboardData.files[0];
+    if (!file) return;
+    e.preventDefault();
+    pickImage(file);
+  }
+
   function appendDictatedText(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -1270,6 +1303,7 @@ export function ChatThread({
                 handleSend();
               }
             }}
+            onPaste={handlePaste}
             maxLength={4000}
             rows={1}
             placeholder={

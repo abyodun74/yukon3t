@@ -35,8 +35,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallForegroundPlugin.class);
         registerPlugin(ScreenCaptureGuardPlugin.class);
         registerPlugin(VolumeButtonPlugin.class);
+        registerPlugin(ShareReceiverPlugin.class);
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
+        handleShareIntent(getIntent());
     }
 
     /**
@@ -68,6 +70,23 @@ public class MainActivity extends BridgeActivity {
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleCallDeepLink(intent);
+        handleShareIntent(intent);
+    }
+
+    /**
+     * Stashes an incoming ACTION_SEND/SEND_MULTIPLE intent (another app's
+     * Share sheet targeting "YuKon3t") in ShareReceiverPlugin's static
+     * holder for the JS side to read once it's ready — see that plugin's
+     * own doc comment for why this is a plain field rather than notifying
+     * listeners immediately (the Bridge/JS may not be listening yet this
+     * early in onCreate, and share-receiver.ts polls for it on launch
+     * instead of needing an event).
+     */
+    private void handleShareIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        if (!Intent.ACTION_SEND.equals(action) && !Intent.ACTION_SEND_MULTIPLE.equals(action)) return;
+        ShareReceiverPlugin.setPendingShareIntent(intent);
     }
 
     /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
@@ -10,6 +10,7 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { consumePendingShareMedia } from "@/lib/share-target-store";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -171,6 +172,25 @@ export function PostComposer({
     setSuggestionText(el.value);
   }
 
+  // Picks up media handed off by ShareTargetGate ("New post" from another
+  // app's Share sheet) — see share-target-store.ts. Runs once on mount;
+  // consumePendingShareMedia() itself only ever returns a value once, so
+  // there's no ongoing subscription to worry about cleaning up. Deferred a
+  // microtask rather than read synchronously in the effect body — same
+  // async-boundary shape as every other "check on mount" effect in this
+  // codebase (e.g. ShareTargetGate's own checkForPendingShare().then(...)),
+  // which react-hooks/set-state-in-effect wants rather than a same-tick
+  // setState call directly in the effect body.
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      const shared = consumePendingShareMedia();
+      if (!shared) return;
+      if (shared.images.length > 0) setImages((prev) => [...prev, ...shared.images].slice(0, MAX_IMAGES));
+      if (shared.video) setVideo(shared.video);
+      if (shared.text) appendDictatedText(shared.text);
+    });
+  }, []);
+
   // Object URLs are created once per image set (memoized on `images`), not
   // on every render — creating one inline in JSX would leak a new blob URL
   // on every re-render. The paired effect only handles revocation.
@@ -204,6 +224,21 @@ export function PostComposer({
     setPendingGif(null);
     const remaining = Math.max(0, MAX_IMAGES - urlImages.length);
     setImages((prev) => [...prev, ...next].slice(0, remaining));
+  }
+
+  // Handles an image pasted straight from the keyboard — Gboard's own
+  // suggestion strip (stickers, or an image search result) lands here as a
+  // real clipboard file the same way a copy-pasted image from Photos would,
+  // not as literal text, so a plain textarea wouldn't otherwise do anything
+  // useful with it. Routed through the exact same pickImages() as the
+  // "Add a photo" button — same resize/size-check/moderation pipeline, no
+  // separate path to keep in sync. Only preventDefault()s when there's
+  // actually an image to grab; an ordinary text paste (the overwhelming
+  // majority of paste events here) falls through untouched.
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (e.clipboardData.files.length === 0) return;
+    e.preventDefault();
+    pickImages(e.clipboardData.files);
   }
 
   async function addImageUrl() {
@@ -483,6 +518,7 @@ export function PostComposer({
         rows={3}
         placeholder={placeholder}
         onChange={(e) => setSuggestionText(e.target.value)}
+        onPaste={handlePaste}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
       <EmojiTypeSuggestions text={suggestionText} onSelect={insertEmoji} />

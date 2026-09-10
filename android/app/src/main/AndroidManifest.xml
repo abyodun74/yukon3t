@@ -36,6 +36,33 @@
                 <data android:scheme="yukon3t" android:host="call" />
             </intent-filter>
 
+            <!-- Share target: lets other apps' Share sheets offer "YuKon3t"
+                 as a destination for a single image/video/audio file or
+                 plain text (a shared link/post). Captured by
+                 ShareReceiverPlugin.java (set from MainActivity's
+                 onCreate/onNewIntent, same pattern as handleCallDeepLink
+                 above) and read from the JS side via share-receiver.ts's
+                 checkForPendingShare(), which ShareTargetGate.tsx calls on
+                 launch. Multiple <data> tags in one intent-filter combine as
+                 OR, so this doesn't need one block per MIME type. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- Multiple images/videos at once (e.g. a multi-select from
+                 Gallery) — same handling, just EXTRA_STREAM as an
+                 ArrayList<Uri> instead of a single Uri. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+
         </activity>
 
         <!-- Handles incoming_call/call_cancelled data pushes (src/lib/fcm.ts)
