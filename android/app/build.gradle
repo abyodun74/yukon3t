@@ -83,8 +83,14 @@ android {
         // plain Activity/Window APIs, not Restricted Permissions.
         // 15: no code change — versionCode 14 was already consumed by a prior
         // testing-track upload, so production release needed a fresh code.
-        versionCode 15
-        versionName "1.12"
+        // 16: adds Share-target — "YuKon3t" now appears in other apps' Share
+        // sheets for images/video/audio/text (new SEND/SEND_MULTIPLE
+        // intent-filters on MainActivity, ShareReceiverPlugin.java). No new
+        // permission and no new Play Console declaration — receiving an
+        // ACTION_SEND intent doesn't require one, the content URI comes
+        // granted with the intent itself.
+        versionCode 16
+        versionName "1.13"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
