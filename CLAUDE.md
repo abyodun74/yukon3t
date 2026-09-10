@@ -35,7 +35,7 @@ cd android && ./gradlew bundleRelease    # signed AAB for Play Store (needs andr
 ```
 
 **Critical**: `capacitor.config.ts` sets `server.url: "https://yukon3t.com"` — the native app's WebView loads the **live deployed site directly**, it does not bundle a local copy of `src/`/`public/`. This means:
-- Any change to `src/` reaches mobile users the instant it's deployed to the web (Netlify), no app update needed.
+- Any change to `src/` reaches mobile users the instant it's deployed to the web (Netlify), no app update needed. **`yukon3t.com` itself resolves to Netlify, not Vercel** (confirmed via response headers — `Server: Netlify`) — when testing a fix on a real device, a `vercel --prod` alone does nothing for it; wait for Netlify's deploy (`git push` auto-triggers it) to reach `state: "ready"` for the right commit.
 - Changes to `android/app/src/main/AndroidManifest.xml` (permissions, etc.) or any other native code are baked into the APK/AAB at build time and **only reach real users through a new Play Store release** — pushing to `master` does nothing for these. Bump `versionCode` in `android/app/build.gradle` on every release build (comment there explains the current floor).
 
 ## Architecture
@@ -75,6 +75,8 @@ This pipeline is tuned to reach a verdict as close to real time as Cloudflare's 
 ### Calls: Daily.co, embedded as an iframe
 
 `src/lib/daily.ts` (server) creates/tokens Daily.co rooms via their REST API; `src/components/call-frame.tsx` embeds Daily's prebuilt call UI via `DailyIframe.createFrame()` — there's no hand-rolled WebRTC. Because the call UI lives in a cross-origin `*.daily.co` iframe, both `next.config.ts`'s `Permissions-Policy` (must use `camera=*, microphone=*`, not `(self)` — Permissions-Policy can't wildcard subdomains the way CSP can) and `src/proxy.ts`'s CSP `frame-src` need to allow it, or calls silently break.
+
+Video calls also have a front/back camera flip button (`cycleCamera()`, wired up in both `call-frame.tsx` and the 1:1 `direct-call-frame.tsx`). **Don't gate its visibility on `enumerateDevices()` device-count or `track.getCapabilities().facingMode`** — confirmed live on a real Samsung phone that both are unreliable: some Android camera HALs collapse front+back into a single `videoinput` entry that switches facing mode via constraints instead of exposing two devices, and Android Chrome's `getCapabilities().facingMode` reporting is itself incomplete (a known Chromium/Android gap) — `cycleCamera()` worked fine on that exact hardware while both signals under-reported it, hiding the button entirely. The button is now gated on `Capacitor.isNativePlatform()` instead: this app's real mobile audience is the Capacitor wrapper (see below), where a front+back pair is a given, so there's no "dead click" risk to hide it against. The device-count/capabilities checks are kept only as best-effort fallbacks for a plain browser tab. If you touch this again, test on **real hardware** — a desktop browser's device emulation won't reproduce this (it just proxies the one physical webcam).
 
 ### Domain model (see `prisma/schema.prisma`)
 
