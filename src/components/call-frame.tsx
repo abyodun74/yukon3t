@@ -11,6 +11,7 @@ import type {
 
 const SCREEN_SHARE_BUTTON_ID = "screenshare";
 const AUDIO_OUTPUT_BUTTON_ID = "audiooutput";
+const CAMERA_SWITCH_BUTTON_ID = "cameraswitch";
 
 // Inline data URI, not a hosted asset — daily-js's customTrayButtons API
 // wants a real iconPath URL, and this is a static monitor glyph with no
@@ -25,6 +26,11 @@ const SPEAKER_ICON =
   "data:image/svg+xml," +
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 9 8 9 13 4 13 20 8 15 3 15 3 9"/><path d="M17 7a6 6 0 0 1 0 10"/><path d="M20 4a10 10 0 0 1 0 16"/></svg>',
+  );
+const CAMERA_SWITCH_ICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3.17L15 5h-6l-1.83 2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M15 13a3 3 0 1 1-6 0"/><path d="M17 4v3M19 6l-2-2"/></svg>',
   );
 
 /** Loud-speaker-ish label — the deviceId "default" is common across
@@ -168,24 +174,48 @@ export function CallFrame({
         }
         call.updateCustomTrayButtons({ ...trayButtons });
       };
-      const applyOutputDevices = (devices: DailyMediaDeviceInfo[]) => {
+      // Front/back camera switch. Video calls only — an audio call's camera
+      // stays off unless the user turns it on via Daily's own built-in
+      // toggle, and it's not worth the extra event plumbing to show/hide
+      // this button mid-call in response to that. Gated on more than one
+      // camera being known for the same reason as the output-device button
+      // above: most laptops report exactly one, and a dead-click "switch"
+      // button is worse than no button.
+      let cameraCount = 0;
+      const syncCameraSwitchButton = () => {
+        if (!joined) return;
+        if (type === "VIDEO" && cameraCount > 1) {
+          trayButtons[CAMERA_SWITCH_BUTTON_ID] = {
+            iconPath: CAMERA_SWITCH_ICON,
+            label: "Flip camera",
+            tooltip: "Switch between front and back camera",
+          };
+        } else {
+          delete trayButtons[CAMERA_SWITCH_BUTTON_ID];
+        }
+        call.updateCustomTrayButtons({ ...trayButtons });
+      };
+      const applyDevices = (devices: DailyMediaDeviceInfo[]) => {
         outputDevices = devices.filter((d) => d.kind === "audiooutput");
         if (outputIndex >= outputDevices.length) outputIndex = 0;
+        cameraCount = devices.filter((d) => d.kind === "videoinput").length;
         syncOutputButton();
+        syncCameraSwitchButton();
       };
-      handleAvailableDevicesUpdated = (ev) => applyOutputDevices(ev.availableDevices as DailyMediaDeviceInfo[]);
+      handleAvailableDevicesUpdated = (ev) => applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]);
       call.on("available-devices-updated", handleAvailableDevicesUpdated);
       handleJoinedMeeting = () => {
         joined = true;
         syncOutputButton();
+        syncCameraSwitchButton();
       };
       call.on("joined-meeting", handleJoinedMeeting);
       // The event above only fires on a subsequent change — this covers the
       // devices already available the moment the call starts. Safe to call
       // before join (enumerateDevices() itself has no post-join guard) —
-      // only applying its result to the tray does, which syncOutputButton
-      // now accounts for.
-      call.enumerateDevices().then(({ devices }) => applyOutputDevices(devices));
+      // only applying its result to the tray does, which the syncs above
+      // now account for.
+      call.enumerateDevices().then(({ devices }) => applyDevices(devices));
 
       handleCustomButtonClick = (ev) => {
         if (ev.button_id === SCREEN_SHARE_BUTTON_ID) {
@@ -200,6 +230,10 @@ export function CallFrame({
           if (outputDevices.length === 0) return;
           outputIndex = (outputIndex + 1) % outputDevices.length;
           call.setOutputDeviceAsync({ outputDeviceId: outputDevices[outputIndex].deviceId }).then(syncOutputButton);
+          return;
+        }
+        if (ev.button_id === CAMERA_SWITCH_BUTTON_ID) {
+          call.cycleCamera({ preferDifferentFacingMode: true });
         }
       };
       call.on("custom-button-click", handleCustomButtonClick);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff, Volume2 } from "lucide-react";
+import { Mic, MicOff, ScreenShare, ScreenShareOff, SwitchCamera, Video, VideoOff, Volume2 } from "lucide-react";
 import type { DailyCall, DailyMediaDeviceInfo, DailyParticipant } from "@daily-co/daily-js";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
 
@@ -50,6 +50,7 @@ export function DirectCallFrame({
   const [joinError, setJoinError] = useState<string | null>(null);
   const [outputDevices, setOutputDevices] = useState<DailyMediaDeviceInfo[]>([]);
   const [outputIndex, setOutputIndex] = useState(0);
+  const [cameraCount, setCameraCount] = useState(0);
   const selfViewRef = useRef<HTMLDivElement>(null);
   const { position: selfViewPosition, handlers: selfViewHandlers } = useViewportDrag(selfViewRef);
   // Tap-to-swap (FaceTime/Zoom-style): false is the normal layout (remote
@@ -70,8 +71,9 @@ export function DirectCallFrame({
       setParticipants(Object.values(call.participants()));
     }
 
-    function applyOutputDevices(devices: DailyMediaDeviceInfo[]) {
+    function applyDevices(devices: DailyMediaDeviceInfo[]) {
       setOutputDevices(devices.filter((d) => d.kind === "audiooutput"));
+      setCameraCount(devices.filter((d) => d.kind === "videoinput").length);
     }
 
     // Dynamic import, not static — same reasoning as CallFrame/
@@ -92,11 +94,11 @@ export function DirectCallFrame({
       call.on("participant-left", refreshParticipants);
       call.on("left-meeting", onLeave);
       call.on("available-devices-updated", (ev) =>
-        applyOutputDevices(ev.availableDevices as DailyMediaDeviceInfo[]),
+        applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]),
       );
       // Covers devices already available the moment the call starts — the
       // event above only fires on a later change.
-      call.enumerateDevices().then(({ devices }) => applyOutputDevices(devices as DailyMediaDeviceInfo[]));
+      call.enumerateDevices().then(({ devices }) => applyDevices(devices as DailyMediaDeviceInfo[]));
 
       call
         .join({ url: roomUrl, token, startVideoOff: type === "AUDIO" })
@@ -151,6 +153,9 @@ export function DirectCallFrame({
     callRef.current
       ?.setOutputDeviceAsync({ outputDeviceId: outputDevices[nextIndex].deviceId })
       .then(() => setOutputIndex(nextIndex));
+  }
+  function switchCamera() {
+    callRef.current?.cycleCamera({ preferDifferentFacingMode: true });
   }
 
   const onSpeaker = Boolean(outputDevices[outputIndex] && isSpeakerDevice(outputDevices[outputIndex]));
@@ -229,6 +234,20 @@ export function DirectCallFrame({
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
           </button>
+          {/* Only shown once more than one camera is known — same
+              dead-click reasoning as the output-device button below. Most
+              laptops report exactly one; phones report front + back. */}
+          {type === "VIDEO" && cameraCount > 1 && (
+            <button
+              type="button"
+              onClick={switchCamera}
+              title="Switch between front and back camera"
+              aria-label="Switch camera"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"
+            >
+              <SwitchCamera size={16} />
+            </button>
+          )}
           {/* Only shown once more than one output device is known — a
               single-option "switch" button would be a dead click, same
               reasoning as call-frame.tsx's own speaker button. */}
