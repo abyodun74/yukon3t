@@ -1,7 +1,36 @@
+import type { Metadata } from "next";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { WhatsNewSeenMarker } from "@/components/whats-new-seen-marker";
+
+const title = "What's New on YuKon3t — Latest Features & Updates";
+const description =
+  "See the newest features on YuKon3t, from Collab Boards to live streaming — a running changelog of what's shipped and what's coming.";
+
+// This page itself calls getSessionUserOrRedirect() below and redirects
+// signed-out visitors (including crawlers) to /sign-in before any markup
+// renders, so a crawler never actually sees this metadata — it's set for
+// consistency/if the gate is ever relaxed. Accordingly this route is
+// disallowed in robots.ts and left out of sitemap.ts.
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/whats-new",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 export default async function WhatsNewPage() {
   await getSessionUserOrRedirect();

@@ -1,4 +1,31 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
+
+const title = "YuKon3t FAQ — How Verification & Circles Work";
+const description =
+  "Answers on YuKon3t's email verification, free Circles, Collab Boards, messaging, and moderation policy — everything before you sign up.";
+
+// title uses { absolute: ... } rather than a plain string — it already
+// carries the brand name, so the root layout's "%s | YuKon3t" template
+// would otherwise double it up (see src/app/page.tsx for the same pattern).
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/faq",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 type Faq = { q: string; a: ReactNode };
 type Section = { title: string; items: Faq[] };

@@ -1,3 +1,28 @@
+import type { Metadata } from "next";
+
+const title = "Community Guidelines — No Silent Bans | YuKon3t";
+const description =
+  "YuKon3t's moderation policy: every enforcement action gets a stated reason and a real appeal path. Read how we keep communities safe and fair.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/legal/guidelines",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
+
 export default function GuidelinesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">

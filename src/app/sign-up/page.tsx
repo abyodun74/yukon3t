@@ -1,9 +1,33 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signUpWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { MIN_AGE } from "@/lib/validations";
+
+const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
+const description =
+  "Create your free YuKon3t account in minutes. Verify by email, join Circles that match your interests, and start real global connections today.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/sign-up",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 function errorMessage(error: string | undefined) {
   switch (error) {

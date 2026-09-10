@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -6,6 +7,29 @@ import { redirect } from "next/navigation";
 import { loginWithPassword, resendEmailOtp } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
+
+const title = "Sign In to YuKon3t";
+const description =
+  "Log in to YuKon3t to catch up on your Circles, messages, and Collab Boards. Don't have an account? Sign up free in seconds.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/sign-in",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 async function sendMagicLink(formData: FormData) {
   "use server";

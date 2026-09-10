@@ -36,6 +36,17 @@ export function proxy(request: NextRequest) {
     ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
     : null;
 
+  // GTM/GA and Clarity's bootstrap snippets are inline scripts carrying the
+  // nonce (see layout.tsx), so 'strict-dynamic' already lets them load their
+  // actual script bundles from any host without a script-src entry here —
+  // but connect-src has no 'strict-dynamic' equivalent, so their
+  // beacon/fetch endpoints still need to be explicitly opened, and only once
+  // each is actually configured (same gating pattern as r2ApiHost above).
+  const gtmConnectSrc = process.env.NEXT_PUBLIC_GTM_ID
+    ? " https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com"
+    : "";
+  const clarityConnectSrc = process.env.NEXT_PUBLIC_CLARITY_ID ? " https://*.clarity.ms" : "";
+
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -60,15 +71,17 @@ export function proxy(request: NextRequest) {
     // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
     // scheme-only (not host-scoped) because Daily's signaling/TURN relay
     // hosts are dynamically assigned, not a fixed domain.
-    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}`,
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}`,
     // blob: is call-object mode's echo-cancellation/audio-processing worker
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.
     "worker-src 'self' blob:",
     // Same reasoning as YouTube/Vimeo post embeds: the linked-video iframe
     // (see src/lib/video-embed.ts) only ever points at these two exact
-    // origins, never an attacker-controlled one.
-    "frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com",
+    // origins, never an attacker-controlled one. googletagmanager.com is
+    // GTM's no-JS <noscript> fallback iframe (analytics-scripts.tsx) — only
+    // opened once NEXT_PUBLIC_GTM_ID is actually set.
+    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

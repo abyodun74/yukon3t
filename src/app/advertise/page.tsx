@@ -1,6 +1,30 @@
+import type { Metadata } from "next";
 import { isPaymentsConfigured } from "@/lib/stripe";
 import { AD_PRICE_PER_DAY_CENTS, formatCents } from "@/lib/ads";
 import { AdBookingForm } from "@/components/ad-booking-form";
+
+const title = "Advertise on YuKon3t — Self-Serve Ads, No Minimum";
+const description =
+  "Reach a global, verified audience with pay-as-you-go ads. Set your budget, launch in minutes — no agency, no monthly minimum spend required.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/advertise",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 export default async function AdvertisePage({
   searchParams,

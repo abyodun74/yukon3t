@@ -14,8 +14,11 @@ import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
+import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { auth } from "@/lib/auth";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +38,15 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "YuKon3t — Connect across cultures, interests, and borders",
+  metadataBase: new URL(appUrl),
+  title: {
+    default: "YuKon3t — Connect across cultures, interests, and borders",
+    // Pages that set their own title (via `title: "..."` in a page-level
+    // metadata export) get "<page title> | YuKon3t" instead of replacing
+    // the brand entirely — search results and browser tabs stay
+    // identifiable as YuKon3t even from a deep link.
+    template: "%s | YuKon3t",
+  },
   description:
     "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
   manifest: "/manifest.webmanifest",
@@ -47,6 +58,30 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "YuKon3t",
+  },
+  // Falls back to Next's own default (no verification meta tag rendered)
+  // until these are actually set — see .env.example.
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.BING_SITE_VERIFICATION
+      ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION }
+      : undefined,
+  },
+  openGraph: {
+    type: "website",
+    url: appUrl,
+    siteName: "YuKon3t",
+    title: "YuKon3t — Connect across cultures, interests, and borders",
+    description:
+      "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title: "YuKon3t — Connect across cultures, interests, and borders",
+    description:
+      "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+    images: ["/icons/icon-512.png"],
   },
   other: {
     // iOS Safari only honors the legacy vendor-prefixed tag for standalone
@@ -113,6 +148,8 @@ export default async function RootLayout({
         // content than this padding leaves room for.
         className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-[calc(4rem_+_env(safe-area-inset-bottom))] md:pb-0" : ""}`}
       >
+        <GtmNoScript />
+        <AnalyticsScripts />
         <div className="aurora-bg" aria-hidden>
           <div className="aurora-blob" />
           <div className="aurora-blob" />

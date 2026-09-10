@@ -1,7 +1,38 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
+
+const title = "YuKon3t — Verified Global Friendships, No Fake Profiles";
+const description =
+  "Connect worldwide with real, verified people. Join free Circles, skill-exchange Collab Boards, and cross-cultural friendships — no catfishing, no silent bans.";
+
+// Overrides the root layout's default title/description (rather than
+// relying on its "%s | YuKon3t" template) since this string already carries
+// the brand name — the landing page is the canonical page that string
+// belongs on. OpenGraph/Twitter are repeated in full (not just
+// title/description) because Next.js metadata doesn't deep-merge nested
+// objects with the parent layout's — declaring `openGraph` here without
+// `images` would silently drop the icon the root layout sets.
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 const pillars = [
   {
