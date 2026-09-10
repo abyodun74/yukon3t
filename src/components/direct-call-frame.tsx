@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, ScreenShare, ScreenShareOff, SwitchCamera, Video, VideoOff, Volume2 } from "lucide-react";
 import type { DailyCall, DailyMediaDeviceInfo, DailyParticipant } from "@daily-co/daily-js";
+import { Capacitor } from "@capacitor/core";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
@@ -134,16 +135,17 @@ export function DirectCallFrame({
   const remote = participants.find((p) => !p.local);
   const localVideoTrack = local?.tracks.video.persistentTrack;
 
-  // Belt-and-suspenders alongside cameraCount: confirmed live that some
-  // Android camera HALs (Samsung's included) expose front+back as a SINGLE
-  // enumerateDevices() videoinput entry that switches facing mode via
-  // constraints, rather than as two separate device entries — cameraCount
-  // alone read 1 there and the button never showed, even though
-  // cycleCamera() itself worked fine on that hardware. getCapabilities() on
-  // the actual live track is the more direct signal: it reports every
-  // facingMode the current camera can actually produce. Pure/synchronous
-  // read off the current track (same as localAudioOn etc. below), so a
-  // plain derived value each render, not state.
+  // Both of these turned out unreliable on their own — confirmed live on a
+  // Samsung phone that (a) enumerateDevices() reported only one videoinput
+  // entry (some Android camera HALs collapse front+back into a single
+  // device that changes facing mode via constraints instead of exposing two
+  // devices) AND (b) getCapabilities().facingMode came back undefined too
+  // (Android Chrome's camera-capability reporting is itself incomplete —
+  // this is a known Chromium/Android gap, not specific to that HAL). Kept
+  // as best-effort signals for browsers that DO report them accurately
+  // (most laptops correctly report exactly one camera; the flip button
+  // should stay hidden there), but isNativeApp below is the signal that
+  // actually decides it for this app's real audience — see below.
   function getCanFlipFacingMode() {
     if (!localVideoTrack || typeof localVideoTrack.getCapabilities !== "function") return false;
     try {
@@ -154,6 +156,15 @@ export function DirectCallFrame({
     }
   }
   const canFlipFacingMode = getCanFlipFacingMode();
+  // This component only ever renders for a 1:1 video call, and the native
+  // Android/iOS wrapper (capacitor.config.ts) is this app's actual mobile
+  // audience — every device it runs on has a front and back camera, so
+  // there's no "dead click" risk to gate against the way there is for the
+  // audio-output button. Unlike cameraCount/canFlipFacingMode, this is a
+  // signal about the RUNTIME (native app vs. browser tab), not the specific
+  // hardware, which is exactly why it doesn't share their false-negative
+  // problem on this device.
+  const isNativeApp = typeof window !== "undefined" && Capacitor.isNativePlatform();
 
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
@@ -256,12 +267,10 @@ export function DirectCallFrame({
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
           </button>
-          {/* Shown once either signal says there's a second camera to flip
-              to — device-count (most laptops report exactly one, phones
-              report front + back) or the live track's own facingMode
-              capabilities (covers HALs that collapse front+back into one
-              enumerateDevices() entry — see canFlipFacingMode above). */}
-          {type === "VIDEO" && (cameraCount > 1 || canFlipFacingMode) && (
+          {/* isNativeApp is the primary signal (see above) — always shown
+              in the actual mobile app. cameraCount/canFlipFacingMode are
+              the fallback for a browser tab, where hardware isn't a given. */}
+          {type === "VIDEO" && (isNativeApp || cameraCount > 1 || canFlipFacingMode) && (
             <button
               type="button"
               onClick={switchCamera}

@@ -8,6 +8,7 @@ import type {
   DailyEventObjectCustomButtonClick,
   DailyMediaDeviceInfo,
 } from "@daily-co/daily-js";
+import { Capacitor } from "@capacitor/core";
 
 const SCREEN_SHARE_BUTTON_ID = "screenshare";
 const AUDIO_OUTPUT_BUTTON_ID = "audiooutput";
@@ -178,19 +179,24 @@ export function CallFrame({
       // Front/back camera switch. Video calls only — an audio call's camera
       // stays off unless the user turns it on via Daily's own built-in
       // toggle, and it's not worth the extra event plumbing to show/hide
-      // this button mid-call in response to that. Gated on either
-      // more-than-one-camera-known (most laptops report exactly one, a
-      // dead-click "switch" button is worse than no button) OR the live
-      // local track's own facingMode capabilities — confirmed live that
-      // some Android camera HALs (Samsung's included) collapse front+back
-      // into a SINGLE enumerateDevices() videoinput entry that switches
-      // facing mode via constraints, so device count alone read 1 there and
-      // hid the button even though cycleCamera() itself worked fine.
+      // this button mid-call in response to that. isNativeApp is the signal
+      // that actually decides it: this app's real mobile audience is the
+      // Capacitor wrapper (capacitor.config.ts), where every device has a
+      // front and back camera, so there's no "dead click" risk to gate
+      // against. cameraCount/canFlipFacingMode are best-effort fallbacks
+      // for a browser tab, where hardware isn't a given — but confirmed
+      // live on a Samsung phone that BOTH are unreliable there: some
+      // Android camera HALs collapse front+back into a single
+      // enumerateDevices() videoinput entry, AND Android Chrome's
+      // getCapabilities().facingMode reporting is itself incomplete (a
+      // known Chromium/Android gap) — cycleCamera() worked fine on that
+      // hardware regardless, both signals just under-reported it.
       let cameraCount = 0;
       let canFlipFacingMode = false;
+      const isNativeApp = typeof window !== "undefined" && Capacitor.isNativePlatform();
       const syncCameraSwitchButton = () => {
         if (!joined) return;
-        if (type === "VIDEO" && (cameraCount > 1 || canFlipFacingMode)) {
+        if (type === "VIDEO" && (isNativeApp || cameraCount > 1 || canFlipFacingMode)) {
           trayButtons[CAMERA_SWITCH_BUTTON_ID] = {
             iconPath: CAMERA_SWITCH_ICON,
             label: "Flip camera",
