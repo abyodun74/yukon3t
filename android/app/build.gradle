@@ -81,8 +81,10 @@ android {
         // (API 26+) for any yukon3t://call intent, reverted 30s later. No
         // new permission and no new Play Console declaration — these are
         // plain Activity/Window APIs, not Restricted Permissions.
-        versionCode 14
-        versionName "1.11"
+        // 15: no code change — versionCode 14 was already consumed by a prior
+        // testing-track upload, so production release needed a fresh code.
+        versionCode 15
+        versionName "1.12"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
