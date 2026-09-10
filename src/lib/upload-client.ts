@@ -29,6 +29,13 @@ const IMAGE_RESIZE_QUALITY = 0.85;
  */
 export async function resizeImageFile(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
+  // Drawing onto a <canvas> only ever captures a single frame — running an
+  // animated GIF through this would silently flatten it to a still image.
+  // Skipped outright rather than dimension-gated like every other type
+  // below: a small GIF happening to fit under MAX_IMAGE_DIMENSION already
+  // isn't what breaks it, a large one would be, so "only resize when it's
+  // actually over the cap" isn't a safe rule to apply here at all.
+  if (file.type === "image/gif") return file;
 
   const objectUrl = URL.createObjectURL(file);
   try {

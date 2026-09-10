@@ -26,7 +26,15 @@ export type UploadKind =
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
-  "post-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  // gif here (not on avatar/circle-cover/story-image/ad-image) matches
+  // exactly where the client actually offers it: post-composer.tsx and
+  // chat-thread.tsx's paste/picker handlers, for a real animated GIF file
+  // (as opposed to the separate pendingGif/gifUrl field, a Giphy CDN URL
+  // that's never uploaded here at all — see validations.ts's "GIF"
+  // mediaType, which is that path, not this one). Rendered the same as any
+  // other IMAGE mediaType (a plain <img src>), which animates a GIF natively
+  // with no special-case needed there.
+  "post-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "circle-cover": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
@@ -36,7 +44,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   // mp4 is here too because "attach from device" lets a user pick a video
   // their phone actually recorded, which is virtually always mp4.
   "message-video": { "video/mp4": "mp4", "video/webm": "webm" },
-  "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },

@@ -37,7 +37,7 @@ const MAX_RECORD_VIDEO_SECONDS = 60;
 // Moderation API (src/lib/hive.ts) can't scan past 60s of content.
 const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   YOUTUBE: "YouTube",
@@ -185,10 +185,14 @@ export function PostComposer({
     Promise.resolve().then(() => {
       const shared = consumePendingShareMedia();
       if (!shared) return;
-      if (shared.images.length > 0) setImages((prev) => [...prev, ...shared.images].slice(0, MAX_IMAGES));
-      if (shared.video) setVideo(shared.video);
+      // Through the same pickImages/pickVideo validation (type/size/resize)
+      // as any other attach path, not straight into state — a share-sheet
+      // hand-off is no more trustworthy than a raw file picker/paste.
+      if (shared.images.length > 0) pickImages(shared.images);
+      if (shared.video) pickVideo(shared.video);
       if (shared.text) appendDictatedText(shared.text);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; pickImages/pickVideo/appendDictatedText read current state via closures each render, but this effect only ever needs to fire once
   }, []);
 
   // Object URLs are created once per image set (memoized on `images`), not
@@ -204,7 +208,11 @@ export function PostComposer({
     };
   }, [imagePreviewUrls]);
 
-  async function pickImages(files: FileList | null) {
+  // FileList | File[] — a real <input>/paste event always hands this a
+  // FileList, but ShareTargetGate's pending-share pickup (below) only has a
+  // plain File[] (there's no real DOM FileList to build without a fake
+  // DataTransfer), and Array.from() treats both identically.
+  async function pickImages(files: FileList | File[] | null) {
     if (!files) return;
     const picked = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
     // Resize before the size check — a raw phone photo routinely exceeds

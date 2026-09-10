@@ -64,7 +64,11 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 // Same fail-open-without-key / fail-open-on-error semantics as moderateText,
 // applied to an already-uploaded image's public URL. This is the enforcement
 // point for the "no sexually explicit content" policy on photos and on the
-// client-captured video thumbnail frame that stands in for a video.
+// client-captured video thumbnail frame that stands in for a video. For an
+// animated GIF (storage.ts's post-image/message-image kinds), OpenAI's
+// endpoint only ever looks at the first frame — the same "one frame stands
+// in for the whole thing" tradeoff this already makes for video via its own
+// thumbnail frame, not a new gap this introduces.
 export async function moderateImage(url: string): Promise<ModerationResult> {
   return callModerationApi([{ type: "image_url", image_url: { url } }]);
 }

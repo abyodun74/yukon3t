@@ -44,7 +44,7 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
 const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 
 function dictationErrorMessage(code: string) {
@@ -822,10 +822,14 @@ export function ChatThread({
     Promise.resolve().then(() => {
       const shared = consumePendingShareMedia();
       if (!shared) return;
+      // Through the same pickImage/pickVideoFile validation (type/size/
+      // resize) as any other attach path, not straight into state — a
+      // share-sheet hand-off is no more trustworthy than a raw file
+      // picker/paste.
       if (shared.video) {
-        setPendingVideo(shared.video);
+        pickVideoFile(shared.video);
       } else if (shared.images[0]) {
-        setPendingImage(shared.images[0]);
+        pickImage(shared.images[0]);
       }
       if (shared.text) setContent((prev) => (prev ? `${prev} ${shared.text}` : shared.text!));
     });
@@ -1023,7 +1027,7 @@ export function ChatThread({
   async function pickImage(file: File | undefined) {
     if (!file) return;
     if (!IMAGE_TYPES.includes(file.type)) {
-      setError("Use a JPEG, PNG, or WebP image.");
+      setError("Use a JPEG, PNG, WebP, or GIF image.");
       return;
     }
     // Resize before the size check — see post-composer.tsx's pickImages
