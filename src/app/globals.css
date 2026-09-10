@@ -585,3 +585,41 @@ textarea {
     animation: none;
   }
 }
+
+/* WhatsApp-style emoji picker (see emoji-picker-button.tsx's
+   className="wa-emoji-picker"). emoji-picker-react always renders its
+   category icon row (.epr-category-nav) inline next to the search bar, at
+   the top — these rules relocate it to a sticky bar along the bottom
+   instead, the way WhatsApp's own picker works.
+
+   This relies on two things confirmed straight from the library's own
+   source (emoji-picker-react's compiled bundle): .epr-main (the picker's
+   outer box) is already position:relative with overflow:hidden and a
+   border-radius, and .epr-header (search bar + nav's shared parent) is
+   ALSO position:relative — which would otherwise anchor an absolutely
+   positioned nav to the header's own short box instead of the full
+   picker. Overriding .epr-header back to static lets the nav's absolute
+   positioning bubble up to .epr-main, landing flush against the picker's
+   real bottom edge — overflow:hidden then clips its corners to match the
+   picker's own rounded corners for free.
+
+   !important throughout: the library re-injects its own <style> tag into
+   <head> on every render (confirmed live — a plain, unlayered, equally- or
+   more-specific selector here still lost to it), landing after this
+   stylesheet in source order, so a normal specificity fight isn't
+   reliably winnable against it. */
+.wa-emoji-picker.epr-main {
+  padding-bottom: 42px !important;
+}
+.wa-emoji-picker .epr-header {
+  position: static !important;
+}
+.wa-emoji-picker .epr-category-nav {
+  position: absolute !important;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: var(--epr-bg-color);
+  border-top: 1px solid var(--epr-picker-border-color);
+}

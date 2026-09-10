@@ -239,6 +239,17 @@ export function EmojiPickerButton({
                 <EmojiPicker
                   theme={THEME_AUTO}
                   emojiStyle={emojiStyle as EmojiStyle}
+                  // Relocates the library's own category icon row from
+                  // next to the search bar to a sticky bar along the
+                  // bottom, WhatsApp-style — see the .wa-emoji-picker rules
+                  // in globals.css for how.
+                  className="wa-emoji-picker"
+                  // WhatsApp's own picker has no large hover/selection
+                  // preview footer — it goes straight from the grid to the
+                  // bottom category bar. Off here too, both to match that
+                  // and to free up grid height in this popup's fixed,
+                  // already-tight box.
+                  previewConfig={{ showPreview: false }}
                   width={position.width}
                   // Borrows space from the picker itself when the suggestions
                   // bar is showing, rather than adding to the popup's total
