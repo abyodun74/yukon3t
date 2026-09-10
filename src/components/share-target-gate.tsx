@@ -32,11 +32,40 @@ export function ShareTargetGate() {
   const [view, setView] = useState<View>("root");
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
 
+  // Checked both on mount (cold start — the launching SEND intent is
+  // already sitting in ShareReceiverPlugin's holder by the time this
+  // component's effects run) and on every native "resume" event (the app
+  // was already alive in the background; MainActivity's onNewIntent just
+  // restashed a new one there). Confirmed live that "resume" is genuinely
+  // needed, not just a belt-and-suspenders — incoming-call-listener.tsx's
+  // own appUrlOpen event only fires for a VIEW intent carrying a data URI,
+  // never for the ACTION_SEND/SEND_MULTIPLE intents this feature runs on,
+  // so without this a share arriving while the app was already running
+  // silently did nothing until the next full relaunch.
   useEffect(() => {
     if (Capacitor.getPlatform() !== "android") return;
-    checkForPendingShare().then((result) => {
-      if (result) setShare(result);
+    let cancelled = false;
+    let listener: { remove: () => void } | undefined;
+
+    function check() {
+      checkForPendingShare().then((result) => {
+        if (!cancelled && result) setShare(result);
+      });
+    }
+
+    check();
+    import("@capacitor/app").then(({ App }) => {
+      if (cancelled) return;
+      App.addListener("resume", check).then((h) => {
+        if (cancelled) h.remove();
+        else listener = h;
+      });
     });
+
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
   }, []);
 
   useEffect(() => {
