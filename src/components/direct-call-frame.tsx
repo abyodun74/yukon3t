@@ -132,6 +132,28 @@ export function DirectCallFrame({
 
   const local = participants.find((p) => p.local);
   const remote = participants.find((p) => !p.local);
+  const localVideoTrack = local?.tracks.video.persistentTrack;
+
+  // Belt-and-suspenders alongside cameraCount: confirmed live that some
+  // Android camera HALs (Samsung's included) expose front+back as a SINGLE
+  // enumerateDevices() videoinput entry that switches facing mode via
+  // constraints, rather than as two separate device entries — cameraCount
+  // alone read 1 there and the button never showed, even though
+  // cycleCamera() itself worked fine on that hardware. getCapabilities() on
+  // the actual live track is the more direct signal: it reports every
+  // facingMode the current camera can actually produce. Pure/synchronous
+  // read off the current track (same as localAudioOn etc. below), so a
+  // plain derived value each render, not state.
+  function getCanFlipFacingMode() {
+    if (!localVideoTrack || typeof localVideoTrack.getCapabilities !== "function") return false;
+    try {
+      const facingModes = localVideoTrack.getCapabilities().facingMode;
+      return Array.isArray(facingModes) && facingModes.length > 1;
+    } catch {
+      return false;
+    }
+  }
+  const canFlipFacingMode = getCanFlipFacingMode();
 
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
@@ -234,10 +256,12 @@ export function DirectCallFrame({
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
           </button>
-          {/* Only shown once more than one camera is known — same
-              dead-click reasoning as the output-device button below. Most
-              laptops report exactly one; phones report front + back. */}
-          {type === "VIDEO" && cameraCount > 1 && (
+          {/* Shown once either signal says there's a second camera to flip
+              to — device-count (most laptops report exactly one, phones
+              report front + back) or the live track's own facingMode
+              capabilities (covers HALs that collapse front+back into one
+              enumerateDevices() entry — see canFlipFacingMode above). */}
+          {type === "VIDEO" && (cameraCount > 1 || canFlipFacingMode) && (
             <button
               type="button"
               onClick={switchCamera}

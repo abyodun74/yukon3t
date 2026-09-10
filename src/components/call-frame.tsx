@@ -82,6 +82,7 @@ export function CallFrame({
     let syncScreenShareButton: (() => void) | null = null;
     let handleAvailableDevicesUpdated: ((ev: DailyEventObjectAvailableDevicesUpdated) => void) | null = null;
     let handleJoinedMeeting: (() => void) | null = null;
+    let handleParticipantUpdated: (() => void) | null = null;
 
     // Dynamic import, not a static one: this package touches browser globals
     // at module load, so it must never be evaluated during SSR of this
@@ -177,14 +178,19 @@ export function CallFrame({
       // Front/back camera switch. Video calls only — an audio call's camera
       // stays off unless the user turns it on via Daily's own built-in
       // toggle, and it's not worth the extra event plumbing to show/hide
-      // this button mid-call in response to that. Gated on more than one
-      // camera being known for the same reason as the output-device button
-      // above: most laptops report exactly one, and a dead-click "switch"
-      // button is worse than no button.
+      // this button mid-call in response to that. Gated on either
+      // more-than-one-camera-known (most laptops report exactly one, a
+      // dead-click "switch" button is worse than no button) OR the live
+      // local track's own facingMode capabilities — confirmed live that
+      // some Android camera HALs (Samsung's included) collapse front+back
+      // into a SINGLE enumerateDevices() videoinput entry that switches
+      // facing mode via constraints, so device count alone read 1 there and
+      // hid the button even though cycleCamera() itself worked fine.
       let cameraCount = 0;
+      let canFlipFacingMode = false;
       const syncCameraSwitchButton = () => {
         if (!joined) return;
-        if (type === "VIDEO" && cameraCount > 1) {
+        if (type === "VIDEO" && (cameraCount > 1 || canFlipFacingMode)) {
           trayButtons[CAMERA_SWITCH_BUTTON_ID] = {
             iconPath: CAMERA_SWITCH_ICON,
             label: "Flip camera",
@@ -195,6 +201,19 @@ export function CallFrame({
         }
         call.updateCustomTrayButtons({ ...trayButtons });
       };
+      const refreshFacingModeSupport = () => {
+        const track = call.participants().local?.tracks?.video?.persistentTrack;
+        if (!track || typeof track.getCapabilities !== "function") {
+          canFlipFacingMode = false;
+          return;
+        }
+        try {
+          const facingModes = track.getCapabilities().facingMode;
+          canFlipFacingMode = Array.isArray(facingModes) && facingModes.length > 1;
+        } catch {
+          canFlipFacingMode = false;
+        }
+      };
       const applyDevices = (devices: DailyMediaDeviceInfo[]) => {
         outputDevices = devices.filter((d) => d.kind === "audiooutput");
         if (outputIndex >= outputDevices.length) outputIndex = 0;
@@ -204,8 +223,14 @@ export function CallFrame({
       };
       handleAvailableDevicesUpdated = (ev) => applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]);
       call.on("available-devices-updated", handleAvailableDevicesUpdated);
+      handleParticipantUpdated = () => {
+        refreshFacingModeSupport();
+        syncCameraSwitchButton();
+      };
+      call.on("participant-updated", handleParticipantUpdated);
       handleJoinedMeeting = () => {
         joined = true;
+        refreshFacingModeSupport();
         syncOutputButton();
         syncCameraSwitchButton();
       };
@@ -267,6 +292,7 @@ export function CallFrame({
           call.off("local-screen-share-stopped", syncScreenShareButton);
         }
         if (handleAvailableDevicesUpdated) call.off("available-devices-updated", handleAvailableDevicesUpdated);
+        if (handleParticipantUpdated) call.off("participant-updated", handleParticipantUpdated);
         if (handleJoinedMeeting) call.off("joined-meeting", handleJoinedMeeting);
         onCallObject?.(null);
         call.destroy();
