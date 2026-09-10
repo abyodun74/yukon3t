@@ -10,7 +10,7 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
-import { consumePendingShareMedia } from "@/lib/share-target-store";
+import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -173,26 +173,34 @@ export function PostComposer({
   }
 
   // Picks up media handed off by ShareTargetGate ("New post" from another
-  // app's Share sheet) — see share-target-store.ts. Runs once on mount;
-  // consumePendingShareMedia() itself only ever returns a value once, so
-  // there's no ongoing subscription to worry about cleaning up. Deferred a
+  // app's Share sheet) — see share-target-store.ts. Checked both on mount
+  // (covers navigating here from elsewhere) and via subscribePendingShareMedia
+  // (covers the case confirmed live: PostComposer lives inline on /home,
+  // which is also where ShareTargetGate itself renders over, so
+  // router.push("/home") when already there doesn't remount this component
+  // at all — the mount check alone silently missed it). Deferred a
   // microtask rather than read synchronously in the effect body — same
   // async-boundary shape as every other "check on mount" effect in this
   // codebase (e.g. ShareTargetGate's own checkForPendingShare().then(...)),
   // which react-hooks/set-state-in-effect wants rather than a same-tick
   // setState call directly in the effect body.
   useEffect(() => {
-    Promise.resolve().then(() => {
-      const shared = consumePendingShareMedia();
-      if (!shared) return;
-      // Through the same pickImages/pickVideo validation (type/size/resize)
-      // as any other attach path, not straight into state — a share-sheet
-      // hand-off is no more trustworthy than a raw file picker/paste.
-      if (shared.images.length > 0) pickImages(shared.images);
-      if (shared.video) pickVideo(shared.video);
-      if (shared.text) appendDictatedText(shared.text);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; pickImages/pickVideo/appendDictatedText read current state via closures each render, but this effect only ever needs to fire once
+    function applyShare() {
+      Promise.resolve().then(() => {
+        const shared = consumePendingShareMedia();
+        if (!shared) return;
+        // Through the same pickImages/pickVideo validation (type/size/
+        // resize) as any other attach path, not straight into state — a
+        // share-sheet hand-off is no more trustworthy than a raw file
+        // picker/paste.
+        if (shared.images.length > 0) pickImages(shared.images);
+        if (shared.video) pickVideo(shared.video);
+        if (shared.text) appendDictatedText(shared.text);
+      });
+    }
+    applyShare();
+    return subscribePendingShareMedia(applyShare);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/subscribe-only; pickImages/pickVideo/appendDictatedText read current state via closures each render, but this effect's setup only ever needs to run once
   }, []);
 
   // Object URLs are created once per image set (memoized on `images`), not

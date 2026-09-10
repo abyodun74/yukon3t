@@ -23,7 +23,7 @@ import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
-import { consumePendingShareMedia } from "@/lib/share-target-store";
+import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
@@ -812,27 +812,35 @@ export function ChatThread({
 
   // Picks up media handed off by ShareTargetGate ("Send to a friend" picked
   // this conversation from another app's Share sheet) — see
-  // share-target-store.ts. Runs once on mount; consumePendingShareMedia()
-  // itself only ever returns a value once. Only the first shared image is
-  // used — pendingImage is already a single-attachment slot here, same as
-  // every other path that sets it (the picker/camera buttons below).
-  // Deferred a microtask, not read synchronously in the effect body — see
-  // the matching comment in post-composer.tsx's own copy of this effect.
+  // share-target-store.ts. Checked both on mount and via
+  // subscribePendingShareMedia — the latter matters if the user was
+  // already viewing this exact conversation when the share landed, same
+  // "already-mounted, router.push() to the same route doesn't remount"
+  // gap confirmed live on PostComposer's own copy of this effect. Only the
+  // first shared image is used — pendingImage is already a
+  // single-attachment slot here, same as every other path that sets it
+  // (the picker/camera buttons below). Deferred a microtask, not read
+  // synchronously in the effect body — see the matching comment in
+  // post-composer.tsx's own copy of this effect.
   useEffect(() => {
-    Promise.resolve().then(() => {
-      const shared = consumePendingShareMedia();
-      if (!shared) return;
-      // Through the same pickImage/pickVideoFile validation (type/size/
-      // resize) as any other attach path, not straight into state — a
-      // share-sheet hand-off is no more trustworthy than a raw file
-      // picker/paste.
-      if (shared.video) {
-        pickVideoFile(shared.video);
-      } else if (shared.images[0]) {
-        pickImage(shared.images[0]);
-      }
-      if (shared.text) setContent((prev) => (prev ? `${prev} ${shared.text}` : shared.text!));
-    });
+    function applyShare() {
+      Promise.resolve().then(() => {
+        const shared = consumePendingShareMedia();
+        if (!shared) return;
+        // Through the same pickImage/pickVideoFile validation (type/size/
+        // resize) as any other attach path, not straight into state — a
+        // share-sheet hand-off is no more trustworthy than a raw file
+        // picker/paste.
+        if (shared.video) {
+          pickVideoFile(shared.video);
+        } else if (shared.images[0]) {
+          pickImage(shared.images[0]);
+        }
+        if (shared.text) setContent((prev) => (prev ? `${prev} ${shared.text}` : shared.text!));
+      });
+    }
+    applyShare();
+    return subscribePendingShareMedia(applyShare);
   }, []);
 
   // usePolling fires this immediately (mount, and on regaining tab focus)
