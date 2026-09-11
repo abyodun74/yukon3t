@@ -89,8 +89,12 @@ android {
         // permission and no new Play Console declaration — receiving an
         // ACTION_SEND intent doesn't require one, the content URI comes
         // granted with the intent itself.
-        versionCode 16
-        versionName "1.13"
+        // 17: enables R8 minifyEnabled/shrinkResources on the release build
+        // (see buildTypes.release below) to fix Play Console's app-optimization
+        // "Obfuscation" score sitting at ~2%. No behavior change — no new
+        // permission, no new Play Console declaration.
+        versionCode 17
+        versionName "1.14"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -110,8 +114,16 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8 shrinking/obfuscation — was false, which left Play Console's
+            // app-optimization "Obfuscation" score at ~2%. Capacitor's own
+            // consumer proguard-rules.pro (bundled in the capacitor AAR)
+            // already keeps every class extending com.getcapacitor.Plugin,
+            // so the custom native plugins here (CallForegroundPlugin,
+            // ScreenCaptureGuardPlugin, ShareReceiverPlugin, VolumeButtonPlugin)
+            // and Firebase Messaging's own bundled consumer rules aren't at risk.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Unsigned (a plain assembleRelease/bundleRelease still succeeds,
             // just produces an unsigned artifact) until keystore.properties
             // exists — see the comment above.
