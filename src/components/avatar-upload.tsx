@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
+import { ImageCropModal } from "@/components/image-crop-modal";
 
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -15,15 +16,21 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
-  function handleFile(file: File | undefined) {
+  function handlePicked(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setStatus("error");
       setMessage("Use a JPEG, PNG, or WebP image.");
       return;
     }
+    setStatus("idle");
+    setMessage(null);
+    setCropFile(file);
+  }
 
+  function handleFile(file: File) {
     setStatus("uploading");
     setMessage(null);
 
@@ -107,7 +114,11 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           type="file"
           accept={ACCEPTED_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0])}
+          onChange={(e) => {
+            handlePicked(e.target.files?.[0]);
+            // Reset so picking the same file again still fires onChange.
+            e.target.value = "";
+          }}
         />
         <button
           type="button"
@@ -128,6 +139,19 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           </p>
         )}
       </div>
+      {cropFile && (
+        <ImageCropModal
+          key={cropFile.name + cropFile.size}
+          file={cropFile}
+          aspect={1}
+          title="Crop profile picture"
+          onCancel={() => setCropFile(null)}
+          onCropped={(cropped) => {
+            setCropFile(null);
+            handleFile(cropped);
+          }}
+        />
+      )}
     </div>
   );
 }

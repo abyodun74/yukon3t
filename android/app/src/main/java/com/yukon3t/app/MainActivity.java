@@ -11,6 +11,7 @@ import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 
+import androidx.activity.EdgeToEdge;
 import androidx.core.app.NotificationManagerCompat;
 
 import com.getcapacitor.BridgeActivity;
@@ -30,12 +31,21 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Must run before super.onCreate() (setContentView happens inside it) —
+        // this is what actually opts in to edge-to-edge on API < 35 and makes it
+        // explicit/deterministic on 35+, where the OS already enforces it. The
+        // window-inset padding and safe-area CSS values themselves still come
+        // from Capacitor's own core SystemBars plugin (auto-registered by
+        // Bridge), not from this call.
+        EdgeToEdge.enable(this);
+
         // Must run before super.onCreate() — that's where BridgeActivity
         // actually builds the Bridge from the plugin list accumulated so far.
         registerPlugin(CallForegroundPlugin.class);
         registerPlugin(ScreenCaptureGuardPlugin.class);
         registerPlugin(VolumeButtonPlugin.class);
         registerPlugin(ShareReceiverPlugin.class);
+        registerPlugin(GalleryPickerPlugin.class);
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
         handleShareIntent(getIntent());

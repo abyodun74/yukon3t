@@ -6,6 +6,7 @@ import { AlertCircle, Camera, Loader2, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -235,12 +236,30 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     setError(messages.length ? messages.join(" ") : null);
   }
 
-  async function addImages(fileList: FileList | null) {
+  async function addImages(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList);
     const allowed = Math.max(0, MAX_ITEMS - items.length);
     const results = await Promise.all(incoming.slice(0, allowed).map(processImageFile));
     addResults(results, incoming.length - allowed);
+  }
+
+  /**
+   * Nicer native multi-select on Android (see native-gallery-picker.ts);
+   * null means it didn't run (iOS, web, or an older installed build), so
+   * the caller falls back to the plain <input type="file" multiple>. An
+   * empty (non-null) array means the user opened the native picker and
+   * backed out with nothing selected — a no-op, same as cancelling the
+   * file dialog.
+   */
+  async function pickImagesOrFallback() {
+    const allowed = Math.max(0, MAX_ITEMS - items.length);
+    const native = await pickImagesNative(allowed);
+    if (native) {
+      if (native.length > 0) addImages(native);
+      return;
+    }
+    imageInputRef.current?.click();
   }
 
   async function addVideos(fileList: FileList | null) {
@@ -410,7 +429,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                   icon={<Upload size={16} />}
                   title="Add more"
                   options={[
-                    { label: "Add photos", icon: <Upload size={14} />, onSelect: () => imageInputRef.current?.click() },
+                    { label: "Add photos", icon: <Upload size={14} />, onSelect: pickImagesOrFallback },
                     { label: "Take a photo", icon: <Camera size={14} />, onSelect: () => cameraInputRef.current?.click() },
                     { label: "Add videos", icon: <Video size={14} />, onSelect: () => videoInputRef.current?.click() },
                   ]}
@@ -427,7 +446,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                 {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
-                  onSelect: () => imageInputRef.current?.click(),
+                  onSelect: pickImagesOrFallback,
                 },
                 {
                   label: "Take a photo",

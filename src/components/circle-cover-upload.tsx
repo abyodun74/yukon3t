@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
+import { ImageCropModal } from "@/components/image-crop-modal";
 
 const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -23,15 +24,21 @@ export function CircleCoverUpload({
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
-  function handleFile(file: File | undefined) {
+  function handlePicked(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setStatus("error");
       setMessage("Use a JPEG, PNG, or WebP image.");
       return;
     }
+    setStatus("idle");
+    setMessage(null);
+    setCropFile(file);
+  }
 
+  function handleFile(file: File) {
     setStatus("uploading");
     setMessage(null);
 
@@ -114,7 +121,10 @@ export function CircleCoverUpload({
           type="file"
           accept={ACCEPTED_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0])}
+          onChange={(e) => {
+            handlePicked(e.target.files?.[0]);
+            e.target.value = "";
+          }}
         />
         <button
           type="button"
@@ -135,6 +145,19 @@ export function CircleCoverUpload({
           </p>
         )}
       </div>
+      {cropFile && (
+        <ImageCropModal
+          key={cropFile.name + cropFile.size}
+          file={cropFile}
+          aspect={1}
+          title="Crop Circle picture"
+          onCancel={() => setCropFile(null)}
+          onCropped={(cropped) => {
+            setCropFile(null);
+            handleFile(cropped);
+          }}
+        />
+      )}
     </div>
   );
 }

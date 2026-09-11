@@ -98,8 +98,19 @@ android {
         // to clear Play Console's remaining "R8 optimization" app-optimization
         // recommendation. No behavior change — no new permission, no new
         // Play Console declaration.
-        versionCode 18
-        versionName "1.15"
+        // 19: adds MainActivity's EdgeToEdge.enable() call and removes the
+        // unused @capacitor/camera dependency (its bundled ioncamera-android
+        // library was the actual source of both the "edge-to-edge may not
+        // display for all users" and the deprecated Window.getStatusBarColor/
+        // getNavigationBarColor/setStatusBarColor + missing-BitmapFactory-
+        // downsampling Play Console recommendations — confirmed via the
+        // prior release's own R8 mapping.txt). Also adds GalleryPickerPlugin
+        // (Android's native multi-select Photo Picker, androidx.activity —
+        // already a dependency, no new one added) for post/story photo
+        // picking, replacing nothing that was load-bearing. No new
+        // permission and no new Play Console declaration.
+        versionCode 19
+        versionName "1.16"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -146,6 +157,10 @@ repositories {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    // MainActivity's EdgeToEdge.enable() call needs this directly — capacitor-android
+    // already depends on it, but only as `implementation`, which Gradle doesn't expose
+    // transitively to :app.
+    implementation "androidx.activity:activity:$androidxActivityVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     // CallMessagingService (see src/main/java/com/yukon3t/app/) extends

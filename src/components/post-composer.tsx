@@ -15,6 +15,7 @@ import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
 
@@ -757,7 +758,21 @@ export function PostComposer({
               {
                 label: "Upload from device",
                 icon: <Upload size={14} />,
-                onSelect: () => imageInputRef.current?.click(),
+                onSelect: async () => {
+                  // Nicer native multi-select on Android (see
+                  // native-gallery-picker.ts); null means it didn't run
+                  // (iOS, web, or an older installed build), so fall back
+                  // to the plain <input type="file" multiple> below. An
+                  // empty (non-null) array means the user opened the
+                  // native picker and backed out with nothing selected —
+                  // a no-op, same as cancelling the file dialog.
+                  const native = await pickImagesNative(MAX_IMAGES - imageCount);
+                  if (native) {
+                    if (native.length > 0) pickImages(native);
+                    return;
+                  }
+                  imageInputRef.current?.click();
+                },
               },
               {
                 label: "Take a photo",
