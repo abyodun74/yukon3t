@@ -129,10 +129,15 @@ export function CircleCoverUpload({
             e.target.value = "";
           }}
         />
+        {/* accept must include the literal "image/*" — Capacitor's own
+            WebView file-chooser handler only routes a capture-enabled
+            input to the native camera intent when
+            acceptTypes.contains("image/*") is true; see avatar-upload.tsx's
+            camera input for the full explanation. */}
         <input
           ref={cameraInputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(",")}
+          accept={`${ACCEPTED_TYPES.join(",")},image/*`}
           capture="environment"
           className="hidden"
           onChange={(e) => {

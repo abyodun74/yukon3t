@@ -735,10 +735,17 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => pickImages(e.target.files)}
           />
+          {/* accept must include the literal "image/*" — Capacitor's own
+              WebView file-chooser handler only routes a capture-enabled
+              input to the native camera intent when
+              acceptTypes.contains("image/*") is true; a list of only
+              specific MIME types fails that check and silently falls back
+              to the plain file/gallery picker instead of opening the
+              camera — confirmed live. */}
           <input
             ref={cameraInputRef}
             type="file"
-            accept={IMAGE_TYPES.join(",")}
+            accept={`${IMAGE_TYPES.join(",")},image/*`}
             capture="environment"
             className="hidden"
             onChange={(e) => pickImages(e.target.files)}

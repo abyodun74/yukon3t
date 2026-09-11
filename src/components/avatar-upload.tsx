@@ -126,11 +126,23 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         {/* capture="user" (front camera) — a profile picture is normally a
             selfie, unlike the rest of the app's camera buttons (post/story/
             chat/ads), which default to "environment" for photographing
-            whatever's in front of you. */}
+            whatever's in front of you.
+
+            accept must include the literal "image/*" — Capacitor's own
+            WebView file-chooser handler
+            (BridgeWebChromeClient.onShowFileChooser) only routes a
+            capture-enabled input to the native camera intent when
+            acceptTypes.contains("image/*") is true; a list of only
+            specific MIME types (as ACCEPTED_TYPES has here) fails that
+            check and silently falls back to the plain file/gallery picker
+            instead — confirmed live, this is why "Take a photo" opened the
+            same chooser as "Choose from gallery" with no camera shortcut.
+            The specific types stay too; only their presence in
+            downstream validation matters, not what's offered here. */}
         <input
           ref={cameraInputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(",")}
+          accept={`${ACCEPTED_TYPES.join(",")},image/*`}
           capture="user"
           className="hidden"
           onChange={(e) => {
