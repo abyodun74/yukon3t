@@ -2,9 +2,11 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Camera, Upload } from "lucide-react";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 import { ImageCropModal } from "@/components/image-crop-modal";
+import { MediaPickerButton } from "@/components/media-picker-button";
 
 const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -22,7 +24,8 @@ export function CircleCoverUpload({
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [cropFile, setCropFile] = useState<File | null>(null);
 
@@ -102,7 +105,7 @@ export function CircleCoverUpload({
       <button
         type="button"
         disabled={isPending}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => galleryInputRef.current?.click()}
         aria-label="Change Circle picture"
         className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-line bg-surface disabled:opacity-50"
       >
@@ -117,7 +120,7 @@ export function CircleCoverUpload({
       </button>
       <div>
         <input
-          ref={inputRef}
+          ref={galleryInputRef}
           type="file"
           accept={ACCEPTED_TYPES.join(",")}
           className="hidden"
@@ -126,14 +129,37 @@ export function CircleCoverUpload({
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept={ACCEPTED_TYPES.join(",")}
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            handlePicked(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <MediaPickerButton
+          title="Change Circle picture"
           disabled={isPending}
-          onClick={() => inputRef.current?.click()}
+          menuPlacement="bottom"
           className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+          options={[
+            {
+              label: "Choose from gallery",
+              icon: <Upload size={14} />,
+              onSelect: () => galleryInputRef.current?.click(),
+            },
+            {
+              label: "Take a photo",
+              icon: <Camera size={14} />,
+              onSelect: () => cameraInputRef.current?.click(),
+            },
+          ]}
         >
           {status === "uploading" ? "Uploading..." : "Change Circle picture"}
-        </button>
+        </MediaPickerButton>
         <p className="mt-1 text-xs text-foreground-soft">
           JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
         </p>

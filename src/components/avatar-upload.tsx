@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { Camera, Upload } from "lucide-react";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
 import { ImageCropModal } from "@/components/image-crop-modal";
+import { MediaPickerButton } from "@/components/media-picker-button";
 
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -15,7 +17,8 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
 
   function handlePicked(file: File | undefined) {
@@ -95,7 +98,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       <button
         type="button"
         disabled={isPending}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => galleryInputRef.current?.click()}
         aria-label="Change profile picture"
         className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface disabled:opacity-50"
       >
@@ -110,7 +113,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       </button>
       <div>
         <input
-          ref={inputRef}
+          ref={galleryInputRef}
           type="file"
           accept={ACCEPTED_TYPES.join(",")}
           className="hidden"
@@ -120,14 +123,41 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
+        {/* capture="user" (front camera) — a profile picture is normally a
+            selfie, unlike the rest of the app's camera buttons (post/story/
+            chat/ads), which default to "environment" for photographing
+            whatever's in front of you. */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept={ACCEPTED_TYPES.join(",")}
+          capture="user"
+          className="hidden"
+          onChange={(e) => {
+            handlePicked(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <MediaPickerButton
+          title="Change photo"
           disabled={isPending}
-          onClick={() => inputRef.current?.click()}
+          menuPlacement="bottom"
           className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+          options={[
+            {
+              label: "Choose from gallery",
+              icon: <Upload size={14} />,
+              onSelect: () => galleryInputRef.current?.click(),
+            },
+            {
+              label: "Take a photo",
+              icon: <Camera size={14} />,
+              onSelect: () => cameraInputRef.current?.click(),
+            },
+          ]}
         >
           {status === "uploading" ? "Uploading..." : "Change photo"}
-        </button>
+        </MediaPickerButton>
         <p className="mt-1 text-xs text-foreground-soft">
           JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
         </p>

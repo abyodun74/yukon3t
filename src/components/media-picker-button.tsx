@@ -8,11 +8,20 @@ export function MediaPickerButton({
   title,
   disabled,
   options,
+  className,
+  children,
+  menuPlacement = "top",
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
   title: string;
   disabled?: boolean;
   options: { label: string; icon: ReactNode; onSelect: () => void }[];
+  /** Overrides the default icon-button styling entirely — for a labeled trigger (e.g. "Change photo") instead of a bare icon. */
+  className?: string;
+  /** Rendered instead of `icon` when given — lets the trigger show a text label (with its own icon inline) rather than an icon alone. */
+  children?: ReactNode;
+  /** Which side of the trigger the dropdown opens toward. Defaults to "top" (composer toolbars, near the bottom of the screen); pass "bottom" for a trigger near the top of the page. */
+  menuPlacement?: "top" | "bottom";
 }) {
   const MENU_WIDTH_PX = 192; // matches the dropdown's own w-48
   const [open, setOpen] = useState(false);
@@ -64,17 +73,18 @@ export function MediaPickerButton({
         disabled={disabled}
         title={title}
         aria-label={title}
-        className={cn(
-          "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
-          open ? "text-accent" : "text-foreground-soft",
-        )}
+        className={
+          className ??
+          cn("rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40", open ? "text-accent" : "text-foreground-soft")
+        }
       >
-        {icon}
+        {children ?? icon}
       </button>
       {open && (
         <div
           className={cn(
-            "absolute bottom-full z-20 mb-1 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
+            "absolute z-20 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg",
+            menuPlacement === "bottom" ? "top-full mt-1" : "bottom-full mb-1",
             align === "right" ? "right-0" : "left-0",
           )}
         >
