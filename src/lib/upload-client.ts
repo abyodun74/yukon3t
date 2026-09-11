@@ -363,21 +363,39 @@ export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null>
  */
 export function captureVideoFrameFromFile(file: File): Promise<File | null> {
   return new Promise((resolve) => {
+    const probeUrl = URL.createObjectURL(file);
     const probe = document.createElement("video");
-    probe.src = URL.createObjectURL(file);
+    probe.src = probeUrl;
     probe.muted = true;
     probe.playsInline = true;
+
+    // Same Android quirk story-upload-modal.tsx's own metadata probe already
+    // documents and guards against: some devices/codecs never fire
+    // onloadeddata/onseeked (nor onerror) for a video this hidden <video>
+    // element can't decode. Without this timeout, this promise hung
+    // forever — every caller awaits it inside a Promise.all alongside the
+    // actual video upload, so a stuck thumbnail capture blocked the whole
+    // upload from ever reaching "done" even though the video itself had
+    // already finished uploading. Thumbnail capture is a nicety, not a
+    // requirement, so this fails open (resolves null — no thumbnail)
+    // instead of blocking indefinitely.
+    let settled = false;
+    const finish = (result: File | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      URL.revokeObjectURL(probeUrl);
+      resolve(result);
+    };
+    const timeout = setTimeout(() => finish(null), 4000);
+
     probe.onloadeddata = () => {
       probe.currentTime = Math.min(1, probe.duration / 2);
     };
     probe.onseeked = async () => {
       const frame = await captureVideoFrame(probe);
-      URL.revokeObjectURL(probe.src);
-      resolve(frame);
+      finish(frame);
     };
-    probe.onerror = () => {
-      URL.revokeObjectURL(probe.src);
-      resolve(null);
-    };
+    probe.onerror = () => finish(null);
   });
 }
