@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ConnectionResponseButtons } from "@/components/connection-response-buttons";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
+import { CallButton } from "@/components/call-button";
 import { intentLabels, intentTagValues } from "@/lib/validations";
 import { isOnline } from "@/lib/presence";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
@@ -150,14 +151,17 @@ export function ConnectedList({
             </div>
             <span className="text-xs text-foreground-soft">{intentLabels[c.intentTag]}</span>
           </div>
-          {c.conversationId && (
-            <Link
-              href={`/messages/${c.conversationId}`}
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
-            >
-              Message
-            </Link>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {c.conversationId && (
+              <Link
+                href={`/messages/${c.conversationId}`}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
+              >
+                Message
+              </Link>
+            )}
+            <CallButton calleeId={c.other.id} calleeName={c.other.name ?? "them"} />
+          </div>
         </div>
       ))}
       {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} />}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, ImagePlus, Radio } from "lucide-react";
 import { getActiveLiveStreams } from "@/app/actions/live-streams";
 import { usePolling } from "@/lib/use-polling";
@@ -20,15 +21,18 @@ function goTo(sectionId: string, focusTextarea?: boolean) {
 }
 
 /**
- * Home's floating action button: hidden while the real composer
- * (#home-composer) is on screen, expands into three shortcuts (Live / Add
- * story / New post) that scroll their section back into view rather than
- * reimplementing any of LiveStreamStrip/StoryTray/PostComposer's own logic.
- * The Live shortcut's badge reflects whether a stream is actually live
- * right now (polls the same action LiveStreamStrip itself uses).
+ * Home's floating action button: hidden while the story tray is on screen,
+ * expands into three shortcuts (Live / Add story / New post) — Live and Add
+ * story scroll their own section back into view rather than reimplementing
+ * any of LiveStreamStrip/StoryTray's own logic, while New post navigates to
+ * the viewer's own profile (posting only happens from there — see
+ * ProfileComposeFocus, which scrolls to and focuses the composer on
+ * arrival). The Live shortcut's badge reflects whether a stream is actually
+ * live right now (polls the same action LiveStreamStrip itself uses).
  */
-export function HomeQuickActions() {
+export function HomeQuickActions({ profileHref }: { profileHref: string }) {
   const [liveCount, setLiveCount] = useState(0);
+  const router = useRouter();
 
   const pollLive = useCallback(async () => {
     const { streams } = await getActiveLiveStreams();
@@ -38,7 +42,7 @@ export function HomeQuickActions() {
 
   return (
     <ScrollFab
-      hideWhileVisibleId="home-composer"
+      hideWhileVisibleId="home-story-tray"
       actions={[
         {
           key: "live",
@@ -62,7 +66,7 @@ export function HomeQuickActions() {
           label: "New post",
           icon: <Plus size={16} />,
           iconClassName: "bg-accent text-accent-ink",
-          onSelect: () => goTo("home-composer", true),
+          onSelect: () => router.push(`${profileHref}?compose=1`),
         },
       ]}
     />

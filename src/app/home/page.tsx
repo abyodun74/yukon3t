@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { PostComposer } from "@/components/post-composer";
 import { PostFeedSection } from "@/components/post-feed-section";
 import { StreakBanner } from "@/components/streak-banner";
 import { StoryTray } from "@/components/story-tray";
@@ -12,7 +11,6 @@ import { HomeQuickActions } from "@/components/home-quick-actions";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
-import { dayNumber } from "@/lib/trust";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 
@@ -36,7 +34,6 @@ export default async function HomePage({
     ? (categoryParam as (typeof feedCategoryValues)[number])
     : null;
 
-  const activeToday = Boolean(me.lastActiveAt && dayNumber(me.lastActiveAt) === dayNumber(new Date()));
   const { groups: storyGroups } = await getConnectionsStories();
 
   // Everything below this point only reads posts/stories the viewer is
@@ -81,7 +78,6 @@ export default async function HomePage({
         <StreakBanner
           currentStreak={me.currentStreak}
           longestStreak={me.longestStreak}
-          activeToday={activeToday}
         />
         <LiveStreamStrip />
       </div>
@@ -106,10 +102,6 @@ export default async function HomePage({
           </Link>
         </div>
       )}
-
-      <div id="home-composer" className="mt-6">
-        <PostComposer placeholder="Share a photo, a short video, or an update..." />
-      </div>
 
       <div className="mt-6">
         <AdSlot />
@@ -145,7 +137,7 @@ export default async function HomePage({
         </p>
       )}
 
-      <HomeQuickActions />
+      <HomeQuickActions profileHref={`/u/${me.id}`} />
     </div>
   );
 }
