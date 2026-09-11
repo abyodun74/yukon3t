@@ -191,10 +191,13 @@ export function LiveVideoFrame({
         // Fills the same footprint Daily's own Prebuilt tray used to —
         // live-stream-room.tsx's chat/reaction overlays already reserve
         // this bottom strip (see their "7rem" bottom offset comments) for
-        // exactly this reason, so nothing there needs to change.
+        // exactly this reason, so nothing there needs to change. Falls back
+        // to var(--safe-area-inset-bottom) alongside env() — see nav.tsx's
+        // comment on why the plain env() alone isn't reliable enough on
+        // Android here.
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-3"
-          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          style={{ paddingBottom: "calc(0.75rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
         >
           <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 px-3 py-2">
             <button

@@ -312,7 +312,23 @@ export function GlobalCallFrame() {
         // the same level as that div to actually win. Bottom-right since
         // every corner near the top is already spoken for between those
         // and Daily's own built-in controls.
-        <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-2">
+        //
+        // bottom is an inline style, not the `bottom-4` Tailwind utility it
+        // used to be — plain `bottom-4` put this bar (including the only
+        // hang-up button CallFrame/LiveVideoFrame's Prebuilt/custom UIs
+        // don't already provide their own reachable one for) right under a
+        // phone's on-screen gesture bar/nav buttons once edge-to-edge was
+        // enabled (see MainActivity's EdgeToEdge.enable()), confirmed live:
+        // partly or fully covered by the system nav footer. Falls back to
+        // var(--safe-area-inset-bottom) too — see nav.tsx's comment on that
+        // one; plain env() alone isn't reliable enough on Android here
+        // either. Both are 0 anywhere that isn't edge-to-edge, so this is a
+        // no-op elsewhere — same pattern nav.tsx's bottom tab bar and
+        // live-video-frame.tsx's control tray already use.
+        <div
+          className="fixed right-4 z-[80] flex items-center gap-2"
+          style={{ bottom: "calc(1rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
+        >
           {uploadError && (
             <span className="max-w-[10rem] truncate rounded-md bg-danger/90 px-2 py-1 text-xs text-white">
               {uploadError}

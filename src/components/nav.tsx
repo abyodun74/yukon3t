@@ -492,13 +492,24 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // a Samsung Galaxy Fold. Same env()-is-0-elsewhere no-op as the
         // header's paddingTop above, and same as the other
         // env(safe-area-inset-bottom) consumers already in this codebase
-        // (live-stream-room.tsx, live-video-frame.tsx) — unlike the top
-        // inset, this one isn't behind a legacy non-edge-to-edge flag, so
-        // it doesn't need capacitor-bridge.tsx's native-height fallback.
+        // (live-stream-room.tsx, live-video-frame.tsx).
+        //
+        // Also falls back to var(--safe-area-inset-bottom) — turns out
+        // env(safe-area-inset-bottom) alone has the same reliability gap on
+        // Android the top inset already had (see --status-bar-inset-top
+        // above): confirmed live, the bar still rendered under the system
+        // nav bar/gesture pill on a real device even with plain env() here.
+        // --safe-area-inset-bottom isn't this app's own variable — it's
+        // injected by Capacitor's own core SystemBars plugin (auto-
+        // registered by Bridge, see node_modules/@capacitor/android's
+        // injectSafeAreaCSS) straight from Android's real WindowInsets, the
+        // same fix shape as capacitor-bridge.tsx's StatusBar.getInfo() var,
+        // just already provided for us instead of needing our own native
+        // plugin call. No-op (0px) anywhere it isn't set, including iOS/web.
         <nav
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
           style={{
-            paddingBottom: "env(safe-area-inset-bottom)",
+            paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
             width: footerWidth,
             right: footerWidth !== undefined ? "auto" : undefined,
           }}

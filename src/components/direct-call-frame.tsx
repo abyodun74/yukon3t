@@ -213,7 +213,7 @@ export function DirectCallFrame({
         </div>
       )}
 
-      {type === "VIDEO" && tileParticipant && (
+      {tileParticipant && (
         <div
           ref={selfViewRef}
           {...selfViewHandlers}
@@ -231,11 +231,14 @@ export function DirectCallFrame({
       )}
 
       {/* Fills the same bottom-tray footprint Daily's Prebuilt tray used to
-          — GlobalCallFrame's own Leave/Minimize bar (bottom-4 right-4,
-          z-[80]) sits above this, same as it does over CallFrame's iframe. */}
+          — GlobalCallFrame's own Leave/Minimize bar (bottom-right, z-[80])
+          sits above this, same as it does over CallFrame's iframe. Falls
+          back to var(--safe-area-inset-bottom) alongside env() — see
+          nav.tsx's comment on why the plain env() alone isn't reliable
+          enough on Android here. */}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-3"
-        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        style={{ paddingBottom: "calc(0.75rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
         <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 px-3 py-2">
           <button
@@ -247,17 +250,20 @@ export function DirectCallFrame({
           >
             {localAudioOn ? <Mic size={16} /> : <MicOff size={16} />}
           </button>
-          {type === "VIDEO" && (
-            <button
-              type="button"
-              onClick={toggleVideo}
-              title={localVideoOn ? "Turn off camera" : "Turn on camera"}
-              aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
-            >
-              {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={toggleVideo}
+            // Not gated on the call's initial `type` — the underlying Daily
+            // room/token draws no distinction between "audio" and "video"
+            // calls (see daily.ts), so switching video on/off is always
+            // available regardless of how the call started, letting either
+            // side turn a voice call into a video call and back mid-call.
+            title={localVideoOn ? "Turn off camera" : "Turn on camera"}
+            aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
+          >
+            {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
+          </button>
           <button
             type="button"
             onClick={toggleScreenShare}
@@ -269,8 +275,11 @@ export function DirectCallFrame({
           </button>
           {/* isNativeApp is the primary signal (see above) — always shown
               in the actual mobile app. cameraCount/canFlipFacingMode are
-              the fallback for a browser tab, where hardware isn't a given. */}
-          {type === "VIDEO" && (isNativeApp || cameraCount > 1 || canFlipFacingMode) && (
+              the fallback for a browser tab, where hardware isn't a given.
+              Gated on localVideoOn (not the call's initial `type`) so this
+              appears/disappears live as video gets turned on/off mid-call,
+              matching the always-available toggleVideo button above. */}
+          {localVideoOn && (isNativeApp || cameraCount > 1 || canFlipFacingMode) && (
             <button
               type="button"
               onClick={switchCamera}

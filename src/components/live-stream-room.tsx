@@ -941,11 +941,13 @@ export function LiveStreamRoom({
         e.g. "Turn off / Mute / Record / More", not just bare icons) is
         still a guess at a height this app can't measure either, just a
         more generous one for the cross-origin iframe's tallest known
-        tray variant.
+        tray variant. Also falls back to var(--safe-area-inset-bottom)
+        alongside env() — see nav.tsx's comment on why the plain env()
+        alone isn't reliable enough on Android here.
       */}
       <div
         className="pointer-events-none fixed inset-x-3 z-[70] flex flex-col items-start gap-2"
-        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(7rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
         <div className="max-h-[32vh] w-full max-w-[75%] overflow-y-auto sm:max-w-xs">
           <div className="flex flex-col gap-1.5">
@@ -995,7 +997,7 @@ export function LiveStreamRoom({
       */}
       <div
         className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2"
-        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(7rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
         <div className="flex h-16 flex-col-reverse items-center overflow-hidden">
           {floatingReactions.map((r) => (
