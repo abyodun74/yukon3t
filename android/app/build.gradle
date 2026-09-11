@@ -93,8 +93,13 @@ android {
         // (see buildTypes.release below) to fix Play Console's app-optimization
         // "Obfuscation" score sitting at ~2%. No behavior change — no new
         // permission, no new Play Console declaration.
-        versionCode 17
-        versionName "1.14"
+        // 18: enables AGP's optimized R8 resource shrinker (see
+        // android/gradle.properties' android.r8.optimizedResourceShrinking)
+        // to clear Play Console's remaining "R8 optimization" app-optimization
+        // recommendation. No behavior change — no new permission, no new
+        // Play Console declaration.
+        versionCode 18
+        versionName "1.15"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
