@@ -1,6 +1,6 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
-import { IncomingRequestsList, SentRequestsList, ConnectedList } from "@/components/connections-lists";
+import { ConnectionsTabs } from "@/components/connections-tabs";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -13,7 +13,7 @@ const PAGE_SIZE = 20;
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
 
-  const [incoming, outgoing, accepted] = await Promise.all([
+  const [incoming, outgoing, accepted, incomingCount, outgoingCount] = await Promise.all([
     prisma.connection.findMany({
       where: { targetId: me.id, status: "PENDING" },
       include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
@@ -38,6 +38,10 @@ export default async function ConnectionsPage() {
       orderBy: { respondedAt: "desc" },
       take: PAGE_SIZE,
     }),
+    // Exact counts for the tab pills — initialItems.length is capped at
+    // PAGE_SIZE and would silently undercount past the first page.
+    prisma.connection.count({ where: { targetId: me.id, status: "PENDING" } }),
+    prisma.connection.count({ where: { requesterId: me.id, status: "PENDING" } }),
   ]);
 
   const incomingHasMore = incoming.length === PAGE_SIZE;
@@ -68,48 +72,27 @@ export default async function ConnectionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 space-y-10">
+    <div className="mx-auto max-w-3xl px-4 py-10 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Connections</h1>
       </div>
 
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          Incoming requests
-        </h2>
-        <div className="mt-3 space-y-3">
-          <IncomingRequestsList initialItems={incoming} initialHasMore={incomingHasMore} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          Sent requests
-        </h2>
-        <div className="mt-3 space-y-3">
-          <SentRequestsList initialItems={outgoing} initialHasMore={sentHasMore} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          Connected
-        </h2>
-        <div className="mt-3 space-y-3">
-          <ConnectedList
-            initialItems={accepted.map((c) => {
-              const other = c.requesterId === me.id ? c.target : c.requester;
-              return {
-                id: c.id,
-                other,
-                intentTag: c.intentTag,
-                conversationId: conversationIdByUserId.get(other.id) ?? null,
-              };
-            })}
-            initialHasMore={connectedHasMore}
-          />
-        </div>
-      </section>
+      <ConnectionsTabs
+        connected={{
+          items: accepted.map((c) => {
+            const other = c.requesterId === me.id ? c.target : c.requester;
+            return {
+              id: c.id,
+              other,
+              intentTag: c.intentTag,
+              conversationId: conversationIdByUserId.get(other.id) ?? null,
+            };
+          }),
+          hasMore: connectedHasMore,
+        }}
+        incoming={{ items: incoming, hasMore: incomingHasMore, count: incomingCount }}
+        sent={{ items: outgoing, hasMore: sentHasMore, count: outgoingCount }}
+      />
     </div>
   );
 }
