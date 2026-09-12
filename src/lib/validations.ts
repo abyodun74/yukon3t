@@ -253,6 +253,7 @@ export const uploadKindValues = [
   "collab-material",
   "voice-dictation",
   "comment-audio",
+  "comment-video",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -421,11 +422,18 @@ const commentBaseSchema = z.object({
   // step is the actual trust boundary; see createComment's
   // verifyUploadedSize call).
   audioUrl: z.string().url().optional(),
+  // Video comment — same fields/semantics as postSchema's own
+  // videoUrl/videoThumbnailUrl/videoDurationSeconds (see there for the full
+  // rationale); createComment applies the same strict media-moderation
+  // policy posts use for video, not audioUrl's lenient no-scan gap.
+  videoUrl: z.string().url().optional(),
+  videoThumbnailUrl: z.string().url().optional(),
+  videoDurationSeconds: z.coerce.number().int().positive().optional(),
 });
 
 export const commentSchema = commentBaseSchema.refine(
-  (data) => data.content.length > 0 || !!data.gifUrl || !!data.audioUrl,
-  { message: "Comment must have text, a GIF, or a voice clip." },
+  (data) => data.content.length > 0 || !!data.gifUrl || !!data.audioUrl || !!data.videoUrl,
+  { message: "Comment must have text, a GIF, a voice clip, or a video." },
 );
 
 export const editCommentSchema = commentBaseSchema.pick({ content: true }).extend({

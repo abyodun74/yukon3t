@@ -67,8 +67,22 @@ export async function removeModeratedContent(
         });
       }
 
+      // audioUrl has no equivalent cleanup here historically (see
+      // deleteComment's own comment on that), but videoUrl/videoThumbnailUrl
+      // are real uploads to this app's bucket just like a post's video —
+      // left uncleaned, an automated removal (this function's actual
+      // caller) would leak them forever with no user action to catch it.
+      const mediaUrls = [
+        comment.audioUrl,
+        comment.videoUrl,
+        comment.videoThumbnailUrl,
+      ].filter((url): url is string => Boolean(url));
+      const mediaKeysToDelete = mediaUrls
+        .map((url) => keyFromPublicUrl(url))
+        .filter((key): key is string => Boolean(key));
+
       revalidatePath(`/post/${comment.postId}`);
-      return { authorId: comment.authorId, mediaKeysToDelete: [] };
+      return { authorId: comment.authorId, mediaKeysToDelete };
     }
     case "MESSAGE": {
       const message = await tx.message.findUnique({ where: { id: targetId } });

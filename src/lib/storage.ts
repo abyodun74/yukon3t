@@ -23,7 +23,8 @@ export type UploadKind =
   | "ad-video"
   | "collab-material"
   | "voice-dictation"
-  | "comment-audio";
+  | "comment-audio"
+  | "comment-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -42,6 +43,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "message-audio": { "audio/webm": "webm" },
   "voice-dictation": { "audio/webm": "webm" },
   "comment-audio": { "audio/webm": "webm" },
+  "comment-video": { "video/mp4": "mp4", "video/webm": "webm" },
   // Recorded voice/video notes are always webm (MediaRecorder's output);
   // mp4 is here too because "attach from device" lets a user pick a video
   // their phone actually recorded, which is virtually always mp4.
@@ -93,6 +95,10 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // Same cap as message-audio — same recorder (AudioRecorderModal), same
   // realistic clip length.
   "comment-audio": 5 * 1024 * 1024,
+  // Full parity with post-video (same byte cap, same duration ceiling,
+  // same moderation pipeline) — a video comment is held to the exact same
+  // safety bar as a video post, not a lighter-weight variant.
+  "comment-video": MAX_VIDEO_BYTES,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
@@ -100,6 +106,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "message-video",
   "story-video",
   "ad-video",
+  "comment-video",
 ]);
 
 export const MAX_POST_IMAGES = 10;

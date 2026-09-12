@@ -182,6 +182,15 @@ export function CommentCard({
           {comment.audioUrl && (
             <audio controls preload="metadata" src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />
           )}
+          {comment.videoUrl && (
+            <video
+              controls
+              preload="metadata"
+              src={comment.videoUrl}
+              poster={comment.videoThumbnailUrl ?? undefined}
+              className="mt-1 max-h-72 w-full max-w-xs rounded-lg bg-black object-contain"
+            />
+          )}
         </>
       )}
       {!removed && !editing && (

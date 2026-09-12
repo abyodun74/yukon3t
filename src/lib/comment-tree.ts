@@ -6,6 +6,8 @@ export type FlatComment = {
   content: string;
   gifUrl: string | null;
   audioUrl: string | null;
+  videoUrl: string | null;
+  videoThumbnailUrl: string | null;
   createdAt: Date;
   editedAt: Date | null;
   // Only ever PUBLISHED or REMOVED in practice — callers filter FLAGGED out

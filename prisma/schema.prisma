@@ -669,8 +669,23 @@ model Comment {
   // No separate mediaType column — a comment can have text, a GIF, and/or
   // audio independently, so a single "kind" enum wouldn't fit as cleanly
   // as it does for Post/Message (which are exactly one media kind at a
-  // time).
+  // time). The composer keeps video mutually exclusive with GIF/audio in
+  // practice (see comment-composer.tsx), but that's a UI choice, not a
+  // column-level constraint, same as the rest of this model.
   audioUrl         String?
+  // Video comment — held to the same strict media-moderation policy as
+  // Post's video (see below), unlike audioUrl's accepted no-scan gap: a
+  // visual frame is inspectable the way raw audio isn't. Fields mirror
+  // Post's video pipeline exactly (see Post.videoUrl and its neighbors for
+  // the full rationale) so both moderate-videos and moderate-long-videos
+  // crons can drive a Comment's review with the same shared logic
+  // (video-review.ts, content-moderation.ts's removeModeratedContent).
+  videoUrl                 String?
+  videoThumbnailUrl        String?
+  videoModeratedAt         DateTime?
+  videoDurationSeconds     Int?
+  videoLongReviewClaimedAt DateTime?
+  videoStreamUid           String?
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -682,6 +697,14 @@ model Comment {
 
   @@index([postId, createdAt])
   @@index([parentId])
+  // Backs the moderate-videos cron's scan for comment videos still awaiting
+  // a Hive verdict — mirrors Post's own [mediaType, videoModeratedAt] index,
+  // minus mediaType since Comment has none.
+  @@index([videoModeratedAt])
+  // Backs the moderate-long-videos cron's scan for FLAGGED long comment
+  // videos still awaiting (or stale-claimed and due for retry) the OpenAI
+  // review pipeline — mirrors Post's own composite index, minus mediaType.
+  @@index([moderationStatus, videoLongReviewClaimedAt])
 }
 
 /**

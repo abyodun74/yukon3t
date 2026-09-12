@@ -4,15 +4,16 @@ import { sendFcmActivityToUser } from "@/lib/fcm";
 import { videoViolationNoticeText } from "@/lib/moderation-labels";
 
 /**
- * Tells a post's author their over-60s video was auto-removed by the
- * long-video review pipeline (video-review.ts's "flagged" outcome, wired up
- * in the moderate-long-videos cron) — the async counterpart to a short
- * video's synchronous moderation rejection, which createPost already
- * surfaces to the uploader directly in the same request/response.
+ * Tells a post or comment author their over-60s video was auto-removed by
+ * the long-video review pipeline (video-review.ts's "flagged" outcome,
+ * wired up in the moderate-long-videos cron) — the async counterpart to a
+ * short video's synchronous moderation rejection, which createPost/
+ * createComment already surfaces to the uploader directly in the same
+ * request/response.
  *
- * Call only after the Post row itself has already been deleted (see
- * removeModeratedContent's POST case) — Notification.postId is
- * deliberately left unset since the post it'd reference no longer exists
+ * Call only after the underlying row has already been deleted (see
+ * removeModeratedContent's POST/COMMENT cases) — Notification.postId is
+ * deliberately left unset since the post it'd reference may no longer exist
  * (and its @@relation is onDelete: Cascade, so setting it pre-deletion
  * would just have the notification vanish with the post anyway).
  *

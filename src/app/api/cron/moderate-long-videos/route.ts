@@ -46,14 +46,16 @@ const POLL_INTERVAL_MS = 4_000;
 type Candidate = { id: string; videoUrl: string; videoDurationSeconds: number; videoStreamUid: string | null };
 
 /**
- * Drives one post's review from wherever it currently stands through to a
- * terminal verdict (or this tick's time budget, whichever comes first),
- * looping advanceLongVideoReview internally instead of returning after a
- * single step — most of the artificial multi-tick delay this pipeline used
- * to have wasn't Cloudflare's own processing time, it was this app only
- * checking back once every 5 minutes. Persists progress after every step so
- * a budget cutoff or a crash mid-loop loses at most one POLL_INTERVAL_MS's
- * worth of work, same recovery story the single-step version had.
+ * Drives one post's (or comment's — see reviewOneComment below, an identical
+ * copy against a different model) review from wherever it currently stands
+ * through to a terminal verdict (or this tick's time budget, whichever comes
+ * first), looping advanceLongVideoReview internally instead of returning
+ * after a single step — most of the artificial multi-tick delay this
+ * pipeline used to have wasn't Cloudflare's own processing time, it was this
+ * app only checking back once every 5 minutes. Persists progress after every
+ * step so a budget cutoff or a crash mid-loop loses at most one
+ * POLL_INTERVAL_MS's worth of work, same recovery story the single-step
+ * version had.
  */
 async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["kind"]> {
   const deadline = Date.now() + POLL_BUDGET_MS;
@@ -139,6 +141,83 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
 }
 
 /**
+ * Identical to reviewOnePost, against Comment instead of Post — Comment has
+ * no equivalent of the feed-cache revalidations reviewOnePost does on
+ * "clean" (a comment isn't its own route), just the one post page it lives
+ * under. Kept as a separate function rather than a generic
+ * model-parameterized one so each stays a plain, readable sequence of
+ * concrete Prisma calls — matching how the rest of this codebase treats
+ * Post/Comment as similar but genuinely distinct models, not a shared
+ * abstraction forced over both.
+ */
+async function reviewOneComment(candidate: Candidate & { postId: string }): Promise<VideoReviewResult["kind"]> {
+  const deadline = Date.now() + POLL_BUDGET_MS;
+  let streamUid = candidate.videoStreamUid;
+
+  for (;;) {
+    let result: VideoReviewResult;
+    try {
+      result = await advanceLongVideoReview({
+        videoUrl: candidate.videoUrl,
+        videoDurationSeconds: candidate.videoDurationSeconds,
+        streamUid,
+      });
+    } catch (err) {
+      console.error(`[moderate-long-videos] unhandled error reviewing comment ${candidate.id}`, err);
+      await prisma.comment.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+      return "error";
+    }
+
+    if (result.kind === "in_progress") {
+      streamUid = result.streamUid;
+      await prisma.comment.update({ where: { id: candidate.id }, data: { videoStreamUid: streamUid } });
+      if (Date.now() >= deadline) {
+        await prisma.comment.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+        return "in_progress";
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
+
+    if (result.kind === "error") {
+      await prisma.comment.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+      return "error";
+    }
+
+    if (result.kind === "clean") {
+      await prisma.comment.update({
+        where: { id: candidate.id },
+        data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      });
+      revalidatePath(`/post/${candidate.postId}`);
+      return "clean";
+    }
+
+    // result.kind === "flagged"
+    const removed = await prisma.$transaction(async (tx) => {
+      const removal = await removeModeratedContent("COMMENT", candidate.id, tx);
+      if (removal) {
+        await tx.auditLog.create({
+          data: {
+            targetId: removal.authorId,
+            action: "CONTENT_REMOVED",
+            performedBy: "system:openai-video-review",
+            reason: `Long-video automated review flagged: ${result.reasons.join("; ")}`,
+          },
+        });
+      }
+      return removal;
+    });
+    if (removed) {
+      await cleanUpModeratedMedia(removed.mediaKeysToDelete);
+      await recomputeTrustScore(removed.authorId);
+      await notifyVideoModerationFailed(removed.authorId, result.reasons);
+    }
+    return "flagged";
+  }
+}
+
+/**
  * Triggered every minute (Netlify Scheduled Function), same thin-trigger
  * pattern as moderate-videos. Claims up to BATCH_SIZE long (over Hive's 60s
  * cap) FLAGGED video posts and drives each through reviewOnePost's own
@@ -148,17 +227,7 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
  * tick's POLL_BUDGET_MS on a very long video), just far less often than
  * when this only advanced one post by one step every 5 minutes.
  */
-export async function GET(request: Request) {
-  if (!process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "not_configured" }, { status: 503 });
-  }
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  const staleCutoff = new Date(Date.now() - CLAIM_STALE_MS);
-  const claimable = { OR: [{ videoLongReviewClaimedAt: null }, { videoLongReviewClaimedAt: { lt: staleCutoff } }] };
-
+async function claimPostCandidates(claimable: object) {
   const candidates = await prisma.post.findMany({
     where: {
       mediaType: "VIDEO",
@@ -190,12 +259,69 @@ export async function GET(request: Request) {
       });
     }
   }
+  return claimed;
+}
 
-  if (claimed.length === 0) {
+// Same claiming logic as claimPostCandidates, against Comment instead of
+// Post — no mediaType filter needed (see moderate-videos's own comment
+// query for why), and postId is carried along so reviewOneComment can
+// revalidate the right post page on a "clean" verdict.
+async function claimCommentCandidates(claimable: object) {
+  const candidates = await prisma.comment.findMany({
+    where: {
+      moderationStatus: "FLAGGED",
+      videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+      ...claimable,
+    },
+    orderBy: { createdAt: "asc" },
+    take: BATCH_SIZE,
+    select: { id: true, postId: true, videoUrl: true, videoDurationSeconds: true, videoStreamUid: true },
+  });
+
+  const claimed: (Candidate & { postId: string })[] = [];
+  for (const candidate of candidates) {
+    if (!candidate.videoUrl || !candidate.videoDurationSeconds) continue;
+    const result = await prisma.comment.updateMany({
+      where: { id: candidate.id, ...claimable },
+      data: { videoLongReviewClaimedAt: new Date() },
+    });
+    if (result.count > 0) {
+      claimed.push({
+        id: candidate.id,
+        postId: candidate.postId,
+        videoUrl: candidate.videoUrl,
+        videoDurationSeconds: candidate.videoDurationSeconds,
+        videoStreamUid: candidate.videoStreamUid,
+      });
+    }
+  }
+  return claimed;
+}
+
+export async function GET(request: Request) {
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "not_configured" }, { status: 503 });
+  }
+  if (!isCronAuthorized(request)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const staleCutoff = new Date(Date.now() - CLAIM_STALE_MS);
+  const claimable = { OR: [{ videoLongReviewClaimedAt: null }, { videoLongReviewClaimedAt: { lt: staleCutoff } }] };
+
+  const [claimedPosts, claimedComments] = await Promise.all([
+    claimPostCandidates(claimable),
+    claimCommentCandidates(claimable),
+  ]);
+
+  if (claimedPosts.length === 0 && claimedComments.length === 0) {
     return NextResponse.json({ error: null, processed: false });
   }
 
-  const outcomes = await Promise.all(claimed.map((candidate) => reviewOnePost(candidate)));
+  const [postOutcomes, commentOutcomes] = await Promise.all([
+    Promise.all(claimedPosts.map((candidate) => reviewOnePost(candidate))),
+    Promise.all(claimedComments.map((candidate) => reviewOneComment(candidate))),
+  ]);
 
-  return NextResponse.json({ error: null, processed: true, outcomes });
+  return NextResponse.json({ error: null, processed: true, postOutcomes, commentOutcomes });
 }

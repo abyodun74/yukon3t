@@ -5,13 +5,21 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { commentSchema, editCommentSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText } from "@/lib/moderation";
+import { moderateText, moderateMedia } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { isGiphyUrl } from "@/lib/giphy";
-import { verifyUploadedSize, keyFromPublicUrl, deleteOwnedObject, deleteObject, MEDIA_LIMITS } from "@/lib/storage";
+import {
+  verifyUploadedSize,
+  keyFromPublicUrl,
+  deleteOwnedObject,
+  deleteObject,
+  MEDIA_LIMITS,
+  HIVE_VIDEO_MODERATION_MAX_SECONDS,
+} from "@/lib/storage";
+import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -29,16 +37,33 @@ export async function createComment(formData: FormData) {
     content: formData.get("content"),
     gifUrl: formData.get("gifUrl") || undefined,
     audioUrl: formData.get("audioUrl") || undefined,
+    videoUrl: formData.get("videoUrl") || undefined,
+    videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
+    videoDurationSeconds: formData.get("videoDurationSeconds") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" };
   }
-  const { postId, parentId, content, gifUrl, audioUrl } = parsed.data;
+  const { postId, parentId, content, gifUrl, audioUrl, videoUrl, videoThumbnailUrl, videoDurationSeconds } =
+    parsed.data;
   // Never uploaded to this app — the Giphy host check is the only gate,
   // same reasoning as sendMessage's/createPost's GIF handling.
   if (gifUrl && !isGiphyUrl(gifUrl)) {
     return { error: "invalid" };
   }
+
+  // Uploaded objects for this attempt — cleaned up on any rejection below so
+  // nothing rejected lingers in storage, same pattern createPost uses.
+  const uploadedUrls = [audioUrl, videoUrl, videoThumbnailUrl].filter((url): url is string => Boolean(url));
+  async function cleanupUploads() {
+    await Promise.all(
+      uploadedUrls.map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
+      }),
+    );
+  }
+
   // audioUrl IS a real upload to this app's own bucket (unlike gifUrl) —
   // verify ownership + the actual object size server-side, same pattern
   // sendMessage uses for message-audio. Cleans up the orphaned object on
@@ -47,16 +72,38 @@ export async function createComment(formData: FormData) {
     const key = keyFromPublicUrl(audioUrl);
     const ok = key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["comment-audio"], ownerId: user.id }));
     if (!ok) {
-      if (key) await deleteOwnedObject(key, user.id);
+      await cleanupUploads();
+      return { error: "too_large" };
+    }
+  }
+
+  // Video and its thumbnail are unrelated objects — verified concurrently,
+  // same reasoning as createPost's own videoOk/thumbOk check.
+  if (videoUrl) {
+    const [videoOk, thumbOk] = await Promise.all([
+      (async () => {
+        const key = keyFromPublicUrl(videoUrl);
+        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["comment-video"], ownerId: user.id }));
+      })(),
+      (async () => {
+        if (!videoThumbnailUrl) return true;
+        const key = keyFromPublicUrl(videoThumbnailUrl);
+        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["video-thumb"], ownerId: user.id }));
+      })(),
+    ]);
+    if (!videoOk || !thumbOk) {
+      await cleanupUploads();
       return { error: "too_large" };
     }
   }
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post || post.moderationStatus !== "PUBLISHED") {
+    await cleanupUploads();
     return { error: "not_found" };
   }
   if (!(await canViewPost(postId, user.id))) {
+    await cleanupUploads();
     return { error: "not_found" };
   }
 
@@ -67,18 +114,45 @@ export async function createComment(formData: FormData) {
     // this same post.
     parentComment = await prisma.comment.findUnique({ where: { id: parentId } });
     if (!parentComment || parentComment.postId !== postId || parentComment.moderationStatus !== "PUBLISHED") {
+      await cleanupUploads();
       return { error: "invalid" };
     }
   }
 
-  // A GIF-only or voice-only comment (no typed text) has no text of this
-  // app's own to check — Giphy's catalog is pre-moderated, and a voice
-  // clip has the same accepted no-content-scan gap as message-audio.
-  const moderationStatus = content
-    ? (await moderateText(content)).allowed
-      ? "PUBLISHED"
-      : "FLAGGED"
-    : "PUBLISHED";
+  // Hive's Visual Moderation API can't scan past 60s of content — same
+  // routing rule createPost uses for post video (see storage.ts's
+  // HIVE_VIDEO_MODERATION_MAX_SECONDS).
+  const videoNeedsManualReview =
+    Boolean(videoUrl) && videoDurationSeconds !== undefined && videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+
+  let moderationStatus: "PUBLISHED" | "FLAGGED";
+  if (videoUrl) {
+    // Video is held to the same strict no-sexual-content policy as post
+    // video: any violation rejects the comment outright (uploads deleted),
+    // rather than the lenient soft-FLAGGED path text/gif/audio comments get
+    // below — a visual frame is inspectable the way raw audio isn't, so
+    // there's no equivalent accepted gap to fall back on here.
+    const modResult = await moderateMedia({ text: content, thumbnailUrl: videoThumbnailUrl });
+    if (!modResult.allowed) {
+      await cleanupUploads();
+      return { error: "moderation" };
+    }
+    moderationStatus = videoNeedsManualReview ? "FLAGGED" : "PUBLISHED";
+  } else {
+    // A GIF-only or voice-only comment (no typed text) has no text of this
+    // app's own to check — Giphy's catalog is pre-moderated, and a voice
+    // clip has the same accepted no-content-scan gap as message-audio.
+    moderationStatus = content ? ((await moderateText(content)).allowed ? "PUBLISHED" : "FLAGGED") : "PUBLISHED";
+  }
+
+  // Starts the long-video review's own slow part (Cloudflare copying and
+  // encoding) right now instead of waiting for the moderate-long-videos
+  // cron to discover this comment — same reasoning/timing win as
+  // createPost's streamUidPromise. Best-effort: createStreamCopy already
+  // fails closed to null on any error, and advanceLongVideoReview creates
+  // its own copy on the cron's first pass if this one never lands.
+  const streamUid =
+    videoNeedsManualReview && videoUrl && isStreamConfigured() ? await createStreamCopy(videoUrl) : null;
 
   // Comment creation and the post's commentCount must land together —
   // a crash or a race between the two here would otherwise leave the
@@ -86,7 +160,24 @@ export async function createComment(formData: FormData) {
   // the same failure mode deleteComment already guards against below.
   const comment = await prisma.$transaction(async (tx) => {
     const created = await tx.comment.create({
-      data: { postId, authorId: user.id, parentId, content, gifUrl, audioUrl, moderationStatus },
+      data: {
+        postId,
+        authorId: user.id,
+        parentId,
+        content,
+        gifUrl,
+        audioUrl,
+        videoUrl,
+        videoThumbnailUrl,
+        videoDurationSeconds,
+        moderationStatus,
+        // Long videos never reach the moderate-videos cron (Hive can't scan
+        // past 60s anyway) — pre-claiming here keeps its own
+        // `videoUrl IS NOT NULL, videoModeratedAt IS NULL` scan from
+        // picking this up and wasting/failing a Hive call on it.
+        videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
+        videoStreamUid: streamUid ?? undefined,
+      },
     });
     if (moderationStatus === "PUBLISHED") {
       await tx.post.update({
@@ -215,14 +306,15 @@ export async function deleteComment(commentId: string) {
       : []),
   ]);
 
-  // A voice comment's actual file otherwise keeps sitting in R2 forever,
-  // unreferenced — same cleanup discipline as deleteMessageForEveryone's
-  // media handling. Only this comment + its direct replies (matching
-  // removedPublishedCount's own one-level scope above) — a reply chain
-  // deeper than that is a pre-existing gap in this scope, not one this
-  // feature introduces.
+  // A voice/video comment's actual file(s) otherwise keep sitting in R2
+  // forever, unreferenced — same cleanup discipline as
+  // deleteMessageForEveryone's media handling. Only this comment + its
+  // direct replies (matching removedPublishedCount's own one-level scope
+  // above) — a reply chain deeper than that is a pre-existing gap in this
+  // scope, not one this feature introduces.
+  const repliesMedia = comment.replies.flatMap((r) => [r.audioUrl, r.videoUrl, r.videoThumbnailUrl]);
   await Promise.all(
-    [comment.audioUrl, ...comment.replies.map((r) => r.audioUrl)]
+    [comment.audioUrl, comment.videoUrl, comment.videoThumbnailUrl, ...repliesMedia]
       .filter((url): url is string => Boolean(url))
       .map((url) => {
         const key = keyFromPublicUrl(url);
