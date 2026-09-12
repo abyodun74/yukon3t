@@ -11,6 +11,7 @@ import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { isGiphyUrl } from "@/lib/giphy";
+import { verifyUploadedSize, keyFromPublicUrl, deleteOwnedObject, deleteObject, MEDIA_LIMITS } from "@/lib/storage";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 
@@ -27,15 +28,28 @@ export async function createComment(formData: FormData) {
     parentId: formData.get("parentId") || undefined,
     content: formData.get("content"),
     gifUrl: formData.get("gifUrl") || undefined,
+    audioUrl: formData.get("audioUrl") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" };
   }
-  const { postId, parentId, content, gifUrl } = parsed.data;
+  const { postId, parentId, content, gifUrl, audioUrl } = parsed.data;
   // Never uploaded to this app — the Giphy host check is the only gate,
   // same reasoning as sendMessage's/createPost's GIF handling.
   if (gifUrl && !isGiphyUrl(gifUrl)) {
     return { error: "invalid" };
+  }
+  // audioUrl IS a real upload to this app's own bucket (unlike gifUrl) —
+  // verify ownership + the actual object size server-side, same pattern
+  // sendMessage uses for message-audio. Cleans up the orphaned object on
+  // failure so a rejected comment doesn't leave a dangling upload behind.
+  if (audioUrl) {
+    const key = keyFromPublicUrl(audioUrl);
+    const ok = key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["comment-audio"], ownerId: user.id }));
+    if (!ok) {
+      if (key) await deleteOwnedObject(key, user.id);
+      return { error: "too_large" };
+    }
   }
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
@@ -57,9 +71,9 @@ export async function createComment(formData: FormData) {
     }
   }
 
-  // A GIF-only comment (no typed text) has nothing of this app's own to
-  // check — Giphy's catalog is pre-moderated, same reasoning as GIF
-  // messages/posts.
+  // A GIF-only or voice-only comment (no typed text) has no text of this
+  // app's own to check — Giphy's catalog is pre-moderated, and a voice
+  // clip has the same accepted no-content-scan gap as message-audio.
   const moderationStatus = content
     ? (await moderateText(content)).allowed
       ? "PUBLISHED"
@@ -72,7 +86,7 @@ export async function createComment(formData: FormData) {
   // the same failure mode deleteComment already guards against below.
   const comment = await prisma.$transaction(async (tx) => {
     const created = await tx.comment.create({
-      data: { postId, authorId: user.id, parentId, content, gifUrl, moderationStatus },
+      data: { postId, authorId: user.id, parentId, content, gifUrl, audioUrl, moderationStatus },
     });
     if (moderationStatus === "PUBLISHED") {
       await tx.post.update({
@@ -200,6 +214,21 @@ export async function deleteComment(commentId: string) {
         ]
       : []),
   ]);
+
+  // A voice comment's actual file otherwise keeps sitting in R2 forever,
+  // unreferenced — same cleanup discipline as deleteMessageForEveryone's
+  // media handling. Only this comment + its direct replies (matching
+  // removedPublishedCount's own one-level scope above) — a reply chain
+  // deeper than that is a pre-existing gap in this scope, not one this
+  // feature introduces.
+  await Promise.all(
+    [comment.audioUrl, ...comment.replies.map((r) => r.audioUrl)]
+      .filter((url): url is string => Boolean(url))
+      .map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteObject(key) : Promise.resolve();
+      }),
+  );
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null };

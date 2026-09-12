@@ -659,10 +659,18 @@ model Comment {
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
   editedAt         DateTime?
-  // GIF-only for now (comments have no upload flow, unlike posts/messages)
-  // — must be a Giphy CDN URL, validated by isGiphyUrl before this is ever
-  // set. No separate mediaType column since GIF is the only kind in scope.
+  // GIF — must be a Giphy CDN URL, validated by isGiphyUrl before this is
+  // ever set, never uploaded to this app's own bucket.
   gifUrl           String?
+  // Voice comment — a real upload to this app's own R2 bucket (kind
+  // "comment-audio", see storage.ts), unlike gifUrl. No content moderation
+  // scan, same accepted gap already documented for message-audio voice
+  // notes (no equivalent inspectable frame the way video/image have).
+  // No separate mediaType column — a comment can have text, a GIF, and/or
+  // audio independently, so a single "kind" enum wouldn't fit as cleanly
+  // as it does for Post/Message (which are exactly one media kind at a
+  // time).
+  audioUrl         String?
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)

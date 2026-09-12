@@ -22,7 +22,8 @@ export type UploadKind =
   | "ad-image"
   | "ad-video"
   | "collab-material"
-  | "voice-dictation";
+  | "voice-dictation"
+  | "comment-audio";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -40,6 +41,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "message-audio": { "audio/webm": "webm" },
   "voice-dictation": { "audio/webm": "webm" },
+  "comment-audio": { "audio/webm": "webm" },
   // Recorded voice/video notes are always webm (MediaRecorder's output);
   // mp4 is here too because "attach from device" lets a user pick a video
   // their phone actually recorded, which is virtually always mp4.
@@ -88,6 +90,9 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // smaller than message-audio's 5MB since these never persist past the
   // transcribeAudio action itself.
   "voice-dictation": 3 * 1024 * 1024,
+  // Same cap as message-audio — same recorder (AudioRecorderModal), same
+  // realistic clip length.
+  "comment-audio": 5 * 1024 * 1024,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([

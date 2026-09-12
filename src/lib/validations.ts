@@ -252,6 +252,7 @@ export const uploadKindValues = [
   "ad-video",
   "collab-material",
   "voice-dictation",
+  "comment-audio",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -415,11 +416,16 @@ const commentBaseSchema = z.object({
   // Giphy URL server-side (isGiphyUrl) before ever being stored, comments
   // have no upload flow of their own to trust otherwise.
   gifUrl: z.string().url().optional(),
+  // A real upload to this app's own bucket (kind "comment-audio") — unlike
+  // gifUrl, trusted the same way message mediaUrl is (the presigned-upload
+  // step is the actual trust boundary; see createComment's
+  // verifyUploadedSize call).
+  audioUrl: z.string().url().optional(),
 });
 
 export const commentSchema = commentBaseSchema.refine(
-  (data) => data.content.length > 0 || !!data.gifUrl,
-  { message: "Comment must have text or a GIF." },
+  (data) => data.content.length > 0 || !!data.gifUrl || !!data.audioUrl,
+  { message: "Comment must have text, a GIF, or a voice clip." },
 );
 
 export const editCommentSchema = commentBaseSchema.pick({ content: true }).extend({
