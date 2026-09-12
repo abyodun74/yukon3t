@@ -46,6 +46,7 @@ const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   VIMEO: "Vimeo",
   TIKTOK: "TikTok",
   DAILYMOTION: "Dailymotion",
+  INSTAGRAM: "Instagram",
 };
 
 function formatSecondsLabel(seconds: number) {
@@ -710,7 +711,7 @@ export function PostComposer({
             type="url"
             value={embedUrlValue}
             onChange={(e) => setEmbedUrlValue(e.target.value)}
-            placeholder="Paste any link, or a YouTube/Vimeo/TikTok/Dailymotion video"
+            placeholder="Paste any link, or a YouTube/Vimeo/TikTok/Dailymotion/Instagram video"
             className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
           />
           <button

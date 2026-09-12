@@ -88,7 +88,7 @@ export function proxy(request: NextRequest) {
     // googletagmanager.com is GTM's no-JS <noscript> fallback iframe
     // (analytics-scripts.tsx) — only opened once NEXT_PUBLIC_GTM_ID is
     // actually set.
-    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com https://www.tiktok.com https://www.dailymotion.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
+    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com https://www.tiktok.com https://www.dailymotion.com https://www.instagram.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

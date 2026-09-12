@@ -51,6 +51,25 @@ describe("parseVideoEmbedUrl", () => {
     expect(parseVideoEmbedUrl("https://evil.com/watch?v=dQw4w9WgXcQ")).toBeNull();
   });
 
+  it("parses Instagram post/reel/tv URLs, keeping the post type as part of the id", () => {
+    expect(parseVideoEmbedUrl("https://www.instagram.com/reel/CxAbc123-_/")).toEqual({
+      provider: "INSTAGRAM",
+      id: "reel/CxAbc123-_",
+    });
+    expect(parseVideoEmbedUrl("https://instagram.com/p/CxAbc123/")).toEqual({
+      provider: "INSTAGRAM",
+      id: "p/CxAbc123",
+    });
+    expect(parseVideoEmbedUrl("https://www.instagram.com/tv/CxAbc123/")).toEqual({
+      provider: "INSTAGRAM",
+      id: "tv/CxAbc123",
+    });
+  });
+
+  it("rejects an Instagram URL that isn't a post/reel/tv link", () => {
+    expect(parseVideoEmbedUrl("https://www.instagram.com/someuser/")).toBeNull();
+  });
+
   it("rejects non-http(s) protocols — the classic javascript: injection vector", () => {
     expect(parseVideoEmbedUrl("javascript:alert(1)")).toBeNull();
   });
@@ -71,6 +90,12 @@ describe("embedSrc", () => {
   it("rebuilds a Vimeo player URL", () => {
     expect(embedSrc({ provider: "VIMEO", id: "123456" })).toBe(
       "https://player.vimeo.com/video/123456",
+    );
+  });
+
+  it("rebuilds an Instagram embed URL, preserving the post type", () => {
+    expect(embedSrc({ provider: "INSTAGRAM", id: "reel/CxAbc123" })).toBe(
+      "https://www.instagram.com/reel/CxAbc123/embed",
     );
   });
 });

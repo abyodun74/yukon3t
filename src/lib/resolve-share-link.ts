@@ -36,7 +36,7 @@ async function isSafeHost(hostname: string): Promise<boolean> {
  * boundary is downstream of this function: the landing URL only ever
  * becomes a real embed if parseVideoEmbedUrl accepts it, which means
  * recognizing it as one of this app's already-vetted, already-embeddable
- * providers (YouTube/Vimeo/TikTok/Dailymotion) — a redirect chain landing
+ * providers (YouTube/Vimeo/TikTok/Dailymotion/Instagram) — a redirect chain landing
  * anywhere else just fails closed to null, same as today's "not a
  * recognized video link" case.
  */

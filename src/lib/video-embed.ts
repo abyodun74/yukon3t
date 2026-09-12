@@ -1,4 +1,4 @@
-export type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION";
+export type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION" | "INSTAGRAM";
 export type ParsedEmbed = { provider: EmbedProvider; id: string };
 
 const YOUTUBE_ID = /^[a-zA-Z0-9_-]{11}$/;
@@ -6,6 +6,12 @@ const VIMEO_ID = /^\d+$/;
 const TIKTOK_ID = /^\d+$/;
 // Dailymotion ids conventionally start with a letter (e.g. "x7abc12").
 const DAILYMOTION_ID = /^[a-zA-Z0-9]+$/;
+// Instagram's embed endpoint is path-type-specific (/p/<id>/embed for a
+// feed post, /reel/<id>/embed for a Reel, /tv/<id>/embed for IGTV) — unlike
+// every other provider here, the id alone isn't enough to rebuild a working
+// embed src, so the post type is kept as part of `id` itself
+// ("reel/DAbc123", not just "DAbc123").
+const INSTAGRAM_ID = /^(?:p|reel|tv)\/[a-zA-Z0-9_-]+$/;
 
 /**
  * Extracts a validated provider + video id from a pasted URL — nothing else
@@ -78,6 +84,12 @@ export function parseVideoEmbedUrl(raw: string): ParsedEmbed | null {
     return DAILYMOTION_ID.test(id) ? { provider: "DAILYMOTION", id } : null;
   }
 
+  if (host === "instagram.com") {
+    const match = url.pathname.match(/^\/(p|reel|tv)\/([a-zA-Z0-9_-]+)/);
+    const id = match ? `${match[1]}/${match[2]}` : null;
+    return id && INSTAGRAM_ID.test(id) ? { provider: "INSTAGRAM", id } : null;
+  }
+
   return null;
 }
 
@@ -92,6 +104,8 @@ export function embedSrc({ provider, id }: ParsedEmbed): string {
       return `https://www.tiktok.com/embed/v2/${id}`;
     case "DAILYMOTION":
       return `https://www.dailymotion.com/embed/video/${id}`;
+    case "INSTAGRAM":
+      return `https://www.instagram.com/${id}/embed`;
   }
 }
 

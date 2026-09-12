@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
+import type { EmbedProvider } from "@/lib/video-embed";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
-type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION";
 
 type EmbeddedPostRow = {
   id: string;
