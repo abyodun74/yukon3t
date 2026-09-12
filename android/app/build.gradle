@@ -109,8 +109,31 @@ android {
         // already a dependency, no new one added) for post/story photo
         // picking, replacing nothing that was load-bearing. No new
         // permission and no new Play Console declaration.
-        versionCode 19
-        versionName "1.16"
+        // 20: CRITICAL crash-loop fix. Version 19's release (minified) build
+        // crashed instantly and unrecoverably on every launch on Android 13+
+        // (SDK 33+) — confirmed live on a Samsung Galaxy S23+/S25+ (Android
+        // 16) via adb logcat: capacitor-bridge.tsx's
+        // FirebaseMessaging.checkPermissions() call threw a
+        // NullPointerException inside Capacitor's own Plugin.
+        // getPermissionStates(), crashing the whole app the instant it ran
+        // (every launch, since that call happens unconditionally on mount).
+        // Did NOT reproduce on an unminified debug build with identical
+        // code, isolating it to R8: proguard-rules.pro's release build type
+        // had zero -keepattributes/-dontoptimize rules, so R8's full-mode
+        // optimizer was free to restructure Capacitor's reflection-driven
+        // Plugin/Bridge/PluginHandle classes in a way that broke at
+        // runtime despite those classes being nominally "kept" by
+        // Capacitor's own consumer proguard rules (keeping a class doesn't
+        // protect it from optimization/inlining, only shrinking/renaming).
+        // Root-cause is unavoidably a Capacitor/R8 full-mode interaction
+        // this app doesn't control the fix for upstream — proguard-
+        // rules.pro's -dontoptimize (keeps shrinking + renaming for the
+        // app-size/obfuscation win, disables just the optimization pass)
+        // is the standard, verified fix: confirmed live, 4 consecutive
+        // force-stop+relaunch cycles with zero crashes on the exact device
+        // that crashed 100% of the time before this change.
+        versionCode 20
+        versionName "1.17"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
