@@ -304,7 +304,18 @@ function MediaBlock({
             title="Embedded video"
             className="h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+            // allow-top-navigation-by-user-activation (not the unrestricted
+            // allow-top-navigation) lets Instagram's embed script navigate
+            // the top-level window when the viewer actually taps something
+            // inside it (its embed.js repeatedly attempts this on load —
+            // confirmed live via device console logs, "Unsafe attempt to
+            // initiate navigation ... sandboxed" — without this, that
+            // attempt is silently blocked, which is fine for a passive
+            // video but can leave Instagram's embed stuck since it expects
+            // to be able to redirect on real interaction). No other current
+            // provider (YouTube/Vimeo/TikTok/Dailymotion) needs this, but a
+            // user-gesture-gated navigation is safe to allow for all of them.
+            sandbox="allow-scripts allow-same-origin allow-popups allow-presentation allow-top-navigation-by-user-activation"
             referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
