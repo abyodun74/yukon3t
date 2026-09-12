@@ -148,8 +148,22 @@ android {
         // android:windowActionBar=false / android:windowNoTitle=true to
         // AppTheme.NoActionBarLaunch. No new permission, no new Play
         // Console declaration.
-        versionCode 21
-        versionName "1.18"
+        // 22: adds three native plugins backing web features that were
+        // already live but inert without a compiled build:
+        // @capacitor-community/media (Save to device in the lightbox —
+        // writes into an app-scoped "YuKon3t" gallery album, no new
+        // permission needed since it isn't gallery mode), @capacitor/share
+        // (native Android Intent.ACTION_SEND share sheet, replacing
+        // reliance on WebView's unreliable navigator.share support), and
+        // @capacitor/filesystem (writes a fetched media file into the app's
+        // own cache dir so Share can attach it as a file:// URI — Share's
+        // `files` option can't take a remote URL directly). Also carries the
+        // video-recorder-modal.tsx camera-flip fix and the Instagram-embed/
+        // R2-CORS fixes, though those are web-only and were already live.
+        // No new manifest permission, no new Play Console declaration —
+        // confirmed via a real-device debug-APK sideload test session.
+        versionCode 22
+        versionName "1.19"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
