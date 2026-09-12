@@ -26,7 +26,7 @@ type View = "root" | "friends";
  * share-target-store.ts and navigates there, since a Next.js route change
  * can't carry a File through the URL itself.
  */
-export function ShareTargetGate() {
+export function ShareTargetGate({ userId }: { userId: string }) {
   const router = useRouter();
   const [share, setShare] = useState<PendingShareMedia | null>(null);
   const [view, setView] = useState<View>("root");
@@ -95,7 +95,12 @@ export function ShareTargetGate() {
   function goToNewPost() {
     setPendingShareMedia(share!);
     close();
-    router.push("/home");
+    // Not /home — that route has no PostComposer mounted at all (it's a
+    // read-only feed), so nothing would ever call consumePendingShareMedia()
+    // and the shared file would silently vanish. The profile page's own
+    // PostComposer (no circleId/channelId — a general, non-Circle post) is
+    // the one instance that's always reachable from any signed-in state.
+    router.push(`/u/${userId}`);
   }
 
   function goToConversation(conversationId: string) {

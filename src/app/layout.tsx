@@ -169,7 +169,7 @@ export default async function RootLayout({
           {session?.user && <PresenceHeartbeat />}
           {session?.user && <ScreenshotGuard />}
           {session?.user && <FeedVideoVolumeSync />}
-          {session?.user && <ShareTargetGate />}
+          {session?.user && <ShareTargetGate userId={session.user.id} />}
           <main className="flex-1">{children}</main>
           {/* Signed-in mobile users already have a dedicated bottom tab bar
               (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
