@@ -76,12 +76,19 @@ export function proxy(request: NextRequest) {
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.
     "worker-src 'self' blob:",
-    // Same reasoning as YouTube/Vimeo post embeds: the linked-video iframe
-    // (see src/lib/video-embed.ts) only ever points at these two exact
-    // origins, never an attacker-controlled one. googletagmanager.com is
-    // GTM's no-JS <noscript> fallback iframe (analytics-scripts.tsx) — only
-    // opened once NEXT_PUBLIC_GTM_ID is actually set.
-    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
+    // Same reasoning for all four: the linked-video iframe (see
+    // src/lib/video-embed.ts's embedSrc) only ever points at one of these
+    // exact origins per provider, never an attacker-controlled one.
+    // TikTok/Dailymotion were missing here despite already being supported
+    // EmbedProvider values — confirmed live, a TikTok embed post rendered
+    // as a plain blocked/black iframe (CSP silently refusing the frame
+    // load) even though video-embed.ts happily built the embed. Not
+    // something the "share a video in from another app" feature broke —
+    // manually pasting a TikTok/Dailymotion link had exactly the same gap.
+    // googletagmanager.com is GTM's no-JS <noscript> fallback iframe
+    // (analytics-scripts.tsx) — only opened once NEXT_PUBLIC_GTM_ID is
+    // actually set.
+    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com https://www.tiktok.com https://www.dailymotion.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
