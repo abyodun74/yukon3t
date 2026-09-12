@@ -18,5 +18,19 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Theme.SplashScreen's own suppression of the native ActionBar
+             isn't reliable across devices/AppCompat versions — confirmed
+             live via uiautomator on a real Samsung Galaxy S26 Ultra
+             (Android 16): a genuine android:id/action_bar_container
+             rendered on top of the WebView showing the plain "YuKon3t"
+             manifest label in a stock black DarkActionBar, unrelated to and
+             covering this app's own React-rendered header underneath. This
+             theme is the one MainActivity actually keeps for its entire
+             lifetime (nothing ever calls setTheme() to switch away from the
+             launch theme after the splash), so it needs the same explicit
+             suppression AppTheme.NoActionBar already has below, instead of
+             relying on inheritance. -->
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>

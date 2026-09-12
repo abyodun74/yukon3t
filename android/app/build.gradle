@@ -132,8 +132,24 @@ android {
         // is the standard, verified fix: confirmed live, 4 consecutive
         // force-stop+relaunch cycles with zero crashes on the exact device
         // that crashed 100% of the time before this change.
-        versionCode 20
-        versionName "1.17"
+        // 21: fixes the persistent black bar covering the app's own header
+        // on some devices (confirmed live on both a Xiaomi phone and a
+        // Samsung Galaxy S26 Ultra, Android 16) — root-caused via
+        // uiautomator to a genuine native android:id/action_bar_container
+        // rendering on top of the WebView with the plain manifest label
+        // ("YuKon3t") in a stock black DarkActionBar, unrelated to and
+        // covering this app's real React header. MainActivity's actual
+        // theme for its whole lifetime is AppTheme.NoActionBarLaunch (based
+        // on Theme.SplashScreen, never swapped away from after launch),
+        // which — unlike its sibling AppTheme.NoActionBar — never
+        // explicitly suppressed the ActionBar, relying on inheritance from
+        // Theme.SplashScreen alone; that turned out to be unreliable across
+        // devices/AppCompat versions. Fixed in styles.xml by adding explicit
+        // android:windowActionBar=false / android:windowNoTitle=true to
+        // AppTheme.NoActionBarLaunch. No new permission, no new Play
+        // Console declaration.
+        versionCode 21
+        versionName "1.18"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
