@@ -1,8 +1,45 @@
 "use client";
 
-import { useEffect } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { ZoomableImage } from "@/components/zoomable-image";
+import { saveMediaToGallery } from "@/lib/save-to-gallery";
+import { cn } from "@/lib/utils";
+
+function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function handleSave() {
+    if (state === "saving") return;
+    setState("saving");
+    const ok = await saveMediaToGallery(url, kind);
+    setState(ok ? "saved" : "error");
+    if (ok) setTimeout(() => setState("idle"), 2000);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        handleSave();
+      }}
+      disabled={state === "saving"}
+      aria-label="Save to device"
+      title="Save to device"
+      className={cn(
+        "absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white disabled:opacity-60",
+        state === "error" && "text-danger",
+      )}
+    >
+      {state === "saved" ? <Check size={16} /> : <Download size={16} />}
+      {state === "saving" && "Saving…"}
+      {state === "saved" && "Saved"}
+      {state === "error" && "Couldn't save"}
+      {state === "idle" && "Save"}
+    </button>
+  );
+}
 
 /** Full-screen media viewer for a post's images or video — Escape/click-outside/arrow-key navigable. */
 export function Lightbox({
@@ -19,6 +56,7 @@ export function Lightbox({
   onClose: () => void;
 }) {
   const isGallery = Boolean(images && images.length > 0 && index !== undefined && onIndexChange);
+  const currentMediaUrl = isGallery && images && index !== undefined ? images[index] : video;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -47,6 +85,12 @@ export function Lightbox({
       >
         <X size={24} />
       </button>
+
+      {/* Keyed on the URL so a stale "Saved"/error state from a previous
+          image/video doesn't carry over when navigating to the next one —
+          simpler than resetting state in an effect for the same reason
+          ZoomableImage below is keyed on index. */}
+      {currentMediaUrl && <SaveButton key={currentMediaUrl} url={currentMediaUrl} kind={video ? "video" : "photo"} />}
 
       {isGallery && images && index !== undefined && onIndexChange && (
         <>

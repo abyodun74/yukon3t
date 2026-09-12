@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/user-link";
 import { recordShare, shareToCircle } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
+import { canShareNatively, shareNative } from "@/lib/native-share";
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null };
@@ -51,7 +52,12 @@ export function ShareModal({
   const [isPending, startTransition] = useTransition();
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/post/${postId}` : "";
-  const canNativeShare = typeof navigator !== "undefined" && "share" in navigator;
+  // The native path (Android Intent.ACTION_SEND / iOS UIActivityViewController,
+  // via @capacitor/share) is checked first since WebView support for the
+  // Web Share API varies by the device's installed system WebView build and
+  // isn't reliable — falls back to navigator.share for a plain browser tab.
+  const canNativeShare =
+    canShareNatively() || (typeof navigator !== "undefined" && "share" in navigator);
 
   useEffect(() => {
     if (view === "friends" && conversations === null) {
@@ -83,6 +89,31 @@ export function ShareModal({
   }
 
   async function nativeShare() {
+    const extension = mediaType === "VIDEO" ? "mp4" : mediaType === "GIF" ? "gif" : "jpg";
+    const sources =
+      mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF"
+        ? mediaType === "VIDEO"
+          ? videoUrl
+            ? [videoUrl]
+            : []
+          : mediaUrls
+        : [];
+
+    if (canShareNatively()) {
+      setSharingViaDevice(true);
+      try {
+        const handled = await shareNative({
+          url,
+          text: content || undefined,
+          sources: sources.map((src, i) => ({ src, fileName: `post-${postId}-${i}.${extension}` })),
+        });
+        if (handled) bumpShareCount();
+      } finally {
+        setSharingViaDevice(false);
+      }
+      return;
+    }
+
     const shareData: ShareData = { url, text: content || undefined };
 
     // Attach the actual photo/video so whatever the OS share sheet sends
@@ -91,15 +122,11 @@ export function ShareModal({
     // attempted when the platform supports file sharing and the media can
     // actually be fetched (R2 CORS, network) — falls back to the plain
     // text+url share (still not just a link) on any failure.
-    if (mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF") {
+    if (sources.length > 0) {
       setSharingViaDevice(true);
       try {
-        const sources = mediaType === "VIDEO" ? (videoUrl ? [videoUrl] : []) : mediaUrls;
-        const extension = mediaType === "VIDEO" ? "mp4" : mediaType === "GIF" ? "gif" : "jpg";
         const files = (
-          await Promise.all(
-            sources.map((src, i) => fetchAsFile(src, `post-${postId}-${i}.${extension}`)),
-          )
+          await Promise.all(sources.map((src, i) => fetchAsFile(src, `post-${postId}-${i}.${extension}`)))
         ).filter((f): f is File => f !== null);
 
         if (files.length === sources.length && files.length > 0 && navigator.canShare?.({ files })) {

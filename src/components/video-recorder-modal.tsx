@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Circle, Square, X } from "lucide-react";
+import { Circle, RefreshCw, Square, X } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 
 /** In-browser camera recording (desktop webcam or mobile camera via getUserMedia) — no native app hand-off required. */
 export function VideoRecorderModal({
@@ -21,11 +22,26 @@ export function VideoRecorderModal({
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [switchingCamera, setSwitchingCamera] = useState(false);
+  // Best-effort fallback for a plain browser tab, same reasoning as
+  // call-frame.tsx's cycleCamera() gating: device-count/facingMode-capability
+  // signals are unreliable on Android (some camera HALs collapse front+back
+  // into a single videoinput entry), so the button is shown unconditionally
+  // inside the Capacitor app, where a front+back pair is a given.
+  const [canSwitchCamera, setCanSwitchCamera] = useState(
+    () => typeof window !== "undefined" && Capacitor.isNativePlatform(),
+  );
 
   useEffect(() => {
     let cancelled = false;
+    // Matches the initial `facingMode` state's default ("environment") —
+    // read as a literal rather than the state variable since this effect
+    // only ever runs once at mount; switchCamera() (below) handles every
+    // change after that by mutating the stream in place, not by re-running
+    // this effect.
     navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
+      .getUserMedia({ video: { facingMode: "environment" }, audio: true })
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -33,6 +49,12 @@ export function VideoRecorderModal({
         }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+        navigator.mediaDevices
+          .enumerateDevices()
+          .then((devices) => {
+            if (devices.filter((d) => d.kind === "videoinput").length > 1) setCanSwitchCamera(true);
+          })
+          .catch(() => {});
       })
       .catch((err: unknown) => {
         // getUserMedia's DOMException name distinguishes "you said no" from
@@ -56,6 +78,44 @@ export function VideoRecorderModal({
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, []);
+
+  async function switchCamera() {
+    const stream = streamRef.current;
+    if (!stream || switchingCamera) return;
+    const nextFacingMode = facingMode === "environment" ? "user" : "environment";
+    setSwitchingCamera(true);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: nextFacingMode },
+        audio: false,
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) return;
+      // Swap the video track on the SAME MediaStream object (rather than
+      // replacing streamRef/srcObject wholesale) instead of tearing down
+      // and recreating everything — that's what lets an in-progress
+      // MediaRecorder keep recording straight through the switch. Chromium
+      // (both the Android WebView this app actually ships in, and desktop
+      // Chrome — see call-frame.tsx's own note on this app's real mobile
+      // audience) observes addTrack/removeTrack on a live stream and picks
+      // up the replacement without a restart; calling
+      // MediaRecorder.start() a second time instead would produce two
+      // separately-headered webm blobs that can't just be concatenated
+      // into one playable file. The <video> preview updates the same way,
+      // since its srcObject is this same stream reference, not a copy.
+      const oldTrack = stream.getVideoTracks()[0];
+      if (oldTrack) {
+        stream.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      stream.addTrack(newTrack);
+      setFacingMode(nextFacingMode);
+    } catch (err) {
+      console.error("Camera switch failed:", err);
+    } finally {
+      setSwitchingCamera(false);
+    }
+  }
 
   function stopRecording() {
     recorderRef.current?.stop();
@@ -104,7 +164,21 @@ export function VideoRecorderModal({
           <p className="mt-3 text-sm text-danger">{error}</p>
         ) : (
           <>
-            <video ref={videoRef} autoPlay muted playsInline className="mt-3 w-full rounded-lg bg-black" />
+            <div className="relative mt-3">
+              <video ref={videoRef} autoPlay muted playsInline className="w-full rounded-lg bg-black" />
+              {canSwitchCamera && (
+                <button
+                  type="button"
+                  onClick={switchCamera}
+                  disabled={switchingCamera}
+                  title="Switch camera"
+                  aria-label="Switch camera"
+                  className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={switchingCamera ? "animate-spin" : undefined} />
+                </button>
+              )}
+            </div>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-foreground-soft">
                 {recording ? `${seconds}s / ${maxSeconds}s` : `Up to ${maxSeconds}s`}
