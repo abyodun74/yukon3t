@@ -23,11 +23,16 @@ function blobToBase64(blob: Blob): Promise<string> {
 async function downloadToCache(src: string, fileName: string): Promise<string | null> {
   try {
     const res = await fetch(src);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("native-share: fetch failed", src, res.status);
+      return null;
+    }
     const base64 = await blobToBase64(await res.blob());
     const { uri } = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+    console.log("native-share: wrote", fileName, "->", uri);
     return uri;
-  } catch {
+  } catch (err) {
+    console.error("native-share: downloadToCache failed", src, err);
     return null;
   }
 }
@@ -70,11 +75,16 @@ export async function shareNative(options: {
         options.sources.map((s) => downloadToCache(s.src, s.fileName)),
       );
       const uris = downloaded.filter((u): u is string => u !== null);
-      if (uris.length === options.sources.length) files = uris;
+      if (uris.length === options.sources.length) {
+        files = uris;
+      } else {
+        console.error("native-share: not all sources downloaded, sharing link only", downloaded);
+      }
     }
     await Share.share({ url: options.url, text: options.text, files });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("native-share: Share.share failed/cancelled", err);
     return true;
   }
 }

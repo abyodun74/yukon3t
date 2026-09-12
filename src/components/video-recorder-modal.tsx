@@ -82,37 +82,62 @@ export function VideoRecorderModal({
   async function switchCamera() {
     const stream = streamRef.current;
     if (!stream || switchingCamera) return;
-    const nextFacingMode = facingMode === "environment" ? "user" : "environment";
+    const previousFacingMode = facingMode;
+    const nextFacingMode = previousFacingMode === "environment" ? "user" : "environment";
     setSwitchingCamera(true);
+    // Stop and remove the current camera track BEFORE requesting the other
+    // one, rather than acquire-then-release — confirmed on a real Samsung
+    // device that opening a second camera stream while the first is still
+    // active silently fails outright (most Android Camera2 HALs only allow
+    // one open camera session per app at a time), which is why the
+    // acquire-then-release ordering never actually switched anything.
+    const oldTrack = stream.getVideoTracks()[0];
+    if (oldTrack) {
+      stream.removeTrack(oldTrack);
+      oldTrack.stop();
+    }
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: nextFacingMode },
         audio: false,
       });
       const newTrack = newStream.getVideoTracks()[0];
-      if (!newTrack) return;
-      // Swap the video track on the SAME MediaStream object (rather than
+      if (!newTrack) throw new Error("No video track returned");
+      // Add the new track to the SAME MediaStream object (rather than
       // replacing streamRef/srcObject wholesale) instead of tearing down
       // and recreating everything — that's what lets an in-progress
       // MediaRecorder keep recording straight through the switch. Chromium
       // (both the Android WebView this app actually ships in, and desktop
       // Chrome — see call-frame.tsx's own note on this app's real mobile
-      // audience) observes addTrack/removeTrack on a live stream and picks
-      // up the replacement without a restart; calling
-      // MediaRecorder.start() a second time instead would produce two
-      // separately-headered webm blobs that can't just be concatenated
-      // into one playable file. The <video> preview updates the same way,
-      // since its srcObject is this same stream reference, not a copy.
-      const oldTrack = stream.getVideoTracks()[0];
-      if (oldTrack) {
-        stream.removeTrack(oldTrack);
-        oldTrack.stop();
-      }
+      // audience) observes addTrack on a live stream and picks up the
+      // addition without a restart; calling MediaRecorder.start() a second
+      // time instead would produce two separately-headered webm blobs that
+      // can't just be concatenated into one playable file.
       stream.addTrack(newTrack);
       setFacingMode(nextFacingMode);
     } catch (err) {
       console.error("Camera switch failed:", err);
+      // Best-effort recovery — try to get the original camera back rather
+      // than leaving the recording with no video track at all.
+      try {
+        const restored = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: previousFacingMode },
+          audio: false,
+        });
+        const restoredTrack = restored.getVideoTracks()[0];
+        if (restoredTrack) stream.addTrack(restoredTrack);
+      } catch {
+        // Nothing more to do here — closing and reopening the recorder is
+        // the only way back if even the original camera won't reacquire.
+      }
     } finally {
+      // Some WebView/Chromium builds don't repaint a <video> already bound
+      // to a live MediaStream after its tracks change in place —
+      // reassigning the same stream object (not a copy) forces a refresh.
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        videoRef.current.srcObject = stream;
+      }
       setSwitchingCamera(false);
     }
   }
