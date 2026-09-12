@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
+import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
@@ -187,7 +188,7 @@ export function PostComposer({
   // setState call directly in the effect body.
   useEffect(() => {
     function applyShare() {
-      Promise.resolve().then(() => {
+      Promise.resolve().then(async () => {
         const shared = consumePendingShareMedia();
         if (!shared) return;
         // Through the same pickImages/pickVideo validation (type/size/
@@ -196,12 +197,46 @@ export function PostComposer({
         // picker/paste.
         if (shared.images.length > 0) pickImages(shared.images);
         if (shared.video) pickVideo(shared.video);
-        if (shared.text) appendDictatedText(shared.text);
+        if (shared.text) {
+          const trimmed = shared.text.trim();
+          // A share that's a bare link (no other caption text) is usually
+          // a video app's own Share sheet handing over a link instead of
+          // the actual file (confirmed live: a shared TikTok video landed
+          // in the post body as a plain unclickable URL). Route it through
+          // the same embed path "paste a link" already uses instead of
+          // dropping it into the caption as inert text — not specific to
+          // any one app: if direct parsing fails, resolveSharedVideoLink
+          // follows the link's own redirect chain (any app's short/
+          // tracking-link scheme, not just TikTok's) and re-checks the
+          // landing URL the same way a manually pasted link would be.
+          let handled = false;
+          if (parseVideoEmbedUrl(trimmed)) {
+            addEmbed(trimmed);
+            handled = true;
+          } else {
+            const looksLikeUrl = (() => {
+              try {
+                new URL(trimmed);
+                return true;
+              } catch {
+                return false;
+              }
+            })();
+            if (looksLikeUrl) {
+              const { url: resolved } = await resolveSharedVideoLink(trimmed);
+              if (resolved) {
+                addEmbed(resolved);
+                handled = true;
+              }
+            }
+          }
+          if (!handled) appendDictatedText(trimmed);
+        }
       });
     }
     applyShare();
     return subscribePendingShareMedia(applyShare);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/subscribe-only; pickImages/pickVideo/appendDictatedText read current state via closures each render, but this effect's setup only ever needs to run once
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/subscribe-only; pickImages/pickVideo/appendDictatedText/addEmbed read current state via closures each render, but this effect's setup only ever needs to run once
   }, []);
 
   // Object URLs are created once per image set (memoized on `images`), not
@@ -343,8 +378,11 @@ export function PostComposer({
     };
   }
 
-  function addEmbed() {
-    const url = embedUrlValue.trim();
+  // urlOverride lets the incoming-share handler above set an embed
+  // programmatically (a resolved TikTok URL the user never typed anywhere)
+  // instead of only ever reading the visible input field.
+  function addEmbed(urlOverride?: string) {
+    const url = (urlOverride ?? embedUrlValue).trim();
     // A recognized video provider gets a proper iframe embed; any other
     // http(s) link is still accepted and posted as a plain link — only the
     // protocol is checked, no allowlist of hosts.
@@ -678,7 +716,7 @@ export function PostComposer({
           <button
             type="button"
             disabled={!embedUrlValue.trim()}
-            onClick={addEmbed}
+            onClick={() => addEmbed()}
             className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
           >
             Add
