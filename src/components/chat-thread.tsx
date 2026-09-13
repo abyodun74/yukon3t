@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
@@ -799,6 +799,7 @@ export function ChatThread({
   const [showDictation, setShowDictation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -891,13 +892,27 @@ export function ChatThread({
 
   usePolling(poll, POLL_INTERVAL_MS);
 
-  // Skips the very first run: without this, opening a conversation (e.g.
-  // tapping a user to message them) immediately smooth-scrolled the whole
-  // page down to the latest message, burying the header above — including
-  // the Call button — off-screen before the user ever saw it. Landing at
-  // the top on open (browsers do this natively) and auto-scrolling only for
-  // messages that arrive *after* that keeps the header reachable while still
-  // following an active conversation.
+  // Opens the conversation already scrolled to the newest message, not the
+  // top of history. useLayoutEffect (not useEffect) so this jump happens
+  // before the browser paints — no visible flash of the top of the thread
+  // first. This previously used bottomRef.scrollIntoView({ behavior:
+  // "smooth" }) unconditionally, which animated the whole *page* (not just
+  // this panel) down to the bottom, burying the header/Call button
+  // off-screen mid-animation before the user saw it — that's why the very
+  // first run used to be skipped entirely (landing at the top instead).
+  // Writing scrollTop directly on this panel's own scroll container avoids
+  // both problems: it's instant (nothing to visually "bury" anything with)
+  // and scoped to this element, so it can't propagate up to page-level
+  // scroll the way scrollIntoView can.
+  useLayoutEffect(() => {
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
+  // Skips the very first run (handled by the layout effect above) — this
+  // one only animates the scroll for messages that arrive *after* the
+  // conversation is already open, so an actively-open thread keeps
+  // following new activity.
   const isFirstMessagesEffectRef = useRef(true);
   useEffect(() => {
     if (isFirstMessagesEffectRef.current) {
@@ -1132,7 +1147,7 @@ export function ChatThread({
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col">
-      <div className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
+      <div ref={messagesContainerRef} className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
         {visibleMessages.map((m, i) => {
           const mine = m.senderId === currentUserId;
           const prev = visibleMessages[i - 1];

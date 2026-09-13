@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, Eye, Trash2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,10 @@ export type StoryData = {
   caption: string | null;
   createdAt: Date;
   viewCount: number;
+  // Set when this story is a "share to your story" of an existing post
+  // (actions/shares.ts's shareToStory) — renders a "View post" link back to
+  // it, the same attribution repost/shareToCircle already give a quoted post.
+  sharedPostId: string | null;
 };
 
 function timeAgo(date: Date) {
@@ -393,6 +398,14 @@ export function StoryViewer({
           ) : (
             <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
               {story.caption && <p className="break-words text-sm text-white">{story.caption}</p>}
+              {story.sharedPostId && (
+                <Link
+                  href={`/post/${story.sharedPostId}`}
+                  className="mt-1 inline-block text-xs font-medium text-white underline underline-offset-2"
+                >
+                  View post
+                </Link>
+              )}
               {reactionCounts.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {reactionCounts.map((r) => (
@@ -419,6 +432,14 @@ export function StoryViewer({
       ) : (
         <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
           {story.caption && <p className="mb-2 break-words text-sm text-white">{story.caption}</p>}
+          {story.sharedPostId && (
+            <Link
+              href={`/post/${story.sharedPostId}`}
+              className="mb-2 inline-block text-xs font-medium text-white underline underline-offset-2"
+            >
+              View post
+            </Link>
+          )}
           {reactionCounts.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {reactionCounts.map((r) => (

@@ -108,6 +108,7 @@ export default async function PublicProfilePage({
     caption: s.caption,
     createdAt: s.createdAt,
     viewCount: s._count.views,
+    sharedPostId: s.sharedPostId,
   }));
 
   return (

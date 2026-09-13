@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Link as LinkIcon, Share as ShareIcon, Send, Users } from "lucide-react";
+import { X, Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
-import { recordShare, shareToCircle } from "@/app/actions/shares";
+import { recordShare, shareToCircle, shareToStory } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
@@ -50,7 +50,14 @@ export function ShareModal({
   const [circles, setCircles] = useState<Circle[] | null>(null);
   const [sentToId, setSentToId] = useState<string | null>(null);
   const [sharingViaDevice, setSharingViaDevice] = useState(false);
+  const [sharingToStory, setSharingToStory] = useState(false);
+  const [sharedToStory, setSharedToStory] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Stories only ever hold a photo or video (StoryMediaType has no NONE/
+  // LINK/EMBED/GIF) — a text-only, link, embedded-video, or GIF post has
+  // nothing that fits it, same gate shareToStory itself enforces server-side.
+  const canShareToStory = mediaType === "IMAGE" || mediaType === "VIDEO";
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/post/${postId}` : "";
   // The native path (Android Intent.ACTION_SEND / iOS UIActivityViewController,
@@ -166,6 +173,19 @@ export function ShareModal({
     });
   }
 
+  function shareToMyStory() {
+    if (sharingToStory) return;
+    setSharingToStory(true);
+    startTransition(async () => {
+      const result = await shareToStory(postId);
+      setSharingToStory(false);
+      if (!result.error) {
+        setSharedToStory(true);
+        if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
+      }
+    });
+  }
+
   function shareIntoCircle(circleId: string) {
     startTransition(async () => {
       const fd = new FormData();
@@ -215,6 +235,17 @@ export function ShareModal({
               >
                 <ShareIcon size={16} />
                 {sharingViaDevice ? "Preparing…" : "Share via device"}
+              </button>
+            )}
+            {canShareToStory && (
+              <button
+                type="button"
+                disabled={sharingToStory || sharedToStory}
+                onClick={shareToMyStory}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
+              >
+                <CirclePlus size={16} />
+                {sharedToStory ? "Added to your story" : sharingToStory ? "Adding…" : "Share to your story"}
               </button>
             )}
             <button

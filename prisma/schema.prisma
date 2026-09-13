@@ -622,6 +622,9 @@ model Post {
   shares        Share[]
   rsvps         PostRsvp[]
   notifications Notification[]
+  // Back-relation for Story.sharedPost (shareToStory) — see that field's
+  // own comment.
+  storyShares   Story[]
 
   @@unique([authorId, repostOfId])
   @@index([circleId])
@@ -1192,16 +1195,28 @@ model Story {
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
 
-  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  views         StoryView[]
-  reactions     StoryReaction[]
-  replies       Message[]
+  // Set when this story is a "share to your story" of an existing Post
+  // (src/app/actions/shares.ts's shareToStory) rather than a fresh upload —
+  // same "quote, don't duplicate ownership of the media" idea as Post's own
+  // sharedPostId. SetNull rather than Cascade: the original post being
+  // deleted shouldn't take down a story that already reshared it (the
+  // story's own mediaUrl/mediaType are a full copy, not a live reference,
+  // so it renders fine either way — this only affects the "View post"
+  // attribution link).
+  sharedPostId String?
+
+  author     User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  sharedPost Post?           @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
+  views      StoryView[]
+  reactions  StoryReaction[]
+  replies    Message[]
   notifications Notification[]
 
   // Backs both "my active stories" (profile page) and the expiry cron's
   // sweep for rows past expiresAt.
   @@index([authorId, expiresAt])
   @@index([expiresAt])
+  @@index([sharedPostId])
 }
 
 /**

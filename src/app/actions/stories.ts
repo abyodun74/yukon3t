@@ -61,6 +61,7 @@ export async function getConnectionsStories() {
         caption: string | null;
         createdAt: Date;
         viewCount: number;
+        sharedPostId: string | null;
       }[];
     }
   >();
@@ -92,6 +93,7 @@ export async function getConnectionsStories() {
       caption: story.caption,
       createdAt: story.createdAt,
       viewCount: story._count.views,
+      sharedPostId: story.sharedPostId,
     });
   }
 
