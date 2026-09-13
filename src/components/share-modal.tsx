@@ -52,6 +52,11 @@ export function ShareModal({
   const [sharingViaDevice, setSharingViaDevice] = useState(false);
   const [sharingToStory, setSharingToStory] = useState(false);
   const [sharedToStory, setSharedToStory] = useState(false);
+  // Surfaces exactly why a device share didn't attach the actual photo/video
+  // — this app's release build doesn't forward WebView console output to
+  // logcat and has remote debugging disabled, so an on-screen message is
+  // the only way to see a real failure reason at all on a real device.
+  const [shareWarning, setShareWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Stories only ever hold a photo or video (StoryMediaType has no NONE/
@@ -107,10 +112,12 @@ export function ShareModal({
           : mediaUrls
         : [];
 
+    setShareWarning(null);
+
     if (canShareNatively()) {
       setSharingViaDevice(true);
       try {
-        const handled = await shareNative({
+        const result = await shareNative({
           url,
           text: content || undefined,
           sources: sources.map((src, i) => ({
@@ -122,7 +129,8 @@ export function ShareModal({
             watermark: mediaType === "IMAGE",
           })),
         });
-        if (handled) bumpShareCount();
+        if (result.warning) setShareWarning(result.warning);
+        bumpShareCount();
       } finally {
         setSharingViaDevice(false);
       }
@@ -140,10 +148,13 @@ export function ShareModal({
     if (sources.length > 0) {
       setSharingViaDevice(true);
       try {
+        const fetchFailures: string[] = [];
         const files = (
           await Promise.all(
             sources.map(async (src, i) => {
-              const fetched = await fetchAsFile(src, `post-${postId}-${i}.${extension}`);
+              const name = `post-${postId}-${i}.${extension}`;
+              const fetched = await fetchAsFile(src, name);
+              if (!fetched) fetchFailures.push(name);
               return fetched && mediaType === "IMAGE" ? watermarkImageFile(fetched) : fetched;
             }),
           )
@@ -151,6 +162,10 @@ export function ShareModal({
 
         if (files.length === sources.length && files.length > 0 && navigator.canShare?.({ files })) {
           shareData.files = files;
+        } else if (fetchFailures.length > 0) {
+          setShareWarning(`Couldn't attach media, sent link only (fetch failed: ${fetchFailures.join(", ")})`);
+        } else if (files.length > 0 && !navigator.canShare?.({ files })) {
+          setShareWarning("Couldn't attach media, sent link only (this browser can't share files)");
         }
       } finally {
         setSharingViaDevice(false);
@@ -215,6 +230,10 @@ export function ShareModal({
             <X size={18} />
           </button>
         </div>
+
+        {shareWarning && (
+          <p className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
+        )}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">

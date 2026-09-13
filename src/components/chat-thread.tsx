@@ -140,6 +140,12 @@ function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+/** The most recent non-deleted message with actual text, sent or received — used to prefill the composer when a conversation opens. */
+function lastMessageText(messages: MessageData[]): string {
+  const lastWithText = [...messages].reverse().find((m) => !m.deletedForEveryoneAt && m.content.trim());
+  return lastWithText?.content ?? "";
+}
+
 /** One-line summary of a quoted message for the reply preview — shared by the composer bar and the in-bubble quote. */
 function replyPreviewText(target: {
   content: string;
@@ -780,13 +786,9 @@ export function ChatThread({
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
   // Prefills the composer with the most recent message's own text (sent or
   // received) instead of opening blank — a quick way to re-send/tweak the
-  // same thing without retyping it. One-time initial value only: computed
-  // once from the messages the thread was opened with, never reset by a
-  // later poll tick or by the user's own typing/sending.
-  const [content, setContent] = useState(() => {
-    const lastWithText = [...initialMessages].reverse().find((m) => !m.deletedForEveryoneAt && m.content.trim());
-    return lastWithText?.content ?? "";
-  });
+  // same thing without retyping it. Reset per conversation by the resync
+  // effect below (this initial value only covers the very first mount).
+  const [content, setContent] = useState(() => lastMessageText(initialMessages));
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -892,36 +894,6 @@ export function ChatThread({
 
   usePolling(poll, POLL_INTERVAL_MS);
 
-  // Opens the conversation already scrolled to the newest message, not the
-  // top of history. useLayoutEffect (not useEffect) so this jump happens
-  // before the browser paints — no visible flash of the top of the thread
-  // first. This previously used bottomRef.scrollIntoView({ behavior:
-  // "smooth" }) unconditionally, which animated the whole *page* (not just
-  // this panel) down to the bottom, burying the header/Call button
-  // off-screen mid-animation before the user saw it — that's why the very
-  // first run used to be skipped entirely (landing at the top instead).
-  // Writing scrollTop directly on this panel's own scroll container avoids
-  // both problems: it's instant (nothing to visually "bury" anything with)
-  // and scoped to this element, so it can't propagate up to page-level
-  // scroll the way scrollIntoView can.
-  useLayoutEffect(() => {
-    const el = messagesContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
-
-  // Skips the very first run (handled by the layout effect above) — this
-  // one only animates the scroll for messages that arrive *after* the
-  // conversation is already open, so an actively-open thread keeps
-  // following new activity.
-  const isFirstMessagesEffectRef = useRef(true);
-  useEffect(() => {
-    if (isFirstMessagesEffectRef.current) {
-      isFirstMessagesEffectRef.current = false;
-      return;
-    }
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
-
   // Message ids that should ease in on this render — tracked separately
   // from messages.length because a poll can also replace the whole array
   // (an edit or reaction landing elsewhere in the thread) without actually
@@ -929,6 +901,79 @@ export function ChatThread({
   // every bubble.
   const knownMessageIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)));
   const [justAddedIds, setJustAddedIds] = useState<Set<string>>(new Set());
+
+  // True whenever the *next* messages update should jump straight to the
+  // bottom instead of animating there — the first-ever mount, and every
+  // conversation switch below. False the rest of the time, so a genuinely
+  // new incoming message in an already-open thread still animates in.
+  const pendingScrollJumpRef = useRef(true);
+
+  // ChatThread is NOT remounted when navigating from one conversation to
+  // another (see conversationIdRef above and poll()'s own "ignore a
+  // response that arrives after the user has switched threads" comment) —
+  // React just updates this same instance's props in place. Every piece of
+  // per-conversation local state below has to be reset here explicitly, or
+  // it leaks from whatever conversation was open right before: a stale
+  // draft/pending attachment/reply-quote carried into the new thread, the
+  // old thread's messages left on screen until the next poll tick
+  // overwrites them (up to POLL_INTERVAL_MS later), every message in the
+  // new thread wrongly replaying the "just added" entrance animation, and
+  // the view landing wherever the old thread's scroll position happened to
+  // be instead of this thread's newest message.
+  const isFirstRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      // The initial useState()/useRef() calls above already seeded
+      // everything from this same conversationId's props — running this
+      // again here would just be redundant (not incorrect), so skip it.
+      isFirstRenderRef.current = false;
+      return;
+    }
+    setMessages(initialMessages);
+    setMembers(initialMembers);
+    setContent(lastMessageText(initialMessages));
+    setPendingAudio(null);
+    setPendingVideo(null);
+    setPendingImage(null);
+    setPendingGif(null);
+    setReplyTarget(null);
+    setError(null);
+    knownMessageIdsRef.current = new Set(initialMessages.map((m) => m.id));
+    setJustAddedIds(new Set());
+    lastSignatureRef.current = null;
+    pendingScrollJumpRef.current = true;
+    // Deliberately keyed on conversationId alone, not initialMessages/
+    // initialMembers too — those can get new array references on every
+    // server round-trip for the *same* conversation (e.g. a revalidatePath
+    // elsewhere), and re-running this on every such render would wipe out
+    // an in-progress draft/attachment for no reason. Only an actual
+    // conversation switch should reset anything.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  // Opens the conversation already scrolled to the newest message, not the
+  // top of history — instant (not smooth) on the first mount and on every
+  // conversation switch (pendingScrollJumpRef, set above), smooth for a new
+  // message arriving in an already-open thread. useLayoutEffect so the
+  // instant case happens before the browser paints — no visible flash of
+  // the wrong scroll position first. This previously used
+  // bottomRef.scrollIntoView({ behavior: "smooth" }) unconditionally on
+  // mount, which animated the whole *page* (not just this panel) down to
+  // the bottom, burying the header/Call button off-screen mid-animation
+  // before the user saw it. Writing scrollTop directly on this panel's own
+  // scroll container avoids that: it's instant (nothing to visually "bury"
+  // anything with) and scoped to this element, so it can't propagate up to
+  // page-level scroll the way scrollIntoView can.
+  useLayoutEffect(() => {
+    if (pendingScrollJumpRef.current) {
+      pendingScrollJumpRef.current = false;
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   useEffect(() => {
     const prevIds = knownMessageIdsRef.current;
     const added = messages.filter((m) => !prevIds.has(m.id)).map((m) => m.id);
