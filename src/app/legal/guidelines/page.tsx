@@ -27,7 +27,7 @@ export default function GuidelinesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Community Guidelines</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: August 2, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 13, 2026</p>
       <p className="mt-4 text-foreground-soft">
         YuKon3t exists to connect people honestly across borders, cultures,
         and interests. These rules are enforced consistently, and every
@@ -67,9 +67,9 @@ export default function GuidelinesPage() {
         it&apos;s visible to anyone else; violating uploads are rejected and
         never published. Posting this kind of content results in an
         immediate, permanent ban. Linked videos are subject to our content
-        policy even though they&apos;re hosted elsewhere — posting a YouTube
-        or Vimeo link is held to the same standard as uploading the video
-        yourself.
+        policy even though they&apos;re hosted elsewhere — embedding a
+        YouTube, Vimeo, TikTok, Instagram, Facebook, or Dailymotion link is
+        held to the same standard as uploading the video yourself.
       </p>
 
       <h2 className="mt-8 font-semibold">5. Respect intellectual property</h2>

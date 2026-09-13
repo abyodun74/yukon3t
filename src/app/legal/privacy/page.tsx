@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: August 8, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 13, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         This Privacy Policy explains what information YuKon3t (&quot;YuKon3t,&quot;
@@ -24,6 +24,7 @@ export default function PrivacyPage() {
         <li><b>Technical data</b>: IP address and basic request metadata (used for rate limiting and abuse prevention), session cookies, and your theme preference cookie.</li>
         <li><b>Communications</b>: if you contact us for support or to appeal a moderation decision.</li>
         <li><b>Advertiser information</b>: if you book a paid ad placement, we collect the company name, contact name, and contact email you submit, along with the ad creative (headline, body text, image or video, and destination link).</li>
+        <li><b>Device contacts</b>: only if you use the &quot;Invite from contacts&quot; feature — read from your device to show which of your contacts to invite. This list is never uploaded to or stored on our servers; it&apos;s discarded the moment you leave that screen.</li>
       </ul>
       <p className="mt-2 text-foreground-soft">
         We do not require or knowingly collect government ID or precise
@@ -71,6 +72,7 @@ export default function PrivacyPage() {
         <li><b>Neon</b> — our PostgreSQL database provider, storing account and content data.</li>
         <li><b>Resend</b> — sends sign-in and account-related emails.</li>
         <li><b>Cloudflare (R2)</b> — stores uploaded photos and videos, including Story and ad media.</li>
+        <li><b>Cloudflare (Stream)</b> — a temporary copy of an uploaded video may be sent here for automated moderation scanning and caption generation; the original video is still served from R2 above.</li>
         <li><b>OpenAI</b> — automated content moderation of text and images before publication. We do not send full account profiles to this provider — only the specific content being screened.</li>
         <li><b>Daily.co</b> — powers 1:1 voice/video calls and Collab live sessions. If a live session&apos;s host enables cloud recording, the recording is stored by Daily until the host or an admin deletes it.</li>
         <li><b>Firebase Cloud Messaging (Google)</b> — delivers push notifications to the Android app. Web push notifications are sent directly to your browser&apos;s push service without a third-party intermediary of ours.</li>
@@ -81,6 +83,14 @@ export default function PrivacyPage() {
         We do not sell your personal information to anyone, including these
         providers, and we do not permit them to use your data for their own
         marketing purposes.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        Separately, a post can embed a video hosted on YouTube, Vimeo,
+        TikTok, Instagram, Facebook, or Dailymotion instead of an uploaded
+        file. Viewing that embedded player loads it directly from that
+        platform, which may set its own cookies or collect data under its
+        own privacy policy — YuKon3t only stores which video is linked, not
+        anything the platform itself collects when you view it.
       </p>
 
       <h2 className="mt-8 font-semibold">5. Advertising</h2>

@@ -233,10 +233,12 @@ const sections: Section[] = [
         a: (
           <>
             Tap the share icon on any post for a menu: copy the link, share
-            via your device&apos;s own share sheet, send it straight to a
-            friend as a message, or share it into a Circle. Device sharing
-            attaches the actual photo or video where possible (not just a
-            bare link), so apps like WhatsApp or Messages show the real post.
+            via your device&apos;s own share sheet, add it to your own Story,
+            send it straight to a friend as a message, or share it into a
+            Circle. Device sharing attaches the actual photo or video where
+            possible (not just a bare link), stamped with a small yukon3t
+            logo, so apps like WhatsApp or Messages show the real post
+            branded back to where it came from.
           </>
         ),
       },
@@ -569,10 +571,12 @@ const sections: Section[] = [
         q: "When I open a chat, does it jump straight to the newest message?",
         a: (
           <>
-            No — opening a conversation lands you at the top, next to their
-            name and the call buttons, not scrolled down into old messages.
-            It only auto-scrolls to the newest message for ones that arrive
-            while you&apos;re already sitting in that chat.
+            Yes — opening a conversation, or switching to a different one,
+            lands you scrolled to the newest message, and it keeps following
+            new ones that arrive while you&apos;re already sitting in that
+            chat. The message box also starts prefilled with the
+            conversation&apos;s last message, sent or received, so it&apos;s
+            quick to reply to or resend the same thing.
           </>
         ),
       },
