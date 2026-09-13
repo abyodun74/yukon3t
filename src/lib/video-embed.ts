@@ -1,4 +1,4 @@
-export type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION" | "INSTAGRAM";
+export type EmbedProvider = "YOUTUBE" | "VIMEO" | "TIKTOK" | "DAILYMOTION" | "INSTAGRAM" | "FACEBOOK";
 export type ParsedEmbed = { provider: EmbedProvider; id: string };
 
 const YOUTUBE_ID = /^[a-zA-Z0-9_-]{11}$/;
@@ -12,6 +12,12 @@ const DAILYMOTION_ID = /^[a-zA-Z0-9]+$/;
 // embed src, so the post type is kept as part of `id` itself
 // ("reel/DAbc123", not just "DAbc123").
 const INSTAGRAM_ID = /^(?:p|reel|tv)\/[a-zA-Z0-9_-]+$/;
+// Facebook's video plugin (embedSrc below) needs the *original* page path
+// re-wrapped into a full facebook.com URL, not a bare numeric id like most
+// other providers here — so `id` keeps the matched path segments themselves
+// ("watch?v=123", "somepage/videos/456", "reel/789"), always rebuilt from
+// these regex-validated pieces only, never the raw pasted URL.
+const FACEBOOK_ID = /^(?:watch\?v=\d+|[a-zA-Z0-9_.-]+\/videos\/\d+|reel\/\d+)$/;
 
 /**
  * Extracts a validated provider + video id from a pasted URL — nothing else
@@ -90,6 +96,23 @@ export function parseVideoEmbedUrl(raw: string): ParsedEmbed | null {
     return id && INSTAGRAM_ID.test(id) ? { provider: "INSTAGRAM", id } : null;
   }
 
+  // fb.watch short links aren't handled here (same reasoning as TikTok's
+  // vm./vt. short links above) — resolve-share-link.ts follows those
+  // redirects first and re-parses the landing facebook.com URL.
+  if (host === "facebook.com") {
+    let id: string | null = null;
+    if (url.pathname === "/watch" || url.pathname === "/watch/") {
+      const v = url.searchParams.get("v");
+      id = v && /^\d+$/.test(v) ? `watch?v=${v}` : null;
+    } else {
+      const videoMatch = url.pathname.match(/^\/([a-zA-Z0-9_.-]+)\/videos\/(\d+)/);
+      const reelMatch = url.pathname.match(/^\/reel\/(\d+)/);
+      if (videoMatch) id = `${videoMatch[1]}/videos/${videoMatch[2]}`;
+      else if (reelMatch) id = `reel/${reelMatch[1]}`;
+    }
+    return id && FACEBOOK_ID.test(id) ? { provider: "FACEBOOK", id } : null;
+  }
+
   return null;
 }
 
@@ -106,6 +129,11 @@ export function embedSrc({ provider, id }: ParsedEmbed): string {
       return `https://www.dailymotion.com/embed/video/${id}`;
     case "INSTAGRAM":
       return `https://www.instagram.com/${id}/embed`;
+    case "FACEBOOK":
+      // show_text=false keeps this a bare video player (no Facebook post
+      // caption/reaction chrome) — consistent with every other provider
+      // here rendering just the player itself.
+      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(`https://www.facebook.com/${id}`)}&show_text=false`;
   }
 }
 

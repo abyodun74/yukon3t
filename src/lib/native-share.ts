@@ -3,6 +3,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import { watermarkImageFile } from "@/lib/watermark";
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -20,14 +21,22 @@ function blobToBase64(blob: Blob): Promise<string> {
  * downloaded and re-written into the app's own cache dir first to get a
  * URI Share.share() can actually attach.
  */
-async function downloadToCache(src: string, fileName: string): Promise<string | null> {
+async function downloadToCache(src: string, fileName: string, watermark: boolean): Promise<string | null> {
   try {
     const res = await fetch(src);
     if (!res.ok) {
       console.error("native-share: fetch failed", src, res.status);
       return null;
     }
-    const base64 = await blobToBase64(await res.blob());
+    let blob: Blob = await res.blob();
+    // Branding happens here, on the downloaded copy, rather than before
+    // upload — the original post image stays untouched in R2 (still needed
+    // unwatermarked for the feed/lightbox/etc.), only the copy that's about
+    // to leave the app via the native share sheet gets stamped.
+    if (watermark) {
+      blob = await watermarkImageFile(new File([blob], fileName, { type: blob.type }));
+    }
+    const base64 = await blobToBase64(blob);
     const { uri } = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
     console.log("native-share: wrote", fileName, "->", uri);
     return uri;
@@ -66,13 +75,13 @@ export function canShareNatively(): boolean {
 export async function shareNative(options: {
   url?: string;
   text?: string;
-  sources?: { src: string; fileName: string }[];
+  sources?: { src: string; fileName: string; watermark?: boolean }[];
 }): Promise<boolean> {
   try {
     let files: string[] | undefined;
     if (options.sources?.length) {
       const downloaded = await Promise.all(
-        options.sources.map((s) => downloadToCache(s.src, s.fileName)),
+        options.sources.map((s) => downloadToCache(s.src, s.fileName, s.watermark ?? false)),
       );
       const uris = downloaded.filter((u): u is string => u !== null);
       if (uris.length === options.sources.length) {

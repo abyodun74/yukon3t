@@ -778,7 +778,15 @@ export function ChatThread({
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
-  const [content, setContent] = useState("");
+  // Prefills the composer with the most recent message's own text (sent or
+  // received) instead of opening blank — a quick way to re-send/tweak the
+  // same thing without retyping it. One-time initial value only: computed
+  // once from the messages the thread was opened with, never reset by a
+  // later poll tick or by the user's own typing/sending.
+  const [content, setContent] = useState(() => {
+    const lastWithText = [...initialMessages].reverse().find((m) => !m.deletedForEveryoneAt && m.content.trim());
+    return lastWithText?.content ?? "";
+  });
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);

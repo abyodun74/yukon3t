@@ -47,6 +47,7 @@ const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   TIKTOK: "TikTok",
   DAILYMOTION: "Dailymotion",
   INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
 };
 
 function formatSecondsLabel(seconds: number) {

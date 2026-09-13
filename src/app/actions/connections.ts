@@ -295,30 +295,74 @@ export async function loadMoreSentConnections(cursor: string) {
   };
 }
 
-/** Same as loadMoreIncomingConnections, for the "Connected" list. */
-export async function loadMoreAcceptedConnections(cursor: string) {
-  const user = await requireUser();
+/**
+ * Full ordering of the caller's accepted connections by most recent DM
+ * activity (the shared conversation's latest message, same "sort by
+ * activity, not thread-creation time" idea as /messages/page.tsx), falling
+ * back to when the connection was accepted for a pair that's never
+ * actually messaged. Only ids come back — this exists purely to establish
+ * page order; per-page connection/user details are fetched separately by
+ * the two callers below once they know which ids belong on their page.
+ *
+ * Recomputed on every call rather than backed by a denormalized column —
+ * the two lightweight queries here (connection rows, then just the id +
+ * latest-message-timestamp of each shared conversation) are cheap even for
+ * a user with hundreds of connections, and this avoids adding a
+ * lastMessageAt column that every message send would need to keep in sync.
+ */
+async function getAcceptedConnectionIdsByActivity(userId: string): Promise<string[]> {
   const rows = await prisma.connection.findMany({
+    where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { targetId: userId }] },
+    select: { id: true, requesterId: true, targetId: true, respondedAt: true, createdAt: true },
+  });
+  if (rows.length === 0) return [];
+
+  const otherIds = rows.map((c) => (c.requesterId === userId ? c.targetId : c.requesterId));
+  const conversations = await prisma.conversation.findMany({
     where: {
-      status: "ACCEPTED",
-      OR: [{ requesterId: user.id }, { targetId: user.id }],
+      isGroup: false,
+      AND: [{ members: { some: { userId } } }, { members: { some: { userId: { in: otherIds } } } }],
     },
+    include: {
+      members: { select: { userId: true } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+    },
+  });
+  const lastActivityByOtherId = new Map<string, Date>();
+  for (const conv of conversations) {
+    const other = conv.members.find((m) => m.userId !== userId);
+    const lastMessageAt = conv.messages[0]?.createdAt;
+    if (other && lastMessageAt) lastActivityByOtherId.set(other.userId, lastMessageAt);
+  }
+
+  return rows
+    .map((c) => {
+      const otherId = c.requesterId === userId ? c.targetId : c.requesterId;
+      const activityAt = lastActivityByOtherId.get(otherId) ?? c.respondedAt ?? c.createdAt;
+      return { id: c.id, activityAt };
+    })
+    .sort((a, b) => b.activityAt.getTime() - a.activityAt.getTime())
+    .map((c) => c.id);
+}
+
+/** Fetches full connection details for a specific set of ids, reordered to match `orderedIds` (Prisma's `in` filter doesn't preserve array order). Shared by the initial page load (connections/page.tsx) and loadMoreAcceptedConnections below. */
+async function getAcceptedConnectionsByIds(userId: string, orderedIds: string[]) {
+  if (orderedIds.length === 0) return [];
+  const rows = await prisma.connection.findMany({
+    where: { id: { in: orderedIds } },
     include: {
       requester: { select: connectionUserSelect },
       target: { select: connectionUserSelect },
     },
-    orderBy: { respondedAt: "desc" },
-    take: CONNECTIONS_PAGE_SIZE,
-    cursor: { id: cursor },
-    skip: 1,
   });
+  const byId = new Map(rows.map((c) => [c.id, c]));
 
-  const otherIds = rows.map((c) => (c.requesterId === user.id ? c.target.id : c.requester.id));
+  const otherIds = rows.map((c) => (c.requesterId === userId ? c.target.id : c.requester.id));
   const myConversations = otherIds.length
     ? await prisma.conversation.findMany({
         where: {
           AND: [
-            { members: { some: { userId: user.id } } },
+            { members: { some: { userId } } },
             { members: { some: { userId: { in: otherIds } } } },
           ],
         },
@@ -327,20 +371,44 @@ export async function loadMoreAcceptedConnections(cursor: string) {
     : [];
   const conversationIdByUserId = new Map<string, string>();
   for (const c of myConversations) {
-    const other = c.members.find((m) => m.userId !== user.id);
+    const other = c.members.find((m) => m.userId !== userId);
     if (other) conversationIdByUserId.set(other.userId, c.id);
   }
 
-  return {
-    items: rows.map((c) => {
-      const other = c.requesterId === user.id ? c.target : c.requester;
+  return orderedIds
+    .map((id) => byId.get(id))
+    .filter((c): c is NonNullable<typeof c> => c !== undefined)
+    .map((c) => {
+      const other = c.requesterId === userId ? c.target : c.requester;
       return {
         id: c.id,
         other,
         intentTag: c.intentTag,
         conversationId: conversationIdByUserId.get(other.id) ?? null,
       };
-    }),
-    hasMore: rows.length === CONNECTIONS_PAGE_SIZE,
+    });
+}
+
+/** Same as loadMoreIncomingConnections, for the "Connected" list — ordered by DM activity (see getAcceptedConnectionIdsByActivity), not respondedAt. */
+export async function loadMoreAcceptedConnections(cursor: string) {
+  const user = await requireUser();
+  const sortedIds = await getAcceptedConnectionIdsByActivity(user.id);
+  const cursorIndex = sortedIds.indexOf(cursor);
+  const startIndex = cursorIndex === -1 ? 0 : cursorIndex + 1;
+  const pageIds = sortedIds.slice(startIndex, startIndex + CONNECTIONS_PAGE_SIZE);
+
+  return {
+    items: await getAcceptedConnectionsByIds(user.id, pageIds),
+    hasMore: startIndex + CONNECTIONS_PAGE_SIZE < sortedIds.length,
+  };
+}
+
+/** First page (items + hasMore) of the "Connected" list, ordered by DM activity — used by connections/page.tsx's initial SSR render, alongside the same-shaped incoming/sent queries it already runs directly. */
+export async function getInitialAcceptedConnections(userId: string) {
+  const sortedIds = await getAcceptedConnectionIdsByActivity(userId);
+  const pageIds = sortedIds.slice(0, CONNECTIONS_PAGE_SIZE);
+  return {
+    items: await getAcceptedConnectionsByIds(userId, pageIds),
+    hasMore: sortedIds.length > CONNECTIONS_PAGE_SIZE,
   };
 }

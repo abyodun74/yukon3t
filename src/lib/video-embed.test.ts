@@ -70,6 +70,25 @@ describe("parseVideoEmbedUrl", () => {
     expect(parseVideoEmbedUrl("https://www.instagram.com/someuser/")).toBeNull();
   });
 
+  it("parses Facebook watch/videos/reel URLs", () => {
+    expect(parseVideoEmbedUrl("https://www.facebook.com/watch?v=1234567890")).toEqual({
+      provider: "FACEBOOK",
+      id: "watch?v=1234567890",
+    });
+    expect(parseVideoEmbedUrl("https://www.facebook.com/someuser/videos/1234567890")).toEqual({
+      provider: "FACEBOOK",
+      id: "someuser/videos/1234567890",
+    });
+    expect(parseVideoEmbedUrl("https://www.facebook.com/reel/1234567890")).toEqual({
+      provider: "FACEBOOK",
+      id: "reel/1234567890",
+    });
+  });
+
+  it("rejects a Facebook URL that isn't a watch/videos/reel link", () => {
+    expect(parseVideoEmbedUrl("https://www.facebook.com/someuser/")).toBeNull();
+  });
+
   it("rejects non-http(s) protocols — the classic javascript: injection vector", () => {
     expect(parseVideoEmbedUrl("javascript:alert(1)")).toBeNull();
   });
@@ -96,6 +115,12 @@ describe("embedSrc", () => {
   it("rebuilds an Instagram embed URL, preserving the post type", () => {
     expect(embedSrc({ provider: "INSTAGRAM", id: "reel/CxAbc123" })).toBe(
       "https://www.instagram.com/reel/CxAbc123/embed",
+    );
+  });
+
+  it("rebuilds a Facebook video plugin URL", () => {
+    expect(embedSrc({ provider: "FACEBOOK", id: "someuser/videos/1234567890" })).toBe(
+      "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsomeuser%2Fvideos%2F1234567890&show_text=false",
     );
   });
 });

@@ -1,6 +1,7 @@
 package com.yukon3t.app;
 
 import android.app.KeyguardManager;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -8,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.service.notification.StatusBarNotification;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 
@@ -16,6 +18,10 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends BridgeActivity {
     // How long this Activity stays able to draw over a locked screen after
@@ -81,6 +87,48 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         handleCallDeepLink(intent);
         handleShareIntent(intent);
+    }
+
+    // Channels CallForegroundService/CallMessagingService post to (see that
+    // class's CHANNEL_ID/ACTIVE_CALL_CHANNEL_ID/MISSED_CALL_CHANNEL_ID) —
+    // never swept by clearNonCallNotifications below. A ringing/active
+    // call's notification is tied to that service's own foreground-service
+    // lifecycle (Android expects it to stay up for as long as the service
+    // does; silently cancelling it out from under a live service is
+    // undefined behavior, not just a visual glitch), and even the
+    // tap-to-dismiss "missed call" one deserves to survive an unrelated
+    // app-open the same way it would on a real phone dialer.
+    private static final Set<String> CALL_NOTIFICATION_CHANNELS = new HashSet<>(Arrays.asList(
+        "incoming_calls", "active_call", "missed_calls"
+    ));
+
+    /**
+     * Clears every other notification this app has posted (message/like/
+     * comment/connection pushes shown via @capacitor-firebase/messaging's
+     * default system-tray handling, per src/lib/fcm.ts's
+     * sendFcmActivityToUser) the moment the app is actually brought to the
+     * foreground — tapping one of those notifications, tapping the launcher
+     * icon, or switching back via Recents all resume this Activity, so this
+     * one hook covers "opened the app" regardless of which of those the
+     * user actually did, rather than only dismissing whichever single
+     * notification was tapped (the framework's own default behavior).
+     * Framework NotificationManager (not the androidx compat wrapper) is
+     * used here specifically for getActiveNotifications(), which the compat
+     * type doesn't reliably expose across the androidx-core versions
+     * Capacitor's own dependency graph can resolve to.
+     */
+    @Override
+    public void onResume() {
+        super.onResume();
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        for (StatusBarNotification sbn : manager.getActiveNotifications()) {
+            String channelId = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? sbn.getNotification().getChannelId()
+                : null;
+            if (channelId != null && CALL_NOTIFICATION_CHANNELS.contains(channelId)) continue;
+            manager.cancel(sbn.getTag(), sbn.getId());
+        }
     }
 
     /**

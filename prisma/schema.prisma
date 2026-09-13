@@ -516,6 +516,7 @@ enum EmbedProvider {
   TIKTOK
   DAILYMOTION
   INSTAGRAM
+  FACEBOOK
 }
 
 model Post {

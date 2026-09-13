@@ -33,6 +33,26 @@ import type { FlatComment } from "@/lib/comment-tree";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
+/**
+ * Every other provider here (YouTube/Vimeo/Dailymotion/Facebook) is a
+ * landscape player that's happy in a 16:9 box, but TikTok and Instagram
+ * Reels are natively portrait and Instagram feed posts are closer to
+ * square — forcing those into aspect-video squeezed their embed page's own
+ * responsive layout into the wrong shape, which is what made them appear
+ * to "slide"/scroll inside the card instead of sitting still (confirmed
+ * live — see the sandbox comment on the iframe below re: Instagram's
+ * embed.js already fighting the container). Matching the container to the
+ * embed's actual native aspect ratio is what actually fixes that, not any
+ * scroll/touch CSS on the iframe itself.
+ */
+function embedContainerClass(provider: EmbedProvider, id: string): string {
+  if (provider === "TIKTOK") return "aspect-[9/16] max-h-[70vh] mx-auto";
+  if (provider === "INSTAGRAM") {
+    return id.startsWith("reel/") ? "aspect-[9/16] max-h-[70vh] mx-auto" : "aspect-square max-w-md mx-auto";
+  }
+  return "aspect-video";
+}
+
 type EmbeddedPost = {
   id: string;
   content: string;
@@ -298,10 +318,16 @@ function MediaBlock({
       )}
 
       {post.mediaType === "EMBED" && post.embedProvider && post.embedId && (
-        <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
+        <div
+          className={cn(
+            "mt-3 overflow-hidden rounded-lg bg-black",
+            embedContainerClass(post.embedProvider, post.embedId),
+          )}
+        >
           <iframe
             src={embedSrc({ provider: post.embedProvider, id: post.embedId })}
             title="Embedded video"
+            scrolling="no"
             className="h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             // allow-top-navigation-by-user-activation (not the unrestricted

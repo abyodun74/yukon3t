@@ -7,6 +7,7 @@ import { recordShare, shareToCircle } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
+import { watermarkImageFile } from "@/lib/watermark";
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null };
@@ -105,7 +106,14 @@ export function ShareModal({
         const handled = await shareNative({
           url,
           text: content || undefined,
-          sources: sources.map((src, i) => ({ src, fileName: `post-${postId}-${i}.${extension}` })),
+          sources: sources.map((src, i) => ({
+            src,
+            fileName: `post-${postId}-${i}.${extension}`,
+            // Only a still IMAGE post is watermark-able client-side (see
+            // watermark.ts) — VIDEO/GIF sources go out unmarked, branded
+            // only via the yukon3t.com link/text alongside them.
+            watermark: mediaType === "IMAGE",
+          })),
         });
         if (handled) bumpShareCount();
       } finally {
@@ -126,7 +134,12 @@ export function ShareModal({
       setSharingViaDevice(true);
       try {
         const files = (
-          await Promise.all(sources.map((src, i) => fetchAsFile(src, `post-${postId}-${i}.${extension}`)))
+          await Promise.all(
+            sources.map(async (src, i) => {
+              const fetched = await fetchAsFile(src, `post-${postId}-${i}.${extension}`);
+              return fetched && mediaType === "IMAGE" ? watermarkImageFile(fetched) : fetched;
+            }),
+          )
         ).filter((f): f is File => f !== null);
 
         if (files.length === sources.length && files.length > 0 && navigator.canShare?.({ files })) {
