@@ -16,60 +16,72 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 type DownloadResult = { ok: true; uri: string } | { ok: false; reason: string };
 
+function mimeTypeFromFileName(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    default:
+      return "image/jpeg";
+  }
+}
+
+function base64ToFile(base64: string, fileName: string, mimeType: string): File {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], fileName, { type: mimeType });
+}
+
 /**
  * @capacitor/share's `files` option only accepts file:// paths, never a
  * remote URL directly (unlike the Web Share API, which can take a File
  * built straight from a fetch()'d Blob) — so a media URL has to be
- * downloaded and re-written into the app's own cache dir first to get a
- * URI Share.share() can actually attach. Returns a reason string on
- * failure (not just null) — this is the only path a "share via device"
- * failure has to a human, since this app's release build doesn't forward
- * WebView console output to logcat and has remote debugging disabled, so
- * a plain console.error here is otherwise completely invisible.
+ * downloaded into the app's own cache dir first to get a URI Share.share()
+ * can actually attach. Returns a reason string on failure (not just null)
+ * — this is the only path a "share via device" failure has to a human,
+ * since this app's release build doesn't forward WebView console output
+ * to logcat and has remote debugging disabled, so a plain console.error
+ * here is otherwise completely invisible.
  *
- * A watermark: false source (video/GIF — see share-modal.tsx) downloads
- * straight to disk via Filesystem.downloadFile, entirely on the native
- * side, rather than fetch()+blob()+base64 below. Confirmed live: sharing
- * a real video post threw a plain "TypeError: Failed to fetch" at the
- * fetch() call itself — video files can run into the hundreds of MB
- * (MEDIA_LIMITS post-video/message-video), and this app's own
- * upload-client.ts already documents exactly this class of problem on the
- * *upload* side (buffering a large video as a single in-memory
- * ArrayBuffer/Blob risks exhausting a WebView renderer's heap); fetch()
- * response bodies aren't exempt from that same pressure, and blobToBase64
- * below would need to hold the Blob *and* its base64 string
- * simultaneously on top of that. downloadFile streams straight to the
- * filesystem instead, never bringing the bytes into the WebView's JS heap
- * at all. It isn't usable for watermark: true sources — a watermark needs
- * the bytes in JS to draw on a canvas, which a native-side download can't
- * provide — and it returns a plain filesystem path rather than a file://
- * URI, hence the separate getUri call to match what writeFile already
- * hands back below.
+ * Every source downloads via Filesystem.downloadFile — Android's native
+ * HTTP stack, entirely outside the WebView's fetch()/CORS layer — rather
+ * than a plain fetch(). Confirmed live: fetch(src) throws a bare
+ * "TypeError: Failed to fetch" against this app's own R2 media host for
+ * both images and videos on a real device, while the exact same URL
+ * downloads fine through this native path — so this isn't a size/memory
+ * problem fetch() just needs more headroom for, it's fetch() itself
+ * failing outright for this host in this WebView. For a watermark: true
+ * source (a still IMAGE — see share-modal.tsx), the file is then read
+ * back from local disk (Filesystem.readFile, not the network — a plain
+ * local file read, unaffected by whatever breaks the remote fetch) to get
+ * its bytes into JS for the canvas watermark step, and the stamped result
+ * overwrites the same cache file.
  */
 async function downloadToCache(src: string, fileName: string, watermark: boolean): Promise<DownloadResult> {
-  if (!watermark) {
-    try {
-      await Filesystem.downloadFile({ url: src, path: fileName, directory: Directory.Cache });
+  try {
+    await Filesystem.downloadFile({ url: src, path: fileName, directory: Directory.Cache });
+
+    if (!watermark) {
       const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
       return { ok: true, uri };
-    } catch (err) {
-      return { ok: false, reason: `${fileName}: ${err instanceof Error ? err.message : String(err)}` };
     }
-  }
 
-  try {
-    const res = await fetch(src);
-    if (!res.ok) {
-      return { ok: false, reason: `fetch ${res.status} for ${fileName}` };
-    }
-    const rawBlob = await res.blob();
     // Branding happens here, on the downloaded copy, rather than before
     // upload — the original post image stays untouched in R2 (still needed
     // unwatermarked for the feed/lightbox/etc.), only the copy that's about
     // to leave the app via the native share sheet gets stamped.
-    const blob = await watermarkImageFile(new File([rawBlob], fileName, { type: rawBlob.type }));
-    const base64 = await blobToBase64(blob);
-    const { uri } = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+    const { data } = await Filesystem.readFile({ path: fileName, directory: Directory.Cache });
+    const base64Downloaded = typeof data === "string" ? data : await blobToBase64(data);
+    const watermarked = await watermarkImageFile(
+      base64ToFile(base64Downloaded, fileName, mimeTypeFromFileName(fileName)),
+    );
+    const base64Watermarked = await blobToBase64(watermarked);
+    const { uri } = await Filesystem.writeFile({ path: fileName, data: base64Watermarked, directory: Directory.Cache });
     return { ok: true, uri };
   } catch (err) {
     return { ok: false, reason: `${fileName}: ${err instanceof Error ? err.message : String(err)}` };
