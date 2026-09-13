@@ -119,6 +119,25 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Tap feedback on every button sitewide — a couple of components already
+   hand-rolled their own active:scale-* for this (messages-inbox-list.tsx,
+   submit-button.tsx); this makes it universal instead of something each
+   new button has to remember to add. A brief press-down scale on :active
+   (not hover, which doesn't exist on touch) so a tap reads as a physical,
+   acknowledged press rather than an inert click — reuses the `transform`
+   transition already declared above, so it eases both down and back up.
+   :not(:disabled) so a button that can't currently do anything doesn't
+   visually "press" for an action that isn't going to happen. Scoped to
+   button rather than every clickable element (nav links, card taps) —
+   those are visits/navigation, not momentary actions, and don't want the
+   same pressed affordance. Not gated behind prefers-reduced-motion, same
+   as the hover/focus color transitions above — it's a direct, instant
+   response to the user's own touch, not an independently-playing motion
+   effect. */
+button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
 /* Subtle animated accent behind every page (see RootLayout) — three large,
    heavily blurred, low-opacity blobs in the brand accent/teal/gold hues
    drifting slowly and looping. Pure CSS (no JS, nothing to hydrate) and
@@ -570,6 +589,37 @@ textarea {
   animation: modal-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* OfflineBanner (offline-banner.tsx) — slides down from under the header
+   when connectivity drops, back up when it returns, instead of the layout
+   just jumping to make room for it. */
+@keyframes offline-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-offline-banner-in {
+  animation: offline-banner-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A loaded <img> fades in from its own placeholder background instead of
+   popping straight in the instant the network response lands — used by
+   UserAvatar and PostCard's own media (see each for the paired onLoad
+   handler toggling this). */
+.img-fade-in {
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.img-fade-in.img-loaded {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inbox-row,
   .unread-dot,
@@ -581,8 +631,13 @@ textarea {
   .animate-rise-in,
   .animate-loading-pulse,
   .animate-modal-backdrop-in,
-  .animate-modal-panel-in {
+  .animate-modal-panel-in,
+  .animate-offline-banner-in {
     animation: none;
+  }
+
+  .img-fade-in {
+    transition: none;
   }
 }
 

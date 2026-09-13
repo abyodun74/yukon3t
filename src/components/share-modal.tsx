@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { X, Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
+import { Skeleton } from "@/components/skeleton";
 import { recordShare, shareToCircle, shareToStory } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
@@ -11,6 +12,20 @@ import { watermarkImageFile } from "@/lib/watermark";
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null };
+
+/** Placeholder rows shown while the friends/circles list is being fetched — same shape/size as the real rows so nothing jumps once they land. */
+function RowSkeletons() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li key={i} className="flex items-center gap-2 px-2 py-2">
+          <Skeleton className="h-[26px] w-[26px] rounded-full" />
+          <Skeleton className="h-3 w-32" />
+        </li>
+      ))}
+    </>
+  );
+}
 
 type View = "root" | "friends" | "circles";
 
@@ -288,7 +303,7 @@ export function ShareModal({
 
         {view === "friends" && (
           <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-            {conversations === null && <li className="px-2 py-1 text-sm text-foreground-soft">Loading…</li>}
+            {conversations === null && <RowSkeletons />}
             {conversations?.length === 0 && (
               <li className="px-2 py-1 text-sm text-foreground-soft">No conversations yet.</li>
             )}
@@ -313,7 +328,7 @@ export function ShareModal({
 
         {view === "circles" && (
           <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-            {circles === null && <li className="px-2 py-1 text-sm text-foreground-soft">Loading…</li>}
+            {circles === null && <RowSkeletons />}
             {circles?.length === 0 && (
               <li className="px-2 py-1 text-sm text-foreground-soft">You haven&apos;t joined any Circles yet.</li>
             )}

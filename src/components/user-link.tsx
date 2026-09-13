@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, markImageLoadedIfComplete } from "@/lib/utils";
 
 /**
  * Circular avatar — a person's photo if they have one, otherwise their
@@ -28,7 +30,13 @@ export function UserAvatar({
       >
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          <img
+            src={avatarUrl}
+            alt=""
+            ref={markImageLoadedIfComplete}
+            onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+            className="img-fade-in h-full w-full object-cover"
+          />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center text-foreground-soft"

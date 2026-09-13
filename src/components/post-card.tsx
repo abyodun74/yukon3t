@@ -11,7 +11,7 @@ import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
 import { getPostComments } from "@/app/actions/comments";
-import { cn } from "@/lib/utils";
+import { cn, markImageLoadedIfComplete } from "@/lib/utils";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
@@ -251,8 +251,10 @@ function MediaBlock({
               <img
                 src={url}
                 alt={post.content || `Photo posted by ${post.author.name}`}
-                className="max-h-96 w-full rounded-lg object-cover"
+                className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
                 loading="lazy"
+                ref={markImageLoadedIfComplete}
+                onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
               />
             </button>
           ))}
@@ -492,9 +494,25 @@ export function PostCard({
   }
 
   function toggleReaction(emoji: string) {
+    // One reaction per viewer per post (see togglePostReaction) — re-picking
+    // the same emoji removes it, picking a different one replaces it.
+    // Mirrors handleLike's optimistic-then-reconcile shape: flip the local
+    // list immediately, then trust the server's actual list once it
+    // resolves (or roll back to what was there before on error).
+    const previous = reactions;
+    const mine = reactions.find((r) => r.userId === viewerId);
+    setReactions(
+      mine?.emoji === emoji
+        ? reactions.filter((r) => r.userId !== viewerId)
+        : [...reactions.filter((r) => r.userId !== viewerId), { emoji, userId: viewerId }],
+    );
     startReactionTransition(async () => {
       const result = await togglePostReaction(interactionTargetId, emoji);
-      if (!result.error) setReactions(result.reactions);
+      if (result.error) {
+        setReactions(previous);
+      } else {
+        setReactions(result.reactions);
+      }
     });
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
-import { Camera, Check, CheckCheck, Circle, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
+import { Camera, Check, CheckCheck, Circle, Clock, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -126,7 +126,20 @@ function seenByLabel(names: string[]) {
   return `Seen by ${shown}${rest > 0 ? ` +${rest} more` : ""}`;
 }
 
+// Client-generated ids for a message optimistically appended before the
+// server confirms it (see buildOptimisticMessage/handleSend below) — never
+// collide with a real cuid, so `.startsWith` alone reliably tells the two
+// apart everywhere a bubble needs to render differently while "sending".
+const OPTIMISTIC_ID_PREFIX = "optimistic-";
+
+function isSendingMessage(message: MessageData): boolean {
+  return message.id.startsWith(OPTIMISTIC_ID_PREFIX);
+}
+
 function ReceiptIcon({ message }: { message: MessageData }) {
+  if (isSendingMessage(message)) {
+    return <Clock size={12} className="text-accent-ink/70" />;
+  }
   if (message.readAt) {
     return <CheckCheck size={13} className="text-sky-400" />;
   }
@@ -254,6 +267,11 @@ function MessageBubble({
   const [imageOpen, setImageOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
+  // Still in flight (see buildOptimisticMessage/handleSend) — has no real
+  // id yet, so nothing that acts on the message by id (reply-swipe, the
+  // options menu, reactions, edit) is usable on it until it's replaced by
+  // the server's real one.
+  const sending = isSendingMessage(message);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
   const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
 
@@ -269,7 +287,7 @@ function MessageBubble({
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; active: boolean } | null>(null);
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
-    if (deleted || editing) return;
+    if (deleted || editing || sending) return;
     // Only primary touch/mouse input — ignore secondary buttons/multi-touch.
     if (e.button !== 0) return;
     dragStateRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false };
@@ -434,8 +452,9 @@ function MessageBubble({
             // pushed those buttons half off the left edge of the screen on
             // narrow phones. Reserving that space in the cap keeps the
             // whole row (buttons + gap + bubble) inside the viewport.
-            "max-w-[min(calc(100vw-7.5rem),26rem)] rounded-2xl px-3 py-2 text-sm",
+            "max-w-[min(calc(100vw-7.5rem),26rem)] rounded-2xl px-3 py-2 text-sm transition-opacity",
             mine ? "bg-accent text-accent-ink" : "bg-surface",
+            sending && "opacity-60",
           )}
         >
           {message.replyTo && (
@@ -673,7 +692,7 @@ function MessageBubble({
         />
       </div>
 
-      {!deleted && !editing && (
+      {!deleted && !editing && !sending && (
         <div ref={menuAnchorRef} className="relative flex shrink-0 items-center pb-1">
           <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
           <button
@@ -1025,6 +1044,45 @@ export function ChatThread({
     return { mediaType: "NONE" };
   }
 
+  /** A full-shaped MessageData for the not-yet-confirmed bubble appended by handleSend below — see OPTIMISTIC_ID_PREFIX/isSendingMessage for how it's told apart from a real one. */
+  function buildOptimisticMessage(params: {
+    id: string;
+    content: string;
+    mediaType: MessageMediaType;
+    mediaUrl: string | null;
+    replyTo: MessageData | null;
+  }): MessageData {
+    return {
+      id: params.id,
+      senderId: currentUserId,
+      content: params.content,
+      mediaType: params.mediaType,
+      mediaUrl: params.mediaUrl,
+      mediaThumbnailUrl: null,
+      moderationStatus: "PUBLISHED",
+      deliveredAt: null,
+      readAt: null,
+      deletedForEveryoneAt: null,
+      editedAt: null,
+      createdAt: new Date(),
+      reactions: [],
+      corrections: [],
+      story: null,
+      replyTo: params.replyTo
+        ? {
+            id: params.replyTo.id,
+            content: params.replyTo.content,
+            mediaType: params.replyTo.mediaType,
+            deletedForEveryoneAt: params.replyTo.deletedForEveryoneAt,
+            sender: {
+              id: params.replyTo.senderId,
+              name: members.find((m) => m.userId === params.replyTo!.senderId)?.name ?? null,
+            },
+          }
+        : null,
+    };
+  }
+
   function handleSend() {
     const text = content.trim();
     if (!text && !pendingAudio && !pendingVideo && !pendingImage && !pendingGif) return;
@@ -1041,6 +1099,39 @@ export function ChatThread({
     setPendingGif(null);
     setReplyTarget(null);
     setError(null);
+
+    // A fresh, independently-owned object URL for the optimistic bubble's
+    // own preview — deliberately not the composer's pendingImagePreviewUrl
+    // memo, which gets revoked the instant pendingImage is cleared above
+    // (see that memo's paired cleanup effect); this one's lifecycle
+    // belongs to this send attempt alone, revoked once the optimistic
+    // bubble below is replaced or removed. Audio/video/GIF don't get an
+    // instant preview the same way (no cheap blob URL already at hand for
+    // those) — that bubble briefly shows as text-only (or a bare "sending"
+    // bubble for a caption-less attachment) until the real message swaps
+    // in, rather than blocking the optimistic append entirely.
+    const optimisticImageUrl = image ? URL.createObjectURL(image) : null;
+    const optimisticId = `${OPTIMISTIC_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setMessages((prev) => [
+      ...prev,
+      buildOptimisticMessage({
+        id: optimisticId,
+        content: text,
+        mediaType: image ? "IMAGE" : "NONE",
+        mediaUrl: optimisticImageUrl,
+        replyTo,
+      }),
+    ]);
+
+    function settleOptimistic(replacement: MessageData | null) {
+      setMessages((prev) =>
+        replacement
+          ? prev.map((m) => (m.id === optimisticId ? replacement : m))
+          : prev.filter((m) => m.id !== optimisticId),
+      );
+      if (optimisticImageUrl) URL.revokeObjectURL(optimisticImageUrl);
+    }
+
     startTransition(async () => {
       const media = await uploadPendingMedia();
       if ("error" in media) {
@@ -1051,6 +1142,7 @@ export function ChatThread({
         setPendingImage(image);
         setPendingGif(gif);
         setReplyTarget(replyTo);
+        settleOptimistic(null);
         return;
       }
       const fd = new FormData();
@@ -1076,6 +1168,7 @@ export function ChatThread({
         setPendingImage(image);
         setPendingGif(gif);
         setReplyTarget(replyTo);
+        settleOptimistic(null);
         return;
       }
       if (result.error) {
@@ -1092,11 +1185,10 @@ export function ChatThread({
         setPendingImage(image);
         setPendingGif(gif);
         setReplyTarget(replyTo);
+        settleOptimistic(null);
         return;
       }
-      if (result.message) {
-        setMessages((prev) => [...prev, result.message as MessageData]);
-      }
+      settleOptimistic(result.message ? (result.message as MessageData) : null);
     });
   }
 
