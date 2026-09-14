@@ -58,6 +58,24 @@ function timeAgo(date: Date) {
 }
 
 /**
+ * Reserves real space below whatever's the bottom-most interactive element
+ * in this viewer (the comment icon, reply bar, "Seen by" list, ...) for
+ * Android's on-screen navigation bar/gesture pill. This viewer is a fixed
+ * inset-0 overlay with edge-to-edge WebView content, so without this the
+ * system nav can sit directly on top of — and swallow taps on — anything
+ * rendered flush against the true bottom edge of the screen; confirmed
+ * live, the new comment icon was invisible/untappable behind it. Same fix
+ * shape as nav.tsx's own bottom tab bar, including its fallback: plain
+ * env(safe-area-inset-bottom) alone has a known Android reliability gap,
+ * so this also falls back to --safe-area-inset-bottom, which Capacitor
+ * core's SystemBars plugin injects straight from Android's real
+ * WindowInsets. No-op (0px) anywhere neither is set, including iOS/web.
+ */
+function SafeAreaBottomSpacer() {
+  return <div aria-hidden style={{ height: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))" }} />;
+}
+
+/**
  * Full-screen Instagram-style story viewer: one segmented progress bar per
  * story, images auto-advance on a timer, videos advance on `ended`, and
  * holding anywhere pauses without navigating (a genuine tap — released
@@ -437,6 +455,7 @@ export function StoryViewer({
                   <li className="text-sm text-foreground-soft">No views yet.</li>
                 )}
               </ul>
+              <SafeAreaBottomSpacer />
             </div>
           ) : showComments ? (
             <StoryCommentsPanel
@@ -488,6 +507,7 @@ export function StoryViewer({
                   Comments
                 </button>
               </div>
+              <SafeAreaBottomSpacer />
             </div>
           )}
         </div>
@@ -555,6 +575,7 @@ export function StoryViewer({
               onFocusChange={setPaused}
             />
           </div>
+          <SafeAreaBottomSpacer />
         </div>
       )}
     </div>
@@ -658,6 +679,7 @@ function StoryCommentsPanel({
         </button>
       </div>
       {error && <p className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
+      <SafeAreaBottomSpacer />
     </div>
   );
 }

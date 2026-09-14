@@ -49,7 +49,21 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
     function check() {
       checkForPendingShare().then((result) => {
-        if (!cancelled && result) setShare(result);
+        if (cancelled || !result) return;
+        // A photo/video share skips this dialog entirely — "New post" was
+        // really the only sensible choice for media anyway, so asking
+        // first was just an extra tap. Goes straight to the same
+        // ?compose=1 profile-composer flow goToNewPost below uses, already
+        // scrolled to/focused and one tap from Post. Confirmed live this
+        // was worth the special case: a bare-text share (an article link,
+        // say) still gets the dialog, since "send to a friend" is a real
+        // second option there.
+        if (result.images.length > 0 || result.video) {
+          setPendingShareMedia(result);
+          router.push(`/u/${userId}?compose=1`);
+          return;
+        }
+        setShare(result);
       });
     }
 
@@ -66,6 +80,10 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       cancelled = true;
       listener?.remove();
     };
+    // router is stable (Next's useRouter) and userId is a stable prop for
+    // this component's lifetime — both omitted deliberately so this effect
+    // (and its "resume" listener) only ever runs once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -100,7 +118,9 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     // and the shared file would silently vanish. The profile page's own
     // PostComposer (no circleId/channelId — a general, non-Circle post) is
     // the one instance that's always reachable from any signed-in state.
-    router.push(`/u/${userId}`);
+    // ?compose=1 matches Home's own "New post" FAB (home-quick-actions.tsx)
+    // — ProfileComposeFocus scrolls to and focuses it, same as that path.
+    router.push(`/u/${userId}?compose=1`);
   }
 
   function goToConversation(conversationId: string) {
