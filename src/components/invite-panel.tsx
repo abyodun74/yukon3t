@@ -120,8 +120,14 @@ export function InvitePanel() {
           return;
         }
         setNativeRows(rows);
-      } catch {
-        setPickError("Couldn't open your contacts — please try again.");
+      } catch (err) {
+        // The real reason surfaced inline (not just console.error) — this
+        // app's release build doesn't forward WebView console output to
+        // logcat and has remote debugging disabled, so an on-screen message
+        // is the only way to see a real failure reason at all on-device.
+        setPickError(
+          `Couldn't open your contacts — please try again. (${err instanceof Error ? err.message : String(err)})`,
+        );
       } finally {
         setNativeLoading(false);
       }
