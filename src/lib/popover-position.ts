@@ -48,8 +48,37 @@ export function getViewportSize() {
  * re-resolves it on every repaint, so the popup self-corrects the moment
  * the real inset lands, even if that's after this function already ran.
  */
+// nav.tsx's bottom tab bar is `md:hidden`, fixed to the true bottom of the
+// screen, reserved for in layout.tsx's own body padding
+// (`pb-[calc(4rem+safe-area)] md:pb-0`) — but that reservation only affects
+// elements in normal document flow. A `fixed`-positioned popup computed
+// against the raw viewport (getViewportSize() below) has no such
+// awareness, so a trigger button sitting close to the bottom edge (most
+// pickers live well up a scrollable feed and never hit this, but e.g.
+// muse-feed.tsx's reaction button deliberately sits just above the nav)
+// can get a popup clamped to open right into — and end up hidden behind —
+// the nav bar. Confirmed live on a real device. Matches layout.tsx's exact
+// clearance expression rather than inventing a new one.
+const MOBILE_BREAKPOINT_PX = 768; // Tailwind's default `md` breakpoint.
+const BOTTOM_NAV_HEIGHT_PX = 64; // 4rem.
+
+function getBottomNavClearance(viewportWidth: number): number {
+  if (viewportWidth >= MOBILE_BREAKPOINT_PX) return 0;
+  if (typeof document === "undefined") return 0;
+  // Same custom property nav.tsx itself falls back to — set by Capacitor
+  // core's SystemBars plugin from Android's real WindowInsets, more
+  // reliable on-device than plain env(safe-area-inset-bottom) alone (see
+  // nav.tsx's own comment on that gap). Not readable as a plain env()
+  // value here since this needs a JS pixel number, not a CSS expression.
+  const safeAreaBottom = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--safe-area-inset-bottom"),
+  );
+  return BOTTOM_NAV_HEIGHT_PX + (Number.isFinite(safeAreaBottom) ? safeAreaBottom : 0);
+}
+
 export function computePopoverPosition(rect: DOMRect, desiredWidth: number, desiredHeight: number): PopoverPosition {
-  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+  const { width: viewportWidth, height: rawViewportHeight } = getViewportSize();
+  const viewportHeight = rawViewportHeight - getBottomNavClearance(viewportWidth);
   const margin = POPOVER_VIEWPORT_MARGIN;
   const width = Math.min(desiredWidth, viewportWidth - margin * 2);
   const height = Math.min(desiredHeight, viewportHeight - margin * 2);
