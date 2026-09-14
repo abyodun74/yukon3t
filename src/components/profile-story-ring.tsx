@@ -20,6 +20,7 @@ export function ProfileStoryRing({
   name,
   stories,
   isOwner,
+  currentUserId,
   online,
 }: {
   userId: string;
@@ -27,6 +28,7 @@ export function ProfileStoryRing({
   name: string;
   stories: StoryData[];
   isOwner: boolean;
+  currentUserId: string;
   online?: boolean;
 }) {
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -89,6 +91,7 @@ export function ProfileStoryRing({
           authorName={name}
           authorAvatarUrl={avatarUrl}
           isOwner={isOwner}
+          currentUserId={currentUserId}
           onClose={() => setViewerOpen(false)}
         />
       )}

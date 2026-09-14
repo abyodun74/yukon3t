@@ -97,10 +97,12 @@ export function StoryTray({
   groups,
   meAvatarUrl,
   meName,
+  currentUserId,
 }: {
   groups: StoryTrayAuthorGroup[];
   meAvatarUrl: string | null;
   meName: string;
+  currentUserId: string;
 }) {
   const [openAuthorIndex, setOpenAuthorIndex] = useState<number | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -143,6 +145,7 @@ export function StoryTray({
         <StoryTrayViewer
           groups={groups}
           startAuthorIndex={openAuthorIndex}
+          currentUserId={currentUserId}
           onClose={() => setOpenAuthorIndex(null)}
         />
       )}

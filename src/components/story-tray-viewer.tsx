@@ -29,10 +29,12 @@ export type StoryTrayAuthorGroup = {
 export function StoryTrayViewer({
   groups,
   startAuthorIndex,
+  currentUserId,
   onClose,
 }: {
   groups: StoryTrayAuthorGroup[];
   startAuthorIndex: number;
+  currentUserId: string;
   onClose: () => void;
 }) {
   const [authorIndex, setAuthorIndex] = useState(startAuthorIndex);
@@ -71,6 +73,7 @@ export function StoryTrayViewer({
       authorName={group.authorName}
       authorAvatarUrl={group.authorAvatarUrl}
       isOwner={group.isMe}
+      currentUserId={currentUserId}
       direction={direction}
       onNextAuthor={goToNextAuthor}
       onPrevAuthor={goToPrevAuthor}

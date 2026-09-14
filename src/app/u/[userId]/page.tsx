@@ -137,6 +137,7 @@ export default async function PublicProfilePage({
             name={user.name ?? "them"}
             stories={storiesForRing}
             isOwner={isOwnProfile}
+            currentUserId={me.id}
             online={online}
           />
           <div className="min-w-0">

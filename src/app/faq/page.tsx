@@ -527,13 +527,18 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Can people react or reply to my Story?",
+        q: "Can people react, reply, or comment on my Story?",
         a: (
           <>
-            Yes — viewers can tap an emoji to react (you&apos;ll see who
-            reacted when you open your own Story) or type a reply, which
-            arrives as a direct message. Replying only works between people
-            who are already connected, same as regular messaging.
+            Yes, all three, and they&apos;re different things:{" "}
+            <strong>reacting</strong> is a quick emoji (you&apos;ll see who
+            reacted when you open your own Story); <strong>replying</strong>{" "}
+            sends a private direct message and only works between people
+            who are already connected, same as regular messaging;{" "}
+            <strong>commenting</strong> posts a public comment anyone
+            viewing the Story can see, visible from the comment icon next to
+            the reactions, and you get notified when someone comments on
+            yours.
           </>
         ),
       },

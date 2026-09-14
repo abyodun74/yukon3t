@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Eye, Trash2, Send } from "lucide-react";
+import { X, Eye, Trash2, Send, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserLink } from "@/components/user-link";
+import { UserLink, UserAvatar } from "@/components/user-link";
 import {
   viewStory,
   deleteStory,
@@ -13,10 +13,20 @@ import {
   getStoryReactionSummary,
   toggleStoryReaction,
   replyToStory,
+  getStoryComments,
+  createStoryComment,
+  deleteStoryComment,
 } from "@/app/actions/stories";
 import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
+
+type StoryComment = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  author: { id: string; name: string | null; avatarUrl: string | null };
+};
 
 const IMAGE_DURATION_MS = 5000;
 const TAP_MAX_HOLD_MS = 250;
@@ -60,6 +70,7 @@ export function StoryViewer({
   authorName,
   authorAvatarUrl,
   isOwner,
+  currentUserId,
   onClose,
   direction,
   onNextAuthor,
@@ -71,6 +82,8 @@ export function StoryViewer({
   authorName: string;
   authorAvatarUrl: string | null;
   isOwner: boolean;
+  /** Used only to decide whether to show a delete button on a comment (a UX nicety) — deleteStoryComment re-checks authorship server-side regardless. */
+  currentUserId: string;
   onClose: () => void;
   /** Which way this mount should glide in from — set by the tray wrapper alongside onNextAuthor/onPrevAuthor. Omitted (e.g. a single-author profile viewer) means no entrance glide. */
   direction?: "next" | "prev";
@@ -93,6 +106,8 @@ export function StoryViewer({
   const [isPending, setIsPending] = useState(false);
   const [reactionCounts, setReactionCounts] = useState<{ emoji: string; count: number }[]>([]);
   const [myReaction, setMyReaction] = useState<string | null>(null);
+  const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
+  const [comments, setComments] = useState<StoryComment[] | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const elapsedRef = useRef(0);
@@ -104,6 +119,7 @@ export function StoryViewer({
   const story = stories[index];
   useScreenshotContext(story ? { type: "story", id: story.id } : null);
   const showViewers = story ? viewersOpenForId === story.id : false;
+  const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
 
   // Checks the boundary against `index` directly and calls onClose as a
@@ -157,7 +173,7 @@ export function StoryViewer({
 
   // Image auto-advance timer — videos drive their own progress via onTimeUpdate/onEnded below.
   useEffect(() => {
-    if (!story || story.mediaType !== "IMAGE" || paused || showViewers) return undefined;
+    if (!story || story.mediaType !== "IMAGE" || paused || showViewers || showComments) return undefined;
 
     let raf: number;
     let lastTs = performance.now();
@@ -174,14 +190,14 @@ export function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [story, paused, showViewers, next]);
+  }, [story, paused, showViewers, showComments, next]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || story?.mediaType !== "VIDEO") return;
-    if (paused || showViewers) video.pause();
+    if (paused || showViewers || showComments) video.pause();
     else video.play().catch(() => {});
-  }, [paused, showViewers, story]);
+  }, [paused, showViewers, showComments, story]);
 
   function handlePointerDown(e: PointerEvent<HTMLButtonElement>) {
     pointerDownAtRef.current = Date.now();
@@ -223,9 +239,36 @@ export function StoryViewer({
   async function loadViewers() {
     if (!story) return;
     setPaused(true);
+    setCommentsOpenForId(null);
     setViewersOpenForId(story.id);
     const result = await getStoryViewers(story.id);
     setViewers(result.viewers);
+  }
+
+  async function loadComments() {
+    if (!story) return;
+    setPaused(true);
+    setViewersOpenForId(null);
+    setCommentsOpenForId(story.id);
+    const result = await getStoryComments(story.id);
+    setComments(result.comments);
+  }
+
+  async function handlePostComment(content: string) {
+    if (!story) return false;
+    const fd = new FormData();
+    fd.set("content", content);
+    const result = await createStoryComment(story.id, fd);
+    if (result.error || !result.comment) return false;
+    setComments((prev) => [...(prev ?? []), result.comment as StoryComment]);
+    return true;
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    const result = await deleteStoryComment(commentId);
+    if (!result.error) {
+      setComments((prev) => (prev ?? []).filter((c) => c.id !== commentId));
+    }
   }
 
   async function handleDelete() {
@@ -395,6 +438,15 @@ export function StoryViewer({
                 )}
               </ul>
             </div>
+          ) : showComments ? (
+            <StoryCommentsPanel
+              comments={comments}
+              currentUserId={currentUserId}
+              isStoryOwner
+              onClose={() => setCommentsOpenForId(null)}
+              onPost={handlePostComment}
+              onDelete={handleDeleteComment}
+            />
           ) : (
             <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
               {story.caption && <p className="break-words text-sm text-white">{story.caption}</p>}
@@ -418,16 +470,37 @@ export function StoryViewer({
                   ))}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={loadViewers}
-                className="mt-3 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
-              >
-                <Eye size={14} />
-                {story.viewCount}
-              </button>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadViewers}
+                  className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
+                >
+                  <Eye size={14} />
+                  {story.viewCount}
+                </button>
+                <button
+                  type="button"
+                  onClick={loadComments}
+                  className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
+                >
+                  <MessageCircle size={14} />
+                  Comments
+                </button>
+              </div>
             </div>
           )}
+        </div>
+      ) : showComments ? (
+        <div className="absolute inset-x-0 bottom-0 z-20">
+          <StoryCommentsPanel
+            comments={comments}
+            currentUserId={currentUserId}
+            isStoryOwner={false}
+            onClose={() => setCommentsOpenForId(null)}
+            onPost={handlePostComment}
+            onDelete={handleDeleteComment}
+          />
         </div>
       ) : (
         <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
@@ -465,6 +538,14 @@ export function StoryViewer({
                 {emoji}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={loadComments}
+              aria-label="Comments"
+              className="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
+            >
+              <MessageCircle size={16} />
+            </button>
           </div>
           <div className="mt-2">
             <StoryReplyBar
@@ -476,6 +557,107 @@ export function StoryViewer({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Public comment thread — distinct from StoryReplyBar below, which sends a
+ * private DM. Shown as a bottom sheet for both the story's owner and any
+ * viewer, same shape as the owner-only "Seen by" panel above it in the JSX.
+ */
+function StoryCommentsPanel({
+  comments,
+  currentUserId,
+  isStoryOwner,
+  onClose,
+  onPost,
+  onDelete,
+}: {
+  comments: StoryComment[] | null;
+  currentUserId: string;
+  isStoryOwner: boolean;
+  onClose: () => void;
+  onPost: (content: string) => Promise<boolean>;
+  onDelete: (commentId: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function send() {
+    const trimmed = text.trim();
+    if (!trimmed || isPosting) return;
+    setIsPosting(true);
+    setError(false);
+    const ok = await onPost(trimmed);
+    setIsPosting(false);
+    if (ok) setText("");
+    else setError(true);
+  }
+
+  return (
+    <div className="flex max-h-[70vh] flex-col rounded-t-2xl bg-surface p-4">
+      <div className="flex shrink-0 items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
+          Comments{comments ? ` (${comments.length})` : ""}
+        </p>
+        <button type="button" onClick={onClose} aria-label="Close comments" className="text-foreground-soft">
+          <X size={16} />
+        </button>
+      </div>
+      <ul className="mt-2 flex-1 space-y-3 overflow-y-auto">
+        {comments === null && <li className="text-sm text-foreground-soft">Loading…</li>}
+        {comments?.length === 0 && <li className="text-sm text-foreground-soft">No comments yet.</li>}
+        {comments?.map((c) => (
+          <li key={c.id} className="flex items-start gap-2">
+            <UserAvatar avatarUrl={c.author.avatarUrl} name={c.author.name} size={28} />
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm">
+                <span className="font-medium">{c.author.name ?? "Someone"}</span>{" "}
+                {c.content}
+              </p>
+              <p className="text-[11px] text-foreground-soft">{timeAgo(c.createdAt)}</p>
+            </div>
+            {(c.author.id === currentUserId || isStoryOwner) && (
+              <button
+                type="button"
+                onClick={() => onDelete(c.id)}
+                aria-label="Delete comment"
+                className="shrink-0 p-1 text-foreground-soft hover:text-danger"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex shrink-0 items-center gap-2">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              send();
+            }
+          }}
+          maxLength={1000}
+          placeholder="Add a comment..."
+          className="flex-1 rounded-full border border-line bg-background px-4 py-2 text-sm outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          disabled={!text.trim() || isPosting}
+          onClick={send}
+          aria-label="Post comment"
+          className="shrink-0 rounded-full bg-accent p-2 text-accent-ink disabled:opacity-50"
+        >
+          <Send size={16} />
+        </button>
+      </div>
+      {error && <p className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
     </div>
   );
 }

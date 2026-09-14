@@ -257,6 +257,7 @@ model User {
   stories        Story[]
   storyViews     StoryView[]
   storyReactions StoryReaction[]
+  storyComments  StoryComment[]
   adCampaigns    AdCampaign[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
@@ -878,6 +879,10 @@ enum NotificationType {
   // carries the specific violation type(s) so the in-app bell can show
   // them, since NOTIFICATION_VERB alone can't express per-post detail.
   VIDEO_MODERATION_FAILED
+  // Sent to a story's author when someone comments on it (see
+  // createStoryComment in actions/stories.ts) — distinct from a story
+  // "reply", which is a private DM and never generates this type.
+  STORY_COMMENT
 }
 
 model Notification {
@@ -1210,6 +1215,7 @@ model Story {
   views      StoryView[]
   reactions  StoryReaction[]
   replies    Message[]
+  comments   StoryComment[]
   notifications Notification[]
 
   // Backs both "my active stories" (profile page) and the expiry cron's
@@ -1238,6 +1244,32 @@ model StoryReaction {
 
   @@unique([storyId, userId])
   @@index([storyId])
+}
+
+/**
+ * A public text comment on a story — distinct from a story "reply", which
+ * is actually a private DM to the author (see Story.replies/replyToStory).
+ * Comments are visible to anyone who can view the story (the author, plus
+ * anyone the same accepted-connections visibility check already allows to
+ * view it at all — see getStoryComments), the same "public unless the
+ * story itself is private" model Post's own Comment already uses. Flat
+ * (no threading/parentId) and text-only (no GIF/audio/video) — Post's
+ * Comment model supports all of that, but a 24h-ephemeral story doesn't
+ * need that much surface area.
+ */
+model StoryComment {
+  id               String           @id @default(cuid())
+  storyId          String
+  authorId         String
+  content          String           @db.Text
+  moderationStatus ModerationStatus @default(PUBLISHED)
+  createdAt        DateTime         @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt])
+  @@index([authorId])
 }
 
 /**

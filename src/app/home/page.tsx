@@ -71,7 +71,7 @@ export default async function HomePage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <div id="home-story-tray">
-        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} />
+        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} currentUserId={me.id} />
       </div>
 
       <div id="home-live-section" className="mt-4 flex flex-wrap items-center gap-3">

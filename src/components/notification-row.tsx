@@ -16,6 +16,7 @@ type NotificationData = {
     | "CONNECTION_ACCEPTED"
     | "POST_LIKE"
     | "POST_COMMENT"
+    | "STORY_COMMENT"
     | "COMMENT_REPLY"
     | "POST_REPOST"
     | "POST_SHARE"

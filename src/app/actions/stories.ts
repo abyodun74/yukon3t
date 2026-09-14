@@ -399,3 +399,101 @@ export async function replyToStory(storyId: string, formData: FormData) {
   revalidatePath(`/messages/${conversation.id}`);
   return { error: null, conversationId: conversation.id };
 }
+
+const STORY_COMMENTS_LIMIT = 50;
+
+/**
+ * A story's public comment thread — distinct from replyToStory above, which
+ * is a private DM and never lands here. Same minimal access check every
+ * other story action here uses (not expired; blocked either way excluded)
+ * rather than a strict "must be an accepted connection" gate — a story's
+ * real privacy boundary is that its id is only ever surfaced to connected
+ * viewers in the first place (getConnectionsStories), not an
+ * authorization check on the id itself, consistent with viewStory/
+ * toggleStoryReaction's own equally minimal checks.
+ */
+export async function getStoryComments(storyId: string) {
+  const user = await requireVerifiedUser();
+
+  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true, expiresAt: true } });
+  if (!story || story.expiresAt < new Date()) {
+    return { error: "not_found" as const, comments: [] };
+  }
+  if (await isBlockedEitherWay(user.id, story.authorId)) {
+    return { error: "not_found" as const, comments: [] };
+  }
+
+  const comments = await prisma.storyComment.findMany({
+    where: { storyId, moderationStatus: "PUBLISHED" },
+    orderBy: { createdAt: "asc" },
+    take: STORY_COMMENTS_LIMIT,
+    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+  });
+
+  return { error: null, comments };
+}
+
+export async function createStoryComment(storyId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("comment", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const story = await prisma.story.findUnique({ where: { id: storyId } });
+  if (!story || story.expiresAt < new Date()) {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, story.authorId)) {
+    return { error: "not_found" as const };
+  }
+
+  const content = String(formData.get("content") ?? "").trim();
+  if (!content || content.length > 1000) {
+    return { error: "invalid" as const };
+  }
+
+  const modResult = await moderateText(content);
+  const comment = await prisma.storyComment.create({
+    data: {
+      storyId,
+      authorId: user.id,
+      content,
+      moderationStatus: modResult.allowed ? "PUBLISHED" : "FLAGGED",
+    },
+    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+  });
+
+  if (modResult.allowed && story.authorId !== user.id) {
+    await prisma.notification.create({
+      data: {
+        recipientId: story.authorId,
+        actorId: user.id,
+        type: "STORY_COMMENT",
+        storyId: story.id,
+      },
+    });
+  }
+
+  return { error: null, comment };
+}
+
+/** Author of the comment, the story's own author, or an admin can remove a story comment — same three-way authorization shape as deleteMessageForEveryone/deleteComment. */
+export async function deleteStoryComment(commentId: string) {
+  const user = await requireVerifiedUser();
+
+  const comment = await prisma.storyComment.findUnique({
+    where: { id: commentId },
+    include: { story: { select: { authorId: true } } },
+  });
+  if (!comment) {
+    return { error: "not_found" as const };
+  }
+  if (comment.authorId !== user.id && comment.story.authorId !== user.id && !user.isAdmin) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.storyComment.delete({ where: { id: commentId } });
+  return { error: null };
+}
