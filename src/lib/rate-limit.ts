@@ -117,6 +117,12 @@ export const rateLimiters = {
   // a normal browsing session never gets throttled, tight enough that this
   // endpoint can't be scripted into a free arbitrary-URL scanning proxy.
   linkSafetyCheck: makeLimiter(30, "5 m"),
+  // Device step-up verification (src/lib/device-challenge.ts): new-device
+  // login, password change, or posting. Send/check split mirrors
+  // emailOtpSend/Check above for the same reason — Send guards real email
+  // volume, Check guards brute-forcing a submitted code.
+  deviceChallengeSend: makeLimiter(5, "1 h"),
+  deviceChallengeCheck: makeLimiter(10, "1 h"),
 };
 
 export async function checkRateLimit(

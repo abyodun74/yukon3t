@@ -25,6 +25,15 @@ import {
   readPendingVerification,
   clearPendingVerificationCookie,
 } from "@/lib/pending-verification";
+import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
+import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
+import {
+  createDeviceChallenge,
+  verifyDeviceChallenge,
+  issuePendingDeviceChallengeCookie,
+  readPendingDeviceChallengeCookie,
+  clearPendingDeviceChallengeCookie,
+} from "@/lib/device-challenge";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 4;
@@ -305,10 +314,111 @@ export async function loginWithPassword(formData: FormData) {
     });
   }
 
+  // New/unrecognized-device step-up: the password alone proved the account,
+  // but not that this browser/install is one the real owner already uses —
+  // require an emailed code before actually establishing the session. The
+  // account's very first-ever device is auto-trusted (evaluateDevice), so
+  // this never blocks a brand-new signup's first sign-in.
+  const deviceId = await getDeviceId();
+  const evaluation = await evaluateDevice(user.id, deviceId);
+  if (evaluation.status === "unrecognized" && deviceId) {
+    const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
+    if (!sendAllowed) {
+      redirect("/sign-in?error=rate_limited");
+    }
+    const label = await getDeviceLabel();
+    const challenge = await createDeviceChallenge({
+      userId: user.id,
+      email: user.email,
+      purpose: "LOGIN",
+      deviceId,
+      deviceLabel: label,
+    });
+    await issuePendingDeviceChallengeCookie(user.id, deviceId, challenge.id);
+    redirect("/sign-in/verify-device");
+  }
+  if (deviceId) {
+    if (evaluation.status === "trusted_first_device") {
+      await trustDevice(user.id, deviceId, await getDeviceLabel());
+    } else {
+      await touchKnownDevice(user.id, deviceId);
+    }
+  }
+
   await issueSessionCookie(user);
   await track("SIGN_IN", user.id, { method: "password" });
 
   redirect("/home");
+}
+
+/**
+ * Completes a new-device sign-in that loginWithPassword (or the NextAuth
+ * signIn callback, for magic-link/OAuth — see src/lib/auth.ts) paused on.
+ * Shared by both paths since neither has a real session yet at the point it
+ * needs to pause, so both rely on the same signed pending-device-challenge
+ * cookie (src/lib/device-challenge.ts) rather than anything session-based.
+ */
+export async function confirmLoginDeviceChallenge(formData: FormData) {
+  const pending = await readPendingDeviceChallengeCookie();
+  if (!pending) {
+    redirect("/sign-in");
+  }
+
+  const ip = await clientIp();
+  const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${ip}:${pending.sub}`);
+  if (!allowed) {
+    redirect("/sign-in/verify-device?error=rate_limited");
+  }
+
+  const code = String(formData.get("code") ?? "").trim();
+  const result = await verifyDeviceChallenge(pending.challengeId, pending.sub, code);
+  if (!result.ok) {
+    redirect(`/sign-in/verify-device?error=${result.error}`);
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: pending.sub } });
+  if (!user || (user.status !== "ACTIVE" && user.status !== "DEACTIVATED")) {
+    await clearPendingDeviceChallengeCookie();
+    redirect("/sign-in?error=invalid_credentials");
+  }
+
+  await trustDevice(user.id, pending.deviceId, await getDeviceLabel());
+  if (user.status === "DEACTIVATED") {
+    await prisma.user.update({ where: { id: user.id }, data: { status: "ACTIVE", deactivatedAt: null } });
+  }
+  await issueSessionCookie(user);
+  await clearPendingDeviceChallengeCookie();
+  await track("SIGN_IN", user.id, { method: "device_verified" });
+
+  redirect("/home");
+}
+
+export async function resendLoginDeviceChallenge() {
+  const pending = await readPendingDeviceChallengeCookie();
+  if (!pending) {
+    redirect("/sign-in");
+  }
+
+  const allowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${pending.sub}`);
+  if (!allowed) {
+    redirect("/sign-in/verify-device?error=rate_limited");
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: pending.sub }, select: { id: true, email: true } });
+  if (!user) {
+    redirect("/sign-in");
+  }
+
+  const label = await getDeviceLabel();
+  const challenge = await createDeviceChallenge({
+    userId: user.id,
+    email: user.email,
+    purpose: "LOGIN",
+    deviceId: pending.deviceId,
+    deviceLabel: label,
+  });
+  await issuePendingDeviceChallengeCookie(user.id, pending.deviceId, challenge.id);
+  redirect("/sign-in/verify-device?sent=1");
 }
 
 /**

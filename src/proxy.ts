@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER, DEVICE_ID_MAX_AGE_SECONDS } from "@/lib/device-id-constants";
 
 // Per-request CSP nonce so script-src can stay locked to 'self' + this
 // nonce instead of falling back to 'unsafe-inline'. Deliberately has no
 // dependency on Prisma/auth — those aren't edge-runtime safe here.
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+
+  // Long-lived per-browser/app-install id, used by src/lib/device-trust.ts
+  // to recognize (or challenge) the device behind a sensitive action —
+  // minted here rather than in a Server Action because it needs to exist
+  // before the very first login this browser/install ever makes. Edge-safe:
+  // just a random id, no DB read.
+  const existingDeviceId = request.cookies.get(DEVICE_ID_COOKIE)?.value;
+  const deviceId = existingDeviceId || crypto.randomUUID();
 
   // React dev mode uses eval() for debugging stack traces; never in production.
   // The three Daily domains are for live streams' call-object bundle (see
@@ -97,11 +106,24 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
+  // Same-request fallback for code that reads the device id before the
+  // browser has stored and resent the Set-Cookie below (see
+  // src/lib/device-id.ts's getDeviceId).
+  requestHeaders.set(DEVICE_ID_HEADER, deviceId);
 
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
   response.headers.set("Content-Security-Policy", csp);
+  if (!existingDeviceId) {
+    response.cookies.set(DEVICE_ID_COOKIE, deviceId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: DEVICE_ID_MAX_AGE_SECONDS,
+    });
+  }
   return response;
 }
 

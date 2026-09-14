@@ -29,6 +29,9 @@ import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
 import { classifyPostCategory } from "@/lib/feed-category";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
+import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
+import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -478,6 +481,38 @@ export async function createPost(formData: FormData) {
     return { error: "rate_limited" };
   }
 
+  // New/unrecognized-device step-up — held before anything else runs (no
+  // media has been "claimed"/moderated yet at this point, so a held post
+  // doesn't leave partial state to unwind). The composer's own already-
+  // uploaded media stays in R2 until either the challenge is confirmed
+  // (composer resubmits this exact call, which then proceeds normally
+  // below) or it's abandoned — same accepted tradeoff as the "upload size
+  // enforced after the fact" gap in SECURITY.md.
+  const deviceId = await getDeviceId();
+  const deviceEvaluation = await evaluateDevice(user.id, deviceId);
+  if (deviceEvaluation.status === "unrecognized" && deviceId) {
+    const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
+    if (!sendAllowed) {
+      return { error: "rate_limited" };
+    }
+    const label = await getDeviceLabel();
+    const challenge = await createDeviceChallenge({
+      userId: user.id,
+      email: user.email,
+      purpose: "POST",
+      deviceId,
+      deviceLabel: label,
+    });
+    return { error: "device_verification_required", challengeId: challenge.id };
+  }
+  if (deviceId) {
+    if (deviceEvaluation.status === "trusted_first_device") {
+      await trustDevice(user.id, deviceId, await getDeviceLabel());
+    } else {
+      await touchKnownDevice(user.id, deviceId);
+    }
+  }
+
   const circleId = formData.get("circleId");
   const channelId = formData.get("channelId");
   const mediaUrlsRaw = formData.get("mediaUrls");
@@ -726,6 +761,35 @@ export async function createPost(formData: FormData) {
   revalidatePath("/circles", "layout");
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
+  return { error: null };
+}
+
+/**
+ * Confirms the emailed code for a post createPost above paused on
+ * (unrecognized device). Only trusts the device and reports back — it
+ * deliberately doesn't create the post itself, since re-deriving the full
+ * post payload here would duplicate createPost's entire validation/
+ * moderation/upload-verification pipeline. The composer instead resubmits
+ * the exact same createPost(fd) call once this returns ok:true, and that
+ * retry now sails through the device check above.
+ */
+export async function confirmPostDeviceChallenge(challengeId: string, code: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${user.id}`);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const result = await verifyDeviceChallenge(challengeId, user.id, code);
+  if (!result.ok) {
+    return { error: result.error };
+  }
+  if (result.challenge.purpose !== "POST") {
+    return { error: "invalid_code" as const };
+  }
+
+  await trustDevice(user.id, result.challenge.deviceId, await getDeviceLabel());
   return { error: null };
 }
 

@@ -11,7 +11,11 @@ export type AnalyticsEventType =
   | "CALL_STARTED"
   | "CIRCLE_JOINED"
   | "CIRCLE_CREATED"
-  | "SUBSCRIBED";
+  | "SUBSCRIBED"
+  | "DEVICE_CHALLENGE_SENT"
+  | "DEVICE_CHALLENGE_PASSED"
+  | "DEVICE_CHALLENGE_FAILED"
+  | "DEVICE_TRUSTED";
 
 /**
  * First-party, privacy-minimal product-usage log — a handful of key

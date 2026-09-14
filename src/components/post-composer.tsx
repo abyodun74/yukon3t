@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
-import { createPost } from "@/app/actions/circles";
+import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { addImageFromUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
@@ -91,6 +91,23 @@ function errorMessage(code: string) {
   }
 }
 
+function deviceChallengeErrorMessage(code: string) {
+  switch (code) {
+    case "invalid_code":
+      return "That code didn't match — check it and try again.";
+    case "expired":
+      return "That code expired — resend and try again.";
+    case "too_many_attempts":
+      return "Too many wrong attempts — resend and try again.";
+    case "not_found":
+      return "That verification has expired — resend and try again.";
+    case "rate_limited":
+      return "Too many attempts. Please wait a bit and try again.";
+    default:
+      return "Couldn't verify that code — try again.";
+  }
+}
+
 function imageUrlErrorMessage(code: string) {
   switch (code) {
     case "blocked_host":
@@ -141,6 +158,14 @@ export function PostComposer({
   const [embedUrlValue, setEmbedUrlValue] = useState("");
   const [embedError, setEmbedError] = useState<string | null>(null);
   const [showDictation, setShowDictation] = useState(false);
+  // Set when createPost pauses on an unrecognized device — holds the exact
+  // FormData that attempt built (media already uploaded) so, once the
+  // emailed code is confirmed, the same post can be resubmitted without
+  // re-uploading anything or losing the draft.
+  const [deviceChallenge, setDeviceChallenge] = useState<{ id: string; fd: FormData } | null>(null);
+  const [deviceCode, setDeviceCode] = useState("");
+  const [deviceChallengeError, setDeviceChallengeError] = useState<string | null>(null);
+  const [deviceChallengePending, setDeviceChallengePending] = useState(false);
   // Mirrors the (otherwise uncontrolled — see the textarea below)
   // content field's live value, just for driving the emoji suggestion
   // strip — doesn't control the textarea itself, so it stays in sync via
@@ -474,6 +499,88 @@ export function PostComposer({
     return { mediaType: "NONE", mediaUrls: [] };
   }
 
+  /**
+   * Submits an already-built, already-media-uploaded FormData to createPost
+   * and handles every outcome, including the device-verification pause —
+   * shared by the normal submit path and confirmDeviceCode's resubmission
+   * below so neither has to duplicate the retry/result handling.
+   */
+  async function submitPostFormData(fd: FormData) {
+    let result;
+    try {
+      // By this point any media has already been uploaded — a single
+      // transient failure here (a brief 503 from the server, a
+      // dropped packet) would otherwise throw away that upload and
+      // show a scary "couldn't reach the server" error for something
+      // a moment's retry would have gotten past. Same retry helper
+      // uploadFileDirect already uses for exactly this reason. A
+      // stale Server Action id (this tab open since before a
+      // redeploy) is excluded from retrying — see isStaleDeploymentError.
+      result = await withRetry(
+        () => createPost(fd),
+        3,
+        1000,
+        false,
+        (err) => !isStaleDeploymentError(err),
+      );
+    } catch (err) {
+      // A rejected server-action call (e.g. no connectivity) would
+      // otherwise be an uncaught exception that crashes the whole
+      // page instead of showing a normal composer error.
+      setStatus("error");
+      setErrorText(isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network"));
+      return;
+    }
+    if (result.error === "device_verification_required" && result.challengeId) {
+      // Held, not failed — don't clear the draft or the uploaded media
+      // reference. The composer switches to a small inline code-entry
+      // step; confirmDeviceCode resubmits this same fd once it passes.
+      setStatus("idle");
+      setDeviceChallenge({ id: result.challengeId, fd });
+      return;
+    }
+    if (result.error) {
+      setStatus("error");
+      setErrorText(errorMessage(result.error));
+    } else {
+      setStatus("idle");
+      setImages([]);
+      setUrlImages([]);
+      setVideo(null);
+      setVideoDurationSeconds(null);
+      setEmbedUrl(null);
+      setPendingGif(null);
+      setIsEvent(false);
+      setEventAt("");
+      setEventLocation("");
+      setSuggestionText("");
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }
+
+  async function confirmDeviceCode() {
+    if (!deviceChallenge) return;
+    setDeviceChallengeError(null);
+    setDeviceChallengePending(true);
+    try {
+      const res = await confirmPostDeviceChallenge(deviceChallenge.id, deviceCode.trim());
+      if (res.error) {
+        setDeviceChallengeError(deviceChallengeErrorMessage(res.error));
+        return;
+      }
+      const fd = deviceChallenge.fd;
+      setDeviceChallenge(null);
+      setDeviceCode("");
+      setStatus("uploading");
+      await submitPostFormData(fd);
+    } catch {
+      setDeviceChallengeError(deviceChallengeErrorMessage("network"));
+    } finally {
+      setDeviceChallengePending(false);
+    }
+  }
+
   return (
     <form
       ref={formRef}
@@ -522,49 +629,7 @@ export function PostComposer({
           if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
-          let result;
-          try {
-            // By this point any media has already been uploaded — a single
-            // transient failure here (a brief 503 from the server, a
-            // dropped packet) would otherwise throw away that upload and
-            // show a scary "couldn't reach the server" error for something
-            // a moment's retry would have gotten past. Same retry helper
-            // uploadFileDirect already uses for exactly this reason. A
-            // stale Server Action id (this tab open since before a
-            // redeploy) is excluded from retrying — see isStaleDeploymentError.
-            result = await withRetry(
-              () => createPost(fd),
-              3,
-              1000,
-              false,
-              (err) => !isStaleDeploymentError(err),
-            );
-          } catch (err) {
-            // A rejected server-action call (e.g. no connectivity) would
-            // otherwise be an uncaught exception that crashes the whole
-            // page instead of showing a normal composer error.
-            setStatus("error");
-            setErrorText(isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network"));
-            return;
-          }
-          if (result.error) {
-            setStatus("error");
-            setErrorText(errorMessage(result.error));
-          } else {
-            setStatus("idle");
-            setImages([]);
-            setUrlImages([]);
-            setVideo(null);
-            setVideoDurationSeconds(null);
-            setEmbedUrl(null);
-            setPendingGif(null);
-            setIsEvent(false);
-            setEventAt("");
-            setEventLocation("");
-            setSuggestionText("");
-            formRef.current?.reset();
-            router.refresh();
-          }
+          await submitPostFormData(fd);
         });
       }}
     >
@@ -934,6 +999,47 @@ export function PostComposer({
             pickVideo(file);
           }}
         />
+      )}
+      {deviceChallenge && (
+        <div className="mt-3 rounded-lg border border-line bg-surface p-4 text-sm">
+          <p className="font-semibold">We don&apos;t recognize this device</p>
+          <p className="mt-1 text-foreground-soft">
+            For your security, enter the 6-digit code we just emailed you to publish this post. Your draft is
+            still here — it&apos;ll go out the moment you confirm.
+          </p>
+          {deviceChallengeError && <p className="mt-2 text-danger">{deviceChallengeError}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              value={deviceCode}
+              onChange={(e) => setDeviceCode(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="000000"
+              className="w-32 rounded-lg border border-line bg-background px-3 py-2 text-center text-sm tracking-[0.3em] outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              disabled={deviceChallengePending || deviceCode.trim().length === 0}
+              onClick={confirmDeviceCode}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60"
+            >
+              {deviceChallengePending ? "Confirming..." : "Confirm and post"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDeviceChallenge(null);
+                setDeviceCode("");
+                setDeviceChallengeError(null);
+                setStatus("idle");
+              }}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </form>
   );

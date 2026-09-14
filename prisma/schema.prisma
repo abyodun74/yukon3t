@@ -302,6 +302,9 @@ model User {
   fcmTokens         FcmToken[]
   analyticsEvents   AnalyticsEvent[]
 
+  knownDevices       KnownDevice[]
+  securityChallenges SecurityChallenge[]
+
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
   // equality filters, ordered by trustScore) — without this, that query
@@ -1761,6 +1764,60 @@ enum AnalyticsEventType {
   CIRCLE_JOINED
   CIRCLE_CREATED
   SUBSCRIBED
+  DEVICE_CHALLENGE_SENT
+  DEVICE_CHALLENGE_PASSED
+  DEVICE_CHALLENGE_FAILED
+  DEVICE_TRUSTED
+}
+
+enum SecurityChallengePurpose {
+  LOGIN
+  PASSWORD_CHANGE
+  POST
+}
+
+// A device this user has already proven ownership of — either the very
+// first device ever seen on the account (auto-trusted, nothing to compare
+// against yet) or one that completed a SecurityChallenge. Keyed on the
+// long-lived yk3-device cookie (src/lib/device-id.ts), not IP/User-Agent
+// alone, since both of those change constantly for the same physical device.
+model KnownDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId    String
+  label       String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+// A pending step-up verification for a sensitive action attempted from a
+// device not yet in KnownDevice — new-device login, a password change, or a
+// post. One-time email code, same shape as the existing signup email OTP
+// (src/lib/otp.ts): only the code's hash is ever stored, never the code
+// itself.
+model SecurityChallenge {
+  id       String                   @id @default(cuid())
+  userId   String
+  user     User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose  SecurityChallengePurpose
+  deviceId String
+  codeHash String
+
+  // PASSWORD_CHANGE only — the new bcrypt hash to apply once the code is
+  // confirmed, so the settings form doesn't need to re-collect the password
+  // after the redirect to the verification step. Never plaintext.
+  newPasswordHash String?
+
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, purpose])
 }
 
 /**

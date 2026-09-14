@@ -7,6 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
 import { sessionTokenClaims } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
+import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
+import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
+import { createDeviceChallenge, issuePendingDeviceChallengeCookie } from "@/lib/device-challenge";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const providers: Provider[] = [
   Resend({
@@ -84,6 +88,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // in Postgres and logging against it throws a foreign-key violation.
       // See events.createUser below for the correct place to track that.
       if (existing) {
+        // New/unrecognized-device step-up — same reasoning as password
+        // login's own check in src/app/actions/password-auth.ts, and the
+        // magic link/OAuth token was already single-use-consumed by this
+        // point, so pausing here doesn't let it be replayed. Wrapped
+        // fail-open: this is the app's primary sign-in path, and a bug or
+        // outage in this brand-new subsystem must never be able to lock
+        // every magic-link/OAuth user out of their account.
+        try {
+          const deviceId = await getDeviceId();
+          const evaluation = await evaluateDevice(existing.id, deviceId);
+          if (evaluation.status === "unrecognized" && deviceId) {
+            const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${existing.id}`);
+            if (sendAllowed) {
+              const label = await getDeviceLabel();
+              const challenge = await createDeviceChallenge({
+                userId: existing.id,
+                email: user.email,
+                purpose: "LOGIN",
+                deviceId,
+                deviceLabel: label,
+              });
+              await issuePendingDeviceChallengeCookie(existing.id, deviceId, challenge.id);
+              // Returning a URL instead of true aborts this sign-in attempt
+              // (no session cookie gets issued) and redirects there instead
+              // — /sign-in/verify-device finishes the sign-in itself once
+              // the emailed code is confirmed (confirmLoginDeviceChallenge).
+              return "/sign-in/verify-device";
+            }
+          } else if (deviceId) {
+            if (evaluation.status === "trusted_first_device") {
+              await trustDevice(existing.id, deviceId, await getDeviceLabel());
+            } else {
+              await touchKnownDevice(existing.id, deviceId);
+            }
+          }
+        } catch (err) {
+          console.error("[auth] device step-up check failed, allowing sign-in", err);
+        }
+
         await track("SIGN_IN", existing.id, { method: "magic_link_or_oauth" });
       }
       return true;

@@ -18,6 +18,9 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { updateUserEmbedding } from "@/lib/embeddings";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/lib/auth";
+import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
+import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
+import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -179,6 +182,41 @@ export async function setPassword(formData: FormData) {
     if (!currentValid) {
       redirect("/settings?error=current_password_invalid");
     }
+
+    // New/unrecognized-device step-up — the current password proves account
+    // ownership, but SECURITY.md's own threat model for this exact action is
+    // a hijacked/stolen *session* (XSS, malware, a shared device) trying to
+    // install a durable password-login backdoor while riding a live cookie;
+    // the attacker in that scenario can already have the real current
+    // password re-typed for them via a phished/keylogged session. A device
+    // they've never used before is the one signal that scenario can't fake,
+    // so require the emailed code before actually applying the change.
+    const deviceId = await getDeviceId();
+    const evaluation = await evaluateDevice(user.id, deviceId);
+    if (evaluation.status === "unrecognized" && deviceId) {
+      const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
+      if (!sendAllowed) {
+        redirect("/settings?error=rate_limited");
+      }
+      const newPasswordHash = await hashPassword(parsed.data.password);
+      const label = await getDeviceLabel();
+      const challenge = await createDeviceChallenge({
+        userId: user.id,
+        email: user.email,
+        purpose: "PASSWORD_CHANGE",
+        deviceId,
+        deviceLabel: label,
+        newPasswordHash,
+      });
+      redirect(`/settings/verify-device?challengeId=${challenge.id}`);
+    }
+    if (deviceId) {
+      if (evaluation.status === "trusted_first_device") {
+        await trustDevice(user.id, deviceId, await getDeviceLabel());
+      } else {
+        await touchKnownDevice(user.id, deviceId);
+      }
+    }
   }
 
   let username = user.username;
@@ -207,6 +245,66 @@ export async function setPassword(formData: FormData) {
 
   revalidatePath("/settings");
   redirect("/settings?saved=1");
+}
+
+/** Completes a password change that setPassword above paused on for an unrecognized device. */
+export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
+  const user = await requireUser();
+  const challengeId = String(formData.get("challengeId") ?? "");
+  const code = String(formData.get("code") ?? "").trim();
+
+  const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${user.id}`);
+  if (!allowed) {
+    redirect(`/settings/verify-device?challengeId=${challengeId}&error=rate_limited`);
+  }
+
+  const result = await verifyDeviceChallenge(challengeId, user.id, code);
+  if (!result.ok) {
+    redirect(`/settings/verify-device?challengeId=${challengeId}&error=${result.error}`);
+  }
+  if (result.challenge.purpose !== "PASSWORD_CHANGE" || !result.challenge.newPasswordHash) {
+    redirect("/settings?error=invalid");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: result.challenge.newPasswordHash, sessionInvalidatedAt: new Date() },
+  });
+  await trustDevice(user.id, result.challenge.deviceId, await getDeviceLabel());
+
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
+  const user = await requireUser();
+  const challengeId = String(formData.get("challengeId") ?? "");
+
+  const existing = await prisma.securityChallenge.findUnique({ where: { id: challengeId } });
+  if (
+    !existing ||
+    existing.userId !== user.id ||
+    existing.purpose !== "PASSWORD_CHANGE" ||
+    !existing.newPasswordHash
+  ) {
+    redirect("/settings?error=invalid");
+  }
+
+  const allowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
+  if (!allowed) {
+    redirect(`/settings/verify-device?challengeId=${challengeId}&error=rate_limited`);
+  }
+
+  const label = await getDeviceLabel();
+  const challenge = await createDeviceChallenge({
+    userId: user.id,
+    email: user.email,
+    purpose: "PASSWORD_CHANGE",
+    deviceId: existing.deviceId,
+    deviceLabel: label,
+    newPasswordHash: existing.newPasswordHash,
+  });
+  redirect(`/settings/verify-device?challengeId=${challenge.id}&sent=1`);
 }
 
 export async function exportMyData() {

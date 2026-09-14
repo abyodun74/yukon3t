@@ -15,6 +15,10 @@ const EVENT_LABELS: Record<AnalyticsEventType, string> = {
   CIRCLE_JOINED: "Circles joined",
   CIRCLE_CREATED: "Circles created",
   SUBSCRIBED: "Subscriptions",
+  DEVICE_CHALLENGE_SENT: "New-device verification codes sent",
+  DEVICE_CHALLENGE_PASSED: "New-device verifications passed",
+  DEVICE_CHALLENGE_FAILED: "New-device verification wrong-code attempts",
+  DEVICE_TRUSTED: "Devices newly trusted",
 };
 
 async function countsSince(daysAgo: number) {
