@@ -265,7 +265,7 @@ export function CommentCard({
               reportedUserId={comment.author.id}
             />
           </div>
-          <ReactionBar reactions={reactions} currentUserId={viewerId} onToggle={toggleReaction} />
+          <ReactionBar reactions={reactions} onToggle={toggleReaction} />
         </>
       )}
       {replying && (

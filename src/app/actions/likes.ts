@@ -7,8 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { canViewPost } from "@/lib/post-visibility";
 import { isEmojiOnly } from "@/lib/emoji";
 import { pushActivityNotification } from "@/lib/notify-push";
-
-const REACTION_SELECT = { emoji: true, userId: true } as const;
+import type { ReactionSummary } from "@/lib/reactions";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -107,6 +106,7 @@ export async function togglePostReaction(postId: string, emoji: string) {
     where: { postId_userId: { postId, userId: user.id } },
   });
 
+  const myNewEmoji = existing?.emoji === emoji ? null : emoji;
   if (existing?.emoji === emoji) {
     await prisma.postReaction.delete({ where: { id: existing.id } });
   } else {
@@ -117,10 +117,20 @@ export async function togglePostReaction(postId: string, emoji: string) {
     });
   }
 
-  const reactions = await prisma.postReaction.findMany({
+  // Aggregated in Postgres (groupBy), not shipped to the browser as one row
+  // per reactor — a viral post's response size no longer scales with its
+  // reactor count. myNewEmoji is already known from the toggle above, so no
+  // extra query is needed to determine reactedByMe.
+  const counts = await prisma.postReaction.groupBy({
+    by: ["emoji"],
     where: { postId },
-    select: REACTION_SELECT,
+    _count: { emoji: true },
   });
+  const reactions: ReactionSummary[] = counts.map((c) => ({
+    emoji: c.emoji,
+    count: c._count.emoji,
+    reactedByMe: c.emoji === myNewEmoji,
+  }));
 
   revalidatePostViews(post);
   return { error: null, reactions };

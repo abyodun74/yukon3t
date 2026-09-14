@@ -239,23 +239,36 @@ export async function viewStory(storyId: string) {
   return { error: null };
 }
 
+// Same "cap it, don't build full pagination yet" tradeoff as
+// getPostLikers/getPostComments' own limits — a viral story only ever
+// shows its most recent VIEWERS_LIMIT viewers to its author, rather than
+// an unbounded fetch growing with view count.
+const STORY_VIEWERS_LIMIT = 200;
+
 /** Author-only: who has seen this story so far, and what they reacted with (if anything). */
 export async function getStoryViewers(storyId: string) {
   const user = await requireVerifiedUser();
 
   const story = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true } });
   if (!story || story.authorId !== user.id) {
-    return { viewers: [] };
+    return { viewers: [], totalCount: 0 };
   }
 
-  const [views, reactions] = await Promise.all([
+  const [views, totalCount] = await Promise.all([
     prisma.storyView.findMany({
       where: { storyId },
       orderBy: { viewedAt: "desc" },
+      take: STORY_VIEWERS_LIMIT,
       include: { viewer: { select: { id: true, name: true } } },
     }),
-    prisma.storyReaction.findMany({ where: { storyId }, select: { userId: true, emoji: true } }),
+    prisma.storyView.count({ where: { storyId } }),
   ]);
+  // Scoped to just the (already-capped) returned viewers, not every reaction
+  // on the story — same reasoning as capping views above.
+  const reactions = await prisma.storyReaction.findMany({
+    where: { storyId, userId: { in: views.map((v) => v.viewerId) } },
+    select: { userId: true, emoji: true },
+  });
   const reactionByViewerId = new Map(reactions.map((r) => [r.userId, r.emoji]));
 
   return {
@@ -265,6 +278,7 @@ export async function getStoryViewers(storyId: string) {
       viewedAt: v.viewedAt,
       reaction: reactionByViewerId.get(v.viewer.id) ?? null,
     })),
+    totalCount,
   };
 }
 

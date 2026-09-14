@@ -16,6 +16,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
+import { summarizeReactionRows } from "@/lib/reactions";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -685,8 +686,7 @@ function MessageBubble({
         )}
 
         <ReactionBar
-          reactions={message.reactions}
-          currentUserId={currentUserId}
+          reactions={summarizeReactionRows(message.reactions, currentUserId)}
           mine={mine}
           onToggle={toggleReaction}
         />

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import type { EmbedProvider } from "@/lib/video-embed";
+import type { ReactionSummary } from "@/lib/reactions";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
@@ -23,7 +24,6 @@ type EmbeddedPostRow = {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
-  reactions: { emoji: string; userId: string }[];
   author: {
     id: string;
     name: string | null;
@@ -44,17 +44,14 @@ type PostRow = EmbeddedPostRow & {
 // selection in sync with what attachViewerState()/PostCard actually need.
 export const postCardInclude = {
   author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-  reactions: { select: { emoji: true, userId: true } },
   repostOf: {
     include: {
       author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-      reactions: { select: { emoji: true, userId: true } },
     },
   },
   sharedPost: {
     include: {
       author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-      reactions: { select: { emoji: true, userId: true } },
     },
   },
 } as const;
@@ -75,7 +72,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
     ),
   ];
 
-  const [likes, myReposts, myRsvps, engagementByAuthorId] = targetIds.length
+  const [likes, myReposts, myRsvps, engagementByAuthorId, reactionCounts, myReactions] = targetIds.length
     ? await Promise.all([
         prisma.like.findMany({
           where: { userId: viewerId, postId: { in: targetIds } },
@@ -90,12 +87,30 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
           select: { postId: true },
         }),
         getAuthorEngagementStatus(viewerId, authorIds),
+        // Aggregated in Postgres for the whole page of posts in one query —
+        // a post's response payload no longer grows with its reactor count.
+        prisma.postReaction.groupBy({
+          by: ["postId", "emoji"],
+          where: { postId: { in: targetIds } },
+          _count: { emoji: true },
+        }),
+        prisma.postReaction.findMany({
+          where: { userId: viewerId, postId: { in: targetIds } },
+          select: { postId: true, emoji: true },
+        }),
       ])
-    : [[], [], [], new Map()];
+    : [[], [], [], new Map(), [], []];
 
   const likedSet = new Set(likes.map((l) => l.postId));
   const repostedSet = new Set(myReposts.map((r) => r.repostOfId as string));
   const rsvpGoingSet = new Set(myRsvps.map((r) => r.postId));
+  const myReactionByPostId = new Map(myReactions.map((r) => [r.postId, r.emoji]));
+  const reactionsByPostId = new Map<string, ReactionSummary[]>();
+  for (const c of reactionCounts) {
+    const list = reactionsByPostId.get(c.postId) ?? [];
+    list.push({ emoji: c.emoji, count: c._count.emoji, reactedByMe: c.emoji === myReactionByPostId.get(c.postId) });
+    reactionsByPostId.set(c.postId, list);
+  }
 
   return posts.map((post) => {
     const target = post.sharedPost ?? post.repostOf ?? post;
@@ -120,7 +135,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       repostCount: target.repostCount,
       shareCount: target.shareCount,
       rsvpCount: target.rsvpCount,
-      reactions: target.reactions,
+      reactions: reactionsByPostId.get(target.id) ?? [],
       likedByMe: likedSet.has(target.id),
       repostedByMe: repostedSet.has(target.id),
       rsvpGoingByMe: rsvpGoingSet.has(target.id),

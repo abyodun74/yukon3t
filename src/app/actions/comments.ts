@@ -7,6 +7,7 @@ import { commentSchema, editCommentSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
+import type { ReactionSummary } from "@/lib/reactions";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
@@ -20,8 +21,7 @@ import {
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
 } from "@/lib/storage";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
-
-const REACTION_SELECT = { emoji: true, userId: true } as const;
+import { loadPostComments } from "@/lib/comments-data";
 
 export async function createComment(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -244,10 +244,13 @@ export async function editComment(commentId: string, formData: FormData) {
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
+  // No reactions include here — editing text never changes reactions, and
+  // the client (comment-card.tsx's saveEdit) only reads content/editedAt
+  // off this result, so re-fetching reactions here would just be wasted
+  // work (see getPostComments for where reactions actually get loaded).
   const updated = await prisma.comment.update({
     where: { id: commentId },
     data: { content, moderationStatus, editedAt: new Date() },
-    include: { reactions: { select: REACTION_SELECT } },
   });
 
   revalidatePath(`/post/${comment.postId}`);
@@ -402,6 +405,7 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
     where: { commentId_userId: { commentId, userId: user.id } },
   });
 
+  const myNewEmoji = existing?.emoji === emoji ? null : emoji;
   if (existing?.emoji === emoji) {
     await prisma.commentReaction.delete({ where: { id: existing.id } });
   } else {
@@ -412,10 +416,18 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
     });
   }
 
-  const reactions = await prisma.commentReaction.findMany({
+  // Aggregated in Postgres, not shipped as one row per reactor — same
+  // reasoning as togglePostReaction (src/app/actions/likes.ts).
+  const counts = await prisma.commentReaction.groupBy({
+    by: ["emoji"],
     where: { commentId },
-    select: REACTION_SELECT,
+    _count: { emoji: true },
   });
+  const reactions: ReactionSummary[] = counts.map((c) => ({
+    emoji: c.emoji,
+    count: c._count.emoji,
+    reactedByMe: c.emoji === myNewEmoji,
+  }));
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null, reactions };
@@ -445,14 +457,7 @@ export async function getPostComments(postId: string) {
     return { error: "not_found" as const };
   }
 
-  const comments = await prisma.comment.findMany({
-    where: { postId, moderationStatus: { in: ["PUBLISHED", "REMOVED"] } },
-    orderBy: { createdAt: "asc" },
-    include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true } },
-      reactions: { select: REACTION_SELECT },
-    },
-  });
+  const { comments, totalCount } = await loadPostComments(postId, user.id);
 
   let canModerate = false;
   if (post.circleId) {
@@ -463,5 +468,5 @@ export async function getPostComments(postId: string) {
     }
   }
 
-  return { error: null, comments, postAuthorId: post.authorId, canModerate };
+  return { error: null, comments, totalCount, postAuthorId: post.authorId, canModerate };
 }

@@ -1,4 +1,5 @@
 import type { ModerationStatus } from "@/generated/prisma/enums";
+import type { ReactionSummary } from "@/lib/reactions";
 
 export type FlatComment = {
   id: string;
@@ -15,7 +16,7 @@ export type FlatComment = {
   // `where: { in: [...] }` doesn't narrow the return type.
   moderationStatus: ModerationStatus;
   author: { id: string; name: string | null; username?: string | null; avatarUrl?: string | null };
-  reactions: { emoji: string; userId: string }[];
+  reactions: ReactionSummary[];
 };
 
 export type CommentNode = FlatComment & { replies: CommentNode[] };

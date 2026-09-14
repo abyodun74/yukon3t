@@ -11,47 +11,9 @@ import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsNewBell } from "@/components/whats-new-bell";
-import { usePolling } from "@/lib/use-polling";
+import { useNavBadges } from "@/lib/use-nav-badges";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-
-const POLL_INTERVAL_MS = 25_000;
-
-/**
- * Polls a `{ count }` JSON endpoint — shared by the messages and connections
- * nav badges. Both are mounted in Nav for every signed-in user on every
- * page, so this pauses while the tab isn't visible via the same
- * `usePolling` mechanism as NotificationBell/ChatThread/CircleVoiceRoom,
- * rather than a plain always-on `setInterval`.
- */
-function usePolledCount(url: string, enabled: boolean) {
-  const [count, setCount] = useState(0);
-
-  const poll = useCallback(async () => {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const data = await res.json();
-      setCount(data.count ?? 0);
-    } catch {
-      // A failed poll should not be visible to the user — try again next tick.
-    }
-  }, [url]);
-
-  usePolling(poll, POLL_INTERVAL_MS, enabled);
-
-  return count;
-}
-
-/** How many conversations have an unread message, for the Messages nav badge. */
-function useUnreadMessagesCount(enabled: boolean) {
-  return usePolledCount("/api/messages/unread-count", enabled);
-}
-
-/** How many incoming connection requests are still awaiting a response, for the Connections nav badge. */
-function usePendingConnectionsCount(enabled: boolean) {
-  return usePolledCount("/api/connections/pending-count", enabled);
-}
 
 function navLinks(userId: string) {
   return [
@@ -105,8 +67,9 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   // otherwise tear down and re-add the swipe listeners on every render.
   const userId = session?.user?.id;
   const tabs = useMemo(() => (userId ? bottomTabs(userId) : []), [userId]);
-  const unreadMessages = useUnreadMessagesCount(Boolean(session?.user));
-  const pendingConnections = usePendingConnectionsCount(Boolean(session?.user));
+  const { unreadMessages, pendingConnections, unreadNotifications, hasNewAnnouncement } = useNavBadges(
+    Boolean(session?.user),
+  );
 
   // Swipe right steps forward through the bottom tab bar and wraps around
   // (Home → Circles → Collab → Connections → Profile → Home → ...); swipe left
@@ -272,8 +235,8 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 <Search size={20} />
               </Link>
             )}
-            {session?.user && <WhatsNewBell />}
-            {session?.user && <NotificationBell />}
+            {session?.user && <WhatsNewBell unread={hasNewAnnouncement} />}
+            {session?.user && <NotificationBell count={unreadNotifications} />}
             {session?.user ? (
               <>
                 <Link

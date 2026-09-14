@@ -9,6 +9,7 @@ import { ScreenshotContextTracker } from "@/components/screenshot-context-tracke
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { loadPostComments } from "@/lib/comments-data";
 
 export default async function PostDetailPage({
   params,
@@ -68,14 +69,7 @@ export default async function PostDetailPage({
   // than via a fixed-depth Prisma include. REMOVED (hidden) comments are
   // still fetched so their placeholder can hold the thread together; FLAGGED
   // ones (pending automated-moderation review) are excluded, same as before.
-  const comments = await prisma.comment.findMany({
-    where: { postId: id, moderationStatus: { in: ["PUBLISHED", "REMOVED"] } },
-    orderBy: { createdAt: "asc" },
-    include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true } },
-      reactions: { select: { emoji: true, userId: true } },
-    },
-  });
+  const { comments } = await loadPostComments(id, me.id);
 
   let canModerate = false;
   if (post.circleId) {

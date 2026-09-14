@@ -21,6 +21,7 @@ import { PostConnectPopover } from "@/components/post-connect-popover";
 import { TruncatedText } from "@/components/truncated-text";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
+import type { ReactionSummary } from "@/lib/reactions";
 import { CommentComposer } from "@/components/comment-composer";
 import { CommentList } from "@/components/comment-list";
 import { LinkSafetyModal } from "@/components/link-safety-modal";
@@ -85,7 +86,7 @@ export type PostCardData = EmbeddedPost & {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
-  reactions: { emoji: string; userId: string }[];
+  reactions: ReactionSummary[];
   likedByMe: boolean;
   repostedByMe: boolean;
   rsvpGoingByMe: boolean;
@@ -497,15 +498,23 @@ export function PostCard({
     // One reaction per viewer per post (see togglePostReaction) — re-picking
     // the same emoji removes it, picking a different one replaces it.
     // Mirrors handleLike's optimistic-then-reconcile shape: flip the local
-    // list immediately, then trust the server's actual list once it
-    // resolves (or roll back to what was there before on error).
+    // summary immediately, then trust the server's actual aggregate once it
+    // resolves (or roll back to what was there before on error). Reactions
+    // are pre-aggregated counts now (see src/lib/reactions.ts), not raw
+    // per-reactor rows, so "flip" means bump/decrement the matching emoji's
+    // count rather than filtering/pushing a row.
     const previous = reactions;
-    const mine = reactions.find((r) => r.userId === viewerId);
-    setReactions(
-      mine?.emoji === emoji
-        ? reactions.filter((r) => r.userId !== viewerId)
-        : [...reactions.filter((r) => r.userId !== viewerId), { emoji, userId: viewerId }],
-    );
+    const mine = reactions.find((r) => r.reactedByMe);
+    let next = reactions
+      .map((r) => (r.emoji === mine?.emoji ? { ...r, count: r.count - 1, reactedByMe: false } : r))
+      .filter((r) => r.count > 0);
+    if (mine?.emoji !== emoji) {
+      const existing = next.find((r) => r.emoji === emoji);
+      next = existing
+        ? next.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, reactedByMe: true } : r))
+        : [...next, { emoji, count: 1, reactedByMe: true }];
+    }
+    setReactions(next);
     startReactionTransition(async () => {
       const result = await togglePostReaction(interactionTargetId, emoji);
       if (result.error) {
@@ -758,7 +767,7 @@ export function PostCard({
         )}
       </div>
 
-      <ReactionBar reactions={reactions} currentUserId={viewerId} onToggle={toggleReaction} />
+      <ReactionBar reactions={reactions} onToggle={toggleReaction} />
 
       {commentsOpen && (
         <div className="mt-3 border-t border-line pt-3">
