@@ -137,6 +137,24 @@ export async function respondToConnection(connectionId: string, accept: boolean)
         },
       }));
 
+    // Accepting a connection also subscribes each side to the other's posts
+    // (Subscription is otherwise a separate, one-directional, no-approval
+    // "follow" — see toggleSubscription in actions/subscriptions.ts) rather
+    // than adding a second, parallel "connection posted" notification type:
+    // this reuses the exact fan-out createPost/createStory/etc. already do
+    // for subscribers, so an accepted connection just starts getting those
+    // same notifications instead of a duplicate/competing signal. Either
+    // side may already subscribe to the other from before this connection
+    // was accepted — skipDuplicates rather than a toggle, since a toggle
+    // would incorrectly unsubscribe someone who already opted in.
+    await prisma.subscription.createMany({
+      data: [
+        { subscriberId: updated.requesterId, subscribedToId: updated.targetId },
+        { subscriberId: updated.targetId, subscribedToId: updated.requesterId },
+      ],
+      skipDuplicates: true,
+    });
+
     await prisma.notification.create({
       data: {
         recipientId: updated.requesterId,

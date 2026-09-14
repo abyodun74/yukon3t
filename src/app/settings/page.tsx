@@ -7,7 +7,7 @@ import { BlockButton } from "@/components/block-button";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { RingtonePicker } from "@/components/ringtone-picker";
-import { InviteContactsButton } from "@/components/invite-contacts-button";
+import { InvitePanel } from "@/components/invite-panel";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 import { PhoneVerificationForm } from "@/components/phone-verification-form";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
@@ -133,7 +133,7 @@ export default async function SettingsPage({
           who aren&apos;t on YuKon3t yet.
         </p>
         <div className="mt-4">
-          <InviteContactsButton />
+          <InvitePanel />
         </div>
       </div>
 

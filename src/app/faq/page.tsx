@@ -330,9 +330,14 @@ const sections: Section[] = [
             approval — subscribing to someone means you get notified whenever
             they post, add a story, repost something, go live, RSVP to an
             event, or join/create a Circle. You can subscribe to someone
-            without being connected to them, and vice versa. Both icons sit
-            next to the share icon on every post you see — Home, a
-            Circle&apos;s feed, search results, and Collab Board postings.
+            without being connected to them, and vice versa — except that
+            accepting a connection request automatically subscribes both of
+            you to each other, so you don&apos;t have to also separately
+            subscribe to someone you&apos;re already connected with. You can
+            still unsubscribe afterward without affecting the connection
+            itself. Both icons sit next to the share icon on every post you
+            see — Home, a Circle&apos;s feed, search results, and Collab
+            Board postings.
           </>
         ),
       },
@@ -344,6 +349,20 @@ const sections: Section[] = [
             &ldquo;Subscribers&rdquo; or &ldquo;Subscribing&rdquo; count near
             their name for the full list. You can subscribe or unsubscribe to
             anyone directly from those lists, not just from a post.
+          </>
+        ),
+      },
+      {
+        q: "What's \"People you may know\" on Discover?",
+        a: (
+          <>
+            A row of suggestions near the top of Discover, ranked by mutual
+            connections — people you&apos;re not connected to yet who share
+            connections with you, with a count of how many. It&apos;s
+            suggestion-only: showing up there doesn&apos;t notify anyone or
+            do anything on its own, it&apos;s just a faster way to find
+            people you likely already know than filtering the full Discover
+            list. It only appears once you have at least one connection.
           </>
         ),
       },

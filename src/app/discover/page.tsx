@@ -1,6 +1,8 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
+import { PeopleYouMayKnow } from "@/components/people-you-may-know";
+import { getPeopleYouMayKnow } from "@/app/actions/discover";
 import { intentTagValues, intentLabels } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
@@ -40,10 +42,57 @@ export default async function DiscoverPage({
     ? (sortParam as SortOption)
     : "recent";
 
-  const [blockedIds, connectedIds] = await Promise.all([
+  const [blockedIds, connectedIds, mayKnow] = await Promise.all([
     getBlockedEitherWayIds(me.id),
     getConnectedOrPendingIds(me.id),
+    getPeopleYouMayKnow(me.id),
   ]);
+
+  // Same batch connection/conversation lookup the main grid below does,
+  // just against the much smaller mayKnow candidate set.
+  const mayKnowIds = mayKnow.map((m) => m.person.id);
+  const mayKnowConnections = mayKnowIds.length
+    ? await prisma.connection.findMany({
+        where: {
+          OR: [
+            { requesterId: me.id, targetId: { in: mayKnowIds } },
+            { targetId: me.id, requesterId: { in: mayKnowIds } },
+          ],
+        },
+      })
+    : [];
+  const mayKnowConnectionByOtherId = new Map(
+    mayKnowConnections.map((c) => [c.requesterId === me.id ? c.targetId : c.requesterId, c]),
+  );
+  const mayKnowAcceptedOtherIds = mayKnowConnections
+    .filter((c) => c.status === "ACCEPTED")
+    .map((c) => (c.requesterId === me.id ? c.targetId : c.requesterId));
+  const mayKnowConversations = mayKnowAcceptedOtherIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          AND: [
+            { members: { some: { userId: me.id } } },
+            { members: { some: { userId: { in: mayKnowAcceptedOtherIds } } } },
+          ],
+        },
+        include: { members: { select: { userId: true } } },
+      })
+    : [];
+  const mayKnowConversationIdByOtherId = new Map<string, string>();
+  for (const conv of mayKnowConversations) {
+    const other = conv.members.find((m) => m.userId !== me.id);
+    if (other) mayKnowConversationIdByOtherId.set(other.userId, conv.id);
+  }
+  const mayKnowItems = mayKnow.map(({ person, mutualCount }) => {
+    const connection = mayKnowConnectionByOtherId.get(person.id);
+    return {
+      person,
+      mutualCount,
+      connectionStatus: connection?.status ?? null,
+      isRequester: connection?.requesterId === me.id,
+      conversationId: mayKnowConversationIdByOtherId.get(person.id) ?? null,
+    };
+  });
 
   const people = await prisma.user.findMany({
     where: {
@@ -112,6 +161,8 @@ export default async function DiscoverPage({
         Filter by what you&apos;re both open to — no drifting into
         conversations neither of you signed up for.
       </p>
+
+      <PeopleYouMayKnow items={mayKnowItems} />
 
       {/* Grid (not flex-wrap) on mobile — 3 selects plus a button in a
           wrapping flex row has no predictable line count on a narrow phone
