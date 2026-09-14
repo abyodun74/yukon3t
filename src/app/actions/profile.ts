@@ -66,7 +66,13 @@ export async function completeOnboarding(formData: FormData) {
 
   await recomputeTrustScore(user.id);
   revalidatePath("/home");
-  redirect("/home");
+  // The ?onboarded=1 marker is read once by CapacitorBridge
+  // (src/components/capacitor-bridge.tsx) — the native app's one and only
+  // trigger for actually showing the notification-permission prompt,
+  // instead of firing it unconditionally at every cold start before the
+  // user has any context for why. Stripped from the URL as soon as it's
+  // consumed.
+  redirect("/home?onboarded=1");
 }
 
 export async function updateProfile(formData: FormData) {
