@@ -590,14 +590,15 @@ export function PostCard({
         </Link>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-1.5">
           <UserLink
             userId={displayPost.author.id}
             name={displayPost.author.name}
             username={displayPost.author.username}
             avatarUrl={displayPost.author.avatarUrl}
             className="text-sm font-semibold"
+            wrap
           />
           <TrustBadge band={displayPost.author.trustBand} />
         </div>

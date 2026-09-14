@@ -74,6 +74,7 @@ export function UserLink({
   showUsername = true,
   className,
   online,
+  wrap = false,
 }: {
   userId: string;
   name: string | null;
@@ -83,11 +84,31 @@ export function UserLink({
   showUsername?: boolean;
   className?: string;
   online?: boolean;
+  /**
+   * Default (false): single line, ellipsis-truncated once the available
+   * width runs out — right for the tight rows this renders in almost
+   * everywhere (a chat bubble header, a connections list row, a comment).
+   * True: never hides any of the name, wrapping onto additional lines
+   * instead — for a spot like the post card header (post-card.tsx) where
+   * a long display name was overlapping the timestamp/menu next to it
+   * rather than yielding space to them; the fix is letting it wrap, not
+   * clipping the name. `items-start` instead of `items-center` so the
+   * avatar aligns with the first line rather than the vertical center of
+   * a now-possibly-multi-line block.
+   */
+  wrap?: boolean;
 }) {
   return (
-    <Link href={`/u/${userId}`} className={cn("inline-flex min-w-0 items-center gap-2 hover:text-accent", className)}>
+    <Link
+      href={`/u/${userId}`}
+      className={cn(
+        "inline-flex min-w-0 gap-2 hover:text-accent",
+        wrap ? "items-start" : "items-center",
+        className,
+      )}
+    >
       <UserAvatar avatarUrl={avatarUrl} name={name} size={avatarSize} online={online} />
-      <span className="min-w-0 truncate">
+      <span className={cn("min-w-0", wrap ? "whitespace-normal break-words" : "truncate")}>
         <span className="font-medium">{name ?? "Unknown"}</span>
         {showUsername && username && <span className="ml-1 text-foreground-soft">@{username}</span>}
       </span>

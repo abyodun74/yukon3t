@@ -1,9 +1,10 @@
+import { ShieldCheck, BadgeCheck, Sparkle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const styles: Record<string, string> = {
-  TRUSTED: "bg-success/15 text-success",
-  ESTABLISHED: "bg-teal/15 text-teal",
-  NEW: "bg-line text-foreground-soft",
+  TRUSTED: "text-success",
+  ESTABLISHED: "text-teal",
+  NEW: "text-foreground-soft",
 };
 
 const labels: Record<string, string> = {
@@ -12,15 +13,30 @@ const labels: Record<string, string> = {
   NEW: "New member",
 };
 
+const icons: Record<string, typeof ShieldCheck> = {
+  TRUSTED: ShieldCheck,
+  ESTABLISHED: BadgeCheck,
+  NEW: Sparkle,
+};
+
+/**
+ * A single small icon instead of a text pill ("Trusted"/"Established"/"New
+ * member") — the label still exists as title/aria-label (a tap-and-hold or
+ * screen reader still gets the real word), but doesn't claim its own
+ * horizontal space in a post/comment header, which is what was actually
+ * squeezing a long display name into overlapping the timestamp/menu next
+ * to it (see post-card.tsx's header row).
+ */
 export function TrustBadge({ band }: { band: string }) {
+  const Icon = icons[band] ?? icons.NEW;
+  const label = labels[band] ?? "New member";
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-        styles[band] ?? styles.NEW,
-      )}
+      className={cn("inline-flex shrink-0 items-center", styles[band] ?? styles.NEW)}
+      title={label}
+      aria-label={label}
     >
-      {labels[band] ?? "New member"}
+      <Icon size={15} strokeWidth={2.25} aria-hidden="true" />
     </span>
   );
 }
