@@ -9,6 +9,8 @@ import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS — duplicated locally
@@ -76,6 +78,7 @@ export function CommentComposer({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const hasOtherMedia = Boolean(pendingGif) || Boolean(pendingAudio) || Boolean(pendingVideo);
 
@@ -83,6 +86,11 @@ export function CommentComposer({
     const trimmed = text.trim();
     if (!trimmed) return;
     setContent((c) => (c ? `${c} ${trimmed}` : trimmed));
+  }
+
+  function insertEmoji(emoji: string) {
+    setContent((c) => c + emoji);
+    textareaRef.current?.focus();
   }
 
   function pickVideo(file: File | undefined) {
@@ -191,6 +199,7 @@ export function CommentComposer({
       }}
     >
       <textarea
+        ref={textareaRef}
         value={content}
         onChange={(e) => setContent(e.target.value)}
         maxLength={1000}
@@ -198,6 +207,7 @@ export function CommentComposer({
         placeholder={parentId ? "Write a reply..." : "Write a comment..."}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
+      <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
       {pendingGif && (
         <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
@@ -243,6 +253,7 @@ export function CommentComposer({
           onChange={(e) => pickVideo(e.target.files?.[0])}
         />
         <GifPickerButton onSelect={setPendingGif} disabled={hasOtherMedia} />
+        <EmojiPickerButton onSelect={insertEmoji} />
         <button
           type="button"
           onClick={() => setShowDictation(true)}

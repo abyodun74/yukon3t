@@ -140,6 +140,26 @@ export async function shareNative(options: {
     await Share.share({ url: options.url, text: options.text, files });
     return { attachedFiles: Boolean(files?.length), warning };
   } catch (err) {
-    return { attachedFiles: false, warning: err instanceof Error ? err.message : String(err) };
+    const message = err instanceof Error ? err.message : String(err);
+    // @capacitor/share's Android plugin only ever clears its internal
+    // "isPresenting" flag when the share sheet's own activity-result
+    // callback fires — which real devices have shown doesn't always happen
+    // if a previous share got abandoned mid-flow (backgrounding/killing the
+    // app while the chooser or picked target app was on screen). When that
+    // happens every subsequent share() call fails immediately with this
+    // exact message, regardless of which post or how much later it's
+    // retried. Patched at the source for the next native release (see
+    // patches/@capacitor+share+8.0.1.patch — resets the flag whenever the
+    // app returns to the foreground), but that fix only reaches real users
+    // through a new Play Store release, not this web deploy — so the
+    // currently-live app still needs an actionable message here rather than
+    // the plugin's own unhelpful raw error text.
+    if (message.includes("sharing is in progress")) {
+      return {
+        attachedFiles: false,
+        warning: "A previous share didn't finish — fully close and reopen the app, then try again.",
+      };
+    }
+    return { attachedFiles: false, warning: message };
   }
 }

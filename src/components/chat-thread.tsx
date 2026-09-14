@@ -154,12 +154,6 @@ function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-/** The most recent non-deleted message with actual text, sent or received — used to prefill the composer when a conversation opens. */
-function lastMessageText(messages: MessageData[]): string {
-  const lastWithText = [...messages].reverse().find((m) => !m.deletedForEveryoneAt && m.content.trim());
-  return lastWithText?.content ?? "";
-}
-
 /** One-line summary of a quoted message for the reply preview — shared by the composer bar and the in-bubble quote. */
 function replyPreviewText(target: {
   content: string;
@@ -803,11 +797,7 @@ export function ChatThread({
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
-  // Prefills the composer with the most recent message's own text (sent or
-  // received) instead of opening blank — a quick way to re-send/tweak the
-  // same thing without retyping it. Reset per conversation by the resync
-  // effect below (this initial value only covers the very first mount).
-  const [content, setContent] = useState(() => lastMessageText(initialMessages));
+  const [content, setContent] = useState("");
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -950,7 +940,7 @@ export function ChatThread({
     }
     setMessages(initialMessages);
     setMembers(initialMembers);
-    setContent(lastMessageText(initialMessages));
+    setContent("");
     setPendingAudio(null);
     setPendingVideo(null);
     setPendingImage(null);

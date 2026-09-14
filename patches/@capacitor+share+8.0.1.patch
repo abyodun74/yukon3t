@@ -1,0 +1,33 @@
+diff --git a/node_modules/@capacitor/share/android/src/main/java/com/capacitorjs/plugins/share/SharePlugin.java b/node_modules/@capacitor/share/android/src/main/java/com/capacitorjs/plugins/share/SharePlugin.java
+index dcfa338..7356fb6 100644
+--- a/node_modules/@capacitor/share/android/src/main/java/com/capacitorjs/plugins/share/SharePlugin.java
++++ b/node_modules/@capacitor/share/android/src/main/java/com/capacitorjs/plugins/share/SharePlugin.java
+@@ -191,6 +191,28 @@ public class SharePlugin extends Plugin {
+         stopped = true;
+     }
+ 
++    // isPresenting is otherwise only ever cleared by activityResult() (the
++    // @ActivityCallback below) — which real devices have shown doesn't
++    // always fire once a user's Android share flow gets abandoned mid-way
++    // (backgrounding/killing the app while the chooser or the picked target
++    // app is on screen, without completing or explicitly cancelling the
++    // share). When that happens isPresenting is stuck true for the rest of
++    // the process's life, and every subsequent share() call fails outright
++    // with "Can't share while sharing is in progress" — regardless of which
++    // post or how much later the user tries again. onStart() fires every
++    // time this app returns to the foreground, which is necessarily true of
++    // any moment a user could actually be tapping "Share" again, so treating
++    // that as "whatever share was pending before is abandoned now" is safe:
++    // a share that's still genuinely in flight keeps the app backgrounded
++    // (the target app, e.g. WhatsApp, is what's in the foreground), so this
++    // never fires while a share a user actually expects to complete is
++    // still running.
++    @Override
++    protected void handleOnStart() {
++        super.handleOnStart();
++        isPresenting = false;
++    }
++
+     private String getMimeType(String url) {
+         String type = null;
+         String extension = MimeTypeMap.getFileExtensionFromUrl(url);

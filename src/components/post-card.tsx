@@ -20,6 +20,7 @@ import { SubscribeButton } from "@/components/subscribe-button";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { TruncatedText } from "@/components/truncated-text";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import type { ReactionSummary } from "@/lib/reactions";
 import { CommentComposer } from "@/components/comment-composer";
@@ -203,8 +204,13 @@ function MediaBlock({
             autoFocus
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
+          <EmojiTypeSuggestions
+            text={editing.draft}
+            onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)}
+          />
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
             {editing.error && <span className="mr-auto text-danger">{editing.error}</span>}
+            <EmojiPickerButton onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)} />
             <button
               type="button"
               disabled={editing.isPending}
@@ -463,6 +469,10 @@ export function PostCard({
     setEditError(null);
   }
 
+  function insertEditEmoji(emoji: string) {
+    setEditDraft((d) => d + emoji);
+  }
+
   function saveEdit() {
     const text = editDraft.trim();
     if (!text || isEditPending) return;
@@ -631,8 +641,10 @@ export function PostCard({
               autoFocus
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm italic outline-none focus:border-accent"
             />
+            <EmojiTypeSuggestions text={editDraft} onSelect={insertEditEmoji} />
             <div className="mt-1 flex items-center justify-end gap-2 text-xs">
               {editError && <span className="mr-auto text-danger">{editError}</span>}
+              <EmojiPickerButton onSelect={insertEditEmoji} />
               <button
                 type="button"
                 disabled={isEditPending}
