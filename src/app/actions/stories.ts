@@ -109,11 +109,6 @@ export async function getConnectionsStories() {
 export async function createStory(formData: FormData) {
   const user = await requireVerifiedUser();
 
-  const allowed = await checkRateLimit("storyCreate", user.id);
-  if (!allowed) {
-    return { error: "rate_limited" as const };
-  }
-
   const parsed = storySchema.safeParse({
     mediaType: formData.get("mediaType"),
     mediaUrl: formData.get("mediaUrl"),

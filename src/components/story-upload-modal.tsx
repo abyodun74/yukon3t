@@ -20,9 +20,9 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
 // createStory has no batch endpoint — each item is its own upload + DB row —
-// 5 keeps a single "share" action from turning into an unbounded upload run,
-// and stays comfortably under storyCreate's 10/hour rate limit even with a
-// retry.
+// 5 keeps a single picker selection from turning into an unbounded upload
+// run in one go. Story creation itself has no rate limit (unlimited
+// uploads over time); this is purely a per-selection UI/resource cap.
 const MAX_ITEMS = 5;
 
 type UploadState =

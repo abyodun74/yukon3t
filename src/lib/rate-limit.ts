@@ -85,7 +85,6 @@ export const rateLimiters = {
   channelManage: makeLimiter(30, "10 m"),
   collabModerate: makeLimiter(30, "10 m"),
   collabSession: makeLimiter(20, "10 m"),
-  storyCreate: makeLimiter(10, "1 h"),
   // Keyed by IP rather than user.id — /advertise takes bookings with no
   // sign-in (see getClientIp), so there's no account identifier to key on.
   adUpload: makeLimiter(10, "10 m"),

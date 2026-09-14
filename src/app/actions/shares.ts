@@ -152,11 +152,6 @@ export async function shareToCircle(formData: FormData) {
 export async function shareToStory(postId: string) {
   const user = await requireVerifiedUser();
 
-  const allowed = await checkRateLimit("storyCreate", user.id);
-  if (!allowed) {
-    return { error: "rate_limited" as const };
-  }
-
   const target = await prisma.post.findUnique({ where: { id: postId } });
   if (!target || target.moderationStatus !== "PUBLISHED") {
     return { error: "not_found" as const };
