@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
-import { MAX_MUSE_VIDEO_DURATION_SECONDS } from "@/lib/storage";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -345,8 +344,15 @@ export const museSchema = z.object({
   videoThumbnailUrl: z.string().url().optional(),
   // Client-probed <video>.duration, same non-authoritative routing-hint
   // status as postSchema's own videoDurationSeconds — createMuse re-checks
-  // it server-side against MAX_MUSE_VIDEO_DURATION_SECONDS regardless.
-  videoDurationSeconds: z.coerce.number().int().min(1).max(MAX_MUSE_VIDEO_DURATION_SECONDS),
+  // it server-side against MAX_MUSE_VIDEO_DURATION_SECONDS regardless. The
+  // 60 below is duplicated from that constant (src/lib/storage.ts), not
+  // imported — this file is also bundled client-side (e.g. report-form.tsx),
+  // and storage.ts pulls in the AWS S3 SDK + node:crypto, which broke the
+  // webpack production build (Netlify forces --webpack; see netlify.toml)
+  // with "node:crypto ... Unhandled scheme" once this file imported it.
+  // Same reasoning post-composer.tsx's own MAX_UPLOAD_VIDEO_SECONDS
+  // duplicate and muse-composer.tsx's MAX_MUSE_SECONDS already document.
+  videoDurationSeconds: z.coerce.number().int().min(1).max(60),
 });
 
 export const connectionRequestSchema = z.object({
