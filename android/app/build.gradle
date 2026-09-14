@@ -162,8 +162,15 @@ android {
         // R2-CORS fixes, though those are web-only and were already live.
         // No new manifest permission, no new Play Console declaration —
         // confirmed via a real-device debug-APK sideload test session.
-        versionCode 22
-        versionName "1.19"
+        // 23: patches/@capacitor+share+8.0.1.patch — @capacitor/share's
+        // Android plugin isPresenting flag could get stuck true if a share
+        // was abandoned mid-flow (app backgrounded/killed while the chooser
+        // or picked target app was on screen), permanently breaking every
+        // subsequent Share.share() call with "Can't share while sharing is
+        // in progress". Patch resets it in handleOnStart() instead. Native
+        // plugin source change — only reaches users via a new release.
+        versionCode 23
+        versionName "1.20"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
