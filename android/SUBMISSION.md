@@ -244,3 +244,18 @@ never uploaded to or stored on the server (`getContacts()`'s result stays in
 component state and is discarded when the invite screen is left). Same
 category of disclosure as the Contacts row added to `ios/SUBMISSION.md`
 section 7's Nutrition Label table.
+
+`WRITE_CONTACTS` is also declared alongside it, even though this app's own
+code never calls the plugin's write methods (`createContact`/
+`deleteContact`) — confirmed live, `@capacitor-community/contacts`
+declares READ_CONTACTS and WRITE_CONTACTS together under one "contacts"
+permission alias (its `ContactsPlugin.java`), and its native-side
+permission check validates the *whole* alias is manifest-declared before
+allowing any call under it, including a plain read — omitting
+WRITE_CONTACTS made every "Choose from contacts" attempt fail with
+"Missing the following permissions in AndroidManifest.xml:
+WRITE_CONTACTS". Also not a Restricted Permission, but still declare it
+alongside READ_CONTACTS in the same Data safety "Contacts" row — the
+actual data practice (read-only, on-device, never uploaded) is unchanged
+by this being declared; it's a manifest-level artifact of the plugin, not
+a new capability this app actually uses.
