@@ -9,6 +9,28 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // This only governs CLI/tooling commands (migrate, generate, studio,
+    // db pull) — the running app never reads it. src/lib/prisma.ts builds
+    // its own PrismaPg adapter directly from process.env.DATABASE_URL, so
+    // it stays on Neon's pooled endpoint regardless of what's configured
+    // here, exactly as intended for connection-count reasons.
+    //
+    // Falls back to DATABASE_URL when DIRECT_DATABASE_URL isn't set (local
+    // dev's Docker Postgres has no pooler to route around in the first
+    // place, so there's nothing to set there). In production, point
+    // DIRECT_DATABASE_URL at Neon's *unpooled* connection string: `prisma
+    // migrate deploy`'s advisory lock (pg_advisory_lock, which stops two
+    // concurrent deploys from migrating at once) is session-scoped, and
+    // Neon's pooled endpoint's transaction-mode pooling can hand the
+    // lock-acquire and lock-release calls to two different underlying
+    // connections — leaving the lock stuck held forever once that
+    // happens. Confirmed live: exactly this stranded a production deploy
+    // (Vercel timing out with "Timed out trying to acquire a postgres
+    // advisory lock") until the Neon compute was restarted to force-close
+    // every connection and clear it. Prisma 7 removed schema-level
+    // `directUrl` entirely (this is the closest equivalent, and doesn't
+    // need one — see the comment above on why this key can safely differ
+    // from the app's own runtime connection).
+    url: process.env["DIRECT_DATABASE_URL"] ?? process.env["DATABASE_URL"],
   },
 });
