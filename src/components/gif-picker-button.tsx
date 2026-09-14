@@ -43,42 +43,40 @@ export function GifPickerButton({
   useEffect(() => {
     if (!open) return;
 
-    // Scroll dismissal doesn't arm until shortly after open — see
-    // EmojiPickerButton's identical fix for why (confirmed live: the exact
-    // gesture that opens the popup can itself register a few pixels of
-    // scroll on some mobile WebViews, closing it before anyone could pick a
-    // GIF). Outside-click (mousedown) stays unguarded — a real tap
-    // elsewhere should dismiss immediately.
-    const OPEN_GRACE_MS = 250;
-    let armed = false;
-    const armTimer = setTimeout(() => {
-      armed = true;
-    }, OPEN_GRACE_MS);
-
     function close(e: Event) {
       const target = e.target as Node;
       if (popupRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
       setOpen(false);
     }
-    function closeIfArmed(e: Event) {
-      if (armed) close(e);
-    }
     document.addEventListener("mousedown", close);
-    window.addEventListener("scroll", closeIfArmed, true);
 
-    // Re-measure and reposition (not dismiss) on a viewport resize — the
-    // search input's autoFocus opens the on-screen keyboard right after
-    // this popup's initial position was computed against the pre-keyboard
-    // viewport, so without this the popup can open assuming full-screen
-    // space below it and end up with its bottom portion (including results
-    // and the "Powered by GIPHY" attribution) hidden behind the keyboard.
+    // Re-measure and reposition — never dismiss — on scroll or resize, so
+    // the popup follows the button instead of disappearing. The search
+    // input's autoFocus opens the on-screen keyboard right after this popup
+    // opens, which on mobile also scrolls that input into view — a real
+    // scroll that a "close on scroll" version of this was confirmed live to
+    // act on instantly (a plain 3px window.scrollBy() closed it), and no
+    // fixed grace period reliably outlasts that keyboard/scroll animation.
+    // Same fix as EmojiPickerButton, which shares this positioning code.
     function reposition() {
       if (buttonRef.current) {
         setPosition(computePopoverPosition(buttonRef.current.getBoundingClientRect(), PICKER_WIDTH, PICKER_HEIGHT));
       }
     }
-    window.addEventListener("resize", reposition);
-    window.visualViewport?.addEventListener("resize", reposition);
+    // rAF-throttled — window scroll fires far more often than once per
+    // frame, and reposition() does a measure + setState on every call.
+    let repositionQueued = false;
+    function onScrollOrResize() {
+      if (repositionQueued) return;
+      repositionQueued = true;
+      requestAnimationFrame(() => {
+        repositionQueued = false;
+        reposition();
+      });
+    }
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    window.visualViewport?.addEventListener("resize", onScrollOrResize);
     // Fallback for when the keyboard's open animation doesn't fire a
     // visualViewport resize event at all on some Android WebView versions
     // (confirmed on-device: the popup stayed mis-sized under the keyboard
@@ -88,11 +86,10 @@ export function GifPickerButton({
     const fallbackTimer = setTimeout(reposition, 350);
 
     return () => {
-      clearTimeout(armTimer);
       document.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", closeIfArmed, true);
-      window.removeEventListener("resize", reposition);
-      window.visualViewport?.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.visualViewport?.removeEventListener("resize", onScrollOrResize);
       clearTimeout(fallbackTimer);
     };
   }, [open]);

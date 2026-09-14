@@ -94,44 +94,22 @@ export function EmojiPickerButton({
   useEffect(() => {
     if (!open) return;
 
-    // Scroll/resize dismissal is deliberately trigger-happy (any scroll
-    // anywhere invalidates the popup's computed position, so it closes
-    // rather than chases it) — but doesn't arm until shortly after open.
-    // Without this, the exact gesture that opens the popup — a tap near the
-    // edge of the viewport, which some mobile WebViews answer with a few
-    // pixels of auto-scroll-into-view, or plain touch jitter — was itself
-    // enough to fire this listener and close the popup before anyone could
-    // pick anything. Confirmed live: a real 3px window.scrollBy() closed it
-    // instantly. 250ms is comfortably past any such incidental settle,
-    // while still well under what a deliberate scroll/resize takes, so a
-    // genuine "I scrolled away" still closes it promptly. Outside-click
-    // (mousedown) stays unguarded — a real tap elsewhere should dismiss
-    // immediately, not lag.
-    const OPEN_GRACE_MS = 250;
-    let armed = false;
-    const armTimer = setTimeout(() => {
-      armed = true;
-    }, OPEN_GRACE_MS);
-
     function close(e: Event) {
       const target = e.target as Node;
       if (popupRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
       setOpen(false);
     }
-    function closeIfArmed(e: Event) {
-      if (armed) close(e);
-    }
     document.addEventListener("mousedown", close);
-    window.addEventListener("scroll", closeIfArmed, true);
-    window.addEventListener("resize", closeIfArmed);
 
-    // Re-measure and reposition (not dismiss) on a viewport resize instead
-    // of closing — confirmed on-device (see GifPickerButton, which shares
-    // this same positioning code) that opening the on-screen keyboard right
-    // after this popup's initial position was computed against the
-    // pre-keyboard viewport left the popup's bottom portion hidden behind
-    // the keyboard for the whole session, since the "close on resize"
-    // behavior below never actually fired to correct for it.
+    // Re-measure and reposition — never dismiss — on scroll or resize, so
+    // the popup follows the button instead of disappearing. A prior
+    // "close on scroll" version of this was confirmed live to close
+    // instantly on a real 3px window.scrollBy(), and a fixed grace period
+    // meant to absorb incidental scroll still wasn't enough: opening the
+    // full picker autofocuses its search input, which on mobile opens the
+    // keyboard and scrolls that input into view — an animation that easily
+    // outlasts any fixed delay. Following the button is also just a
+    // better-behaved popover in general (GifPickerButton shares this code).
     function reposition() {
       if (!buttonRef.current) return;
       const rect = buttonRef.current.getBoundingClientRect();
@@ -142,7 +120,20 @@ export function EmojiPickerButton({
           : computePopoverPosition(rect, PICKER_WIDTH, PICKER_HEIGHT),
       );
     }
-    window.visualViewport?.addEventListener("resize", reposition);
+    // rAF-throttled — window scroll fires far more often than once per
+    // frame, and reposition() does a measure + setState on every call.
+    let repositionQueued = false;
+    function onScrollOrResize() {
+      if (repositionQueued) return;
+      repositionQueued = true;
+      requestAnimationFrame(() => {
+        repositionQueued = false;
+        reposition();
+      });
+    }
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    window.visualViewport?.addEventListener("resize", onScrollOrResize);
     // Fallback for when the keyboard's open animation doesn't fire a
     // visualViewport resize event at all on some Android WebView versions —
     // one re-measure after the keyboard's typical animation window closes
@@ -150,11 +141,10 @@ export function EmojiPickerButton({
     const fallbackTimer = setTimeout(reposition, 350);
 
     return () => {
-      clearTimeout(armTimer);
       document.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", closeIfArmed, true);
-      window.removeEventListener("resize", closeIfArmed);
-      window.visualViewport?.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.visualViewport?.removeEventListener("resize", onScrollOrResize);
       clearTimeout(fallbackTimer);
     };
   }, [open, showFullPicker, quickReactions]);
