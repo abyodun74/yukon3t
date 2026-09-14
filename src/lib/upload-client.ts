@@ -162,6 +162,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "message-video",
   "story-video",
   "ad-video",
+  "muse-video",
 ]);
 const PUT_ATTEMPTS_DEFAULT = 2;
 const PUT_ATTEMPTS_VIDEO = 6;

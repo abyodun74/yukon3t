@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
+import { MAX_MUSE_VIDEO_DURATION_SECONDS } from "@/lib/storage";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -254,6 +255,7 @@ export const uploadKindValues = [
   "voice-dictation",
   "comment-audio",
   "comment-video",
+  "muse-video",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -335,6 +337,16 @@ export const storySchema = z.object({
   mediaUrl: z.string().url(),
   mediaThumbnailUrl: z.string().url().optional(),
   caption: z.string().trim().max(200).optional().default(""),
+});
+
+export const museSchema = z.object({
+  caption: z.string().trim().max(200).optional().default(""),
+  videoUrl: z.string().url(),
+  videoThumbnailUrl: z.string().url().optional(),
+  // Client-probed <video>.duration, same non-authoritative routing-hint
+  // status as postSchema's own videoDurationSeconds — createMuse re-checks
+  // it server-side against MAX_MUSE_VIDEO_DURATION_SECONDS regardless.
+  videoDurationSeconds: z.coerce.number().int().min(1).max(MAX_MUSE_VIDEO_DURATION_SECONDS),
 });
 
 export const connectionRequestSchema = z.object({

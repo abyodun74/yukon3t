@@ -260,6 +260,10 @@ model User {
   storyComments  StoryComment[]
   adCampaigns    AdCampaign[]
 
+  museVideos     Muse[]
+  museReactions  MuseReaction[]
+  museComments   MuseComment[]
+
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
 
@@ -800,6 +804,10 @@ enum NotificationType {
   CONNECTION_ACCEPTED
   POST_LIKE
   POST_COMMENT
+  // Same as POST_LIKE/POST_COMMENT but for the /muse short-video feed — see
+  // toggleMuseReaction/createMuseComment in actions/muse.ts.
+  MUSE_LIKE
+  MUSE_COMMENT
   // Sent to a comment's author when someone replies to that comment
   // specifically (as opposed to POST_COMMENT, sent to the post's author for
   // any top-level or nested comment) — see createComment in actions/comments.ts.
@@ -900,6 +908,7 @@ model Notification {
   conversationId String?
   collabId       String?
   storyId        String?
+  museId         String?
   subscriptionId String?
   liveStreamId   String?
   channelId      String?
@@ -920,6 +929,7 @@ model Notification {
   conversation Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   collab       CollabBoardPost? @relation(fields: [collabId], references: [id], onDelete: Cascade)
   story        Story?           @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  muse         Muse?            @relation(fields: [museId], references: [id], onDelete: Cascade)
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
   channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -1291,6 +1301,81 @@ model StoryView {
 
   @@unique([storyId, viewerId])
   @@index([storyId])
+}
+
+/**
+ * Short (<=60s, see MAX_MUSE_VIDEO_DURATION_SECONDS in src/lib/storage.ts),
+ * public, video-only posts for the dedicated /muse feed — a TikTok/Reels-
+ * style discovery surface, distinct from both the Circle/Connection-scoped
+ * Post feed and the 24h-ephemeral Story tray: a Muse is permanent and
+ * visible to every signed-in user regardless of Circle/Connection, not just
+ * the poster's own connections. The 60s cap keeps every Muse eligible for
+ * Hive's short-form automated scan alone (moderate-videos cron) — unlike
+ * Post/Comment, there is deliberately no long-form Cloudflare Stream review
+ * pipeline (videoStreamUid/videoLongReviewClaimedAt) for this model.
+ */
+model Muse {
+  id                   String           @id @default(cuid())
+  authorId             String
+  caption              String?          @db.Text
+  videoUrl             String
+  videoThumbnailUrl    String?
+  videoDurationSeconds Int
+  // null = still awaiting the moderate-videos cron's Hive scan of the video
+  // body itself; set (alongside moderationStatus) once a verdict lands.
+  // Distinct from moderationStatus, which createMuse also sets synchronously
+  // at publish time from the caption+thumbnail-only check (moderateMedia) —
+  // same two-stage shape as Post.videoModeratedAt.
+  videoModeratedAt DateTime?
+  moderationStatus ModerationStatus @default(PUBLISHED)
+  createdAt        DateTime         @default(now())
+  likeCount        Int              @default(0)
+  commentCount     Int              @default(0)
+
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions     MuseReaction[]
+  comments      MuseComment[]
+  notifications Notification[]
+
+  @@index([authorId])
+  // Backs /muse's public feed cursor query: PUBLISHED only, newest first.
+  @@index([moderationStatus, createdAt])
+  // Backs the moderate-videos cron's scan for un-scanned Muse videos.
+  @@index([videoModeratedAt])
+}
+
+// One active emoji per user per Muse — same toggle-replace-remove shape as
+// StoryReaction/PostReaction/CommentReaction.
+model MuseReaction {
+  id        String   @id @default(cuid())
+  museId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  muse Muse @relation(fields: [museId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([museId, userId])
+  @@index([museId])
+}
+
+// Flat, text-only comments (no threading/replies, no GIF/audio/video
+// attachments) — mirrors StoryComment's shape, not Comment's (which is
+// threaded and hard-wired to Post via CommentComposer/CommentCard).
+model MuseComment {
+  id               String           @id @default(cuid())
+  museId           String
+  authorId         String
+  content          String           @db.Text
+  moderationStatus ModerationStatus @default(PUBLISHED)
+  createdAt        DateTime         @default(now())
+
+  muse   Muse @relation(fields: [museId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([museId, createdAt])
+  @@index([authorId])
 }
 
 enum AdMediaType {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
@@ -21,20 +21,22 @@ function navLinks(userId: string) {
     { href: "/discover", label: "Discover" },
     { href: "/circles", label: "Circles" },
     { href: "/collab", label: "Collab Boards" },
+    { href: "/muse", label: "Muse" },
     { href: "/connections", label: "Connections" },
     { href: "/messages", label: "Messages" },
     { href: `/u/${userId}`, label: "Profile" },
   ];
 }
 
-// The 5 primary destinations, shown as a fixed bottom bar on small screens
+// The 6 primary destinations, shown as a fixed bottom bar on small screens
 // (Instagram/WhatsApp/TikTok pattern) — Messages and Discover move into the
-// secondary hamburger menu to keep this to 5 tabs.
+// secondary hamburger menu to keep this list short.
 function bottomTabs(userId: string) {
   return [
     { href: "/home", label: "Home", icon: Home },
     { href: "/circles", label: "Circles", icon: Users },
     { href: "/collab", label: "Collab", icon: Handshake },
+    { href: "/muse", label: "Muse", icon: Clapperboard },
     { href: "/connections", label: "Connections", icon: UserCheck },
     { href: `/u/${userId}`, label: "Profile", icon: User },
   ];
@@ -470,7 +472,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // just already provided for us instead of needing our own native
         // plugin call. No-op (0px) anywhere it isn't set, including iOS/web.
         <nav
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface md:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface md:hidden"
           style={{
             paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
             width: footerWidth,

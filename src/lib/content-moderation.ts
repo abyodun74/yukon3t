@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
 
-export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
+export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
 
 /**
  * Removes the underlying content behind a report or a flagged-content review,
@@ -128,6 +128,23 @@ export async function removeModeratedContent(
 
       revalidatePath("/collab");
       return { authorId: collabPost.authorId, mediaKeysToDelete: [] };
+    }
+    case "MUSE": {
+      const muse = await tx.muse.findUnique({ where: { id: targetId } });
+      if (!muse) return null;
+
+      await tx.muse.delete({ where: { id: targetId } });
+
+      const mediaUrls = [muse.videoUrl, muse.videoThumbnailUrl].filter(
+        (url): url is string => Boolean(url),
+      );
+      const mediaKeysToDelete = mediaUrls
+        .map((url) => keyFromPublicUrl(url))
+        .filter((key): key is string => Boolean(key));
+
+      revalidatePath("/muse");
+      revalidatePath(`/u/${muse.authorId}`);
+      return { authorId: muse.authorId, mediaKeysToDelete };
     }
     case "USER":
     default:

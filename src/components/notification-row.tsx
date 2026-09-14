@@ -17,6 +17,8 @@ type NotificationData = {
     | "POST_LIKE"
     | "POST_COMMENT"
     | "STORY_COMMENT"
+    | "MUSE_LIKE"
+    | "MUSE_COMMENT"
     | "COMMENT_REPLY"
     | "POST_REPOST"
     | "POST_SHARE"
@@ -69,6 +71,12 @@ function hrefFor(notification: NotificationData) {
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";
   }
+  // No per-Muse route exists (the /muse feed is one continuous swipeable
+  // stream, not individually addressable pages) — same reasoning STORY_COMMENT
+  // already accepts below (falls through to the actor's profile), except
+  // /muse is a strictly better landing spot here since it exists and is
+  // directly relevant, unlike a guess at the actor's profile.
+  if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT") return "/muse";
   // The post it'd otherwise link to no longer exists (removed by the
   // moderation review that triggered this) — nothing more specific to
   // send the reader to than their own profile/feed.

@@ -24,7 +24,8 @@ export type UploadKind =
   | "collab-material"
   | "voice-dictation"
   | "comment-audio"
-  | "comment-video";
+  | "comment-video"
+  | "muse-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -51,6 +52,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "muse-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
   // Material shared into a Collab session's chat — documents in addition to
@@ -99,6 +101,9 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // same moderation pipeline) — a video comment is held to the exact same
   // safety bar as a video post, not a lighter-weight variant.
   "comment-video": MAX_VIDEO_BYTES,
+  // Same shared byte cap as every other video kind — MAX_MUSE_VIDEO_DURATION_SECONDS
+  // below is what actually keeps a Muse short, not this.
+  "muse-video": MAX_VIDEO_BYTES,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
@@ -107,6 +112,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "story-video",
   "ad-video",
   "comment-video",
+  "muse-video",
 ]);
 
 export const MAX_POST_IMAGES = 10;
@@ -128,6 +134,11 @@ export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;
 export const MAX_STORY_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
+// Deliberately equal to HIVE_VIDEO_MODERATION_MAX_SECONDS — every Muse is
+// short enough to always get Hive's automated short-form body scan
+// (moderate-videos cron), so unlike Post/Comment there is no long-form
+// Cloudflare Stream review fork for this model at all.
+export const MAX_MUSE_VIDEO_DURATION_SECONDS = HIVE_VIDEO_MODERATION_MAX_SECONDS;
 
 export function isStorageConfigured() {
   return Boolean(

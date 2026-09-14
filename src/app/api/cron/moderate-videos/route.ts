@@ -104,6 +104,53 @@ async function moderateCommentVideos() {
   return { checked: pending.length, flagged, cleared, failed };
 }
 
+// Same logic as moderateCommentVideos, applied to Muse — every Muse is
+// always a video (no mediaType discriminant needed, same reasoning as
+// Comment) and, unlike Post/Comment, is always short enough
+// (MAX_MUSE_VIDEO_DURATION_SECONDS == HIVE_VIDEO_MODERATION_MAX_SECONDS) to
+// be fully covered by this short-form scan alone — there is no long-form
+// Cloudflare Stream review fork for Muse at all.
+async function moderateMuseVideos() {
+  const pending = await prisma.muse.findMany({
+    where: { videoModeratedAt: null },
+    select: { id: true, videoUrl: true },
+    take: BATCH_SIZE,
+  });
+
+  let flagged = 0;
+  let cleared = 0;
+  let failed = 0;
+
+  for (const muse of pending) {
+    const claimed = await prisma.muse.updateMany({
+      where: { id: muse.id, videoModeratedAt: null },
+      data: { videoModeratedAt: new Date() },
+    });
+    if (claimed.count === 0) continue;
+
+    try {
+      const result = await moderateVideo(muse.videoUrl);
+      if (result === null) {
+        await prisma.muse.updateMany({ where: { id: muse.id }, data: { videoModeratedAt: null } });
+        failed += 1;
+        continue;
+      }
+      if (result.flagged) {
+        await prisma.muse.update({ where: { id: muse.id }, data: { moderationStatus: "FLAGGED" } });
+        flagged += 1;
+      } else {
+        cleared += 1;
+      }
+    } catch (err) {
+      await prisma.muse.updateMany({ where: { id: muse.id }, data: { videoModeratedAt: null } });
+      failed += 1;
+      console.error(`[moderate-videos] failed to moderate video for muse ${muse.id}`, err);
+    }
+  }
+
+  return { checked: pending.length, flagged, cleared, failed };
+}
+
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
@@ -112,7 +159,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const [posts, comments] = await Promise.all([moderatePostVideos(), moderateCommentVideos()]);
+  const [posts, comments, muses] = await Promise.all([
+    moderatePostVideos(),
+    moderateCommentVideos(),
+    moderateMuseVideos(),
+  ]);
 
-  return NextResponse.json({ error: null, posts, comments });
+  return NextResponse.json({ error: null, posts, comments, muses });
 }

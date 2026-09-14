@@ -15,6 +15,7 @@ import { ProfilePostsList } from "@/components/profile-posts-list";
 import { EditProfileForm } from "@/components/edit-profile-form";
 import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
+import { PostMuseButton } from "@/components/post-muse-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isOnline } from "@/lib/presence";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
@@ -176,6 +177,7 @@ export default async function PublicProfilePage({
               {user.longestStreak > user.currentStreak && ` · best: ${user.longestStreak}`}
             </span>
           )}
+          {isOwnProfile && <PostMuseButton />}
           <TrustBadge band={user.trustBand} />
         </div>
       </div>
