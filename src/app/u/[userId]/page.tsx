@@ -10,6 +10,7 @@ import { BlockButton } from "@/components/block-button";
 import { CallButton } from "@/components/call-button";
 import { PostComposer } from "@/components/post-composer";
 import { ProfileComposeFocus } from "@/components/profile-compose-focus";
+import { ProfilePostFab } from "@/components/profile-post-fab";
 import { ProfilePostsList } from "@/components/profile-posts-list";
 import { EditProfileForm } from "@/components/edit-profile-form";
 import { BackButton } from "@/components/back-button";
@@ -230,6 +231,7 @@ export default async function PublicProfilePage({
             <PostComposer />
           </div>
         )}
+        {isOwnProfile && <ProfilePostFab />}
         {!canSeePosts && (
           <p className="text-sm text-foreground-soft">
             {user.name} only shares posts with their connections.

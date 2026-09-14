@@ -2,6 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ConnectionsTabs } from "@/components/connections-tabs";
 import { getInitialAcceptedConnections } from "@/app/actions/connections";
+import { ConnectionsFindPeopleFab } from "@/components/connections-find-people-fab";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -51,6 +52,7 @@ export default async function ConnectionsPage() {
         incoming={{ items: incoming, hasMore: incomingHasMore, count: incomingCount }}
         sent={{ items: outgoing, hasMore: sentHasMore, count: outgoingCount }}
       />
+      <ConnectionsFindPeopleFab />
     </div>
   );
 }

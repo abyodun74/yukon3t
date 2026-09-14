@@ -43,13 +43,28 @@ export function GifPickerButton({
   useEffect(() => {
     if (!open) return;
 
+    // Scroll dismissal doesn't arm until shortly after open — see
+    // EmojiPickerButton's identical fix for why (confirmed live: the exact
+    // gesture that opens the popup can itself register a few pixels of
+    // scroll on some mobile WebViews, closing it before anyone could pick a
+    // GIF). Outside-click (mousedown) stays unguarded — a real tap
+    // elsewhere should dismiss immediately.
+    const OPEN_GRACE_MS = 250;
+    let armed = false;
+    const armTimer = setTimeout(() => {
+      armed = true;
+    }, OPEN_GRACE_MS);
+
     function close(e: Event) {
       const target = e.target as Node;
       if (popupRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
       setOpen(false);
     }
+    function closeIfArmed(e: Event) {
+      if (armed) close(e);
+    }
     document.addEventListener("mousedown", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", closeIfArmed, true);
 
     // Re-measure and reposition (not dismiss) on a viewport resize — the
     // search input's autoFocus opens the on-screen keyboard right after
@@ -73,8 +88,9 @@ export function GifPickerButton({
     const fallbackTimer = setTimeout(reposition, 350);
 
     return () => {
+      clearTimeout(armTimer);
       document.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", closeIfArmed, true);
       window.removeEventListener("resize", reposition);
       window.visualViewport?.removeEventListener("resize", reposition);
       clearTimeout(fallbackTimer);

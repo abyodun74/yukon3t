@@ -68,3 +68,4 @@ deno.lock
 
 .env*
 .vercel
+.gstack/

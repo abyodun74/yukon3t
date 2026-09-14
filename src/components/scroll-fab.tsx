@@ -14,28 +14,40 @@ export type ScrollFabAction = {
 };
 
 /**
- * Shared shell behind Home/Circles/Messages' floating action buttons:
- * hidden while `hideWhileVisibleId` is on screen (no point duplicating an
- * affordance that's already visible), reappearing once it scrolls out of
- * view. A single action taps directly; more than one expands into a
- * labeled stack first (outside-click or re-tap collapses it). Each page
- * owns what its actions actually do — this only owns the show/hide and
- * expand/collapse mechanics, so it stays decoupled from whatever
- * component `hideWhileVisibleId` belongs to.
+ * Shared shell behind Home/Circles/Messages/Connections/Profile's floating
+ * action buttons: hidden while `hideWhileVisibleId` is on screen (no point
+ * duplicating an affordance that's already visible), reappearing once it
+ * scrolls out of view. Omit `hideWhileVisibleId` for a page with no
+ * on-page equivalent to hide against (e.g. Connections' "Find people",
+ * which has nothing else on that page offering the same shortcut) — the
+ * FAB just stays shown always, which also matters for a short/empty page
+ * that never scrolls far enough for the hide-target to leave the
+ * viewport in the first place (a new user's empty Connections page being
+ * exactly when they'd want "Find people" most). A single action taps
+ * directly; more than one expands into a labeled stack first (outside-click
+ * or re-tap collapses it). Each page owns what its actions actually do —
+ * this only owns the show/hide and expand/collapse mechanics, so it stays
+ * decoupled from whatever component `hideWhileVisibleId` belongs to.
  */
 export function ScrollFab({
   hideWhileVisibleId,
   actions,
 }: {
-  hideWhileVisibleId: string;
+  hideWhileVisibleId?: string;
   actions: ScrollFabAction[];
 }) {
-  const [targetVisible, setTargetVisible] = useState(true);
+  // Starts "not visible" (so the FAB shows immediately) when there's no
+  // target to watch — and, since the effect below then bails out before
+  // ever calling setTargetVisible again, stays that way permanently.
+  const [targetVisible, setTargetVisible] = useState(Boolean(hideWhileVisibleId));
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const boundTargetRef = useRef<Element | null>(null);
 
   useEffect(() => {
+    if (!hideWhileVisibleId) return undefined;
+    const targetId = hideWhileVisibleId;
+
     let intersectionObserver: IntersectionObserver | null = null;
 
     // A page can gain or lose `hideWhileVisibleId` without this component
@@ -46,7 +58,7 @@ export function ScrollFab({
     // instead of getting stuck showing a FAB whose action silently no-ops
     // because its target no longer exists.
     function sync() {
-      const target = document.getElementById(hideWhileVisibleId);
+      const target = document.getElementById(targetId);
       if (target && target !== boundTargetRef.current) {
         intersectionObserver?.disconnect();
         intersectionObserver = new IntersectionObserver(([entry]) => setTargetVisible(entry.isIntersecting), {

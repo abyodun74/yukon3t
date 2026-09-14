@@ -94,15 +94,36 @@ export function EmojiPickerButton({
   useEffect(() => {
     if (!open) return;
 
+    // Scroll/resize dismissal is deliberately trigger-happy (any scroll
+    // anywhere invalidates the popup's computed position, so it closes
+    // rather than chases it) — but doesn't arm until shortly after open.
+    // Without this, the exact gesture that opens the popup — a tap near the
+    // edge of the viewport, which some mobile WebViews answer with a few
+    // pixels of auto-scroll-into-view, or plain touch jitter — was itself
+    // enough to fire this listener and close the popup before anyone could
+    // pick anything. Confirmed live: a real 3px window.scrollBy() closed it
+    // instantly. 250ms is comfortably past any such incidental settle,
+    // while still well under what a deliberate scroll/resize takes, so a
+    // genuine "I scrolled away" still closes it promptly. Outside-click
+    // (mousedown) stays unguarded — a real tap elsewhere should dismiss
+    // immediately, not lag.
+    const OPEN_GRACE_MS = 250;
+    let armed = false;
+    const armTimer = setTimeout(() => {
+      armed = true;
+    }, OPEN_GRACE_MS);
+
     function close(e: Event) {
       const target = e.target as Node;
       if (popupRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
       setOpen(false);
     }
+    function closeIfArmed(e: Event) {
+      if (armed) close(e);
+    }
     document.addEventListener("mousedown", close);
-    // Any scroll (message list, page) invalidates the computed position — close rather than chase it.
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
+    window.addEventListener("scroll", closeIfArmed, true);
+    window.addEventListener("resize", closeIfArmed);
 
     // Re-measure and reposition (not dismiss) on a viewport resize instead
     // of closing — confirmed on-device (see GifPickerButton, which shares
@@ -129,9 +150,10 @@ export function EmojiPickerButton({
     const fallbackTimer = setTimeout(reposition, 350);
 
     return () => {
+      clearTimeout(armTimer);
       document.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", closeIfArmed, true);
+      window.removeEventListener("resize", closeIfArmed);
       window.visualViewport?.removeEventListener("resize", reposition);
       clearTimeout(fallbackTimer);
     };
