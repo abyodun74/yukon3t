@@ -8,6 +8,7 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
+import { cn } from "@/lib/utils";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -79,6 +80,76 @@ function errorMessage(code: string) {
 
 function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
+// Background choices for a text-only story — deliberately a small fixed
+// palette (not a free color picker) to keep this a quick, low-friction flow
+// rather than a whole design tool. Each pairs a background with a readable
+// foreground text color instead of computing contrast at render time.
+const TEXT_STORY_BACKGROUNDS: { bg: string; fg: string }[] = [
+  { bg: "#14181a", fg: "#ffffff" },
+  { bg: "#3654ff", fg: "#ffffff" },
+  { bg: "#e0245e", fg: "#ffffff" },
+  { bg: "#17bf63", fg: "#ffffff" },
+  { bg: "#f9a825", fg: "#14181a" },
+  { bg: "#ffffff", fg: "#14181a" },
+];
+const TEXT_STORY_SIZE = { width: 1080, height: 1920 };
+const TEXT_STORY_MAX_CHARS = 500;
+
+/**
+ * Rasterizes a text-only story into an <canvas>-drawn image — reuses the
+ * entire existing image story pipeline (upload, moderation, feed rendering)
+ * with zero schema/backend changes, rather than adding a new StoryMediaType
+ * TEXT variant that every story-reading surface would then need to learn
+ * about. Word-wraps manually since <canvas> text has no built-in wrapping;
+ * font size steps down for a longer post so it still fits the fixed canvas
+ * instead of overflowing or getting clipped.
+ */
+async function renderTextStoryImage(text: string, colors: { bg: string; fg: string }): Promise<File> {
+  const canvas = document.createElement("canvas");
+  canvas.width = TEXT_STORY_SIZE.width;
+  canvas.height = TEXT_STORY_SIZE.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const maxWidth = canvas.width * 0.84;
+  const fontSize = text.length > 220 ? 56 : text.length > 100 ? 68 : 84;
+  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = colors.fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const attempt = current ? `${current} ${word}` : word;
+    if (ctx.measureText(attempt).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = attempt;
+    }
+  }
+  if (current) lines.push(current);
+
+  const lineHeight = fontSize * 13 / 10;
+  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, startY + i * lineHeight));
+
+  const blob: Blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
+  });
+  // Read into a plain ArrayBuffer-backed File rather than using the Blob
+  // directly — same reasoning as resizeImageFile/captureVideoFrame in
+  // upload-client.ts (a canvas.toBlob() Blob has been confirmed backed by
+  // an already-invalid temp file on Android WebView).
+  const buffer = await blob.arrayBuffer();
+  return new File([buffer], "story-text.png", { type: "image/png" });
 }
 
 async function processImageFile(f: File): Promise<{ item: StoryItem } | { error: string }> {
@@ -158,6 +229,14 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  // "text": a typed/pasted-text story, rasterized to an image at post time
+  // (see renderTextStoryImage) instead of picking a photo/video — mutually
+  // exclusive with the media grid below rather than combinable in one
+  // batch, matching how a text-story tab works elsewhere (Instagram, etc.).
+  const [mode, setMode] = useState<"media" | "text">("media");
+  const [textValue, setTextValue] = useState("");
+  const [textBgIndex, setTextBgIndex] = useState(0);
+  const [textPosting, setTextPosting] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -295,6 +374,36 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  /** Rasterizes the current text/background into an image, then posts it through the exact same upload+createStory path as any picked photo. */
+  async function submitText() {
+    const trimmed = textValue.trim();
+    if (!trimmed || textPosting) return;
+    setTextPosting(true);
+    setError(null);
+    try {
+      const file = await renderTextStoryImage(trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex]);
+      const result = await uploadFileDirect(file, "story-image");
+      if (!result.ok) {
+        setError(errorMessage(result.error));
+        return;
+      }
+      const fd = new FormData();
+      fd.set("mediaType", "IMAGE");
+      fd.set("mediaUrl", result.publicUrl);
+      const created = await createStory(fd);
+      if (created.error) {
+        setError(errorMessage(created.error));
+        return;
+      }
+      router.refresh();
+      onClose();
+    } catch (err) {
+      setError(isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network"));
+    } finally {
+      setTextPosting(false);
+    }
+  }
+
   function submit() {
     const ready = items.filter((i): i is StoryItem & { upload: Extract<UploadState, { status: "done" }> } => i.upload.status === "done");
     if (ready.length === 0 || isPending) return;
@@ -347,6 +456,84 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        {/* Switching modes mid-batch would mean juggling two unrelated
+            in-progress flows (uploaded media items vs. a typed draft) at
+            once, so the toggle itself only shows before either has
+            started — once a photo/video is added, this is committed to
+            "media" for this open of the modal. */}
+        {items.length === 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-background p-1">
+            <button
+              type="button"
+              onClick={() => setMode("media")}
+              className={cn(
+                "rounded-md py-1.5 text-xs font-medium",
+                mode === "media" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
+              )}
+            >
+              Photo/Video
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("text")}
+              className={cn(
+                "rounded-md py-1.5 text-xs font-medium",
+                mode === "text" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
+              )}
+            >
+              Text
+            </button>
+          </div>
+        )}
+
+        {mode === "text" ? (
+          <div className="mt-3">
+            <div
+              className="relative flex aspect-[9/16] w-full items-center justify-center overflow-hidden rounded-lg p-6"
+              style={{ backgroundColor: TEXT_STORY_BACKGROUNDS[textBgIndex].bg }}
+            >
+              <textarea
+                value={textValue}
+                onChange={(e) => setTextValue(e.target.value.slice(0, TEXT_STORY_MAX_CHARS))}
+                placeholder="Type or paste something..."
+                maxLength={TEXT_STORY_MAX_CHARS}
+                autoFocus
+                className="h-full w-full resize-none bg-transparent text-center text-lg font-semibold outline-none placeholder:opacity-60"
+                style={{ color: TEXT_STORY_BACKGROUNDS[textBgIndex].fg }}
+              />
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-2">
+              {TEXT_STORY_BACKGROUNDS.map((c, i) => (
+                <button
+                  key={c.bg}
+                  type="button"
+                  onClick={() => setTextBgIndex(i)}
+                  aria-label={`Background ${i + 1}`}
+                  aria-pressed={i === textBgIndex}
+                  className={cn(
+                    "h-7 w-7 rounded-full border-2",
+                    i === textBgIndex ? "border-accent" : "border-line",
+                  )}
+                  style={{ backgroundColor: c.bg }}
+                />
+              ))}
+            </div>
+
+            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+
+            <button
+              type="button"
+              disabled={!textValue.trim() || textPosting}
+              onClick={submitText}
+              className="mt-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
+            >
+              {textPosting ? "Posting..." : "Share to your story"}
+            </button>
+            <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
+          </div>
+        ) : (
+          <>
         <input
           ref={imageInputRef}
           type="file"
@@ -509,6 +696,8 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                 : "Share to your story"}
         </button>
         <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
+          </>
+        )}
       </div>
     </div>
   );

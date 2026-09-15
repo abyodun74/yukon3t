@@ -10,6 +10,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   POST_COMMENT: "commented on your post",
   MUSE_LIKE: "reacted to your Muse",
   MUSE_COMMENT: "commented on your Muse",
+  MUSE_REPOST: "reshared your Muse",
+  MUSE_SHARE: "shared your Muse",
   STORY_COMMENT: "commented on your story",
   COMMENT_REPLY: "replied to your comment",
   POST_REPOST: "reposted your post",

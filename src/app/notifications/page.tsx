@@ -20,6 +20,23 @@ export default async function NotificationsPage() {
     },
   });
 
+  // Simply opening this page clears every unread notification — the
+  // MarkAllReadButton below stays as an explicit affordance too (some users
+  // expect a button, and it doubles as a way to re-trigger this for a badge
+  // that's somehow out of sync), but nobody should have to tap it just to
+  // get the badge to clear after they've already looked at the list.
+  // Awaited (not fire-and-forget) — this is a serverless request/response
+  // cycle, so an un-awaited write here could get cut off before it commits
+  // once the response is sent. `notifications` above was already fetched
+  // with each row's real readAt, so this update landing a beat later
+  // doesn't change what's rendered as unread on this pass.
+  if (notifications.some((n) => !n.readAt)) {
+    await prisma.notification.updateMany({
+      where: { recipientId: me.id, readAt: null },
+      data: { readAt: new Date() },
+    });
+  }
+
   // MISSED_CALL and MESSAGE collapse into one tally row per (type, actor,
   // conversation) instead of listing every call/message as its own line —
   // three missed calls from the same person is one useful fact ("call them

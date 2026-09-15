@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only and
 // isn't safe in a client bundle. Same reasoning/pattern as post-composer.tsx's
 // own MAX_UPLOAD_VIDEO_SECONDS duplicate.
-const MAX_MUSE_SECONDS = 60;
+const MAX_MUSE_SECONDS = 180;
 
 // Covers both uploadFileDirect's error codes and createMuse's own — same
 // "one switch, both sources" shape post-composer.tsx uses for its own
@@ -72,7 +72,7 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
       if (probe.duration > MAX_MUSE_SECONDS) {
         setVideo((current) => (current === file ? null : current));
         setStatus("error");
-        setErrorText(`A Muse can be at most ${MAX_MUSE_SECONDS} seconds — pick a shorter clip.`);
+        setErrorText(`A Muse can be at most ${MAX_MUSE_SECONDS / 60} minutes — pick a shorter clip.`);
         return;
       }
       setVideoDurationSeconds(Math.round(probe.duration));
@@ -172,7 +172,7 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
         </div>
 
         <p className="mt-1 text-xs text-foreground-soft">
-          Short, funny, creative — up to {MAX_MUSE_SECONDS} seconds. Visible to everyone on YuKon3t.
+          Short, funny, creative — up to {MAX_MUSE_SECONDS / 60} minutes. Visible to everyone on YuKon3t.
         </p>
 
         <input

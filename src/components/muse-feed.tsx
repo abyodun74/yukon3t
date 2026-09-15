@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, MessageCircle, Volume2, VolumeX } from "lucide-react";
+import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye } from "lucide-react";
 import {
   getMuseFeed,
   getMuseReactionSummary,
@@ -10,11 +10,18 @@ import {
   getMuseComments,
   createMuseComment,
   deleteMuseComment,
+  deleteMuse,
+  toggleMuseRepost,
+  recordMuseShare,
+  recordMuseView,
 } from "@/app/actions/muse";
 import { UserLink, UserAvatar } from "@/components/user-link";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
+import { SubscribeButton } from "@/components/subscribe-button";
+import { canShareNatively, shareNative } from "@/lib/native-share";
 import { QUICK_REACTIONS } from "@/lib/emoji";
+import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
 
 // How far before the actual end of the loaded list to start fetching more —
@@ -38,8 +45,13 @@ type MuseItem = {
   createdAt: Date;
   likeCount: number;
   commentCount: number;
+  shareCount: number;
+  repostCount: number;
+  viewCount: number;
   author: { id: string; name: string | null; avatarUrl: string | null };
   myReaction: string | null;
+  isReposted: boolean;
+  isFollowingAuthor: boolean;
 };
 
 type MuseCommentData = {
@@ -163,6 +175,70 @@ export function MuseFeed({
     );
   }
 
+  /** Author-only — removes the Muse outright (see deleteMuse's own doc comment). Optimistic: the card disappears immediately, no confirm-then-wait round trip. */
+  async function removeMuse(museId: string) {
+    setItems((prev) => prev.filter((it) => it.id !== museId));
+    await deleteMuse(museId);
+  }
+
+  /** Optimistic toggle-with-revert, same shape as toggleReaction/SubscribeButton's own toggle. */
+  async function toggleRepost(museId: string) {
+    const current = items.find((it) => it.id === museId);
+    if (!current) return;
+    const nextReposted = !current.isReposted;
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === museId
+          ? { ...it, isReposted: nextReposted, repostCount: it.repostCount + (nextReposted ? 1 : -1) }
+          : it,
+      ),
+    );
+    const result = await toggleMuseRepost(museId);
+    if (result.error) {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === museId
+            ? { ...it, isReposted: current.isReposted, repostCount: current.repostCount }
+            : it,
+        ),
+      );
+    }
+  }
+
+  async function shareMuse(item: MuseItem) {
+    const url = `${window.location.origin}/muse/${item.id}`;
+    if (canShareNatively()) {
+      await shareNative({ url, text: item.caption ?? undefined });
+    } else if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ url, text: item.caption ?? undefined });
+      } catch {
+        return; // Cancelled — don't count it as a share.
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        return;
+      }
+    }
+    const result = await recordMuseShare(item.id);
+    if (!result.error) {
+      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, shareCount: it.shareCount + 1 } : it)));
+    }
+  }
+
+  const viewedRef = useRef(new Set<string>());
+  function recordView(museId: string) {
+    if (viewedRef.current.has(museId)) return;
+    viewedRef.current.add(museId);
+    recordMuseView(museId).then((result) => {
+      if (!result.error) {
+        setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, viewCount: it.viewCount + 1 } : it)));
+      }
+    });
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex h-dvh w-screen flex-col items-center justify-center gap-2 bg-black text-white">
@@ -202,9 +278,14 @@ export function MuseFeed({
             key={item.id}
             item={item}
             muted={muted}
+            currentUserId={currentUserId}
             onToggleMute={() => setMuted((m) => !m)}
             onToggleReaction={(emoji) => toggleReaction(item.id, emoji)}
             onOpenComments={() => openComments(item.id)}
+            onDelete={() => removeMuse(item.id)}
+            onToggleRepost={() => toggleRepost(item.id)}
+            onShare={() => shareMuse(item)}
+            onView={() => recordView(item.id)}
           />
         ))}
         <div ref={sentinelRef} aria-hidden className="h-px w-full" />
@@ -255,19 +336,31 @@ export function MuseFeed({
 function MuseCard({
   item,
   muted,
+  currentUserId,
   onToggleMute,
   onToggleReaction,
   onOpenComments,
+  onDelete,
+  onToggleRepost,
+  onShare,
+  onView,
 }: {
   item: MuseItem;
   muted: boolean;
+  currentUserId: string;
   onToggleMute: () => void;
   onToggleReaction: (emoji: string) => Promise<ReactionSummary[] | undefined>;
   onOpenComments: () => void;
+  onDelete: () => void;
+  onToggleRepost: () => void;
+  onShare: () => void;
+  onView: () => void;
 }) {
   const [paused, setPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const isOwner = item.author.id === currentUserId;
 
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -300,6 +393,18 @@ function MuseCard({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Counts a view the first time this card becomes the active one — onView
+  // itself (recordView in MuseFeed) is a no-op past the first call per
+  // museId (see its viewedRef Set), so this doesn't need its own dedup
+  // beyond "only when isVisible flips true," and can safely skip onView in
+  // the dependency array (a fresh closure every render, same as any other
+  // inline callback prop here).
+  useEffect(() => {
+    if (isVisible) onView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]);
+
 
   // Drives both the video and (when present) the separate audio track
   // together — a Muse with a custom audio track always plays the video
@@ -368,9 +473,23 @@ function MuseCard({
           // measured height with no safe-area-inset-top; same
           // approximation/rounding used for the bottom nav's clearance
           // below.
-          className="flex items-center justify-end bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
+          className="flex items-center justify-end gap-2 bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
           onClick={(e) => e.stopPropagation()}
         >
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => (confirmingDelete ? onDelete() : setConfirmingDelete(true))}
+              aria-label={confirmingDelete ? "Confirm delete" : "Delete Muse"}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2 py-2 text-white",
+                confirmingDelete ? "bg-danger" : "bg-black/40",
+              )}
+            >
+              <Trash2 size={18} />
+              {confirmingDelete && <span className="pr-1 text-xs font-medium">Delete?</span>}
+            </button>
+          )}
           <button
             type="button"
             onClick={onToggleMute}
@@ -388,13 +507,25 @@ function MuseCard({
         <div className="bg-gradient-to-t from-black/60 to-transparent pt-10">
           <div className="flex items-end justify-between gap-3 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="min-w-0 flex-1">
-              <UserLink
-                userId={item.author.id}
-                name={item.author.name}
-                avatarUrl={item.author.avatarUrl}
-                className="text-sm font-medium text-white hover:text-white/80"
-              />
+              <div className="flex items-center gap-2">
+                <UserLink
+                  userId={item.author.id}
+                  name={item.author.name}
+                  avatarUrl={item.author.avatarUrl}
+                  className="text-sm font-medium text-white hover:text-white/80"
+                />
+                {!isOwner && (
+                  <SubscribeButton
+                    targetId={item.author.id}
+                    initiallySubscribed={item.isFollowingAuthor}
+                    variant="pill"
+                  />
+                )}
+              </div>
               {item.caption && <p className="mt-1 break-words text-sm text-white">{item.caption}</p>}
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-white/70">
+                <Eye size={12} /> {item.viewCount.toLocaleString()} views
+              </p>
             </div>
 
             <div className="flex shrink-0 flex-col items-center gap-3">
@@ -413,6 +544,29 @@ function MuseCard({
                 <EmojiPickerButton onSelect={handleToggleReaction} quickReactions={QUICK_REACTIONS} />
                 <span className="text-[11px]">{item.likeCount}</span>
               </div>
+              <button
+                type="button"
+                onClick={onToggleRepost}
+                aria-label={item.isReposted ? "Undo reshare" : "Reshare"}
+                aria-pressed={item.isReposted}
+                className="flex flex-col items-center gap-0.5 text-white"
+              >
+                <span className={cn("rounded-full p-2", item.isReposted ? "bg-accent text-accent-ink" : "bg-black/40")}>
+                  <Repeat2 size={20} />
+                </span>
+                <span className="text-[11px]">{item.repostCount}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onShare}
+                aria-label="Share"
+                className="flex flex-col items-center gap-0.5 text-white"
+              >
+                <span className="rounded-full bg-black/40 p-2">
+                  <Share2 size={20} />
+                </span>
+                <span className="text-[11px]">{item.shareCount}</span>
+              </button>
             </div>
           </div>
 

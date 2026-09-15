@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER, DEVICE_ID_MAX_AGE_SECONDS } from "@/lib/device-id-constants";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// Best-effort client IP, matching src/lib/client-ip.ts's own first-hop
+// convention — duplicated rather than shared since that file's getClientIp
+// is async-headers()-based (Server Action context), while this runs at the
+// edge directly against a NextRequest.
+function clientIp(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
 
 // Per-request CSP nonce so script-src can stay locked to 'self' + this
 // nonce instead of falling back to 'unsafe-inline'. Deliberately has no
-// dependency on Prisma/auth — those aren't edge-runtime safe here.
-export function proxy(request: NextRequest) {
+// dependency on Prisma/auth — those aren't edge-runtime safe here. Async
+// only for the rate-limit check below (Upstash's REST client, itself
+// fetch()-based and edge-safe) — everything else here stays synchronous.
+export async function proxy(request: NextRequest) {
+  // Coarse, IP-keyed page-level rate limit — every route this proxy runs
+  // against (see config.matcher below), not just the individual Server
+  // Action limiters already applied per-mutation. See rateLimiters.pageRequest
+  // in src/lib/rate-limit.ts for the actual bucket size and reasoning.
+  const allowed = await checkRateLimit("pageRequest", clientIp(request));
+  if (!allowed) {
+    return new NextResponse("Too many requests — slow down and try again shortly.", { status: 429 });
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // Long-lived per-browser/app-install id, used by src/lib/device-trust.ts

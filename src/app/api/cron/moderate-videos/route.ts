@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { moderateVideo } from "@/lib/hive";
 import { isCronAuthorized } from "@/lib/cron-auth";
+import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
 
 const BATCH_SIZE = 20;
 
@@ -106,13 +107,13 @@ async function moderateCommentVideos() {
 
 // Same logic as moderateCommentVideos, applied to Muse — every Muse is
 // always a video (no mediaType discriminant needed, same reasoning as
-// Comment) and, unlike Post/Comment, is always short enough
-// (MAX_MUSE_VIDEO_DURATION_SECONDS == HIVE_VIDEO_MODERATION_MAX_SECONDS) to
-// be fully covered by this short-form scan alone — there is no long-form
-// Cloudflare Stream review fork for Muse at all.
+// Comment). A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS is excluded here
+// (its videoModeratedAt is already pre-claimed at creation — see createMuse)
+// and instead goes through moderate-long-videos' Cloudflare Stream review
+// fork, same as an over-the-cap Post/Comment.
 async function moderateMuseVideos() {
   const pending = await prisma.muse.findMany({
-    where: { videoModeratedAt: null },
+    where: { videoModeratedAt: null, videoDurationSeconds: { lte: HIVE_VIDEO_MODERATION_MAX_SECONDS } },
     select: { id: true, videoUrl: true },
     take: BATCH_SIZE,
   });

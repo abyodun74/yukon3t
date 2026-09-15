@@ -77,6 +77,13 @@ export const rateLimiters = {
   repost: makeLimiter(20, "10 m"),
   share: makeLimiter(20, "5 m"),
   shareToCircle: makeLimiter(20, "10 m"),
+  museRepost: makeLimiter(20, "10 m"),
+  museShare: makeLimiter(20, "5 m"),
+  // Fires once per card-visible event (see MuseFeed's view-recording
+  // effect), so this needs to be generous enough for a fast scroller
+  // blowing through a whole page of the feed at once, not just deliberate
+  // taps like the buckets above.
+  museView: makeLimiter(120, "1 m"),
   liveStreamStart: makeLimiter(5, "10 m"),
   liveStreamJoin: makeLimiter(30, "1 m"),
   liveStreamComment: makeLimiter(20, "1 m"),
@@ -123,6 +130,14 @@ export const rateLimiters = {
   // volume, Check guards brute-forcing a submitted code.
   deviceChallengeSend: makeLimiter(5, "1 h"),
   deviceChallengeCheck: makeLimiter(10, "1 h"),
+  // Coarse, IP-keyed defense-in-depth applied to every page request in
+  // src/proxy.ts (not just mutating Server Actions, which each already have
+  // their own tighter per-action limiter above) — generous enough that no
+  // real user's normal browsing/scrolling ever trips it, tight enough to
+  // blunt a scripted crawl/scrape or a flood aimed at a single IP. Keyed by
+  // IP rather than user.id since it has to run before auth is known, at the
+  // edge, on every route.
+  pageRequest: makeLimiter(300, "1 m"),
 };
 
 export async function checkRateLimit(

@@ -8,11 +8,13 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
 import {
   MEDIA_LIMITS,
+  HIVE_VIDEO_MODERATION_MAX_SECONDS,
   verifyUploadedSize,
   deleteObject,
   deleteOwnedObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
+import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { isEmojiOnly } from "@/lib/emoji";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
 import { pushActivityNotification } from "@/lib/notify-push";
@@ -23,9 +25,12 @@ import type { ReactionSummary } from "@/lib/reactions";
  * (src/app/actions/stories.ts) rather than createPost — no device step-up
  * gate and no Circle/channel checks, since a Muse is always public and
  * outside the Circle system. Every Muse is capped at
- * MAX_MUSE_VIDEO_DURATION_SECONDS (== HIVE_VIDEO_MODERATION_MAX_SECONDS), so
- * unlike createPost there is no long-form-review fork here at all — every
- * published Muse is picked up by moderate-videos' short-form Hive scan alone.
+ * MAX_MUSE_VIDEO_DURATION_SECONDS (3 minutes), which is well past Hive's own
+ * HIVE_VIDEO_MODERATION_MAX_SECONDS scan limit — a Muse over that limit
+ * takes the same long-form-review fork as createPost (see
+ * videoNeedsManualReview below), publishing FLAGGED and pending until the
+ * moderate-long-videos cron clears it. A Muse at or under the Hive limit is
+ * unaffected: still picked up by moderate-videos' short-form Hive scan alone.
  */
 export async function createMuse(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -108,6 +113,20 @@ export async function createMuse(formData: FormData) {
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
 
+  // Same reasoning as createPost's own videoNeedsManualReview — Hive's
+  // Visual Moderation API can't scan past HIVE_VIDEO_MODERATION_MAX_SECONDS,
+  // so a longer Muse publishes hidden pending a human/automated long-form
+  // look instead of going out immediately.
+  const videoNeedsManualReview = videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+
+  // Kicks off the Cloudflare Stream copy now rather than leaving it to the
+  // moderate-long-videos cron's own discovery — same eager-start reasoning
+  // as createPost's streamUidPromise. Best-effort: createStreamCopy fails
+  // closed to null, and advanceLongVideoReview creates its own copy on the
+  // cron's first pass if this one never lands.
+  const streamUid =
+    videoNeedsManualReview && isStreamConfigured() ? await createStreamCopy(videoUrl) : null;
+
   let muse;
   try {
     muse = await prisma.muse.create({
@@ -118,6 +137,12 @@ export async function createMuse(formData: FormData) {
         videoThumbnailUrl,
         videoDurationSeconds,
         audioUrl,
+        moderationStatus: videoNeedsManualReview ? "FLAGGED" : "PUBLISHED",
+        // Pre-claimed so moderate-videos' `videoModeratedAt IS NULL` scan
+        // never picks this up and wastes/fails a Hive call it was never
+        // going to handle — same reasoning as Post's own videoModeratedAt.
+        videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
+        videoStreamUid: streamUid ?? undefined,
       },
     });
   } catch (err) {
@@ -159,8 +184,21 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       reactions: { where: { userId: user.id }, select: { emoji: true } },
+      reposts: { where: { userId: user.id }, select: { id: true } },
     },
   });
+
+  const authorIds = [...new Set(items.map((m) => m.authorId).filter((id) => id !== user.id))];
+  const followingIds = authorIds.length
+    ? new Set(
+        (
+          await prisma.subscription.findMany({
+            where: { subscriberId: user.id, subscribedToId: { in: authorIds } },
+            select: { subscribedToId: true },
+          })
+        ).map((s) => s.subscribedToId),
+      )
+    : new Set<string>();
 
   const nextCursor = items.length === MUSE_FEED_PAGE_SIZE ? items[items.length - 1].id : null;
   return {
@@ -173,10 +211,62 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       createdAt: m.createdAt,
       likeCount: m.likeCount,
       commentCount: m.commentCount,
+      shareCount: m.shareCount,
+      repostCount: m.repostCount,
+      viewCount: m.viewCount,
       author: m.author,
       myReaction: m.reactions[0]?.emoji ?? null,
+      isReposted: m.reposts.length > 0,
+      isFollowingAuthor: followingIds.has(m.authorId),
     })),
     nextCursor,
+  };
+}
+
+/** Single Muse fetch backing the /muse/[id] permalink page (shared/deep links) — same shape as one getMuseFeed item. */
+export async function getMuseById(id: string) {
+  const user = await requireVerifiedUser();
+
+  const m = await prisma.muse.findUnique({
+    where: { id },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      reactions: { where: { userId: user.id }, select: { emoji: true } },
+      reposts: { where: { userId: user.id }, select: { id: true } },
+    },
+  });
+  if (!m || m.moderationStatus !== "PUBLISHED" || (await isBlockedEitherWay(user.id, m.authorId))) {
+    return { error: "not_found" as const, item: null };
+  }
+
+  const isFollowingAuthor =
+    m.authorId === user.id
+      ? false
+      : Boolean(
+          await prisma.subscription.findUnique({
+            where: { subscriberId_subscribedToId: { subscriberId: user.id, subscribedToId: m.authorId } },
+          }),
+        );
+
+  return {
+    error: null,
+    item: {
+      id: m.id,
+      caption: m.caption,
+      videoUrl: m.videoUrl,
+      videoThumbnailUrl: m.videoThumbnailUrl,
+      audioUrl: m.audioUrl,
+      createdAt: m.createdAt,
+      likeCount: m.likeCount,
+      commentCount: m.commentCount,
+      shareCount: m.shareCount,
+      repostCount: m.repostCount,
+      viewCount: m.viewCount,
+      author: m.author,
+      myReaction: m.reactions[0]?.emoji ?? null,
+      isReposted: m.reposts.length > 0,
+      isFollowingAuthor,
+    },
   };
 }
 
@@ -382,5 +472,123 @@ export async function deleteMuseComment(commentId: string) {
     await prisma.muse.update({ where: { id: comment.museId }, data: { commentCount: { decrement: 1 } } });
   }
   revalidatePath("/muse");
+  return { error: null };
+}
+
+/**
+ * Logs one "share" event (native device share sheet, copy-link, etc.) and
+ * bumps Muse.shareCount — mirrors recordShare (actions/shares.ts) for Post.
+ * Fire-and-forget from the client immediately after the native share sheet
+ * is invoked, same as recordShare's own callers.
+ */
+export async function recordMuseShare(museId: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("museShare", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const muse = await prisma.muse.findUnique({ where: { id: museId } });
+  if (!muse || muse.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, muse.authorId)) {
+    return { error: "not_found" as const };
+  }
+
+  const [, updated] = await prisma.$transaction([
+    prisma.museShare.create({ data: { userId: user.id, museId } }),
+    prisma.muse.update({ where: { id: museId }, data: { shareCount: { increment: 1 } } }),
+  ]);
+
+  if (muse.authorId !== user.id) {
+    await prisma.notification.create({
+      data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_SHARE", museId },
+    });
+    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name ?? "Someone", "/muse");
+  }
+
+  revalidatePath("/muse");
+  return { error: null, shareCount: updated.shareCount };
+}
+
+/**
+ * Toggles the caller's "reshare" of a Muse — a lightweight boost (bumps
+ * repostCount, notifies the author) rather than Post's repost(), which
+ * creates a whole new quotable Post row: /muse is already one global feed
+ * visible to everyone, so a reshare has no separate feed placement to create
+ * the way a Post repost does for followers' Home feeds. See MuseRepost in
+ * schema.prisma.
+ */
+export async function toggleMuseRepost(museId: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("museRepost", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const muse = await prisma.muse.findUnique({ where: { id: museId } });
+  if (!muse || muse.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, muse.authorId)) {
+    return { error: "not_found" as const };
+  }
+
+  const existing = await prisma.museRepost.findUnique({
+    where: { userId_museId: { userId: user.id, museId } },
+  });
+
+  if (existing) {
+    const [, updated] = await prisma.$transaction([
+      prisma.museRepost.delete({ where: { id: existing.id } }),
+      prisma.muse.update({ where: { id: museId }, data: { repostCount: { decrement: 1 } } }),
+    ]);
+    revalidatePath("/muse");
+    return { error: null, reposted: false, repostCount: updated.repostCount };
+  }
+
+  const [, updated] = await prisma.$transaction([
+    prisma.museRepost.create({ data: { userId: user.id, museId } }),
+    prisma.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } }),
+  ]);
+
+  if (muse.authorId !== user.id) {
+    await prisma.notification.create({
+      data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_REPOST", museId },
+    });
+    await pushActivityNotification(muse.authorId, "MUSE_REPOST", user.name ?? "Someone", "/muse");
+  }
+
+  revalidatePath("/muse");
+  return { error: null, reposted: true, repostCount: updated.repostCount };
+}
+
+/**
+ * Bumps Muse.viewCount by one — called once per card-visible event from
+ * MuseFeed's own IntersectionObserver, debounced client-side to fire at most
+ * once per card per mount. Deliberately a raw counter with no per-viewer
+ * StoryView-style dedup row: unlike a 24h-ephemeral story, a Muse never
+ * expires, so a unique-per-viewer log here would be an unbounded table for a
+ * permanent, potentially-viral feed. Best-effort — swallows a rate-limit hit
+ * silently rather than surfacing an error to the viewer, since a missed view
+ * tick is inconsequential.
+ */
+export async function recordMuseView(museId: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("museView", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  try {
+    await prisma.muse.update({ where: { id: museId }, data: { viewCount: { increment: 1 } } });
+  } catch {
+    // Muse already deleted out from under this view tick — nothing to do.
+    return { error: "not_found" as const };
+  }
   return { error: null };
 }

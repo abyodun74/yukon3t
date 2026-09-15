@@ -263,6 +263,8 @@ model User {
   museVideos     Muse[]
   museReactions  MuseReaction[]
   museComments   MuseComment[]
+  museShares     MuseShare[]
+  museReposts    MuseRepost[]
 
   sentConnections     Connection[] @relation("ConnectionRequester")
   receivedConnections Connection[] @relation("ConnectionTarget")
@@ -808,6 +810,10 @@ enum NotificationType {
   // toggleMuseReaction/createMuseComment in actions/muse.ts.
   MUSE_LIKE
   MUSE_COMMENT
+  // Same as POST_REPOST/POST_SHARE but for Muse — see toggleMuseRepost/
+  // recordMuseShare in actions/muse.ts.
+  MUSE_REPOST
+  MUSE_SHARE
   // Sent to a comment's author when someone replies to that comment
   // specifically (as opposed to POST_COMMENT, sent to the post's author for
   // any top-level or nested comment) — see createComment in actions/comments.ts.
@@ -1304,15 +1310,18 @@ model StoryView {
 }
 
 /**
- * Short (<=60s, see MAX_MUSE_VIDEO_DURATION_SECONDS in src/lib/storage.ts),
- * public, video-only posts for the dedicated /muse feed — a TikTok/Reels-
- * style discovery surface, distinct from both the Circle/Connection-scoped
- * Post feed and the 24h-ephemeral Story tray: a Muse is permanent and
- * visible to every signed-in user regardless of Circle/Connection, not just
- * the poster's own connections. The 60s cap keeps every Muse eligible for
- * Hive's short-form automated scan alone (moderate-videos cron) — unlike
- * Post/Comment, there is deliberately no long-form Cloudflare Stream review
- * pipeline (videoStreamUid/videoLongReviewClaimedAt) for this model.
+ * Short (<=MAX_MUSE_VIDEO_DURATION_SECONDS, currently 3 minutes — see
+ * src/lib/storage.ts), public, video-only posts for the dedicated /muse feed
+ * — a TikTok/Reels-style discovery surface, distinct from both the
+ * Circle/Connection-scoped Post feed and the 24h-ephemeral Story tray: a
+ * Muse is permanent and visible to every signed-in user regardless of
+ * Circle/Connection, not just the poster's own connections. Anything over
+ * Hive's own 60s scan limit (HIVE_VIDEO_MODERATION_MAX_SECONDS) publishes
+ * FLAGGED and goes through the same Cloudflare Stream long-form review fork
+ * Post/Comment already use (videoStreamUid/videoLongReviewClaimedAt below,
+ * driven by the moderate-long-videos cron) — a video 60s or under still
+ * skips that fork entirely and is covered by the short-form Hive scan alone
+ * (moderate-videos cron), exactly as before.
  */
 model Muse {
   id                   String           @id @default(cuid())
@@ -1333,16 +1342,33 @@ model Muse {
   // body itself; set (alongside moderationStatus) once a verdict lands.
   // Distinct from moderationStatus, which createMuse also sets synchronously
   // at publish time from the caption+thumbnail-only check (moderateMedia) —
-  // same two-stage shape as Post.videoModeratedAt.
+  // same two-stage shape as Post.videoModeratedAt. Also pre-claimed (set at
+  // creation) for a video over Hive's cap, same reasoning as Post's own
+  // videoNeedsManualReview — see createMuse.
   videoModeratedAt DateTime?
+  // Long-video review fork, identical in shape/purpose to Post's own fields
+  // of the same name — see this model's own doc comment above.
+  videoLongReviewClaimedAt DateTime?
+  videoStreamUid           String?
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
   likeCount        Int              @default(0)
   commentCount     Int              @default(0)
+  // Denormalized totals — see MuseShare/MuseRepost below for the per-user
+  // log rows these are kept in sync with, and StoryView's own doc comment
+  // for why a permanent, potentially-viral feed like this one counts raw
+  // views (incremented once per card-visible event client-side) rather than
+  // keeping a StoryView-style unique-per-viewer row per view, which would be
+  // an unbounded table for a Muse that never expires.
+  shareCount  Int @default(0)
+  repostCount Int @default(0)
+  viewCount   Int @default(0)
 
   author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reactions     MuseReaction[]
   comments      MuseComment[]
+  shares        MuseShare[]
+  reposts       MuseRepost[]
   notifications Notification[]
 
   @@index([authorId])
@@ -1350,6 +1376,44 @@ model Muse {
   @@index([moderationStatus, createdAt])
   // Backs the moderate-videos cron's scan for un-scanned Muse videos.
   @@index([videoModeratedAt])
+  // Backs the moderate-long-videos cron's scan for in-progress long reviews.
+  @@index([moderationStatus, videoLongReviewClaimedAt])
+}
+
+// Logs one "share" event (native share sheet, share-to-story, etc.) —
+// mirrors Post's own Share model. Kept as a separate model rather than
+// adding a nullable museId onto Share itself, matching how MuseReaction/
+// MuseComment are already kept separate from Post's Like/Comment rather than
+// widened with an optional museId column.
+model MuseShare {
+  id        String   @id @default(cuid())
+  userId    String
+  museId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  muse Muse @relation(fields: [museId], references: [id], onDelete: Cascade)
+
+  @@index([museId])
+}
+
+// One active "reshare" per user per Muse — a lightweight boost/toggle
+// (unlike Post's repost(), which creates a whole new quotable Post row) that
+// bumps Muse.repostCount and notifies the author; /muse is already a single
+// global feed visible to everyone, so a reshare has no separate feed
+// placement of its own to create the way a Post repost does for followers'
+// Home feeds.
+model MuseRepost {
+  id        String   @id @default(cuid())
+  userId    String
+  museId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  muse Muse @relation(fields: [museId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, museId])
+  @@index([museId])
 }
 
 // One active emoji per user per Muse — same toggle-replace-remove shape as

@@ -298,6 +298,112 @@ async function claimCommentCandidates(claimable: object) {
   return claimed;
 }
 
+// Same claiming logic as claimPostCandidates, against Muse instead of Post —
+// no mediaType filter needed (every Muse is always a video, same reasoning
+// as Comment's own claimCommentCandidates).
+async function claimMuseCandidates(claimable: object) {
+  const candidates = await prisma.muse.findMany({
+    where: {
+      moderationStatus: "FLAGGED",
+      videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+      ...claimable,
+    },
+    orderBy: { createdAt: "asc" },
+    take: BATCH_SIZE,
+    select: { id: true, videoUrl: true, videoDurationSeconds: true, videoStreamUid: true },
+  });
+
+  const claimed: Candidate[] = [];
+  for (const candidate of candidates) {
+    if (!candidate.videoUrl || !candidate.videoDurationSeconds) continue;
+    const result = await prisma.muse.updateMany({
+      where: { id: candidate.id, ...claimable },
+      data: { videoLongReviewClaimedAt: new Date() },
+    });
+    if (result.count > 0) {
+      claimed.push({
+        id: candidate.id,
+        videoUrl: candidate.videoUrl,
+        videoDurationSeconds: candidate.videoDurationSeconds,
+        videoStreamUid: candidate.videoStreamUid,
+      });
+    }
+  }
+  return claimed;
+}
+
+/**
+ * Identical to reviewOnePost, against Muse instead of Post — Muse has no
+ * feed-category/embedding cache to revalidate on "clean", just /muse itself
+ * (its feed is the one and only place a Muse is ever shown).
+ */
+async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["kind"]> {
+  const deadline = Date.now() + POLL_BUDGET_MS;
+  let streamUid = candidate.videoStreamUid;
+
+  for (;;) {
+    let result: VideoReviewResult;
+    try {
+      result = await advanceLongVideoReview({
+        videoUrl: candidate.videoUrl,
+        videoDurationSeconds: candidate.videoDurationSeconds,
+        streamUid,
+      });
+    } catch (err) {
+      console.error(`[moderate-long-videos] unhandled error reviewing muse ${candidate.id}`, err);
+      await prisma.muse.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+      return "error";
+    }
+
+    if (result.kind === "in_progress") {
+      streamUid = result.streamUid;
+      await prisma.muse.update({ where: { id: candidate.id }, data: { videoStreamUid: streamUid } });
+      if (Date.now() >= deadline) {
+        await prisma.muse.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+        return "in_progress";
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
+
+    if (result.kind === "error") {
+      await prisma.muse.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
+      return "error";
+    }
+
+    if (result.kind === "clean") {
+      await prisma.muse.update({
+        where: { id: candidate.id },
+        data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      });
+      revalidatePath("/muse");
+      return "clean";
+    }
+
+    // result.kind === "flagged"
+    const removed = await prisma.$transaction(async (tx) => {
+      const removal = await removeModeratedContent("MUSE", candidate.id, tx);
+      if (removal) {
+        await tx.auditLog.create({
+          data: {
+            targetId: removal.authorId,
+            action: "CONTENT_REMOVED",
+            performedBy: "system:openai-video-review",
+            reason: `Long-video automated review flagged: ${result.reasons.join("; ")}`,
+          },
+        });
+      }
+      return removal;
+    });
+    if (removed) {
+      await cleanUpModeratedMedia(removed.mediaKeysToDelete);
+      await recomputeTrustScore(removed.authorId);
+      await notifyVideoModerationFailed(removed.authorId, result.reasons);
+    }
+    return "flagged";
+  }
+}
+
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
@@ -309,19 +415,21 @@ export async function GET(request: Request) {
   const staleCutoff = new Date(Date.now() - CLAIM_STALE_MS);
   const claimable = { OR: [{ videoLongReviewClaimedAt: null }, { videoLongReviewClaimedAt: { lt: staleCutoff } }] };
 
-  const [claimedPosts, claimedComments] = await Promise.all([
+  const [claimedPosts, claimedComments, claimedMuses] = await Promise.all([
     claimPostCandidates(claimable),
     claimCommentCandidates(claimable),
+    claimMuseCandidates(claimable),
   ]);
 
-  if (claimedPosts.length === 0 && claimedComments.length === 0) {
+  if (claimedPosts.length === 0 && claimedComments.length === 0 && claimedMuses.length === 0) {
     return NextResponse.json({ error: null, processed: false });
   }
 
-  const [postOutcomes, commentOutcomes] = await Promise.all([
+  const [postOutcomes, commentOutcomes, museOutcomes] = await Promise.all([
     Promise.all(claimedPosts.map((candidate) => reviewOnePost(candidate))),
     Promise.all(claimedComments.map((candidate) => reviewOneComment(candidate))),
+    Promise.all(claimedMuses.map((candidate) => reviewOneMuse(candidate))),
   ]);
 
-  return NextResponse.json({ error: null, processed: true, postOutcomes, commentOutcomes });
+  return NextResponse.json({ error: null, processed: true, postOutcomes, commentOutcomes, museOutcomes });
 }

@@ -5,6 +5,24 @@ import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
+import { markAllAsRead } from "@/app/actions/notifications";
+
+// Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
+// auth/onboarding flows the user hasn't finished yet, where landing them on
+// /home would either bounce them straight back out (unauthenticated) or
+// skip a step they're mid-way through. Everything else (the whole signed-in
+// app surface: /home, /muse, /messages, /circles, a profile, /post/[id],
+// ...) is fair game — see the resume listener below.
+const NO_HOME_RESET_PREFIXES = [
+  "/sign-in",
+  "/sign-up",
+  "/onboarding",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/invite",
+  "/legal",
+];
 
 /**
  * Native-app-only wiring for the Capacitor iOS/Android build (see
@@ -35,12 +53,22 @@ export function CapacitorBridge() {
   // owning any native-listener lifecycle itself.
   const requestPermissionNowRef = useRef<(() => void) | null>(null);
   const promptedRef = useRef(false);
+  // Mirrors the current pathname into a ref so the resume listener below
+  // (created once, inside the stable [router]-only effect) can read
+  // wherever the user actually is *right now* instead of wherever they were
+  // when the listener was first attached — same "ref mirror kept current
+  // by its own effect" pattern MuseFeed's itemsRef uses for the same reason.
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     let tokenListener: { remove: () => void } | undefined;
     let actionListener: { remove: () => void } | undefined;
+    let resumeListener: { remove: () => void } | undefined;
     let cancelled = false;
 
     async function setupNotifications(promptNow: boolean) {
@@ -101,9 +129,41 @@ export function CapacitorBridge() {
           if (typeof url === "string" && url.startsWith("/")) {
             router.push(url);
           }
+          // Tapping any push notification counts as "opened the
+          // notifications" the same way visiting /notifications itself
+          // does (see that page's own auto-mark-all-as-read) — the tap
+          // already acknowledges this one, so the rest of the tray
+          // shouldn't stay stuck unread just because its target wasn't
+          // /notifications specifically. Best-effort/fire-and-forget: a
+          // failure here shouldn't block navigating to the tapped target.
+          markAllAsRead().catch(() => {});
         },
       );
     }
+
+    // Resets navigation to /home every time the app is brought to the
+    // foreground — tapping the launcher icon, switching back via Recents,
+    // or returning from another app all fire "resume" (same set of "opened
+    // the app" triggers MainActivity.onResume's own notification-clearing
+    // already documents), covering the gap a plain cold start doesn't:
+    // Capacitor's WebView isn't torn down on a simple backgrounding, so
+    // without this, resuming mid-session would otherwise leave the user
+    // wherever they last scrolled to instead of landing back on Home.
+    // Skipped on an auth/onboarding route (see NO_HOME_RESET_PREFIXES) and
+    // when already on /home, so this never fights an in-progress sign-in
+    // flow or bounces someone already there.
+    import("@capacitor/app").then(({ App }) => {
+      if (cancelled) return;
+      App.addListener("resume", () => {
+        const current = pathnameRef.current;
+        if (current === "/home") return;
+        if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
+        router.push("/home");
+      }).then((h) => {
+        if (cancelled) h.remove();
+        else resumeListener = h;
+      });
+    });
 
     (async () => {
       const [{ SplashScreen }, { StatusBar, Style }] = await Promise.all([
@@ -158,6 +218,7 @@ export function CapacitorBridge() {
       requestPermissionNowRef.current = null;
       tokenListener?.remove();
       actionListener?.remove();
+      resumeListener?.remove();
     };
   }, [router]);
 

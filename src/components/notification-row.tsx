@@ -22,6 +22,8 @@ type NotificationData = {
     | "COMMENT_REPLY"
     | "POST_REPOST"
     | "POST_SHARE"
+    | "MUSE_REPOST"
+    | "MUSE_SHARE"
     | "EVENT_RSVP"
     | "CIRCLE_JOINED"
     | "CIRCLE_CREATED"
@@ -57,6 +59,7 @@ type NotificationData = {
   collab: { id: string } | null;
   liveStreamId: string | null;
   channel: { slug: string } | null;
+  museId: string | null;
 };
 
 function hrefFor(notification: NotificationData) {
@@ -71,12 +74,14 @@ function hrefFor(notification: NotificationData) {
   if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
     return "/connections";
   }
-  // No per-Muse route exists (the /muse feed is one continuous swipeable
-  // stream, not individually addressable pages) — same reasoning STORY_COMMENT
-  // already accepts below (falls through to the actor's profile), except
-  // /muse is a strictly better landing spot here since it exists and is
-  // directly relevant, unlike a guess at the actor's profile.
-  if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT") return "/muse";
+  // /muse/[id] is a permalink to one Muse (added alongside the Share/
+  // Reshare feature — see muse-feed.tsx's shareMuse) that also continues
+  // into the normal feed on further scroll; falls back to the plain /muse
+  // feed on the off chance museId is somehow missing.
+  if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
+      notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE") {
+    return notification.museId ? `/muse/${notification.museId}` : "/muse";
+  }
   // The post it'd otherwise link to no longer exists (removed by the
   // moderation review that triggered this) — nothing more specific to
   // send the reader to than their own profile/feed.
