@@ -25,7 +25,8 @@ export type UploadKind =
   | "voice-dictation"
   | "comment-audio"
   | "comment-video"
-  | "muse-video";
+  | "muse-video"
+  | "muse-audio";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -53,6 +54,11 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
   "muse-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  // Broader than message/comment audio's webm-only allowlist (those are
+  // always a live MediaRecorder capture) — this is a "pick a sound" file
+  // picker, most often an existing music/audio file from the device, so it
+  // needs to accept the common formats those actually come in as.
+  "muse-audio": { "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
   // Material shared into a Collab session's chat — documents in addition to
@@ -104,6 +110,10 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   // Same shared byte cap as every other video kind — MAX_MUSE_VIDEO_DURATION_SECONDS
   // below is what actually keeps a Muse short, not this.
   "muse-video": MAX_VIDEO_BYTES,
+  // A 60s clip (the same ceiling a Muse video is held to) comfortably fits
+  // even a high-bitrate mp3 well under this — same cap as message-audio/
+  // comment-audio, which cover a similar realistic clip length.
+  "muse-audio": 5 * 1024 * 1024,
 };
 
 const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([

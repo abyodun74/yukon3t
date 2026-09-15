@@ -40,15 +40,20 @@ export async function createMuse(formData: FormData) {
     videoUrl: formData.get("videoUrl"),
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
     videoDurationSeconds: formData.get("videoDurationSeconds"),
+    audioUrl: formData.get("audioUrl") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
   // museSchema's own .max(MAX_MUSE_VIDEO_DURATION_SECONDS) already rejects
   // (as "invalid") anything longer before this point is reached.
-  const { caption, videoUrl, videoThumbnailUrl, videoDurationSeconds } = parsed.data;
+  const { caption, videoUrl, videoThumbnailUrl, videoDurationSeconds, audioUrl } = parsed.data;
 
-  const uploadedUrls = [videoUrl, ...(videoThumbnailUrl ? [videoThumbnailUrl] : [])];
+  const uploadedUrls = [
+    videoUrl,
+    ...(videoThumbnailUrl ? [videoThumbnailUrl] : []),
+    ...(audioUrl ? [audioUrl] : []),
+  ];
   async function cleanupUploads() {
     await Promise.all(
       uploadedUrls.map((url) => {
@@ -80,6 +85,18 @@ export async function createMuse(formData: FormData) {
       return { error: "too_large" as const };
     }
   }
+  if (audioUrl) {
+    const audioKey = keyFromPublicUrl(audioUrl);
+    const audioSizeOk = audioKey && (await verifyUploadedSize({
+      key: audioKey,
+      maxBytes: MEDIA_LIMITS["muse-audio"],
+      ownerId: user.id,
+    }));
+    if (!audioSizeOk) {
+      await cleanupUploads();
+      return { error: "too_large" as const };
+    }
+  }
 
   const modResult = await moderateMedia({
     text: caption,
@@ -100,6 +117,7 @@ export async function createMuse(formData: FormData) {
         videoUrl,
         videoThumbnailUrl,
         videoDurationSeconds,
+        audioUrl,
       },
     });
   } catch (err) {
@@ -151,6 +169,7 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       caption: m.caption,
       videoUrl: m.videoUrl,
       videoThumbnailUrl: m.videoThumbnailUrl,
+      audioUrl: m.audioUrl,
       createdAt: m.createdAt,
       likeCount: m.likeCount,
       commentCount: m.commentCount,
@@ -175,7 +194,7 @@ export async function deleteMuse(id: string) {
 
   await prisma.muse.delete({ where: { id } });
   await Promise.all(
-    [muse.videoUrl, muse.videoThumbnailUrl]
+    [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl]
       .filter((url): url is string => Boolean(url))
       .map((url) => {
         const key = keyFromPublicUrl(url);

@@ -135,7 +135,7 @@ export async function removeModeratedContent(
 
       await tx.muse.delete({ where: { id: targetId } });
 
-      const mediaUrls = [muse.videoUrl, muse.videoThumbnailUrl].filter(
+      const mediaUrls = [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl].filter(
         (url): url is string => Boolean(url),
       );
       const mediaKeysToDelete = mediaUrls

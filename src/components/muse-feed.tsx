@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { X, MessageCircle } from "lucide-react";
+import { X, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import {
   getMuseFeed,
   getMuseReactionSummary,
@@ -32,6 +32,7 @@ type MuseItem = {
   caption: string | null;
   videoUrl: string;
   videoThumbnailUrl: string | null;
+  audioUrl: string | null;
   createdAt: Date;
   likeCount: number;
   commentCount: number;
@@ -89,12 +90,19 @@ export function MuseFeed({
   const [cursor, setCursor] = useState(initialCursor);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Starts muted — a guaranteed-to-autoplay baseline (unlike story-viewer.tsx,
+  // which can lean on the tap that opened it as a prior user gesture, /muse
+  // can be the very first interaction on page load, where several browsers/
+  // WebViews block autoplay-with-sound outright). The speaker button below
+  // is how sound actually gets heard.
+  const [muted, setMuted] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<MuseCommentData[] | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const pointerStartYRef = useRef(0);
   const loadingMoreRef = useRef(false);
 
@@ -116,11 +124,25 @@ export function MuseFeed({
     };
   }, [currentId]);
 
+  // Drives both the video and (when present) the separate audio track
+  // together — same play/pause/index dependencies for both, since a Muse
+  // with a custom audio track always plays the video muted and this audio
+  // element instead (see MuseComposer/Muse.audioUrl's own comments). Not
+  // synchronized beyond both starting together on the same index/pause
+  // change; a real seek-sync (e.g. correcting drift over a long clip)
+  // isn't attempted — same tradeoff as any two independently-buffered
+  // media elements meant to start together, acceptable for a <=60s clip.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-    if (paused || commentsOpen) video.pause();
-    else video.play().catch(() => {});
+    const audio = audioRef.current;
+    if (video) {
+      if (paused || commentsOpen) video.pause();
+      else video.play().catch(() => {});
+    }
+    if (audio) {
+      if (paused || commentsOpen) audio.pause();
+      else audio.play().catch(() => {});
+    }
   }, [paused, commentsOpen, index]);
 
   const loadMore = useCallback(async () => {
@@ -257,11 +279,17 @@ export function MuseFeed({
         src={current.videoUrl}
         poster={current.videoThumbnailUrl ?? undefined}
         autoPlay
-        muted
+        // Always muted when a separate audioUrl is replacing the video's
+        // own sound (playing both would double up), otherwise follows the
+        // shared mute toggle — same source either way, never both at once.
+        muted={Boolean(current.audioUrl) || muted}
         loop
         playsInline
         className="absolute inset-0 h-full w-full object-contain"
       />
+      {current.audioUrl && (
+        <audio key={`${current.id}-audio`} ref={audioRef} src={current.audioUrl} autoPlay muted={muted} loop />
+      )}
 
       {paused && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -274,8 +302,29 @@ export function MuseFeed({
       )}
 
       <div className="relative flex flex-1 flex-col justify-between">
-        <div className="flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-2">
-          <SafeAreaTopSpacer />
+        <div
+          // Unlike StoryViewer/live-stream-room (both z-[70], above the
+          // header), this container sits at z-10, deliberately below
+          // nav.tsx's sticky header — so a plain safe-area spacer isn't
+          // enough here, the header's own real content height needs
+          // clearing too, or an interactive control placed right under it
+          // renders hidden behind the opaque header instead (confirmed
+          // live: the mute button sat entirely underneath it). ~4rem is the
+          // header's measured height with no safe-area-inset-top; same
+          // approximation/rounding this component already uses for the
+          // bottom nav's clearance.
+          className="flex items-center justify-end bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setMuted((m) => !m)}
+            aria-label={muted ? "Unmute" : "Mute"}
+            className="rounded-full bg-black/40 p-2 text-white"
+          >
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
         </div>
 
         {/* One grouped block, not separate flex children of the

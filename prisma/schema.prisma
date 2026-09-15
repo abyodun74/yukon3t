@@ -1321,6 +1321,14 @@ model Muse {
   videoUrl             String
   videoThumbnailUrl    String?
   videoDurationSeconds Int
+  // A separate uploaded audio track ("add sound"-style) — when set, it
+  // entirely replaces the video's own sound for playback (the video plays
+  // muted, this plays instead) rather than mixing with it; the creator
+  // chooses "use my video's own sound" (this stays null) vs. "use this
+  // audio instead" (this is set) at post time in MuseComposer, not
+  // per-viewer. Unmoderated like every other audio upload in this app
+  // (message/comment voice notes) — only size/duration capped.
+  audioUrl String?
   // null = still awaiting the moderate-videos cron's Hive scan of the video
   // body itself; set (alongside moderationStatus) once a verdict lands.
   // Distinct from moderationStatus, which createMuse also sets synchronously

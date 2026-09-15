@@ -255,6 +255,7 @@ export const uploadKindValues = [
   "comment-audio",
   "comment-video",
   "muse-video",
+  "muse-audio",
 ] as const;
 
 export const requestUploadSchema = z.object({
@@ -353,6 +354,10 @@ export const museSchema = z.object({
   // Same reasoning post-composer.tsx's own MAX_UPLOAD_VIDEO_SECONDS
   // duplicate and muse-composer.tsx's MAX_MUSE_SECONDS already document.
   videoDurationSeconds: z.coerce.number().int().min(1).max(60),
+  // Set only when the creator chose "use this audio instead" in
+  // MuseComposer — absent (not just empty) means "use the video's own
+  // sound," never a mix of both. See Muse.audioUrl's schema comment.
+  audioUrl: z.string().url().optional(),
 });
 
 export const connectionRequestSchema = z.object({
