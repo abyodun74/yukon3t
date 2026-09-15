@@ -39,11 +39,11 @@ const sections: Section[] = [
         a: (
           <>
             On desktop, the top bar has links to Home, Discover, Circles,
-            Collab Boards, Connections, Messages, and your Profile. On a
-            phone, the five most-used sections (Home, Circles, Collab,
-            Messages, Discover) sit in a bottom tab bar — tap the ☰ menu in
-            the top-right for Profile, Connections, Settings, and (for
-            admins) Moderation tools.
+            Collab Boards, Muse, Connections, Messages, and your Profile. On a
+            phone, the six most-used sections (Home, Circles, Collab, Muse,
+            Connections, Profile) sit in a bottom tab bar — tap the ☰ menu in
+            the top-right for Messages, Discover, Settings, and (for admins)
+            Moderation tools.
           </>
         ),
       },
@@ -52,9 +52,9 @@ const sections: Section[] = [
         a: (
           <>
             Yes, on a phone: swipe right anywhere on the screen to move
-            forward through Home → Circles → Collab → Messages → Discover,
-            wrapping back around to Home. Swipe left to move backward through
-            the same tabs, wrapping the other way.
+            forward through Home → Circles → Collab → Muse → Connections →
+            Profile, wrapping back around to Home. Swipe left to move
+            backward through the same tabs, wrapping the other way.
           </>
         ),
       },
@@ -77,6 +77,18 @@ const sections: Section[] = [
             Use the theme toggle next to Settings in the top bar (or in the
             ☰ menu on mobile). It follows your device by default, but you can
             pin it to light or dark.
+          </>
+        ),
+      },
+      {
+        q: "What's the megaphone icon next to the bell?",
+        a: (
+          <>
+            That&apos;s &ldquo;What&apos;s New&rdquo; — tap it for a running
+            list of new features and updates we&apos;ve shipped. It lights up
+            when there&apos;s something you haven&apos;t seen yet, and a real
+            phone notification goes out the moment a new one is posted, so
+            you don&apos;t have to remember to check.
           </>
         ),
       },
@@ -167,11 +179,17 @@ const sections: Section[] = [
         q: "What shows up as a notification on my phone?",
         a: (
           <>
-            Incoming calls, missed calls (with the caller&apos;s name), and
-            now likes, comments, and connection requests too — these arrive
-            as real Android notifications even when the app isn&apos;t open,
-            not just the bell icon inside the app. Tapping one opens the
-            relevant post, comment thread, or Connections list.
+            Incoming calls, missed calls (with the caller&apos;s name), likes
+            and comments on your posts and Muse videos, connection requests,
+            and app-wide announcements about new features — these arrive as
+            real Android notifications even when the app isn&apos;t open, not
+            just the bell icon inside the app. Tapping one opens the relevant
+            post, Muse, comment thread, or Connections list. Opening the app
+            (from a notification, the launcher icon, or switching back from
+            another app) automatically clears every notification of this
+            kind from your notification shade — a ringing or missed call is
+            the one exception, since those stay until you actually deal with
+            the call.
           </>
         ),
       },
@@ -239,6 +257,21 @@ const sections: Section[] = [
             possible (not just a bare link), stamped with a small yukon3t
             logo, so apps like WhatsApp or Messages show the real post
             branded back to where it came from.
+          </>
+        ),
+      },
+      {
+        q: "Can I share a photo or video from another app straight into YuKon3t?",
+        a: (
+          <>
+            Yes — from your phone&apos;s own share sheet in Photos, your
+            camera roll, or another app, choose YuKon3t as the target. A
+            small dialog opens right away letting you post it to your Home
+            feed, add it to your Story, or send it to a friend — pick one and
+            it publishes immediately (after passing the same automatic
+            content check every upload goes through), no extra taps or
+            navigating to the composer separately. Android only, since this
+            depends on the device&apos;s own share sheet.
           </>
         ),
       },
@@ -539,6 +572,72 @@ const sections: Section[] = [
             viewing the Story can see, visible from the comment icon next to
             the reactions, and you get notified when someone comments on
             yours.
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Muse",
+    items: [
+      {
+        q: "What's Muse?",
+        a: (
+          <>
+            A dedicated tab for short, funny, creative videos — full-screen,
+            one at a time, swipe up for the next and down for the previous.
+            Unlike a Story, a Muse doesn&apos;t expire after 24 hours, and
+            unlike your Home feed it&apos;s not limited to people
+            you&apos;re connected to — every Muse is visible to everyone on
+            YuKon3t, a discovery feed rather than a connections-only one.
+          </>
+        ),
+      },
+      {
+        q: "How do I post a Muse?",
+        a: (
+          <>
+            Open your own profile and tap &ldquo;Post a Muse.&rdquo; Choose a
+            video (up to 60 seconds), optionally add a caption, and post —
+            that&apos;s it, no extra screens. You can also choose
+            &ldquo;Custom audio&rdquo; before posting to attach a separate
+            sound file that entirely replaces the video&apos;s own audio
+            (TikTok&apos;s &ldquo;add sound&rdquo; idea) — pick
+            &ldquo;Original sound&rdquo; (the default) to keep the
+            video&apos;s own audio instead.
+          </>
+        ),
+      },
+      {
+        q: "Why is a Muse muted when I open the feed?",
+        a: (
+          <>
+            Sound starts muted so videos can reliably autoplay the instant
+            you land on the tab — tap the speaker icon near the top of the
+            screen to turn sound on, and it stays on as you swipe to the next
+            Muse.
+          </>
+        ),
+      },
+      {
+        q: "Can I react or comment on a Muse?",
+        a: (
+          <>
+            Yes — the same quick-reaction row and full emoji picker as posts
+            and Stories, plus a public comment thread (tap the comment icon
+            to open it as a sheet from the bottom). The creator, the
+            commenter, or an admin can remove any comment.
+          </>
+        ),
+      },
+      {
+        q: "Do I need to keep swiping to see if there's more?",
+        a: (
+          <>
+            No — Muse loads the next batch of videos in the background as you
+            approach the end of what&apos;s currently loaded, so swiping
+            through feels continuous. You&apos;ll see &ldquo;You&apos;re all
+            caught up&rdquo; once you&apos;ve reached the very last one.
           </>
         ),
       },
