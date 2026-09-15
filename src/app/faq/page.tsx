@@ -179,17 +179,21 @@ const sections: Section[] = [
         q: "What shows up as a notification on my phone?",
         a: (
           <>
-            Incoming calls, missed calls (with the caller&apos;s name), likes
-            and comments on your posts and Muse videos, connection requests,
-            and app-wide announcements about new features — these arrive as
-            real Android notifications even when the app isn&apos;t open, not
-            just the bell icon inside the app. Tapping one opens the relevant
-            post, Muse, comment thread, or Connections list. Opening the app
-            (from a notification, the launcher icon, or switching back from
-            another app) automatically clears every notification of this
-            kind from your notification shade — a ringing or missed call is
-            the one exception, since those stay until you actually deal with
-            the call.
+            Incoming calls, missed calls (with the caller&apos;s name), likes,
+            comments, shares, and reshares on your posts and Muse videos,
+            connection requests, and app-wide announcements about new
+            features — these arrive as real Android notifications even when
+            the app isn&apos;t open, not just the bell icon inside the app.
+            Tapping one opens the relevant post, Muse, comment thread, or
+            Connections list. Opening the app (from a notification, the
+            launcher icon, or switching back from another app) automatically
+            clears every notification of this kind from your notification
+            shade — a ringing or missed call is the one exception, since
+            those stay until you actually deal with the call. Separately,
+            opening the in-app notification bell (or tapping any push
+            notification) also marks your whole in-app notification list as
+            read, so the red badge on the bell clears without needing to tap
+            &ldquo;Mark all as read&rdquo; yourself.
           </>
         ),
       },
@@ -527,10 +531,23 @@ const sections: Section[] = [
         q: "What's a Story?",
         a: (
           <>
-            A photo or short video (up to 2 minutes) on your profile that
-            disappears automatically after 24 hours. Tap the &ldquo;+&rdquo;
-            on your own profile picture to add one — anyone who can see your
-            profile can view it while it&apos;s active.
+            A photo, short video (up to 2 minutes), or typed/pasted text on
+            your profile that disappears automatically after 24 hours. Tap
+            the &ldquo;+&rdquo; on your own profile picture to add one —
+            anyone who can see your profile can view it while it&apos;s
+            active.
+          </>
+        ),
+      },
+      {
+        q: "Can I post a text-only Story?",
+        a: (
+          <>
+            Yes — when adding a Story, switch to the &ldquo;Text&rdquo; tab
+            instead of picking a photo or video. Type or paste whatever you
+            want to say, choose a background color, and post — it becomes an
+            image behind the scenes, so it works exactly like any other
+            Story (24-hour expiry, reactions, replies, comments).
           </>
         ),
       },
@@ -585,11 +602,12 @@ const sections: Section[] = [
         a: (
           <>
             A dedicated tab for short, funny, creative videos — full-screen,
-            one at a time, swipe up for the next and down for the previous.
-            Unlike a Story, a Muse doesn&apos;t expire after 24 hours, and
-            unlike your Home feed it&apos;s not limited to people
-            you&apos;re connected to — every Muse is visible to everyone on
-            YuKon3t, a discovery feed rather than a connections-only one.
+            one at a time, scroll down for the next and up for the previous
+            (an ordinary scrolling feed, not a swipe gesture). Unlike a
+            Story, a Muse doesn&apos;t expire after 24 hours, and unlike your
+            Home feed it&apos;s not limited to people you&apos;re connected
+            to — every Muse is visible to everyone on YuKon3t, a discovery
+            feed rather than a connections-only one.
           </>
         ),
       },
@@ -598,13 +616,51 @@ const sections: Section[] = [
         a: (
           <>
             Open your own profile and tap &ldquo;Post a Muse.&rdquo; Choose a
-            video (up to 60 seconds), optionally add a caption, and post —
-            that&apos;s it, no extra screens. You can also choose
-            &ldquo;Custom audio&rdquo; before posting to attach a separate
-            sound file that entirely replaces the video&apos;s own audio
-            (TikTok&apos;s &ldquo;add sound&rdquo; idea) — pick
-            &ldquo;Original sound&rdquo; (the default) to keep the
-            video&apos;s own audio instead.
+            video (up to 3 minutes), optionally add a caption, and post —
+            that&apos;s it, no extra screens. A longer video (over about a
+            minute) goes through an extra automated safety review before it
+            becomes visible to others, which can take a little longer than a
+            shorter clip. You can also choose &ldquo;Custom audio&rdquo;
+            before posting to attach a separate sound file that entirely
+            replaces the video&apos;s own audio (TikTok&apos;s &ldquo;add
+            sound&rdquo; idea) — pick &ldquo;Original sound&rdquo; (the
+            default) to keep the video&apos;s own audio instead.
+          </>
+        ),
+      },
+      {
+        q: "Can I delete a Muse after I've posted it?",
+        a: (
+          <>
+            Yes — open the Muse on the /muse feed and tap the trash icon near
+            the top (only visible on your own Muse), then tap it again to
+            confirm. It&apos;s removed immediately and permanently, for you
+            and everyone else.
+          </>
+        ),
+      },
+      {
+        q: "Can I share, reshare, or follow on Muse?",
+        a: (
+          <>
+            Yes, all three sit alongside the comment and reaction buttons on
+            each Muse: the share icon opens your device&apos;s own share
+            sheet with a direct link to that Muse; the reshare icon (a
+            circular arrow) boosts it and notifies the creator, and tapping
+            it again undoes it; and &ldquo;Subscribe&rdquo; next to the
+            creator&apos;s name follows them so you hear about their future
+            posts — none of these require being connected to the creator
+            first, same as reacting or commenting.
+          </>
+        ),
+      },
+      {
+        q: "What does the view count on a Muse mean?",
+        a: (
+          <>
+            The eye icon under the caption counts how many times that Muse
+            has been viewed, including your own views — it&apos;s a running
+            total, not a unique-viewer count.
           </>
         ),
       },
@@ -614,8 +670,8 @@ const sections: Section[] = [
           <>
             Sound starts muted so videos can reliably autoplay the instant
             you land on the tab — tap the speaker icon near the top of the
-            screen to turn sound on, and it stays on as you swipe to the next
-            Muse.
+            screen to turn sound on, and it stays on as you scroll to the
+            next Muse.
           </>
         ),
       },
@@ -631,11 +687,11 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Do I need to keep swiping to see if there's more?",
+        q: "Do I need to keep scrolling to see if there's more?",
         a: (
           <>
             No — Muse loads the next batch of videos in the background as you
-            approach the end of what&apos;s currently loaded, so swiping
+            approach the end of what&apos;s currently loaded, so scrolling
             through feels continuous. You&apos;ll see &ldquo;You&apos;re all
             caught up&rdquo; once you&apos;ve reached the very last one.
           </>
