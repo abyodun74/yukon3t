@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import {
@@ -17,15 +17,17 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import type { ReactionSummary } from "@/lib/reactions";
 
-// Same threshold/shape as story-viewer.tsx's own swipe gesture — vertical
-// here instead of horizontal, since there's no "previous story in this
-// author's ring" concept: every advance (up or down) just moves through the
-// flat, cross-author feed array by one.
-const SWIPE_THRESHOLD_PX = 60;
-// How close to the end of the loaded buffer triggers fetching the next page
-// — early enough that a fast swiper doesn't hit a dead end while the network
-// request for more is still in flight.
-const PREFETCH_WITHIN = 3;
+// How far before the actual end of the loaded list to start fetching more —
+// expressed as a fraction of one full-screen card's height (rootMargin),
+// not an item count, since each card is a real scrollable snap section now
+// rather than a single manually-tracked "current index." Large enough that
+// a fast scroller doesn't hit a dead end while the network request for
+// more is still in flight.
+const LOAD_MORE_ROOT_MARGIN = "200% 0px";
+// Matches use-autoplay-on-view.ts's own threshold — a card counts as
+// "active" (worth autoplaying, worth showing as the one whose mute state
+// etc. applies) once it's mostly, not just barely, scrolled into view.
+const ACTIVE_VISIBILITY_THRESHOLD = 0.6;
 
 type MuseItem = {
   id: string;
@@ -88,154 +90,82 @@ export function MuseFeed({
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
   // Starts muted — a guaranteed-to-autoplay baseline (unlike story-viewer.tsx,
   // which can lean on the tap that opened it as a prior user gesture, /muse
   // can be the very first interaction on page load, where several browsers/
-  // WebViews block autoplay-with-sound outright). The speaker button below
-  // is how sound actually gets heard.
+  // WebViews block autoplay-with-sound outright). The speaker button on
+  // each card is how sound actually gets heard; shared globally across
+  // every card, same "one sound setting for the whole feed" convention the
+  // Home feed's own videos already use.
   const [muted, setMuted] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [reactions, setReactions] = useState<ReactionSummary[]>([]);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<MuseCommentData[] | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const pointerStartYRef = useRef(0);
   const loadingMoreRef = useRef(false);
-
-  const current = items[index] as MuseItem | undefined;
-
-  // Fetches the current item's full per-emoji breakdown lazily — the feed
-  // list itself only carries likeCount (a cheap denormalized total) and
-  // myReaction (this viewer's own pick), not every item's full breakdown,
-  // since that would mean a groupBy per item on every page load.
-  const currentId = current?.id;
-  useEffect(() => {
-    if (!currentId) return;
-    let cancelled = false;
-    getMuseReactionSummary(currentId).then((result) => {
-      if (!cancelled) setReactions(result.reactions);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentId]);
-
-  // Drives both the video and (when present) the separate audio track
-  // together — same play/pause/index dependencies for both, since a Muse
-  // with a custom audio track always plays the video muted and this audio
-  // element instead (see MuseComposer/Muse.audioUrl's own comments). Not
-  // synchronized beyond both starting together on the same index/pause
-  // change; a real seek-sync (e.g. correcting drift over a long clip)
-  // isn't attempted — same tradeoff as any two independently-buffered
-  // media elements meant to start together, acceptable for a <=60s clip.
-  useEffect(() => {
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (video) {
-      if (paused || commentsOpen) video.pause();
-      else video.play().catch(() => {});
-    }
-    if (audio) {
-      if (paused || commentsOpen) audio.pause();
-      else audio.play().catch(() => {});
-    }
-  }, [paused, commentsOpen, index]);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
-    setLoadingMore(true);
     const result = await getMuseFeed({ cursor });
     setItems((prev) => [...prev, ...result.items]);
     setCursor(result.nextCursor);
-    setLoadingMore(false);
     loadingMoreRef.current = false;
   }, [cursor]);
 
+  // Infinite-scroll sentinel — a real scrollable list (this is now one,
+  // not a single manually-swiped item) needs its own "getting close to the
+  // end" signal, distinct from each card's own visibility observer below.
   useEffect(() => {
-    if (items.length - index <= PREFETCH_WITHIN) loadMore();
-  }, [index, items.length, loadMore]);
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) loadMore();
+      },
+      { rootMargin: LOAD_MORE_ROOT_MARGIN },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
-  function goTo(nextIndex: number) {
-    if (nextIndex < 0 || nextIndex >= items.length) return;
-    setIndex(nextIndex);
-    setPaused(false);
-    setCommentsOpen(false);
-    setComments(null);
-  }
-
-  // The comments sheet is a child of this same container (an absolutely
-  // positioned overlay, not a portal), so a pointerdown/up inside it would
-  // otherwise still bubble up to these handlers and toggle pause or swipe
-  // the feed out from under someone mid-comment — pointer events bubble by
-  // DOM ancestry regardless of stacking/z-index. Skip the gesture entirely
-  // while it's open. The bottom control cluster (author/comment/reaction
-  // buttons) also stops propagation on its own pointer events for the same
-  // reason even when the sheet is closed — see its wrapper below.
-  function onPointerDown(e: PointerEvent) {
-    if (commentsOpen) return;
-    pointerStartYRef.current = e.clientY;
-  }
-  function onPointerUp(e: PointerEvent) {
-    if (commentsOpen) return;
-    const deltaY = e.clientY - pointerStartYRef.current;
-    if (Math.abs(deltaY) < SWIPE_THRESHOLD_PX) {
-      // Not a swipe — a tap toggles play/pause instead.
-      setPaused((p) => !p);
-      return;
-    }
-    if (deltaY < 0) goTo(index + 1);
-    else goTo(index - 1);
-  }
-
-  async function toggleReaction(emoji: string) {
-    if (!current) return;
-    const result = await toggleMuseReaction(current.id, emoji);
+  async function toggleReaction(museId: string, emoji: string) {
+    const result = await toggleMuseReaction(museId, emoji);
     if (result.reactions) {
-      setReactions(result.reactions);
       const total = result.reactions.reduce((sum, r) => sum + r.count, 0);
-      setItems((prev) => prev.map((it) => (it.id === current.id ? { ...it, likeCount: total } : it)));
+      setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, likeCount: total } : it)));
     }
+    return result.reactions;
   }
 
-  async function openComments() {
-    if (!current) return;
-    setCommentsOpen(true);
+  async function openComments(museId: string) {
+    setCommentsOpenForId(museId);
     setComments(null);
-    const result = await getMuseComments(current.id);
+    const result = await getMuseComments(museId);
     setComments(result.comments);
   }
 
-  async function postComment(content: string): Promise<boolean> {
-    if (!current) return false;
+  async function postComment(museId: string, content: string): Promise<boolean> {
     const fd = new FormData();
     fd.set("content", content);
-    const result = await createMuseComment(current.id, fd);
+    const result = await createMuseComment(museId, fd);
     if (result.error || !result.comment) return false;
     setComments((prev) => [...(prev ?? []), result.comment]);
-    setItems((prev) =>
-      prev.map((it) => (it.id === current.id ? { ...it, commentCount: it.commentCount + 1 } : it)),
-    );
+    setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, commentCount: it.commentCount + 1 } : it)));
     return true;
   }
 
-  async function removeComment(commentId: string) {
+  async function removeComment(museId: string, commentId: string) {
     await deleteMuseComment(commentId);
     setComments((prev) => (prev ? prev.filter((c) => c.id !== commentId) : prev));
-    if (current) {
-      setItems((prev) =>
-        prev.map((it) => (it.id === current.id ? { ...it, commentCount: Math.max(0, it.commentCount - 1) } : it)),
-      );
-    }
+    setItems((prev) =>
+      prev.map((it) => (it.id === museId ? { ...it, commentCount: Math.max(0, it.commentCount - 1) } : it)),
+    );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-2 bg-black text-white">
+      <div className="flex h-dvh w-screen flex-col items-center justify-center gap-2 bg-black text-white">
         <SafeAreaTopSpacer />
         <p className="text-sm text-white/70">No Muses yet — be the first to post one.</p>
         <button
@@ -249,47 +179,173 @@ export function MuseFeed({
     );
   }
 
-  if (!current) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-black text-white/70">
-        <p className="text-sm">{loadingMore ? "Loading more…" : "You're all caught up."}</p>
-      </div>
-    );
-  }
+  const commentsMuse = commentsOpenForId ? items.find((it) => it.id === commentsOpenForId) : undefined;
 
   return (
     <>
-    <div
-      // Deliberately BELOW nav.tsx's bottom tab bar (z-30) and header
-      // (z-40) rather than covering them the way StoryViewer/live-stream-room
-      // do at z-[70] — those are modals a user explicitly opened and closes
-      // back to whatever's underneath, but /muse is itself one of the 6
-      // primary nav destinations, so the tab bar must stay reachable to
-      // switch to another tab, not just via a back gesture. The video still
-      // renders full-viewport (inset-0); nav's own opaque background simply
-      // paints over its bottom ~4rem, matching the same clearance
-      // layout.tsx's <body> already reserves there for every other page.
-      className="fixed inset-0 z-10 flex select-none flex-col overflow-hidden bg-black"
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
+      <div
+        // Deliberately BELOW nav.tsx's bottom tab bar (z-30) and header
+        // (z-40) rather than covering them the way StoryViewer/live-stream-
+        // room do at z-[70] — those are modals a user explicitly opened and
+        // closes back to whatever's underneath, but /muse is itself one of
+        // the 6 primary nav destinations, so the tab bar must stay
+        // reachable to switch to another tab. Real vertical scroll with
+        // snap, not a single manually-swiped item — each card is its own
+        // full-viewport snap section, so scrolling behaves like an
+        // ordinary feed (mouse wheel, trackpad, natural touch drag) instead
+        // of requiring a deliberate swipe gesture past a fixed threshold.
+        className="fixed inset-0 z-10 select-none overflow-y-scroll bg-black"
+        style={{ scrollSnapType: "y mandatory" }}
+      >
+        {items.map((item) => (
+          <MuseCard
+            key={item.id}
+            item={item}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+            onToggleReaction={(emoji) => toggleReaction(item.id, emoji)}
+            onOpenComments={() => openComments(item.id)}
+          />
+        ))}
+        <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+      </div>
+
+      {/*
+       * A true sibling of the scrollable feed above, not nested inside it —
+       * an element positioned+z-indexed inside that container would be
+       * confined to ITS stacking context (any positioned element creates
+       * one), so no z-index on a descendant could ever paint above
+       * nav.tsx's bottom tab bar (z-30) or header (z-40) regardless of the
+       * value used. This sheet is a deliberate temporary takeover (same as
+       * StoryViewer's own modal), so it's fine — expected, even — for it to
+       * cover the tab bar while open.
+       */}
+      {commentsMuse && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-black/40"
+          onClick={() => setCommentsOpenForId(null)}
+        >
+          <div className="w-full" onClick={(e) => e.stopPropagation()}>
+            <MuseCommentsPanel
+              comments={comments}
+              currentUserId={currentUserId}
+              isMuseOwner={commentsMuse.author.id === currentUserId}
+              onClose={() => setCommentsOpenForId(null)}
+              onPost={(content) => postComment(commentsMuse.id, content)}
+              onDelete={(commentId) => removeComment(commentsMuse.id, commentId)}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * One full-viewport, scroll-snapped video — self-contained like a Home
+ * feed post-card (its own author/caption/reaction/comment controls scroll
+ * together with its video, rather than one shared overlay bar swapping
+ * content to match whatever's currently scrolled to). Autoplay/pause is
+ * driven by this card's own IntersectionObserver, the same
+ * mostly-in-view-or-not convention use-autoplay-on-view.ts already
+ * established for the Home feed — every loaded card observes independently,
+ * there's no centralized "active index" to keep in sync with real scroll
+ * position.
+ */
+function MuseCard({
+  item,
+  muted,
+  onToggleMute,
+  onToggleReaction,
+  onOpenComments,
+}: {
+  item: MuseItem;
+  muted: boolean;
+  onToggleMute: () => void;
+  onToggleReaction: (emoji: string) => Promise<ReactionSummary[] | undefined>;
+  onOpenComments: () => void;
+}) {
+  const [paused, setPaused] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [reactions, setReactions] = useState<ReactionSummary[]>([]);
+
+  const sectionRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Fetches this card's full per-emoji breakdown once, on mount — the feed
+  // list itself only carries likeCount (a cheap denormalized total) and
+  // myReaction, not every item's full breakdown, since that would mean a
+  // groupBy per item on every page load. With real scrolling, every loaded
+  // card is simultaneously mounted (not just one "current" item), so this
+  // now fires once per page of items rather than once per swipe — the same
+  // tradeoff Home's own post feed already makes for its reaction data.
+  useEffect(() => {
+    let cancelled = false;
+    getMuseReactionSummary(item.id).then((result) => {
+      if (!cancelled) setReactions(result.reactions);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(Boolean(entry?.isIntersecting)),
+      { threshold: ACTIVE_VISIBILITY_THRESHOLD },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Drives both the video and (when present) the separate audio track
+  // together — a Muse with a custom audio track always plays the video
+  // muted and this audio element instead (see MuseComposer/Muse.audioUrl's
+  // own comments). Not synchronized beyond both starting/stopping
+  // together; a real seek-sync (e.g. correcting drift over a long clip)
+  // isn't attempted — acceptable for a <=60s clip.
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    const shouldPlay = isVisible && !paused;
+    if (video) {
+      if (shouldPlay) video.play().catch(() => {});
+      else video.pause();
+    }
+    if (audio) {
+      if (shouldPlay) audio.play().catch(() => {});
+      else audio.pause();
+    }
+  }, [isVisible, paused]);
+
+  async function handleToggleReaction(emoji: string) {
+    const next = await onToggleReaction(emoji);
+    if (next) setReactions(next);
+  }
+
+  return (
+    <section
+      ref={sectionRef}
+      style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
+      className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black"
+      onClick={() => setPaused((p) => !p)}
     >
       <video
-        key={current.id}
         ref={videoRef}
-        src={current.videoUrl}
-        poster={current.videoThumbnailUrl ?? undefined}
-        autoPlay
+        src={item.videoUrl}
+        poster={item.videoThumbnailUrl ?? undefined}
         // Always muted when a separate audioUrl is replacing the video's
         // own sound (playing both would double up), otherwise follows the
         // shared mute toggle — same source either way, never both at once.
-        muted={Boolean(current.audioUrl) || muted}
+        muted={Boolean(item.audioUrl) || muted}
         loop
         playsInline
         className="absolute inset-0 h-full w-full object-contain"
       />
-      {current.audioUrl && (
-        <audio key={`${current.id}-audio`} ref={audioRef} src={current.audioUrl} autoPlay muted={muted} loop />
-      )}
+      {item.audioUrl && <audio ref={audioRef} src={item.audioUrl} muted={muted} loop />}
 
       {paused && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -303,23 +359,21 @@ export function MuseFeed({
 
       <div className="relative flex flex-1 flex-col justify-between">
         <div
-          // Unlike StoryViewer/live-stream-room (both z-[70], above the
-          // header), this container sits at z-10, deliberately below
-          // nav.tsx's sticky header — so a plain safe-area spacer isn't
-          // enough here, the header's own real content height needs
-          // clearing too, or an interactive control placed right under it
-          // renders hidden behind the opaque header instead (confirmed
-          // live: the mute button sat entirely underneath it). ~4rem is the
-          // header's measured height with no safe-area-inset-top; same
-          // approximation/rounding this component already uses for the
-          // bottom nav's clearance.
+          // This card sits at z-10, deliberately below nav.tsx's sticky
+          // header — so a plain safe-area spacer isn't enough here, the
+          // header's own real content height needs clearing too, or an
+          // interactive control placed right under it renders hidden
+          // behind the opaque header instead (confirmed live: the mute
+          // button sat entirely underneath it). ~4rem is the header's
+          // measured height with no safe-area-inset-top; same
+          // approximation/rounding used for the bottom nav's clearance
+          // below.
           className="flex items-center justify-end bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
-            onClick={() => setMuted((m) => !m)}
+            onClick={onToggleMute}
             aria-label={muted ? "Unmute" : "Mute"}
             className="rounded-full bg-black/40 p-2 text-white"
           >
@@ -330,94 +384,54 @@ export function MuseFeed({
         {/* One grouped block, not separate flex children of the
             justify-between parent above — three-plus siblings there would
             spread evenly across the whole height instead of clustering at
-            the bottom (confirmed live: the author/caption/buttons rendered
-            vertically centered, not bottom-anchored, before this fix). */}
+            the bottom. */}
         <div className="bg-gradient-to-t from-black/60 to-transparent pt-10">
-          <div
-            className="flex items-end justify-between gap-3 px-4"
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-end justify-between gap-3 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="min-w-0 flex-1">
               <UserLink
-                userId={current.author.id}
-                name={current.author.name}
-                avatarUrl={current.author.avatarUrl}
+                userId={item.author.id}
+                name={item.author.name}
+                avatarUrl={item.author.avatarUrl}
                 className="text-sm font-medium text-white hover:text-white/80"
               />
-              {current.caption && (
-                <p className="mt-1 break-words text-sm text-white">{current.caption}</p>
-              )}
+              {item.caption && <p className="mt-1 break-words text-sm text-white">{item.caption}</p>}
             </div>
 
             <div className="flex shrink-0 flex-col items-center gap-3">
               <button
                 type="button"
-                onClick={openComments}
+                onClick={onOpenComments}
                 className="flex flex-col items-center gap-0.5 text-white"
                 aria-label="Comments"
               >
                 <span className="rounded-full bg-black/40 p-2">
                   <MessageCircle size={20} />
                 </span>
-                <span className="text-[11px]">{current.commentCount}</span>
+                <span className="text-[11px]">{item.commentCount}</span>
               </button>
-              <div className="flex flex-col items-center gap-0.5 text-white">
-                <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
-                <span className="text-[11px]">{current.likeCount}</span>
+              <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
+                <EmojiPickerButton onSelect={handleToggleReaction} quickReactions={QUICK_REACTIONS} />
+                <span className="text-[11px]">{item.likeCount}</span>
               </div>
             </div>
           </div>
 
           {reactions.length > 0 && (
-            <div
-              className="px-4 pt-2"
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
-            >
-              <ReactionBar reactions={reactions} onToggle={toggleReaction} />
+            <div className="px-4 pt-2" onClick={(e) => e.stopPropagation()}>
+              <ReactionBar reactions={reactions} onToggle={handleToggleReaction} />
             </div>
           )}
 
           {/* Same bottom-nav clearance layout.tsx's <body> reserves in
-              normal flow (pb-[calc(4rem+safe-area)] md:pb-0) — this whole
-              block sits inside a `fixed` ancestor, so it doesn't inherit
-              that padding and would otherwise render behind the now-visible
-              (higher z-index) nav bar. */}
-          <div className="h-4 md:h-4" />
+              normal flow (pb-[calc(4rem+safe-area)] md:pb-0) — this card
+              sits inside a `fixed` ancestor, so it doesn't inherit that
+              padding and would otherwise render behind the (higher
+              z-index) nav bar. */}
+          <div className="h-4" />
           <div className="h-[calc(4rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:h-0" />
         </div>
       </div>
-    </div>
-
-    {/*
-     * A true sibling of the z-10 video container above, not nested inside
-     * it — an element positioned+z-indexed inside that `fixed` container
-     * would be confined to ITS stacking context (any positioned element
-     * creates one), so no z-index on a descendant could ever paint above
-     * nav.tsx's bottom tab bar (z-30) or header (z-40) regardless of the
-     * value used. This sheet is a deliberate temporary takeover (same as
-     * StoryViewer's own modal), so it's fine — expected, even — for it to
-     * cover the tab bar while open.
-     */}
-    {commentsOpen && current && (
-      <div
-        className="fixed inset-0 z-50 flex items-end bg-black/40"
-        onClick={() => setCommentsOpen(false)}
-      >
-        <div className="w-full" onClick={(e) => e.stopPropagation()}>
-          <MuseCommentsPanel
-            comments={comments}
-            currentUserId={currentUserId}
-            isMuseOwner={current.author.id === currentUserId}
-            onClose={() => setCommentsOpen(false)}
-            onPost={postComment}
-            onDelete={removeComment}
-          />
-        </div>
-      </div>
-    )}
-    </>
+    </section>
   );
 }
 
