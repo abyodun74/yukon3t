@@ -181,6 +181,51 @@ export async function sendFcmActivityToUser(
   }
 }
 
+// FCM's own hard cap per sendEachForMulticast call — a token list larger
+// than this must be chunked, unlike every other function in this file
+// (which only ever sends to one user's handful of devices at a time).
+const FCM_MULTICAST_CHUNK_SIZE = 500;
+
+/**
+ * Pushes a real notification to every device registered across every
+ * user — used only by createAnnouncement (actions/announcements.ts) for a
+ * genuine "announce to all users" broadcast, not per-user activity like
+ * sendFcmActivityToUser above. Chunked at FCM's own multicast limit; each
+ * chunk's stale ("not-registered") tokens are pruned the same way
+ * sendFcmDataToUser already does for a single user's tokens. Best-effort —
+ * a push failure must never block the announcement itself from being
+ * created/visible via the in-app WhatsNewBell.
+ */
+export async function broadcastFcmAnnouncement(payload: { title: string; body: string }) {
+  if (!isFcmConfigured || !app) return;
+
+  const tokens = await prisma.fcmToken.findMany({ select: { id: true, token: true } });
+  if (tokens.length === 0) return;
+
+  for (let i = 0; i < tokens.length; i += FCM_MULTICAST_CHUNK_SIZE) {
+    const chunk = tokens.slice(i, i + FCM_MULTICAST_CHUNK_SIZE);
+    try {
+      const response = await getMessaging(app).sendEachForMulticast({
+        tokens: chunk.map((t) => t.token),
+        notification: { title: payload.title, body: payload.body },
+        data: { type: "ANNOUNCEMENT", url: "/whats-new" },
+        android: { priority: "high" },
+      });
+      const staleTokenIds: string[] = [];
+      response.responses.forEach((r, idx) => {
+        if (!r.success && r.error?.code === "messaging/registration-token-not-registered") {
+          staleTokenIds.push(chunk[idx].id);
+        }
+      });
+      if (staleTokenIds.length > 0) {
+        await prisma.fcmToken.deleteMany({ where: { id: { in: staleTokenIds } } }).catch(() => {});
+      }
+    } catch {
+      // Best-effort — one failed chunk shouldn't stop the rest from sending.
+    }
+  }
+}
+
 export async function sendFcmEventReminderToUser(
   userId: string,
   payload: { postId: string; title: string },

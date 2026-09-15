@@ -4,8 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { announcementSchema } from "@/lib/validations";
+import { broadcastFcmAnnouncement } from "@/lib/fcm";
+import { broadcastPushAnnouncement } from "@/lib/push";
 
-/** Admin-only: posts a new "what's new" announcement, visible to every user via the WhatsNewBell. */
+/**
+ * Admin-only: posts a new "what's new" announcement. Visible to every user
+ * via the WhatsNewBell the moment it's created (no per-user "send" step —
+ * that part was already automatic), and now also actively pushed to every
+ * registered device (native FCM + web push), not just left as a passive
+ * badge someone has to notice on their own.
+ */
 export async function createAnnouncement(formData: FormData) {
   const admin = await requireAdmin();
 
@@ -24,6 +32,15 @@ export async function createAnnouncement(formData: FormData) {
       createdById: admin.id,
     },
   });
+
+  // Awaited, not fire-and-forget — a serverless function's execution can be
+  // frozen the moment a response is sent, same reasoning every other push
+  // send in this codebase (e.g. toggleLike's pushActivityNotification) is
+  // awaited rather than left running in the background. Both are already
+  // internally best-effort/never-throwing (see their own comments), so
+  // awaiting them can't make announcement creation itself fail.
+  await broadcastFcmAnnouncement({ title: parsed.data.title, body: parsed.data.body });
+  await broadcastPushAnnouncement({ title: parsed.data.title, body: parsed.data.body, url: "/whats-new" });
 
   revalidatePath("/admin/announcements");
   revalidatePath("/whats-new");
