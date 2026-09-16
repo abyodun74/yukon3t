@@ -12,6 +12,8 @@ import {
 } from "@/lib/daily";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCollabMembership } from "@/lib/collab-permissions";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const STALE_AFTER_MS = 4 * 60 * 60 * 1000;
@@ -83,6 +85,7 @@ export async function joinCollabSession(collabId: string) {
     create: { collabId, userId: user.id },
     update: { joinedAt: new Date() },
   });
+  await publishEvent(REALTIME_CHANNELS.collabSession(collabId), "changed");
 
   revalidatePath(`/collab/${collabId}`);
   return { error: null, roomUrl, token };
@@ -95,6 +98,7 @@ export async function leaveCollabSession(collabId: string) {
   await prisma.collabSessionParticipant.deleteMany({
     where: { collabId, userId: user.id },
   });
+  await publishEvent(REALTIME_CHANNELS.collabSession(collabId), "changed");
 
   revalidatePath(`/collab/${collabId}`);
   return { error: null };

@@ -11,9 +11,9 @@ import {
 } from "@/app/actions/collab-session";
 import { shareCollabMaterial } from "@/lib/collab-material";
 import { useCallSession } from "@/lib/call-session";
-import { usePolling } from "@/lib/use-polling";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
-const POLL_INTERVAL_MS = 5000;
 const MATERIAL_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
@@ -91,7 +91,7 @@ export function CollabSessionRoom({
     collabIdRef.current = collabId;
   });
 
-  const poll = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const forId = collabIdRef.current;
     const [{ participants: list }, { recordings: recs }] = await Promise.all([
       getCollabSessionParticipants(forId),
@@ -103,7 +103,23 @@ export function CollabSessionRoom({
     }
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS, !joined);
+  // Fires immediately on mount/collab-switch (a realtime subscription alone
+  // only reports *new* signals, not current state) and again on every
+  // "changed" broadcast from here on — join/leave publish onto this
+  // collab's own collab-session:{id} topic (see actions/collab-session.ts).
+  // Ref indirection avoids a "setState synchronously within an effect" lint
+  // false-positive, same pattern as every other realtime migration in this
+  // app. Stops entirely once joined — same as the old poll's own !joined
+  // gate, since GlobalCallFrame's own Daily integration shows live
+  // participants directly once actually in the session.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  });
+  useEffect(() => {
+    if (!joined) refetchRef.current();
+  }, [collabId, joined]);
+  useRealtimeEvent(!joined ? REALTIME_CHANNELS.collabSession(collabId) : null, "changed", refetch);
 
   // Live presence (from polling) covers the case where the organizer just
   // started it during this page view; hasSessionRoom covers "started before,
