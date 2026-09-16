@@ -136,18 +136,22 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   }, [incoming?.id, ringtone]);
 
   // Pauses any feed/story/live video already playing the moment a call
-  // starts ringing (so it doesn't compete with the ringtone) and keeps it
-  // paused through the call itself, resuming only once both the ring and
-  // the call are fully done — declined/missed without ever answering counts
-  // the same as hanging up, both just mean "no call is active anymore."
-  const callIsActiveOrRinging = Boolean(incoming) || Boolean(activeCall);
+  // starts ringing, so it doesn't compete with the ringtone before the call
+  // is even answered — only covers this pre-answer window on the callee
+  // side (there's no equivalent "ringing" state for whoever placed the
+  // call). Once answered, CallSessionProvider's startSession/endSession
+  // take over the pause for the rest of the call's duration on *both*
+  // sides — video-playback-guard.ts's reference counting means this
+  // ringing-phase pause and that one don't stomp on each other regardless
+  // of which order they fire/clear in.
+  const isRinging = Boolean(incoming);
   useEffect(() => {
-    if (!callIsActiveOrRinging) return;
+    if (!isRinging) return;
     pauseAllPlayingVideos();
     return () => {
       resumePausedVideos();
     };
-  }, [callIsActiveOrRinging]);
+  }, [isRinging]);
 
   // Callable by callId directly (not just from `incoming` state) so the
   // notification-tap deep-link handler below can accept/decline a call this

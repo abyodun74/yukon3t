@@ -360,6 +360,12 @@ function MediaBlock({
           <iframe
             src={embedSrc({ provider: post.embedProvider, id: post.embedId })}
             title="Embedded video"
+            // Lets video-playback-guard.ts find and freeze exactly this
+            // kind of iframe (clearing/restoring src) during a call,
+            // without ever touching an unrelated iframe elsewhere on the
+            // page — the active call's own Daily Prebuilt iframe in
+            // particular must never be selected by that guard.
+            data-video-embed-pause="true"
             scrolling="no"
             className="h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

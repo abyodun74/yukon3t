@@ -17,6 +17,7 @@ import {
   requestIgnoreBatteryOptimizationsOnce,
 } from "@/lib/call-foreground-native";
 import { startScreenCaptureWatch, stopScreenCaptureWatch } from "@/lib/screen-capture-guard";
+import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 
 export type StartSessionInput = {
   /** Dedupe key — e.g. `call:${callId}` or `live:${liveStreamId}`. Starting a
@@ -105,6 +106,14 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     startActiveCallForeground(next.key, next.label, next.type === "VIDEO");
     requestIgnoreBatteryOptimizationsOnce();
     startScreenCaptureWatch();
+    // Fires for both sides of a call — the callee (via
+    // IncomingCallListener, which already separately pauses from the
+    // moment it starts ringing, before this even runs) and the caller
+    // (via CallButton, which has no "ringing" state of its own and only
+    // ever reaches this point) — confirmed live that pausing only from
+    // the ringing side left a playing video fighting the call's own
+    // audio for whoever placed the call.
+    pauseAllPlayingVideos();
   }, []);
 
   const endSession = useCallback(() => {
@@ -113,6 +122,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setDailyCall(null);
     stopActiveCallForeground();
     stopScreenCaptureWatch();
+    resumePausedVideos();
   }, []);
 
   const minimize = useCallback(() => setMinimized(true), []);
