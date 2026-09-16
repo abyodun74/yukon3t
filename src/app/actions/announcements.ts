@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { announcementSchema } from "@/lib/validations";
 import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 /**
  * Admin-only: posts a new "what's new" announcement. Visible to every user
@@ -41,6 +43,7 @@ export async function createAnnouncement(formData: FormData) {
   // awaiting them can't make announcement creation itself fail.
   await broadcastFcmAnnouncement({ title: parsed.data.title, body: parsed.data.body });
   await broadcastPushAnnouncement({ title: parsed.data.title, body: parsed.data.body, url: "/whats-new" });
+  await publishEvent(REALTIME_CHANNELS.announcements(), "changed");
 
   revalidatePath("/admin/announcements");
   revalidatePath("/whats-new");

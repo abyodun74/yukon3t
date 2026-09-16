@@ -78,6 +78,19 @@ export async function proxy(request: NextRequest) {
     : "";
   const clarityConnectSrc = process.env.NEXT_PUBLIC_CLARITY_ID ? " https://*.clarity.ms" : "";
 
+  // supabase-js's realtime client does an HTTPS handshake/health-check
+  // against the project's own REST host before (and alongside) opening its
+  // WebSocket — the WebSocket itself is already covered by connect-src's
+  // scheme-only `wss:` below (see that entry's own comment), but this HTTPS
+  // origin isn't. Same conditional-once-configured gating as r2PublicHost.
+  const supabaseConnectSrc = (() => {
+    try {
+      return process.env.NEXT_PUBLIC_SUPABASE_URL ? ` ${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin}` : "";
+    } catch {
+      return "";
+    }
+  })();
+
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -102,7 +115,7 @@ export async function proxy(request: NextRequest) {
     // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
     // scheme-only (not host-scoped) because Daily's signaling/TURN relay
     // hosts are dynamically assigned, not a fixed domain.
-    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}`,
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}${supabaseConnectSrc}`,
     // blob: is call-object mode's echo-cancellation/audio-processing worker
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.

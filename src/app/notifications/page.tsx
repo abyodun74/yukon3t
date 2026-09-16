@@ -1,5 +1,6 @@
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { notifyBadgeChange } from "@/lib/realtime-server";
 import { BackButton } from "@/components/back-button";
 import { NotificationRow } from "@/components/notification-row";
 import { GroupedNotificationRow } from "@/components/grouped-notification-row";
@@ -35,6 +36,7 @@ export default async function NotificationsPage() {
       where: { recipientId: me.id, readAt: null },
       data: { readAt: new Date() },
     });
+    await notifyBadgeChange(me.id);
   }
 
   // MISSED_CALL and MESSAGE collapse into one tally row per (type, actor,

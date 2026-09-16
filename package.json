@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts",
-    "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts"
+    "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts",
+    "db:restore-backup": "tsx scripts/restore-database-backup.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -37,6 +38,7 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@sentry/nextjs": "^10.69.0",
+    "@supabase/supabase-js": "^2.116.0",
     "@types/bcryptjs": "^2.4.6",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",

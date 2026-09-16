@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { track } from "@/lib/analytics";
 import { pushActivityNotification } from "@/lib/notify-push";
+import { notifyBadgeChange } from "@/lib/realtime-server";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
 const CONNECTIONS_PAGE_SIZE = 20;
@@ -82,6 +83,7 @@ export async function requestConnection(formData: FormData) {
     },
   });
   await pushActivityNotification(targetId, "CONNECTION_REQUEST", user.name ?? "Someone", "/connections");
+  await notifyBadgeChange(targetId);
   await track("CONNECTION_REQUESTED", user.id, { targetId, intentTag });
 
   revalidatePath("/connections");
@@ -164,6 +166,8 @@ export async function respondToConnection(connectionId: string, accept: boolean)
       },
     });
     await pushActivityNotification(updated.requesterId, "CONNECTION_ACCEPTED", user.name ?? "Someone", "/connections");
+    await notifyBadgeChange(updated.requesterId);
+    await notifyBadgeChange(user.id);
     await track("CONNECTION_ACCEPTED", user.id, { requesterId: updated.requesterId });
 
     revalidatePath("/messages");
@@ -171,6 +175,7 @@ export async function respondToConnection(connectionId: string, accept: boolean)
     return { error: null, conversationId: conversation.id };
   }
 
+  await notifyBadgeChange(user.id);
   revalidatePath("/connections");
   return { error: null };
 }
@@ -267,6 +272,7 @@ export async function startDirectMessage(targetId: string) {
   const conversation = await prisma.conversation.create({
     data: { members: { create: [{ userId: user.id }, { userId: targetId }] } },
   });
+  await notifyBadgeChange(targetId);
   await track("CONNECTION_REQUESTED", user.id, { targetId, via: "message" });
 
   revalidatePath(`/messages/${conversation.id}`);

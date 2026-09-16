@@ -225,6 +225,22 @@ To reproduce this setup elsewhere (a new deploy target, a teammate's machine):
 5. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` in `.env`.
 6. Restart the dev server — `src/proxy.ts` reads `R2_ACCOUNT_ID`/`R2_PUBLIC_URL` at request time to open the CSP's `connect-src`/`media-src`/`img-src` only as far as needed.
 
+## Automated database backups — status: built, pending bucket setup (2026-09-16)
+
+A daily encrypted logical backup of every table (`src/lib/db-backup.ts`, driven by the `backup-database` cron — same Netlify Scheduled Function pattern as every other `src/app/api/cron/*` route, see `netlify/functions/backup-database.mts`) uploads to a dedicated R2 bucket. `restore-database-backup.ts` (`npm run db:restore-backup`) is the corresponding manual, deliberate restore path — it is never run automatically.
+
+**Threat model / why this isn't just the media bucket:** a full data dump includes password hashes, emails, and private message content. The existing `yukon3t-media` R2 bucket (`R2_BUCKET_NAME`) is bound to a public URL (`R2_PUBLIC_URL`) that serves every object under it to anyone — writing backups there, even under a `backups/` prefix, would make the entire user database downloadable by anyone who found or guessed the URL pattern. Backups instead require a **separate `BACKUP_R2_BUCKET_NAME`** with no public access/custom domain configured at all, ideally with its own R2 API token scoped only to it (falls back to the media bucket's `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` if `BACKUP_R2_*` equivalents aren't set, for a minimal one-token setup). On top of that, the payload itself is encrypted (AES-256-GCM, keyed by `BACKUP_ENCRYPTION_KEY`) before it ever leaves the process — defense in depth in case the bucket or its credentials are ever misconfigured.
+
+This is a logical (row-level JSON, gzip'd) backup, not a `pg_dump` binary dump — there's no Postgres client-tools binary available in a Vercel/Netlify serverless function, and schema is already fully version-controlled via `prisma/migrations` (restorable with `prisma migrate deploy`), so only the data needs its own backup path.
+
+**Not yet live** — the cron is a no-op (503, logged, never a crash) until all of `BACKUP_R2_BUCKET_NAME`/`BACKUP_ENCRYPTION_KEY` (and `BACKUP_R2_ACCOUNT_ID`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY` or their `R2_*` fallback) are actually set. To turn it on:
+
+1. Create a **new, separate** Cloudflare R2 bucket — do not enable public access or bind a custom domain to it.
+2. Optionally create a second R2 API token scoped only to that bucket (Object Read & Write) — otherwise the existing media token needs read/write on both buckets.
+3. Generate an encryption key: `openssl rand -hex 32`. Store it somewhere durable outside this app (password manager, secrets vault) — losing it makes every existing backup unrecoverable, and it can never be recovered from the backups themselves.
+4. Set `BACKUP_R2_BUCKET_NAME`, `BACKUP_ENCRYPTION_KEY`, and (if using a separate token) `BACKUP_R2_ACCOUNT_ID`/`BACKUP_R2_ACCESS_KEY_ID`/`BACKUP_R2_SECRET_ACCESS_KEY` on both Vercel and Netlify (env vars set on one platform don't reach the other — same gotcha as every other env var in this app, see "Dual deployment" in `CLAUDE.md`). `BACKUP_RETENTION_DAYS` defaults to 30 if unset.
+5. The cron runs daily at 03:00 UTC once configured — no restart or redeploy needed beyond the env vars actually being set (Netlify Scheduled Functions read env at invocation time).
+
 ## Deployed to Vercel — status: live
 
 Production is live at **https://yukon3t.vercel.app**, deployed via `vercel --prod` (project `yukon3t`, scope `ainabizpro-6934s-projects`). Real Neon Postgres (migrated), real `AUTH_SECRET`, real Resend, real R2 — sign-in tested end to end against the live deployment (magic-link request → Neon write → Resend send → verify-request page, zero console errors).

@@ -22,6 +22,7 @@ import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
+import { notifyBadgeChange } from "@/lib/realtime-server";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -524,6 +525,7 @@ export async function sendMessage(formData: FormData) {
       })),
     });
   }
+  await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };

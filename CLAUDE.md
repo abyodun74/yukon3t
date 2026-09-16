@@ -97,6 +97,10 @@ Both platforms' production builds run `scripts/migrate-if-production.sh` before 
 
 `SECURITY.md` also documents the full list of implemented security controls (CSP nonce, rate limiting via Upstash, SSRF-guarded remote image fetch, etc.) and known accepted gaps — read it before changing anything auth/upload/moderation-adjacent.
 
+### Automated database backups
+
+A daily encrypted logical backup of every table runs via the `backup-database` cron (`src/lib/db-backup.ts`), same Netlify Scheduled Function pattern as every other cron. It uploads to a **separate, private** R2 bucket (`BACKUP_R2_BUCKET_NAME`) — never the public media bucket (`R2_BUCKET_NAME`), which serves every object under it to anyone via `R2_PUBLIC_URL`. The cron no-ops (503) until `BACKUP_R2_BUCKET_NAME`/`BACKUP_ENCRYPTION_KEY` are actually configured; see `SECURITY.md`'s "Automated database backups" section for the full threat model and one-time setup steps. Restore is manual and deliberate only: `npm run db:restore-backup` (`scripts/restore-database-backup.ts`), never automatic.
+
 ### Scalability pass (2026-09-14)
 
 A concurrent-user-focused audit (not a security one) found and fixed the real bottlenecks, in priority order:

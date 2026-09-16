@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { notifyBadgeChange } from "@/lib/realtime-server";
 
 export async function markAsRead(notificationId: string) {
   const user = await requireUser();
@@ -18,6 +19,7 @@ export async function markAsRead(notificationId: string) {
     where: { id: notificationId },
     data: { readAt: new Date() },
   });
+  await notifyBadgeChange(user.id);
 
   revalidatePath("/notifications");
   return { error: null };
@@ -31,6 +33,7 @@ export async function markManyAsRead(notificationIds: string[]) {
     where: { id: { in: notificationIds }, recipientId: user.id },
     data: { readAt: new Date() },
   });
+  await notifyBadgeChange(user.id);
 
   revalidatePath("/notifications");
   return { error: null };
@@ -43,6 +46,7 @@ export async function markAllAsRead() {
     where: { recipientId: user.id, readAt: null },
     data: { readAt: new Date() },
   });
+  await notifyBadgeChange(user.id);
 
   revalidatePath("/notifications");
   return { error: null };

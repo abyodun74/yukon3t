@@ -69,9 +69,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   // otherwise tear down and re-add the swipe listeners on every render.
   const userId = session?.user?.id;
   const tabs = useMemo(() => (userId ? bottomTabs(userId) : []), [userId]);
-  const { unreadMessages, pendingConnections, unreadNotifications, hasNewAnnouncement } = useNavBadges(
-    Boolean(session?.user),
-  );
+  const { unreadMessages, pendingConnections, unreadNotifications, hasNewAnnouncement } = useNavBadges(userId);
 
   // Swipe right steps forward through the bottom tab bar and wraps around
   // (Home → Circles → Collab → Connections → Profile → Home → ...); swipe left
