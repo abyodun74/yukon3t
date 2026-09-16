@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ClipboardEven
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
-import { addImageFromUrl } from "@/app/actions/media";
+import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
@@ -17,6 +17,7 @@ import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
+import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +165,19 @@ export function PostComposer({
   const [urlImages, setUrlImages] = useState<string[]>([]);
   const [video, setVideo] = useState<File | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
+  // Set when a video was picked via Android's native picker (see
+  // pickVideoNative) instead of the plain <input type="file"> — that path
+  // uploads the video from native code the moment it's picked rather than
+  // waiting for Post (native code never hands the raw bytes to JS at all,
+  // so there's no File here to defer uploading the usual way), so this
+  // holds the already-uploaded result rather than a File.
+  const [nativeVideoUpload, setNativeVideoUpload] = useState<{
+    videoUrl: string;
+    videoThumbnailUrl?: string;
+    videoDurationSeconds?: number;
+    name: string;
+  } | null>(null);
+  const [nativeVideoUploading, setNativeVideoUploading] = useState(false);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   // A picked Giphy GIF URL — never uploaded, so it bypasses uploadAll's
   // File-handling branches entirely.
@@ -205,7 +219,8 @@ export function PostComposer({
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const imageCount = images.length + urlImages.length;
-  const hasOtherMedia = Boolean(video) || Boolean(embedUrl) || Boolean(pendingGif);
+  const hasOtherMedia =
+    Boolean(video) || Boolean(nativeVideoUpload) || nativeVideoUploading || Boolean(embedUrl) || Boolean(pendingGif);
   const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
 
   function insertEmoji(emoji: string) {
@@ -430,6 +445,75 @@ export function PostComposer({
     };
   }
 
+  /**
+   * Android-only counterpart to pickVideo, for a video picked via
+   * pickVideoNative (see that file for why the plain <input type="file">
+   * path is a dead end for video on this platform). Uploads eagerly, right
+   * here at pick time, rather than deferring to Post like the File-based
+   * path above — native code never hands the raw video bytes to JS at all
+   * (see native-video-picker.ts), so there's no File to defer uploading
+   * the usual way; the content:// URI itself may also not stay valid
+   * indefinitely, so uploading promptly is the safer choice anyway.
+   */
+  async function handleNativeVideoAttach(native: NonNullable<Awaited<ReturnType<typeof pickVideoNative>>>) {
+    if (native.size > MAX_VIDEO_BYTES) {
+      setStatus("error");
+      setErrorText("Video must be 2GB or smaller.");
+      return;
+    }
+    if (native.durationSeconds && native.durationSeconds > MAX_UPLOAD_VIDEO_SECONDS) {
+      setStatus("error");
+      setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
+      return;
+    }
+
+    setImages([]);
+    setUrlImages([]);
+    setEmbedUrl(null);
+    setPendingGif(null);
+    setVideo(null);
+    setNativeVideoUpload(null);
+    setStatus("idle");
+    setErrorText(null);
+    setNativeVideoUploading(true);
+
+    try {
+      const fd = new FormData();
+      fd.set("kind", "post-video");
+      fd.set("contentType", native.mimeType);
+      const requested = await requestUploadUrl(fd);
+      if (requested.error || !requested.uploadUrl || !requested.publicUrl) {
+        setStatus("error");
+        setErrorText(errorMessage(requested.error ?? "network"));
+        return;
+      }
+
+      const uploaded = await uploadVideoNative(native.uri, requested.uploadUrl, native.mimeType);
+      if (!uploaded) {
+        setStatus("error");
+        setErrorText(errorMessage("network"));
+        return;
+      }
+
+      // The thumbnail is a small JPEG File already (see
+      // pickVideoNative/base64ToFile) — the existing, already-working
+      // image upload path handles it from here, same as every other
+      // photo upload in this app.
+      const thumbnailResult = native.thumbnailFile
+        ? await uploadFileDirect(native.thumbnailFile, "video-thumb")
+        : null;
+
+      setNativeVideoUpload({
+        videoUrl: requested.publicUrl,
+        videoThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
+        videoDurationSeconds: native.durationSeconds ?? undefined,
+        name: native.name,
+      });
+    } finally {
+      setNativeVideoUploading(false);
+    }
+  }
+
   // urlOverride lets the incoming-share handler above set an embed
   // programmatically (a resolved TikTok URL the user never typed anywhere)
   // instead of only ever reading the visible input field.
@@ -482,6 +566,18 @@ export function PostComposer({
       return {
         mediaType: "IMAGE",
         mediaUrls: [...results.map((r) => (r.ok ? r.publicUrl : "")), ...urlImages],
+      };
+    }
+
+    if (nativeVideoUpload) {
+      // Already uploaded eagerly at pick time by handleNativeVideoAttach —
+      // nothing left to do here but hand the results through.
+      return {
+        mediaType: "VIDEO",
+        mediaUrls: [],
+        videoUrl: nativeVideoUpload.videoUrl,
+        videoThumbnailUrl: nativeVideoUpload.videoThumbnailUrl,
+        videoDurationSeconds: nativeVideoUpload.videoDurationSeconds,
       };
     }
 
@@ -573,6 +669,7 @@ export function PostComposer({
       setUrlImages([]);
       setVideo(null);
       setVideoDurationSeconds(null);
+      setNativeVideoUpload(null);
       setEmbedUrl(null);
       setPendingGif(null);
       setIsEvent(false);
@@ -612,7 +709,7 @@ export function PostComposer({
       className="rounded-xl border border-line p-4"
       action={(fd) => {
         const content = String(fd.get("content") ?? "").trim();
-        if (!content && imageCount === 0 && !video && !embedUrl && !pendingGif && !isEvent) {
+        if (!content && imageCount === 0 && !video && !nativeVideoUpload && !embedUrl && !pendingGif && !isEvent) {
           setStatus("error");
           setErrorText("Write something, attach a photo/video, or add event details first.");
           return;
@@ -761,6 +858,34 @@ export function PostComposer({
               Over {formatSecondsLabel(HIVE_VIDEO_MODERATION_MAX_SECONDS)} — this won&apos;t go live until an admin reviews it.
             </p>
           )}
+        </div>
+      )}
+
+      {nativeVideoUploading && (
+        <div className="mt-2 rounded-lg border border-line px-3 py-2 text-xs text-foreground-soft">
+          Uploading video…
+        </div>
+      )}
+
+      {nativeVideoUpload && (
+        <div className="mt-2 rounded-lg border border-line px-3 py-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex-1 truncate">{nativeVideoUpload.name}</span>
+            <button
+              type="button"
+              onClick={() => setNativeVideoUpload(null)}
+              aria-label="Remove video"
+              className="p-2 -m-2 text-danger"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {nativeVideoUpload.videoDurationSeconds !== undefined &&
+            nativeVideoUpload.videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS && (
+              <p className="mt-1 text-foreground-soft">
+                Over {formatSecondsLabel(HIVE_VIDEO_MODERATION_MAX_SECONDS)} — this won&apos;t go live until an admin reviews it.
+              </p>
+            )}
         </div>
       )}
 
@@ -936,12 +1061,26 @@ export function PostComposer({
           <MediaPickerButton
             icon={<Video size={16} />}
             title="Add a video"
-            disabled={imageCount > 0 || Boolean(video) || Boolean(embedUrl) || Boolean(pendingGif)}
+            disabled={
+              imageCount > 0 ||
+              Boolean(video) ||
+              Boolean(nativeVideoUpload) ||
+              nativeVideoUploading ||
+              Boolean(embedUrl) ||
+              Boolean(pendingGif)
+            }
             options={[
               {
                 label: "Upload from device",
                 icon: <Upload size={14} />,
-                onSelect: () => videoInputRef.current?.click(),
+                onSelect: async () => {
+                  const native = await pickVideoNative();
+                  if (native) {
+                    await handleNativeVideoAttach(native);
+                    return;
+                  }
+                  videoInputRef.current?.click();
+                },
               },
               {
                 label: "Record live",
@@ -953,7 +1092,9 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => setShowEmbedInput((v) => !v)}
-            disabled={imageCount > 0 || Boolean(video) || Boolean(pendingGif)}
+            disabled={
+              imageCount > 0 || Boolean(video) || Boolean(nativeVideoUpload) || nativeVideoUploading || Boolean(pendingGif)
+            }
             className={cn(
               "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
@@ -1016,7 +1157,7 @@ export function PostComposer({
           )}
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || nativeVideoUploading}
             className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
           >
             {status === "uploading" && isPending ? "Posting..." : "Post"}
