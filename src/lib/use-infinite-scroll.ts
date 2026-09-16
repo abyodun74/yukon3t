@@ -31,6 +31,32 @@ export function useInfiniteScroll<T>({
   const [items, setItems] = useState(initialItems);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(false);
+  const [syncedInitialItems, setSyncedInitialItems] = useState(initialItems);
+
+  // useState(initialItems) only reads initialItems on first mount — without
+  // this, `items` stays frozen at whatever was passed in the very first
+  // time forever, even once the parent Server Component re-renders with
+  // fresh data. That re-render is exactly what a same-route
+  // `router.refresh()` produces (confirmed live: posting a photo/video from
+  // your own profile called router.refresh() on success, but the new post
+  // never appeared in ProfilePostsList without a full page navigation,
+  // since this hook backs it) — a fresh `initialItems` array is the one
+  // reliable signal that new data actually exists, and prop identity
+  // changes on every such re-render since the server query builds a new
+  // array each time. Adjusting state during render (React's documented
+  // pattern for "reset state when a prop changes") rather than in a
+  // useEffect — an effect here would setState after the stale paint
+  // already committed, and the render-phase check below is what
+  // react-hooks/set-state-in-effect steers toward instead. Trade-off: this
+  // also drops anything loaded further via infinite scroll if some
+  // unrelated action happens to trigger a refresh while scrolled deep in
+  // the list — a rare case, and a fresh first page beats a permanently
+  // stale one.
+  if (initialItems !== syncedInitialItems) {
+    setSyncedInitialItems(initialItems);
+    setItems(initialItems);
+    setHasMore(initialHasMore);
+  }
 
   const fetchMore = useCallback(async () => {
     if (loading || !hasMore) return;
