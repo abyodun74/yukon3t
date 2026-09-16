@@ -30,6 +30,7 @@ import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
+import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 import type { FlatComment } from "@/lib/comment-tree";
 
@@ -199,6 +200,15 @@ function MediaBlock({
   };
 }) {
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
+  // Computed unconditionally (not inside the {mediaType === "EMBED" && ...}
+  // JSX branch below) because hooks can't be called conditionally — an
+  // empty string when there's no embed just makes useStopEmbedOnScrollOut
+  // observe a null ref, a no-op.
+  const embedIframeSrc =
+    post.mediaType === "EMBED" && post.embedProvider && post.embedId
+      ? embedSrc({ provider: post.embedProvider, id: post.embedId })
+      : "";
+  const embedRef = useStopEmbedOnScrollOut<HTMLIFrameElement>(embedIframeSrc);
   const [muted, setMuted] = useFeedVideoMuted();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   // The `muted` JSX prop only reliably applies at mount — once a WebView
@@ -358,7 +368,8 @@ function MediaBlock({
           )}
         >
           <iframe
-            src={embedSrc({ provider: post.embedProvider, id: post.embedId })}
+            ref={embedRef}
+            src={embedIframeSrc}
             title="Embedded video"
             // Lets video-playback-guard.ts find and freeze exactly this
             // kind of iframe (clearing/restoring src) during a call,
