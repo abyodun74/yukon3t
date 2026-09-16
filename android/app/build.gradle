@@ -169,8 +169,29 @@ android {
         // subsequent Share.share() call with "Can't share while sharing is
         // in progress". Patch resets it in handleOnStart() instead. Native
         // plugin source change — only reaches users via a new release.
-        versionCode 23
-        versionName "1.20"
+        // 24: GalleryPickerPlugin.java gets a real native video picker/
+        // uploader (pickVideo/uploadVideo) — the WebView's own file-chooser
+        // never reliably delivered a picked video back to the page on this
+        // platform (confirmed live via CDP: the system picker opened and
+        // resolved fine, but the page's <input> change event never fired,
+        // no error, for every user who reported it). Streams straight from
+        // ContentResolver to the presigned R2 URL in native code, same
+        // approach the existing photo picker already used, now with its
+        // own retry+timeout (3 attempts, 30s connect/read) matching the
+        // resilience every other upload path in this app already had via
+        // upload-client.ts — confirmed live that a single unretried
+        // attempt failed outright on a real transient network blip during
+        // a longer upload. Also normalizes any picked image outside the
+        // web layer's own accepted formats to JPEG (confirmed live: HEIC,
+        // several recent Android phones' default photo format, silently
+        // vanished with no error before this) and rounds video duration to
+        // a whole number before handing it to JS (a raw fractional value
+        // failed the *entire* post with an unrelated-looking generic
+        // "invalid" error). No new permission, no new Play Console
+        // declaration — INTERNET was already granted for every other
+        // upload path.
+        versionCode 24
+        versionName "1.21"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
