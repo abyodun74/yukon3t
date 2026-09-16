@@ -8,6 +8,7 @@ import { useCallSession } from "@/lib/call-session";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
+import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 
 type IncomingCall = {
   id: string;
@@ -133,6 +134,20 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     // call, and restarting the loop then would glitch the audio.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incoming?.id, ringtone]);
+
+  // Pauses any feed/story/live video already playing the moment a call
+  // starts ringing (so it doesn't compete with the ringtone) and keeps it
+  // paused through the call itself, resuming only once both the ring and
+  // the call are fully done — declined/missed without ever answering counts
+  // the same as hanging up, both just mean "no call is active anymore."
+  const callIsActiveOrRinging = Boolean(incoming) || Boolean(activeCall);
+  useEffect(() => {
+    if (!callIsActiveOrRinging) return;
+    pauseAllPlayingVideos();
+    return () => {
+      resumePausedVideos();
+    };
+  }, [callIsActiveOrRinging]);
 
   // Callable by callId directly (not just from `incoming` state) so the
   // notification-tap deep-link handler below can accept/decline a call this
