@@ -11,6 +11,7 @@ import {
 } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
+import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
@@ -72,6 +73,11 @@ export function AdBookingForm() {
   const [mediaType, setMediaType] = useState<"IMAGE" | "VIDEO" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Bot deterrents (see src/lib/bot-protection.ts): this form has no auth
+  // wall, so it's the one genuinely public content-creation form in the
+  // app besides sign-up/password-reset.
+  const [honeypot, setHoneypot] = useState("");
+  const mountedAtRef = useRef(currentTimeMs());
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -197,6 +203,8 @@ export function AdBookingForm() {
       fd.set("mediaUrl", media.mediaUrl);
       if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
       fd.set("durationDays", String(durationDays));
+      fd.set(HONEYPOT_FIELD, honeypot);
+      fd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
 
       try {
         // createAdCampaign redirects to Stripe on success (throwing Next's
@@ -214,6 +222,16 @@ export function AdBookingForm() {
 
   return (
     <div className="rounded-xl border border-line p-5">
+      <input
+        type="text"
+        name={HONEYPOT_FIELD}
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", top: "auto", width: 1, height: 1, overflow: "hidden" }}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="ad-company-name" className="block text-sm font-medium">

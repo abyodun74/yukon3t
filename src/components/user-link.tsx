@@ -32,7 +32,9 @@ export function UserAvatar({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
-            alt=""
+            alt={name ? `${name}'s profile photo` : ""}
+            loading="lazy"
+            decoding="async"
             ref={markImageLoadedIfComplete}
             onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
             className="img-fade-in h-full w-full object-cover"

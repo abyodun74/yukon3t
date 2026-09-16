@@ -532,6 +532,8 @@ function MessageBubble({
                       <img
                         src={message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl!}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover"
                       />
                     )}
@@ -565,6 +567,8 @@ function MessageBubble({
                   <img
                     src={message.mediaUrl}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                     className="max-h-72 w-full rounded-lg object-contain"
                   />
                 </button>
@@ -580,6 +584,8 @@ function MessageBubble({
                   <img
                     src={message.mediaUrl}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                     className="max-h-72 w-full rounded-lg object-contain"
                   />
                 </button>
@@ -590,6 +596,7 @@ function MessageBubble({
                   index={0}
                   onIndexChange={() => {}}
                   onClose={() => setImageOpen(false)}
+                  alt={message.mediaType === "GIF" ? "GIF shared in chat" : "Photo shared in chat"}
                 />
               )}
               {message.content && (

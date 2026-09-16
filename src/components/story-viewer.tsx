@@ -315,7 +315,7 @@ export function StoryViewer({
       <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={story.mediaUrl} alt="" className="max-h-full max-w-full object-contain" />
+          <img src={story.mediaUrl} alt={`Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
         ) : (
           <video
             ref={videoRef}

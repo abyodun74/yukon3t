@@ -53,7 +53,7 @@ export default async function AdminAdsPage() {
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-black">
                         {c.mediaType === "IMAGE" ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.mediaUrl} alt="" className="h-full w-full object-cover" />
+                          <img src={c.mediaUrl} alt={c.companyName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                         ) : (
                           <video src={c.mediaUrl} className="h-full w-full object-cover" muted />
                         )}

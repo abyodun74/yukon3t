@@ -48,12 +48,14 @@ export function Lightbox({
   video,
   onIndexChange,
   onClose,
+  alt,
 }: {
   images?: string[];
   index?: number;
   video?: string;
   onIndexChange?: (index: number) => void;
   onClose: () => void;
+  alt?: string;
 }) {
   const isGallery = Boolean(images && images.length > 0 && index !== undefined && onIndexChange);
   const currentMediaUrl = isGallery && images && index !== undefined ? images[index] : video;
@@ -110,7 +112,7 @@ export function Lightbox({
           {/* Keyed on index so pinch/pan/zoom state resets on every
               prev/next navigation instead of carrying over onto the next
               image. */}
-          <ZoomableImage key={index} src={images[index]} />
+          <ZoomableImage key={index} src={images[index]} alt={alt} />
 
           {images.length > 1 && (
             <button

@@ -815,6 +815,7 @@ export function PostCard({
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          alt={displayPost.content || `Photo posted by ${displayPost.author.name}`}
         />
       )}
       {lightboxVideo && displayPost.videoUrl && (

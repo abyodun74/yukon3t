@@ -579,7 +579,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
               <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-black">
                 {item.mediaType === "IMAGE" ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={item.previewUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <>
                     <video src={item.previewUrl} muted className="h-full w-full object-cover" />

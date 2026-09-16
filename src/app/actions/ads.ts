@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth-guards";
 import { adBookingSchema, requestUploadSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
+import { isBotSubmission } from "@/lib/bot-protection";
 import { moderateMedia } from "@/lib/moderation";
 import {
   MEDIA_LIMITS,
@@ -61,6 +62,14 @@ export async function requestAdUploadUrl(formData: FormData) {
  * itself just gets as far as PENDING_PAYMENT.
  */
 export async function createAdCampaign(formData: FormData) {
+  // No auth wall on this form (see rate-limit.ts's adBookingCreate comment),
+  // so it gets the same honeypot/timing bot check as sign-up and password
+  // reset — reported as a plain "invalid" rather than a distinct code, same
+  // reasoning as those two.
+  if (isBotSubmission(formData)) {
+    return { error: "invalid" as const };
+  }
+
   const ip = await getClientIp();
   const allowed = await checkRateLimit("adBookingCreate", ip);
   if (!allowed) {

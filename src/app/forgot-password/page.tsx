@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requestPasswordReset } from "@/app/actions/password-auth";
 import { SubmitButton } from "@/components/submit-button";
+import { BotProtectionFields } from "@/components/bot-protection-fields";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -35,6 +36,7 @@ export default async function ForgotPasswordPage({
       )}
 
       <form action={requestPasswordReset} className="mt-6 w-full space-y-3">
+        <BotProtectionFields />
         <label htmlFor="forgot-password-email" className="sr-only">
           Email address
         </label>

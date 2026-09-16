@@ -27,6 +27,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Already the default, but pinned explicitly: gzip/brotli response
+  // compression for anything Next itself serves. Vercel's and Netlify's
+  // edges also compress in front of this (see CLAUDE.md's dual-deployment
+  // section), so this mainly matters for `next start` / self-hosted runs.
+  compress: true,
   async headers() {
     return [
       {

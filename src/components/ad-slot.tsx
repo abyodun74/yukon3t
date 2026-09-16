@@ -22,7 +22,7 @@ export async function AdSlot() {
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-black">
             {ad.mediaType === "IMAGE" ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={ad.mediaUrl} alt="" className="h-full w-full object-cover" />
+              <img src={ad.mediaUrl} alt={ad.companyName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
             ) : (
               <video src={ad.mediaUrl} className="h-full w-full object-cover" muted autoPlay loop playsInline />
             )}

@@ -49,7 +49,9 @@ export default async function CirclesPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={circle.coverImageUrl}
-                    alt=""
+                    alt={circle.name}
+                    loading="lazy"
+                    decoding="async"
                     className="h-10 w-10 shrink-0 rounded-lg object-cover"
                   />
                 )}

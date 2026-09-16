@@ -13,6 +13,7 @@ import {
 } from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isBotSubmission } from "@/lib/bot-protection";
 import { sendEmail } from "@/lib/email";
 import { issueSessionCookie } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
@@ -95,6 +96,12 @@ export async function ensureFreshEmailOtp(userId: string, email: string, expires
 }
 
 export async function signUpWithPassword(formData: FormData) {
+  // Reuses the existing rate_limited copy rather than a distinct "bot
+  // detected" message — no reason to tell a script which defense caught it.
+  if (isBotSubmission(formData)) {
+    redirect("/sign-up?error=rate_limited");
+  }
+
   const ip = await clientIp();
   const allowed = await checkRateLimit("passwordSignUp", `signup:${ip}`);
   if (!allowed) {
@@ -427,6 +434,13 @@ export async function resendLoginDeviceChallenge() {
  * account-enumeration oracle.
  */
 export async function requestPasswordReset(formData: FormData) {
+  // Same "always land on ?sent=1" anti-enumeration path as everything below
+  // handles a detected bot too — no separate error state that would tell a
+  // script its honeypot/timing got caught.
+  if (isBotSubmission(formData)) {
+    redirect("/forgot-password?sent=1");
+  }
+
   const ip = await clientIp();
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {

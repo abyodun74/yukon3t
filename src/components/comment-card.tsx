@@ -184,7 +184,7 @@ export function CommentCard({
           )}
           {comment.gifUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset
-            <img src={comment.gifUrl} alt="" className="mt-1 max-h-52 rounded-lg object-contain" />
+            <img src={comment.gifUrl} alt="GIF" loading="lazy" decoding="async" className="mt-1 max-h-52 rounded-lg object-contain" />
           )}
           {comment.audioUrl && (
             <audio controls preload="metadata" src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />

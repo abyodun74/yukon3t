@@ -4,6 +4,7 @@ import { signUpWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
+import { BotProtectionFields } from "@/components/bot-protection-fields";
 import { MIN_AGE } from "@/lib/validations";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
@@ -68,6 +69,7 @@ export default async function SignUpPage({
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
+        <BotProtectionFields />
         <label htmlFor="signup-email" className="sr-only">
           Email address
         </label>

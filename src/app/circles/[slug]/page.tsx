@@ -121,7 +121,7 @@ export default async function CirclePage({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={circle.coverImageUrl}
-              alt=""
+              alt={circle.name}
               className="h-12 w-12 shrink-0 rounded-xl object-cover"
             />
           )}

@@ -54,7 +54,7 @@ export function ProfileStoryRing({
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
               No photo
@@ -99,7 +99,13 @@ export function ProfileStoryRing({
       {uploadOpen && <StoryUploadModal onClose={() => setUploadOpen(false)} />}
 
       {photoOpen && avatarUrl && (
-        <Lightbox images={[avatarUrl]} index={0} onIndexChange={() => {}} onClose={() => setPhotoOpen(false)} />
+        <Lightbox
+          images={[avatarUrl]}
+          index={0}
+          onIndexChange={() => {}}
+          onClose={() => setPhotoOpen(false)}
+          alt={`${name}'s profile photo`}
+        />
       )}
     </>
   );
