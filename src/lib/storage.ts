@@ -139,6 +139,19 @@ export const MAX_VIDEO_DURATION_SECONDS = 3600;
 // videoModeratedAt up front so the moderate-videos cron never picks it up
 // and wastes/fails a Hive call on it.
 export const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
+// Post videos from HIVE_VIDEO_MODERATION_MAX_SECONDS up to this ceiling
+// publish immediately (moderationStatus PUBLISHED) instead of staying
+// FLAGGED/hidden — same "publish now, react if the background check finds
+// something" model the sub-60s Hive path already uses, rather than a real
+// upfront review gate. createPost still kicks off the same Cloudflare
+// Stream long-form review (videoLongReviewNeeded) for anything in this
+// range; a violation found after the fact is removed the same way a
+// FLAGGED-and-cleared-late video always was. Only videos longer than this
+// still publish hidden pending that review, on the theory that something
+// long enough to sit unreviewed-but-visible for several minutes warrants
+// the more conservative default. A deliberate product choice, not a Hive
+// API constraint like the constant above.
+export const VIDEO_INSTANT_PUBLISH_MAX_SECONDS = 600;
 export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;

@@ -100,7 +100,12 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
     if (result.kind === "clean") {
       await prisma.post.update({
         where: { id: candidate.id },
-        data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
       });
       revalidatePath("/circles", "layout");
       revalidatePath("/home");
@@ -220,18 +225,25 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
 /**
  * Triggered every minute (Netlify Scheduled Function), same thin-trigger
  * pattern as moderate-videos. Claims up to BATCH_SIZE long (over Hive's 60s
- * cap) FLAGGED video posts and drives each through reviewOnePost's own
- * internal poll loop concurrently — see that function and video-review.ts
- * for why a single post's review can still legitimately span more than one
- * tick (Cloudflare's own copy/encode/caption pipeline can outlast even this
- * tick's POLL_BUDGET_MS on a very long video), just far less often than
- * when this only advanced one post by one step every 5 minutes.
+ * cap) video posts still awaiting a verdict and drives each through
+ * reviewOnePost's own internal poll loop concurrently — see that function
+ * and video-review.ts for why a single post's review can still legitimately
+ * span more than one tick (Cloudflare's own copy/encode/caption pipeline
+ * can outlast even this tick's POLL_BUDGET_MS on a very long video), just
+ * far less often than when this only advanced one post by one step every 5
+ * minutes.
+ *
+ * Filters on videoLongReviewNeeded rather than moderationStatus: FLAGGED —
+ * a video from HIVE_VIDEO_MODERATION_MAX_SECONDS up to
+ * VIDEO_INSTANT_PUBLISH_MAX_SECONDS is already PUBLISHED and still needs
+ * this review in the background (see createPost), so gating on FLAGGED
+ * alone would silently skip it forever.
  */
 async function claimPostCandidates(claimable: object) {
   const candidates = await prisma.post.findMany({
     where: {
       mediaType: "VIDEO",
-      moderationStatus: "FLAGGED",
+      videoLongReviewNeeded: true,
       videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
       ...claimable,
     },

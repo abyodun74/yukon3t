@@ -588,6 +588,15 @@ model Post {
   // of re-uploading to Stream on every tick. Cleaned up (Stream copy
   // deleted, this cleared) once a final verdict is reached.
   videoStreamUid       String?
+  // Whether this post still needs the moderate-long-videos pipeline's
+  // verdict — independent of moderationStatus (a video from
+  // HIVE_VIDEO_MODERATION_MAX_SECONDS up to VIDEO_INSTANT_PUBLISH_MAX_SECONDS
+  // publishes immediately and still needs reviewing in the background,
+  // whereas one past that ceiling stays FLAGGED/hidden until reviewed — see
+  // createPost in actions/circles.ts). Set true at creation for either case,
+  // flipped false once a "clean" verdict lands; a "flagged" verdict deletes
+  // the post outright, so nothing needs updating there.
+  videoLongReviewNeeded Boolean @default(false)
   // EMBED posts store only a provider + the extracted video id, never the
   // raw pasted URL — the iframe src is always rebuilt server-side from these
   // two known-safe values, so nothing attacker-controlled ever becomes an
@@ -676,10 +685,10 @@ model Post {
   // Backs the moderate-videos cron's scan for video posts still awaiting a
   // Hive verdict (mediaType VIDEO, videoModeratedAt IS NULL).
   @@index([mediaType, videoModeratedAt])
-  // Backs the moderate-long-videos cron's scan for FLAGGED long videos still
-  // awaiting (or stale-claimed by a killed run and due for retry) the
-  // OpenAI review pipeline.
-  @@index([mediaType, moderationStatus, videoLongReviewClaimedAt])
+  // Backs the moderate-long-videos cron's scan for videos still awaiting (or
+  // stale-claimed by a killed run and due for retry) the OpenAI review
+  // pipeline — independent of moderationStatus, see videoLongReviewNeeded.
+  @@index([mediaType, videoLongReviewNeeded, videoLongReviewClaimedAt])
 }
 
 model Comment {

@@ -35,12 +35,11 @@ const MAX_RECORD_VIDEO_SECONDS = 60;
 // storage.ts's MAX_VIDEO_DURATION_SECONDS (duplicated locally rather than
 // imported — storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and
 // can't be bundled into a "use client" component). Anything over
-// HIVE_VIDEO_MODERATION_MAX_SECONDS still uploads fine, but publishes hidden
-// pending manual admin review instead of going out immediately — see
-// videoNeedsManualReview in actions/circles.ts — because Hive's Visual
-// Moderation API (src/lib/hive.ts) can't scan past 60s of content.
+// VIDEO_INSTANT_PUBLISH_MAX_SECONDS still uploads fine, but publishes
+// hidden pending review instead of going out immediately — see
+// videoNeedsHold in actions/circles.ts.
 const MAX_UPLOAD_VIDEO_SECONDS = 3600;
-const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
+const VIDEO_INSTANT_PUBLISH_MAX_SECONDS = 600;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
@@ -876,9 +875,9 @@ export function PostComposer({
               <X size={14} />
             </button>
           </div>
-          {videoDurationSeconds !== null && videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS && (
+          {videoDurationSeconds !== null && videoDurationSeconds > VIDEO_INSTANT_PUBLISH_MAX_SECONDS && (
             <p className="mt-1 text-foreground-soft">
-              Over {formatSecondsLabel(HIVE_VIDEO_MODERATION_MAX_SECONDS)} — this won&apos;t go live until an admin reviews it.
+              Over {formatSecondsLabel(VIDEO_INSTANT_PUBLISH_MAX_SECONDS)} — this won&apos;t go live until it&apos;s reviewed.
             </p>
           )}
         </div>
@@ -904,9 +903,9 @@ export function PostComposer({
             </button>
           </div>
           {nativeVideoUpload.videoDurationSeconds !== undefined &&
-            nativeVideoUpload.videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS && (
+            nativeVideoUpload.videoDurationSeconds > VIDEO_INSTANT_PUBLISH_MAX_SECONDS && (
               <p className="mt-1 text-foreground-soft">
-                Over {formatSecondsLabel(HIVE_VIDEO_MODERATION_MAX_SECONDS)} — this won&apos;t go live until an admin reviews it.
+                Over {formatSecondsLabel(VIDEO_INSTANT_PUBLISH_MAX_SECONDS)} — this won&apos;t go live until it&apos;s reviewed.
               </p>
             )}
         </div>

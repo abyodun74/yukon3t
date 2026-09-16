@@ -14,6 +14,7 @@ import { isGiphyUrl } from "@/lib/giphy";
 import {
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
+  VIDEO_INSTANT_PUBLISH_MAX_SECONDS,
   verifyUploadedSize,
   deleteObject,
   deleteOwnedObject,
@@ -536,17 +537,33 @@ export async function createPost(formData: FormData) {
     eventLocation: formData.get("eventLocation") || undefined,
   });
   if (!parsed.success) {
+    // Was a bare { error: "invalid" } with nothing else — the client-side
+    // message for this ("That link isn't valid...") is written for the
+    // embedUrl/LINK case specifically and is actively misleading for every
+    // other validation failure, and with no server-side detail either,
+    // diagnosing *which* field actually failed meant re-deriving it from
+    // scratch each time. Logging the real Zod issues costs nothing and
+    // turns the next one of these into a two-minute log check.
+    console.error("[createPost] validation failed", parsed.error.flatten());
     return { error: "invalid" };
   }
   const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, videoDurationSeconds, eventAt, eventLocation } =
     parsed.data;
   // Hive's Visual Moderation API can't scan past 60s of content — a longer
   // video skips the automated moderate-videos cron entirely (it would just
-  // fail/waste a call) and instead needs a human look before it's visible.
-  const videoNeedsManualReview =
+  // fail/waste a call) and instead goes through the slower Cloudflare
+  // Stream long-form review pipeline (video-review.ts) in the background.
+  const videoNeedsLongReview =
     mediaType === "VIDEO" &&
     videoDurationSeconds !== undefined &&
     videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+  // Only videos past VIDEO_INSTANT_PUBLISH_MAX_SECONDS actually stay
+  // FLAGGED/hidden while that review runs — anything from 60s up to that
+  // ceiling publishes immediately (same "publish now, react if flagged"
+  // model as everything else) and just gets removed after the fact if the
+  // background review comes back flagged. See storage.ts.
+  const videoNeedsHold =
+    videoNeedsLongReview && videoDurationSeconds !== undefined && videoDurationSeconds > VIDEO_INSTANT_PUBLISH_MAX_SECONDS;
 
   if (parsed.data.circleId) {
     if (!parsed.data.channelId) {
@@ -683,7 +700,7 @@ export async function createPost(formData: FormData) {
       await cleanupUploads();
       return { error: "moderation", categories: modResult.flaggedCategories };
     }
-    if (videoNeedsManualReview) {
+    if (videoNeedsHold) {
       moderationStatus = "FLAGGED";
     }
   }
@@ -700,7 +717,7 @@ export async function createPost(formData: FormData) {
   // one never lands — so a failure here just falls back to the old timing,
   // never blocks or fails the post itself.
   const streamUidPromise =
-    videoNeedsManualReview && videoUrl && isStreamConfigured() ? createStreamCopy(videoUrl) : Promise.resolve(null);
+    videoNeedsLongReview && videoUrl && isStreamConfigured() ? createStreamCopy(videoUrl) : Promise.resolve(null);
 
   // Feed section is auto-assigned from the post's own content instead of
   // the manual picker post-composer.tsx used to show — classifyPostCategory
@@ -742,8 +759,13 @@ export async function createPost(formData: FormData) {
       // `mediaType VIDEO, videoModeratedAt IS NULL` scan from picking them
       // up and wasting/failing a Hive call on something it was never going
       // to handle.
-      videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
+      videoModeratedAt: videoNeedsLongReview ? new Date() : undefined,
       videoStreamUid: streamUid ?? undefined,
+      // Independent of moderationStatus (see schema.prisma) — true for both
+      // the FLAGGED-hold tier and the new instant-publish-but-still-review
+      // tier, so moderate-long-videos picks either up regardless of whether
+      // this post is already visible.
+      videoLongReviewNeeded: videoNeedsLongReview,
     },
   });
   if (embedding) {
@@ -757,8 +779,9 @@ export async function createPost(formData: FormData) {
   // still null, same "publish immediately, flag retroactively if needed"
   // approach as text/image moderation, but Hive's Visual Moderation API is a
   // synchronous call best kept out of this user-facing request path. A video
-  // over 60s skips this path entirely (videoNeedsManualReview above already
-  // set videoModeratedAt and moderationStatus FLAGGED at creation).
+  // over 60s skips this path entirely (videoNeedsLongReview above already
+  // set videoModeratedAt and videoLongReviewNeeded at creation; videoNeedsHold
+  // additionally holds it FLAGGED past VIDEO_INSTANT_PUBLISH_MAX_SECONDS).
 
   // Notify subscribers of new content. Skipped for flagged content, and for
   // anything other than PUBLIC visibility — a subscriber isn't necessarily
