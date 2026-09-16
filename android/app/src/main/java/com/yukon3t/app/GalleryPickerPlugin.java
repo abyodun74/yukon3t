@@ -5,6 +5,7 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.OpenableColumns;
@@ -27,6 +28,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -53,6 +56,12 @@ import java.util.Set;
 public class GalleryPickerPlugin extends Plugin {
 
     private static final int DEFAULT_LIMIT = 10;
+
+    // Kept in sync with post-composer.tsx/story-upload-modal.tsx's own
+    // IMAGE_TYPES — see readImage() below for why this exists.
+    private static final Set<String> WEB_ALLOWED_IMAGE_TYPES = new HashSet<>(
+        Arrays.asList("image/jpeg", "image/png", "image/webp", "image/gif")
+    );
 
     @PluginMethod
     public void pickImages(PluginCall call) {
@@ -119,11 +128,43 @@ public class GalleryPickerPlugin extends Plugin {
             while ((read = in.read(chunk)) != -1) {
                 buffer.write(chunk, 0, read);
             }
-
+            byte[] rawBytes = buffer.toByteArray();
             String mimeType = resolver.getType(uri);
+
+            // Recent Android/Samsung camera defaults save gallery photos as
+            // HEIC/HEIF, which android.graphics can decode fine natively but
+            // the web layer's IMAGE_TYPES allow-list (post-composer.tsx etc.)
+            // never included — confirmed live: a HEIC pick silently vanished
+            // with no error, since the JS side's own MIME filter just
+            // dropped it before it ever reached the upload path. Re-encoding
+            // to JPEG here for anything outside that allow-list normalizes
+            // it to something the web layer is guaranteed to accept — same
+            // "don't trust the device's own reported format" approach
+            // normalizeVideoFile takes on the web side for video. Anything
+            // already in the allow-list (jpeg/png/webp/gif) is passed
+            // through untouched, since re-encoding would flatten an
+            // animated GIF to one frame and drop PNG alpha transparency —
+            // both real regressions, not just a quality cost, for formats
+            // that were never broken to begin with.
+            byte[] finalBytes = rawBytes;
+            String finalMimeType = mimeType != null ? mimeType : "image/jpeg";
+            if (!WEB_ALLOWED_IMAGE_TYPES.contains(finalMimeType)) {
+                Bitmap bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+                if (bitmap != null) {
+                    try {
+                        ByteArrayOutputStream jpegOut = new ByteArrayOutputStream();
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, jpegOut);
+                        finalBytes = jpegOut.toByteArray();
+                        finalMimeType = "image/jpeg";
+                    } finally {
+                        bitmap.recycle();
+                    }
+                }
+            }
+
             JSObject image = new JSObject();
-            image.put("base64", Base64.encodeToString(buffer.toByteArray(), Base64.NO_WRAP));
-            image.put("mimeType", mimeType != null ? mimeType : "image/jpeg");
+            image.put("base64", Base64.encodeToString(finalBytes, Base64.NO_WRAP));
+            image.put("mimeType", finalMimeType);
             image.put("name", queryDisplayName(resolver, uri));
             return image;
         } catch (Exception e) {
