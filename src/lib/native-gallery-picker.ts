@@ -1,6 +1,7 @@
 "use client";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { withNativePickerActive } from "@/lib/native-picker-activity";
 
 interface GalleryPickerPluginInterface {
   pickImages(options: { limit: number }): Promise<{
@@ -37,7 +38,7 @@ function base64ToFile(base64: string, mimeType: string, name: string): File {
 export async function pickImagesNative(limit: number): Promise<File[] | null> {
   if (!isAndroid()) return null;
   try {
-    const { images } = await GalleryPicker.pickImages({ limit });
+    const { images } = await withNativePickerActive(() => GalleryPicker.pickImages({ limit }));
     return images.map((img) => base64ToFile(img.base64, img.mimeType, img.name));
   } catch {
     return null;

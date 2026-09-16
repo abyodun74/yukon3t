@@ -18,6 +18,7 @@ import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
+import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
 
@@ -988,7 +989,10 @@ export function PostComposer({
             accept={IMAGE_TYPES.join(",")}
             multiple
             className="hidden"
-            onChange={(e) => pickImages(e.target.files)}
+            onChange={(e) => {
+              markNativePickerInactive();
+              pickImages(e.target.files);
+            }}
           />
           {/* accept must include the literal "image/*" — Capacitor's own
               WebView file-chooser handler only routes a capture-enabled
@@ -1003,7 +1007,10 @@ export function PostComposer({
             accept={`${IMAGE_TYPES.join(",")},image/*`}
             capture="environment"
             className="hidden"
-            onChange={(e) => pickImages(e.target.files)}
+            onChange={(e) => {
+              markNativePickerInactive();
+              pickImages(e.target.files);
+            }}
           />
           {/* accept must include the literal "video/*" — confirmed live via
               adb logcat on a real Samsung device: the WebView's file-chooser
@@ -1020,7 +1027,10 @@ export function PostComposer({
             type="file"
             accept={`${VIDEO_TYPES.join(",")},video/*`}
             className="hidden"
-            onChange={(e) => pickVideo(e.target.files?.[0])}
+            onChange={(e) => {
+              markNativePickerInactive();
+              pickVideo(e.target.files?.[0]);
+            }}
           />
           <MediaPickerButton
             icon={<ImagePlus size={16} />}
@@ -1043,13 +1053,17 @@ export function PostComposer({
                     if (native.length > 0) pickImages(native);
                     return;
                   }
+                  markNativePickerActive();
                   imageInputRef.current?.click();
                 },
               },
               {
                 label: "Take a photo",
                 icon: <Camera size={14} />,
-                onSelect: () => cameraInputRef.current?.click(),
+                onSelect: () => {
+                  markNativePickerActive();
+                  cameraInputRef.current?.click();
+                },
               },
               {
                 label: "Add from a URL",
@@ -1079,6 +1093,7 @@ export function PostComposer({
                     await handleNativeVideoAttach(native);
                     return;
                   }
+                  markNativePickerActive();
                   videoInputRef.current?.click();
                 },
               },

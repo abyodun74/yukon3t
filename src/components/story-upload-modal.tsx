@@ -7,6 +7,7 @@ import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
+import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { cn } from "@/lib/utils";
 
@@ -338,6 +339,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
       if (native.length > 0) addImages(native);
       return;
     }
+    markNativePickerActive();
     imageInputRef.current?.click();
   }
 
@@ -541,6 +543,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           multiple
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             addImages(e.target.files);
             e.target.value = "";
           }}
@@ -557,6 +560,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           capture="environment"
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             addImages(e.target.files);
             e.target.value = "";
           }}
@@ -575,6 +579,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
           multiple
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             addVideos(e.target.files);
             e.target.value = "";
           }}
@@ -629,8 +634,22 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                   title="Add more"
                   options={[
                     { label: "Add photos", icon: <Upload size={14} />, onSelect: pickImagesOrFallback },
-                    { label: "Take a photo", icon: <Camera size={14} />, onSelect: () => cameraInputRef.current?.click() },
-                    { label: "Add videos", icon: <Video size={14} />, onSelect: () => videoInputRef.current?.click() },
+                    {
+                      label: "Take a photo",
+                      icon: <Camera size={14} />,
+                      onSelect: () => {
+                        markNativePickerActive();
+                        cameraInputRef.current?.click();
+                      },
+                    },
+                    {
+                      label: "Add videos",
+                      icon: <Video size={14} />,
+                      onSelect: () => {
+                        markNativePickerActive();
+                        videoInputRef.current?.click();
+                      },
+                    },
                   ]}
                 />
               </div>
@@ -650,7 +669,10 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                 {
                   label: "Take a photo",
                   icon: <Camera size={14} />,
-                  onSelect: () => cameraInputRef.current?.click(),
+                  onSelect: () => {
+                    markNativePickerActive();
+                    cameraInputRef.current?.click();
+                  },
                 },
               ]}
             />
@@ -661,7 +683,10 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                 {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
-                  onSelect: () => videoInputRef.current?.click(),
+                  onSelect: () => {
+                    markNativePickerActive();
+                    videoInputRef.current?.click();
+                  },
                 },
               ]}
             />

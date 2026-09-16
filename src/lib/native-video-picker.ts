@@ -1,6 +1,7 @@
 "use client";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { withNativePickerActive } from "@/lib/native-picker-activity";
 
 interface VideoPickerPluginInterface {
   pickVideo(): Promise<{
@@ -68,7 +69,7 @@ export async function pickVideoNative(): Promise<{
 } | null> {
   if (!isAndroid()) return null;
   try {
-    const result = await GalleryPicker.pickVideo();
+    const result = await withNativePickerActive(() => GalleryPicker.pickVideo());
     if (!result.uri) return null;
     return {
       uri: result.uri,

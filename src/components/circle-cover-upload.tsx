@@ -7,6 +7,7 @@ import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
+import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
 
 const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -105,7 +106,10 @@ export function CircleCoverUpload({
       <button
         type="button"
         disabled={isPending}
-        onClick={() => galleryInputRef.current?.click()}
+        onClick={() => {
+          markNativePickerActive();
+          galleryInputRef.current?.click();
+        }}
         aria-label="Change Circle picture"
         className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-line bg-surface disabled:opacity-50"
       >
@@ -125,6 +129,7 @@ export function CircleCoverUpload({
           accept={ACCEPTED_TYPES.join(",")}
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             handlePicked(e.target.files?.[0]);
             e.target.value = "";
           }}
@@ -141,6 +146,7 @@ export function CircleCoverUpload({
           capture="environment"
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             handlePicked(e.target.files?.[0]);
             e.target.value = "";
           }}
@@ -154,12 +160,18 @@ export function CircleCoverUpload({
             {
               label: "Choose from gallery",
               icon: <Upload size={14} />,
-              onSelect: () => galleryInputRef.current?.click(),
+              onSelect: () => {
+                markNativePickerActive();
+                galleryInputRef.current?.click();
+              },
             },
             {
               label: "Take a photo",
               icon: <Camera size={14} />,
-              onSelect: () => cameraInputRef.current?.click(),
+              onSelect: () => {
+                markNativePickerActive();
+                cameraInputRef.current?.click();
+              },
             },
           ]}
         >

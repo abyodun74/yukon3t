@@ -12,6 +12,7 @@ import {
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
+import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
@@ -331,7 +332,10 @@ export function AdBookingForm() {
           type="file"
           accept={IMAGE_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickImage(e.target.files?.[0]);
+          }}
         />
         {/* accept must include the literal "image/*" — Capacitor's own
             WebView file-chooser handler only routes a capture-enabled
@@ -344,7 +348,10 @@ export function AdBookingForm() {
           accept={`${IMAGE_TYPES.join(",")},image/*`}
           capture="environment"
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickImage(e.target.files?.[0]);
+          }}
         />
         {/* accept must include the literal "video/*" — confirmed live via
             adb logcat on a real Samsung device: the WebView's file-chooser
@@ -358,7 +365,10 @@ export function AdBookingForm() {
           type="file"
           accept={`${VIDEO_TYPES.join(",")},video/*`}
           className="hidden"
-          onChange={(e) => pickVideo(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickVideo(e.target.files?.[0]);
+          }}
         />
 
         {file && previewUrl ? (
@@ -390,12 +400,18 @@ export function AdBookingForm() {
                 {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
-                  onSelect: () => imageInputRef.current?.click(),
+                  onSelect: () => {
+                    markNativePickerActive();
+                    imageInputRef.current?.click();
+                  },
                 },
                 {
                   label: "Take a photo",
                   icon: <Camera size={14} />,
-                  onSelect: () => cameraInputRef.current?.click(),
+                  onSelect: () => {
+                    markNativePickerActive();
+                    cameraInputRef.current?.click();
+                  },
                 },
               ]}
             />
@@ -406,7 +422,10 @@ export function AdBookingForm() {
                 {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
-                  onSelect: () => videoInputRef.current?.click(),
+                  onSelect: () => {
+                    markNativePickerActive();
+                    videoInputRef.current?.click();
+                  },
                 },
               ]}
             />

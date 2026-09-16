@@ -6,6 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { markAllAsRead } from "@/app/actions/notifications";
+import { isNativePickerActive } from "@/lib/native-picker-activity";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -152,9 +153,20 @@ export function CapacitorBridge() {
     // Skipped on an auth/onboarding route (see NO_HOME_RESET_PREFIXES) and
     // when already on /home, so this never fights an in-progress sign-in
     // flow or bounces someone already there.
+    //
+    // Also skipped while a native picker (photo/video picker, camera
+    // capture) is in flight — confirmed live that this "resume" event fires
+    // just as reliably from a picker/camera Activity closing and handing
+    // control back to MainActivity as it does from a real app-switch, and
+    // without this guard it silently yanked the user (and their in-progress
+    // upload) back to Home the instant any picker returned, from any page
+    // other than Home — breaking photo AND video attach everywhere except
+    // Home, with no error, just a vanished composer. See
+    // native-picker-activity.ts.
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
       App.addListener("resume", () => {
+        if (isNativePickerActive()) return;
         const current = pathnameRef.current;
         if (current === "/home") return;
         if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;

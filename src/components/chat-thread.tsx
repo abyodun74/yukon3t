@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
+import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -1457,7 +1458,10 @@ export function ChatThread({
           type="file"
           accept={IMAGE_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickImage(e.target.files?.[0]);
+          }}
         />
         {/* accept must include the literal "image/*" — Capacitor's own
             WebView file-chooser handler only routes a capture-enabled
@@ -1470,14 +1474,20 @@ export function ChatThread({
           accept={`${IMAGE_TYPES.join(",")},image/*`}
           capture="environment"
           className="hidden"
-          onChange={(e) => pickImage(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickImage(e.target.files?.[0]);
+          }}
         />
         <input
           ref={videoFileInputRef}
           type="file"
           accept={VIDEO_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => pickVideoFile(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickVideoFile(e.target.files?.[0]);
+          }}
         />
         <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
           <EmojiPickerButton onSelect={insertEmoji} />
@@ -1516,12 +1526,18 @@ export function ChatThread({
               {
                 label: "Upload from device",
                 icon: <Upload size={14} />,
-                onSelect: () => imageInputRef.current?.click(),
+                onSelect: () => {
+                  markNativePickerActive();
+                  imageInputRef.current?.click();
+                },
               },
               {
                 label: "Take a photo",
                 icon: <Camera size={14} />,
-                onSelect: () => cameraInputRef.current?.click(),
+                onSelect: () => {
+                  markNativePickerActive();
+                  cameraInputRef.current?.click();
+                },
               },
             ]}
           />
@@ -1532,7 +1548,10 @@ export function ChatThread({
               {
                 label: "Upload from device",
                 icon: <Upload size={14} />,
-                onSelect: () => videoFileInputRef.current?.click(),
+                onSelect: () => {
+                  markNativePickerActive();
+                  videoFileInputRef.current?.click();
+                },
               },
               {
                 label: "Record live",
