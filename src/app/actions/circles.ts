@@ -32,6 +32,8 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -756,6 +758,17 @@ export async function createPost(formData: FormData) {
   // subscribers shouldn't be pointed at a post that isn't publicly visible.
   if (moderationStatus === "PUBLISHED") {
     await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
+    // Tells any open Home feed tab to refetch — both the matching category
+    // tab and "All" (PostFeedSection's own category prop), same "thin
+    // signal, go refetch through the existing already-authorized query"
+    // shape as every other realtime channel in this app. Harmless if a
+    // given viewer's getVisiblePostsWhere/buildCategoryFilter ends up
+    // returning nothing new for them (e.g. this post isn't actually visible
+    // to them) — the refetch just comes back empty.
+    await Promise.all([
+      publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed"),
+      ...(feedCategory ? [publishEvent(REALTIME_CHANNELS.homeFeed(feedCategory), "changed")] : []),
+    ]);
   }
 
   revalidatePath("/circles", "layout");

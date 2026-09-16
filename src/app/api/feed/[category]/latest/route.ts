@@ -6,17 +6,18 @@ import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 
-const POLL_PAGE_SIZE = 10;
+const LATEST_PAGE_SIZE = 10;
 // Matches Home's own PAGE_SIZE (src/app/home/page.tsx) so a "Load more"
 // click pulls in the same number of posts the old full-page pagination did.
 const LOAD_MORE_PAGE_SIZE = 20;
 
 /**
- * Polled by PostFeedSection (src/components/post-feed-section.tsx) every ~25s
- * to give Home's feed a near-real-time feel without new websocket/SSE
- * infrastructure — same `usePolling` pattern already used for nav badges
- * and chat (src/lib/use-polling.ts). `category` is either a FeedCategory
- * value or the literal "all" (no category filter, matching Home's "All" tab).
+ * Fetched by PostFeedSection (src/components/post-feed-section.tsx) whenever
+ * a realtime "changed" signal lands on this category's home-feed:{category}
+ * channel (createPost/repost publish onto it — see REALTIME_CHANNELS.homeFeed
+ * in actions/circles.ts/actions/reposts.ts), rather than on a polling
+ * interval. `category` is either a FeedCategory value or the literal "all"
+ * (no category filter, matching Home's "All" tab).
  *
  * Also serves Home's "Load more" button (`before` param) — fetching older
  * posts this way instead of Home's old `?before=` full-page navigation lets
@@ -74,7 +75,7 @@ export async function GET(
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: before ? LOAD_MORE_PAGE_SIZE : POLL_PAGE_SIZE,
+    take: before ? LOAD_MORE_PAGE_SIZE : LATEST_PAGE_SIZE,
     ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     include: postCardInclude,
   });

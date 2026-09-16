@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PostCard, type PostCardData } from "@/components/post-card";
-import { usePolling } from "@/lib/use-polling";
-
-const POLL_INTERVAL_MS = 25_000;
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -41,7 +40,7 @@ export function PostFeedSection({
   allPostsScope = false,
   viewerId,
   viewerIsAdmin,
-  pollingEnabled = true,
+  liveUpdatesEnabled = true,
 }: {
   // "all" polls/queries with no category filter.
   category: string;
@@ -53,13 +52,13 @@ export function PostFeedSection({
   allPostsScope?: boolean;
   viewerId: string;
   viewerIsAdmin: boolean;
-  pollingEnabled?: boolean;
+  liveUpdatesEnabled?: boolean;
 }) {
   const [posts, setPosts] = useState(initialPosts);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const poll = useCallback(async () => {
+  const refetchNewer = useCallback(async () => {
     const latest = posts[0]?.createdAt;
     if (!latest) return;
     try {
@@ -76,11 +75,22 @@ export function PostFeedSection({
         return toAdd.length ? [...toAdd, ...prev] : prev;
       });
     } catch {
-      // A failed poll should not be visible to the user — try again next tick.
+      // A failed refetch should not be visible to the user — the next
+      // realtime signal (or tab-focus resync) tries again.
     }
   }, [category, posts]);
 
-  usePolling(poll, POLL_INTERVAL_MS, pollingEnabled);
+  // Replaces the old 25s poll — createPost/repost publish onto this
+  // category's home-feed:{category} channel and the global home-feed:all
+  // channel (see REALTIME_CHANNELS.homeFeed in actions/circles.ts and
+  // actions/reposts.ts), so a new post shows up as soon as it's published
+  // instead of waiting on the next tick. useRealtimeEvent's own tab-focus
+  // resync covers a missed signal.
+  useRealtimeEvent(
+    liveUpdatesEnabled ? REALTIME_CHANNELS.homeFeed(category) : null,
+    "changed",
+    refetchNewer,
+  );
 
   // Fetches the next page and appends it in place — no navigation, so
   // scroll position is untouched (this is what replaced Home's old

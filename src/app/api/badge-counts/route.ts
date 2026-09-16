@@ -6,11 +6,12 @@ import { requireUser, AuthError } from "@/lib/auth-guards";
  * Combines what used to be 4 separately-polled endpoints (messages/
  * connections/notifications/announcements unread-count) into one — Nav
  * mounts all 4 badges for every signed-in user on every page, so 4
- * independent `usePolling` loops meant 4 separate requests (each re-running
+ * independent poll loops used to mean 4 separate requests (each re-running
  * requireUser()'s own DB lookup) every ~25s per active tab. One combined
- * poll cuts that to 1 request and 1 requireUser() call, with the 4 actual
- * count queries run in parallel below. See src/lib/use-nav-badges.ts for
- * the client side.
+ * fetch cuts that to 1 request and 1 requireUser() call, with the 4 actual
+ * count queries run in parallel below — now triggered by a realtime signal
+ * (see REALTIME_CHANNELS.navBadges) instead of a timer. See
+ * src/lib/use-nav-badges.ts for the client side.
  */
 export async function GET() {
   let user;

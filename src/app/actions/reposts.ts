@@ -9,6 +9,8 @@ import { moderateText } from "@/lib/moderation";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { canViewPost } from "@/lib/post-visibility";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 export async function repost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -113,6 +115,11 @@ export async function repost(formData: FormData) {
     },
   });
   await notifySubscribers(user.id, "SUBSCRIPTION_REPOST", { postId: rootId });
+  // "All" only, not a specific category channel — a repost doesn't go
+  // through classifyPostCategory the way an original post does (see the
+  // create above: no feedCategory set), so "All" is the one tab a repost
+  // reliably shows up on.
+  await publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed");
 
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);

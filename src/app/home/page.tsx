@@ -128,7 +128,7 @@ export default async function HomePage({
         // posts" bypass only applies to the initial server-rendered batch,
         // so polling stays off in that mode rather than silently narrowing
         // what's shown partway through a session.
-        pollingEnabled={!allPostsScope}
+        liveUpdatesEnabled={!allPostsScope}
       />
       {posts.length === 0 && (
         <p className="mt-8 text-sm text-foreground-soft">

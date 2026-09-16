@@ -175,11 +175,18 @@ left over from the original boilerplate; reconciled to match the actual
 enforced age, per an explicit choice made when this was built, not an
 oversight.
 
-**Real-time-ish chat with delivered/read receipts**: no WebSocket/SSE
-infrastructure — deliberately short-interval (~3s) polling instead, to
-stay on the "no added paid services" budget line the rest of this project
-follows. `Message.deliveredAt`/`readAt` (nullable, two separate columns —
-conversations here are always exactly 2 people, so no join table needed).
+**Real-time-ish chat with delivered/read receipts**: originally no
+WebSocket/SSE infrastructure — deliberately short-interval (~3s) polling
+instead, to stay on the "no added paid services" budget line the rest of
+this project followed at the time. Superseded on 2026-09-16: chat (and
+every other polling-based "live" surface in the app — nav badges, calls,
+live streams, Circle voice, Collab sessions, the Home feed) now runs on
+Supabase Realtime Broadcast instead of polling — see CLAUDE.md's "Realtime
+layer" section for the design (public signal-only channels, no Supabase
+Auth/Postgres involved) and `src/lib/realtime-server.ts`/`realtime-client.ts`.
+`Message.deliveredAt`/`readAt` (nullable, two separate columns —
+conversations here are always exactly 2 people, so no join table needed)
+are unchanged.
 **Real bug found and fixed during testing**: the first implementation
 called the read-marking mutation directly inside the `/messages/[id]`
 Server Component's render. Next.js prefetches `<Link>` targets that are
