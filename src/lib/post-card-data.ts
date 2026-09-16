@@ -36,6 +36,10 @@ type EmbeddedPostRow = {
 };
 
 type PostRow = EmbeddedPostRow & {
+  // Not on EmbeddedPostRow: only the top-level post's own audience is shown
+  // (see PostCard's visibility badge) — a repost/share's embedded original
+  // doesn't render one, and is always PUBLIC for a Circle post regardless.
+  visibility: "PUBLIC" | "CONNECTIONS_ONLY" | "PRIVATE";
   repostOf: EmbeddedPostRow | null;
   sharedPost: EmbeddedPostRow | null;
 };
@@ -131,6 +135,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       eventLocation: post.eventLocation,
       createdAt: post.createdAt,
       editedAt: post.editedAt,
+      visibility: post.visibility,
       author: post.author,
       likeCount: target.likeCount,
       commentCount: target.commentCount,

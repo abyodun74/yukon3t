@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Calendar, ExternalLink, Heart, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Volume2, VolumeX } from "lucide-react";
+import { Calendar, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
@@ -83,6 +83,9 @@ type EmbeddedPost = {
 type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
 export type PostCardData = EmbeddedPost & {
+  // Everyone/Friends only/Private, as chosen in the composer — always
+  // PUBLIC for a Circle post (membership is that post's real boundary).
+  visibility: "PUBLIC" | "CONNECTIONS_ONLY" | "PRIVATE";
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -99,6 +102,26 @@ export type PostCardData = EmbeddedPost & {
   conversationId: string | null;
   subscribedByMe: boolean;
 };
+
+// Only rendered for a non-default audience — PUBLIC (the common case) shows
+// nothing, same as most apps only badging the restricted options.
+function PostVisibilityBadge({ visibility }: { visibility: PostCardData["visibility"] }) {
+  if (visibility === "CONNECTIONS_ONLY") {
+    return (
+      <span title="Friends only" aria-label="Friends only" className="text-foreground-soft">
+        <Users size={13} />
+      </span>
+    );
+  }
+  if (visibility === "PRIVATE") {
+    return (
+      <span title="Private" aria-label="Private" className="text-foreground-soft">
+        <Lock size={13} />
+      </span>
+    );
+  }
+  return null;
+}
 
 function EventBlock({
   post,
@@ -609,6 +632,7 @@ export function PostCard({
               (hydration) — suppressHydrationWarning tells React that's
               expected here rather than a real mismatch to warn about. */}
           {editedAt && <span className="text-xs text-foreground-soft">Edited</span>}
+          <PostVisibilityBadge visibility={post.visibility} />
           <span className="text-xs text-foreground-soft" suppressHydrationWarning>
             {formatDateTime(displayPost.createdAt)}
           </span>
@@ -739,29 +763,41 @@ export function PostCard({
           {commentCount > 0 && commentCount}
         </button>
 
-        <button
-          type="button"
-          disabled={isRepostPending}
-          onClick={handleRepost}
-          aria-label={reposted ? "Undo repost" : "Repost"}
-          className={cn(
-            "flex items-center gap-1.5 p-2 -m-2 hover:text-success",
-            reposted && "text-success",
-          )}
-        >
-          <Repeat2 size={16} />
-          {repostCount > 0 && repostCount}
-        </button>
+        {/* Reposting/sharing republishes the full post to a wider audience
+            than the author necessarily approved (see the not_shareable
+            guard in reposts.ts/shares.ts) — hidden rather than left to fail
+            silently for anything but Everyone. A repost/share wrapper's own
+            `visibility` is always PUBLIC (schema default, never set
+            otherwise) and only ever exists because its root already passed
+            that same check at creation time, so this reads correctly for a
+            plain post and a repost/share card alike. */}
+        {post.visibility === "PUBLIC" && (
+          <button
+            type="button"
+            disabled={isRepostPending}
+            onClick={handleRepost}
+            aria-label={reposted ? "Undo repost" : "Repost"}
+            className={cn(
+              "flex items-center gap-1.5 p-2 -m-2 hover:text-success",
+              reposted && "text-success",
+            )}
+          >
+            <Repeat2 size={16} />
+            {repostCount > 0 && repostCount}
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setShareModalOpen(true)}
-          aria-label="Share"
-          className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
-        >
-          <Share2 size={16} />
-          {shareCount > 0 && shareCount}
-        </button>
+        {post.visibility === "PUBLIC" && (
+          <button
+            type="button"
+            onClick={() => setShareModalOpen(true)}
+            aria-label="Share"
+            className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
+          >
+            <Share2 size={16} />
+            {shareCount > 0 && shareCount}
+          </button>
+        )}
 
         {viewerId !== displayPost.author.id && (
           <>

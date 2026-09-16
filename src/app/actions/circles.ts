@@ -523,6 +523,7 @@ export async function createPost(formData: FormData) {
     channelId: channelId ? String(channelId) : undefined,
     content: formData.get("content"),
     intentTag: formData.get("intentTag") || undefined,
+    visibility: formData.get("visibility") || undefined,
     // feedCategory is no longer author-supplied — classifyPostCategory
     // below assigns it automatically from the post's own content.
     mediaType: formData.get("mediaType") || "NONE",
@@ -719,6 +720,11 @@ export async function createPost(formData: FormData) {
       channelId: parsed.data.channelId,
       content: parsed.data.content,
       intentTag: parsed.data.intentTag,
+      // Meaningless inside a Circle (membership is already the access
+      // boundary there) — always stored PUBLIC regardless of what the
+      // composer sent, rather than trusting a client-chosen value that
+      // getVisiblePostsWhere would ignore for circle posts anyway.
+      visibility: parsed.data.circleId ? "PUBLIC" : parsed.data.visibility,
       feedCategory,
       mediaType,
       mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
@@ -754,9 +760,11 @@ export async function createPost(formData: FormData) {
   // over 60s skips this path entirely (videoNeedsManualReview above already
   // set videoModeratedAt and moderationStatus FLAGGED at creation).
 
-  // Notify subscribers of new content. Skipped for flagged content —
-  // subscribers shouldn't be pointed at a post that isn't publicly visible.
-  if (moderationStatus === "PUBLISHED") {
+  // Notify subscribers of new content. Skipped for flagged content, and for
+  // anything other than PUBLIC visibility — a subscriber isn't necessarily
+  // an accepted connection, so a Friends-only/Private post shouldn't point
+  // them at something getVisiblePostsWhere would then just hide from them.
+  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC") {
     await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
     // Tells any open Home feed tab to refetch — both the matching category
     // tab and "All" (PostFeedSection's own category prop), same "thin

@@ -103,6 +103,13 @@ export async function shareToCircle(formData: FormData) {
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" };
   }
+  // Same reasoning as repost()'s equivalent check — quoting into a Circle
+  // republishes the root's full content to that Circle's membership, which
+  // is never guaranteed to line up with who a Friends-only/Private root's
+  // own author allowed.
+  if (root.visibility !== "PUBLIC") {
+    return { error: "not_shareable" };
+  }
 
   const channel = await prisma.channel.findFirst({
     where: { circleId, type: "TEXT" },
@@ -248,6 +255,12 @@ export async function shareToMuse(postId: string) {
   }
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" as const };
+  }
+  // Muse is an unconditionally public feed — same reasoning as repost()'s
+  // and shareToCircle()'s equivalent check, just with no audience boundary
+  // at all on the other side, so this matters even more here.
+  if (root.visibility !== "PUBLIC") {
+    return { error: "not_shareable" as const };
   }
 
   if (root.mediaType !== "VIDEO" || !root.videoUrl || !root.videoDurationSeconds) {

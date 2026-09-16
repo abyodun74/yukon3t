@@ -131,10 +131,17 @@ export function PostComposer({
   circleId,
   channelId,
   placeholder = circleId ? "Share something with this Circle..." : "Share a photo, a short video, or an update...",
+  // Prefilled from the viewer's account-wide default (Settings) — purely a
+  // starting point for the per-post picker below, not itself enforced.
+  // Meaningless (and hidden) for a Circle post: circleId is always stored
+  // PUBLIC server-side since Circle membership is already that post's real
+  // access boundary (see createPost/getVisiblePostsWhere).
+  defaultVisibility = "PUBLIC",
 }: {
   circleId?: string;
   channelId?: string;
   placeholder?: string;
+  defaultVisibility?: "PUBLIC" | "CONNECTIONS_ONLY";
 }) {
   const [images, setImages] = useState<File[]>([]);
   const [urlImages, setUrlImages] = useState<string[]>([]);
@@ -956,13 +963,37 @@ export function PostComposer({
             Posts are prescreened for safety before they appear.
           </p>
         </div>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-        >
-          {status === "uploading" && isPending ? "Posting..." : "Post"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Meaningless inside a Circle — membership there is already the
+              access boundary, and createPost always stores those PUBLIC
+              server-side regardless of what this would send. */}
+          {!circleId && (
+            <>
+              <label htmlFor="post-visibility" className="sr-only">
+                Who can see this post
+              </label>
+              <select
+                id="post-visibility"
+                name="visibility"
+                defaultValue={defaultVisibility}
+                title="Who can see this post"
+                aria-label="Who can see this post"
+                className="rounded-lg border border-line bg-background px-2 py-1.5 text-xs text-foreground-soft outline-none focus:border-accent"
+              >
+                <option value="PUBLIC">Everyone</option>
+                <option value="CONNECTIONS_ONLY">Friends only</option>
+                <option value="PRIVATE">Private</option>
+              </select>
+            </>
+          )}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+          >
+            {status === "uploading" && isPending ? "Posting..." : "Post"}
+          </button>
+        </div>
       </div>
       {showDictation && (
         <DictationRecorder

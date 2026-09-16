@@ -3,16 +3,16 @@ import { getBlockedEitherWayIds } from "@/lib/blocks";
 
 /**
  * The set of posts a viewer is allowed to see: their own; anything posted in
- * a Circle they belong to (member-only regardless of the author's
- * postsVisibility — a separate boundary); their accepted connections' posts
- * (regardless of that connection's own postsVisibility); and — this is the
- * actual enforcement of `postsVisibility` promised by its Settings label
- * ("Anyone signed in") — everyone else's non-Circle posts where the author
- * has left postsVisibility at PUBLIC. CONNECTIONS_ONLY from a non-connection
- * stays excluded. Blocked-either-way authors are excluded regardless of any
- * OR branch above — blocking is meant to hide content, not just messaging.
- * Shared here so the home feed and search stay in sync instead of drifting
- * apart.
+ * a Circle they belong to (member-only regardless of the post's own
+ * visibility — a separate boundary, and circle posts are always stored
+ * PUBLIC anyway, see createPost); and, for everyone else's non-Circle posts,
+ * whatever audience the author picked at compose time (Post.visibility —
+ * "Everyone"/"Friends only"/"Private" in post-composer.tsx): PUBLIC posts to
+ * anyone, CONNECTIONS_ONLY posts only to accepted connections, PRIVATE posts
+ * to no one but the author. Blocked-either-way authors are excluded
+ * regardless of any OR branch above — blocking is meant to hide content, not
+ * just messaging. Shared here so the home feed and search stay in sync
+ * instead of drifting apart.
  */
 export async function getVisiblePostsWhere(viewerId: string) {
   const [circleMemberships, connections, blockedIds] = await Promise.all([
@@ -37,16 +37,18 @@ export async function getVisiblePostsWhere(viewerId: string) {
     OR: [
       ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
       { authorId: viewerId },
+      { circleId: null, visibility: "PUBLIC" as const },
       ...(connectionUserIds.length
-        ? [{ circleId: null, authorId: { in: connectionUserIds } }]
+        ? [{ circleId: null, visibility: "CONNECTIONS_ONLY" as const, authorId: { in: connectionUserIds } }]
         : []),
-      { circleId: null, author: { postsVisibility: "PUBLIC" as const } },
     ],
     NOT: {
       OR: [
-        // HIDDEN ("invisible to everyone", admin-only — see updatePrivacy in
-        // actions/profile.ts) stays excluded for every viewer but the
-        // author, regardless of the OR branches above.
+        // HIDDEN ("invisible to everyone", admin-only account-wide tier —
+        // see updatePrivacy in actions/profile.ts) stays excluded for every
+        // viewer but the author regardless of the OR branches above,
+        // including a post the author themselves marked PUBLIC — it's a
+        // moderation override, not something a per-post choice can lift.
         { AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }] },
         ...(blockedIds.size ? [{ authorId: { in: [...blockedIds] } }] : []),
       ],

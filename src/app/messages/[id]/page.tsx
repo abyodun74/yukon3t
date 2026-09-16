@@ -84,9 +84,12 @@ export default async function ConversationPage({
   // in the thread (see ConnectionRequestBanner) rather than only on
   // /connections, since that's where the recipient is actually looking
   // when they open the message that got them here.
-  const pendingConnection =
+  // None of these four depend on each other's result (each only needs
+  // `conversation`/`members`, already resolved above) — run them together
+  // rather than as four sequential round trips.
+  const [pendingConnection, pendingRequests, memberCandidates, recentMessages] = await Promise.all([
     !conversation.isGroup && other
-      ? await prisma.connection.findFirst({
+      ? prisma.connection.findFirst({
           where: {
             status: "PENDING",
             OR: [
@@ -96,23 +99,21 @@ export default async function ConversationPage({
           },
           select: { id: true, requesterId: true },
         })
-      : null;
+      : Promise.resolve(null),
 
-  const pendingRequests =
     conversation.isGroup && conversation.createdById === me.id
-      ? await prisma.groupJoinRequest.findMany({
+      ? prisma.groupJoinRequest.findMany({
           where: { conversationId: id, status: "PENDING" },
           include: { user: { select: { name: true } } },
           orderBy: { createdAt: "asc" },
         })
-      : [];
+      : Promise.resolve([]),
 
-  // Only the creator can add members, and only their accepted connections
-  // who aren't already in the group are valid candidates — same rule
-  // addGroupMembers enforces server-side.
-  const memberCandidates =
+    // Only the creator can add members, and only their accepted connections
+    // who aren't already in the group are valid candidates — same rule
+    // addGroupMembers enforces server-side.
     conversation.isGroup && conversation.createdById === me.id
-      ? await (async () => {
+      ? (async () => {
           const memberIds = new Set(members.map((m) => m.userId));
           const accepted = await prisma.connection.findMany({
             where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
@@ -126,42 +127,43 @@ export default async function ConversationPage({
             .filter((u) => !memberIds.has(u.id))
             .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
         })()
-      : [];
+      : Promise.resolve([]),
 
-  // Deliberately a plain read, no delivered/read mutation here: Next.js
-  // prefetches <Link> targets that are merely visible in a list (e.g. the
-  // conversation link on /messages), which would silently mark messages
-  // "read" before the user ever opened the thread. Marking read only
-  // happens client-side, in ChatThread, after the component actually
-  // mounts in a real browser — never during SSR/prefetch.
-  // Newest 200 first (not oldest) then reversed for display — otherwise a
-  // conversation past 200 messages would always render the same stuck,
-  // oldest slice with no recent messages ever visible.
-  const recentMessages = await prisma.message.findMany({
-    where: {
-      conversationId: id,
-      moderationStatus: { not: "REMOVED" },
-      NOT: { deletedForUserIds: { has: me.id } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      reactions: { select: { emoji: true, userId: true } },
-      corrections: { include: { author: { select: { id: true, name: true } } } },
-      story: {
-        select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
+    // Deliberately a plain read, no delivered/read mutation here: Next.js
+    // prefetches <Link> targets that are merely visible in a list (e.g. the
+    // conversation link on /messages), which would silently mark messages
+    // "read" before the user ever opened the thread. Marking read only
+    // happens client-side, in ChatThread, after the component actually
+    // mounts in a real browser — never during SSR/prefetch.
+    // Newest 200 first (not oldest) then reversed for display — otherwise a
+    // conversation past 200 messages would always render the same stuck,
+    // oldest slice with no recent messages ever visible.
+    prisma.message.findMany({
+      where: {
+        conversationId: id,
+        moderationStatus: { not: "REMOVED" },
+        NOT: { deletedForUserIds: { has: me.id } },
       },
-      replyTo: {
-        select: {
-          id: true,
-          content: true,
-          mediaType: true,
-          deletedForEveryoneAt: true,
-          sender: { select: { id: true, name: true } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        reactions: { select: { emoji: true, userId: true } },
+        corrections: { include: { author: { select: { id: true, name: true } } } },
+        story: {
+          select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
+        },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            mediaType: true,
+            deletedForEveryoneAt: true,
+            sender: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
   const messages = recentMessages.reverse();
 
   return (

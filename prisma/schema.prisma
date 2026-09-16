@@ -77,6 +77,17 @@ enum PostsVisibility {
   HIDDEN
 }
 
+// Per-post audience picker (post-composer.tsx: "Everyone"/"Friends only"/
+// "Private"), distinct from the account-wide PostsVisibility default above.
+// Only meaningful on circleId: null posts — a post made inside a Circle is
+// always stored PUBLIC here since Circle membership is already its access
+// boundary (see getVisiblePostsWhere in src/lib/post-visibility.ts).
+enum PostVisibility {
+  PUBLIC
+  CONNECTIONS_ONLY
+  PRIVATE
+}
+
 // Section a post is filed under on the Home feed (src/app/home/page.tsx).
 // GENERAL is the default for posts that don't fit a specific section.
 enum FeedCategory {
@@ -589,6 +600,9 @@ model Post {
   // normalizeLinkUrl().
   linkUrl             String?
   intentTag           IntentTag?
+  // Everyone/Friends only/Private, chosen at compose time — see
+  // PostVisibility above and getVisiblePostsWhere for enforcement.
+  visibility          PostVisibility   @default(PUBLIC)
   // Which Home feed section this post is filed under (src/app/home/page.tsx).
   feedCategory        FeedCategory     @default(GENERAL)
   moderationStatus    ModerationStatus @default(PUBLISHED)

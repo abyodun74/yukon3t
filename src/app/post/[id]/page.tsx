@@ -73,9 +73,13 @@ export default async function PostDetailPage({
 
   let canModerate = false;
   if (post.circleId) {
-    const circle = await prisma.circle.findUnique({ where: { id: post.circleId } });
+    // Independent of each other — membership doesn't need circle, only
+    // isCircleAdmin below does — so fetched together instead of in sequence.
+    const [circle, membership] = await Promise.all([
+      prisma.circle.findUnique({ where: { id: post.circleId } }),
+      getCircleMembership(post.circleId, me.id),
+    ]);
     if (circle) {
-      const membership = await getCircleMembership(post.circleId, me.id);
       canModerate = isCircleAdmin(circle, membership, me);
     }
   }

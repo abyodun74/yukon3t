@@ -202,6 +202,10 @@ export const postSchema = z
     // single request can't ship an arbitrarily huge payload.
     content: z.string().trim().max(50000).optional().default(""),
     intentTag: z.enum(intentTagValues).optional(),
+    // Everyone/Friends only/Private (post-composer.tsx) — createPost forces
+    // this to PUBLIC when circleId is set, since Circle membership is
+    // already that post's access boundary (see getVisiblePostsWhere).
+    visibility: z.enum(["PUBLIC", "CONNECTIONS_ONLY", "PRIVATE"]).optional().default("PUBLIC"),
     feedCategory: z.enum(feedCategoryValues).optional().default("GENERAL"),
     mediaType: z.enum(["NONE", "IMAGE", "VIDEO", "EMBED", "LINK", "GIF"]).optional().default("NONE"),
     mediaUrls: z.array(z.string().url()).max(10).optional().default([]),

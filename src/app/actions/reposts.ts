@@ -49,6 +49,16 @@ export async function repost(formData: FormData) {
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" };
   }
+  // A repost embeds the root post's full content (see repostOf in
+  // postCardInclude) and — unlike the canViewPost check above, which only
+  // proves *this* caller can currently see it — republishes it to the
+  // reposter's own audience, which is never guaranteed to be a subset of
+  // who the original author actually allowed. Only a PUBLIC root is safe to
+  // repost at all; PRIVATE already can't reach here (self_repost blocks the
+  // only viewer who could ever pass canViewPost on one).
+  if (root.visibility !== "PUBLIC") {
+    return { error: "not_shareable" };
+  }
 
   if (root.authorId === user.id) {
     return { error: "self_repost" };

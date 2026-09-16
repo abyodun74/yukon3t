@@ -18,14 +18,15 @@ const MAX_IMAGE_DIMENSION = 1920;
 const IMAGE_RESIZE_QUALITY = 0.85;
 
 /**
- * Downscales an image client-side, in the browser, before it ever leaves
- * the device — this app deliberately never routes untrusted uploaded
- * images through server-side processing (see SECURITY.md: sharp/libvips,
- * which powers next/image, has known CVEs, and post/avatar images come
- * from arbitrary users), so this can't be done server-side. A no-op for
- * anything already smaller than the cap, and fails open (returns the
- * original file) on any error — never blocks an upload over a resize
- * failure.
+ * Downscales (if needed) and re-encodes an image to WebP, client-side in
+ * the browser, before it ever leaves the device — this app deliberately
+ * never routes untrusted uploaded images through server-side processing
+ * (see SECURITY.md: sharp/libvips, which powers next/image, has known
+ * CVEs, and post/avatar images come from arbitrary users), so this can't
+ * be done server-side. A no-op for a file that's already WebP and already
+ * within the size cap (nothing to gain from decoding and re-encoding it),
+ * and fails open (returns the original file) on any error — never blocks
+ * an upload over a resize/re-encode failure.
  */
 export async function resizeImageFile(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
@@ -47,11 +48,15 @@ export async function resizeImageFile(file: File): Promise<File> {
     });
 
     const { naturalWidth: width, naturalHeight: height } = img;
-    if (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION) {
+    const withinCap = width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION;
+    if (withinCap && file.type === "image/webp") {
       return file;
     }
 
-    const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+    // scale stays 1 (no resize, just re-encode) for anything already
+    // within the cap — e.g. a same-size JPEG/PNG/HEIC-as-JPEG being
+    // converted to WebP for its own sake, not because it's oversized.
+    const scale = withinCap ? 1 : MAX_IMAGE_DIMENSION / Math.max(width, height);
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
@@ -59,11 +64,17 @@ export async function resizeImageFile(file: File): Promise<File> {
     if (!ctx) return file;
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    // PNG stays PNG (preserves transparency); everything else (JPEG, WebP,
-    // HEIC-as-JPEG from iOS's own conversion) re-encodes as JPEG.
-    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+    // Re-encodes everything as WebP — meaningfully smaller than JPEG or PNG
+    // at the same visual quality, and (unlike JPEG) still preserves
+    // transparency, so this replaces the old "PNG stays PNG, everything
+    // else becomes JPEG" split entirely. Safe to request unconditionally:
+    // every browser this app ships to (Chrome/Android WebView 32+, Safari
+    // 14+) can encode it, and canvas.toBlob() falls back to PNG on its own
+    // per spec if a browser somehow can't — checked via the blob's actual
+    // returned type below rather than assumed, so that fallback can never
+    // produce a mismatched extension/content-type.
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, outputType, IMAGE_RESIZE_QUALITY),
+      canvas.toBlob(resolve, "image/webp", IMAGE_RESIZE_QUALITY),
     );
     if (!blob) return file;
 
@@ -77,8 +88,8 @@ export async function resizeImageFile(file: File): Promise<File> {
     // preview (every caller here builds its thumbnail via
     // URL.createObjectURL on this return value) and the upload.
     const buf = await blob.arrayBuffer();
-    const ext = outputType === "image/png" ? "png" : "jpg";
-    return new File([buf], file.name.replace(/\.\w+$/, `.${ext}`), { type: outputType });
+    const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+    return new File([buf], file.name.replace(/\.\w+$/, `.${ext}`), { type: blob.type });
   } catch {
     return file;
   } finally {

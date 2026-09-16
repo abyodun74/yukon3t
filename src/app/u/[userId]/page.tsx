@@ -17,6 +17,7 @@ import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { PostMuseButton } from "@/components/post-muse-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { isOnline } from "@/lib/presence";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
 
@@ -84,9 +85,13 @@ export default async function PublicProfilePage({
       (user.postsVisibility !== "HIDDEN" &&
         (user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED")));
 
+  // canSeePosts above is a cheap account-level bail-out (skips the query
+  // entirely for a blocked/HIDDEN author); getVisiblePostsWhere is what
+  // actually enforces each individual post's own Everyone/Friends only/
+  // Private choice underneath that.
   const rawPosts = canSeePosts
     ? await prisma.post.findMany({
-        where: { authorId: user.id, circleId: null, moderationStatus: "PUBLISHED" },
+        where: { authorId: user.id, circleId: null, ...(await getVisiblePostsWhere(me.id)) },
         orderBy: { createdAt: "desc" },
         take: POSTS_PAGE_SIZE,
         include: postCardInclude,
@@ -230,7 +235,7 @@ export default async function PublicProfilePage({
         {isOwnProfile && (
           <div id="profile-composer">
             <ProfileComposeFocus />
-            <PostComposer />
+            <PostComposer defaultVisibility={me.postsVisibility === "CONNECTIONS_ONLY" ? "CONNECTIONS_ONLY" : "PUBLIC"} />
           </div>
         )}
         {isOwnProfile && <ProfilePostFab />}

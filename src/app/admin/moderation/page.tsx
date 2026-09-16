@@ -159,12 +159,27 @@ export default async function ModerationQueuePage() {
   // window — grouped in memory rather than a raw GROUP BY so the "keep the
   // earliest, offer to delete the rest" logic stays plain TS.
   const duplicateScanCutoff = new Date(now.getTime() - DUPLICATE_SCAN_WINDOW_MS);
-  const recentPosts = await prisma.post.findMany({
-    where: { createdAt: { gt: duplicateScanCutoff }, content: { not: "" } },
-    orderBy: { createdAt: "asc" },
-    take: 1000,
-    select: { id: true, authorId: true, content: true, createdAt: true, author: { select: { name: true } } },
-  });
+  // Independent of each other (both only need duplicateScanCutoff/now,
+  // computed above) — run together rather than as two sequential scans.
+  const [recentPosts, dmConversations] = await Promise.all([
+    prisma.post.findMany({
+      where: { createdAt: { gt: duplicateScanCutoff }, content: { not: "" } },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
+      select: { id: true, authorId: true, content: true, createdAt: true, author: { select: { name: true } } },
+    }),
+    prisma.conversation.findMany({
+      where: { isGroup: false },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
+      select: {
+        id: true,
+        createdAt: true,
+        members: { select: { userId: true, user: { select: { name: true } } } },
+        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      },
+    }),
+  ]);
   const postGroupsByKey = new Map<string, typeof recentPosts>();
   for (const post of recentPosts) {
     const key = `${post.authorId}::${post.content}`;
@@ -180,17 +195,6 @@ export default async function ModerationQueuePage() {
   // rest for deletion — see deleteConversation in actions/messages.ts and
   // the find-before-create fix in respondToConnection that stops new ones
   // from forming going forward.
-  const dmConversations = await prisma.conversation.findMany({
-    where: { isGroup: false },
-    orderBy: { createdAt: "asc" },
-    take: 1000,
-    select: {
-      id: true,
-      createdAt: true,
-      members: { select: { userId: true, user: { select: { name: true } } } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-    },
-  });
   const conversationGroupsByKey = new Map<string, typeof dmConversations>();
   for (const conv of dmConversations) {
     if (conv.members.length !== 2) continue;

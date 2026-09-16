@@ -57,23 +57,7 @@ export default async function CirclePage({
   const isOwner = circle.createdById === me.id;
   const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
 
-  const myJoinRequest = !isMember
-    ? await prisma.circleJoinRequest.findUnique({
-        where: { circleId_userId: { circleId: circle.id, userId: me.id } },
-      })
-    : null;
-  const hasPendingRequest = myJoinRequest?.status === "PENDING";
-
   const isPrivateNonMember = circle.visibility === "PRIVATE" && !isMember && !canModerate;
-
-  const pendingJoinRequests =
-    canModerate && circle.visibility === "PRIVATE"
-      ? await prisma.circleJoinRequest.findMany({
-          where: { circleId: circle.id, status: "PENDING" },
-          orderBy: { createdAt: "asc" },
-          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
-        })
-      : [];
 
   const accessibleChannels = circle.channels.filter(
     (c) => c.visibility === "PUBLIC" || canModerate || c.members.some((m) => m.userId === me.id),
@@ -84,25 +68,44 @@ export default async function CirclePage({
     accessibleChannels[0] ??
     null;
 
-  const rawPosts =
+  // None of these four depend on one another — each only needs `circle`/
+  // `canModerate`/`activeChannel`, already resolved above — so they run
+  // together rather than as four sequential round trips.
+  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers] = await Promise.all([
+    !isMember
+      ? prisma.circleJoinRequest.findUnique({
+          where: { circleId_userId: { circleId: circle.id, userId: me.id } },
+        })
+      : Promise.resolve(null),
+
+    canModerate && circle.visibility === "PRIVATE"
+      ? prisma.circleJoinRequest.findMany({
+          where: { circleId: circle.id, status: "PENDING" },
+          orderBy: { createdAt: "asc" },
+          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+        })
+      : Promise.resolve([]),
+
     activeChannel?.type === "TEXT"
-      ? await prisma.post.findMany({
+      ? prisma.post.findMany({
           where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
           take: POSTS_PAGE_SIZE,
           include: postCardInclude,
         })
-      : [];
+      : Promise.resolve([]),
+
+    isMember || isOwner
+      ? prisma.circleMembership.findMany({
+          where: { circleId: circle.id },
+          orderBy: { joinedAt: "asc" },
+          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
+  const hasPendingRequest = myJoinRequest?.status === "PENDING";
   const posts = await attachViewerState(rawPosts, me.id);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
-
-  const allMembers = isMember || isOwner
-    ? await prisma.circleMembership.findMany({
-        where: { circleId: circle.id },
-        orderBy: { joinedAt: "asc" },
-        include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
-      })
-    : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">

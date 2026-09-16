@@ -7,6 +7,7 @@ import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
 import { postSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 
 const POSTS_PAGE_SIZE = 20;
 
@@ -97,8 +98,10 @@ export async function deletePost(postId: string) {
  * Auto-load-more for a profile's own posts (/u/[userId]) — called from the
  * client via useInfiniteScroll (src/lib/use-infinite-scroll.ts). Re-derives
  * the same visibility rule the page itself uses (src/app/u/[userId]/page.tsx's
- * `canSeePosts`) server-side rather than trusting the caller, so this can't
- * be used to page past a private profile's posts.
+ * `canSeePosts` account-level check, plus getVisiblePostsWhere's per-post
+ * Everyone/Friends only/Private check) server-side rather than trusting the
+ * caller, so this can't be used to page past a private profile's — or a
+ * single private post's — visibility.
  */
 export async function loadMoreProfilePosts(profileUserId: string, cursor: string) {
   const viewer = await requireUser();
@@ -136,7 +139,7 @@ export async function loadMoreProfilePosts(profileUserId: string, cursor: string
   }
 
   const rawPosts = await prisma.post.findMany({
-    where: { authorId: profileUserId, circleId: null, moderationStatus: "PUBLISHED" },
+    where: { authorId: profileUserId, circleId: null, ...(await getVisiblePostsWhere(viewer.id)) },
     orderBy: { createdAt: "desc" },
     take: POSTS_PAGE_SIZE,
     cursor: { id: cursor },
