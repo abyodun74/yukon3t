@@ -7,6 +7,8 @@ import { createCallRoom, createMeetingToken, isCallingConfigured } from "@/lib/d
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const STALE_AFTER_MS = 4 * 60 * 60 * 1000;
@@ -69,6 +71,7 @@ export async function joinCircleVoiceRoom(channelId: string) {
     create: { channelId, userId: user.id },
     update: { joinedAt: new Date() },
   });
+  await publishEvent(REALTIME_CHANNELS.voiceChannel(channelId), "changed");
 
   revalidatePath(`/circles/${channel.circle.slug}`);
   return { error: null, roomUrl, token };
@@ -81,6 +84,7 @@ export async function leaveCircleVoiceRoom(channelId: string) {
   await prisma.channelVoiceParticipant.deleteMany({
     where: { channelId, userId: user.id },
   });
+  await publishEvent(REALTIME_CHANNELS.voiceChannel(channelId), "changed");
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
@@ -169,6 +173,7 @@ export async function inviteToVoiceChannel(channelId: string, inviteeId: string)
       circleId: channel.circleId,
     },
   });
+  await publishEvent(REALTIME_CHANNELS.voiceChannel(channelId), "changed");
 
   revalidatePath(`/circles/${channel.circle.slug}`);
   return { error: null };
@@ -209,6 +214,7 @@ export async function respondToVoiceChannelInvite(inviteId: string, accept: bool
       },
     });
   }
+  await publishEvent(REALTIME_CHANNELS.voiceChannel(invite.channelId), "changed");
 
   revalidatePath(`/circles/${invite.channel.circle.slug}`);
   return { error: null };

@@ -11,9 +11,8 @@ import {
 } from "@/app/actions/circle-voice";
 import { CallFrame } from "@/components/call-frame";
 import { UserAvatar } from "@/components/user-link";
-import { usePolling } from "@/lib/use-polling";
-
-const POLL_INTERVAL_MS = 5000;
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 type Participant = { id: string; name: string };
 type ActiveRoom = { roomUrl: string; token: string };
@@ -65,7 +64,7 @@ export function CircleVoiceRoom({
     channelIdRef.current = channelId;
   });
 
-  const poll = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const forId = channelIdRef.current;
     const [{ participants: list }, counts] = await Promise.all([
       getCircleVoiceParticipants(forId),
@@ -78,7 +77,24 @@ export function CircleVoiceRoom({
     }
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS, !active);
+  // Fires immediately on mount/channel-switch (a realtime subscription alone
+  // only reports *new* signals, not current state) and again on every
+  // "changed" broadcast from here on — join/leave/invite/invite-response all
+  // publish onto this channel's own voice-channel:{id} topic (see
+  // actions/circle-voice.ts). Ref indirection avoids a "setState
+  // synchronously within an effect" lint false-positive, same pattern as
+  // every other realtime migration in this app. Stops entirely once
+  // active (joined) — same as the old poll's own !active gate, since
+  // CallFrame's own Daily integration shows live participants directly
+  // once you're actually in the room.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  });
+  useEffect(() => {
+    if (!active) refetchRef.current();
+  }, [channelId, active]);
+  useRealtimeEvent(!active ? REALTIME_CHANNELS.voiceChannel(channelId) : null, "changed", refetch);
 
   async function join() {
     setError(null);
