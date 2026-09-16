@@ -27,13 +27,10 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
-import { usePolling } from "@/lib/use-polling";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 
-// 2s rather than the old 5s so a thread feels close to real-time without
-// standing up a WebSocket/SSE server — usePolling already pauses while the
-// tab isn't visible, so this only multiplies load for actively-open threads.
-const POLL_INTERVAL_MS = 2000;
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
 // storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't be
@@ -863,23 +860,25 @@ export function ChatThread({
     return subscribePendingShareMedia(applyShare);
   }, []);
 
-  // usePolling fires this immediately (mount, and on regaining tab focus)
-  // as well as on the recurring interval — that immediate fire is the real
-  // "mark as read" signal, not just a bonus of the polling mechanism.
+  // The very first fetch of a newly-opened/switched-to thread is the real
+  // "mark as read" signal (getConversationMessages marks delivered/read as
+  // a side effect just by being called) — not just a bonus of however
+  // refetches get triggered.
   const conversationIdRef = useRef(conversationId);
   useEffect(() => {
     conversationIdRef.current = conversationId;
   });
 
-  // Most 5s poll ticks return the exact same data as last time — without
-  // this, setMessages would still hand React a brand-new array of brand-new
-  // objects every tick regardless, forcing a full re-render of every
-  // message bubble/reaction/timestamp in the thread even when nothing
-  // changed. A cheap content comparison skips that no-op render — real
-  // CPU/battery cost on a phone during a long-open conversation.
+  // A refetch can return the exact same data as last time (e.g. the other
+  // side's own read-receipt refetch bouncing this one) — without this,
+  // setMessages would still hand React a brand-new array of brand-new
+  // objects regardless, forcing a full re-render of every message bubble/
+  // reaction/timestamp in the thread even when nothing changed. A cheap
+  // content comparison skips that no-op render — real CPU/battery cost on
+  // a phone during a long-open conversation.
   const lastSignatureRef = useRef<string | null>(null);
 
-  const poll = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const forId = conversationIdRef.current;
     const result = await getConversationMessages(forId);
     // Ignore a response that arrives after the user has switched threads.
@@ -901,10 +900,33 @@ export function ChatThread({
     }
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS);
+  // Ref indirection so the mount/conversation-switch effect below reads as
+  // a plain property access to React's own static analysis — same pattern
+  // use-nav-badges.ts uses for its own refetchRef, avoiding a "setState
+  // synchronously within an effect" lint false-positive for what is
+  // actually an async fetch-then-setState.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  });
+
+  // Fires immediately on mount and on every conversation switch (this is
+  // the "mark as read" moment, see above) — separate from the realtime
+  // subscription below, which only fires on a *new* signal from here on.
+  useEffect(() => {
+    refetchRef.current();
+  }, [conversationId]);
+
+  // Replaces the old 2s poll: sendMessage/editMessage/toggleMessageReaction/
+  // suggestCorrection/removeCorrection/deleteMessageForEveryone, and
+  // getConversationMessages itself (when it actually marks something
+  // delivered/read), all publish onto this same conversationId's channel —
+  // see actions/messages.ts. Also refetches once on tab-focus-regain as a
+  // safety net (see useRealtimeEvent's own doc comment).
+  useRealtimeEvent(REALTIME_CHANNELS.conversation(conversationId), "changed", refetch);
 
   // Message ids that should ease in on this render — tracked separately
-  // from messages.length because a poll can also replace the whole array
+  // from messages.length because a refetch can also replace the whole array
   // (an edit or reaction landing elsewhere in the thread) without actually
   // adding anything, and that shouldn't replay the entrance animation on
   // every bubble.
@@ -918,17 +940,17 @@ export function ChatThread({
   const pendingScrollJumpRef = useRef(true);
 
   // ChatThread is NOT remounted when navigating from one conversation to
-  // another (see conversationIdRef above and poll()'s own "ignore a
+  // another (see conversationIdRef above and refetch()'s own "ignore a
   // response that arrives after the user has switched threads" comment) —
   // React just updates this same instance's props in place. Every piece of
   // per-conversation local state below has to be reset here explicitly, or
   // it leaks from whatever conversation was open right before: a stale
   // draft/pending attachment/reply-quote carried into the new thread, the
-  // old thread's messages left on screen until the next poll tick
-  // overwrites them (up to POLL_INTERVAL_MS later), every message in the
-  // new thread wrongly replaying the "just added" entrance animation, and
-  // the view landing wherever the old thread's scroll position happened to
-  // be instead of this thread's newest message.
+  // old thread's messages left on screen until the mount/conversation-switch
+  // effect's refetch above overwrites them, every message in the new thread
+  // wrongly replaying the "just added" entrance animation, and the view
+  // landing wherever the old thread's scroll position happened to be
+  // instead of this thread's newest message.
   const isFirstRenderRef = useRef(true);
   useEffect(() => {
     if (isFirstRenderRef.current) {

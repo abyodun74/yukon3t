@@ -22,7 +22,8 @@ import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
-import { notifyBadgeChange } from "@/lib/realtime-server";
+import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -526,6 +527,7 @@ export async function sendMessage(formData: FormData) {
     });
   }
   await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
+  await publishEvent(REALTIME_CHANNELS.conversation(conversationId), "changed");
 
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };
@@ -549,7 +551,7 @@ export async function getConversationMessages(conversationId: string) {
   }
 
   const now = new Date();
-  await Promise.all([
+  const [deliveredResult, readResult] = await Promise.all([
     prisma.message.updateMany({
       where: { conversationId, senderId: { not: user.id }, deliveredAt: null },
       data: { deliveredAt: now },
@@ -562,12 +564,22 @@ export async function getConversationMessages(conversationId: string) {
     // display and unread detection for groups, where a single shared
     // readAt on the message can't represent partial read status across
     // N people. Independent of the two updates above, so it runs alongside
-    // them instead of after — this fires on every chat poll tick.
+    // them instead of after — this fires every time this conversation is
+    // fetched at all.
     prisma.conversationMember.update({
       where: { conversationId_userId: { conversationId, userId: user.id } },
       data: { lastReadAt: now },
     }),
   ]);
+  // Tells the other member(s)' already-open thread to refetch so their
+  // checkmarks update live — gated on something actually changing so
+  // viewing a conversation with nothing new to mark doesn't publish at all
+  // (which also means this can't ping-pong: the other side's resulting
+  // refetch finds its own messages already delivered/read and publishes
+  // nothing further).
+  if (deliveredResult.count > 0 || readResult.count > 0) {
+    await publishEvent(REALTIME_CHANNELS.conversation(conversationId), "changed");
+  }
 
   const [conversation, recentMessages] = await Promise.all([
     prisma.conversation.findUnique({
@@ -663,6 +675,7 @@ export async function editMessage(messageId: string, formData: FormData) {
     },
   });
 
+  await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null, message: updated };
 }
@@ -709,6 +722,7 @@ export async function toggleMessageReaction(messageId: string, emoji: string) {
     select: REACTION_SELECT,
   });
 
+  await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null, reactions };
 }
@@ -757,6 +771,7 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
     include: CORRECTION_INCLUDE,
   });
 
+  await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null, corrections };
 }
@@ -781,7 +796,10 @@ export async function removeCorrection(correctionId: string) {
     include: CORRECTION_INCLUDE,
   });
 
-  if (message) revalidatePath(`/messages/${message.conversationId}`);
+  if (message) {
+    await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
+    revalidatePath(`/messages/${message.conversationId}`);
+  }
   return { error: null, corrections };
 }
 
@@ -824,6 +842,7 @@ export async function deleteMessageForEveryone(messageId: string) {
     }),
   );
 
+  await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
   return { error: null };
 }
