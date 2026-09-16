@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus } from "lucide-react";
+import { X, Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus, Clapperboard } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
-import { recordShare, shareToCircle, shareToStory } from "@/app/actions/shares";
+import { recordShare, shareToCircle, shareToStory, shareToMuse } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { watermarkImageFile } from "@/lib/watermark";
+
+// Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
+// imported — that file pulls in @aws-sdk/client-s3, which is server-only
+// and isn't safe in a client bundle. Same reasoning/pattern as
+// muse-composer.tsx's own MAX_MUSE_SECONDS duplicate.
+const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null };
@@ -48,6 +54,7 @@ export function ShareModal({
   mediaType,
   mediaUrls,
   videoUrl,
+  videoDurationSeconds,
   onClose,
   onShareCountChange,
 }: {
@@ -56,6 +63,7 @@ export function ShareModal({
   mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
   mediaUrls: string[];
   videoUrl: string | null;
+  videoDurationSeconds: number | null;
   onClose: () => void;
   onShareCountChange: (count: number) => void;
 }) {
@@ -67,6 +75,8 @@ export function ShareModal({
   const [sharingViaDevice, setSharingViaDevice] = useState(false);
   const [sharingToStory, setSharingToStory] = useState(false);
   const [sharedToStory, setSharedToStory] = useState(false);
+  const [sharingToMuse, setSharingToMuse] = useState(false);
+  const [sharedToMuse, setSharedToMuse] = useState(false);
   // Surfaces exactly why a device share didn't attach the actual photo/video
   // — this app's release build doesn't forward WebView console output to
   // logcat and has remote debugging disabled, so an on-screen message is
@@ -78,6 +88,14 @@ export function ShareModal({
   // LINK/EMBED/GIF) — a text-only, link, embedded-video, or GIF post has
   // nothing that fits it, same gate shareToStory itself enforces server-side.
   const canShareToStory = mediaType === "IMAGE" || mediaType === "VIDEO";
+  // Muse is video-only (unlike Story, no image/text variant at all) and
+  // caps at MAX_MUSE_VIDEO_DURATION_SECONDS — a Post video can run up to an
+  // hour, far past what a Muse allows. Same gate shareToMuse itself
+  // enforces server-side.
+  const canShareToMuse =
+    mediaType === "VIDEO" &&
+    videoDurationSeconds !== null &&
+    videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS;
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/post/${postId}` : "";
   // The native path (Android Intent.ACTION_SEND / iOS UIActivityViewController,
@@ -216,6 +234,19 @@ export function ShareModal({
     });
   }
 
+  function shareToMuseFeed() {
+    if (sharingToMuse) return;
+    setSharingToMuse(true);
+    startTransition(async () => {
+      const result = await shareToMuse(postId);
+      setSharingToMuse(false);
+      if (!result.error) {
+        setSharedToMuse(true);
+        if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
+      }
+    });
+  }
+
   function shareIntoCircle(circleId: string) {
     startTransition(async () => {
       const fd = new FormData();
@@ -280,6 +311,17 @@ export function ShareModal({
               >
                 <CirclePlus size={16} />
                 {sharedToStory ? "Added to your story" : sharingToStory ? "Adding…" : "Share to your story"}
+              </button>
+            )}
+            {canShareToMuse && (
+              <button
+                type="button"
+                disabled={sharingToMuse || sharedToMuse}
+                onClick={shareToMuseFeed}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
+              >
+                <Clapperboard size={16} />
+                {sharedToMuse ? "Shared to Muse" : sharingToMuse ? "Sharing…" : "Share to Muse"}
               </button>
             )}
             <button

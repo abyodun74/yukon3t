@@ -12,6 +12,7 @@ type EmbeddedPostRow = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  videoDurationSeconds: number | null;
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
@@ -122,6 +123,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       mediaUrls: post.mediaUrls,
       videoUrl: post.videoUrl,
       videoThumbnailUrl: post.videoThumbnailUrl,
+      videoDurationSeconds: post.videoDurationSeconds,
       embedProvider: post.embedProvider,
       embedId: post.embedId,
       linkUrl: post.linkUrl,

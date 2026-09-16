@@ -256,8 +256,9 @@ const sections: Section[] = [
           <>
             Tap the share icon on any post for a menu: copy the link, share
             via your device&apos;s own share sheet, add it to your own Story,
-            send it straight to a friend as a message, or share it into a
-            Circle. Device sharing attaches the actual photo or video where
+            share it to Muse (video posts up to 3 minutes only), send it
+            straight to a friend as a message, or share it into a Circle.
+            Device sharing attaches the actual photo or video where
             possible (not just a bare link), stamped with a small yukon3t
             logo, so apps like WhatsApp or Messages show the real post
             branded back to where it came from.
@@ -651,6 +652,21 @@ const sections: Section[] = [
             creator&apos;s name follows them so you hear about their future
             posts — none of these require being connected to the creator
             first, same as reacting or commenting.
+          </>
+        ),
+      },
+      {
+        q: "Can I share a post to Muse?",
+        a: (
+          <>
+            Yes — any post with a video (up to 3 minutes) can be shared to
+            Muse: open the share menu on that post and tap &ldquo;Share to
+            Muse.&rdquo; It becomes a new Muse under your own name, crediting
+            the original with a &ldquo;View original post&rdquo; link, and
+            the original author gets notified and credited with a share, the
+            same as sharing it to your Story or a Circle. Posts without
+            video (text, photo, link, embed, GIF) can&apos;t be shared to
+            Muse — there&apos;s no non-video Muse format.
           </>
         ),
       },

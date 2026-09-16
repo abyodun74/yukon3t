@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye } from "lucide-react";
 import {
@@ -52,6 +53,7 @@ type MuseItem = {
   myReaction: string | null;
   isReposted: boolean;
   isFollowingAuthor: boolean;
+  sharedPostId: string | null;
 };
 
 type MuseCommentData = {
@@ -526,6 +528,15 @@ function MuseCard({
               <p className="mt-1 flex items-center gap-1 text-[11px] text-white/70">
                 <Eye size={12} /> {item.viewCount.toLocaleString()} views
               </p>
+              {item.sharedPostId && (
+                <Link
+                  href={`/post/${item.sharedPostId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1 inline-block text-[11px] text-white/70 underline"
+                >
+                  View original post
+                </Link>
+              )}
             </div>
 
             <div className="flex shrink-0 flex-col items-center gap-3">

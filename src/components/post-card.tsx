@@ -62,6 +62,7 @@ type EmbeddedPost = {
   mediaUrls: string[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
+  videoDurationSeconds: number | null;
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
@@ -829,6 +830,7 @@ export function PostCard({
           mediaType={displayPost.mediaType}
           mediaUrls={displayPost.mediaUrls}
           videoUrl={displayPost.videoUrl}
+          videoDurationSeconds={displayPost.videoDurationSeconds}
           onClose={() => setShareModalOpen(false)}
           onShareCountChange={setShareCount}
         />

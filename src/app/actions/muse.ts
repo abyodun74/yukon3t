@@ -218,6 +218,7 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       myReaction: m.reactions[0]?.emoji ?? null,
       isReposted: m.reposts.length > 0,
       isFollowingAuthor: followingIds.has(m.authorId),
+      sharedPostId: m.sharedPostId,
     })),
     nextCursor,
   };
@@ -266,6 +267,7 @@ export async function getMuseById(id: string) {
       myReaction: m.reactions[0]?.emoji ?? null,
       isReposted: m.reposts.length > 0,
       isFollowingAuthor,
+      sharedPostId: m.sharedPostId,
     },
   };
 }

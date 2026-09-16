@@ -635,6 +635,9 @@ model Post {
   // Back-relation for Story.sharedPost (shareToStory) — see that field's
   // own comment.
   storyShares   Story[]
+  // Back-relation for Muse.sharedPost (shareToMuse) — see that field's own
+  // comment.
+  museShares    Muse[]
 
   @@unique([authorId, repostOfId])
   @@index([circleId])
@@ -1364,7 +1367,17 @@ model Muse {
   repostCount Int @default(0)
   viewCount   Int @default(0)
 
+  // Set when this Muse is "share a video Post to Muse" (shareToMuse in
+  // actions/shares.ts) rather than a fresh upload — same "quote, don't
+  // duplicate ownership of the media" idea as Story's own sharedPostId.
+  // SetNull rather than Cascade: the original post being deleted shouldn't
+  // take down a Muse that already reshared it (this Muse's own videoUrl is
+  // a full copy of the URL, not a live reference, so it renders fine either
+  // way — this only affects the "View original post" attribution link).
+  sharedPostId String?
+
   author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  sharedPost    Post?           @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
   reactions     MuseReaction[]
   comments      MuseComment[]
   shares        MuseShare[]
@@ -1378,6 +1391,7 @@ model Muse {
   @@index([videoModeratedAt])
   // Backs the moderate-long-videos cron's scan for in-progress long reviews.
   @@index([moderationStatus, videoLongReviewClaimedAt])
+  @@index([sharedPostId])
 }
 
 // Logs one "share" event (native share sheet, share-to-story, etc.) —
