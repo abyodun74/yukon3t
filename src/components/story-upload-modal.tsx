@@ -561,10 +561,17 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
             e.target.value = "";
           }}
         />
+        {/* accept must include the literal "video/*" — confirmed live via
+            adb logcat on a real Samsung device: the WebView's file-chooser
+            collapses this multi-type accept list to a single MIME type on
+            the GET_CONTENT intent (typ=video/mp4 only, video/webm silently
+            dropped), so a video whose reported type doesn't match that one
+            exact string never shows as pickable. See post-composer.tsx's
+            equivalent input for the full writeup. */}
         <input
           ref={videoInputRef}
           type="file"
-          accept={VIDEO_TYPES.join(",")}
+          accept={`${VIDEO_TYPES.join(",")},video/*`}
           multiple
           className="hidden"
           onChange={(e) => {

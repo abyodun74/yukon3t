@@ -41,6 +41,23 @@ const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+
+// Same content:// URI MIME-type gap as ad-booking-form.tsx's and
+// story-upload-modal.tsx's pickVideo — a mobile picker (confirmed live via
+// Android's system Photo Picker/Google Photos) often hands back an empty or
+// wrong File.type even for a normal .mp4, so the strict VIDEO_TYPES.includes
+// check below silently rejected every video picked that way: pickVideo bailed
+// out before ever calling setVideo/setStatus/setErrorText, which is exactly
+// why nothing appeared to happen — no error banner, no attached video.
+function normalizeVideoFile(f: File): File | null {
+  if (VIDEO_TYPES.includes(f.type)) return f;
+  const ext = f.name.split(".").pop()?.toLowerCase();
+  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
+  if (!detectedType) return null;
+  return new File([f], f.name, { type: detectedType });
+}
+
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   YOUTUBE: "YouTube",
   VIMEO: "Vimeo",
@@ -349,9 +366,10 @@ export function PostComposer({
     setShowImageUrlInput(false);
   }
 
-  function pickVideo(file: File | undefined) {
-    if (!file) return;
-    if (!VIDEO_TYPES.includes(file.type)) {
+  function pickVideo(rawFile: File | undefined) {
+    if (!rawFile) return;
+    const file = normalizeVideoFile(rawFile);
+    if (!file) {
       setStatus("error");
       setErrorText("Use an MP4 or WebM video.");
       return;
@@ -862,10 +880,20 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => pickImages(e.target.files)}
           />
+          {/* accept must include the literal "video/*" — confirmed live via
+              adb logcat on a real Samsung device: the WebView's file-chooser
+              handler collapses this multi-type accept list down to a single
+              MIME type on the GET_CONTENT intent it sends to Android's
+              picker (typ=video/mp4 only, video/webm silently dropped), so
+              any device-recorded video whose reported type doesn't match
+              that one exact string never shows as pickable — no error, the
+              composer just never receives a file. Same fix shape as the
+              already-working "image/*" fallback on the camera-capture input
+              above. */}
           <input
             ref={videoInputRef}
             type="file"
-            accept={VIDEO_TYPES.join(",")}
+            accept={`${VIDEO_TYPES.join(",")},video/*`}
             className="hidden"
             onChange={(e) => pickVideo(e.target.files?.[0])}
           />
