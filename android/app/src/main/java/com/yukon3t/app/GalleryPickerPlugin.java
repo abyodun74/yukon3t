@@ -24,6 +24,7 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -300,10 +301,20 @@ public class GalleryPickerPlugin extends Plugin {
         ret.put("name", name != null ? name : "video.mp4");
         ret.put("mimeType", mimeType);
         ret.put("size", size);
-        ret.put("durationSeconds", durationMs != null ? durationMs / 1000.0 : JSObject.NULL);
+        // Whole seconds, not a fraction — postSchema's videoDurationSeconds
+        // is z.coerce.number().int() (matches the web upload path's own
+        // Math.round(<video>.duration)), and a raw durationMs/1000.0 like
+        // 10.006 failed that check outright, silently killing the whole
+        // createPost call with a generic "invalid" error that had nothing
+        // else to do with duration — confirmed live via the actual
+        // request body reaching the server.
+        ret.put("durationSeconds", durationMs != null ? Math.round(durationMs / 1000.0) : JSObject.NULL);
         ret.put("thumbnailBase64", thumbnailBase64 != null ? thumbnailBase64 : JSObject.NULL);
         call.resolve(ret);
     }
+
+    private static final int UPLOAD_MAX_ATTEMPTS = 3;
+    private static final int UPLOAD_TIMEOUT_MS = 30_000;
 
     /**
      * Streams the video at {@code uri} (from pickVideo above) directly to
@@ -313,6 +324,16 @@ public class GalleryPickerPlugin extends Plugin {
      * JS fetch() upload path already sends successfully for every other
      * upload kind in this app, since the presigned URL was signed against
      * an unsigned-payload scheme that doesn't otherwise care either way.
+     *
+     * Retries up to UPLOAD_MAX_ATTEMPTS with linear backoff — confirmed
+     * live that a single attempt with no retry at all (unlike every other
+     * upload path in this app, which already goes through withRetry on the
+     * web side) failed outright on a real but transient network blip
+     * during a larger, longer-than-a-few-seconds video upload. Reuses the
+     * same presigned URL across attempts rather than re-requesting a fresh
+     * one — good enough for a transient drop, though a URL that's expired
+     * by the time of a very late retry would still fail (out of scope
+     * here: that'd need the JS caller to redo requestUploadUrl too).
      */
     @PluginMethod
     public void uploadVideo(PluginCall call) {
@@ -328,45 +349,60 @@ public class GalleryPickerPlugin extends Plugin {
         ContentResolver resolver = getContext().getContentResolver();
         long size = queryFileSize(resolver, uri);
 
-        HttpURLConnection connection = null;
-        try (InputStream in = resolver.openInputStream(uri)) {
-            if (in == null) {
-                call.reject("Could not open video for reading");
-                return;
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt++) {
+            HttpURLConnection connection = null;
+            try (InputStream in = resolver.openInputStream(uri)) {
+                if (in == null) {
+                    call.reject("Could not open video for reading");
+                    return;
+                }
+
+                URL url = new URL(uploadUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(UPLOAD_TIMEOUT_MS);
+                connection.setReadTimeout(UPLOAD_TIMEOUT_MS);
+                connection.setRequestMethod("PUT");
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", contentType);
+                if (size > 0) {
+                    connection.setFixedLengthStreamingMode(size);
+                } else {
+                    connection.setChunkedStreamingMode(64 * 1024);
+                }
+
+                try (OutputStream out = connection.getOutputStream()) {
+                    byte[] buffer = new byte[64 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                    }
+                }
+
+                int status = connection.getResponseCode();
+                if (status < 200 || status >= 300) {
+                    lastError = new IOException("Upload failed with status " + status);
+                } else {
+                    JSObject ret = new JSObject();
+                    ret.put("success", true);
+                    call.resolve(ret);
+                    return;
+                }
+            } catch (Exception e) {
+                lastError = e;
+            } finally {
+                if (connection != null) connection.disconnect();
             }
 
-            URL url = new URL(uploadUrl);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("PUT");
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", contentType);
-            if (size > 0) {
-                connection.setFixedLengthStreamingMode(size);
-            } else {
-                connection.setChunkedStreamingMode(64 * 1024);
-            }
-
-            try (OutputStream out = connection.getOutputStream()) {
-                byte[] buffer = new byte[64 * 1024];
-                int read;
-                while ((read = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, read);
+            if (attempt < UPLOAD_MAX_ATTEMPTS) {
+                try {
+                    Thread.sleep(1000L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
-
-            int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) {
-                call.reject("Upload failed with status " + status);
-                return;
-            }
-
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject("Upload failed: " + e.getMessage());
-        } finally {
-            if (connection != null) connection.disconnect();
         }
+        call.reject("Upload failed: " + (lastError != null ? lastError.getMessage() : "unknown error"));
     }
 }
