@@ -614,8 +614,25 @@ export function PostCard({
         </Link>
       )}
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-1.5">
+      {/* flex-wrap (+ ml-auto on the right group below) rather than the
+          old shrink-0-on-both-sides layout: on a very narrow viewport (a
+          folded Galaxy Z Fold's ~344-374px cover screen is the confirmed
+          real-world case — see screenshot), justify-between with a
+          non-shrinking right side left almost no width for the name,
+          which then wrapped to 1-2 characters per line even with
+          break-words. Letting the right group (timestamp/menu — the part
+          that's fine to drop to its own line) wrap below the name instead
+          keeps the name itself readable at any width.
+          min-w-[7rem] on the name+badge group, not min-w-0: min-w-0 lets a
+          flex child shrink all the way to zero width, which means the
+          browser can *always* satisfy both children on one line by
+          squeezing this one arbitrarily thin — exactly what produced the
+          1-2-char-per-line name — so flex-wrap alone never actually
+          triggered. A real (non-zero) minimum gives the browser a floor
+          it can't shrink past, which is what makes it wrap the right
+          group down instead once space runs out. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <div className="flex min-w-[7rem] items-start gap-1.5">
           <UserLink
             userId={displayPost.author.id}
             name={displayPost.author.name}
@@ -626,7 +643,7 @@ export function PostCard({
           />
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* toLocaleString depends on the runtime's timezone, which
               differs between the server (render) and the browser
               (hydration) — suppressHydrationWarning tells React that's
