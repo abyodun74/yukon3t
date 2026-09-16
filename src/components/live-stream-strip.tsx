@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Radio, X } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { getActiveLiveStreams, startLiveStream } from "@/app/actions/live-streams";
 import { getMyCircles } from "@/app/actions/circles";
-import { usePolling } from "@/lib/use-polling";
-
-const POLL_INTERVAL_MS = 15000;
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 type Stream = {
   id: string;
@@ -44,12 +43,25 @@ export function LiveStreamStrip() {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const poll = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const { streams: list } = await getActiveLiveStreams();
     setStreams(list);
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS);
+  // Fires once on mount (a realtime subscription alone only reports *new*
+  // signals, not current state) and again on every "changed" broadcast from
+  // here on — startLiveStream/endLiveStream publish onto this global
+  // channel (see REALTIME_CHANNELS.liveStreams in actions/live-streams.ts).
+  // Ref indirection avoids a "setState synchronously within an effect" lint
+  // false-positive, same pattern as every other realtime migration here.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  });
+  useEffect(() => {
+    refetchRef.current();
+  }, []);
+  useRealtimeEvent(REALTIME_CHANNELS.liveStreams(), "changed", refetch);
 
   useEffect(() => {
     if (composing && circles === null) {

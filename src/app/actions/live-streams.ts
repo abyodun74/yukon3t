@@ -16,6 +16,8 @@ import { getCircleMembership } from "@/lib/circle-permissions";
 import { liveStreamTitleSchema, liveStreamJoinRoleSchema, liveStreamCommentSchema } from "@/lib/validations";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { moderateText } from "@/lib/moderation";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -84,6 +86,7 @@ export async function startLiveStream(formData: FormData) {
     data: { roomName: room.name, roomUrl: room.url },
   });
   await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
+  await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
 
   revalidatePath("/home");
   return { error: null, liveStreamId: liveStream.id, roomUrl: room.url, token };
@@ -106,6 +109,7 @@ export async function endLiveStream(liveStreamId: string) {
     data: { status: "ENDED", endedAt: new Date() },
   });
   await deleteCallRoom(liveStream.roomName);
+  await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
 
   revalidatePath("/home");
   revalidatePath(`/live/${liveStreamId}`);
@@ -272,6 +276,7 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
       create: { liveStreamId, userId: user.id, role: isHost ? "COHOST" : role },
       update: { joinedAt: new Date(), role: isHost ? "COHOST" : role },
     });
+    await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
 
     return { error: null, roomUrl: liveStream.roomUrl, token, role, pendingStageRequest };
   } catch (err) {
@@ -364,6 +369,7 @@ export async function respondToStageRequest(requestId: string, approve: boolean)
     where: { id: requestId },
     data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
   });
+  await publishEvent(REALTIME_CHANNELS.liveStream(request.liveStreamId), "changed");
 
   return { error: null };
 }
@@ -374,6 +380,7 @@ export async function cancelStageRequest(liveStreamId: string) {
   await prisma.liveStreamStageRequest.deleteMany({
     where: { liveStreamId, userId: user.id, status: "PENDING" },
   });
+  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
   return { error: null };
 }
 
@@ -407,6 +414,7 @@ export async function leaveLiveStream(liveStreamId: string) {
   const user = await requireVerifiedUser();
 
   await prisma.liveStreamViewer.deleteMany({ where: { liveStreamId, userId: user.id } });
+  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
   return { error: null };
 }
 
@@ -600,6 +608,7 @@ export async function sendLiveStreamComment(liveStreamId: string, formData: Form
   await prisma.liveStreamComment.create({
     data: { liveStreamId, authorId: user.id, content: parsed.data.content },
   });
+  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
 
   return { error: null };
 }

@@ -20,9 +20,14 @@ import {
   getLiveStreamComments,
 } from "@/app/actions/live-streams";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
-import { usePolling } from "@/lib/use-polling";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
-const POLL_INTERVAL_MS = 5000;
+// Not migrated to realtime — this is a periodic "I'm still here" keepalive
+// the end-inactive-streams cron watches for, not a "refetch when something
+// changed" concern, so a timer is the actually-correct mechanism regardless
+// of everything else in this file moving to realtime events.
+const HEARTBEAT_INTERVAL_MS = 5000;
 // Same set as StoryViewer's QUICK_REACTIONS (src/components/story-viewer.tsx) for consistency.
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
@@ -158,9 +163,9 @@ export function LiveStreamRoom({
   const [pendingStageRole, setPendingStageRole] = useState<StageRole | null>(null);
   const [cancellingRequest, setCancellingRequest] = useState(false);
   // Shown once, right at the moment a pending request flips to DECLINED (see
-  // the PENDING→DECLINED transition check in poll below) — not derived
+  // the PENDING→DECLINED transition check in refetch below) — not derived
   // straight from server state, since that would keep re-showing it forever
-  // on every subsequent poll tick.
+  // on every subsequent refetch.
   const [declinedNotice, setDeclinedNotice] = useState(false);
   // Host-only: who's currently asking for a stage slot.
   const [stageRequests, setStageRequests] = useState<StageRequest[]>([]);
@@ -275,7 +280,7 @@ export function LiveStreamRoom({
         setRespondingRequestId(null);
         // Drop it from the list optimistically either way — a "stage_full"
         // rejection on approve still means this particular request is done
-        // (declined by capacity), and the next poll tick will re-add it if
+        // (declined by capacity), and the next refetch will re-add it if
         // that assumption was somehow wrong.
         if (!result.error || result.error === "stage_full") {
           setStageRequests((prev) => prev.filter((r) => r.id !== requestId));
@@ -287,7 +292,7 @@ export function LiveStreamRoom({
       .catch(() => setRespondingRequestId(null));
   }
 
-  const poll = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const [{ count, stageCount: sc, stageCapacity: cap }, { recordings: recs }, { comments: fresh }] =
       await Promise.all([
         getLiveStreamViewerCount(liveStreamId),
@@ -301,10 +306,6 @@ export function LiveStreamRoom({
     if (fresh.length > 0) {
       lastCommentIdRef.current = fresh[fresh.length - 1]!.id;
       setComments((prev) => [...prev, ...fresh].slice(-100));
-    }
-
-    if (isHost || role === "COHOST") {
-      recordLiveStreamHeartbeat(liveStreamId);
     }
 
     if (isHost) {
@@ -324,9 +325,35 @@ export function LiveStreamRoom({
         }
       }
     }
-  }, [liveStreamId, isHost, role]);
+  }, [liveStreamId, isHost]);
 
-  usePolling(poll, POLL_INTERVAL_MS, phase !== "joining");
+  // Fires immediately once joined (this used to be usePolling's own
+  // "immediate fire on mount" — still needed since a realtime subscription
+  // alone only reports *new* signals, not current state) and on every
+  // realtime "changed" event from here on — join/leave, a new comment, a
+  // stage request filed/approved/declined/cancelled, and a recording
+  // finishing all publish onto this liveStreamId's channel (see
+  // actions/live-streams.ts). Ref indirection avoids a "setState
+  // synchronously within an effect" lint false-positive, same pattern as
+  // every other realtime migration in this app.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  });
+  useEffect(() => {
+    if (phase !== "joining") refetchRef.current();
+  }, [phase]);
+  useRealtimeEvent(phase !== "joining" ? REALTIME_CHANNELS.liveStream(liveStreamId) : null, "changed", refetch);
+
+  // Independent of the above — a plain "I'm still here" keepalive for the
+  // end-inactive-streams cron, not something a realtime event can stand in
+  // for (see HEARTBEAT_INTERVAL_MS's own comment). Runs for the host and any
+  // COHOST only, same as before.
+  useEffect(() => {
+    if (phase === "joining" || !(isHost || role === "COHOST")) return undefined;
+    const interval = setInterval(() => recordLiveStreamHeartbeat(liveStreamId), HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [phase, isHost, role, liveStreamId]);
 
   // The token this session originally joined the Daily room with (see
   // requestJoin/joinLiveStream) is a plain viewer token — not a meeting
@@ -338,7 +365,7 @@ export function LiveStreamRoom({
   // changed it — the welcome screen came right back on reconnect either
   // way, no camera. Only is_owner: true (see createMeetingToken) actually
   // lifts it, which is why joinLiveStream now grants it to approved
-  // GUEST/COHOST stage members. The moment poll() above notices the host
+  // GUEST/COHOST stage members. The moment refetch() above notices the host
   // approved us (role flips from VIEWER to GUEST/COHOST), fetching a fresh
   // is_owner token and reconnecting with it is what actually starts the
   // camera.

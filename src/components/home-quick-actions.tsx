@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ImagePlus, Radio } from "lucide-react";
 import { getActiveLiveStreams } from "@/app/actions/live-streams";
-import { usePolling } from "@/lib/use-polling";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { ScrollFab } from "@/components/scroll-fab";
-
-const LIVE_POLL_INTERVAL_MS = 20000;
 
 function goTo(sectionId: string, focusTextarea?: boolean) {
   const target = document.getElementById(sectionId);
@@ -28,17 +27,27 @@ function goTo(sectionId: string, focusTextarea?: boolean) {
  * the viewer's own profile (posting only happens from there — see
  * ProfileComposeFocus, which scrolls to and focuses the composer on
  * arrival). The Live shortcut's badge reflects whether a stream is actually
- * live right now (polls the same action LiveStreamStrip itself uses).
+ * live right now (fetches the same action LiveStreamStrip itself uses,
+ * refetching on the same global realtime channel LiveStreamStrip subscribes
+ * to rather than its own independent poll).
  */
 export function HomeQuickActions({ profileHref }: { profileHref: string }) {
   const [liveCount, setLiveCount] = useState(0);
   const router = useRouter();
 
-  const pollLive = useCallback(async () => {
+  const refetchLive = useCallback(async () => {
     const { streams } = await getActiveLiveStreams();
     setLiveCount(streams.length);
   }, []);
-  usePolling(pollLive, LIVE_POLL_INTERVAL_MS);
+
+  const refetchLiveRef = useRef(refetchLive);
+  useEffect(() => {
+    refetchLiveRef.current = refetchLive;
+  });
+  useEffect(() => {
+    refetchLiveRef.current();
+  }, []);
+  useRealtimeEvent(REALTIME_CHANNELS.liveStreams(), "changed", refetchLive);
 
   return (
     <ScrollFab
