@@ -28,12 +28,24 @@ export function isNativePickerActive() {
   return activeCount > 0;
 }
 
+// How long to keep the guard up after a native pick call itself resolves.
+// Confirmed live: dropping the guard the instant the pick promise settles
+// still let a photo pick (unlike a tested video pick, apparently just by
+// timing luck) get yanked to Home — the Activity-transition "resume" event
+// and the plugin's own result message aren't guaranteed to arrive at the
+// WebView in a fixed order, so a resume that lands a beat after the result
+// still needs to see the guard up. This absorbs that race without needing
+// to depend on event ordering at all.
+const SETTLE_MS = 1500;
+
 export async function withNativePickerActive<T>(fn: () => Promise<T>): Promise<T> {
   activeCount++;
   try {
     return await fn();
   } finally {
-    activeCount = Math.max(0, activeCount - 1);
+    setTimeout(() => {
+      activeCount = Math.max(0, activeCount - 1);
+    }, SETTLE_MS);
   }
 }
 
@@ -63,5 +75,8 @@ export function markNativePickerInactive() {
     clearTimeout(pendingTimeout);
     pendingTimeout = null;
   }
-  activeCount = Math.max(0, activeCount - 1);
+  // Same settle-time reasoning as withNativePickerActive above.
+  setTimeout(() => {
+    activeCount = Math.max(0, activeCount - 1);
+  }, SETTLE_MS);
 }
