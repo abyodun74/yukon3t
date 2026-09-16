@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -1527,6 +1527,7 @@ export function ChatThread({
                 label: "Upload from device",
                 icon: <Upload size={14} />,
                 onSelect: () => {
+                  if (isNativePickerActive()) return;
                   markNativePickerActive();
                   imageInputRef.current?.click();
                 },
@@ -1535,6 +1536,7 @@ export function ChatThread({
                 label: "Take a photo",
                 icon: <Camera size={14} />,
                 onSelect: () => {
+                  if (isNativePickerActive()) return;
                   markNativePickerActive();
                   cameraInputRef.current?.click();
                 },
@@ -1549,6 +1551,7 @@ export function ChatThread({
                 label: "Upload from device",
                 icon: <Upload size={14} />,
                 onSelect: () => {
+                  if (isNativePickerActive()) return;
                   markNativePickerActive();
                   videoFileInputRef.current?.click();
                 },

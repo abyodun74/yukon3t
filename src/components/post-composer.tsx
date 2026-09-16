@@ -18,7 +18,7 @@ import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
 
@@ -1041,6 +1041,7 @@ export function PostComposer({
                 label: "Upload from device",
                 icon: <Upload size={14} />,
                 onSelect: async () => {
+                  if (isNativePickerActive()) return;
                   // Nicer native multi-select on Android (see
                   // native-gallery-picker.ts); null means it didn't run
                   // (iOS, web, or an older installed build), so fall back
@@ -1061,6 +1062,7 @@ export function PostComposer({
                 label: "Take a photo",
                 icon: <Camera size={14} />,
                 onSelect: () => {
+                  if (isNativePickerActive()) return;
                   markNativePickerActive();
                   cameraInputRef.current?.click();
                 },
@@ -1088,6 +1090,7 @@ export function PostComposer({
                 label: "Upload from device",
                 icon: <Upload size={14} />,
                 onSelect: async () => {
+                  if (isNativePickerActive()) return;
                   const native = await pickVideoNative();
                   if (native) {
                     await handleNativeVideoAttach(native);

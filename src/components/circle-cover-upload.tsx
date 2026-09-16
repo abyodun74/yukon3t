@@ -7,7 +7,7 @@ import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -107,6 +107,7 @@ export function CircleCoverUpload({
         type="button"
         disabled={isPending}
         onClick={() => {
+          if (isNativePickerActive()) return;
           markNativePickerActive();
           galleryInputRef.current?.click();
         }}
@@ -161,6 +162,7 @@ export function CircleCoverUpload({
               label: "Choose from gallery",
               icon: <Upload size={14} />,
               onSelect: () => {
+                if (isNativePickerActive()) return;
                 markNativePickerActive();
                 galleryInputRef.current?.click();
               },
@@ -169,6 +171,7 @@ export function CircleCoverUpload({
               label: "Take a photo",
               icon: <Camera size={14} />,
               onSelect: () => {
+                if (isNativePickerActive()) return;
                 markNativePickerActive();
                 cameraInputRef.current?.click();
               },

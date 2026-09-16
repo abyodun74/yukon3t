@@ -14,6 +14,16 @@
  */
 let activeCount = 0;
 
+// Also doubles as a re-entrancy guard: nothing previously disabled "Upload
+// from device"/"Take a photo" while a pick was still awaiting a result, so
+// repeated taps (someone retrying because nothing visibly happened yet)
+// queued up multiple concurrent native Activity launches — each one
+// silently competing for the same requestUploadUrl rate-limit budget,
+// which is how a handful of retries could exhaust it and make every
+// subsequent attempt fail outright. Callers should check this synchronously
+// (no `await` in between) right before invoking a pick*Native()/
+// markNativePickerActive() call and bail out early if it's already true —
+// see post-composer.tsx.
 export function isNativePickerActive() {
   return activeCount > 0;
 }

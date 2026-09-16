@@ -7,7 +7,7 @@ import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { cn } from "@/lib/utils";
 
@@ -333,6 +333,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
    * file dialog.
    */
   async function pickImagesOrFallback() {
+    if (isNativePickerActive()) return;
     const allowed = Math.max(0, MAX_ITEMS - items.length);
     const native = await pickImagesNative(allowed);
     if (native) {
@@ -638,6 +639,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                       label: "Take a photo",
                       icon: <Camera size={14} />,
                       onSelect: () => {
+                        if (isNativePickerActive()) return;
                         markNativePickerActive();
                         cameraInputRef.current?.click();
                       },
@@ -646,6 +648,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                       label: "Add videos",
                       icon: <Video size={14} />,
                       onSelect: () => {
+                        if (isNativePickerActive()) return;
                         markNativePickerActive();
                         videoInputRef.current?.click();
                       },
@@ -670,6 +673,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                   label: "Take a photo",
                   icon: <Camera size={14} />,
                   onSelect: () => {
+                    if (isNativePickerActive()) return;
                     markNativePickerActive();
                     cameraInputRef.current?.click();
                   },
@@ -684,6 +688,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
                   onSelect: () => {
+                    if (isNativePickerActive()) return;
                     markNativePickerActive();
                     videoInputRef.current?.click();
                   },

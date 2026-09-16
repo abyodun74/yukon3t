@@ -6,7 +6,7 @@ import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmAvatarUpload } from "@/app/actions/media";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -100,6 +100,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         type="button"
         disabled={isPending}
         onClick={() => {
+          if (isNativePickerActive()) return;
           markNativePickerActive();
           galleryInputRef.current?.click();
         }}
@@ -166,6 +167,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
               label: "Choose from gallery",
               icon: <Upload size={14} />,
               onSelect: () => {
+                if (isNativePickerActive()) return;
                 markNativePickerActive();
                 galleryInputRef.current?.click();
               },
@@ -174,6 +176,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
               label: "Take a photo",
               icon: <Camera size={14} />,
               onSelect: () => {
+                if (isNativePickerActive()) return;
                 markNativePickerActive();
                 cameraInputRef.current?.click();
               },

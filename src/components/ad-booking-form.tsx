@@ -12,7 +12,7 @@ import {
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
-import { markNativePickerActive, markNativePickerInactive } from "@/lib/native-picker-activity";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
@@ -401,6 +401,7 @@ export function AdBookingForm() {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
                   onSelect: () => {
+                    if (isNativePickerActive()) return;
                     markNativePickerActive();
                     imageInputRef.current?.click();
                   },
@@ -409,6 +410,7 @@ export function AdBookingForm() {
                   label: "Take a photo",
                   icon: <Camera size={14} />,
                   onSelect: () => {
+                    if (isNativePickerActive()) return;
                     markNativePickerActive();
                     cameraInputRef.current?.click();
                   },
@@ -423,6 +425,7 @@ export function AdBookingForm() {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
                   onSelect: () => {
+                    if (isNativePickerActive()) return;
                     markNativePickerActive();
                     videoInputRef.current?.click();
                   },
