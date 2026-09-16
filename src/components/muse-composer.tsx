@@ -9,6 +9,7 @@ import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-de
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { cn } from "@/lib/utils";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only and
@@ -181,6 +182,7 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
           accept="video/mp4,video/webm"
           className="hidden"
           onChange={(e) => {
+            markNativePickerInactive();
             const file = e.target.files?.[0];
             if (file) pickVideo(file);
             e.target.value = "";
@@ -190,7 +192,11 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
         {!video ? (
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (isNativePickerActive()) return;
+              markNativePickerActive();
+              fileInputRef.current?.click();
+            }}
             className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-line py-8 text-foreground-soft hover:border-accent hover:text-accent"
           >
             <Video size={28} />
@@ -253,6 +259,7 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
                   accept="audio/mpeg,audio/mp4,audio/webm"
                   className="hidden"
                   onChange={(e) => {
+                    markNativePickerInactive();
                     const file = e.target.files?.[0];
                     if (file) setAudio(file);
                     e.target.value = "";
@@ -261,7 +268,11 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
                 {!audio ? (
                   <button
                     type="button"
-                    onClick={() => audioInputRef.current?.click()}
+                    onClick={() => {
+                      if (isNativePickerActive()) return;
+                      markNativePickerActive();
+                      audioInputRef.current?.click();
+                    }}
                     disabled={busy}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line py-3 text-foreground-soft hover:border-accent hover:text-accent disabled:opacity-60"
                   >

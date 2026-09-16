@@ -10,6 +10,7 @@ import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial 
 import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
 import { onScreenCaptureDetected, type CaptureKind } from "@/lib/screen-capture-guard";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
@@ -341,7 +342,10 @@ export function GlobalCallFrame() {
                 type="file"
                 accept={MATERIAL_ACCEPT}
                 className="hidden"
-                onChange={(e) => uploadMaterial(e.target.files?.[0])}
+                onChange={(e) => {
+                  markNativePickerInactive();
+                  uploadMaterial(e.target.files?.[0]);
+                }}
               />
               <button
                 type="button"
@@ -350,7 +354,11 @@ export function GlobalCallFrame() {
                 // collab-session-room.tsx) sits behind this fullscreen
                 // wrapper once a session is joined — this is the only
                 // reachable trigger for it once you're actually in the call.
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (isNativePickerActive()) return;
+                  markNativePickerActive();
+                  fileInputRef.current?.click();
+                }}
                 title="Upload material to share with participants"
                 aria-label="Upload material to share with participants"
                 className="rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80 disabled:opacity-50"

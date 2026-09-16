@@ -13,6 +13,7 @@ import { shareCollabMaterial } from "@/lib/collab-material";
 import { useCallSession } from "@/lib/call-session";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MATERIAL_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
@@ -226,12 +227,19 @@ export function CollabSessionRoom({
                   type="file"
                   accept={MATERIAL_ACCEPT}
                   className="hidden"
-                  onChange={(e) => uploadMaterial(e.target.files?.[0])}
+                  onChange={(e) => {
+                    markNativePickerInactive();
+                    uploadMaterial(e.target.files?.[0]);
+                  }}
                 />
                 <button
                   type="button"
                   disabled={uploading}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (isNativePickerActive()) return;
+                    markNativePickerActive();
+                    fileInputRef.current?.click();
+                  }}
                   title="Upload material to share with participants"
                   className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
                 >

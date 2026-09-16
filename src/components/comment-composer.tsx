@@ -12,6 +12,7 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
+import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS — duplicated locally
 // since storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't
@@ -250,7 +251,10 @@ export function CommentComposer({
           type="file"
           accept={VIDEO_TYPES.join(",")}
           className="hidden"
-          onChange={(e) => pickVideo(e.target.files?.[0])}
+          onChange={(e) => {
+            markNativePickerInactive();
+            pickVideo(e.target.files?.[0]);
+          }}
         />
         <GifPickerButton onSelect={setPendingGif} disabled={hasOtherMedia} />
         <EmojiPickerButton onSelect={insertEmoji} />
@@ -282,7 +286,11 @@ export function CommentComposer({
             {
               label: "Upload from device",
               icon: <Upload size={14} />,
-              onSelect: () => videoInputRef.current?.click(),
+              onSelect: () => {
+                if (isNativePickerActive()) return;
+                markNativePickerActive();
+                videoInputRef.current?.click();
+              },
             },
             {
               label: "Record live",
