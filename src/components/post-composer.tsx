@@ -325,12 +325,34 @@ export function PostComposer({
   // DataTransfer), and Array.from() treats both identically.
   async function pickImages(files: FileList | File[] | null) {
     if (!files) return;
-    const picked = Array.from(files).filter((f) => IMAGE_TYPES.includes(f.type));
+    const all = Array.from(files);
+    const picked = all.filter((f) => IMAGE_TYPES.includes(f.type));
+    // A device/native-picker MIME type this app doesn't recognize (seen
+    // live with HEIC/HEIF, the default photo format on several recent
+    // Android phones) used to just vanish here with zero feedback — the
+    // exact "picked a photo, nothing happened" shape a HEIC pick produced
+    // before GalleryPickerPlugin.java started normalizing to JPEG
+    // natively. That native fix should mean this never fires for a normal
+    // gallery pick anymore, but surfacing it beats a silent no-op if some
+    // other device/format combination hits the same gap.
+    if (picked.length === 0 && all.length > 0) {
+      setStatus("error");
+      setErrorText("That image format isn't supported — try a JPEG, PNG, WebP, or GIF.");
+      return;
+    }
     // Resize before the size check — a raw phone photo routinely exceeds
     // 25MB, but the resized version essentially never does, so this check
     // is really just a backstop against a resize failure (rare, fails
     // open to the original file) rather than the normal path.
-    const next = await Promise.all(picked.map(resizeImageFile));
+    let next: File[];
+    try {
+      next = await Promise.all(picked.map(resizeImageFile));
+    } catch (err) {
+      console.error("[pickImages] resizeImageFile failed", err);
+      setStatus("error");
+      setErrorText("Couldn't process that image — try again.");
+      return;
+    }
     const tooBig = next.find((f) => f.size > MAX_IMAGE_BYTES);
     if (tooBig) {
       setStatus("error");

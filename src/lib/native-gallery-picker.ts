@@ -40,7 +40,14 @@ export async function pickImagesNative(limit: number): Promise<File[] | null> {
   try {
     const { images } = await withNativePickerActive(() => GalleryPicker.pickImages({ limit }));
     return images.map((img) => base64ToFile(img.base64, img.mimeType, img.name));
-  } catch {
+  } catch (err) {
+    // This used to swallow the error entirely, which is exactly what made
+    // an earlier real bug in this same picker chain (a HEIC mimeType
+    // silently dropped downstream) so hard to pin down — no exception ever
+    // reached the console, just an empty result. Logging here costs
+    // nothing and turns the next "picking silently does nothing" report
+    // into an actual stack trace instead of another multi-hour repro hunt.
+    console.error("[pickImagesNative] failed", err);
     return null;
   }
 }
