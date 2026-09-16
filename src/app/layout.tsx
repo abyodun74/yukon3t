@@ -163,7 +163,7 @@ export default async function RootLayout({
           <RegisterServiceWorker />
           <OfflineBanner />
           <Nav session={session} theme={theme} />
-          {session?.user && <IncomingCallListener />}
+          {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
           {session?.user && <GlobalCallFrame />}
           {session?.user && <FcmTokenBridge />}
           {session?.user && <PresenceHeartbeat />}

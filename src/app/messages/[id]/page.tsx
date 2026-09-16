@@ -189,7 +189,7 @@ export default async function ConversationPage({
         )}
         <div className="flex shrink-0 items-center gap-2">
           {!conversation.isGroup && other && (
-            <CallButton calleeId={other.id} calleeName={other.name ?? "them"} />
+            <CallButton calleeId={other.id} calleeName={other.name ?? "them"} currentUserId={me.id} />
           )}
           {conversation.isGroup && (
             <>

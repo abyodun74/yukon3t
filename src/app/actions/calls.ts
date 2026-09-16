@@ -10,6 +10,8 @@ import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallToUser } from "@/lib/fcm";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { track } from "@/lib/analytics";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
   return prisma.connection.findFirst({
@@ -116,6 +118,7 @@ export async function startCall(formData: FormData) {
       callType: call.type,
     });
     await track("CALL_STARTED", user.id, { type: call.type });
+    await publishEvent(REALTIME_CHANNELS.callSignal(calleeId), "changed");
     return { error: null, callId: call.id, roomUrl: room.url, token, type: call.type };
   } catch {
     await prisma.call.delete({ where: { id: call.id } });
@@ -156,9 +159,16 @@ export async function getIncomingCall() {
     // here shouldn't break the ring itself, it'd just leave the caller on
     // "Calling" a bit longer.
     if (call && !call.ringingAt) {
-      await prisma.call
+      const claimed = await prisma.call
         .updateMany({ where: { id: call.id, ringingAt: null }, data: { ringingAt: new Date() } })
-        .catch(() => {});
+        .catch(() => ({ count: 0 }));
+      // Tells the caller's CallButton to flip "Calling" -> "Ringing" —
+      // guarded on this specific call having actually made the claim (not
+      // just call.ringingAt being freshly truthy) so a repeat signal from
+      // this same callee client doesn't publish again for no reason.
+      if (claimed.count > 0) {
+        await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
+      }
     }
     // requireVerifiedUser() already fetched the full row, so this is free —
     // the callee's own ringtone preference, for the UI to actually play it.
@@ -184,6 +194,7 @@ export async function respondToCall(callId: string, accept: boolean) {
       where: { id: callId },
       data: { status: "DECLINED", respondedAt: new Date() },
     });
+    await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
     return { error: null, accepted: false as const };
   }
 
@@ -204,6 +215,7 @@ export async function respondToCall(callId: string, accept: boolean) {
       where: { id: callId },
       data: { status: "ACCEPTED", respondedAt: new Date() },
     });
+    await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
   } catch {
     return { error: "call_service_unavailable" as const };
@@ -230,6 +242,14 @@ export async function endCall(callId: string) {
     },
   });
   await deleteCallRoom(call.roomName);
+
+  // Tells whichever side didn't call this to tear down immediately, rather
+  // than waiting on Daily's own room-ejection (which this app's own
+  // deleteCallRoom call above already races) or the fallback poll this
+  // replaces. Published to both parties — self-notifying the caller of
+  // their own endCall is harmless (their local state is already updated).
+  const otherPartyId = call.callerId === user.id ? call.calleeId : call.callerId;
+  await publishEvent(REALTIME_CHANNELS.callSignal(otherPartyId), "changed");
 
   // The caller hanging up before the callee answered, i.e. a missed call —
   // clear the callee's native ringing notification (it has no other way to

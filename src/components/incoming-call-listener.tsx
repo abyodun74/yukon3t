@@ -5,13 +5,9 @@ import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
-import { usePolling } from "@/lib/use-polling";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
-
-const POLL_INTERVAL_MS = 5000;
-// Lighter than POLL_INTERVAL_MS: this only runs as a fallback for the other
-// party hanging up (see the active-call poll below), not to drive the UI.
-const ACTIVE_CALL_POLL_MS = 5000;
 
 type IncomingCall = {
   id: string;
@@ -21,8 +17,8 @@ type IncomingCall = {
 
 type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO" | "VIDEO"; callerName: string };
 
-/** Mounted once, app-wide, for any signed-in user — polls for a ring the same way ChatThread polls for messages. */
-export function IncomingCallListener() {
+/** Mounted once, app-wide, for any signed-in user — subscribes for a ring the same way ChatThread subscribes for messages. */
+export function IncomingCallListener({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
@@ -34,13 +30,13 @@ export function IncomingCallListener() {
   });
 
   // Read by acceptCall (below) to label the minimized call widget — a plain
-  // dependency-array entry would recreate acceptCall on every poll tick.
+  // dependency-array entry would recreate acceptCall on every realtime event.
   const incomingRef = useRef(incoming);
   useEffect(() => {
     incomingRef.current = incoming;
   });
 
-  const poll = useCallback(async () => {
+  const checkIncoming = useCallback(async () => {
     const { call, ringtone: userRingtone } = await getIncomingCall();
     // Ignore a response that arrives after a call has since started.
     if (!activeCallRef.current) {
@@ -49,14 +45,34 @@ export function IncomingCallListener() {
     }
   }, []);
 
-  usePolling(poll, POLL_INTERVAL_MS, !activeCall);
+  // Fires immediately on mount (in case a call is already ringing by the
+  // time this component appears — a cold start from a push notification,
+  // or the app just regaining focus) and again whenever a call just ended
+  // (there could already be another one waiting) — ref indirection avoids
+  // a "setState synchronously within an effect" lint false-positive for
+  // what's actually an async fetch-then-setState, same pattern chat-thread's
+  // own refetchRef uses.
+  const checkIncomingRef = useRef(checkIncoming);
+  useEffect(() => {
+    checkIncomingRef.current = checkIncoming;
+  });
+  useEffect(() => {
+    if (!activeCall) checkIncomingRef.current();
+  }, [activeCall]);
+
+  // Replaces the old 5s ring poll — startCall publishes onto the callee's
+  // own call:{userId} channel the instant a call is placed (see
+  // REALTIME_CHANNELS.callSignal in actions/calls.ts).
+  useRealtimeEvent(!activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null, "changed", checkIncoming);
 
   // Fallback for the caller hanging up mid-call: normally that ejects us
   // from the Daily room, which fires CallFrame's "left-meeting" -> onLeave
   // below. But deleteCallRoom (daily.ts) is best-effort, so if that ejection
   // is delayed or never arrives, this catches the DB's Call.status flipping
-  // to ENDED/MISSED independently and tears the call down locally.
-  const pollActiveCallStatus = useCallback(async () => {
+  // to ENDED/MISSED independently and tears the call down locally. Replaces
+  // the old 5s fallback poll — respondToCall/endCall publish onto this same
+  // channel on every status change, so this fires instantly instead.
+  const checkActiveCallStatus = useCallback(async () => {
     const call = activeCallRef.current;
     if (!call) return;
     const result = await getCallStatus(call.callId);
@@ -66,7 +82,11 @@ export function IncomingCallListener() {
       setActiveCall((current) => (current?.callId === call.callId ? null : current));
     }
   }, [endSession]);
-  usePolling(pollActiveCallStatus, ACTIVE_CALL_POLL_MS, !!activeCall);
+  useRealtimeEvent(
+    activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
+    "changed",
+    checkActiveCallStatus,
+  );
 
   // Hands the fullscreen/minimizable UI off to the root-mounted
   // GlobalCallFrame the moment the call connects (see call-session.tsx).
@@ -109,14 +129,14 @@ export function IncomingCallListener() {
       playerRef.current?.stop();
     };
     // Deliberately keyed on incoming?.id, not incoming itself — a fresh
-    // object comes back every 5s poll tick even when it's the same ringing
-    // call, and restarting the loop that often would glitch the audio.
+    // object can come back from a re-check even when it's the same ringing
+    // call, and restarting the loop then would glitch the audio.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incoming?.id, ringtone]);
 
   // Callable by callId directly (not just from `incoming` state) so the
   // notification-tap deep-link handler below can accept/decline a call this
-  // component's own poll hasn't necessarily caught up to yet.
+  // component's own subscription hasn't necessarily caught up to yet.
   const acceptCall = useCallback(async (callId: string) => {
     const result = await respondToCall(callId, true);
     if (result.error || !result.roomUrl || !result.token) {
@@ -167,7 +187,7 @@ export function IncomingCallListener() {
       if (action === "accept") acceptCall(callId);
       else if (action === "decline") declineCall(callId);
       // No action (notification body tap) — just foregrounding the app is
-      // enough; the regular poll above picks up the ringing banner.
+      // enough; the mount-check above picks up the ringing banner.
     }
 
     (async () => {

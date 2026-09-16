@@ -31,6 +31,7 @@ export function ConnectionsTabs({
   connected,
   incoming,
   sent,
+  currentUserId,
 }: {
   connected: {
     items: { id: string; other: ConnectionUser; intentTag: IntentTag; conversationId: string | null }[];
@@ -46,6 +47,7 @@ export function ConnectionsTabs({
     hasMore: boolean;
     count: number;
   };
+  currentUserId: string;
 }) {
   const [tab, setTab] = useState<Tab>("connected");
 
@@ -73,7 +75,9 @@ export function ConnectionsTabs({
         ))}
       </div>
       <div className="mt-4 space-y-3">
-        {tab === "connected" && <ConnectedList initialItems={connected.items} initialHasMore={connected.hasMore} />}
+        {tab === "connected" && (
+          <ConnectedList initialItems={connected.items} initialHasMore={connected.hasMore} currentUserId={currentUserId} />
+        )}
         {tab === "incoming" && <IncomingRequestsList initialItems={incoming.items} initialHasMore={incoming.hasMore} />}
         {tab === "sent" && <SentRequestsList initialItems={sent.items} initialHasMore={sent.hasMore} />}
       </div>

@@ -15,7 +15,14 @@ export const REALTIME_CHANNELS = {
   // is the one broadcast every signed-in user should hear about at once.
   announcements: () => `announcements`,
   conversation: (conversationId: string) => `conversation:${conversationId}`,
-  incomingCall: (userId: string) => `incoming-call:${userId}`,
+  // Every call-lifecycle signal aimed at one specific user — a new ring
+  // (they're the callee), or a status change (accepted/declined/ended) for
+  // a call they're party to as either caller or callee. One channel/event
+  // rather than splitting "ringing" from "status changed" into separate
+  // channels: same "thin signal, go refetch" shape as every other channel
+  // here, and each subscriber already knows from its own local state
+  // whether it's watching for an incoming ring or an outgoing call's status.
+  callSignal: (userId: string) => `call:${userId}`,
   liveStreams: () => `live-streams`,
   liveStream: (liveStreamId: string) => `live-stream:${liveStreamId}`,
   voiceChannel: (channelId: string) => `voice-channel:${channelId}`,

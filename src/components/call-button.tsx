@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
 import { startRingback, stopRingback } from "@/lib/ringback";
+import { useRealtimeEvent } from "@/lib/realtime-client";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 type CallType = "AUDIO" | "VIDEO";
 
@@ -29,7 +31,15 @@ function callErrorMessage(code?: string) {
 }
 
 /** Voice/video call buttons for a connection — used on their profile and in the DM thread header. */
-export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeName: string }) {
+export function CallButton({
+  calleeId,
+  calleeName,
+  currentUserId,
+}: {
+  calleeId: string;
+  calleeName: string;
+  currentUserId: string;
+}) {
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
   const { startSession, endSession } = useCallSession();
 
@@ -63,53 +73,73 @@ export function CallButton({ calleeId, calleeName }: { calleeId: string; calleeN
     return stopRingback;
   }, [state.phase]);
 
+  // Ref mirror so checkStatus (below) always reads the current phase/callId
+  // without needing to be recreated every time state changes — it's used
+  // both as a realtime handler (which only takes a payload argument) and
+  // called directly on phase-entry.
+  const stateRef = useRef(state);
   useEffect(() => {
-    if (state.phase !== "ringing" && state.phase !== "in-call") return undefined;
-    const callId = state.callId;
-    // Ringing needs a snappy interval — this is the ONLY thing that tells
-    // the caller's side the callee has accepted (the callee's own tap
-    // starts joining immediately, with no polling involved on their end at
-    // all), so however long this interval is directly adds to how long the
-    // caller sits on "Ringing" after the callee has actually already said
-    // yes, before this side even starts its own WebRTC join. getCallStatus
-    // is a single indexed row lookup — cheap enough to poll this often for
-    // a window this short (bounded by the ~55s native ring timeout and the
-    // timeout-missed-calls cron either way). Once in-call this is purely a
-    // fallback for the other party hanging up (see the "in-call" branch
-    // below), so a much lighter interval is enough there and avoids
-    // hammering the server for the whole call's duration.
-    const intervalMs = state.phase === "ringing" ? 400 : 5000;
-    const interval = setInterval(async () => {
-      const result = await getCallStatus(callId);
-      if (result.error) return;
-      if (result.status === "ACCEPTED") {
-        setState((s) =>
-          s.phase === "ringing"
-            ? { phase: "in-call", callId: s.callId, roomUrl: s.roomUrl, token: s.token, type: s.type }
-            : s,
-        );
-      } else if (result.status === "RINGING" && result.ringing) {
-        setState((s) => (s.phase === "ringing" && !s.calleeRinging ? { ...s, calleeRinging: true } : s));
-      } else if (result.status === "DECLINED") {
-        setState({ phase: "ended", message: `${calleeName} declined the call.` });
-      } else if (result.status === "ENDED" || result.status === "MISSED") {
-        // Normally the callee hanging up ejects us from the Daily room,
-        // which fires the session's onLeave (registered above) via
-        // GlobalCallFrame. This is the fallback for when that ejection is
-        // delayed or never arrives (deleteCallRoom in daily.ts is best-
-        // effort) — the DB status is the source of truth either way, so
-        // just tear down locally without calling endCall() again (it's
-        // already ENDED/MISSED server-side). Also closes the global call
-        // widget directly, in case this fires before Daily's own
-        // "left-meeting" event does — safe to check `state` (not `s`) here
-        // since this closure is re-created fresh each time `state` changes
-        // (see the effect's dependency array below).
-        if (state.phase === "in-call") endSession();
-        setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
-      }
-    }, intervalMs);
-    return () => clearInterval(interval);
-  }, [state, calleeName, endSession]);
+    stateRef.current = state;
+  });
+
+  // Replaces the old 400ms/5s polling interval — this is the ONLY thing
+  // that tells the caller's side the callee has accepted (the callee's own
+  // tap starts joining immediately, with no polling/realtime wait involved
+  // on their end at all) or hung up/declined, so calls.ts's startCall/
+  // getIncomingCall/respondToCall/endCall all publish onto this user's own
+  // call:{userId} channel (see REALTIME_CHANNELS.callSignal) to trigger
+  // this instantly instead of waiting on a timer.
+  const checkStatus = useCallback(async () => {
+    const current = stateRef.current;
+    if (current.phase !== "ringing" && current.phase !== "in-call") return;
+    const callId = current.callId;
+    const result = await getCallStatus(callId);
+    if (result.error) return;
+    // Ignore a response for a call this side has already moved on from.
+    if (stateRef.current.phase === "idle" || stateRef.current.phase === "ended") return;
+    if ("callId" in stateRef.current && stateRef.current.callId !== callId) return;
+
+    if (result.status === "ACCEPTED") {
+      setState((s) =>
+        s.phase === "ringing"
+          ? { phase: "in-call", callId: s.callId, roomUrl: s.roomUrl, token: s.token, type: s.type }
+          : s,
+      );
+    } else if (result.status === "RINGING" && result.ringing) {
+      setState((s) => (s.phase === "ringing" && !s.calleeRinging ? { ...s, calleeRinging: true } : s));
+    } else if (result.status === "DECLINED") {
+      setState({ phase: "ended", message: `${calleeName} declined the call.` });
+    } else if (result.status === "ENDED" || result.status === "MISSED") {
+      // Normally the callee hanging up ejects us from the Daily room, which
+      // fires the session's onLeave (registered above) via GlobalCallFrame.
+      // This is the fallback for when that ejection is delayed or never
+      // arrives (deleteCallRoom in daily.ts is best-effort) — the DB status
+      // is the source of truth either way, so just tear down locally
+      // without calling endCall() again (it's already ENDED/MISSED
+      // server-side). Also closes the global call widget directly, in case
+      // this fires before Daily's own "left-meeting" event does.
+      if (current.phase === "in-call") endSession();
+      setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
+    }
+  }, [calleeName, endSession]);
+
+  // Fires immediately on entering "ringing" (a fresh call, or re-checking
+  // after this component re-renders for any other reason won't retrigger —
+  // keyed on phase alone since callId is always fresh whenever phase
+  // becomes "ringing" in this flow).
+  const checkStatusRef = useRef(checkStatus);
+  useEffect(() => {
+    checkStatusRef.current = checkStatus;
+  });
+  useEffect(() => {
+    if (state.phase === "ringing" || state.phase === "in-call") checkStatusRef.current();
+  }, [state.phase]);
+
+  useRealtimeEvent(
+    state.phase === "ringing" || state.phase === "in-call" ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
+    "changed",
+    checkStatus,
+  );
 
   useEffect(() => {
     if (state.phase !== "ended") return undefined;

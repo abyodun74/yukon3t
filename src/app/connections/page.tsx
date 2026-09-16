@@ -51,6 +51,7 @@ export default async function ConnectionsPage() {
         connected={connected}
         incoming={{ items: incoming, hasMore: incomingHasMore, count: incomingCount }}
         sent={{ items: outgoing, hasMore: sentHasMore, count: outgoingCount }}
+        currentUserId={me.id}
       />
       <ConnectionsFindPeopleFab />
     </div>

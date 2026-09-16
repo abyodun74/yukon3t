@@ -119,9 +119,11 @@ export function SentRequestsList({
 export function ConnectedList({
   initialItems,
   initialHasMore,
+  currentUserId,
 }: {
   initialItems: { id: string; other: ConnectionUser; intentTag: IntentTag; conversationId: string | null }[];
   initialHasMore: boolean;
+  currentUserId: string;
 }) {
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems,
@@ -160,7 +162,7 @@ export function ConnectedList({
                 Message
               </Link>
             )}
-            <CallButton calleeId={c.other.id} calleeName={c.other.name ?? "them"} />
+            <CallButton calleeId={c.other.id} calleeName={c.other.name ?? "them"} currentUserId={currentUserId} />
           </div>
         </div>
       ))}

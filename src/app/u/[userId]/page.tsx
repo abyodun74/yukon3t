@@ -216,7 +216,7 @@ export default async function PublicProfilePage({
             conversationId={conversationId}
           />
           {connection?.status === "ACCEPTED" && (
-            <CallButton calleeId={user.id} calleeName={user.name ?? "them"} />
+            <CallButton calleeId={user.id} calleeName={user.name ?? "them"} currentUserId={me.id} />
           )}
           <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label="Report account" />
           <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked={false} />
