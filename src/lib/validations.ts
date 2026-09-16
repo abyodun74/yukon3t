@@ -211,14 +211,21 @@ export const postSchema = z
     mediaUrls: z.array(z.string().url()).max(10).optional().default([]),
     videoUrl: z.string().url().optional(),
     videoThumbnailUrl: z.string().url().optional(),
-    // Client-probed <video>.duration, in whole seconds — not a security
-    // boundary (nothing stops a client from lying), just the signal
-    // createPost uses to decide whether this video is short enough for
-    // Hive's automated scan or needs to route to manual review instead. A
-    // lowballed value only risks under-flagging a video that Hive's own
-    // moderate-videos cron would then also just fail/skip on, so there's no
-    // exploitable upside to lying here.
-    videoDurationSeconds: z.coerce.number().int().positive().optional(),
+    // Client-probed video duration — not a security boundary (nothing stops
+    // a client from lying), just the signal createPost uses to decide
+    // whether this video is short enough for Hive's automated scan or needs
+    // to route to the long-form review pipeline instead. A lowballed value
+    // only risks under-flagging a video that pipeline would then also just
+    // fail/skip on, so there's no exploitable upside to lying here.
+    // Rounded rather than required to already be a whole number — the web
+    // upload path's own <video>.duration probe always sends a rounded
+    // value, but the native Android picker's durationMs/1000.0 didn't, and
+    // a strict .int() here rejected that fractional value outright, which
+    // failed the *entire* post with an unrelated-looking generic "invalid"
+    // error (confirmed live: 10.006 seconds killed a whole video post).
+    // Rounding server-side closes this off regardless of what any future
+    // client-side duration source happens to send.
+    videoDurationSeconds: z.coerce.number().positive().transform(Math.round).optional(),
     // Raw pasted link — for mediaType EMBED, server-side input to
     // parseVideoEmbedUrl() (only the parsed provider+id is stored). For
     // mediaType LINK (any other http(s) URL), input to normalizeLinkUrl()
