@@ -23,11 +23,20 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   ios: {
-    // Lets page content flow under the status bar/notch like a native app
-    // (matches contentInsetAdjustmentBehavior "automatic" in UIKit) rather
-    // than leaving a hard white gap above the page — StatusBar plugin
-    // still controls the bar's own style/color on top of this.
-    contentInset: "automatic",
+    // "never" (Capacitor's own default) rather than "automatic" —
+    // confirmed live that "automatic" (UIScrollView's native
+    // contentInsetAdjustmentBehavior) fought with the web page's own
+    // CSS-based safe-area handling (viewport-fit=cover + env(safe-area-
+    // inset-*), the same mechanism Android's WebView already relies on
+    // successfully with no native-side inset behavior of its own to
+    // conflict with). Two systems adjusting for the same notch/Dynamic
+    // Island/home-indicator space produced inconsistent overflow/layout
+    // shift that varied by device (a notch iPhone vs. a Dynamic Island one
+    // vs. an older flat-top model all compute "automatic" differently).
+    // "never" leaves the WebView's own scroll view untouched and lets the
+    // page's own safe-area CSS be the single source of truth, same as it
+    // already is on Android.
+    contentInset: "never",
   },
   plugins: {
     SplashScreen: {
