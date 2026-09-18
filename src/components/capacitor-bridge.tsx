@@ -8,6 +8,7 @@ import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { markAllAsRead } from "@/app/actions/notifications";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
+import { registerVoipToken } from "@/app/actions/voip";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -90,6 +91,29 @@ export function CapacitorBridge() {
         // worker/push APIs misbehave here.
       }
     })();
+  }, []);
+
+  // iOS-only: registers this device's PushKit VoIP token, the counterpart
+  // to the FCM token registration below — see src/lib/native-callkit.ts and
+  // NativeCallKitPlugin.swift for why this needs its own separate plugin
+  // instead of reusing @capacitor-firebase/messaging. Fires whenever the
+  // native side hands over a token: on first launch after granting the
+  // PushKit registration, and again if Apple ever reissues one.
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "ios") return;
+    let listener: { remove: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      const { NativeCallKit } = await import("@/lib/native-callkit");
+      if (cancelled) return;
+      listener = await NativeCallKit.addListener("voipTokenReceived", (event) => {
+        registerVoipToken(event.token).catch(() => {});
+      });
+    })();
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
   }, []);
 
   useEffect(() => {

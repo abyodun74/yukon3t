@@ -46,6 +46,13 @@
 		     the Android-side equivalent (a foreground service, since Android
 		     has no background-audio-mode declaration like this one). -->
 		<string>audio</string>
+		<!-- Required for PushKit VoIP pushes to wake/relaunch the app when
+		     fully terminated — see NativeCallManager.swift. Also needs the
+		     "Voice over IP" Background Mode capability checked in Xcode's
+		     Signing & Capabilities tab (this array entry alone isn't
+		     sufficient; Xcode normally writes both together when you check
+		     that box in the UI, but it doesn't hurt to have this committed). -->
+		<string>voip</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
