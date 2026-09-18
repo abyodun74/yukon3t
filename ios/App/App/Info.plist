@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>YuKon3t</string>
+	<string>YuKon3t</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,46 +26,38 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>YuKon3t needs camera access to let you take photos and video for posts, your profile picture, and video calls.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>YuKon3t needs microphone access for voice/video calls and for recording video posts.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>YuKon3t needs access to your photo library so you can attach photos and videos to posts and messages.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>YuKon3t needs permission to save photos and videos you choose to download to your photo library.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>YuKon3t needs access to your contacts so you can pick people to invite by text message. Contacts are only read to build your invite list, never uploaded or stored.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-		<!-- Keeps WKWebView's audio session (and so the Daily call's WebRTC
-		     audio) alive once the app is backgrounded mid-call, instead of
-		     iOS suspending it a few seconds after the app leaves the
-		     foreground. Video isn't visible while backgrounded either way
-		     (no CallKit/PiP here) but the call's audio keeps flowing and the
-		     call itself is never dropped. See CallForegroundService.java for
-		     the Android-side equivalent (a foreground service, since Android
-		     has no background-audio-mode declaration like this one). -->
-		<string>audio</string>
-	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>YuKon3t needs microphone access for voice/video calls and for recording video posts.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>YuKon3t needs permission to save photos and videos you choose to download to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>YuKon3t needs access to your photo library so you can attach photos and videos to posts and messages.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
-    <false/>
-    <key>UISceneConfigurations</key>
-    <dict>
-      <key>UIWindowSceneSessionRoleApplication</key>
-      <array>
-        <dict>
-            <key>UISceneConfigurationName</key>
-            <string>Default Configuration</string>
-            <key>UISceneDelegateClassName</key>
-            <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-            <key>UISceneStoryboardFile</key>
-            <string>Main</string>
-        </dict>
-      </array>
-    </dict>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
