@@ -17,8 +17,14 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		D8F8DEA8B89DB842FEB5A82B /* ScreenCaptureGuardPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 80AD0EACEE6A9C57DD965F20 /* ScreenCaptureGuardPlugin.m */; };
+<<<<<<< HEAD
 		F0A93A64305C136700AD3A38 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F0A93A63305C136700AD3A38 /* GoogleService-Info.plist */; };
 		F540B51530CCC79BC1C25971 /* ScreenCaptureGuardPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EFB0307EB82D913AFB576A /* ScreenCaptureGuardPlugin.swift */; };
+=======
+		85B91950A68FA502E3D464DC /* NativeCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491C30FCB966F019FAA15B03 /* NativeCallManager.swift */; };
+		B11B79B5B7C351815E03C278 /* NativeCallKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226267DEF4883E4ED71691DB /* NativeCallKitPlugin.swift */; };
+		21062A893C7445BFB03E9E6F /* NativeCallKitPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 12F500E676CC12C79E18B52B /* NativeCallKitPlugin.m */; };
+>>>>>>> ef4d2bdf97a2da62b5fae504bc069693082fb5e3
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,10 +39,16 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		59EFB0307EB82D913AFB576A /* ScreenCaptureGuardPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureGuardPlugin.swift; sourceTree = "<group>"; };
 		80AD0EACEE6A9C57DD965F20 /* ScreenCaptureGuardPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ScreenCaptureGuardPlugin.m; sourceTree = "<group>"; };
+<<<<<<< HEAD
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		F0A93A62305B7E2E00AD3A38 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		F0A93A63305C136700AD3A38 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+=======
+		491C30FCB966F019FAA15B03 /* NativeCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCallManager.swift; sourceTree = "<group>"; };
+		226267DEF4883E4ED71691DB /* NativeCallKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCallKitPlugin.swift; sourceTree = "<group>"; };
+		12F500E676CC12C79E18B52B /* NativeCallKitPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeCallKitPlugin.m; sourceTree = "<group>"; };
+>>>>>>> ef4d2bdf97a2da62b5fae504bc069693082fb5e3
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +90,9 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				59EFB0307EB82D913AFB576A /* ScreenCaptureGuardPlugin.swift */,
 				80AD0EACEE6A9C57DD965F20 /* ScreenCaptureGuardPlugin.m */,
+				491C30FCB966F019FAA15B03 /* NativeCallManager.swift */,
+				226267DEF4883E4ED71691DB /* NativeCallKitPlugin.swift */,
+				12F500E676CC12C79E18B52B /* NativeCallKitPlugin.m */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -174,6 +189,9 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				F540B51530CCC79BC1C25971 /* ScreenCaptureGuardPlugin.swift in Sources */,
 				D8F8DEA8B89DB842FEB5A82B /* ScreenCaptureGuardPlugin.m in Sources */,
+				85B91950A68FA502E3D464DC /* NativeCallManager.swift in Sources */,
+				B11B79B5B7C351815E03C278 /* NativeCallKitPlugin.swift in Sources */,
+				21062A893C7445BFB03E9E6F /* NativeCallKitPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
