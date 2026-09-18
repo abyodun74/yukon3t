@@ -28,14 +28,12 @@
 	<string>YuKon3t needs camera access to let you take photos and video for posts, your profile picture, and video calls.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>YuKon3t needs access to your contacts so you can pick people to invite by text message. Contacts are only read to build your invite list, never uploaded or stored.</string>
-<<<<<<< HEAD
 	<key>NSMicrophoneUsageDescription</key>
 	<string>YuKon3t needs microphone access for voice/video calls and for recording video posts.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>YuKon3t needs permission to save photos and videos you choose to download to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>YuKon3t needs access to your photo library so you can attach photos and videos to posts and messages.</string>
-=======
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
@@ -56,7 +54,6 @@
 		     that box in the UI, but it doesn't hurt to have this committed). -->
 		<string>voip</string>
 	</array>
->>>>>>> efe2c56d4fab405525c7c348c2d024cfb8cb0f24
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -76,11 +73,6 @@
 			</array>
 		</dict>
 	</dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-		<string>audio</string>
-	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
