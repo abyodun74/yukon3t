@@ -7,6 +7,8 @@ import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { markAllAsRead } from "@/app/actions/notifications";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
+import { unsubscribeFromPush } from "@/app/actions/push";
+import { registerVoipToken } from "@/app/actions/voip";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -63,6 +65,56 @@ export function CapacitorBridge() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+
+  // One-time self-heal for accounts affected by a real bug (see
+  // push-notifications-toggle.tsx's own comment): this native WebView does
+  // support the Web Push API, so tapping that toggle from inside the app
+  // used to leave a stray PushSubscription row behind, duplicate to the
+  // FCM token this same effect registers below — startCall then sent to
+  // both, producing two "Incoming call" notifications for one ring on both
+  // Android and iOS. The toggle is hidden natively now (prevents this
+  // going forward), but doesn't undo a subscription already created before
+  // that fix shipped — this does, unconditionally, every native launch,
+  // since a native app should never legitimately have one of its own.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    (async () => {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = await registration?.pushManager.getSubscription();
+        if (!subscription) return;
+        await unsubscribeFromPush(subscription.endpoint).catch(() => {});
+        await subscription.unsubscribe().catch(() => {});
+      } catch {
+        // Best-effort — nothing actionable if the WebView's own service
+        // worker/push APIs misbehave here.
+      }
+    })();
+  }, []);
+
+  // iOS-only: registers this device's PushKit VoIP token, the counterpart
+  // to the FCM token registration below — see src/lib/native-callkit.ts and
+  // NativeCallKitPlugin.swift for why this needs its own separate plugin
+  // instead of reusing @capacitor-firebase/messaging. Fires whenever the
+  // native side hands over a token: on first launch after granting the
+  // PushKit registration, and again if Apple ever reissues one.
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "ios") return;
+    let listener: { remove: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      const { NativeCallKit } = await import("@/lib/native-callkit");
+      if (cancelled) return;
+      listener = await NativeCallKit.addListener("voipTokenReceived", (event) => {
+        registerVoipToken(event.token).catch(() => {});
+      });
+    })();
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;

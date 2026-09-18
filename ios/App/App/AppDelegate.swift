@@ -8,6 +8,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // Must start here, not lazily from NativeCallKitPlugin — see that
+        // file's own comment on why PushKit's delegate has to be set before
+        // the webview/bridge exists.
+        NativeCallManager.shared.start()
         return true
     }
 

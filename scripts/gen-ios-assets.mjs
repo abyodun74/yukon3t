@@ -41,8 +41,14 @@ function markSvg({ canvas, background }) {
 
 // --- App Store icon: 1024x1024, opaque, brand-accent background (matches
 // the Android/PWA icon look for cross-platform brand recognition) ---
+// removeAlpha() alongside flatten() for the same reason as the splash
+// image below — App Store Connect actually rejects an icon upload over
+// this specific gap (confirmed live: "images can't contain alpha channel
+// or transparencies"), where flatten() alone leaves the PNG's alpha
+// channel present (fully-opaque valued, but still technically there).
 await sharp(Buffer.from(markSvg({ canvas: 1024, background: ACCENT })))
   .flatten({ background: ACCENT })
+  .removeAlpha()
   .png()
   .toFile("ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png");
 console.log("wrote AppIcon-512@2x.png");

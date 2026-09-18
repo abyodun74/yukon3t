@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallCancelToUser, sendFcmMissedCallToUser } from "@/lib/fcm";
+import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
 
 /**
  * Tells the callee a call went unanswered — shared by endCall (the caller
@@ -21,6 +22,10 @@ export async function notifyMissedCall(params: {
   // caller hanging up mid-ring would leave the callee's phone stuck showing
   // a call that's already gone.
   await sendFcmCallCancelToUser(calleeId, callId);
+  // iOS counterpart: dismisses a CallKit incoming-call UI already reported
+  // via sendVoipCallToUser (startCall) — no-ops if this device never
+  // registered a VoipPushToken.
+  await sendVoipCallCancelToUser(calleeId, callId);
   // Leaves a proper "Missed call from X" notification behind on Android —
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
   await sendFcmMissedCallToUser(calleeId, callId, callerName);

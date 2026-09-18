@@ -28,12 +28,35 @@
 	<string>YuKon3t needs camera access to let you take photos and video for posts, your profile picture, and video calls.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>YuKon3t needs access to your contacts so you can pick people to invite by text message. Contacts are only read to build your invite list, never uploaded or stored.</string>
+<<<<<<< HEAD
 	<key>NSMicrophoneUsageDescription</key>
 	<string>YuKon3t needs microphone access for voice/video calls and for recording video posts.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>YuKon3t needs permission to save photos and videos you choose to download to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>YuKon3t needs access to your photo library so you can attach photos and videos to posts and messages.</string>
+=======
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<!-- Keeps WKWebView's audio session (and so the Daily call's WebRTC
+		     audio) alive once the app is backgrounded mid-call, instead of
+		     iOS suspending it a few seconds after the app leaves the
+		     foreground. Video isn't visible while backgrounded either way
+		     (no CallKit/PiP here) but the call's audio keeps flowing and the
+		     call itself is never dropped. See CallForegroundService.java for
+		     the Android-side equivalent (a foreground service, since Android
+		     has no background-audio-mode declaration like this one). -->
+		<string>audio</string>
+		<!-- Required for PushKit VoIP pushes to wake/relaunch the app when
+		     fully terminated — see NativeCallManager.swift. Also needs the
+		     "Voice over IP" Background Mode capability checked in Xcode's
+		     Signing & Capabilities tab (this array entry alone isn't
+		     sufficient; Xcode normally writes both together when you check
+		     that box in the UI, but it doesn't hurt to have this committed). -->
+		<string>voip</string>
+	</array>
+>>>>>>> efe2c56d4fab405525c7c348c2d024cfb8cb0f24
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

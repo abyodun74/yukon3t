@@ -230,6 +230,39 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     };
   }, [acceptCall, declineCall]);
 
+  // iOS only: CallKit's native Accept/Decline buttons (shown even while the
+  // app is fully terminated, via PushKit — see NativeCallKitPlugin.swift)
+  // report straight to the OS, not to this component, so this is what
+  // routes that outcome back into the exact same respondToCall flow the
+  // in-app buttons and Android's notification-tap deep link above already
+  // use. Answering also brings the app to the foreground as standard
+  // CallKit/system behavior, satisfying "once accept should connect call
+  // and automatically go to the app" with no extra navigation code needed
+  // here.
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "ios") return undefined;
+    let cancelled = false;
+    let answeredListener: { remove: () => void } | undefined;
+    let declinedListener: { remove: () => void } | undefined;
+
+    (async () => {
+      const { NativeCallKit } = await import("@/lib/native-callkit");
+      if (cancelled) return;
+      answeredListener = await NativeCallKit.addListener("callAnswered", (event) => {
+        acceptCall(event.callId);
+      });
+      declinedListener = await NativeCallKit.addListener("callDeclined", (event) => {
+        declineCall(event.callId);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      answeredListener?.remove();
+      declinedListener?.remove();
+    };
+  }, [acceptCall, declineCall]);
+
   // Once active, the call itself renders via the root-mounted GlobalCallFrame
   // (see the startSession effect above) — nothing left to render here.
   if (activeCall) return null;

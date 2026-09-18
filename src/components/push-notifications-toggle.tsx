@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { subscribeToPush, unsubscribeFromPush } from "@/app/actions/push";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -15,15 +16,32 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-type Status = "unsupported" | "loading" | "off" | "on" | "denied";
+type Status = "unsupported" | "native" | "loading" | "off" | "on" | "denied";
 
-/** Settings toggle for browser push notifications (incoming calls, new messages) — inert if VAPID keys aren't configured. */
+/**
+ * Settings toggle for browser Web Push (incoming calls, new messages) —
+ * inert if VAPID keys aren't configured, and hidden entirely on the native
+ * Android/iOS app. The native app already gets push automatically via FCM
+ * (capacitor-bridge.tsx registers a token on launch, no toggle needed) —
+ * confirmed live that tapping this same toggle *inside* the native app's
+ * own WebView (which does support the Web Push API) created a second,
+ * independent PushSubscription row for the same account. startCall then
+ * sends to both that row (sendPushToUser) and the native FCM token
+ * (sendFcmCallToUser) for every call, producing two separate "Incoming
+ * call" notifications for one ring, on both Android and iOS. Hiding this
+ * here stops it happening again; capacitor-bridge.tsx separately cleans up
+ * any subscription this already created before the fix shipped.
+ */
 export function PushNotificationsToggle() {
   const [status, setStatus] = useState<Status>("loading");
 
   useEffect(() => {
     let cancelled = false;
     async function check() {
+      if (Capacitor.isNativePlatform()) {
+        if (!cancelled) setStatus("native");
+        return;
+      }
       if (!VAPID_PUBLIC_KEY || !("serviceWorker" in navigator) || !("PushManager" in window)) {
         if (!cancelled) setStatus("unsupported");
         return;
@@ -76,6 +94,14 @@ export function PushNotificationsToggle() {
     } catch {
       setStatus("on");
     }
+  }
+
+  if (status === "native") {
+    return (
+      <p className="text-sm text-foreground-soft">
+        Notifications are already on for the app — no need to enable them separately here.
+      </p>
+    );
   }
 
   if (status === "unsupported") {

@@ -317,6 +317,7 @@ model User {
   blocksReceived    Block[]            @relation("Blocked")
   pushSubscriptions PushSubscription[]
   fcmTokens         FcmToken[]
+  voipPushTokens    VoipPushToken[]
   analyticsEvents   AnalyticsEvent[]
 
   knownDevices       KnownDevice[]
@@ -1937,6 +1938,26 @@ model PushSubscription {
  * src/lib/fcm.ts.
  */
 model FcmToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// A raw APNs device token from iOS's PushKit (PKPushRegistry), for VoIP
+// pushes specifically — distinct from FcmToken above, which is a regular
+// Firebase Cloud Messaging token used for every other notification type.
+// Firebase's own send API has no way to set the "voip" APNs push type
+// PushKit requires, so VoIP pushes for incoming calls are sent directly to
+// Apple's APNs (src/lib/apns-voip.ts) using this token, entirely separate
+// from the Firebase-mediated path everything else uses. Android has no
+// equivalent — its background-wake story is CallForegroundService plus a
+// regular FCM data message, which already works without this.
+model VoipPushToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique

@@ -8,6 +8,7 @@ import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallToUser } from "@/lib/fcm";
+import { sendVoipCallToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { track } from "@/lib/analytics";
 import { publishEvent } from "@/lib/realtime-server";
@@ -113,6 +114,17 @@ export async function startCall(formData: FormData) {
     // call-style ring (system ringtone, full-screen), rather than a
     // browser notification. See src/lib/fcm.ts.
     await sendFcmCallToUser(calleeId, {
+      callId: call.id,
+      callerName: user.name ?? "Someone",
+      callType: call.type,
+    });
+    // iOS-only: wakes a fully terminated/backgrounded app via PushKit and
+    // shows the system-level CallKit incoming-call UI (Accept/Decline),
+    // which the FCM "background" push above can't do reliably on its own
+    // once the app is actually killed — see src/lib/apns-voip.ts. No-ops
+    // for a callee with no registered VoipPushToken (Android, or an iOS
+    // device on a build predating this feature).
+    await sendVoipCallToUser(calleeId, {
       callId: call.id,
       callerName: user.name ?? "Someone",
       callType: call.type,
