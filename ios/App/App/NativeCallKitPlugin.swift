@@ -14,4 +14,15 @@ public class NativeCallKitPlugin: CAPPlugin {
         print("[voip-native] NativeCallKitPlugin.load() called")
         NativeCallManager.shared.plugin = self
     }
+
+    // Capacitor's registration mechanism doesn't reliably load a plugin
+    // that exposes zero callable methods — confirmed live: "NativeCallKit
+    // plugin is not implemented on ios" from the JS side, even though this
+    // class compiles and is wired into the Xcode project correctly, with a
+    // plugin that (deliberately) only ever emits events otherwise. Same
+    // placeholder Capacitor's own `npm init @capacitor/plugin` scaffold
+    // ships by default — not called by anything, just needs to exist.
+    @objc func echo(_ call: CAPPluginCall) {
+        call.resolve()
+    }
 }
