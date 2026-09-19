@@ -37,6 +37,19 @@ function buildProviderToken(): string | null {
   const privateKey = process.env.APNS_AUTH_KEY?.replace(/\\n/g, "\n");
   if (!keyId || !teamId || !privateKey) return null;
 
+  // TEMPORARY diagnostic — never logs the key itself, only its shape, to
+  // track down a persistent "DECODER routines::unsupported" error that
+  // survived a full re-paste of the key into both platforms' env vars.
+  console.log("[voip-debug] key shape", {
+    length: privateKey.length,
+    lineCount: privateKey.split("\n").length,
+    startsCorrectly: privateKey.startsWith("-----BEGIN PRIVATE KEY-----"),
+    endsCorrectly: privateKey.trimEnd().endsWith("-----END PRIVATE KEY-----"),
+    hasCarriageReturns: privateKey.includes("\r"),
+    firstLine: JSON.stringify(privateKey.split("\n")[0]),
+    lastLine: JSON.stringify(privateKey.trimEnd().split("\n").at(-1)),
+  });
+
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && now - cachedToken.issuedAt < TOKEN_TTL_SECONDS) {
     return cachedToken.jwt;
