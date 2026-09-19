@@ -28,14 +28,36 @@ let cachedToken: { jwt: string; issuedAt: number } | null = null;
 // risking that limit under a burst of calls.
 const TOKEN_TTL_SECONDS = 50 * 60;
 
+const PEM_HEADER = "-----BEGIN PRIVATE KEY-----";
+const PEM_FOOTER = "-----END PRIVATE KEY-----";
+
+/**
+ * Defensive reconstruction of a PEM key pasted into an env var UI —
+ * confirmed live that copying a .p8 file's contents via a terminal's
+ * *displayed* output (rather than its raw bytes) is an easy way to lose
+ * the internal line breaks entirely (collapsed into plain spaces by
+ * terminal rendering) and pick up a stray trailing "%" (zsh's
+ * no-trailing-newline prompt marker, if the copy selection ran into it).
+ * Handles both that mangled single-line case and the normal
+ * escaped-"\n" convention env var UIs otherwise use, so a future key
+ * rotation doesn't silently break signing again the same way.
+ */
+function normalizePemKey(raw: string): string {
+  const withRealNewlines = raw.replace(/\\n/g, "\n");
+  const body = withRealNewlines
+    .replace(PEM_HEADER, "")
+    .replace(PEM_FOOTER, "")
+    .replace(/[^A-Za-z0-9+/=]/g, ""); // strips all whitespace/newlines, leaving only base64
+  const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+  return `${PEM_HEADER}\n${wrapped}\n${PEM_FOOTER}\n`;
+}
+
 function buildProviderToken(): string | null {
   const keyId = process.env.APNS_KEY_ID;
   const teamId = process.env.APNS_TEAM_ID;
-  // Vercel/Netlify env var UIs generally can't hold a literal multi-line
-  // value cleanly — stored with escaped \n sequences instead, same
-  // convention most APNs/service-account key env vars use elsewhere.
-  const privateKey = process.env.APNS_AUTH_KEY?.replace(/\\n/g, "\n");
-  if (!keyId || !teamId || !privateKey) return null;
+  const rawKey = process.env.APNS_AUTH_KEY;
+  if (!keyId || !teamId || !rawKey) return null;
+  const privateKey = normalizePemKey(rawKey);
 
   // TEMPORARY diagnostic — never logs the key itself, only its shape, to
   // track down a persistent "DECODER routines::unsupported" error that
