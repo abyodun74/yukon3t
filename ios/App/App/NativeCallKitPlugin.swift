@@ -28,8 +28,8 @@ public class NativeCallKitPlugin: CAPPlugin {
         // the most basic level (a listener that's definitely already
         // attached) versus something specific to the retain-before-attach
         // path NativeCallManager actually relies on. Remove once resolved.
-        print("[voip-native] echo called, firing test notifyListeners")
-        notifyListeners("voipTokenReceived", data: ["token": "test-echo-token"])
+        print("[voip-native] echo called, firing test notifyListeners with retainUntilConsumed")
+        notifyListeners("voipTokenReceived", data: ["token": "test-echo-token"], retainUntilConsumed: true)
         call.resolve()
     }
 }
