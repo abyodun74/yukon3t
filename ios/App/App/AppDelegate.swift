@@ -11,6 +11,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Must start here, not lazily from NativeCallKitPlugin — see that
         // file's own comment on why PushKit's delegate has to be set before
         // the webview/bridge exists.
+        print("[voip-native] AppDelegate.didFinishLaunchingWithOptions calling NativeCallManager.start()")
         NativeCallManager.shared.start()
         return true
     }

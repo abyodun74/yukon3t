@@ -11,6 +11,7 @@ import Capacitor
 @objc(NativeCallKitPlugin)
 public class NativeCallKitPlugin: CAPPlugin {
     public override func load() {
+        print("[voip-native] NativeCallKitPlugin.load() called")
         NativeCallManager.shared.plugin = self
     }
 }

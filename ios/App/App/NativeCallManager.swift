@@ -52,11 +52,16 @@ final class NativeCallManager: NSObject {
 
     /** Idempotent — safe to call every launch. */
     func start() {
-        guard pushRegistry == nil else { return }
+        print("[voip-native] start() called")
+        guard pushRegistry == nil else {
+            print("[voip-native] start() skipped — already started")
+            return
+        }
         let registry = PKPushRegistry(queue: .main)
         registry.delegate = self
         registry.desiredPushTypes = [.voIP]
         pushRegistry = registry
+        print("[voip-native] PKPushRegistry created, desiredPushTypes set to voIP")
     }
 
     // retainUntilConsumed: true on every notifyListeners call below is load
@@ -82,6 +87,7 @@ final class NativeCallManager: NSObject {
     }
 
     private func emitToken(_ token: String) {
+        print("[voip-native] emitToken called, plugin attached: \(plugin != nil)")
         if let plugin = plugin {
             plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
         } else {
@@ -117,12 +123,15 @@ final class NativeCallManager: NSObject {
 
 extension NativeCallManager: PKPushRegistryDelegate {
     func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
+        print("[voip-native] didUpdate pushCredentials called, type: \(type.rawValue)")
         guard type == .voIP else { return }
         let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
+        print("[voip-native] got token, length: \(token.count)")
         emitToken(token)
     }
 
     func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
+        print("[voip-native] didInvalidatePushTokenFor called, type: \(type.rawValue)")
         // Nothing actionable client-side — the server prunes a dead token
         // itself the next time a send to it fails (see apns-voip.ts).
     }
