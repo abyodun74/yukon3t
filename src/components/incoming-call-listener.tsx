@@ -254,6 +254,15 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       declinedListener = await NativeCallKit.addListener("callDeclined", (event) => {
         declineCall(event.callId);
       });
+      // The actual delivery path for a call answered/declined via CallKit
+      // before this effect ever attached — a realistic case, since the
+      // system UI can be acted on while the app is still cold-starting.
+      // See getPendingCallEvents()'s own doc comment for why the
+      // addListener events above alone can't be relied on for that.
+      const pending = await NativeCallKit.getPendingCallEvents().catch(() => null);
+      if (cancelled || !pending) return;
+      pending.answered.forEach((callId) => acceptCall(callId));
+      pending.declined.forEach((callId) => declineCall(callId));
     })();
 
     return () => {

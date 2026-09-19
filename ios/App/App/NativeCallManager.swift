@@ -22,23 +22,11 @@ final class NativeCallManager: NSObject {
     private var pushRegistry: PKPushRegistry?
     private let provider: CXProvider
 
-    // Capacitor loads/instantiates plugins lazily on first JS use — by the
-    // time NativeCallKitPlugin.load() runs and sets this, a token or call
-    // action may already have fired. Buffered and replayed the moment the
-    // plugin actually attaches, the same "retain and replay" pattern
-    // @capacitor-firebase/messaging already uses for a notification tap
-    // that happens before its JS listener attaches (see capacitor-bridge.tsx).
-    //
-    // Deliberately a STRONG reference, not weak — Capacitor's own bridge is
-    // supposed to keep this instance alive for the app's lifetime once
-    // loaded (CapacitorBridge.swift stores it in its own `plugins`
-    // dictionary), but confirmed live that the token still wasn't reaching
-    // JS even after load() printed successfully; ruling out this instance
-    // being deallocated between load() and Capacitor actually registering
-    // the JS-side listener on it is a cheap, safe thing to eliminate first.
-    var plugin: NativeCallKitPlugin? {
-        didSet { flushPending() }
-    }
+    // Set once by NativeCallKitPlugin.load(). Used for best-effort live
+    // delivery (a listener already attached when an event fires); the
+    // authoritative delivery path is the drainPending*() pull below, not
+    // this reference's mere presence — see the comment on emitToken().
+    var plugin: NativeCallKitPlugin?
     private var pendingToken: String?
     private var pendingAnswered: [String] = []
     private var pendingDeclined: [String] = []
@@ -72,53 +60,53 @@ final class NativeCallManager: NSObject {
         print("[voip-native] PKPushRegistry created, desiredPushTypes set to voIP")
     }
 
-    // retainUntilConsumed: true on every notifyListeners call below is load
-    // bearing, not optional — Capacitor lazily creates the plugin instance
-    // (running load(), which sets `plugin` here via the didSet above) as
-    // *part of* handling the JS side's very first addListener() call, before
-    // that call has finished registering its own callback with the bridge.
-    // Without retention, a notifyListeners() fired synchronously from
-    // load()'s flushPending() has no listener attached yet and is silently
-    // dropped — confirmed live: the token reached PushKit and was buffered
-    // here, but registerVoipToken() on the JS side never ran, because this
-    // very case is exactly what happened without the flag.
-    private func flushPending() {
-        print("[voip-native] flushPending called, plugin: \(plugin != nil), pendingToken: \(pendingToken != nil)")
-        guard let plugin = plugin else { return }
-        if let token = pendingToken {
-            print("[voip-native] flushPending calling notifyListeners with token")
-            plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
-            pendingToken = nil
-        }
-        pendingAnswered.forEach { plugin.notifyListeners("callAnswered", data: ["callId": $0], retainUntilConsumed: true) }
-        pendingDeclined.forEach { plugin.notifyListeners("callDeclined", data: ["callId": $0], retainUntilConsumed: true) }
-        pendingAnswered.removeAll()
-        pendingDeclined.removeAll()
-    }
-
+    // Capacitor's own notifyListeners(..., retainUntilConsumed: true) is
+    // supposed to buffer an event fired before any JS listener has attached
+    // and replay it the moment one does — confirmed live, repeatedly, on a
+    // real device that this does NOT work reliably in this Capacitor
+    // version for this plugin (a direct notifyListeners call to an
+    // *already-attached* listener delivers fine; the exact same call fired
+    // *before* attachment is silently lost even once a listener attaches
+    // afterward). Rather than depend on that, every emit below ALSO buffers
+    // into plain Swift state here, and JS explicitly pulls it once via
+    // getPendingToken()/getPendingCallEvents() right after attaching its
+    // listeners (native-callkit.ts) — a plain method-call response, the one
+    // delivery path proven to work regardless of attach timing.
     private func emitToken(_ token: String) {
         print("[voip-native] emitToken called, plugin attached: \(plugin != nil)")
-        if let plugin = plugin {
-            plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
-        } else {
-            pendingToken = token
-        }
+        pendingToken = token
+        plugin?.notifyListeners("voipTokenReceived", data: ["token": token])
     }
 
     private func emitAnswered(_ callId: String) {
-        if let plugin = plugin {
-            plugin.notifyListeners("callAnswered", data: ["callId": callId], retainUntilConsumed: true)
-        } else {
-            pendingAnswered.append(callId)
-        }
+        pendingAnswered.append(callId)
+        plugin?.notifyListeners("callAnswered", data: ["callId": callId])
     }
 
     private func emitDeclined(_ callId: String) {
-        if let plugin = plugin {
-            plugin.notifyListeners("callDeclined", data: ["callId": callId], retainUntilConsumed: true)
-        } else {
-            pendingDeclined.append(callId)
-        }
+        pendingDeclined.append(callId)
+        plugin?.notifyListeners("callDeclined", data: ["callId": callId])
+    }
+
+    /// Consumed once by NativeCallKitPlugin.getPendingToken() right after
+    /// its JS side attaches a listener — covers a token that arrived before
+    /// that attachment happened (the common case: PushKit fires within
+    /// milliseconds of launch, well before the web page finishes loading).
+    func drainPendingToken() -> String? {
+        let token = pendingToken
+        pendingToken = nil
+        return token
+    }
+
+    /// Same idea as drainPendingToken(), for a call answered/declined via
+    /// CallKit's system UI before the web page ever attached a listener —
+    /// a fully realistic case, since CallKit can show and be acted on while
+    /// the app is still cold-starting.
+    func drainPendingCallEvents() -> (answered: [String], declined: [String]) {
+        let result = (pendingAnswered, pendingDeclined)
+        pendingAnswered.removeAll()
+        pendingDeclined.removeAll()
+        return result
     }
 
     /// Dismisses a still-ringing CallKit UI — sent when the caller hangs up

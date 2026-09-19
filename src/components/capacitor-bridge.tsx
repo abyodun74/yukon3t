@@ -109,6 +109,14 @@ export function CapacitorBridge() {
       listener = await NativeCallKit.addListener("voipTokenReceived", (event) => {
         registerVoipToken(event.token).catch(() => {});
       });
+      // The actual delivery path, not a belt-and-suspenders extra — see
+      // getPendingToken()'s own doc comment for why the addListener event
+      // above alone can't be relied on for a token that arrived (the
+      // common case) before this effect ever got a chance to attach it.
+      const pending = await NativeCallKit.getPendingToken().catch(() => null);
+      if (!cancelled && pending?.token) {
+        registerVoipToken(pending.token).catch(() => {});
+      }
     })();
     return () => {
       cancelled = true;

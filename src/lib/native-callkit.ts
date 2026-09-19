@@ -13,6 +13,20 @@ export interface NativeCallKitPlugin {
     eventName: "callAnswered" | "callDeclined",
     listenerFunc: (data: CallKitCallEvent) => void,
   ): Promise<{ remove: () => void }>;
+  /**
+   * The real delivery path for a token that arrived before this app's JS
+   * ever attached a listener (the common case — PushKit fires within
+   * milliseconds of native launch, well before the page finishes loading).
+   * Capacitor's own notifyListeners(..., retainUntilConsumed: true) is
+   * *supposed* to replay a pre-attachment event automatically, but
+   * real-device testing found it doesn't reliably do that in this
+   * Capacitor version — call this once, right after addListener, instead
+   * of relying on that. See NativeCallKitPlugin.swift.
+   */
+  getPendingToken(): Promise<{ token: string | null }>;
+  /** Same idea as getPendingToken(), for a call answered/declined via
+   * CallKit's system UI before the page ever attached a listener. */
+  getPendingCallEvents(): Promise<{ answered: string[]; declined: string[] }>;
 }
 
 /**
