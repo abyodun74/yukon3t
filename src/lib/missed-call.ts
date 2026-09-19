@@ -24,8 +24,9 @@ export async function notifyMissedCall(params: {
   await sendFcmCallCancelToUser(calleeId, callId);
   // iOS counterpart: dismisses a CallKit incoming-call UI already reported
   // via sendVoipCallToUser (startCall) — no-ops if this device never
-  // registered a VoipPushToken.
-  await sendVoipCallCancelToUser(calleeId, callId);
+  // registered a VoipPushToken. Explicitly caught for the same reason as
+  // its startCall call site — see apns-voip.ts's own timeout comment.
+  await sendVoipCallCancelToUser(calleeId, callId).catch(() => {});
   // Leaves a proper "Missed call from X" notification behind on Android —
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
   await sendFcmMissedCallToUser(calleeId, callId, callerName);

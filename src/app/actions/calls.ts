@@ -123,12 +123,16 @@ export async function startCall(formData: FormData) {
     // which the FCM "background" push above can't do reliably on its own
     // once the app is actually killed — see src/lib/apns-voip.ts. No-ops
     // for a callee with no registered VoipPushToken (Android, or an iOS
-    // device on a build predating this feature).
+    // device on a build predating this feature). Explicitly caught here,
+    // not just relying on its own internal best-effort contract — a hung
+    // or failed VoIP push must never take down the whole call the way a
+    // real startCall failure just did (the call itself already worked;
+    // this is strictly additive on top of it).
     await sendVoipCallToUser(calleeId, {
       callId: call.id,
       callerName: user.name ?? "Someone",
       callType: call.type,
-    });
+    }).catch(() => {});
     await track("CALL_STARTED", user.id, { type: call.type });
     await publishEvent(REALTIME_CHANNELS.callSignal(calleeId), "changed");
     return { error: null, callId: call.id, roomUrl: room.url, token, type: call.type };

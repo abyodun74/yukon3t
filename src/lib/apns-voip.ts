@@ -102,11 +102,19 @@ export function isVoipPushConfigured() {
   return Boolean(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_AUTH_KEY);
 }
 
+// Confirmed live: with no bound at all, a hung TCP/TLS handshake to Apple's
+// servers (no "error" event, no response — just silence) left this
+// Promise pending forever. Since startCall awaits sendVoipCallToUser
+// awaits this, that hung the *entire* startCall action for any call to an
+// iOS callee with a registered token — from the caller's side, tapping
+// call did visibly nothing at all, no dialog, no error, indefinitely.
+const APNS_TIMEOUT_MS = 5000;
+
 /**
  * Sends one VoIP push to a single device token, resolving the APNs HTTP
- * status (0 on a connection-level failure, never throws) — the caller
- * decides what a given status means (200 = delivered; 400/410 mean the
- * token itself is bad/expired and should be pruned).
+ * status (0 on a connection-level failure or timeout, never throws) — the
+ * caller decides what a given status means (200 = delivered; 400/410 mean
+ * the token itself is bad/expired and should be pruned).
  */
 async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unknown>): Promise<number> {
   const jwt = buildProviderToken();
@@ -114,13 +122,20 @@ async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unkn
 
   return new Promise((resolve) => {
     let settled = false;
+    const client = http2.connect(APNS_HOST);
     const finish = (result: number) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timeout);
+      client.close();
       resolve(result);
     };
 
-    const client = http2.connect(APNS_HOST);
+    // The one guarantee this function actually needs to make good on its
+    // "never throws, always resolves" contract — everything else here is
+    // best-effort event handling on top of it.
+    const timeout = setTimeout(() => finish(0), APNS_TIMEOUT_MS);
+
     client.on("error", () => finish(0));
 
     const req = client.request({
@@ -139,10 +154,7 @@ async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unkn
       status = Number(headers[":status"]) || 0;
     });
     req.on("error", () => finish(0));
-    req.on("end", () => {
-      client.close();
-      finish(status);
-    });
+    req.on("end", () => finish(status));
 
     req.end(JSON.stringify(payload));
   });
