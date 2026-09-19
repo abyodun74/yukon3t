@@ -44,15 +44,23 @@ function buildProviderToken(): string | null {
 
   const header = base64url(JSON.stringify({ alg: "ES256", kid: keyId }));
   const payload = base64url(JSON.stringify({ iss: teamId, iat: now }));
-  const signer = createSign("SHA256");
-  signer.update(`${header}.${payload}`);
-  // APNs requires the raw IEEE-P1363 (R||S) signature format, not the
-  // DER encoding Node's crypto produces by default for ECDSA — passing
-  // dsaEncoding here avoids having to convert one to the other by hand.
-  const signature = base64url(signer.sign({ key: privateKey, dsaEncoding: "ieee-p1363" }));
-  const jwt = `${header}.${payload}.${signature}`;
-  cachedToken = { jwt, issuedAt: now };
-  return jwt;
+  try {
+    const signer = createSign("SHA256");
+    signer.update(`${header}.${payload}`);
+    // APNs requires the raw IEEE-P1363 (R||S) signature format, not the
+    // DER encoding Node's crypto produces by default for ECDSA — passing
+    // dsaEncoding here avoids having to convert one to the other by hand.
+    const signature = base64url(signer.sign({ key: privateKey, dsaEncoding: "ieee-p1363" }));
+    const jwt = `${header}.${payload}.${signature}`;
+    cachedToken = { jwt, issuedAt: now };
+    return jwt;
+  } catch (err) {
+    // A malformed APNS_AUTH_KEY (e.g. a dashboard UI collapsing the
+    // pasted newlines) must never take startCall down with it — every
+    // other sender in this app (fcm.ts, push.ts) is best-effort too.
+    console.log("[voip-debug] failed to sign provider token", { err: String(err) });
+    return null;
+  }
 }
 
 export function isVoipPushConfigured() {
@@ -120,9 +128,16 @@ export type VoipIncomingCallPayload = {
  * already has its own web-push and FCM paths for this same ring.
  */
 export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCallPayload) {
-  if (!isVoipPushConfigured()) return;
+  // TEMPORARY diagnostic logging while verifying this feature on real
+  // hardware for the first time — same pattern as fcm.ts's [fcm-debug]
+  // lines. Remove once confirmed reliable.
+  if (!isVoipPushConfigured()) {
+    console.log("[voip-debug] not configured, skipping send", { userId });
+    return;
+  }
 
   const tokens = await prisma.voipPushToken.findMany({ where: { userId } });
+  console.log("[voip-debug] tokens found", { userId, count: tokens.length });
   if (tokens.length === 0) return;
 
   const staleTokenIds: string[] = [];
@@ -135,6 +150,7 @@ export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCa
         callerName: payload.callerName,
         callType: payload.callType,
       });
+      console.log("[voip-debug] send result", { userId, tokenSuffix: t.token.slice(-8), status });
       // 400 = BadDeviceToken, 410 = Unregistered — either way this exact
       // token is never going to work again, unlike a transient 5xx/0.
       if (status === 400 || status === 410) staleTokenIds.push(t.id);

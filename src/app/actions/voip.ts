@@ -24,6 +24,10 @@ export async function registerVoipToken(token: string) {
     update: { userId: user.id },
   });
 
+  // TEMPORARY diagnostic logging while verifying this feature on real
+  // hardware for the first time. Remove once confirmed reliable.
+  console.log("[voip-debug] token registered", { userId: user.id, tokenSuffix: token.slice(-8) });
+
   return { error: null };
 }
 
