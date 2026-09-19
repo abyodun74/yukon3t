@@ -8,6 +8,7 @@ import { CircleMembershipButton } from "@/components/circle-membership-button";
 import { DeleteCircleButton } from "@/components/delete-circle-button";
 import { CircleCoverUpload } from "@/components/circle-cover-upload";
 import { CircleMemberManager } from "@/components/circle-member-manager";
+import { CircleMemberList } from "@/components/circle-member-list";
 import { CircleJoinRequestManager } from "@/components/circle-join-request-manager";
 import { ChannelList } from "@/components/channel-list";
 import { CircleSwitcher } from "@/components/circle-switcher";
@@ -250,7 +251,7 @@ export default async function CirclePage({
             </div>
           </div>
 
-          {canModerate && (
+          {canModerate ? (
             <div className="mt-8">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
                 Members
@@ -262,6 +263,19 @@ export default async function CirclePage({
                 <CircleMemberManager circleId={circle.id} members={allMembers} />
               </div>
             </div>
+          ) : (
+            // canModerate already covers the owner (see isCircleAdmin), so
+            // this branch is reached by a plain member only.
+            isMember && (
+              <div className="mt-8">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+                  Members
+                </h2>
+                <div className="mt-3">
+                  <CircleMemberList members={allMembers} />
+                </div>
+              </div>
+            )
           )}
         </>
       )}

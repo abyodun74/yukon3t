@@ -288,14 +288,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         <button
           type="button"
           onClick={decline}
-          className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white"
+          className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
         >
           <PhoneOff size={16} /> Decline
         </button>
         <button
           type="button"
           onClick={accept}
-          className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white"
+          className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
         >
           {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} Accept
         </button>

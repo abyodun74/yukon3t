@@ -6,6 +6,7 @@ import type { NotificationType } from "@/generated/prisma/client";
 export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   CONNECTION_REQUEST: "sent you a connection request",
   CONNECTION_ACCEPTED: "accepted your connection request",
+  CONNECTION_POST: "shared a new post",
   POST_LIKE: "liked your post",
   POST_COMMENT: "commented on your post",
   MUSE_LIKE: "reacted to your Muse",
@@ -36,6 +37,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   SUBSCRIPTION_RSVP: "is going to an event",
   SUBSCRIPTION_CIRCLE_JOINED: "joined a Circle",
   SUBSCRIPTION_CIRCLE_CREATED: "created a new Circle",
+  SUBSCRIPTION_MUSE: "uploaded a new Muse",
+  SUBSCRIPTION_COLLAB: "started a new collaboration",
   VOICE_CHANNEL_INVITE: "invited you to a voice channel",
   VOICE_CHANNEL_INVITE_ACCEPTED: "accepted your voice channel invite",
   MISSED_CALL: "called you",

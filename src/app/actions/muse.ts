@@ -18,6 +18,7 @@ import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { isEmojiOnly } from "@/lib/emoji";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
 import { pushActivityNotification } from "@/lib/notify-push";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 import type { ReactionSummary } from "@/lib/reactions";
 
 /**
@@ -153,6 +154,18 @@ export async function createMuse(formData: FormData) {
     console.error("[createMuse] failed to create muse row after successful upload", err);
     await cleanupUploads();
     return { error: "server_error" as const };
+  }
+
+  // A Muse is always public (see this function's own doc comment) — no
+  // CONNECTIONS_ONLY-style split needed the way createPost's does, and this
+  // already reaches every accepted connection too, not just declared
+  // subscribers (accepting a connection request auto-subscribes both
+  // sides — see respondToConnectionRequest in actions/connections.ts).
+  // Skipped for a Muse held for manual review (see videoNeedsManualReview
+  // above), same "don't point people at something not visible yet"
+  // reasoning as createPost/createStory's own gates.
+  if (muse.moderationStatus === "PUBLISHED") {
+    await notifySubscribers(user.id, "SUBSCRIPTION_MUSE", { museId: muse.id });
   }
 
   revalidatePath("/muse");

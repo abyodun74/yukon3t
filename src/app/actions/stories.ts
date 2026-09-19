@@ -172,6 +172,13 @@ export async function createStory(formData: FormData) {
     return { error: "server_error" as const };
   }
 
+  // Reaches every accepted connection already, not just declared
+  // subscribers — accepting a connection request auto-subscribes both
+  // sides (see respondToConnectionRequest in actions/connections.ts), and
+  // this fires unconditionally regardless of visibility (stories have none;
+  // they're always connections-only via getStoriesForTray's own query), so
+  // there's no separate connections-only case to add here the way
+  // createPost's CONNECTIONS_ONLY branch needs.
   await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId: story.id });
 
   // /home's story tray (the "Your story" ring + its "add more" badge, see

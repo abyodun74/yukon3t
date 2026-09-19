@@ -14,6 +14,7 @@ type NotificationData = {
   type:
     | "CONNECTION_REQUEST"
     | "CONNECTION_ACCEPTED"
+    | "CONNECTION_POST"
     | "POST_LIKE"
     | "POST_COMMENT"
     | "STORY_COMMENT"
@@ -44,6 +45,8 @@ type NotificationData = {
     | "SUBSCRIPTION_RSVP"
     | "SUBSCRIPTION_CIRCLE_JOINED"
     | "SUBSCRIPTION_CIRCLE_CREATED"
+    | "SUBSCRIPTION_MUSE"
+    | "SUBSCRIPTION_COLLAB"
     | "VOICE_CHANNEL_INVITE"
     | "VOICE_CHANNEL_INVITE_ACCEPTED"
     | "MISSED_CALL"
@@ -79,7 +82,8 @@ function hrefFor(notification: NotificationData) {
   // into the normal feed on further scroll; falls back to the plain /muse
   // feed on the off chance museId is somehow missing.
   if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
-      notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE") {
+      notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
+      notification.type === "SUBSCRIPTION_MUSE") {
     return notification.museId ? `/muse/${notification.museId}` : "/muse";
   }
   // The post it'd otherwise link to no longer exists (removed by the

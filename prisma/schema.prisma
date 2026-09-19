@@ -831,6 +831,16 @@ model Share {
 enum NotificationType {
   CONNECTION_REQUEST
   CONNECTION_ACCEPTED
+  // Sent to every one of the actor's accepted Connections when they create
+  // a CONNECTIONS_ONLY-visibility Post — fan-out on createPost, see
+  // actions/circles.ts and notifyConnections in lib/notify-connections.ts.
+  // A PUBLIC post instead uses SUBSCRIPTION_POST below, which already
+  // reaches every connection too (accepting a connection request
+  // auto-subscribes both sides — see respondToConnectionRequest in
+  // actions/connections.ts) — this type exists only for the
+  // CONNECTIONS_ONLY case, invisible to a subscriber who isn't also a
+  // connection, so it can't just piggyback on that same fan-out.
+  CONNECTION_POST
   POST_LIKE
   POST_COMMENT
   // Same as POST_LIKE/POST_COMMENT but for the /muse short-video feed — see
@@ -888,6 +898,14 @@ enum NotificationType {
   // Sent to every subscriber when a user they subscribe to creates a new
   // Circle.
   SUBSCRIPTION_CIRCLE_CREATED
+  // Sent to every subscriber when a user they subscribe to uploads a new
+  // Muse — fan-out on createMuse, see actions/muse.ts.
+  SUBSCRIPTION_MUSE
+  // Sent to every subscriber when a user they subscribe to creates a new
+  // PUBLIC Collab — fan-out on createCollabPost, see actions/collab.ts. A
+  // PRIVATE collab instead notifies only its specific invitees
+  // (COLLAB_INVITE), never this type.
+  SUBSCRIPTION_COLLAB
   // Sent to a PUBLIC collab's organizer and any co-admins when someone
   // requests to join — same shape as CIRCLE_JOIN_REQUEST.
   COLLAB_JOIN_REQUEST

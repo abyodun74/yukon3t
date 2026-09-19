@@ -10,6 +10,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { notifyConnections } from "@/lib/notify-connections";
 import { isGiphyUrl } from "@/lib/giphy";
 import {
   MEDIA_LIMITS,
@@ -800,6 +801,15 @@ export async function createPost(formData: FormData) {
       publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed"),
       ...(feedCategory ? [publishEvent(REALTIME_CHANNELS.homeFeed(feedCategory), "changed")] : []),
     ]);
+  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY") {
+    // The PUBLIC branch above already reaches every accepted connection too
+    // (accepting a connection request auto-subscribes both sides — see
+    // respondToConnectionRequest in actions/connections.ts), so this is
+    // mutually exclusive with it, not additive: a CONNECTIONS_ONLY post is
+    // invisible to a subscriber who isn't also a connection, so only actual
+    // connections get notified here instead of everyone the author is
+    // subscribed by.
+    await notifyConnections(user.id, "CONNECTION_POST", { postId: post.id });
   }
 
   revalidatePath("/circles", "layout");

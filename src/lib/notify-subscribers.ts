@@ -19,6 +19,8 @@ export async function notifySubscribers(
     storyId?: string;
     circleId?: string;
     liveStreamId?: string;
+    museId?: string;
+    collabId?: string;
   } = {},
 ) {
   const subscribers = await prisma.subscription.findMany({

@@ -367,7 +367,8 @@ const sections: Section[] = [
             <strong>Subscribe</strong> is one-directional and needs no
             approval — subscribing to someone means you get notified whenever
             they post, add a story, repost something, go live, RSVP to an
-            event, or join/create a Circle. You can subscribe to someone
+            event, upload a Muse, start a collaboration, or join/create a
+            Circle. You can subscribe to someone
             without being connected to them, and vice versa — except that
             accepting a connection request automatically subscribes both of
             you to each other, so you don&apos;t have to also separately

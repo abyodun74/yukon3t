@@ -10,6 +10,7 @@ import { moderateText } from "@/lib/moderation";
 import { isCollabAdmin, getCollabMembership } from "@/lib/collab-permissions";
 import { updateCollabEmbedding } from "@/lib/embeddings";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { notifySubscribers } from "@/lib/notify-subscribers";
 
 /** Accepted Connections of `userId`, as a flat set of the *other* user's id — same rule used by messages/[id]/page.tsx's group-add candidates and post-visibility.ts. */
 async function getAcceptedConnectionIds(userId: string): Promise<Set<string>> {
@@ -113,6 +114,17 @@ export async function createCollabPost(formData: FormData) {
   }
 
   await updateCollabEmbedding(post.id, { title, description });
+
+  // PRIVATE collabs already notify their specific invitees above
+  // (COLLAB_INVITE) — broadcasting to every subscriber/connection
+  // regardless of whether they were invited would leak a supposedly
+  // invite-only collab. This already reaches every accepted connection
+  // too, not just declared subscribers (accepting a connection request
+  // auto-subscribes both sides — see respondToConnectionRequest in
+  // actions/connections.ts).
+  if (visibility === "PUBLIC") {
+    await notifySubscribers(user.id, "SUBSCRIPTION_COLLAB", { collabId: post.id });
+  }
 
   revalidatePath("/collab");
   redirect(`/collab/${post.id}`);

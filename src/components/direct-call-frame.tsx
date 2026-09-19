@@ -246,7 +246,7 @@ export function DirectCallFrame({
             onClick={toggleAudio}
             title={localAudioOn ? "Mute" : "Unmute"}
             aria-label={localAudioOn ? "Mute microphone" : "Unmute microphone"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${localAudioOn ? "bg-white/20" : "bg-danger"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localAudioOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localAudioOn ? <Mic size={16} /> : <MicOff size={16} />}
           </button>
@@ -260,7 +260,7 @@ export function DirectCallFrame({
             // side turn a voice call into a video call and back mid-call.
             title={localVideoOn ? "Turn off camera" : "Turn on camera"}
             aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
           </button>
@@ -269,7 +269,7 @@ export function DirectCallFrame({
             onClick={toggleScreenShare}
             title={localScreenSharing ? "Stop sharing" : "Share screen"}
             aria-label={localScreenSharing ? "Stop sharing screen" : "Share screen"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
           </button>
@@ -285,7 +285,7 @@ export function DirectCallFrame({
               onClick={switchCamera}
               title="Switch between front and back camera"
               aria-label="Switch camera"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-transform active:scale-90"
             >
               <SwitchCamera size={16} />
             </button>
@@ -299,7 +299,7 @@ export function DirectCallFrame({
               onClick={switchOutput}
               title="Switch audio output (speaker, earpiece, headset...)"
               aria-label="Switch audio output"
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${onSpeaker ? "bg-accent text-accent-ink" : "bg-white/20"}`}
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${onSpeaker ? "bg-accent text-accent-ink" : "bg-white/20"}`}
             >
               <Volume2 size={16} />
             </button>

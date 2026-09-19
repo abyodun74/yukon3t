@@ -127,8 +127,9 @@ export default async function NotificationsPage() {
         {notifications.length === 0 && (
           <p className="text-sm text-foreground-soft">
             Nothing yet — likes, comments, reposts, shares, messages,
-            connection requests, and new posts/stories from people you
-            subscribe to will show up here.
+            connection requests, and new posts, stories, Muses, and
+            collaborations from people you subscribe to (or are connected
+            with) will show up here.
           </p>
         )}
       </div>

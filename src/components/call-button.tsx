@@ -200,7 +200,7 @@ export function CallButton({
           onClick={() => call("AUDIO")}
           title={`Voice call ${calleeName}`}
           aria-label={`Voice call ${calleeName}`}
-          className="rounded-lg border border-line p-2.5 -m-0.5 hover:border-accent hover:text-accent"
+          className="rounded-lg border border-line p-2.5 -m-0.5 transition-transform hover:border-accent hover:text-accent active:scale-[0.92]"
         >
           <Phone size={16} />
         </button>
@@ -209,7 +209,7 @@ export function CallButton({
           onClick={() => call("VIDEO")}
           title={`Video call ${calleeName}`}
           aria-label={`Video call ${calleeName}`}
-          className="rounded-lg border border-line p-2.5 -m-0.5 hover:border-accent hover:text-accent"
+          className="rounded-lg border border-line p-2.5 -m-0.5 transition-transform hover:border-accent hover:text-accent active:scale-[0.92]"
         >
           <Video size={16} />
         </button>
@@ -223,7 +223,7 @@ export function CallButton({
             <button
               type="button"
               onClick={cancel}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-transform active:scale-[0.97]"
             >
               <PhoneOff size={16} /> Cancel
             </button>
@@ -242,14 +242,14 @@ export function CallButton({
               <button
                 type="button"
                 onClick={cancelExistingAndRetry}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-transform active:scale-[0.97]"
               >
                 <PhoneOff size={16} /> Cancel it &amp; call again
               </button>
               <button
                 type="button"
                 onClick={() => setState({ phase: "idle" })}
-                className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+                className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium transition-transform hover:border-accent hover:text-accent active:scale-[0.97]"
               >
                 Never mind
               </button>

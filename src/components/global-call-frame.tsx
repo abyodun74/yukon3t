@@ -212,7 +212,7 @@ export function GlobalCallFrame() {
               onClick={expand}
               title="Expand"
               aria-label="Expand"
-              className="rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80"
+              className="rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
             >
               <Maximize2 size={14} />
             </button>
@@ -227,7 +227,7 @@ export function GlobalCallFrame() {
               onClick={() => dailyCall?.leave()}
               title="Hang up"
               aria-label="Hang up"
-              className="ms-1 rounded-md bg-danger p-2.5 text-white hover:opacity-90"
+              className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
             >
               <PhoneOff size={14} />
             </button>
@@ -250,7 +250,7 @@ export function GlobalCallFrame() {
                 onClick={() => setCaptureAlert(null)}
                 title="Dismiss"
                 aria-label="Dismiss"
-                className="shrink-0 rounded-md p-2 -m-1 hover:bg-white/20"
+                className="shrink-0 rounded-md p-2 -m-1 transition-transform hover:bg-white/20 active:scale-90"
               >
                 <X size={14} />
               </button>
@@ -273,7 +273,7 @@ export function GlobalCallFrame() {
                   onClick={() => setSharedMaterial(null)}
                   title="Close"
                   aria-label="Close"
-                  className="shrink-0 rounded-md p-2 -m-1 text-foreground-soft hover:bg-background"
+                  className="shrink-0 rounded-md p-2 -m-1 text-foreground-soft transition-transform hover:bg-background active:scale-90"
                 >
                   <X size={14} />
                 </button>
@@ -361,7 +361,7 @@ export function GlobalCallFrame() {
                 }}
                 title="Upload material to share with participants"
                 aria-label="Upload material to share with participants"
-                className="rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80 disabled:opacity-50"
+                className="rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
               >
                 <Upload size={14} />
               </button>
@@ -380,7 +380,7 @@ export function GlobalCallFrame() {
             onClick={() => dailyCall?.leave()}
             title="Leave session"
             aria-label="Leave session"
-            className="ms-1 rounded-md bg-danger p-2.5 text-white hover:opacity-90"
+            className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
           >
             <PhoneOff size={14} />
           </button>
@@ -389,7 +389,7 @@ export function GlobalCallFrame() {
             onClick={minimize}
             title="Minimize"
             aria-label="Minimize"
-            className="ms-1 rounded-md bg-black/60 p-2.5 text-white hover:bg-black/80"
+            className="ms-1 rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
           >
             <Minimize2 size={14} />
           </button>
