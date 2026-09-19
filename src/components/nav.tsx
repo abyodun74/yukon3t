@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard } from "lucide-react";
+import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard, MessageCircle } from "lucide-react";
 import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
@@ -29,15 +29,17 @@ function navLinks(userId: string) {
 }
 
 // The 6 primary destinations, shown as a fixed bottom bar on small screens
-// (Instagram/WhatsApp/TikTok pattern) — Messages and Discover move into the
-// secondary hamburger menu to keep this list short.
+// (Instagram/WhatsApp/TikTok pattern) — Discover moves into the secondary
+// hamburger menu to keep this list short. Connections lives in the header
+// instead (next to Search) rather than here — see the header icon row
+// below.
 function bottomTabs(userId: string) {
   return [
     { href: "/home", label: "Home", icon: Home },
     { href: "/circles", label: "Circles", icon: Users },
     { href: "/collab", label: "Collab", icon: Handshake },
     { href: "/muse", label: "Muse", icon: Clapperboard },
-    { href: "/connections", label: "Connections", icon: UserCheck },
+    { href: "/messages", label: "Messages", icon: MessageCircle },
     { href: `/u/${userId}`, label: "Profile", icon: User },
   ];
 }
@@ -72,10 +74,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   const { unreadMessages, pendingConnections, unreadNotifications, hasNewAnnouncement } = useNavBadges(userId);
 
   // Swipe right steps forward through the bottom tab bar and wraps around
-  // (Home → Circles → Collab → Connections → Profile → Home → ...); swipe left
-  // steps backward and wraps the other way (Profile → Connections → Collab →
-  // Circles → Home → Profile → ...) — the two gestures are mirror images of
-  // each other. Touch-only — the bar itself is `md:hidden`, so gating on
+  // (Home → Circles → Collab → Muse → Messages → Profile → Home → ...);
+  // swipe left steps backward and wraps the other way (Profile → Messages →
+  // Muse → Collab → Circles → Home → Profile → ...) — the two gestures are
+  // mirror images of each other. Touch-only — the bar itself is
+  // `md:hidden`, so gating on
   // touchstart/touchend rather than a pointer gesture naturally keeps this a
   // mobile-only behavior without an extra viewport check. Only armed on the
   // 5 tab root screens themselves (never on e.g. an open chat thread), both
@@ -225,10 +228,28 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             </div>
             {session?.user && (
               <Link
+                href="/connections"
+                aria-label="Connections"
+                title="Connections"
+                className={cn(
+                  "relative rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
+                  pathname === "/connections" && "bg-accent-soft text-accent",
+                )}
+              >
+                <UserCheck size={20} />
+                {pendingConnections > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                    {pendingConnections > 9 ? "9+" : pendingConnections}
+                  </span>
+                )}
+              </Link>
+            )}
+            {session?.user && (
+              <Link
                 href="/search"
                 aria-label="Search"
                 className={cn(
-                  "rounded-full p-1.5 text-foreground-soft hover:bg-line hover:text-accent",
+                  "rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
                   pathname === "/search" && "bg-accent-soft text-accent",
                 )}
               >
@@ -491,9 +512,9 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               >
                 <span className="relative">
                   <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-                  {tab.href === "/connections" && pendingConnections > 0 && (
+                  {tab.href === "/messages" && unreadMessages > 0 && (
                     <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
-                      {pendingConnections > 9 ? "9+" : pendingConnections}
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}
                 </span>
