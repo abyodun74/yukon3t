@@ -91,10 +91,26 @@
   --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
 
+html {
+  /* Stops the native rubber-band/bounce overscroll at the top and bottom of
+     the page — on Android specifically, letting that overscroll gesture
+     complete is what lets the system WebView's own anti-phishing safety UI
+     kick in (a brief "you're in a WebView, here's the real page's origin"
+     reveal, e.g. "yukon3t.com"), since that UI is triggered by the same
+     overscroll physics this suppresses at the source. `contain` rather than
+     `none` on the container so an inner scrollable region (a chat thread, a
+     modal sheet) can still bounce within itself without the outer page
+     feeling the edge of ITS scroll — only the page-level bounce that could
+     surface that WebView chrome is actually the target here.
+  */
+  overscroll-behavior-y: contain;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  overscroll-behavior-y: contain;
 }
 
 .font-display {

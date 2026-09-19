@@ -139,6 +139,19 @@ export default function TermsPage() {
         service we do not control — see our{" "}
         <a href="/legal/disclaimer" className="text-accent">Disclaimer</a>.
       </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>No auto-renewal, anywhere on YuKon3t.</b> An ad booking is a
+        single, one-time charge for the exact number of days you select at
+        checkout (California Automatic Renewal Law and equivalent state
+        disclosure laws) — it does not renew automatically, does not
+        recur, and is not a subscription; running it again later requires a
+        new booking and a new charge. Every other use of the word
+        &quot;subscribe&quot; on YuKon3t — subscribing to a person&apos;s
+        posts, a Circle, or a Muse creator — is a free, one-tap social
+        follow with no payment involved at all; toggling it off (the same
+        button you used to subscribe) unsubscribes you instantly, with
+        nothing further to cancel.
+      </p>
 
       <h2 className="mt-8 font-semibold">10. Termination</h2>
       <p className="mt-2 text-foreground-soft">

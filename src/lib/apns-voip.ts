@@ -59,19 +59,6 @@ function buildProviderToken(): string | null {
   if (!keyId || !teamId || !rawKey) return null;
   const privateKey = normalizePemKey(rawKey);
 
-  // TEMPORARY diagnostic — never logs the key itself, only its shape, to
-  // track down a persistent "DECODER routines::unsupported" error that
-  // survived a full re-paste of the key into both platforms' env vars.
-  console.log("[voip-debug] key shape", {
-    length: privateKey.length,
-    lineCount: privateKey.split("\n").length,
-    startsCorrectly: privateKey.startsWith("-----BEGIN PRIVATE KEY-----"),
-    endsCorrectly: privateKey.trimEnd().endsWith("-----END PRIVATE KEY-----"),
-    hasCarriageReturns: privateKey.includes("\r"),
-    firstLine: JSON.stringify(privateKey.split("\n")[0]),
-    lastLine: JSON.stringify(privateKey.trimEnd().split("\n").at(-1)),
-  });
-
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && now - cachedToken.issuedAt < TOKEN_TTL_SECONDS) {
     return cachedToken.jwt;
@@ -93,7 +80,7 @@ function buildProviderToken(): string | null {
     // A malformed APNS_AUTH_KEY (e.g. a dashboard UI collapsing the
     // pasted newlines) must never take startCall down with it — every
     // other sender in this app (fcm.ts, push.ts) is best-effort too.
-    console.log("[voip-debug] failed to sign provider token", { err: String(err) });
+    console.error("[voip] failed to sign provider token", err);
     return null;
   }
 }
@@ -175,16 +162,9 @@ export type VoipIncomingCallPayload = {
  * already has its own web-push and FCM paths for this same ring.
  */
 export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCallPayload) {
-  // TEMPORARY diagnostic logging while verifying this feature on real
-  // hardware for the first time — same pattern as fcm.ts's [fcm-debug]
-  // lines. Remove once confirmed reliable.
-  if (!isVoipPushConfigured()) {
-    console.log("[voip-debug] not configured, skipping send", { userId });
-    return;
-  }
+  if (!isVoipPushConfigured()) return;
 
   const tokens = await prisma.voipPushToken.findMany({ where: { userId } });
-  console.log("[voip-debug] tokens found", { userId, count: tokens.length });
   if (tokens.length === 0) return;
 
   const staleTokenIds: string[] = [];
@@ -197,7 +177,6 @@ export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCa
         callerName: payload.callerName,
         callType: payload.callType,
       });
-      console.log("[voip-debug] send result", { userId, tokenSuffix: t.token.slice(-8), status });
       // 400 = BadDeviceToken, 410 = Unregistered — either way this exact
       // token is never going to work again, unlike a transient 5xx/0.
       if (status === 400 || status === 410) staleTokenIds.push(t.id);

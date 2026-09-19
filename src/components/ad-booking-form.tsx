@@ -472,6 +472,10 @@ export function AdBookingForm() {
       <p className="mt-2 text-center text-xs text-foreground-soft">
         You&apos;ll pay securely via Stripe. Ads go live after a quick review, usually within one business day.
       </p>
+      <p className="mt-1 text-center text-xs text-foreground-soft">
+        One-time charge for {durationDays} day{durationDays === 1 ? "" : "s"} only — this does not auto-renew or
+        recur. Running another campaign later requires a separate booking and a separate charge.
+      </p>
     </div>
   );
 }
