@@ -28,7 +28,15 @@ final class NativeCallManager: NSObject {
     // plugin actually attaches, the same "retain and replay" pattern
     // @capacitor-firebase/messaging already uses for a notification tap
     // that happens before its JS listener attaches (see capacitor-bridge.tsx).
-    weak var plugin: NativeCallKitPlugin? {
+    //
+    // Deliberately a STRONG reference, not weak — Capacitor's own bridge is
+    // supposed to keep this instance alive for the app's lifetime once
+    // loaded (CapacitorBridge.swift stores it in its own `plugins`
+    // dictionary), but confirmed live that the token still wasn't reaching
+    // JS even after load() printed successfully; ruling out this instance
+    // being deallocated between load() and Capacitor actually registering
+    // the JS-side listener on it is a cheap, safe thing to eliminate first.
+    var plugin: NativeCallKitPlugin? {
         didSet { flushPending() }
     }
     private var pendingToken: String?
@@ -75,8 +83,10 @@ final class NativeCallManager: NSObject {
     // here, but registerVoipToken() on the JS side never ran, because this
     // very case is exactly what happened without the flag.
     private func flushPending() {
+        print("[voip-native] flushPending called, plugin: \(plugin != nil), pendingToken: \(pendingToken != nil)")
         guard let plugin = plugin else { return }
         if let token = pendingToken {
+            print("[voip-native] flushPending calling notifyListeners with token")
             plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
             pendingToken = nil
         }
