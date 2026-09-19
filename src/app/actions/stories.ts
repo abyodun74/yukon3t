@@ -421,6 +421,86 @@ export async function replyToStory(storyId: string, formData: FormData) {
   return { error: null, conversationId: conversation.id };
 }
 
+/**
+ * Every conversation (DM or group) the caller belongs to, as share targets
+ * for shareStoryToConversation below — same shape MultiSelect's options
+ * expect. A DM's label is the other member's name; a group's is its name.
+ * Excludes a DM with someone now blocked either way, same trust boundary
+ * replyToStory enforces for its own single fixed recipient.
+ */
+export async function getShareableConversations() {
+  const user = await requireVerifiedUser();
+
+  const conversations = await prisma.conversation.findMany({
+    where: { members: { some: { userId: user.id } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      isGroup: true,
+      name: true,
+      members: { select: { userId: true, user: { select: { id: true, name: true } } } },
+    },
+  });
+
+  const targets: { value: string; label: string }[] = [];
+  for (const conv of conversations) {
+    if (conv.isGroup) {
+      targets.push({ value: conv.id, label: conv.name ?? "Group" });
+      continue;
+    }
+    const other = conv.members.find((m) => m.userId !== user.id)?.user;
+    if (!other) continue;
+    if (await isBlockedEitherWay(user.id, other.id)) continue;
+    targets.push({ value: conv.id, label: other.name ?? "Unknown" });
+  }
+  return { conversations: targets };
+}
+
+/**
+ * Shares a story into a conversation the caller already belongs to (unlike
+ * replyToStory, which always targets a DM with the story's author
+ * specifically) — the story-viewer's own "Share" action, letting someone
+ * forward a story to any of their DMs or groups. Reuses Message.storyId,
+ * the exact same field replyToStory sets, so the recipient sees the same
+ * inline story preview in chat-thread.tsx either way.
+ */
+export async function shareStoryToConversation(storyId: string, conversationId: string) {
+  const user = await requireVerifiedUser();
+
+  const story = await prisma.story.findUnique({ where: { id: storyId } });
+  if (!story || story.expiresAt < new Date()) {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, story.authorId)) {
+    return { error: "blocked" as const };
+  }
+
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+  });
+  if (!membership) {
+    return { error: "not_found" as const };
+  }
+
+  const allowed = await checkRateLimit("messageSend", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  await prisma.message.create({
+    data: {
+      conversationId,
+      senderId: user.id,
+      content: "Shared a story",
+      storyId: story.id,
+      isForwardedStory: true,
+    },
+  });
+
+  revalidatePath(`/messages/${conversationId}`);
+  return { error: null };
+}
+
 const STORY_COMMENTS_LIMIT = 50;
 
 /**

@@ -1703,11 +1703,17 @@ model Message {
   editedAt             DateTime?
   createdAt            DateTime         @default(now())
 
-  // Set when this message is a reply to a story (see replyToStory) — lets
-  // the chat thread show a "Replied to your story" reference above the
-  // bubble. SetNull rather than cascading: the story disappearing 24h
-  // later shouldn't delete the conversation history of the reply itself.
-  storyId String?
+  // Set when this message references a story — either a reply to it
+  // (replyToStory) or a forward of it to some other conversation
+  // (shareStoryToConversation), distinguished by isForwardedStory below so
+  // chat-thread.tsx shows the right label ("Replied to your story" vs.
+  // "Shared a story"). SetNull rather than cascading: the story disappearing
+  // 24h later shouldn't delete the conversation history referencing it.
+  storyId          String?
+  // false (the default) means storyId above is a reply-to-story; true means
+  // it's a forward via shareStoryToConversation instead. Meaningless when
+  // storyId is null.
+  isForwardedStory Boolean @default(false)
 
   // Set when the sender swiped/replied to an earlier message in this same
   // thread (see swipe-to-reply in chat-thread.tsx) — shows a quoted preview

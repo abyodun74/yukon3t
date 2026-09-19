@@ -590,7 +590,9 @@ const sections: Section[] = [
             <strong>commenting</strong> posts a public comment anyone
             viewing the Story can see, visible from the comment icon next to
             the reactions, and you get notified when someone comments on
-            yours.
+            yours. There&apos;s also a <strong>Share</strong> icon next to
+            comments on any Story — tap it to forward that Story into one of
+            your own DMs or group chats.
           </>
         ),
       },

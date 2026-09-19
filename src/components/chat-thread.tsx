@@ -80,8 +80,10 @@ type MessageData = {
   createdAt: Date;
   reactions: { emoji: string; userId: string }[];
   corrections: CorrectionData[];
-  // Only set for a reply-to-story message (see replyToStory) — null once
-  // the story itself has expired and been swept by the cron.
+  // Only set for a message referencing a story — either a reply
+  // (replyToStory) or a forward (shareStoryToConversation), distinguished
+  // by isForwardedStory below — null once the story itself has expired and
+  // been swept by the cron.
   story: {
     id: string;
     mediaType: "IMAGE" | "VIDEO";
@@ -89,6 +91,7 @@ type MessageData = {
     mediaThumbnailUrl: string | null;
     caption: string | null;
   } | null;
+  isForwardedStory: boolean;
   // Set when this message is a swipe-to-reply quote of an earlier message
   // in the same thread — null once that message ages out or the reply
   // reference itself was never set.
@@ -540,7 +543,13 @@ function MessageBubble({
                     )}
                   </div>
                   <span className={cn(mine ? "text-accent-ink/70" : "text-foreground-soft")}>
-                    {mine ? "You replied to their story" : "Replied to your story"}
+                    {message.isForwardedStory
+                      ? mine
+                        ? "You shared a story"
+                        : "Shared a story"
+                      : mine
+                        ? "You replied to their story"
+                        : "Replied to your story"}
                   </span>
                 </div>
               )}
@@ -1088,6 +1097,7 @@ export function ChatThread({
       reactions: [],
       corrections: [],
       story: null,
+      isForwardedStory: false,
       replyTo: params.replyTo
         ? {
             id: params.replyTo.id,

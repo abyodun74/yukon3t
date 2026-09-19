@@ -161,7 +161,7 @@ export default async function ModerationQueuePage() {
   const duplicateScanCutoff = new Date(now.getTime() - DUPLICATE_SCAN_WINDOW_MS);
   // Independent of each other (both only need duplicateScanCutoff/now,
   // computed above) — run together rather than as two sequential scans.
-  const [recentPosts, dmConversations] = await Promise.all([
+  const [recentPosts, dmConversations, groupConversations] = await Promise.all([
     prisma.post.findMany({
       where: { createdAt: { gt: duplicateScanCutoff }, content: { not: "" } },
       orderBy: { createdAt: "asc" },
@@ -176,6 +176,24 @@ export default async function ModerationQueuePage() {
         id: true,
         createdAt: true,
         members: { select: { userId: true, user: { select: { name: true } } } },
+        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      },
+    }),
+    // Same "same author/creator + same content, no time window" shape as
+    // the DM scan above, keyed on createdById+name instead of a member
+    // pair — the actual real-world case this catches is a double-tap
+    // submit on /messages/new creating the same-named group twice in a row.
+    prisma.conversation.findMany({
+      where: { isGroup: true },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
+      select: {
+        id: true,
+        createdAt: true,
+        name: true,
+        createdById: true,
+        createdBy: { select: { name: true } },
+        _count: { select: { members: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       },
     }),
@@ -216,9 +234,32 @@ export default async function ModerationQueuePage() {
       });
       return { keeper: sorted[0], duplicates: sorted.slice(1) };
     });
+  // Duplicate groups: same creator + same exact name — the real-world case
+  // is a double-tap submit on /messages/new. Same keep-most-recently-active
+  // and offer-the-rest shape as the DM scan above.
+  const groupConversationGroupsByKey = new Map<string, typeof groupConversations>();
+  for (const conv of groupConversations) {
+    if (!conv.createdById || !conv.name) continue;
+    const key = `${conv.createdById}:${conv.name}`;
+    const group = groupConversationGroupsByKey.get(key) ?? [];
+    group.push(conv);
+    groupConversationGroupsByKey.set(key, group);
+  }
+  const duplicateGroupConversationGroups = [...groupConversationGroupsByKey.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => {
+      const sorted = [...g].sort((a, b) => {
+        const aLast = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
+        const bLast = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
+        return bLast - aLast;
+      });
+      return { keeper: sorted[0], duplicates: sorted.slice(1) };
+    });
+
   const duplicateCount =
     duplicatePostGroups.reduce((sum, g) => sum + g.length - 1, 0) +
-    duplicateConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0);
+    duplicateConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0) +
+    duplicateGroupConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -440,10 +481,12 @@ export default async function ModerationQueuePage() {
         Duplicates ({duplicateCount})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
-        Same author + identical post text, or two DM threads between the same
-        two people, from the last 7 days. The earliest post / most recently
-        active thread in each group is kept automatically — everything else
-        is offered for deletion.
+        Same author + identical post text, two DM threads between the same
+        two people, or two groups from the same creator with the same name —
+        posts scoped to the last 7 days, threads/groups scanned regardless of
+        age. The earliest post / most recently active thread or group in
+        each set is kept automatically — everything else is offered for
+        deletion.
       </p>
       <div className="mt-3 space-y-3">
         {duplicatePostGroups.map((group) => (
@@ -475,6 +518,24 @@ export default async function ModerationQueuePage() {
                 <div key={conv.id} className="flex items-center justify-between gap-2">
                   <span className="text-xs text-foreground-soft">
                     Started {conv.createdAt.toLocaleString()}
+                  </span>
+                  <AdminDeleteConversationButton conversationId={conv.id} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {duplicateGroupConversationGroups.map(({ keeper, duplicates }) => (
+          <div key={keeper.id} className="rounded-lg border border-line p-3">
+            <p className="text-xs text-foreground-soft">
+              {duplicates.length + 1} groups named &ldquo;{keeper.name}&rdquo; created by{" "}
+              {keeper.createdBy?.name ?? "Unknown"}
+            </p>
+            <div className="mt-2 space-y-1">
+              {duplicates.map((conv) => (
+                <div key={conv.id} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-foreground-soft">
+                    Created {conv.createdAt.toLocaleString()} · {conv._count.members} members
                   </span>
                   <AdminDeleteConversationButton conversationId={conv.id} />
                 </div>

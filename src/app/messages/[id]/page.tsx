@@ -8,6 +8,7 @@ import { CopyInviteLinkButton } from "@/components/copy-invite-link-button";
 import { GroupNameEditor } from "@/components/group-name-editor";
 import { GroupDiscoverableToggle } from "@/components/group-discoverable-toggle";
 import { AddGroupMembersButton } from "@/components/add-group-members-button";
+import { GroupMembersButton } from "@/components/group-members-button";
 import { LeaveGroupButton } from "@/components/leave-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
@@ -207,8 +208,13 @@ export default async function ConversationPage({
           )}
         </div>
       </div>
-      {conversation.createdById === me.id && (
-        <AddGroupMembersButton conversationId={id} candidates={memberCandidates} />
+      {conversation.isGroup && (
+        <div className="mt-3 flex flex-wrap items-start gap-2">
+          <GroupMembersButton members={members} />
+          {conversation.createdById === me.id && (
+            <AddGroupMembersButton conversationId={id} candidates={memberCandidates} />
+          )}
+        </div>
       )}
       {pendingRequests.length > 0 && (
         <div className="mt-4">

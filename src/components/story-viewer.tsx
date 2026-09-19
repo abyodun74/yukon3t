@@ -17,6 +17,7 @@ import {
   createStoryComment,
   deleteStoryComment,
 } from "@/app/actions/stories";
+import { StoryShareButton } from "@/components/story-share-button";
 import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
@@ -506,6 +507,7 @@ export function StoryViewer({
                   <MessageCircle size={14} />
                   Comments
                 </button>
+                <StoryShareButton storyId={story.id} onOpenChange={setPaused} />
               </div>
               <SafeAreaBottomSpacer />
             </div>
@@ -566,6 +568,7 @@ export function StoryViewer({
             >
               <MessageCircle size={16} />
             </button>
+            <StoryShareButton storyId={story.id} onOpenChange={setPaused} />
           </div>
           <div className="mt-2">
             <StoryReplyBar

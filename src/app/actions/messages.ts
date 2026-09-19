@@ -99,6 +99,19 @@ export async function createGroupChat(formData: FormData) {
   });
   await updateConversationEmbedding(conversation.id, { name });
 
+  // Same GROUP_ADDED type addGroupMembers below sends for someone added to
+  // an *existing* group — creating a brand new one with members already
+  // picked is functionally the same event for them, and used to notify no
+  // one at all.
+  await prisma.notification.createMany({
+    data: memberIds.map((id) => ({
+      recipientId: id,
+      actorId: user.id,
+      type: "GROUP_ADDED" as const,
+      conversationId: conversation.id,
+    })),
+  });
+
   revalidatePath("/messages");
   redirect(`/messages/${conversation.id}`);
 }
