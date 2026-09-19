@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { saveMediaToGallery } from "@/lib/save-to-gallery";
+import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { cn } from "@/lib/utils";
 
 function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
@@ -71,6 +72,15 @@ export function Lightbox({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isGallery, images, index, onIndexChange, onClose]);
+
+  // Pauses whatever else was playing behind this overlay (a feed video, a
+  // story) and resumes it on close — same reference-counted guard the call
+  // frames use, so a lightbox opened while something else was mid-call is
+  // also handled correctly (activeCount just goes to 2, then back to 1).
+  useEffect(() => {
+    pauseAllPlayingVideos();
+    return () => resumePausedVideos();
+  }, []);
 
   return (
     <div

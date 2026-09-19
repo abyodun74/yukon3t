@@ -457,6 +457,52 @@ export async function getShareableConversations() {
 }
 
 /**
+ * Fetches one story for the "open the actual story" tap target on a shared-
+ * story message in chat-thread.tsx — that preview only ever stored a static
+ * thumbnail + caption on the Message row itself (a snapshot at share time),
+ * with no way to see the story full-screen the way the story tray shows it
+ * (reactions, viewer's own quick-react bar, etc.). Same visibility rule as
+ * every other story read here: still unexpired, and not blocked either way
+ * with the author — a forwarded message can otherwise outlive the sender's
+ * own connection to whoever it reached.
+ */
+export async function getStory(storyId: string) {
+  const user = await requireVerifiedUser();
+
+  const story = await prisma.story.findUnique({
+    where: { id: storyId },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      _count: { select: { views: true } },
+    },
+  });
+  if (!story || story.expiresAt < new Date()) {
+    return { error: "not_found" as const, story: null };
+  }
+  if (await isBlockedEitherWay(user.id, story.authorId)) {
+    return { error: "not_found" as const, story: null };
+  }
+
+  return {
+    error: null,
+    story: {
+      id: story.id,
+      mediaType: story.mediaType,
+      mediaUrl: story.mediaUrl,
+      mediaThumbnailUrl: story.mediaThumbnailUrl,
+      caption: story.caption,
+      createdAt: story.createdAt,
+      viewCount: story._count.views,
+      sharedPostId: story.sharedPostId,
+    },
+    authorId: story.author.id,
+    authorName: story.author.name ?? "Unknown",
+    authorAvatarUrl: story.author.avatarUrl,
+    isOwner: story.authorId === user.id,
+  };
+}
+
+/**
  * Shares a story into a conversation the caller already belongs to (unlike
  * replyToStory, which always targets a DM with the story's author
  * specifically) — the story-viewer's own "Share" action, letting someone

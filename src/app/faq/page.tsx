@@ -591,8 +591,11 @@ const sections: Section[] = [
             viewing the Story can see, visible from the comment icon next to
             the reactions, and you get notified when someone comments on
             yours. There&apos;s also a <strong>Share</strong> icon next to
-            comments on any Story — tap it to forward that Story into one of
-            your own DMs or group chats.
+            comments on any Story — anyone who can see the Story can tap it
+            to forward it into one of their own DMs or group chats, not just
+            the person who posted it. The recipient sees the actual Story in
+            chat and can tap it to open it full-screen, the same view as the
+            Story tray, rather than just a text message about it.
           </>
         ),
       },

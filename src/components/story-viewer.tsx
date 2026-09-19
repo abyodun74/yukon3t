@@ -18,6 +18,7 @@ import {
   deleteStoryComment,
 } from "@/app/actions/stories";
 import { StoryShareButton } from "@/components/story-share-button";
+import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
@@ -159,6 +160,18 @@ export function StoryViewer({
 
   const prev = useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  // Pauses whatever else was playing behind this full-screen viewer (a feed
+  // video, another Muse upload) for as long as it's open, and resumes it on
+  // close — same reference-counted guard the call frames use. Runs once for
+  // the whole viewer's lifetime, not per-story: switching between this
+  // person's own stories (index changes, component stays mounted) must not
+  // release-then-reacquire the guard, which would incorrectly resume
+  // whatever was paused before this viewer ever opened.
+  useEffect(() => {
+    pauseAllPlayingVideos();
+    return () => resumePausedVideos();
   }, []);
 
   // Records a view once per story — the timer effect below is what actually

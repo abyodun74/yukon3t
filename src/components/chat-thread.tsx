@@ -23,6 +23,8 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
+import { StoryViewer, type StoryData } from "@/components/story-viewer";
+import { getStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
@@ -261,6 +263,34 @@ function MessageBubble({
   const [correctionDraft, setCorrectionDraft] = useState("");
   const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [imageOpen, setImageOpen] = useState(false);
+  const [storyViewer, setStoryViewer] = useState<{
+    stories: StoryData[];
+    authorId: string;
+    authorName: string;
+    authorAvatarUrl: string | null;
+    isOwner: boolean;
+  } | null>(null);
+  const [storyLoading, setStoryLoading] = useState(false);
+  const [storyError, setStoryError] = useState(false);
+
+  async function openStory() {
+    if (!message.story || storyLoading) return;
+    setStoryLoading(true);
+    setStoryError(false);
+    const result = await getStory(message.story.id);
+    setStoryLoading(false);
+    if (result.error || !result.story) {
+      setStoryError(true);
+      return;
+    }
+    setStoryViewer({
+      stories: [result.story],
+      authorId: result.authorId,
+      authorName: result.authorName,
+      authorAvatarUrl: result.authorAvatarUrl,
+      isOwner: result.isOwner,
+    });
+  }
   const [isPending, startTransition] = useTransition();
   const deleted = Boolean(message.deletedForEveryoneAt);
   // Still in flight (see buildOptimisticMessage/handleSend) — has no real
@@ -524,10 +554,13 @@ function MessageBubble({
           ) : (
             <>
               {message.story && (
-                <div
+                <button
+                  type="button"
+                  onClick={openStory}
+                  disabled={storyLoading}
                   className={cn(
-                    "mb-1.5 flex items-center gap-2 rounded-lg p-1.5 text-xs",
-                    mine ? "bg-black/10" : "bg-black/5",
+                    "mb-1.5 flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-xs disabled:opacity-70",
+                    mine ? "bg-black/10 hover:bg-black/15" : "bg-black/5 hover:bg-black/10",
                   )}
                 >
                   <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black">
@@ -543,15 +576,31 @@ function MessageBubble({
                     )}
                   </div>
                   <span className={cn(mine ? "text-accent-ink/70" : "text-foreground-soft")}>
-                    {message.isForwardedStory
-                      ? mine
-                        ? "You shared a story"
-                        : "Shared a story"
-                      : mine
-                        ? "You replied to their story"
-                        : "Replied to your story"}
+                    {storyError
+                      ? "This story is no longer available."
+                      : storyLoading
+                        ? "Opening…"
+                        : message.isForwardedStory
+                          ? mine
+                            ? "You shared a story — tap to view"
+                            : "Shared a story — tap to view"
+                          : mine
+                            ? "You replied to their story — tap to view"
+                            : "Replied to your story — tap to view"}
                   </span>
-                </div>
+                </button>
+              )}
+              {storyViewer && (
+                <StoryViewer
+                  stories={storyViewer.stories}
+                  startIndex={0}
+                  authorId={storyViewer.authorId}
+                  authorName={storyViewer.authorName}
+                  authorAvatarUrl={storyViewer.authorAvatarUrl}
+                  isOwner={storyViewer.isOwner}
+                  currentUserId={currentUserId}
+                  onClose={() => setStoryViewer(null)}
+                />
               )}
               {message.mediaType === "AUDIO" && message.mediaUrl && (
                 <audio controls preload="metadata" className="h-10 w-56 max-w-full" src={message.mediaUrl} />

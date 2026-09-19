@@ -9,6 +9,7 @@ import { markAllAsRead } from "@/app/actions/notifications";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
+import { installVideoCoordinator } from "@/lib/video-playback-guard";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -65,6 +66,14 @@ export function CapacitorBridge() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+
+  // Not native-gated, unlike the rest of this component — this app-wide
+  // "only one video plays at a time" rule applies equally to the plain web
+  // site, so it's installed unconditionally here since CapacitorBridge is
+  // already mounted once for every session regardless of platform.
+  useEffect(() => {
+    installVideoCoordinator();
+  }, []);
 
   // One-time self-heal for accounts affected by a real bug (see
   // push-notifications-toggle.tsx's own comment): this native WebView does

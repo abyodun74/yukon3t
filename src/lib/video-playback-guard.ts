@@ -70,3 +70,40 @@ export function resumePausedVideos() {
     el.src = src;
   });
 }
+
+let coordinatorInstalled = false;
+
+/**
+ * App-wide "only one video plays at a time" rule, independent of the
+ * call-guard above: whenever any <video> anywhere on the page starts
+ * playing, every *other* currently-playing <video> is paused. Confirmed
+ * live: a feed video left playing while the user opened a different video
+ * elsewhere (another post, a Muse upload, a story, a chat attachment) kept
+ * playing underneath, audibly overlapping the new one, since none of these
+ * surfaces know about each other's playback state.
+ *
+ * A plain document-level listener rather than per-component wiring, for the
+ * same reason pauseAllPlayingVideos itself works off the DOM directly — it
+ * applies uniformly to every current and future <video> on the page with no
+ * per-surface code. `play` doesn't bubble, so this must be registered with
+ * `capture: true` to observe it via delegation at all.
+ *
+ * Idempotent and safe to call from more than one mounted component — only
+ * the first call actually attaches the listener.
+ */
+export function installVideoCoordinator() {
+  if (coordinatorInstalled) return;
+  coordinatorInstalled = true;
+
+  document.addEventListener(
+    "play",
+    (e) => {
+      const started = e.target;
+      if (!(started instanceof HTMLVideoElement)) return;
+      document.querySelectorAll("video").forEach((v) => {
+        if (v !== started && !v.paused) v.pause();
+      });
+    },
+    { capture: true },
+  );
+}
