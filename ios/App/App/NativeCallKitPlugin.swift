@@ -23,6 +23,13 @@ public class NativeCallKitPlugin: CAPPlugin {
     // placeholder Capacitor's own `npm init @capacitor/plugin` scaffold
     // ships by default — not called by anything, just needs to exist.
     @objc func echo(_ call: CAPPluginCall) {
+        // TEMPORARY: also fires a test event with no retention involved at
+        // all, to isolate whether notifyListeners works for this plugin at
+        // the most basic level (a listener that's definitely already
+        // attached) versus something specific to the retain-before-attach
+        // path NativeCallManager actually relies on. Remove once resolved.
+        print("[voip-native] echo called, firing test notifyListeners")
+        notifyListeners("voipTokenReceived", data: ["token": "test-echo-token"])
         call.resolve()
     }
 }
