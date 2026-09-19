@@ -59,21 +59,31 @@ final class NativeCallManager: NSObject {
         pushRegistry = registry
     }
 
+    // retainUntilConsumed: true on every notifyListeners call below is load
+    // bearing, not optional — Capacitor lazily creates the plugin instance
+    // (running load(), which sets `plugin` here via the didSet above) as
+    // *part of* handling the JS side's very first addListener() call, before
+    // that call has finished registering its own callback with the bridge.
+    // Without retention, a notifyListeners() fired synchronously from
+    // load()'s flushPending() has no listener attached yet and is silently
+    // dropped — confirmed live: the token reached PushKit and was buffered
+    // here, but registerVoipToken() on the JS side never ran, because this
+    // very case is exactly what happened without the flag.
     private func flushPending() {
         guard let plugin = plugin else { return }
         if let token = pendingToken {
-            plugin.notifyListeners("voipTokenReceived", data: ["token": token])
+            plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
             pendingToken = nil
         }
-        pendingAnswered.forEach { plugin.notifyListeners("callAnswered", data: ["callId": $0]) }
-        pendingDeclined.forEach { plugin.notifyListeners("callDeclined", data: ["callId": $0]) }
+        pendingAnswered.forEach { plugin.notifyListeners("callAnswered", data: ["callId": $0], retainUntilConsumed: true) }
+        pendingDeclined.forEach { plugin.notifyListeners("callDeclined", data: ["callId": $0], retainUntilConsumed: true) }
         pendingAnswered.removeAll()
         pendingDeclined.removeAll()
     }
 
     private func emitToken(_ token: String) {
         if let plugin = plugin {
-            plugin.notifyListeners("voipTokenReceived", data: ["token": token])
+            plugin.notifyListeners("voipTokenReceived", data: ["token": token], retainUntilConsumed: true)
         } else {
             pendingToken = token
         }
@@ -81,7 +91,7 @@ final class NativeCallManager: NSObject {
 
     private func emitAnswered(_ callId: String) {
         if let plugin = plugin {
-            plugin.notifyListeners("callAnswered", data: ["callId": callId])
+            plugin.notifyListeners("callAnswered", data: ["callId": callId], retainUntilConsumed: true)
         } else {
             pendingAnswered.append(callId)
         }
@@ -89,7 +99,7 @@ final class NativeCallManager: NSObject {
 
     private func emitDeclined(_ callId: String) {
         if let plugin = plugin {
-            plugin.notifyListeners("callDeclined", data: ["callId": callId])
+            plugin.notifyListeners("callDeclined", data: ["callId": callId], retainUntilConsumed: true)
         } else {
             pendingDeclined.append(callId)
         }
