@@ -825,7 +825,11 @@ const sections: Section[] = [
             found under &ldquo;Discover groups&rdquo; — search by name and
             request to join. If you created a group, open it and use
             &ldquo;Add members&rdquo; any time afterward to bring in more of
-            your connections.
+            your connections. Any member can tap &ldquo;Leave group&rdquo;
+            to exit on their own (ownership passes to the next member if
+            the creator leaves); the creator also has a &ldquo;Delete
+            group&rdquo; option that removes the whole group — messages and
+            all — for everyone at once, once it&apos;s no longer needed.
           </>
         ),
       },

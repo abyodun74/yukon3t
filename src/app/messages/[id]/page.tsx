@@ -10,6 +10,7 @@ import { GroupDiscoverableToggle } from "@/components/group-discoverable-toggle"
 import { AddGroupMembersButton } from "@/components/add-group-members-button";
 import { GroupMembersButton } from "@/components/group-members-button";
 import { LeaveGroupButton } from "@/components/leave-group-button";
+import { DeleteGroupButton } from "@/components/delete-group-button";
 import { JoinRequestButton } from "@/components/join-request-button";
 import { JoinRequestList } from "@/components/join-request-list";
 import { UserLink } from "@/components/user-link";
@@ -204,6 +205,7 @@ export default async function ConversationPage({
               )}
               <CopyInviteLinkButton conversationId={id} />
               <LeaveGroupButton conversationId={id} />
+              {conversation.createdById === me.id && <DeleteGroupButton conversationId={id} />}
             </>
           )}
         </div>

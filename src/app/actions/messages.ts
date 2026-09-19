@@ -260,6 +260,30 @@ export async function leaveGroup(conversationId: string) {
   redirect("/messages");
 }
 
+/**
+ * Creator-only: deletes a group entirely for every member, not just the
+ * caller — see leaveGroup above for removing just yourself (which only
+ * deletes the conversation as a side effect of the last member leaving).
+ * Same cascade as the admin-only deleteConversation below, scoped to a
+ * group's own creator instead of requiring an admin.
+ */
+export async function deleteGroupChat(conversationId: string) {
+  const user = await requireVerifiedUser();
+
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!conversation || !conversation.isGroup) {
+    return { error: "not_found" as const };
+  }
+  if (conversation.createdById !== user.id) {
+    return { error: "forbidden" as const };
+  }
+
+  await prisma.conversation.delete({ where: { id: conversationId } });
+
+  revalidatePath("/messages");
+  redirect("/messages");
+}
+
 /** Requests to join a group via its shared thread link — the creator approves/declines it. */
 export async function requestToJoinGroup(conversationId: string) {
   const user = await requireVerifiedUser();
