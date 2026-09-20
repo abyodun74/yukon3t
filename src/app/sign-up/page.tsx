@@ -5,6 +5,7 @@ import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { MIN_AGE } from "@/lib/validations";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
@@ -38,6 +39,8 @@ function errorMessage(error: string | undefined) {
       return "An account with that email already exists.";
     case "rate_limited":
       return "Too many attempts. Please wait a bit and try again.";
+    case "captcha":
+      return "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.";
     case "invalid":
       return "Please check your inputs — password must be at least 8 characters.";
     default:
@@ -121,6 +124,7 @@ export default async function SignUpPage({
             </label>
           </div>
         </fieldset>
+        <TurnstileWidget />
         <SubmitButton
           label="Create account"
           pendingLabel="Creating account..."

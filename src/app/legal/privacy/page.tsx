@@ -27,7 +27,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 13, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 20, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         This Privacy Policy explains what information YuKon3t (&quot;YuKon3t,&quot;
@@ -98,6 +98,7 @@ export default function PrivacyPage() {
         <li><b>Resend</b> — sends sign-in and account-related emails.</li>
         <li><b>Cloudflare (R2)</b> — stores uploaded photos and videos, including Story and ad media.</li>
         <li><b>Cloudflare (Stream)</b> — a temporary copy of an uploaded video may be sent here for automated moderation scanning and caption generation; the original video is still served from R2 above.</li>
+        <li><b>Cloudflare (Turnstile)</b> — a bot check on sign-up, sign-in, password reset, and ad booking forms, used to tell real people from automated scripts. When it runs, Cloudflare receives technical signals from your browser and network connection (such as your IP address) and processes them under Cloudflare&apos;s own privacy policy; most people never see it, since it usually completes invisibly.</li>
         <li><b>OpenAI</b> — automated content moderation of text and images before publication. We do not send full account profiles to this provider — only the specific content being screened.</li>
         <li><b>Daily.co</b> — powers 1:1 voice/video calls and Collab live sessions. If a live session&apos;s host enables cloud recording, the recording is stored by Daily until the host or an admin deletes it.</li>
         <li><b>Firebase Cloud Messaging (Google)</b> — delivers push notifications to the Android app. Web push notifications are sent directly to your browser&apos;s push service without a third-party intermediary of ours.</li>

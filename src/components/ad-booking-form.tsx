@@ -12,6 +12,8 @@ import {
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
+import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -49,6 +51,8 @@ function errorMessage(code: string) {
       return "Please check your inputs.";
     case "network":
       return "Couldn't reach the server — check your connection and try again.";
+    case "captcha":
+      return "We couldn't complete the security check — wait a moment and try again.";
     default:
       return "Couldn't submit that booking — try again.";
   }
@@ -79,6 +83,14 @@ export function AdBookingForm() {
   // app besides sign-up/password-reset.
   const [honeypot, setHoneypot] = useState("");
   const mountedAtRef = useRef(currentTimeMs());
+  // Turnstile (see turnstile-widget.tsx). This form isn't a real <form>, so
+  // the token comes through onToken into a ref rather than a hidden input —
+  // a ref, because it can refresh while a large video is still uploading and
+  // has to be read at the moment the FormData is built, not at click time.
+  // Bumping turnstileReset discards the spent token after each attempt.
+  const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const turnstileTokenRef = useRef<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -169,6 +181,10 @@ export function AdBookingForm() {
       setError("Add a photo or video for your ad.");
       return;
     }
+    if (turnstileRequired && !turnstileTokenRef.current) {
+      setError("Finishing the security check — try again in a moment.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       let media: { mediaUrl: string; mediaThumbnailUrl?: string };
@@ -206,6 +222,16 @@ export function AdBookingForm() {
       fd.set("durationDays", String(durationDays));
       fd.set(HONEYPOT_FIELD, honeypot);
       fd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
+      if (turnstileRequired) {
+        // Read now, after the uploads above — a long video upload can outlive
+        // a token, and the widget refreshes it in the background.
+        const token = turnstileTokenRef.current;
+        if (!token) {
+          setError("The security check expired — wait a moment and try again.");
+          return;
+        }
+        fd.set(TURNSTILE_RESPONSE_FIELD, token);
+      }
 
       try {
         // createAdCampaign redirects to Stripe on success (throwing Next's
@@ -218,6 +244,9 @@ export function AdBookingForm() {
       } catch {
         setError(errorMessage("network"));
       }
+      // The server consumed this token whether or not the booking went
+      // through; get a fresh one for the next attempt.
+      setTurnstileReset((n) => n + 1);
     });
   }
 
@@ -460,6 +489,14 @@ export function AdBookingForm() {
       </div>
 
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+
+      <TurnstileWidget
+        className="mt-4"
+        resetSignal={turnstileReset}
+        onToken={(token) => {
+          turnstileTokenRef.current = token;
+        }}
+      />
 
       <button
         type="button"

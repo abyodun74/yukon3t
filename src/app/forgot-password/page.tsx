@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requestPasswordReset } from "@/app/actions/password-auth";
 import { SubmitButton } from "@/components/submit-button";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -29,6 +30,13 @@ export default async function ForgotPasswordPage({
           Enter a valid email address.
         </p>
       )}
+      {error === "captcha" && (
+        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+          We couldn&apos;t complete the security check. Wait a moment and try
+          again — if it keeps happening, turn off any content blocker or try
+          another network.
+        </p>
+      )}
       {error === "expired" && (
         <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           That reset link expired or was already used — request a new one below.
@@ -49,6 +57,7 @@ export default async function ForgotPasswordPage({
           placeholder="you@example.com"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
+        <TurnstileWidget />
         <SubmitButton
           label="Send reset link"
           pendingLabel="Sending..."

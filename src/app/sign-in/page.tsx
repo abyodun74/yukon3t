@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { loginWithPassword, resendEmailOtp } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const title = "Sign In to YuKon3t";
 const description =
@@ -39,6 +41,13 @@ async function sendMagicLink(formData: FormData) {
   }
 
   const ip = await getClientIp();
+  // Each magic-link request is a real outbound email, so this is the form
+  // most worth gating — a script rotating addresses would otherwise use it
+  // to email-bomb strangers and burn the sender's reputation. Its own error
+  // code so the message lands in this form's box, not the password one.
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/sign-in?error=magic_captcha");
+  }
   const allowed = await checkRateLimit("signIn", `signin:${ip}:${email}`);
   if (!allowed) {
     redirect("/sign-in?error=rate_limited");
@@ -55,6 +64,8 @@ function passwordErrorMessage(error: string | undefined) {
       return "Confirm your account before signing in — check your inbox or phone for a verification code.";
     case "rate_limited":
       return "Too many attempts. Please wait a few minutes and try again.";
+    case "captcha":
+      return "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.";
     case "locked":
       return "Too many failed attempts — this account is locked for 24 hours. Reset your password below to unlock it immediately.";
     default:
@@ -120,6 +131,7 @@ export default async function SignInPage({
             placeholder="Password"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
+          <TurnstileWidget />
           <SubmitButton
             label="Sign in"
             pendingLabel="Signing in..."
@@ -162,6 +174,12 @@ export default async function SignInPage({
             Enter a valid email address.
           </p>
         )}
+        {error === "magic_captcha" && (
+          <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+            We couldn&apos;t complete the security check. Wait a moment and try again — if it keeps
+            happening, turn off any content blocker or try another network.
+          </p>
+        )}
 
         <form action={sendMagicLink} className="mt-3 space-y-3">
           <label htmlFor="magic-link-email" className="sr-only">
@@ -176,6 +194,7 @@ export default async function SignInPage({
             placeholder="you@example.com"
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
+          <TurnstileWidget />
           <SubmitButton
             label="Send sign-in link"
             pendingLabel="Sending..."

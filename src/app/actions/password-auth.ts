@@ -14,6 +14,7 @@ import {
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBotSubmission } from "@/lib/bot-protection";
+import { verifyTurnstile } from "@/lib/turnstile";
 import { sendEmail } from "@/lib/email";
 import { issueSessionCookie } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
@@ -103,6 +104,11 @@ export async function signUpWithPassword(formData: FormData) {
   }
 
   const ip = await clientIp();
+  // A real user can hit this (widget blocked or still loading), so unlike the
+  // honeypot above it gets its own message telling them what to do.
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/sign-up?error=captcha");
+  }
   const allowed = await checkRateLimit("passwordSignUp", `signup:${ip}`);
   if (!allowed) {
     redirect("/sign-up?error=rate_limited");
@@ -246,6 +252,9 @@ export async function resendEmailOtp(formData: FormData) {
 
 export async function loginWithPassword(formData: FormData) {
   const ip = await clientIp();
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/sign-in?error=captcha");
+  }
   const parsed = loginSchema.safeParse({
     identifier: formData.get("identifier"),
     password: formData.get("password"),
@@ -442,6 +451,9 @@ export async function requestPasswordReset(formData: FormData) {
   }
 
   const ip = await clientIp();
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/forgot-password?error=captcha");
+  }
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
     redirect("/forgot-password?error=invalid");

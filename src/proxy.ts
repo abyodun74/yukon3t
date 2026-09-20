@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER, DEVICE_ID_MAX_AGE_SECONDS } from "@/lib/device-id-constants";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 
 // Best-effort client IP, matching src/lib/client-ip.ts's own first-hop
 // convention — duplicated rather than shared since that file's getClientIp
@@ -46,10 +47,18 @@ export async function proxy(request: NextRequest) {
   // needed for the call-object path — Prebuilt (regular calls, CallFrame)
   // runs inside Daily's own cross-origin iframe with its own separate CSP.
   const dailyScriptSrc = "https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net";
+  // Cloudflare Turnstile (src/lib/turnstile.ts) — its api.js is appended by
+  // our own nonced bundle so 'strict-dynamic' already covers loading it, but
+  // the widget itself renders in an iframe (frame-src) and talks to its own
+  // origin (connect-src), neither of which strict-dynamic helps with. Opened
+  // only once the site key is configured, same gating as r2/GTM/Clarity
+  // below; the script-src host is redundant under 'strict-dynamic' but keeps
+  // older CSP2-only browsers working.
+  const turnstileOrigin = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? ` ${TURNSTILE_ORIGIN}` : "";
   const scriptSrc =
     process.env.NODE_ENV === "production"
-      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dailyScriptSrc}`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${dailyScriptSrc}`;
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dailyScriptSrc}${turnstileOrigin}`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${dailyScriptSrc}${turnstileOrigin}`;
 
   // R2 public URL host powers <img>/<video> playback and (via connect-src)
   // fetch()-ing a post's own media back as a Blob; the R2 S3 API host is
@@ -115,7 +124,7 @@ export async function proxy(request: NextRequest) {
     // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
     // scheme-only (not host-scoped) because Daily's signaling/TURN relay
     // hosts are dynamically assigned, not a fixed domain.
-    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}${supabaseConnectSrc}`,
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}${supabaseConnectSrc}${turnstileOrigin}`,
     // blob: is call-object mode's echo-cancellation/audio-processing worker
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.
@@ -132,7 +141,7 @@ export async function proxy(request: NextRequest) {
     // googletagmanager.com is GTM's no-JS <noscript> fallback iframe
     // (analytics-scripts.tsx) — only opened once NEXT_PUBLIC_GTM_ID is
     // actually set.
-    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com https://www.tiktok.com https://www.dailymotion.com https://www.instagram.com https://www.facebook.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}`,
+    `frame-src 'self' https://*.daily.co https://www.youtube-nocookie.com https://player.vimeo.com https://www.tiktok.com https://www.dailymotion.com https://www.instagram.com https://www.facebook.com${process.env.NEXT_PUBLIC_GTM_ID ? " https://www.googletagmanager.com" : ""}${turnstileOrigin}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
