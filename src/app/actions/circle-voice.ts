@@ -103,7 +103,16 @@ export async function leaveCircleVoiceRoom(channelId: string) {
  */
 export async function getCircleVoiceParticipants(channelId: string) {
   try {
-    await requireVerifiedUser();
+    const user = await requireVerifiedUser();
+
+    // Who's in a voice room is Circle-members-only information, same as the room itself.
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      include: { circle: true },
+    });
+    if (!channel || !(await canAccessChannel(channel, channel.circle, user))) {
+      return { participants: [] };
+    }
 
     const participants = await prisma.channelVoiceParticipant.findMany({
       where: { channelId, joinedAt: { gt: new Date(Date.now() - STALE_AFTER_MS) } },
@@ -222,7 +231,12 @@ export async function respondToVoiceChannelInvite(inviteId: string, accept: bool
 
 /** Pending/accepted/declined invite counts for a voice Channel, shown next to the invite button. */
 export async function getVoiceChannelInviteCounts(channelId: string) {
-  await requireVerifiedUser();
+  const user = await requireVerifiedUser();
+
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, include: { circle: true } });
+  if (!channel || !(await canAccessChannel(channel, channel.circle, user))) {
+    return { pending: 0, accepted: 0, declined: 0 };
+  }
 
   const counts = await prisma.channelVoiceInvite.groupBy({
     by: ["status"],

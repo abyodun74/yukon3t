@@ -87,6 +87,8 @@ export type PostCardData = EmbeddedPost & {
   // Everyone/Friends only/Private, as chosen in the composer — always
   // PUBLIC for a Circle post (membership is that post's real boundary).
   visibility: "PUBLIC" | "CONNECTIONS_ONLY" | "PRIVATE";
+  // Set when this post was made inside a Circle/sub-circle — its members-only boundary. Absent/null for a general post.
+  circleId?: string | null;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -804,8 +806,9 @@ export function PostCard({
             `visibility` is always PUBLIC (schema default, never set
             otherwise) and only ever exists because its root already passed
             that same check at creation time, so this reads correctly for a
-            plain post and a repost/share card alike. */}
-        {post.visibility === "PUBLIC" && (
+            plain post and a repost/share card alike. A Circle post is stored
+            PUBLIC but is members-only, so it is never reposted/shared out. */}
+        {post.visibility === "PUBLIC" && !post.circleId && (
           <button
             type="button"
             disabled={isRepostPending}
@@ -821,7 +824,7 @@ export function PostCard({
           </button>
         )}
 
-        {post.visibility === "PUBLIC" && (
+        {post.visibility === "PUBLIC" && !post.circleId && (
           <button
             type="button"
             onClick={() => setShareModalOpen(true)}

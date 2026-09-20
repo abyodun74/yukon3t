@@ -22,7 +22,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEmbedding, toPgVector } from "@/lib/embeddings";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getListablePostsWhere } from "@/lib/post-visibility";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 const CANDIDATE_LIMIT = 30;
@@ -140,7 +140,7 @@ export async function semanticSearch(
     nearestIds("post", vector),
   ]);
 
-  const [postsWhere] = await Promise.all([getVisiblePostsWhere(viewerId)]);
+  const [postsWhere] = await Promise.all([getListablePostsWhere(viewerId)]);
 
   const [people, circles, collabs, rawPosts] = await Promise.all([
     userCandidates.length

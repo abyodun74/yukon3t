@@ -838,7 +838,10 @@ export async function createPost(formData: FormData) {
   // anything other than PUBLIC visibility — a subscriber isn't necessarily
   // an accepted connection, so a Friends-only/Private post shouldn't point
   // them at something getVisiblePostsWhere would then just hide from them.
-  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC") {
+  // Circle posts are for that Circle's members only, and are stored PUBLIC, so visibility alone can't tell them apart:
+  // without the circleId check the author's subscribers and connections (who need not be members) were notified about
+  // a post they can't open — revealing that it exists — and the Home feed was told to refetch.
+  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC" && !post.circleId) {
     await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
     // Tells any open Home feed tab to refetch — both the matching category
     // tab and "All" (PostFeedSection's own category prop), same "thin
@@ -851,7 +854,7 @@ export async function createPost(formData: FormData) {
       publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed"),
       ...(feedCategory ? [publishEvent(REALTIME_CHANNELS.homeFeed(feedCategory), "changed")] : []),
     ]);
-  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY") {
+  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY" && !post.circleId) {
     // The PUBLIC branch above already reaches every accepted connection too
     // (accepting a connection request auto-subscribes both sides — see
     // respondToConnectionRequest in actions/connections.ts), so this is
@@ -940,12 +943,11 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
   }
   const circleMembership = await getCircleMembership(channel.circleId, user.id);
   const canModerate = isCircleAdmin(channel.circle, circleMembership, user);
-  // A private Circle hides its channels/posts from non-members entirely,
-  // even a channel that's itself marked PUBLIC — matches the page's own
-  // `isPrivateNonMember` gate.
-  const isPrivateNonMember = channel.circle.visibility === "PRIVATE" && !circleMembership && !canModerate;
+  // A Circle's posts are for its MEMBERS only — public Circle or private. (This used to hide them only for PRIVATE
+  // Circles and let anyone read a public Circle's public channels.) Matches the page's own `isNonMember` gate.
+  const isNonMember = !circleMembership && !canModerate;
   const canRead =
-    !isPrivateNonMember &&
+    !isNonMember &&
     (channel.visibility === "PUBLIC" || canModerate || channel.members.some((m) => m.userId === user.id));
   if (!canRead) {
     return { items: [], hasMore: false };

@@ -160,20 +160,26 @@ export function LiveStreamStrip() {
             />
 
             <label className="mt-3 block text-xs font-medium text-foreground-soft">
-              Circle (optional — leave blank to go live to everyone)
+              Who can watch
             </label>
             <select
               value={circleId}
               onChange={(e) => setCircleId(e.target.value)}
               className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
             >
-              <option value="">Everyone</option>
+              <option value="">Everyone — shown on Home</option>
               {circles?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
                 </option>
               ))}
             </select>
+
+            <p className="mt-1 text-xs text-foreground-soft">
+              {circleId
+                ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
+                : "Visible to everyone on Home."}
+            </p>
 
             {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 

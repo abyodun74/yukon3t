@@ -3,7 +3,7 @@
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getListablePostsWhere } from "@/lib/post-visibility";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "current"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
@@ -33,7 +33,7 @@ export async function loadMoreSearchPosts(
     ? (filters.sort as SortOption)
     : "relevant";
 
-  const postsWhere = await getVisiblePostsWhere(user.id);
+  const postsWhere = await getListablePostsWhere(user.id);
   const currentSince = new Date(Date.now() - CURRENT_AFFAIRS_WINDOW_MS);
 
   const rawPosts = await prisma.post.findMany({

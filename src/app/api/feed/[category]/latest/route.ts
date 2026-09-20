@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getListablePostsWhere, NOT_CIRCLE_SCOPED } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 
@@ -61,8 +61,9 @@ export async function GET(
         moderationStatus: "PUBLISHED" as const,
         author: { status: "ACTIVE" as const },
         NOT: { author: { postsVisibility: "HIDDEN" as const } },
+        AND: [NOT_CIRCLE_SCOPED],
       }
-    : await getVisiblePostsWhere(user.id);
+    : await getListablePostsWhere(user.id);
   const categoryFilter = isValidCategory
     ? await buildCategoryFilter(category as (typeof feedCategoryValues)[number])
     : undefined;

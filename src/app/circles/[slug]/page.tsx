@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Lock } from "lucide-react";
+import { Lock, Radio } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { PostComposer } from "@/components/post-composer";
@@ -71,6 +71,9 @@ export default async function CirclePage({
   const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
 
   const isPrivateNonMember = circle.visibility === "PRIVATE" && !isMember && !canModerate;
+  // A Circle's posts, channels, voice rooms and live streams are for its MEMBERS only — public Circle or private.
+  // "Public" only means anyone can find it and join; it doesn't put the Circle's content in front of non-members.
+  const isNonMember = !isMember && !canModerate;
 
   const accessibleChannels = circle.channels.filter(
     (c) => c.visibility === "PUBLIC" || canModerate || c.members.some((m) => m.userId === me.id),
@@ -84,7 +87,7 @@ export default async function CirclePage({
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
-  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, mySubCircleRequests] = await Promise.all([
+  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, mySubCircleRequests] = await Promise.all([
     !isMember
       ? prisma.circleJoinRequest.findUnique({
           where: { circleId_userId: { circleId: circle.id, userId: me.id } },
@@ -99,7 +102,7 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
-    activeChannel?.type === "TEXT"
+    activeChannel?.type === "TEXT" && !isNonMember
       ? prisma.post.findMany({
           where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
@@ -113,6 +116,16 @@ export default async function CirclePage({
           where: { circleId: circle.id },
           orderBy: { joinedAt: "asc" },
           include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+        })
+      : Promise.resolve([]),
+
+    // Circle-scoped live streams happening now — shown here (to members only) and nowhere else in the app.
+    !isNonMember
+      ? prisma.liveStream.findMany({
+          where: { circleId: circle.id, status: "LIVE" },
+          orderBy: { startedAt: "desc" },
+          take: 10,
+          select: { id: true, title: true, host: { select: { name: true, username: true } } },
         })
       : Promise.resolve([]),
 
@@ -213,6 +226,31 @@ export default async function CirclePage({
             canAdd={isOwner && !circle.parentId}
           />
 
+          {isNonMember ? (
+            <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
+              Join this Circle to see its channels, posts and live streams — they&apos;re only visible to members.
+            </p>
+          ) : (
+          <>
+          {circleLiveStreams.length > 0 && (
+            <div className="mt-6 space-y-2" data-testid="circle-live-now">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-danger">
+                <Radio size={14} />
+                Live now
+              </h2>
+              {circleLiveStreams.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/live/${s.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-danger/40 px-4 py-3 text-sm hover:border-danger"
+                >
+                  <span className="min-w-0 truncate font-medium">{s.title}</span>
+                  <span className="shrink-0 text-xs text-foreground-soft">{s.host.name ?? s.host.username}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
           <div className="mt-8 grid gap-6 md:grid-cols-[64px_200px_1fr]">
             <CircleSwitcher circles={myCircles} activeCircleId={circle.id} />
 
@@ -292,6 +330,8 @@ export default async function CirclePage({
               )}
             </div>
           </div>
+          </>
+          )}
 
           {canModerate ? (
             <div className="mt-8">

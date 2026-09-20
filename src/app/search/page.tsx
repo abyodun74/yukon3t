@@ -8,7 +8,7 @@ import { UserAvatar } from "@/components/user-link";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { COUNTRIES } from "@/lib/countries";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getListablePostsWhere } from "@/lib/post-visibility";
 import { SearchBar } from "@/components/search-bar";
 import { semanticSearch } from "@/lib/search-embeddings";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
@@ -93,7 +93,7 @@ export default async function SearchPage({
   if (q.length >= 2) {
     const [blockedIdsResult, postsWhere] = await Promise.all([
       getBlockedEitherWayIds(me.id),
-      getVisiblePostsWhere(me.id),
+      getListablePostsWhere(me.id),
     ]);
     blockedIds = [...blockedIdsResult];
     const currentSince = currentAffairsCutoff();

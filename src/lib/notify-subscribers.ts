@@ -22,11 +22,18 @@ export async function notifySubscribers(
     museId?: string;
     collabId?: string;
   } = {},
+  /**
+   * Restricts the fan-out to these user ids. For content that only some people
+   * may see (a Circle-scoped live stream): telling the author's other
+   * subscribers would reveal that it exists, and hand them its id.
+   */
+  options: { onlyRecipientIds?: string[] } = {},
 ) {
-  const subscribers = await prisma.subscription.findMany({
+  const all = await prisma.subscription.findMany({
     where: { subscribedToId: actorId },
     select: { id: true, subscriberId: true },
   });
+  const subscribers = filterRecipients(all, options.onlyRecipientIds);
   if (subscribers.length === 0) return;
 
   await prisma.notification.createMany({
@@ -38,4 +45,11 @@ export async function notifySubscribers(
       ...extra,
     })),
   });
+}
+
+/** Keeps only the subscribers in `onlyRecipientIds`; with no list, everyone. Pure so the rule is testable without a database. */
+export function filterRecipients<T extends { subscriberId: string }>(subscribers: T[], onlyRecipientIds?: string[]): T[] {
+  if (!onlyRecipientIds) return subscribers;
+  const allowed = new Set(onlyRecipientIds);
+  return subscribers.filter((s) => allowed.has(s.subscriberId));
 }

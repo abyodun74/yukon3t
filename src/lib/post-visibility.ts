@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 
@@ -54,6 +55,30 @@ export async function getVisiblePostsWhere(viewerId: string) {
       ],
     },
   };
+}
+
+/**
+ * Where-fragment that keeps Circle content OUT of any general listing (Home,
+ * search, Explore). A Circle's posts are for that Circle's members and appear
+ * only on that Circle's own page; the general feed shows general/public posts
+ * only. Also drops a repost/share row whose original lives in a Circle — such
+ * a row is itself stored circleId=null/PUBLIC but would render the members-only
+ * original inline (reposting a Circle post is now refused, this covers the
+ * ones made before that). NOT for single-post access (canViewPost, /post/[id]):
+ * a member opening a Circle post from a notification must still work.
+ */
+export const NOT_CIRCLE_SCOPED: Prisma.PostWhereInput = {
+  circleId: null,
+  NOT: [{ repostOf: { circleId: { not: null } } }, { sharedPost: { circleId: { not: null } } }],
+};
+
+/**
+ * getVisiblePostsWhere for a general listing — the viewer's visible posts
+ * minus everything Circle-scoped (see NOT_CIRCLE_SCOPED). Combined with AND so
+ * neither side's own OR/NOT is clobbered.
+ */
+export async function getListablePostsWhere(viewerId: string) {
+  return { AND: [await getVisiblePostsWhere(viewerId), NOT_CIRCLE_SCOPED] };
 }
 
 /**

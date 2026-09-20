@@ -9,7 +9,7 @@ import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
 import { HomeQuickActions } from "@/components/home-quick-actions";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getListablePostsWhere, NOT_CIRCLE_SCOPED } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
@@ -48,8 +48,10 @@ export default async function HomePage({
         // admin's own HIDDEN posts don't leak into another admin's view
         // either.
         NOT: { author: { postsVisibility: "HIDDEN" as const } },
+        // Even an admin's wider feed never lists Circle-scoped posts (members-only, shown on the Circle's own page).
+        AND: [NOT_CIRCLE_SCOPED],
       }
-    : await getVisiblePostsWhere(me.id);
+    : await getListablePostsWhere(me.id);
   // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter
   // for why this can't just be spread onto baseWhere (it may carry its own
   // top-level OR, which spreading would silently clobber baseWhere's

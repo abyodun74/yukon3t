@@ -62,8 +62,10 @@ const sections: Section[] = [
         q: "What's the difference between Home, Discover, and Connections?",
         a: (
           <>
-            <strong>Home</strong> is your feed — posts from people you&apos;re
-            connected to and Circles you&apos;ve joined. <strong>Discover</strong>{" "}
+            <strong>Home</strong> is your feed — general posts from people
+            you&apos;re connected to and everyone who posts publicly.
+            Anything shared to a Circle stays in that Circle and never shows
+            up here. <strong>Discover</strong>{" "}
             is how you find new people by country, language, or interest.{" "}
             <strong>Connections</strong> is your list of accepted connections
             plus any pending requests you&apos;ve sent or received.
@@ -375,8 +377,10 @@ const sections: Section[] = [
             subscribe to someone you&apos;re already connected with. You can
             still unsubscribe afterward without affecting the connection
             itself. Both icons sit next to the share icon on every post you
-            see — Home, a Circle&apos;s feed, search results, and Collab
-            Board postings.
+            see — Home, search results, and Collab Board postings. Posts
+            shared to a Circle are members-only, so they don&apos;t
+            notify your subscribers or connections and can&apos;t be
+            reposted or shared outside the Circle.
           </>
         ),
       },
@@ -454,9 +458,26 @@ const sections: Section[] = [
         a: (
           <>
             Tap &ldquo;Go Live&rdquo; above the Home feed, give it a title,
-            and optionally scope it to a Circle instead of everyone. To join
-            someone else&apos;s stream, tap their avatar in the &ldquo;Live
-            now&rdquo; strip and choose to watch, or ask to join the stage.
+            and choose who can watch: <strong>Everyone</strong> or one of
+            your Circles or sub-circles. To join a stream that&apos;s open to
+            everyone, tap their avatar in the &ldquo;Live now&rdquo; strip on
+            Home and choose to watch, or ask to join the stage. A
+            Circle&apos;s own streams appear in a &ldquo;Live now&rdquo;
+            section at the top of that Circle&apos;s page.
+          </>
+        ),
+      },
+      {
+        q: "Who can see a live stream I start for a Circle?",
+        a: (
+          <>
+            Only that Circle&apos;s (or sub-circle&apos;s) members. A stream
+            you start for a Circle never appears on Home, in the &ldquo;Live
+            now&rdquo; strip, or anywhere else in the app, isn&apos;t
+            announced to your subscribers or connections, and its page,
+            chat, and recordings are closed to anyone outside the Circle —
+            even with the link. Only a stream you start for
+            &ldquo;Everyone&rdquo; is shown on Home.
           </>
         ),
       },
@@ -833,6 +854,63 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        q: "What are secret chats?",
+        a: (
+          <>
+            A secret chat is a one-to-one conversation where the text of your
+            messages is end-to-end encrypted: it&apos;s locked on your phone
+            and only unlocked on the other person&apos;s, so not even
+            YuKon3t&apos;s servers can read it. You both have to turn it on —
+            open the chat and tap &ldquo;Turn on secret chat&rdquo; — and the
+            first time you&apos;ll choose a recovery passphrase. It works in
+            one-to-one chats only, not group chats. Good to know: only
+            message <em>text</em> is encrypted — photos, videos, voice notes
+            and GIFs are still uploaded and checked like everywhere else, and
+            messages sent before you both turned it on weren&apos;t encrypted.
+            Notifications just say &ldquo;New secret message.&rdquo; Secret
+            chats do not have forward secrecy: your key stays the same, so
+            someone who got into your unlocked phone could read that
+            chat&apos;s saved history. And because we hand each of you the
+            other&apos;s public key, tap &ldquo;Verify code&rdquo; and compare
+            the security code with them in person or on a call — if it
+            matches on both phones, nobody swapped a key in between and the
+            chat is private even from us.
+          </>
+        ),
+      },
+      {
+        q: "What if I forget my recovery passphrase or lose my phone?",
+        a: (
+          <>
+            Your recovery passphrase locks a backup of your key that we
+            store but can&apos;t read. On a new phone, enter it to unlock
+            your old secret chats. If you forget it <em>and</em> lose your
+            phone, we can&apos;t recover your secret messages — that&apos;s
+            the trade-off of encryption we can&apos;t open. You can start over
+            with new keys, but secret messages sent under the old key can
+            then never be read again, by you or the other person, and your
+            secret chats switch off until you both turn them back on.
+          </>
+        ),
+      },
+      {
+        q: "Can moderators read secret chats? How do I report abuse in one?",
+        a: (
+          <>
+            No — because we can&apos;t read secret chats, we don&apos;t scan
+            their text for policy violations the way we scan ordinary
+            messages, and admins can&apos;t open them. Our rules still apply
+            there. If someone sends you something abusive, tap the ⋯ on that
+            message and choose Report: the app tells you first that this
+            shares that one message&apos;s text with our moderators, so they
+            can review it. We can&apos;t independently verify it, so a report
+            only contains what you choose to send. Photos and videos in
+            secret chats are still checked. You can turn secret chat off at
+            any time, after which new messages are scanned again.
+          </>
+        ),
+      },
     ],
   },
   {
@@ -845,6 +923,25 @@ const sections: Section[] = [
             A free interest or identity community — hobbies, causes,
             cultures, anything a group of members wants to organize around.
             Anyone can create one; joining and creating are always free.
+          </>
+        ),
+      },
+      {
+        q: "Who can see what's shared in a Circle or sub-circle?",
+        a: (
+          <>
+            Only its members. Posts, videos, channel conversations, voice
+            rooms, and live streams in a Circle (or sub-circle) are visible
+            only to that Circle&apos;s members — even if the Circle itself is
+            public. A public Circle can be found and joined by anyone, but
+            what&apos;s inside stays hidden until you join. Circle content
+            doesn&apos;t appear on Home, in search, or on anyone&apos;s
+            profile, and can&apos;t be reposted, shared to a Story or Muse, or
+            forwarded into another Circle. Only posts and live streams shared
+            with &ldquo;Everyone&rdquo; show up on Home. Each sub-circle keeps
+            its own separate membership: being in the main Circle
+            doesn&apos;t let you see a sub-circle&apos;s content, and vice
+            versa.
           </>
         ),
       },

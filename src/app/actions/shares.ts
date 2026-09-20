@@ -110,6 +110,10 @@ export async function shareToCircle(formData: FormData) {
   if (root.visibility !== "PUBLIC") {
     return { error: "not_shareable" };
   }
+  // Members-only content never crosses into a different Circle (whose members may not be in this one).
+  if (root.circleId) {
+    return { error: "not_shareable" };
+  }
 
   const channel = await prisma.channel.findFirst({
     where: { circleId, type: "TEXT" },
@@ -177,6 +181,10 @@ export async function shareToStory(postId: string) {
   }
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" as const };
+  }
+  // A Story is shown to the sharer's connections, who may not be in the Circle this post belongs to.
+  if (root.circleId) {
+    return { error: "not_shareable" as const };
   }
 
   let mediaType: "IMAGE" | "VIDEO";
@@ -260,6 +268,10 @@ export async function shareToMuse(postId: string) {
   // and shareToCircle()'s equivalent check, just with no audience boundary
   // at all on the other side, so this matters even more here.
   if (root.visibility !== "PUBLIC") {
+    return { error: "not_shareable" as const };
+  }
+  // Muse is public to everyone; a Circle's members-only video must never land there.
+  if (root.circleId) {
     return { error: "not_shareable" as const };
   }
 

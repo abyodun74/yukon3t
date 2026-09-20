@@ -59,6 +59,12 @@ export async function repost(formData: FormData) {
   if (root.visibility !== "PUBLIC") {
     return { error: "not_shareable" };
   }
+  // A Circle's posts are for that Circle's members only. They're stored PUBLIC (visibility is the author's audience
+  // choice for NON-Circle posts), so the check above lets them through — without this any member could republish a
+  // members-only post to their own public profile and feed.
+  if (root.circleId) {
+    return { error: "not_shareable" };
+  }
 
   if (root.authorId === user.id) {
     return { error: "self_repost" };
