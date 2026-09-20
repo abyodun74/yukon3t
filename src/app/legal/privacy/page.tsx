@@ -1,3 +1,28 @@
+import type { Metadata } from "next";
+
+const title = "Privacy Policy | YuKon3t";
+const description =
+  "YuKon3t's Privacy Policy: what we collect, how we use it, your data rights, retention, cookies and security. We never sell your personal data.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/legal/privacy",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
+
 export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">

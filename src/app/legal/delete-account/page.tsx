@@ -1,4 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+const title = "Delete Your Account | YuKon3t";
+const description =
+  "How to permanently delete your YuKon3t account and its data, free with no waiting period. See what gets deleted and what to do if you can't sign in.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/legal/delete-account",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 export default function DeleteAccountPage() {
   return (

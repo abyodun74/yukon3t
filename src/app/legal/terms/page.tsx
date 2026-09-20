@@ -1,3 +1,28 @@
+import type { Metadata } from "next";
+
+const title = "Terms of Service | YuKon3t";
+const description =
+  "YuKon3t's Terms of Service: eligibility, acceptable use, your content, moderation, calls, ad bookings, termination and how disputes are resolved.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  openGraph: {
+    type: "website",
+    url: "/legal/terms",
+    siteName: "YuKon3t",
+    title,
+    description,
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icons/icon-512.png"],
+  },
+};
+
 export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
