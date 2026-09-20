@@ -18,6 +18,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
+import { sendFcmActivityToUser } from "@/lib/fcm";
 import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
@@ -545,6 +546,23 @@ export async function sendMessage(formData: FormData) {
       sendPushToUser(recipientId, {
         title: user.name ?? "New message",
         body: preview.slice(0, 120),
+        url: `/messages/${conversationId}`,
+      }),
+    ),
+  );
+  // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
+  // WebView doesn't support the Push API at all, and Android's own native
+  // notification path for messages was this same gap (only comments/likes/
+  // connections/muse activity went through sendFcmActivityToUser; sending a
+  // message had no FCM path whatsoever). Confirmed live: a real message
+  // showed the in-app bell/badge update instantly (Realtime, unaffected)
+  // but never surfaced as a native push on iOS.
+  await Promise.all(
+    recipientIds.map((recipientId) =>
+      sendFcmActivityToUser(recipientId, {
+        title: user.name ?? "New message",
+        body: preview.slice(0, 120),
+        type: "MESSAGE",
         url: `/messages/${conversationId}`,
       }),
     ),
