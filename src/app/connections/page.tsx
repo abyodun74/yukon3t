@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ConnectionsTabs } from "@/components/connections-tabs";
 import { getInitialAcceptedConnections } from "@/app/actions/connections";
 import { ConnectionsFindPeopleFab } from "@/components/connections-find-people-fab";
+import { BackButton } from "@/components/back-button";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -44,6 +45,9 @@ export default async function ConnectionsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-6">
       <div>
+        {/* Always Home, not history-back: Connections is opened from the
+            header on any screen, so history could land somewhere unrelated. */}
+        <BackButton href="/home" />
         <h1 className="text-2xl font-semibold">Connections</h1>
       </div>
 
