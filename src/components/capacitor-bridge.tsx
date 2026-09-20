@@ -303,26 +303,38 @@ export function CapacitorBridge() {
     };
   }, [router]);
 
-  // Reacts to the in-session client-side navigation that lands on
-  // /home?onboarded=1 (completeOnboarding's redirect — see
-  // src/app/actions/profile.ts) — the effect above only runs once, at app
-  // launch, which for a brand-new user happens before onboarding, so this
-  // is what actually catches the right moment to show the notification
-  // prompt. usePathname() (not useSearchParams(), which needs a Suspense
-  // boundary) is the reactive trigger; the query string itself is still
-  // read via plain window APIs to avoid that requirement, same as
-  // FcmTokenBridge. Deliberately NOT folded into the effect above — that
-  // effect's dependency array must stay stable ([router] only) so its
-  // token-refresh/notification-tap listeners live for the whole app
-  // session; tying it to `pathname` instead would tear those listeners
-  // down and fail to recreate them on every ordinary navigation.
+  // Reacts to the in-session client-side navigation that lands on /home —
+  // /home?onboarded=1 specifically is completeOnboarding's redirect (see
+  // src/app/actions/profile.ts), the intended moment to show the
+  // notification prompt for a brand-new user right after signup. But that
+  // query param only ever appears once in an account's entire lifetime —
+  // an EXISTING, already-onboarded account signing in on a new device or
+  // reinstall never revisits it, and the mount effect above deliberately
+  // never prompts on a bare cold start (to avoid ambushing a brand-new
+  // user before they have any context). Confirmed live: an existing
+  // account's fresh iOS install had no "Notifications" section at all in
+  // Settings, meaning it had never been asked. Fixed by also firing on a
+  // plain arrival at /home (any account reaching it is necessarily already
+  // signed in and onboarded), gated the same one-time-per-session way —
+  // requestPermissionNowRef's own setupNotifications(true) call is always
+  // safe to invoke speculatively regardless of reason, since it silently
+  // no-ops the actual OS prompt for anyone who's already granted or denied.
+  // usePathname() (not useSearchParams(), which needs a Suspense boundary)
+  // is the reactive trigger; the query string itself is still read via
+  // plain window APIs to avoid that requirement, same as FcmTokenBridge.
+  // Deliberately NOT folded into the effect above — that effect's
+  // dependency array must stay stable ([router] only) so its token-
+  // refresh/notification-tap listeners live for the whole app session;
+  // tying it to `pathname` instead would tear those listeners down and
+  // fail to recreate them on every ordinary navigation.
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || promptedRef.current) return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("onboarded") !== "1") return;
+    if (!Capacitor.isNativePlatform() || promptedRef.current || pathname !== "/home") return;
     promptedRef.current = true;
-    url.searchParams.delete("onboarded");
-    window.history.replaceState({}, "", url.toString());
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("onboarded") === "1") {
+      url.searchParams.delete("onboarded");
+      window.history.replaceState({}, "", url.toString());
+    }
     requestPermissionNowRef.current?.();
   }, [pathname]);
 
