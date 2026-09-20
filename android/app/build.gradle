@@ -190,8 +190,14 @@ android {
         // "invalid" error). No new permission, no new Play Console
         // declaration — INTERNET was already granted for every other
         // upload path.
-        versionCode 24
-        versionName "1.21"
+        // 25: consolidates FirebaseMessagingService to fix incoming calls
+        // never ringing on Android — two competing services (this app's own
+        // CallMessagingService and @capacitor-firebase/messaging's) shared
+        // the same MESSAGING_EVENT intent-filter, and Android/Firebase does
+        // not reliably deliver to both. No new permission, no new Play
+        // Console declaration.
+        versionCode 25
+        versionName "1.22"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
