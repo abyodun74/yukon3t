@@ -863,13 +863,35 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Can I rename my Circle or change its categories after creating it?",
+        q: "Can I rename my Circle or change its theme or categories after creating it?",
         a: (
           <>
             Yes — the owner or a co-admin can tap the pencil icon next to the
-            Circle&apos;s name on its page to change the name and/or its
-            categories at any time. Its URL never changes when you rename it,
-            so existing links and bookmarks to it keep working.
+            Circle&apos;s name on its page to change the name, its theme (the
+            description of what the Circle is about that you wrote when
+            creating it), and/or its categories at any time. Its URL never
+            changes when you rename it, so existing links and bookmarks to it
+            keep working.
+          </>
+        ),
+      },
+      {
+        q: "What are sub-circles?",
+        a: (
+          <>
+            A sub-circle is a smaller Circle that lives under a main Circle —
+            for example a &ldquo;Design&rdquo; and a &ldquo;Marketing&rdquo;
+            sub-circle under a &ldquo;Startup Founders&rdquo; Circle. Open the
+            main Circle and its sub-circles are listed right on its page.
+            Each one has its own members, its own channels and posts, and its
+            own member list on its own page, and you can join any of them on
+            its own — you don&apos;t have to join the main Circle first, and
+            joining one doesn&apos;t join you to the others. Only the main
+            Circle&apos;s owner can add sub-circles (tap &ldquo;Add a
+            sub-circle&rdquo; on the main Circle&apos;s page). Sub-circles go
+            one level deep, and a sub-circle under a private Circle is
+            private too. Deleting a main Circle also deletes its
+            sub-circles.
           </>
         ),
       },

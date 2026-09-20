@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
@@ -14,6 +15,7 @@ import { ChannelList } from "@/components/channel-list";
 import { CircleSwitcher } from "@/components/circle-switcher";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
 import { CircleDetailsEditModal } from "@/components/circle-details-edit-modal";
+import { SubCircleList } from "@/components/sub-circle-list";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { CirclePostsList } from "@/components/circle-posts-list";
 import { BackButton } from "@/components/back-button";
@@ -43,6 +45,16 @@ export default async function CirclePage({
       include: {
         _count: { select: { members: true } },
         members: { where: { userId: me.id } },
+        // Set only on a sub-circle: its main Circle, for the "Part of …" link.
+        parent: { select: { name: true, slug: true } },
+        // Set only on a main Circle: its sub-circles, listed on this page.
+        subCircles: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            _count: { select: { members: true } },
+            members: { where: { userId: me.id }, select: { role: true } },
+          },
+        },
         channels: {
           orderBy: { position: "asc" },
           include: { members: { select: { userId: true } } },
@@ -72,7 +84,7 @@ export default async function CirclePage({
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
-  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers] = await Promise.all([
+  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, mySubCircleRequests] = await Promise.all([
     !isMember
       ? prisma.circleJoinRequest.findUnique({
           where: { circleId_userId: { circleId: circle.id, userId: me.id } },
@@ -103,6 +115,15 @@ export default async function CirclePage({
           include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
         })
       : Promise.resolve([]),
+
+    // Which of this Circle's sub-circles the viewer has a pending join
+    // request to — so a private sub-circle's button reads "Request pending".
+    circle.subCircles.length > 0
+      ? prisma.circleJoinRequest.findMany({
+          where: { userId: me.id, status: "PENDING", circleId: { in: circle.subCircles.map((s) => s.id) } },
+          select: { circleId: true },
+        })
+      : Promise.resolve([]),
   ]);
   const hasPendingRequest = myJoinRequest?.status === "PENDING";
   const posts = await attachViewerState(rawPosts, me.id);
@@ -111,6 +132,14 @@ export default async function CirclePage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackButton fallbackHref="/circles" />
+      {circle.parent && (
+        <p className="text-xs text-foreground-soft">
+          Sub-circle of{" "}
+          <Link href={`/circles/${circle.parent.slug}`} className="font-medium text-accent hover:underline">
+            {circle.parent.name}
+          </Link>
+        </p>
+      )}
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
         {circle.visibility === "PRIVATE" && (
@@ -134,6 +163,7 @@ export default async function CirclePage({
             <CircleDetailsEditModal
               circleId={circle.id}
               name={circle.name}
+              description={circle.description}
               category={circle.category}
               categoryOptions={CIRCLE_CATEGORIES}
             />
@@ -148,7 +178,11 @@ export default async function CirclePage({
             hasPendingRequest={hasPendingRequest}
           />
           {(isOwner || me.isAdmin) && (
-            <DeleteCircleButton circleId={circle.id} isAdminOverride={!isOwner} />
+            <DeleteCircleButton
+              circleId={circle.id}
+              isAdminOverride={!isOwner}
+              subCircleCount={circle.subCircles.length}
+            />
           )}
         </div>
       </div>
@@ -170,6 +204,14 @@ export default async function CirclePage({
           )}
 
           {canModerate && <CircleJoinRequestManager requests={pendingJoinRequests} />}
+
+          <SubCircleList
+            parentSlug={circle.slug}
+            subCircles={circle.subCircles}
+            viewerId={me.id}
+            pendingRequestCircleIds={mySubCircleRequests.map((r) => r.circleId)}
+            canAdd={isOwner && !circle.parentId}
+          />
 
           <div className="mt-8 grid gap-6 md:grid-cols-[64px_200px_1fr]">
             <CircleSwitcher circles={myCircles} activeCircleId={circle.id} />

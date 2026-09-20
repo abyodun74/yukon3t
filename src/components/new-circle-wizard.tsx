@@ -34,7 +34,19 @@ function validateStep(step: number, formData: FormData): string | null {
  * whole time (just hidden via CSS when not active), so nothing loses its
  * value on Back — including MultiSelect's own internal selection state.
  */
-export function NewCircleWizard({ categories }: { categories: readonly string[] }) {
+export function NewCircleWizard({
+  categories,
+  parentId,
+  parentName,
+  forcePrivate = false,
+}: {
+  categories: readonly string[];
+  /** Set when creating a sub-circle under this main Circle (see createCircle). */
+  parentId?: string;
+  parentName?: string;
+  /** The main Circle is PRIVATE, so this sub-circle must be too — see subCircleVisibility. */
+  forcePrivate?: boolean;
+}) {
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -57,6 +69,7 @@ export function NewCircleWizard({ categories }: { categories: readonly string[] 
 
   return (
     <form ref={formRef} action={createCircle} className="mt-6 space-y-4">
+      {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-foreground-soft">
         {STEP_LABELS.map((label, i) => {
           const stepNumber = i + 1;
@@ -127,16 +140,26 @@ export function NewCircleWizard({ categories }: { categories: readonly string[] 
 
       <div className={step === 4 ? "" : "hidden"}>
         <label className="block text-sm font-medium">Privacy</label>
-        <div className="mt-1 flex gap-4 text-sm">
-          <label className="flex items-center gap-1.5">
-            <input type="radio" name="visibility" value="PUBLIC" defaultChecked />
-            Public — anyone can find and join
-          </label>
-          <label className="flex items-center gap-1.5">
-            <input type="radio" name="visibility" value="PRIVATE" />
-            Private — join by request only
-          </label>
-        </div>
+        {forcePrivate ? (
+          <>
+            <input type="hidden" name="visibility" value="PRIVATE" />
+            <p className="mt-1 text-sm text-foreground-soft">
+              Private — join by request only. {parentName ? `“${parentName}”` : "The main Circle"} is private, so its
+              sub-circles are too.
+            </p>
+          </>
+        ) : (
+          <div className="mt-1 flex gap-4 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="visibility" value="PUBLIC" defaultChecked />
+              Public — anyone can find and join
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="visibility" value="PRIVATE" />
+              Private — join by request only
+            </label>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -153,8 +176,18 @@ export function NewCircleWizard({ categories }: { categories: readonly string[] 
             Back
           </button>
         )}
+        {/* The `key`s are load-bearing. Without them React sees one <button> in
+            the same spot and just flips its `type` from "button" to "submit"
+            when step 3's "Next" is clicked — and since that re-render lands
+            before the browser runs the click's default action, the browser
+            treats the very same click as a submit. Net effect: tapping Next
+            on the Theme step created the Circle on the spot (always PUBLIC,
+            whatever was meant), and the Privacy step was never shown. Distinct
+            keys make React replace the element instead, so the original
+            "button" is already gone by the time the click resolves. */}
         {step < 4 ? (
           <button
+            key="next"
             type="button"
             onClick={goNext}
             className="ml-auto rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
@@ -163,10 +196,11 @@ export function NewCircleWizard({ categories }: { categories: readonly string[] 
           </button>
         ) : (
           <button
+            key="create"
             type="submit"
             className="ml-auto rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
           >
-            Create Circle
+            {parentId ? "Create sub-circle" : "Create Circle"}
           </button>
         )}
       </div>

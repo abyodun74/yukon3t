@@ -7,6 +7,8 @@ type CircleSummary = {
   name: string;
   slug: string;
   coverImageUrl: string | null;
+  /** Set only for a sub-circle — its main Circle's name, so the tooltip reads "Main › Sub". */
+  parentName?: string | null;
 };
 
 /**
@@ -31,7 +33,7 @@ export function CircleSwitcher({
           <Link
             key={circle.id}
             href={`/circles/${circle.slug}`}
-            title={circle.name}
+            title={circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}
             className={cn(
               "flex shrink-0 items-center justify-center rounded-full p-0.5 transition",
               active

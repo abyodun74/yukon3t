@@ -17,7 +17,7 @@ import { watermarkImageFile } from "@/lib/watermark";
 const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
-type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null };
+type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null; parentName: string | null };
 
 /** Placeholder rows shown while the friends/circles list is being fetched — same shape/size as the real rows so nothing jumps once they land. */
 function RowSkeletons() {
@@ -382,7 +382,7 @@ export function ShareModal({
                   onClick={() => shareIntoCircle(circle.id)}
                   className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
                 >
-                  <span className="truncate">{circle.name}</span>
+                  <span className="truncate">{circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}</span>
                   {sentToId === circle.id && <span className="shrink-0 text-xs text-success">Shared</span>}
                 </button>
               </li>

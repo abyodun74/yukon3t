@@ -137,6 +137,9 @@ export const circleSchema = z.object({
 
 export const updateCircleDetailsSchema = z.object({
   name: z.string().trim().min(3).max(60),
+  // "Theme" in the UI (the creation wizard's third step) — same bounds as at
+  // creation (circleSchema above).
+  description: z.string().trim().min(10).max(1000),
   category: z.array(z.string().trim().min(2).max(40)).min(1).max(5),
 });
 

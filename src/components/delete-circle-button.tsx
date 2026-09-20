@@ -6,9 +6,12 @@ import { deleteCircle } from "@/app/actions/circles";
 export function DeleteCircleButton({
   circleId,
   isAdminOverride = false,
+  subCircleCount = 0,
 }: {
   circleId: string;
   isAdminOverride?: boolean;
+  /** Deleting a main Circle also deletes its sub-circles (Circle.parent onDelete: Cascade) — say so before it happens. */
+  subCircleCount?: number;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -31,6 +34,13 @@ export function DeleteCircleButton({
         {isAdminOverride
           ? "Delete this Circle for everyone? Use this for duplicates or policy violations."
           : "Delete this Circle for everyone?"}
+        {subCircleCount > 0 && (
+          <strong className="font-semibold text-danger">
+            {" "}
+            This also permanently deletes its {subCircleCount} sub-circle{subCircleCount === 1 ? "" : "s"}, with all
+            their members and posts.
+          </strong>
+        )}
       </span>
       <button
         type="button"

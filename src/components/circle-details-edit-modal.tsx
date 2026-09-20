@@ -9,7 +9,7 @@ import { MultiSelect } from "@/components/multi-select";
 function errorMessage(code: string) {
   switch (code) {
     case "moderation":
-      return "That name didn't pass our content guidelines.";
+      return "That name or theme didn't pass our content guidelines.";
     case "rate_limited":
       return "Slow down a little — try again shortly.";
     case "forbidden":
@@ -19,15 +19,18 @@ function errorMessage(code: string) {
   }
 }
 
-/** Owner/co-admin-only — mirrors ChannelSettingsModal's edit-in-a-modal pattern, for a Circle's name and categories. The slug (and so its URL) never changes. */
+/** Owner/co-admin-only — mirrors ChannelSettingsModal's edit-in-a-modal pattern, for a Circle's name, theme and categories. The slug (and so its URL) never changes. */
 export function CircleDetailsEditModal({
   circleId,
   name,
+  description,
   category,
   categoryOptions,
 }: {
   circleId: string;
   name: string;
+  /** The Circle's theme — the `description` column, which the creation wizard labels "Theme". */
+  description: string;
   category: string[];
   categoryOptions: readonly string[];
 }) {
@@ -82,6 +85,24 @@ export function CircleDetailsEditModal({
               minLength={3}
               maxLength={60}
               autoFocus
+              className="mt-1 w-full rounded-lg border border-line bg-transparent px-3 py-2 outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label htmlFor="circle-edit-theme" className="text-xs font-medium text-foreground-soft">
+              Theme
+            </label>
+            <p className="mt-0.5 text-[11px] text-foreground-soft">
+              What this Circle is about, so people know what to expect before they join.
+            </p>
+            <textarea
+              id="circle-edit-theme"
+              name="description"
+              defaultValue={description}
+              required
+              minLength={10}
+              maxLength={1000}
+              rows={4}
               className="mt-1 w-full rounded-lg border border-line bg-transparent px-3 py-2 outline-none focus:border-accent"
             />
           </div>

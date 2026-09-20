@@ -26,6 +26,7 @@ import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
+import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
@@ -42,9 +43,29 @@ const CIRCLE_POSTS_PAGE_SIZE = 20;
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
 
-  const allowed = await checkRateLimit("circleCreate", user.id);
+  // Optional: creating a sub-circle under an existing main Circle (see
+  // src/lib/circle-hierarchy.ts). Re-validated here in full — the wizard's
+  // hidden field is just a hint, never trusted.
+  const parentIdInput = String(formData.get("parentId") ?? "").trim();
+  const parent = parentIdInput
+    ? await prisma.circle.findUnique({
+        where: { id: parentIdInput },
+        select: { id: true, slug: true, createdById: true, parentId: true, visibility: true },
+      })
+    : null;
+  if (parentIdInput) {
+    const parentCheck = checkSubCircleParent(parent, user.id);
+    if (parentCheck !== "ok") {
+      redirect("/circles/new?error=invalid_parent");
+    }
+  }
+  // Errors go back to the same form (with its parent), not a blank new one.
+  const formPath = (error: string) =>
+    parent ? `/circles/new?parent=${encodeURIComponent(parent.slug)}&error=${error}` : `/circles/new?error=${error}`;
+
+  const allowed = await checkRateLimit(parent ? "subCircleCreate" : "circleCreate", user.id);
   if (!allowed) {
-    redirect("/circles/new?error=rate_limited");
+    redirect(formPath("rate_limited"));
   }
 
   const parsed = circleSchema.safeParse({
@@ -54,13 +75,14 @@ export async function createCircle(formData: FormData) {
     visibility: formData.get("visibility") || undefined,
   });
   if (!parsed.success) {
-    redirect("/circles/new?error=invalid");
+    redirect(formPath("invalid"));
   }
-  const { name, description, category, visibility } = parsed.data;
+  const { name, description, category } = parsed.data;
+  const visibility = parent ? subCircleVisibility(parent.visibility, parsed.data.visibility) : parsed.data.visibility;
 
   const modResult = await moderateText(`${name}\n${description}`);
   if (!modResult.allowed) {
-    redirect("/circles/new?error=moderation");
+    redirect(formPath("moderation"));
   }
 
   const baseSlug = slugify(name) || "circle";
@@ -79,6 +101,7 @@ export async function createCircle(formData: FormData) {
       category,
       visibility,
       slug,
+      parentId: parent?.id ?? null,
       createdById: user.id,
       members: {
         create: { userId: user.id, role: "OWNER" },
@@ -112,9 +135,21 @@ export async function createCircle(formData: FormData) {
       })),
     });
   }
-  await notifySubscribers(user.id, "SUBSCRIPTION_CIRCLE_CREATED", { circleId: circle.id });
+  // A sub-circle isn't announced to the owner's subscribers: someone setting
+  // up a main Circle's sub-circles would otherwise send them one "created a
+  // Circle" notification per sub-circle. The main Circle's own creation
+  // already told them.
+  if (!parent) {
+    await notifySubscribers(user.id, "SUBSCRIPTION_CIRCLE_CREATED", { circleId: circle.id });
+  }
 
   revalidatePath("/circles");
+  if (parent) {
+    // Back to the main Circle (where the new sub-circle now appears), so the
+    // owner can keep adding more, not off to the one they just made.
+    revalidatePath(`/circles/${parent.slug}`);
+    redirect(`/circles/${parent.slug}`);
+  }
   redirect(`/circles/${circle.slug}`);
 }
 
@@ -268,7 +303,10 @@ export async function leaveCircle(circleId: string) {
 export async function deleteCircle(circleId: string) {
   const user = await requireVerifiedUser();
 
-  const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    include: { parent: { select: { slug: true } } },
+  });
   if (!circle) {
     return { error: "not_found" as const };
   }
@@ -276,15 +314,23 @@ export async function deleteCircle(circleId: string) {
     return { error: "forbidden" as const };
   }
 
+  // Deleting a main Circle also deletes its sub-circles (the FK cascades) —
+  // the delete button warns about that up front.
   await prisma.circle.delete({ where: { id: circleId } });
 
   revalidatePath("/circles");
+  if (circle.parent) {
+    // A sub-circle: back to the main Circle it belonged to, not the list.
+    revalidatePath(`/circles/${circle.parent.slug}`);
+    redirect(`/circles/${circle.parent.slug}`);
+  }
   redirect("/circles");
 }
 
 /**
  * Owner or co-admin: renames a Circle and/or changes its categories (up to
- * 5, same bounds as creation — see circleSchema). The slug (used in its
+ * 5, same bounds as creation — see circleSchema) and/or edits its theme (the
+ * `description` column — the creation wizard's "Theme" step). The slug (used in its
  * URL) is deliberately left untouched regardless of a name change —
  * regenerating it on every rename would break existing links/bookmarks/
  * notifications pointing at the old one.
@@ -308,20 +354,24 @@ export async function updateCircleDetails(circleId: string, formData: FormData) 
 
   const parsed = updateCircleDetailsSchema.safeParse({
     name: formData.get("name"),
+    description: formData.get("description"),
     category: formData.getAll("category"),
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { name, category } = parsed.data;
+  const { name, description, category } = parsed.data;
 
-  const modResult = await moderateText(name);
+  // Same text gate as creation (createCircle): name and theme together, so a
+  // Circle can't be created clean and then edited into something that
+  // wouldn't have passed.
+  const modResult = await moderateText(`${name}\n${description}`);
   if (!modResult.allowed) {
     return { error: "moderation" as const };
   }
 
-  await prisma.circle.update({ where: { id: circleId }, data: { name, category } });
-  await updateCircleEmbedding(circleId, { name, description: circle.description, category });
+  await prisma.circle.update({ where: { id: circleId }, data: { name, description, category } });
+  await updateCircleEmbedding(circleId, { name, description, category });
 
   revalidatePath(`/circles/${circle.slug}`);
   revalidatePath("/circles");
@@ -853,11 +903,18 @@ export async function getMyCircles() {
 
   const memberships = await prisma.circleMembership.findMany({
     where: { userId: user.id },
-    include: { circle: { select: { id: true, name: true, slug: true, coverImageUrl: true } } },
+    include: {
+      circle: { select: { id: true, name: true, slug: true, coverImageUrl: true, parent: { select: { name: true } } } },
+    },
     orderBy: { circle: { name: "asc" } },
   });
 
-  return { circles: memberships.map((m) => m.circle) };
+  // `parentName` is set only for a sub-circle, so pickers can show
+  // "Main › Sub" — two different main Circles can each have a sub-circle
+  // called "General", and the bare name alone wouldn't tell them apart.
+  return {
+    circles: memberships.map(({ circle: { parent, ...circle } }) => ({ ...circle, parentName: parent?.name ?? null })),
+  };
 }
 
 /**

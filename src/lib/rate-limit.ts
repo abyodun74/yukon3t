@@ -6,9 +6,10 @@ import { Redis } from "@upstash/redis";
 // does not survive across serverless instances and is not a real defense.
 const memoryHits = new Map<string, { count: number; resetAt: number }>();
 
-function memoryLimiter(limit: number, windowMs: number) {
+function memoryLimiter(limit: number, windowMs: number, prefix?: string) {
   return {
-    limit: async (key: string) => {
+    limit: async (identifier: string) => {
+      const key = prefix ? `${prefix}:${identifier}` : identifier;
       const now = Date.now();
       const entry = memoryHits.get(key);
       if (!entry || entry.resetAt < now) {
@@ -44,17 +45,24 @@ const redis = hasUpstash
     })
   : null;
 
-function makeLimiter(limit: number, window: `${number} ${"s" | "m" | "h"}`) {
+// `prefix` gives a limiter its OWN counter. Without one, every limiter shares
+// the library's default prefix — so two limiters with the same identifier (a
+// user id) and the same window length count against ONE shared counter (in the
+// in-memory fallback, any two limiters with the same identifier do). That's
+// how most limiters here work today; a new one that must stay independent of
+// the rest (see subCircleCreate) passes a prefix.
+function makeLimiter(limit: number, window: `${number} ${"s" | "m" | "h"}`, prefix?: string) {
   if (redis) {
     return new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(limit, window),
       analytics: false,
+      ...(prefix ? { prefix } : {}),
     });
   }
   const [amount, unit] = window.split(" ");
   const multiplier = unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : 1_000;
-  return memoryLimiter(limit, Number(amount) * multiplier);
+  return memoryLimiter(limit, Number(amount) * multiplier, prefix);
 }
 
 export const rateLimiters = {
@@ -77,6 +85,10 @@ export const rateLimiters = {
   connectionRequest: makeLimiter(20, "10 m"),
   subscribe: makeLimiter(30, "10 m"),
   circleCreate: makeLimiter(5, "1 h"),
+  // Separate from circleCreate: an owner setting up a main Circle's
+  // sub-circles legitimately creates several in one sitting, and shouldn't be
+  // throttled by the (much tighter) limit meant to stop Circle spam.
+  subCircleCreate: makeLimiter(20, "1 h", "subCircleCreate"),
   groupChatCreate: makeLimiter(5, "1 h"),
   mediaUpload: makeLimiter(20, "10 m"),
   like: makeLimiter(60, "1 m"),

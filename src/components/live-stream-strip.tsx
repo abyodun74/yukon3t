@@ -15,7 +15,7 @@ type Stream = {
   host: { id: string; name: string | null; avatarUrl: string | null };
   viewerCount: number;
 };
-type Circle = { id: string; name: string };
+type Circle = { id: string; name: string; parentName: string | null };
 
 function startErrorMessage(code?: string) {
   switch (code) {
@@ -170,7 +170,7 @@ export function LiveStreamStrip() {
               <option value="">Everyone</option>
               {circles?.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
                 </option>
               ))}
             </select>

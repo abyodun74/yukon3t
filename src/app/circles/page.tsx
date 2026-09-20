@@ -8,10 +8,13 @@ export default async function CirclesPage() {
   const me = await getOnboardedUserOrRedirect();
 
   const circles = await prisma.circle.findMany({
+    // Main Circles only — a sub-circle is listed on its main Circle's page,
+    // so it doesn't appear here as a separate top-level entry.
+    where: { parentId: null },
     orderBy: { createdAt: "desc" },
     take: 40,
     include: {
-      _count: { select: { members: true } },
+      _count: { select: { members: true, subCircles: true } },
       members: { where: { userId: me.id }, select: { role: true } },
     },
   });
@@ -83,6 +86,8 @@ export default async function CirclesPage() {
               <p className="mt-3 text-xs text-foreground-soft">
                 {circle._count.members} member
                 {circle._count.members === 1 ? "" : "s"}
+                {circle._count.subCircles > 0 &&
+                  ` · ${circle._count.subCircles} sub-circle${circle._count.subCircles === 1 ? "" : "s"}`}
               </p>
             </Link>
           );

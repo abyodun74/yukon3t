@@ -352,6 +352,16 @@ model Circle {
   createdById   String
   createdAt     DateTime         @default(now())
 
+  // Sub-circles: a Circle nested under a top-level "main" Circle. A sub-circle
+  // is a full Circle in its own right — its own members, join requests,
+  // channels and posts — so it reuses every Circle code path; parentId is
+  // the only thing that makes it "under" another. One level only (a
+  // sub-circle can't have its own sub-circles) — enforced in createCircle,
+  // not by the database. Deleting the main Circle deletes its sub-circles.
+  parentId   String?
+  parent     Circle?  @relation("SubCircles", fields: [parentId], references: [id], onDelete: Cascade)
+  subCircles Circle[] @relation("SubCircles")
+
   // See User.embedding — embeds name+description+category.
   embedding Unsupported("vector(1536)")?
 
@@ -364,6 +374,7 @@ model Circle {
   liveStreams   LiveStream[]
 
   @@index([category], type: Gin)
+  @@index([parentId])
 }
 
 /**
