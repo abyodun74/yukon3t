@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { phoneSchema, verifyPhoneCodeSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
+import { getClientIp } from "@/lib/client-ip";
 import { recomputeTrustScore } from "@/lib/trust";
 import {
   isPhoneVerificationConfigured,
@@ -21,6 +23,11 @@ import {
  */
 export async function requestPhoneVerification(formData: FormData) {
   const user = await requireUser();
+
+  // Every SMS send — first send and resend alike — costs real money, so it needs the same bot check as sign-in. Checked
+  // before the rate limit so a failed challenge doesn't burn the person's own quota.
+  if (!(await verifyTurnstile(formData, await getClientIp()))) return { error: "captcha" as const };
+
   const parsed = phoneSchema.safeParse(formData.get("phone"));
   if (!parsed.success) return { error: "invalid" as const };
   const phone = parsed.data;
