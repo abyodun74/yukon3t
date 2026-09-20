@@ -81,6 +81,15 @@ export default async function CirclePage({
     accessibleChannels[0] ??
     null;
 
+  // See the BackButton below. `defaultChannel` mirrors what this page lands on with no `?channel=` in the URL.
+  const defaultChannel = accessibleChannels.find((c) => c.slug === "general") ?? accessibleChannels[0] ?? null;
+  const backHref =
+    requestedSlug && activeChannel && activeChannel.id !== defaultChannel?.id
+      ? `/circles/${circle.slug}`
+      : circle.parent
+        ? `/circles/${circle.parent.slug}`
+        : null;
+
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
@@ -142,7 +151,10 @@ export default async function CirclePage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <BackButton fallbackHref="/circles" />
+      {/* Back goes to the Circle's main page rather than through history (which would step through every channel visited):
+          from a non-default channel → this Circle's own page; from a sub-circle's page → its main Circle's page. From a
+          main Circle's own page it's still a plain back, falling back to the Circles list. */}
+      {backHref ? <BackButton href={backHref} /> : <BackButton fallbackHref="/circles" />}
       {circle.parent && (
         <p className="text-xs text-foreground-soft">
           Sub-circle of{" "}
