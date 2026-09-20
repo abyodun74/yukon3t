@@ -88,6 +88,18 @@ let coordinatorInstalled = false;
  * per-surface code. `play` doesn't bubble, so this must be registered with
  * `capture: true` to observe it via delegation at all.
  *
+ * Live media is exempt — any <video> whose `srcObject` is a MediaStream (a
+ * 1:1 call's remote video and self-view, a live stream's broadcaster grid,
+ * the camera recorder preview). These are meant to play side by side, and a
+ * call/live session already gets its own explicit, reference-counted pause
+ * of everything else via pauseAllPlayingVideos above. Without this
+ * exemption a call's two <video> elements (remote + self-view) paused each
+ * other: whichever started second froze the first, and every remount
+ * (tap-to-swap, camera flip, a track re-attaching) froze the other one
+ * instead — a frozen frame on one side of the call, for caller and callee
+ * alike. Only file/URL-backed videos (feed, stories, lightbox, chat
+ * attachments) are coordinated.
+ *
  * Idempotent and safe to call from more than one mounted component — only
  * the first call actually attaches the listener.
  */
@@ -100,8 +112,9 @@ export function installVideoCoordinator() {
     (e) => {
       const started = e.target;
       if (!(started instanceof HTMLVideoElement)) return;
+      if (started.srcObject) return;
       document.querySelectorAll("video").forEach((v) => {
-        if (v !== started && !v.paused) v.pause();
+        if (v !== started && !v.paused && !v.srcObject) v.pause();
       });
     },
     { capture: true },
