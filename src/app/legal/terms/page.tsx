@@ -27,7 +27,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: August 8, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 20, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         These Terms of Service (&quot;Terms&quot;) govern your access to and
@@ -102,6 +102,15 @@ export default function TermsPage() {
         account at our discretion, including content that hasn&apos;t been
         reported, if we believe it violates these Terms or our Guidelines or
         creates risk for our users or YuKon3t.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Secret chats.</b> The text of a secret chat (a one-to-one
+        conversation both people opt into) is end-to-end encrypted, so we
+        cannot read or scan it. These Terms and our Guidelines still apply to
+        it. We rely on reports from participants — which include the text of
+        the reported message — to enforce them there. Photos, videos, and
+        voice notes in a secret chat are not encrypted and are screened like
+        any other content.
       </p>
 
       <h2 className="mt-8 font-semibold">6. Intellectual property &amp; copyright (DMCA)</h2>

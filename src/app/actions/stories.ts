@@ -9,6 +9,7 @@ import { moderateMedia, moderateText } from "@/lib/moderation";
 import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { sendPushToUser } from "@/lib/push";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 
@@ -379,10 +380,17 @@ export async function replyToStory(storyId: string, formData: FormData) {
         { members: { some: { userId: story.authorId } } },
       ],
     },
-    select: { id: true },
+    select: { id: true, isGroup: true, members: { select: { e2eeEnabledAt: true } } },
   });
   if (!conversation) {
     return { error: "not_connected" as const };
+  }
+  // This writes the reply as readable text straight into the DM. In a secret
+  // chat (end-to-end encrypted) that would put plaintext into a thread both
+  // people believe is encrypted, and the server can't encrypt it for them —
+  // so it's declined there; they can send the reply from the chat itself.
+  if (isSecretChat(conversation)) {
+    return { error: "secret_chat" as const };
   }
 
   const allowed = await checkRateLimit("messageSend", user.id);

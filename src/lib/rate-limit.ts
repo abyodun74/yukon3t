@@ -89,6 +89,15 @@ export const rateLimiters = {
   // sub-circles legitimately creates several in one sitting, and shouldn't be
   // throttled by the (much tighter) limit meant to stop Circle spam.
   subCircleCreate: makeLimiter(20, "1 h", "subCircleCreate"),
+  // Secret chats (src/app/actions/e2ee.ts). Each has its own counter (prefix)
+  // for the same reason subCircleCreate does. The backup fetch is the one
+  // worth keeping tight: the backup is encrypted under a passphrase, and this
+  // is what someone with a stolen session would call to get a copy to guess
+  // at offline — the limit can't stop that, but it stops it being cheap.
+  e2eeSetup: makeLimiter(5, "1 h", "e2eeSetup"),
+  e2eeBackupFetch: makeLimiter(10, "1 h", "e2eeBackupFetch"),
+  e2eeReset: makeLimiter(3, "1 h", "e2eeReset"),
+  e2eeToggle: makeLimiter(30, "10 m", "e2eeToggle"),
   groupChatCreate: makeLimiter(5, "1 h"),
   mediaUpload: makeLimiter(20, "10 m"),
   like: makeLimiter(60, "1 m"),

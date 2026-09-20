@@ -279,6 +279,15 @@ export default async function ModerationQueuePage() {
               <span>{report.createdAt.toLocaleString()}</span>
             </div>
             <p className="mt-2 break-words text-sm">{report.reason}</p>
+            {report.evidenceText && (
+              <div className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs">
+                <p className="font-medium text-foreground-soft">
+                  Message text supplied by the reporter — from a secret (end-to-end encrypted) chat, so we can&apos;t
+                  read it or verify it:
+                </p>
+                <p className="mt-1 whitespace-pre-wrap break-words">{report.evidenceText}</p>
+              </div>
+            )}
             {report.reportedUser && (
               <p className="mt-1 text-xs text-foreground-soft">
                 Against: {report.reportedUser.name} ({report.reportedUser.status})

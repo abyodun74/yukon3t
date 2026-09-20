@@ -12,11 +12,14 @@ export function ReportModal({
   targetType,
   targetId,
   reportedUserId,
+  evidenceText,
   onClose,
 }: {
   targetType: ReportTargetType;
   targetId: string;
   reportedUserId?: string;
+  /** For a message from a secret (end-to-end encrypted) chat: its decrypted text, which the server can't read. Shared with moderators only when the reporter submits. */
+  evidenceText?: string;
   onClose: () => void;
 }) {
   const [category, setCategory] = useState<(typeof reportReasonCategoryValues)[number]>("OTHER");
@@ -34,7 +37,7 @@ export function ReportModal({
       <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">
-            Report {targetType === "USER" ? "this account" : targetType === "COMMENT" ? "comment" : "post"}
+            Report {targetType === "USER" ? "this account" : targetType === "COMMENT" ? "comment" : targetType === "MESSAGE" ? "this message" : "post"}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
             <X size={18} />
@@ -66,6 +69,12 @@ export function ReportModal({
               rows={3}
               className="mt-2 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
+            {evidenceText !== undefined && (
+              <p className="mt-2 rounded-md bg-accent-soft px-2 py-1.5 text-xs text-foreground-soft">
+                This message is from a secret chat, so we can&apos;t read it. Submitting this report shares its text with
+                our moderators so they can review it.
+              </p>
+            )}
             <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
@@ -77,6 +86,7 @@ export function ReportModal({
                   if (reportedUserId) fd.set("reportedUserId", reportedUserId);
                   fd.set("reasonCategory", category);
                   fd.set("reason", reason);
+                  if (evidenceText !== undefined) fd.set("evidenceText", evidenceText);
                   startTransition(async () => {
                     const result = await fileReport(fd);
                     setStatus(result.error ? "error" : "sent");

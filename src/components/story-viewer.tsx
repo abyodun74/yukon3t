@@ -706,6 +706,8 @@ function replyErrorMessage(code: string) {
       return "Connect with them first to reply to their story.";
     case "blocked":
       return "This reply couldn't be sent.";
+    case "secret_chat":
+      return "You have a secret chat with them — send your reply from that chat so it stays encrypted.";
     case "rate_limited":
       return "Slow down a little.";
     case "not_found":

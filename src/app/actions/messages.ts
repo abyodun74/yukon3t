@@ -17,6 +17,8 @@ import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { isSecretChat, checkSecretSend, textForModeration, pushPreview } from "@/lib/e2ee/secret-chat";
+import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { track } from "@/lib/analytics";
@@ -422,7 +424,7 @@ export async function sendMessage(formData: FormData) {
   // other member of a group into block-state logic.
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { isGroup: true, members: { select: { userId: true } } },
+    select: { isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true } } },
   });
   if (conversation && !conversation.isGroup) {
     const other = conversation.members.find((m) => m.userId !== user.id);
@@ -430,6 +432,10 @@ export async function sendMessage(formData: FormData) {
       return { error: "blocked" as const };
     }
   }
+  // A secret chat (both people opted in — see src/lib/e2ee/secret-chat.ts):
+  // the text is end-to-end encrypted, so the server can't read it, scan it or
+  // preview it. Everything below that touches `content` goes through `secret`.
+  const secret = conversation ? isSecretChat(conversation) : false;
 
   // A client-supplied replyToMessageId must belong to this same
   // conversation — otherwise someone could quote-reply to a message from a
@@ -456,6 +462,17 @@ export async function sendMessage(formData: FormData) {
       }),
     );
   }
+
+  // Refuse plaintext text in a secret chat rather than store it: a client that
+  // forgot to encrypt, or one caught by secret mode switching on mid-send,
+  // must not be able to put readable text into a thread both people believe is
+  // encrypted. The client re-checks the chat's state and re-sends encrypted.
+  const secretGate = checkSecretSend({ secret, content });
+  if (secretGate) {
+    await cleanupUploads();
+    return { error: secretGate };
+  }
+  const scanText = textForModeration({ secret, content });
 
   if (mediaType === "AUDIO" || mediaType === "VIDEO" || mediaType === "IMAGE") {
     const key = mediaUrl ? keyFromPublicUrl(mediaUrl) : null;
@@ -488,7 +505,7 @@ export async function sendMessage(formData: FormData) {
     // media policy. A voice note has no equivalent frame to check — see the
     // NONE/AUDIO branch below, same accepted gap already documented for
     // video content generally (SECURITY.md).
-    const modResult = await moderateMedia({ text: content, thumbnailUrl: mediaThumbnailUrl });
+    const modResult = await moderateMedia({ text: scanText, thumbnailUrl: mediaThumbnailUrl });
     if (!modResult.allowed) {
       await cleanupUploads();
       return { error: "moderation" as const, categories: modResult.flaggedCategories };
@@ -496,15 +513,16 @@ export async function sendMessage(formData: FormData) {
   } else if (mediaType === "IMAGE") {
     // Unlike video, the full attached image itself is inspectable directly —
     // no thumbnail proxy needed.
-    const modResult = await moderateMedia({ text: content, imageUrls: mediaUrl ? [mediaUrl] : [] });
+    const modResult = await moderateMedia({ text: scanText, imageUrls: mediaUrl ? [mediaUrl] : [] });
     if (!modResult.allowed) {
       await cleanupUploads();
       return { error: "moderation" as const, categories: modResult.flaggedCategories };
     }
-  } else if (content) {
+  } else if (scanText) {
     // A voice note with no caption has no text to check — skip the call
-    // rather than sending an empty string to the moderation endpoint.
-    const modResult = await moderateText(content);
+    // rather than sending an empty string to the moderation endpoint. (In a
+    // secret chat there's never text to check: scanText is "".)
+    const modResult = await moderateText(scanText);
     moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   }
 
@@ -531,16 +549,8 @@ export async function sendMessage(formData: FormData) {
 
   const recipientIds =
     conversation?.members.map((m) => m.userId).filter((id) => id !== user.id) ?? [];
-  const preview =
-    mediaType === "NONE"
-      ? content
-      : mediaType === "IMAGE"
-        ? "Sent a photo"
-        : mediaType === "VIDEO"
-          ? "Sent a video"
-          : mediaType === "GIF"
-            ? "Sent a GIF"
-            : "Sent a voice note";
+  // Never the message text in a secret chat, and never ciphertext anywhere.
+  const preview = pushPreview({ secret, content, mediaType });
   await Promise.all(
     recipientIds.map((recipientId) =>
       sendPushToUser(recipientId, {
@@ -716,8 +726,20 @@ export async function editMessage(messageId: string, formData: FormData) {
     return { error: "deleted" as const };
   }
 
-  const modResult = await moderateText(content);
-  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
+  // Same rule as sendMessage: an edit in a secret chat must be ciphertext, and
+  // is never scanned.
+  const editedConversation = await prisma.conversation.findUnique({
+    where: { id: message.conversationId },
+    select: { isGroup: true, members: { select: { e2eeEnabledAt: true } } },
+  });
+  const secret = editedConversation ? isSecretChat(editedConversation) : false;
+  const secretGate = checkSecretSend({ secret, content });
+  if (secretGate) {
+    return { error: secretGate };
+  }
+  const scanText = textForModeration({ secret, content });
+  const moderationStatus =
+    scanText && !(await moderateText(scanText)).allowed ? "FLAGGED" : "PUBLISHED";
 
   const updated = await prisma.message.update({
     where: { id: messageId },
@@ -802,6 +824,16 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
   });
   if (!membership) {
     return { error: "not_a_member" as const };
+  }
+  // Corrections are stored, scanned and shown by the server as plain text, which
+  // can't happen for an encrypted message — and a correction typed into a secret
+  // chat would put readable text in it. Not offered there.
+  const correctedConversation = await prisma.conversation.findUnique({
+    where: { id: message.conversationId },
+    select: { isGroup: true, members: { select: { e2eeEnabledAt: true } } },
+  });
+  if ((correctedConversation && isSecretChat(correctedConversation)) || isEncryptedContent(message.content)) {
+    return { error: "not_supported_in_secret_chat" as const };
   }
 
   const parsed = correctionSchema.safeParse({ correctedText: formData.get("correctedText") });

@@ -322,6 +322,7 @@ model User {
 
   knownDevices       KnownDevice[]
   securityChallenges SecurityChallenge[]
+  encryptionKey      UserEncryptionKey?
 
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
@@ -1683,10 +1684,35 @@ model ConversationMember {
   joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
 
+  // Secret chats (end-to-end encrypted text): each of the two people in a 1:1
+  // conversation opts in separately, and the conversation is "secret" only
+  // while BOTH have this set — see isSecretChat in src/lib/e2ee/secret-chat.ts.
+  // Null = this member hasn't opted in (or turned it back off).
+  e2eeEnabledAt DateTime?
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
+}
+
+/**
+ * A user's end-to-end encryption identity for secret chats. The server holds
+ * exactly two things and can read neither's secret half:
+ *  - publicKey: the ECDH P-256 public key (JWK JSON), handed to the people
+ *    this user chats with so they can derive the shared conversation key.
+ *  - wrappedPrivateKey: the PRIVATE key, encrypted in the user's browser with
+ *    a key derived from their recovery passphrase (PBKDF2 → AES-GCM), so a
+ *    new device can restore it. Without the passphrase this blob is opaque.
+ * One key per user, shared by all their devices (restored via the passphrase).
+ */
+model UserEncryptionKey {
+  userId            String   @id
+  publicKey         String   @db.Text
+  wrappedPrivateKey String   @db.Text
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum MessageMediaType {
@@ -1823,6 +1849,12 @@ model Report {
   resolutionNote String?              @db.Text
   createdAt      DateTime             @default(now())
   resolvedAt     DateTime?
+
+  // A MESSAGE report from a secret (end-to-end encrypted) chat: the server
+  // can't read that message, so the reporter's own app attaches its decrypted
+  // text here. Reporter-provided and NOT verifiable by us — the admin queue
+  // labels it as such.
+  evidenceText String? @db.Text
 
   reporter     User  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
   reportedUser User? @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)

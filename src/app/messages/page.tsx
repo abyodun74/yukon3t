@@ -6,6 +6,7 @@ import { MarkDelivered } from "@/components/mark-delivered";
 import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
 import { MessagesQuickActions } from "@/components/messages-quick-actions";
 import { isOnline } from "@/lib/presence";
+import { inboxPreview } from "@/lib/e2ee/secret-chat";
 
 export default async function MessagesPage() {
   const me = await getOnboardedUserOrRedirect();
@@ -52,7 +53,7 @@ export default async function MessagesPage() {
       online: c.isGroup ? false : isOnline(other?.lastSeenAt ?? null),
       last: last
         ? {
-            content: last.content,
+            content: inboxPreview(last.content),
             mediaType: last.mediaType,
             moderationStatus: last.moderationStatus,
             createdAt: last.createdAt,

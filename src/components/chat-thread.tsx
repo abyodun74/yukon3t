@@ -30,6 +30,11 @@ import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/shar
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { useRealtimeEvent } from "@/lib/realtime-client";
+import { useSecretChat } from "@/lib/e2ee/use-secret-chat";
+import { SecretChatBar } from "@/components/secret-chat-bar";
+import { ReportModal } from "@/components/report-form";
+import { E2EE_MAX_PLAINTEXT_BYTES, isEncryptedContent } from "@/lib/e2ee/constants";
+import { utf8ByteLength } from "@/lib/e2ee/crypto";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
@@ -94,6 +99,9 @@ type MessageData = {
     caption: string | null;
   } | null;
   isForwardedStory: boolean;
+  // View-only (never from the server): set by ChatThread's viewOf() on a message whose stored body was
+  // ciphertext, so the bubble can hide corrections and attach the decrypted text to a report.
+  wasEncrypted?: boolean;
   // Set when this message is a swipe-to-reply quote of an earlier message
   // in the same thread — null once that message ages out or the reply
   // reference itself was never set.
@@ -233,6 +241,8 @@ function MessageBubble({
   onReacted,
   onCorrected,
   onReply,
+  secretActive,
+  encryptForEdit,
 }: {
   message: MessageData;
   mine: boolean;
@@ -246,8 +256,12 @@ function MessageBubble({
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
   onCorrected: (messageId: string, corrections: CorrectionData[]) => void;
   onReply: (message: MessageData) => void;
+  /** This is a secret (end-to-end encrypted) chat: edits must be encrypted, and corrections aren't offered. */
+  secretActive: boolean;
+  encryptForEdit: (text: string) => Promise<string>;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
   // Which side the dropdown's own edge pins to (it opens toward the
   // opposite side). Defaults to the old mine-based guess so the first
   // paint before any click is reasonable, but the real decision happens in
@@ -423,9 +437,23 @@ function MessageBubble({
     const text = draft.trim();
     if (!text || isPending) return;
     setEditError(null);
+    if (secretActive && utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
+      setEditError("That's too long for a secret chat - please shorten it.");
+      return;
+    }
     startTransition(async () => {
       const fd = new FormData();
-      fd.set("content", text);
+      // In a secret chat the edit is encrypted here, in the browser - it is never sent as readable text.
+      let wire = text;
+      if (secretActive) {
+        try {
+          wire = await encryptForEdit(text);
+        } catch {
+          setEditError("Couldn't encrypt that edit.");
+          return;
+        }
+      }
+      fd.set("content", wire);
       const result = await editMessage(message.id, fd);
       if (result.error || !result.message) {
         setEditError("Couldn't save that edit.");
@@ -777,7 +805,7 @@ function MessageBubble({
               >
                 Reply
               </button>
-              {!mine && (
+              {!mine && !secretActive && !message.wasEncrypted && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -788,6 +816,18 @@ function MessageBubble({
                   className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
                 >
                   {myCorrection ? "Edit your correction" : "Suggest a correction"}
+                </button>
+              )}
+              {!mine && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setReporting(true);
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                >
+                  Report
                 </button>
               )}
               {mine && (
@@ -839,6 +879,16 @@ function MessageBubble({
           )}
         </div>
       )}
+      {reporting && (
+        <ReportModal
+          targetType="MESSAGE"
+          targetId={message.id}
+          reportedUserId={message.senderId}
+          // From a secret chat the server can't read the message, so the decrypted text rides along with the report.
+          evidenceText={message.wasEncrypted ? message.content : undefined}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
   );
 }
@@ -873,6 +923,30 @@ export function ChatThread({
   const [showDictation, setShowDictation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Secret chats (end-to-end encrypted text) - 1:1 only; inert for groups. See src/lib/e2ee/.
+  const secret = useSecretChat({ conversationId, currentUserId, enabled: !isGroup });
+  const prepareSecret = secret.prepare;
+  // Decrypt whatever ciphertext is in the list (and in reply quotes) into the hook's cache.
+  useEffect(() => {
+    const items: { content: string; senderId: string }[] = [];
+    for (const m of messages) {
+      items.push({ content: m.content, senderId: m.senderId });
+      if (m.replyTo) items.push({ content: m.replyTo.content, senderId: m.replyTo.sender.id });
+    }
+    void prepareSecret(items);
+  }, [messages, prepareSecret]);
+  /** A message as it should be SHOWN: ciphertext decrypted (or a clear placeholder), everything else untouched. */
+  function viewOf(m: MessageData): MessageData {
+    if (!isEncryptedContent(m.content) && !(m.replyTo && isEncryptedContent(m.replyTo.content))) return m;
+    return {
+      ...m,
+      content: secret.display(m.content),
+      wasEncrypted: isEncryptedContent(m.content),
+      replyTo: m.replyTo ? { ...m.replyTo, content: secret.display(m.replyTo.content) } : null,
+    };
+  }
+
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -989,7 +1063,11 @@ export function ChatThread({
   // delivered/read), all publish onto this same conversationId's channel —
   // see actions/messages.ts. Also refetches once on tab-focus-regain as a
   // safety net (see useRealtimeEvent's own doc comment).
-  useRealtimeEvent(REALTIME_CHANNELS.conversation(conversationId), "changed", refetch);
+  useRealtimeEvent(REALTIME_CHANNELS.conversation(conversationId), "changed", () => {
+    refetch();
+    // Someone may have just turned secret chat on or off, or reset their keys.
+    void secret.refresh();
+  });
 
   // Message ids that should ease in on this render — tracked separately
   // from messages.length because a refetch can also replace the whole array
@@ -1166,6 +1244,18 @@ export function ChatThread({
     const text = content.trim();
     if (!text && !pendingAudio && !pendingVideo && !pendingImage && !pendingGif) return;
     if (isPending) return;
+    // In a secret chat the text is encrypted before it leaves this device. If that can't happen, say so and stop -
+    // never send it as readable text.
+    if (text && secret.active) {
+      if (utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
+        setError("That message is too long for a secret chat - please shorten it.");
+        return;
+      }
+      if (!secret.canEncrypt) {
+        setError("This device can't encrypt yet - unlock your secret chat keys first.");
+        return;
+      }
+    }
     const audio = pendingAudio;
     const video = pendingVideo;
     const image = pendingImage;
@@ -1212,6 +1302,22 @@ export function ChatThread({
     }
 
     startTransition(async () => {
+      let wireContent = text;
+      if (text && secret.active) {
+        try {
+          wireContent = await secret.encrypt(text);
+        } catch {
+          setError("Couldn't encrypt that message - it was NOT sent.");
+          setContent(text);
+          setPendingAudio(audio);
+          setPendingVideo(video);
+          setPendingImage(image);
+          setPendingGif(gif);
+          setReplyTarget(replyTo);
+          settleOptimistic(null);
+          return;
+        }
+      }
       const media = await uploadPendingMedia();
       if ("error" in media) {
         setError("Couldn't send that.");
@@ -1226,7 +1332,7 @@ export function ChatThread({
       }
       const fd = new FormData();
       fd.set("conversationId", conversationId);
-      fd.set("content", text);
+      fd.set("content", wireContent);
       fd.set("mediaType", media.mediaType);
       if (media.mediaType !== "NONE") fd.set("mediaUrl", media.mediaUrl);
       if (media.mediaType === "VIDEO" && media.mediaThumbnailUrl) {
@@ -1251,12 +1357,17 @@ export function ChatThread({
         return;
       }
       if (result.error) {
+        const modeChanged = result.error === "plaintext_in_secret_chat" || result.error === "not_a_secret_chat";
+        // The other person just turned secret chat on/off: re-read the state so the next send is encrypted (or not) correctly.
+        if (modeChanged) void secret.refresh();
         setError(
           result.error === "rate_limited"
             ? "Slow down a little."
             : result.error === "blocked"
               ? "This message couldn't be delivered."
-              : "Couldn't send that.",
+              : modeChanged
+                ? "This chat's secret setting just changed - tap send again."
+                : "Couldn't send that.",
         );
         setContent(text);
         setPendingAudio(audio);
@@ -1363,6 +1474,7 @@ export function ChatThread({
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col">
+      {!isGroup && <SecretChatBar secret={secret} peerName={conversationLabel} />}
       <div ref={messagesContainerRef} className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
         {visibleMessages.map((m, i) => {
           const mine = m.senderId === currentUserId;
@@ -1395,7 +1507,9 @@ export function ChatThread({
                 )}
               >
                 <MessageBubble
-                  message={m}
+                  message={viewOf(m)}
+                  secretActive={secret.active}
+                  encryptForEdit={secret.encrypt}
                   mine={mine}
                   currentUserId={currentUserId}
                   sender={sender}

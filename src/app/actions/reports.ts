@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireAdmin } from "@/lib/auth-guards";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { reportSchema, moderationActionSchema, flaggedContentActionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -27,8 +28,38 @@ export async function fileReport(formData: FormData) {
     return { error: "invalid" };
   }
 
+  let reportedUserId = parsed.data.reportedUserId;
+  let evidenceText: string | undefined;
+
+  if (parsed.data.targetType === "MESSAGE") {
+    // A message report has to be about a message the reporter can actually see:
+    // they must be in that conversation, and it can't be their own. The accused
+    // is taken from the message itself — never from the client.
+    const message = await prisma.message.findUnique({
+      where: { id: parsed.data.targetId },
+      select: { senderId: true, conversationId: true },
+    });
+    if (!message || message.senderId === user.id) {
+      return { error: "invalid" };
+    }
+    const membership = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
+      select: { id: true },
+    });
+    if (!membership) {
+      return { error: "invalid" };
+    }
+    reportedUserId = message.senderId;
+
+    // A secret (end-to-end encrypted) chat's messages are unreadable to us, so
+    // the reporter's own app attaches the decrypted text. It's the reporter's
+    // word — we can't verify it — and the admin queue says so.
+    const evidence = z.string().trim().max(4000).safeParse(formData.get("evidenceText") ?? "");
+    if (evidence.success && evidence.data) evidenceText = evidence.data;
+  }
+
   await prisma.report.create({
-    data: { ...parsed.data, reporterId: user.id },
+    data: { ...parsed.data, reportedUserId, evidenceText, reporterId: user.id },
   });
 
   revalidatePath("/admin/moderation");

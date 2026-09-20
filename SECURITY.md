@@ -112,6 +112,50 @@ actor and checks ownership/membership before writing.
 
 Re-verified the existing moderation gate (`src/lib/moderation.ts`, `src/app/actions/*.ts`) specifically against "share to YuKon3t from another app": the native Android Share sheet path (`src/lib/share-receiver.ts` → `share-target-store.ts`) does nothing but populate the exact same client-side composer/chat state a manually-attached photo, video, or typed caption would — it's consumed once, then flows through the same `createPost`/`sendMessage` server actions as everything else, which already run every post/comment/message/bio through OpenAI's text+image moderation before publish (see "Content moderation gate" above), with flagged media rejected and deleted outright, never stored pending. No separate code path exists for shared-in content to bypass. The two documented, deliberate exceptions to that gate — GIFs (trusted via Giphy's own pre-moderated catalog, gated by `isGiphyUrl`'s host check) and linked-video embeds (the video itself is moderated by YouTube/Vimeo, not this app) — apply identically regardless of whether the GIF/link was picked from this app's own pickers or arrived via the share sheet; both were already deliberate, budget/API-driven decisions recorded above, not left unreviewed.
 
+## Secret chats (end-to-end encrypted message text) — status: built, verified in a browser, 2026-09-20
+
+Opt-in, **1:1 conversations only**, and **text only**. Both people turn it on; until both have, the chat is an
+ordinary (scanned) chat and the UI says so. Groups are never secret.
+
+**Design** (`src/lib/e2ee/`, browser Web Crypto only — no third-party crypto code):
+- One long-lived ECDH **P-256** identity key pair per user. For a conversation both sides derive the same 256-bit key:
+  `HKDF-SHA256(ECDH(myPrivate, theirPublic), salt = conversationId, info = "yukon3t-secret-chat-v1")`.
+- Each message: **AES-256-GCM**, fresh random 96-bit IV, AAD = `conversationId + senderId`, so a ciphertext can't be
+  replayed into another conversation or attributed to another sender. Stored in `Message.content` as
+  `e2ee:v1:<iv>:<ciphertext>` — no message-table schema change.
+- The private key is backed up encrypted under the user's **recovery passphrase** (PBKDF2-HMAC-SHA256, 600,000
+  iterations, → AES-256-GCM, AAD = user id) in `UserEncryptionKey.wrappedPrivateKey`. The server holds the public key and
+  that opaque blob; it never holds anything that decrypts either.
+- On the device the private key lives in IndexedDB as a **non-extractable** `CryptoKey` (`key-store.ts`).
+
+**What the server enforces** (`secret-chat.ts`, applied in `sendMessage` / `editMessage`, unit-tested):
+- In a secret chat, non-empty text **must** be well-formed ciphertext — plaintext is refused (`plaintext_in_secret_chat`).
+- In a chat that is **not** secret, ciphertext-looking text is refused (`not_a_secret_chat`). Without this the
+  `e2ee:v1:` prefix would be a way to skip text moderation, since the server never scans ciphertext.
+- Nothing from a secret chat reaches the moderation API; push previews say "New secret message"; the inbox says
+  "🔒 Secret message"; story replies are declined there; corrections are not offered. The client also refuses (throws)
+  rather than ever falling back to plaintext when it can't encrypt.
+- Reporting a message from a secret chat attaches the **reporter's decrypted text** as `Report.evidenceText`. The admin
+  queue labels it reporter-supplied and unverifiable. `fileReport` now also verifies the reporter is in the
+  message's conversation and derives the accused from the message.
+
+**What is NOT protected — by design or by limitation:**
+- **No forward secrecy.** The identity key is long-lived; anyone who obtains a device's unlocked key can decrypt that
+  chat's stored history. (A double-ratchet protocol was considered and declined for now.)
+- **The server delivers public keys**, so a malicious or compromised server could substitute one (a man-in-the-middle).
+  Mitigations: the **security code** (both people compare it out of band) and trust-on-first-use **key-change
+  warnings** per conversation. Neither helps a user who never compares codes.
+- **Metadata is visible to us:** who talks to whom, when, message sizes and counts, that a chat is secret.
+- **Media is not encrypted** (photos, videos, voice notes, GIFs) and is still scanned — a deliberate choice, not a bug.
+- **Anything sent before both people opted in stays plaintext**, and turning secret chat off returns to scanned plaintext.
+- **A stolen session can fetch the passphrase-encrypted backup** and guess offline. PBKDF2 at 600k iterations and a
+  12-character minimum (the real protection is a long passphrase) slow that; the fetch is rate-limited
+  (`e2eeBackupFetch`, 10/h). It cannot be prevented.
+- **Page XSS** cannot read the non-extractable key out, but could ask the browser to use it while the page is open.
+- **Forgetting the passphrase is unrecoverable.** `resetEncryptionKeys` deletes the keys; messages under the old key can
+  then never be read again by either person, and the user's secret chats switch off.
+- Length is not hidden (no padding); a secret message is capped at 2,900 bytes so ciphertext fits the 4,000-char column.
+
 ## Known gaps / accepted risk
 
 - **Phone/ID verification was descoped** from the MVP to stay under the $200 budget (SMS OTP costs money per verification). Trust score is computed from free signals only (email verified, account age, profile completeness, report history). See the plan's budget-reconciliation note.
