@@ -7,7 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { shareToCircleSchema } from "@/lib/validations";
 import { canAccessChannel } from "@/lib/channel-permissions";
-import { canViewPost } from "@/lib/post-visibility";
+import { canViewPost, isMembersOnlyPost } from "@/lib/post-visibility";
 import {
   STORY_LIFETIME_MS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
@@ -110,8 +110,8 @@ export async function shareToCircle(formData: FormData) {
   if (root.visibility !== "PUBLIC") {
     return { error: "not_shareable" };
   }
-  // Members-only content never crosses into a different Circle (whose members may not be in this one).
-  if (root.circleId) {
+  // Members-only content (a PRIVATE Circle's) never crosses into a different Circle (whose members may not be in this one).
+  if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" };
   }
 
@@ -182,8 +182,8 @@ export async function shareToStory(postId: string) {
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" as const };
   }
-  // A Story is shown to the sharer's connections, who may not be in the Circle this post belongs to.
-  if (root.circleId) {
+  // A Story is shown to the sharer's connections, who may not be in the PRIVATE Circle this post belongs to.
+  if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" as const };
   }
 
@@ -270,8 +270,8 @@ export async function shareToMuse(postId: string) {
   if (root.visibility !== "PUBLIC") {
     return { error: "not_shareable" as const };
   }
-  // Muse is public to everyone; a Circle's members-only video must never land there.
-  if (root.circleId) {
+  // Muse is public to everyone; a PRIVATE Circle's members-only video must never land there.
+  if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" as const };
   }
 

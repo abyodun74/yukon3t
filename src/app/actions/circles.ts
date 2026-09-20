@@ -27,6 +27,7 @@ import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
+import { isMembersOnlyPost } from "@/lib/post-visibility";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
@@ -329,8 +330,9 @@ export async function deleteCircle(circleId: string) {
 
 /**
  * Owner or co-admin: renames a Circle and/or changes its categories (up to
- * 5, same bounds as creation — see circleSchema) and/or edits its theme (the
- * `description` column — the creation wizard's "Theme" step). The slug (used in its
+ * 5, same bounds as creation — see circleSchema), edits its theme (the
+ * `description` column — the creation wizard's "Theme" step) and/or its privacy
+ * (PUBLIC / PRIVATE). The slug (used in its
  * URL) is deliberately left untouched regardless of a name change —
  * regenerating it on every rename would break existing links/bookmarks/
  * notifications pointing at the old one.
@@ -356,11 +358,20 @@ export async function updateCircleDetails(circleId: string, formData: FormData) 
     name: formData.get("name"),
     description: formData.get("description"),
     category: formData.getAll("category"),
+    visibility: formData.get("visibility") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
   const { name, description, category } = parsed.data;
+
+  // Privacy. A sub-circle can never be more open than the main Circle it sits under (same rule as at creation).
+  let visibility = parsed.data.visibility ?? circle.visibility;
+  if (circle.parentId) {
+    const parent = await prisma.circle.findUnique({ where: { id: circle.parentId }, select: { visibility: true } });
+    if (parent) visibility = subCircleVisibility(parent.visibility, visibility);
+  }
+  const visibilityChanged = visibility !== circle.visibility;
 
   // Same text gate as creation (createCircle): name and theme together, so a
   // Circle can't be created clean and then edited into something that
@@ -370,11 +381,39 @@ export async function updateCircleDetails(circleId: string, formData: FormData) 
     return { error: "moderation" as const };
   }
 
-  await prisma.circle.update({ where: { id: circleId }, data: { name, description, category } });
+  await prisma.circle.update({ where: { id: circleId }, data: { name, description, category, visibility } });
   await updateCircleEmbedding(circleId, { name, description, category });
+
+  if (visibilityChanged && visibility === "PRIVATE") {
+    // Going private also takes a main Circle's sub-circles private (a sub-circle can't be more open than its parent),
+    // and pulls everything back to members-only: notifications that already told non-members about this Circle's
+    // posts / live streams would otherwise keep pointing at content they can no longer open.
+    const subs = await prisma.circle.findMany({
+      where: { parentId: circleId, visibility: "PUBLIC" },
+      select: { id: true, slug: true },
+    });
+    if (subs.length > 0) {
+      await prisma.circle.updateMany({ where: { id: { in: subs.map((s) => s.id) } }, data: { visibility: "PRIVATE" } });
+    }
+    for (const id of [circleId, ...subs.map((s) => s.id)]) {
+      await prisma.notification.deleteMany({
+        where: {
+          type: { in: ["SUBSCRIPTION_POST", "CONNECTION_POST", "SUBSCRIPTION_LIVE"] },
+          OR: [{ post: { circleId: id } }, { liveStream: { circleId: id } }],
+          recipient: { circleMemberships: { none: { circleId: id } } },
+        },
+      });
+    }
+    for (const s of subs) revalidatePath(`/circles/${s.slug}`);
+    await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+  } else if (visibilityChanged) {
+    // Going public: a pending "request to join" is moot now that anyone can join directly.
+    await prisma.circleJoinRequest.deleteMany({ where: { circleId, status: "PENDING" } });
+  }
 
   revalidatePath(`/circles/${circle.slug}`);
   revalidatePath("/circles");
+  revalidatePath("/home");
   return { error: null };
 }
 
@@ -838,10 +877,12 @@ export async function createPost(formData: FormData) {
   // anything other than PUBLIC visibility — a subscriber isn't necessarily
   // an accepted connection, so a Friends-only/Private post shouldn't point
   // them at something getVisiblePostsWhere would then just hide from them.
-  // Circle posts are for that Circle's members only, and are stored PUBLIC, so visibility alone can't tell them apart:
-  // without the circleId check the author's subscribers and connections (who need not be members) were notified about
-  // a post they can't open — revealing that it exists — and the Home feed was told to refetch.
-  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC" && !post.circleId) {
+  // A PRIVATE Circle's posts (and a private channel's) are members-only yet stored PUBLIC, so visibility alone can't
+  // tell them apart: without this check the author's subscribers and connections (who need not be members) were
+  // notified about a post they can't open — revealing that it exists — and the Home feed was told to refetch. Posts
+  // in a PUBLIC Circle are general/public and notify as before.
+  const membersOnly = await isMembersOnlyPost(post);
+  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC" && !membersOnly) {
     await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
     // Tells any open Home feed tab to refetch — both the matching category
     // tab and "All" (PostFeedSection's own category prop), same "thin
@@ -854,7 +895,7 @@ export async function createPost(formData: FormData) {
       publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed"),
       ...(feedCategory ? [publishEvent(REALTIME_CHANNELS.homeFeed(feedCategory), "changed")] : []),
     ]);
-  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY" && !post.circleId) {
+  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY" && !membersOnly) {
     // The PUBLIC branch above already reaches every accepted connection too
     // (accepting a connection request auto-subscribes both sides — see
     // respondToConnectionRequest in actions/connections.ts), so this is
@@ -943,11 +984,12 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
   }
   const circleMembership = await getCircleMembership(channel.circleId, user.id);
   const canModerate = isCircleAdmin(channel.circle, circleMembership, user);
-  // A Circle's posts are for its MEMBERS only — public Circle or private. (This used to hide them only for PRIVATE
-  // Circles and let anyone read a public Circle's public channels.) Matches the page's own `isNonMember` gate.
-  const isNonMember = !circleMembership && !canModerate;
+  // A private Circle hides its channels/posts from non-members entirely,
+  // even a channel that's itself marked PUBLIC — matches the page's own
+  // `isPrivateNonMember` gate.
+  const isPrivateNonMember = channel.circle.visibility === "PRIVATE" && !circleMembership && !canModerate;
   const canRead =
-    !isNonMember &&
+    !isPrivateNonMember &&
     (channel.visibility === "PUBLIC" || canModerate || channel.members.some((m) => m.userId === user.id));
   if (!canRead) {
     return { items: [], hasMore: false };

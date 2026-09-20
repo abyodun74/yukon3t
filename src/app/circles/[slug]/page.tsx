@@ -46,7 +46,7 @@ export default async function CirclePage({
         _count: { select: { members: true } },
         members: { where: { userId: me.id } },
         // Set only on a sub-circle: its main Circle, for the "Part of …" link.
-        parent: { select: { name: true, slug: true } },
+        parent: { select: { name: true, slug: true, visibility: true } },
         // Set only on a main Circle: its sub-circles, listed on this page.
         subCircles: {
           orderBy: { createdAt: "asc" },
@@ -71,9 +71,6 @@ export default async function CirclePage({
   const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
 
   const isPrivateNonMember = circle.visibility === "PRIVATE" && !isMember && !canModerate;
-  // A Circle's posts, channels, voice rooms and live streams are for its MEMBERS only — public Circle or private.
-  // "Public" only means anyone can find it and join; it doesn't put the Circle's content in front of non-members.
-  const isNonMember = !isMember && !canModerate;
 
   const accessibleChannels = circle.channels.filter(
     (c) => c.visibility === "PUBLIC" || canModerate || c.members.some((m) => m.userId === me.id),
@@ -102,7 +99,7 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
-    activeChannel?.type === "TEXT" && !isNonMember
+    activeChannel?.type === "TEXT" && !isPrivateNonMember
       ? prisma.post.findMany({
           where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
@@ -119,8 +116,9 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
-    // Circle-scoped live streams happening now — shown here (to members only) and nowhere else in the app.
-    !isNonMember
+    // Streams started for this Circle. A PRIVATE Circle's are shown here to its members only (and nowhere else in the
+    // app); a PUBLIC Circle's also appear in Home's "Live now" strip, and here for anyone who can see the Circle.
+    !isPrivateNonMember
       ? prisma.liveStream.findMany({
           where: { circleId: circle.id, status: "LIVE" },
           orderBy: { startedAt: "desc" },
@@ -179,6 +177,10 @@ export default async function CirclePage({
               description={circle.description}
               category={circle.category}
               categoryOptions={CIRCLE_CATEGORIES}
+              visibility={circle.visibility}
+              // A sub-circle under a private main Circle can't be more open than it.
+              visibilityLocked={circle.parent?.visibility === "PRIVATE"}
+              hasSubCircles={circle.subCircles.length > 0}
             />
           )}
         </div>
@@ -226,12 +228,6 @@ export default async function CirclePage({
             canAdd={isOwner && !circle.parentId}
           />
 
-          {isNonMember ? (
-            <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-              Join this Circle to see its channels, posts and live streams — they&apos;re only visible to members.
-            </p>
-          ) : (
-          <>
           {circleLiveStreams.length > 0 && (
             <div className="mt-6 space-y-2" data-testid="circle-live-now">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-danger">
@@ -330,8 +326,6 @@ export default async function CirclePage({
               )}
             </div>
           </div>
-          </>
-          )}
 
           {canModerate ? (
             <div className="mt-8">

@@ -9,7 +9,7 @@ import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
 import { HomeQuickActions } from "@/components/home-quick-actions";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getListablePostsWhere, NOT_CIRCLE_SCOPED } from "@/lib/post-visibility";
+import { getListablePostsWhere, NOT_MEMBERS_ONLY } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
@@ -48,8 +48,8 @@ export default async function HomePage({
         // admin's own HIDDEN posts don't leak into another admin's view
         // either.
         NOT: { author: { postsVisibility: "HIDDEN" as const } },
-        // Even an admin's wider feed never lists Circle-scoped posts (members-only, shown on the Circle's own page).
-        AND: [NOT_CIRCLE_SCOPED],
+        // Even an admin's wider feed never lists members-only (private Circle / private channel) posts.
+        AND: [NOT_MEMBERS_ONLY],
       }
     : await getListablePostsWhere(me.id);
   // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter

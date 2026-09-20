@@ -4,9 +4,10 @@ import { getBlockedEitherWayIds } from "@/lib/blocks";
 
 /**
  * The set of posts a viewer is allowed to see: their own; anything posted in
- * a Circle they belong to (member-only regardless of the post's own
- * visibility — a separate boundary, and circle posts are always stored
- * PUBLIC anyway, see createPost); and, for everyone else's non-Circle posts,
+ * a Circle they belong to; anything posted in a PUBLIC Circle (circle posts are
+ * always stored PUBLIC, see createPost — the Circle's own visibility is what
+ * decides, so a PRIVATE Circle's posts, and a private channel's, stay
+ * members-only); and, for everyone else's non-Circle posts,
  * whatever audience the author picked at compose time (Post.visibility —
  * "Everyone"/"Friends only"/"Private" in post-composer.tsx): PUBLIC posts to
  * anyone, CONNECTIONS_ONLY posts only to accepted connections, PRIVATE posts
@@ -39,6 +40,14 @@ export async function getVisiblePostsWhere(viewerId: string) {
       ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
       { authorId: viewerId },
       { circleId: null, visibility: "PUBLIC" as const },
+      // A post in a PUBLIC Circle (and not in one of its private channels) is as public as a general post: circle posts
+      // are always stored PUBLIC, and the Circle's own visibility is the boundary. Posts in a PRIVATE Circle reach only
+      // the member branch above.
+      {
+        visibility: "PUBLIC" as const,
+        circle: { visibility: "PUBLIC" as const },
+        OR: [{ channelId: null }, { channel: { visibility: "PUBLIC" as const } }],
+      },
       ...(connectionUserIds.length
         ? [{ circleId: null, visibility: "CONNECTIONS_ONLY" as const, authorId: { in: connectionUserIds } }]
         : []),
@@ -58,27 +67,51 @@ export async function getVisiblePostsWhere(viewerId: string) {
 }
 
 /**
- * Where-fragment that keeps Circle content OUT of any general listing (Home,
- * search, Explore). A Circle's posts are for that Circle's members and appear
- * only on that Circle's own page; the general feed shows general/public posts
- * only. Also drops a repost/share row whose original lives in a Circle — such
- * a row is itself stored circleId=null/PUBLIC but would render the members-only
- * original inline (reposting a Circle post is now refused, this covers the
- * ones made before that). NOT for single-post access (canViewPost, /post/[id]):
- * a member opening a Circle post from a notification must still work.
+ * A post only its Circle's members may see: made in a PRIVATE Circle, or in a
+ * private channel of any Circle. (Posts in a PUBLIC Circle are general/public.)
  */
-export const NOT_CIRCLE_SCOPED: Prisma.PostWhereInput = {
-  circleId: null,
-  NOT: [{ repostOf: { circleId: { not: null } } }, { sharedPost: { circleId: { not: null } } }],
+export const MEMBERS_ONLY_POST: Prisma.PostWhereInput = {
+  OR: [{ circle: { visibility: "PRIVATE" } }, { channel: { visibility: "PRIVATE" } }],
+};
+
+/**
+ * Where-fragment that keeps members-only content OUT of any general listing
+ * (Home, the feed API, search) — even for that Circle's own members, who read
+ * it on the Circle's page. Also drops a repost/share row whose original is
+ * members-only (such a row is itself a plain PUBLIC post but would render the
+ * original inline). NOT for single-post access (canViewPost, /post/[id]): a
+ * member opening a private-Circle post from a notification must still work.
+ */
+export const NOT_MEMBERS_ONLY: Prisma.PostWhereInput = {
+  NOT: [MEMBERS_ONLY_POST, { repostOf: MEMBERS_ONLY_POST }, { sharedPost: MEMBERS_ONLY_POST }],
 };
 
 /**
  * getVisiblePostsWhere for a general listing — the viewer's visible posts
- * minus everything Circle-scoped (see NOT_CIRCLE_SCOPED). Combined with AND so
+ * minus anything members-only (see NOT_MEMBERS_ONLY). Combined with AND so
  * neither side's own OR/NOT is clobbered.
  */
 export async function getListablePostsWhere(viewerId: string) {
-  return { AND: [await getVisiblePostsWhere(viewerId), NOT_CIRCLE_SCOPED] };
+  return { AND: [await getVisiblePostsWhere(viewerId), NOT_MEMBERS_ONLY] };
+}
+
+/** Pure rule behind isMembersOnlyPost: a PRIVATE Circle or a PRIVATE channel makes a post members-only. */
+export function isMembersOnly(circleVisibility?: string | null, channelVisibility?: string | null) {
+  return circleVisibility === "PRIVATE" || channelVisibility === "PRIVATE";
+}
+
+/**
+ * Whether a post may reach beyond its Circle's members: false for a general post
+ * or one in a PUBLIC Circle's public channel; true for a PRIVATE Circle's post
+ * or a private channel's. Gates repost/share/notify fan-out.
+ */
+export async function isMembersOnlyPost(post: { circleId: string | null; channelId: string | null }) {
+  if (!post.circleId) return false;
+  const [circle, channel] = await Promise.all([
+    prisma.circle.findUnique({ where: { id: post.circleId }, select: { visibility: true } }),
+    post.channelId ? prisma.channel.findUnique({ where: { id: post.channelId }, select: { visibility: true } }) : null,
+  ]);
+  return isMembersOnly(circle?.visibility, channel?.visibility);
 }
 
 /**

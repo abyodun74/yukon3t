@@ -141,6 +141,8 @@ export const updateCircleDetailsSchema = z.object({
   // creation (circleSchema above).
   description: z.string().trim().min(10).max(1000),
   category: z.array(z.string().trim().min(2).max(40)).min(1).max(5),
+  // Omitted = leave the Circle's privacy as it is.
+  visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
 });
 
 export const announcementSchema = z.object({

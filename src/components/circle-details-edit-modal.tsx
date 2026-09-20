@@ -6,6 +6,11 @@ import { Pencil, X } from "lucide-react";
 import { updateCircleDetails } from "@/app/actions/circles";
 import { MultiSelect } from "@/components/multi-select";
 
+const PRIVACY_OPTIONS = [
+  ["PUBLIC", "Public", "Anyone can find and join it, and its posts and live streams can appear on Home and in search."],
+  ["PRIVATE", "Private", "People request to join. Its posts and live streams are visible only to members and never appear on Home or in search."],
+] as const;
+
 function errorMessage(code: string) {
   switch (code) {
     case "moderation":
@@ -19,13 +24,16 @@ function errorMessage(code: string) {
   }
 }
 
-/** Owner/co-admin-only — mirrors ChannelSettingsModal's edit-in-a-modal pattern, for a Circle's name, theme and categories. The slug (and so its URL) never changes. */
+/** Owner/co-admin-only — mirrors ChannelSettingsModal's edit-in-a-modal pattern, for a Circle's name, theme, categories and privacy. The slug (and so its URL) never changes. */
 export function CircleDetailsEditModal({
   circleId,
   name,
   description,
   category,
   categoryOptions,
+  visibility,
+  visibilityLocked,
+  hasSubCircles,
 }: {
   circleId: string;
   name: string;
@@ -33,9 +41,15 @@ export function CircleDetailsEditModal({
   description: string;
   category: string[];
   categoryOptions: readonly string[];
+  visibility: "PUBLIC" | "PRIVATE";
+  /** A sub-circle under a private main Circle stays private — it can't be more open than its parent. */
+  visibilityLocked: boolean;
+  /** A main Circle going private also takes its sub-circles private. */
+  hasSubCircles: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState<"PUBLIC" | "PRIVATE">(visibility);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -118,6 +132,45 @@ export function CircleDetailsEditModal({
               />
             </div>
           </div>
+          <fieldset>
+            <legend className="text-xs font-medium text-foreground-soft">Privacy</legend>
+            {visibilityLocked ? (
+              <>
+                <input type="hidden" name="visibility" value="PRIVATE" />
+                <p className="mt-1 text-[11px] text-foreground-soft">
+                  Private — a sub-circle under a private Circle stays private.
+                </p>
+              </>
+            ) : (
+              <div className="mt-1 space-y-1.5">
+                {PRIVACY_OPTIONS.map(([value, label, help]) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg border border-line p-2 has-[:checked]:border-accent"
+                  >
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value={value}
+                      checked={privacy === value}
+                      onChange={() => setPrivacy(value)}
+                      className="mt-0.5"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{label}</span>
+                      <span className="block text-[11px] text-foreground-soft">{help}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {privacy === "PRIVATE" && visibility === "PUBLIC" && !visibilityLocked && (
+              <p className="mt-1.5 text-[11px] text-danger">
+                Making this Circle private hides its existing posts and live streams from non-members right away
+                {hasSubCircles ? ", and makes its sub-circles private too" : ""}. Anyone who is already a member stays a member.
+              </p>
+            )}
+          </fieldset>
           {error && <p className="text-xs text-danger">{error}</p>}
           <button
             type="submit"

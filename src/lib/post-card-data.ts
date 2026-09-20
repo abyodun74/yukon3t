@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isMembersOnly } from "@/lib/post-visibility";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import type { EmbedProvider } from "@/lib/video-embed";
 import type { ReactionSummary } from "@/lib/reactions";
@@ -40,8 +41,10 @@ type PostRow = EmbeddedPostRow & {
   // (see PostCard's visibility badge) — a repost/share's embedded original
   // doesn't render one, and is always PUBLIC for a Circle post regardless.
   visibility: "PUBLIC" | "CONNECTIONS_ONLY" | "PRIVATE";
-  // Set on a post made inside a Circle — PostCard hides repost/share for it (members-only content).
-  circleId?: string | null;
+  // Present when loaded with postCardInclude: lets attachViewerState tell members-only posts (a PRIVATE Circle's or a
+  // private channel's) apart, so PostCard can hide repost/share for them.
+  circle?: { visibility: "PUBLIC" | "PRIVATE" } | null;
+  channel?: { visibility: "PUBLIC" | "PRIVATE" } | null;
   repostOf: EmbeddedPostRow | null;
   sharedPost: EmbeddedPostRow | null;
 };
@@ -50,6 +53,8 @@ type PostRow = EmbeddedPostRow & {
 // that will be rendered through `<PostCard>` — keeps every call site's
 // selection in sync with what attachViewerState()/PostCard actually need.
 export const postCardInclude = {
+  circle: { select: { visibility: true } },
+  channel: { select: { visibility: true } },
   author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
   repostOf: {
     include: {
@@ -138,7 +143,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       createdAt: post.createdAt,
       editedAt: post.editedAt,
       visibility: post.visibility,
-      circleId: post.circleId,
+      membersOnly: isMembersOnly(post.circle?.visibility, post.channel?.visibility),
       author: post.author,
       likeCount: target.likeCount,
       commentCount: target.commentCount,

@@ -62,10 +62,11 @@ const sections: Section[] = [
         q: "What's the difference between Home, Discover, and Connections?",
         a: (
           <>
-            <strong>Home</strong> is your feed — general posts from people
-            you&apos;re connected to and everyone who posts publicly.
-            Anything shared to a Circle stays in that Circle and never shows
-            up here. <strong>Discover</strong>{" "}
+            <strong>Home</strong> is your feed — posts from people
+            you&apos;re connected to and everyone who posts publicly,
+            including posts in public Circles. Posts in a private Circle
+            stay in that Circle and never show up here.{" "}
+            <strong>Discover</strong>{" "}
             is how you find new people by country, language, or interest.{" "}
             <strong>Connections</strong> is your list of accepted connections
             plus any pending requests you&apos;ve sent or received.
@@ -377,10 +378,11 @@ const sections: Section[] = [
             subscribe to someone you&apos;re already connected with. You can
             still unsubscribe afterward without affecting the connection
             itself. Both icons sit next to the share icon on every post you
-            see — Home, search results, and Collab Board postings. Posts
-            shared to a Circle are members-only, so they don&apos;t
-            notify your subscribers or connections and can&apos;t be
-            reposted or shared outside the Circle.
+            see — Home, a Circle&apos;s feed, search results, and Collab
+            Board postings. Posts in a public Circle notify your subscribers
+            and connections like any public post; posts in a private Circle
+            are members-only, so they don&apos;t notify anyone outside it and
+            can&apos;t be reposted or shared out.
           </>
         ),
       },
@@ -459,10 +461,10 @@ const sections: Section[] = [
           <>
             Tap &ldquo;Go Live&rdquo; above the Home feed, give it a title,
             and choose who can watch: <strong>Everyone</strong> or one of
-            your Circles or sub-circles. To join a stream that&apos;s open to
-            everyone, tap their avatar in the &ldquo;Live now&rdquo; strip on
-            Home and choose to watch, or ask to join the stage. A
-            Circle&apos;s own streams appear in a &ldquo;Live now&rdquo;
+            your Circles or sub-circles. To join a stream, tap the
+            host&apos;s avatar in the &ldquo;Live now&rdquo; strip on Home
+            and choose to watch, or ask to join the stage. A
+            Circle&apos;s own streams also appear in a &ldquo;Live now&rdquo;
             section at the top of that Circle&apos;s page.
           </>
         ),
@@ -471,13 +473,16 @@ const sections: Section[] = [
         q: "Who can see a live stream I start for a Circle?",
         a: (
           <>
-            Only that Circle&apos;s (or sub-circle&apos;s) members. A stream
-            you start for a Circle never appears on Home, in the &ldquo;Live
-            now&rdquo; strip, or anywhere else in the app, isn&apos;t
-            announced to your subscribers or connections, and its page,
-            chat, and recordings are closed to anyone outside the Circle —
-            even with the link. Only a stream you start for
-            &ldquo;Everyone&rdquo; is shown on Home.
+            It depends on the Circle&apos;s privacy. A stream for a{" "}
+            <strong>public</strong> Circle (or for Everyone) shows in the
+            Home &ldquo;Live now&rdquo; strip and is announced to your
+            subscribers, like any public stream. A stream for a{" "}
+            <strong>private</strong> Circle or sub-circle is seen only by that
+            Circle&apos;s members: it never appears on Home or anywhere else
+            in the app, isn&apos;t announced to anyone outside the Circle, and
+            its page, chat, and recordings are closed to non-members — even
+            with the link. Members find it in the &ldquo;Live now&rdquo;
+            section on the Circle&apos;s page.
           </>
         ),
       },
@@ -930,18 +935,19 @@ const sections: Section[] = [
         q: "Who can see what's shared in a Circle or sub-circle?",
         a: (
           <>
-            Only its members. Posts, videos, channel conversations, voice
-            rooms, and live streams in a Circle (or sub-circle) are visible
-            only to that Circle&apos;s members — even if the Circle itself is
-            public. A public Circle can be found and joined by anyone, but
-            what&apos;s inside stays hidden until you join. Circle content
-            doesn&apos;t appear on Home, in search, or on anyone&apos;s
-            profile, and can&apos;t be reposted, shared to a Story or Muse, or
-            forwarded into another Circle. Only posts and live streams shared
-            with &ldquo;Everyone&rdquo; show up on Home. Each sub-circle keeps
-            its own separate membership: being in the main Circle
-            doesn&apos;t let you see a sub-circle&apos;s content, and vice
-            versa.
+            That depends on the Circle&apos;s privacy. A{" "}
+            <strong>public</strong> Circle&apos;s posts, videos and live
+            streams are public: they can appear on Home and in search, can be
+            reposted or shared to a Story, Muse or another Circle, and
+            notify subscribers like any public post. A{" "}
+            <strong>private</strong> Circle&apos;s (or sub-circle&apos;s)
+            posts, videos, channel conversations, voice rooms and live streams
+            are visible only to its members — never on Home, in search, or on
+            profiles, and they can&apos;t be reposted or shared out. A
+            private channel inside a public Circle is members-only in the same
+            way. Each sub-circle has its own privacy and its own membership:
+            being in the main Circle doesn&apos;t let you see a private
+            sub-circle&apos;s content, and vice versa.
           </>
         ),
       },
@@ -960,15 +966,20 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Can I rename my Circle or change its theme or categories after creating it?",
+        q: "Can I rename my Circle or change its theme, categories or privacy after creating it?",
         a: (
           <>
             Yes — the owner or a co-admin can tap the pencil icon next to the
             Circle&apos;s name on its page to change the name, its theme (the
             description of what the Circle is about that you wrote when
-            creating it), and/or its categories at any time. Its URL never
-            changes when you rename it, so existing links and bookmarks to it
-            keep working.
+            creating it), its categories, and/or its privacy (public or
+            private) at any time. Its URL never changes when you rename it, so
+            existing links and bookmarks to it keep working. Making a Circle
+            private hides its posts and live streams from non-members right
+            away (and makes its sub-circles private too); existing members
+            stay. Making it public lets anyone join and see it, and clears any
+            pending join requests since they&apos;re no longer needed. A
+            sub-circle under a private Circle can&apos;t be made public.
           </>
         ),
       },

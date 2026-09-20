@@ -86,12 +86,14 @@ export async function startLiveStream(formData: FormData) {
     where: { id: liveStream.id },
     data: { roomName: room.name, roomUrl: room.url },
   });
-  if (circleId) {
-    // A Circle-scoped stream is for that Circle's members only. Telling all of the host's subscribers "X is live"
+  const circle = circleId ? await prisma.circle.findUnique({ where: { id: circleId }, select: { visibility: true } }) : null;
+  if (circle?.visibility === "PRIVATE") {
+    // A PRIVATE Circle's stream is for that Circle's members only. Telling all of the host's subscribers "X is live"
     // would reveal it exists and hand them its id, so only subscribers who are ALSO members hear about it.
     const members = await prisma.circleMembership.findMany({ where: { circleId }, select: { userId: true } });
     await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id }, { onlyRecipientIds: members.map((m) => m.userId) });
   } else {
+    // "Everyone" or a PUBLIC Circle: announced to all the host's subscribers.
     await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
   }
   await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
@@ -214,7 +216,7 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
     if (!liveStream || liveStream.status !== "LIVE") {
       return { error: "not_found" as const };
     }
-    if (liveStream.circleId && !(await getCircleMembership(liveStream.circleId, user.id))) {
+    if (!(await canAccessLiveStream(liveStream, user))) {
       return { error: "not_a_member" as const };
     }
 
@@ -427,17 +429,17 @@ export async function leaveLiveStream(liveStreamId: string) {
 }
 
 /**
- * The Home "Live now" strip: ONLY streams started for "Everyone" (no circleId).
- * A stream started for a specific Circle or sub-circle never appears here — not
- * even to that Circle's own members. It's shown on that Circle's page instead
- * (src/app/circles/[slug]/page.tsx), to its members only.
+ * The Home "Live now" strip: streams started for "Everyone" (no circleId) and
+ * for a PUBLIC Circle. A stream started for a PRIVATE Circle or sub-circle never
+ * appears here — not even to that Circle's own members; it's shown on that
+ * Circle's page instead (src/app/circles/[slug]/page.tsx), to its members only.
  */
 export async function getActiveLiveStreams() {
   try {
     await requireVerifiedUser();
 
     const streams = await prisma.liveStream.findMany({
-      where: { status: "LIVE", circleId: null },
+      where: { status: "LIVE", OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" } }] },
       orderBy: { startedAt: "desc" },
       include: {
         host: { select: { id: true, name: true, avatarUrl: true } },
@@ -517,8 +519,8 @@ export async function getLiveStreamStageUserIds(liveStreamId: string) {
 /**
  * Lists cloud recordings for this stream's room, fetched live from Daily.
  * Same access rule as the stream itself (canAccessLiveStream): an "Everyone"
- * stream's recordings are open to any verified user, a Circle-scoped one's
- * only to that Circle's members.
+ * or PUBLIC-Circle stream's recordings are open to any verified user, a
+ * PRIVATE Circle's only to that Circle's members.
  */
 export async function listLiveStreamRecordings(liveStreamId: string) {
   let user;
@@ -596,7 +598,7 @@ export async function sendLiveStreamComment(liveStreamId: string, formData: Form
   if (!liveStream || liveStream.status !== "LIVE") {
     return { error: "not_found" as const };
   }
-  if (liveStream.circleId && !(await getCircleMembership(liveStream.circleId, user.id))) {
+  if (!(await canAccessLiveStream(liveStream, user))) {
     return { error: "not_a_member" as const };
   }
 

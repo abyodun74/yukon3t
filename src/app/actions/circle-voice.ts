@@ -5,6 +5,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { createCallRoom, createMeetingToken, isCallingConfigured } from "@/lib/daily";
 import { canAccessChannel } from "@/lib/channel-permissions";
+import { isMembersOnly } from "@/lib/post-visibility";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { publishEvent } from "@/lib/realtime-server";
@@ -105,12 +106,12 @@ export async function getCircleVoiceParticipants(channelId: string) {
   try {
     const user = await requireVerifiedUser();
 
-    // Who's in a voice room is Circle-members-only information, same as the room itself.
+    // Who's in a PRIVATE Circle's (or a private channel's) voice room is members-only information, same as the room.
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
       include: { circle: true },
     });
-    if (!channel || !(await canAccessChannel(channel, channel.circle, user))) {
+    if (!channel || (isMembersOnly(channel.circle.visibility, channel.visibility) && !(await canAccessChannel(channel, channel.circle, user)))) {
       return { participants: [] };
     }
 
@@ -234,7 +235,7 @@ export async function getVoiceChannelInviteCounts(channelId: string) {
   const user = await requireVerifiedUser();
 
   const channel = await prisma.channel.findUnique({ where: { id: channelId }, include: { circle: true } });
-  if (!channel || !(await canAccessChannel(channel, channel.circle, user))) {
+  if (!channel || (isMembersOnly(channel.circle.visibility, channel.visibility) && !(await canAccessChannel(channel, channel.circle, user)))) {
     return { pending: 0, accepted: 0, declined: 0 };
   }
 

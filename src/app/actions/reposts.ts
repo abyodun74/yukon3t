@@ -8,7 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { notifySubscribers } from "@/lib/notify-subscribers";
-import { canViewPost } from "@/lib/post-visibility";
+import { canViewPost, isMembersOnlyPost } from "@/lib/post-visibility";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
@@ -59,10 +59,10 @@ export async function repost(formData: FormData) {
   if (root.visibility !== "PUBLIC") {
     return { error: "not_shareable" };
   }
-  // A Circle's posts are for that Circle's members only. They're stored PUBLIC (visibility is the author's audience
-  // choice for NON-Circle posts), so the check above lets them through — without this any member could republish a
-  // members-only post to their own public profile and feed.
-  if (root.circleId) {
+  // A PRIVATE Circle's posts (and a private channel's) are stored PUBLIC too, so the check above lets them through —
+  // without this any member could republish a members-only post to their own public profile and feed. Posts in a
+  // PUBLIC Circle are general/public and stay shareable.
+  if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" };
   }
 
