@@ -8,7 +8,7 @@ import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallToUser } from "@/lib/fcm";
-import { sendVoipCallToUser } from "@/lib/apns-voip";
+import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { track } from "@/lib/analytics";
 import { publishEvent } from "@/lib/realtime-server";
@@ -277,6 +277,17 @@ export async function endCall(callId: string) {
       callerName: user.name ?? "Someone",
       calleeId: call.calleeId,
     });
+  } else {
+    // The call was already answered (or the callee ended it while it was
+    // still ringing) — the callee's device is the only side that ever gets
+    // a CallKit-reported call (see startCall's sendVoipCallToUser, always
+    // sent to calleeId), and nothing else ever tells CallKit that report
+    // is over once it's been answered. Confirmed live: skipping this left
+    // a "residual" call CallKit still believed was active indefinitely,
+    // which also corrupted whether a *later* incoming call correctly
+    // reported itself as video vs audio. No-ops on a non-iOS/untokened
+    // callee, same as every other VoIP send in this app.
+    await sendVoipCallCancelToUser(call.calleeId, callId).catch(() => {});
   }
 
   return { error: null };
