@@ -90,6 +90,10 @@ export function AdBookingForm() {
   // Bumping turnstileReset discards the spent token after each attempt.
   const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const turnstileTokenRef = useRef<string | null>(null);
+  // Set once the widget stops waiting for a token (timeout / widget error).
+  // The server is the only enforcer, so past that point this form submits
+  // anyway rather than trapping the advertiser — see TurnstileWidget.
+  const turnstileGaveUpRef = useRef(false);
   const [turnstileReset, setTurnstileReset] = useState(0);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -181,7 +185,7 @@ export function AdBookingForm() {
       setError("Add a photo or video for your ad.");
       return;
     }
-    if (turnstileRequired && !turnstileTokenRef.current) {
+    if (turnstileRequired && !turnstileTokenRef.current && !turnstileGaveUpRef.current) {
       setError("Finishing the security check — try again in a moment.");
       return;
     }
@@ -226,11 +230,14 @@ export function AdBookingForm() {
         // Read now, after the uploads above — a long video upload can outlive
         // a token, and the widget refreshes it in the background.
         const token = turnstileTokenRef.current;
-        if (!token) {
+        if (token) {
+          fd.set(TURNSTILE_RESPONSE_FIELD, token);
+        } else if (!turnstileGaveUpRef.current) {
           setError("The security check expired — wait a moment and try again.");
           return;
         }
-        fd.set(TURNSTILE_RESPONSE_FIELD, token);
+        // No token and the widget gave up: submit without one and let the
+        // server decide (it rejects with "captcha" only if it's enforcing).
       }
 
       try {
@@ -495,6 +502,10 @@ export function AdBookingForm() {
         resetSignal={turnstileReset}
         onToken={(token) => {
           turnstileTokenRef.current = token;
+          if (token) turnstileGaveUpRef.current = false;
+        }}
+        onGiveUp={() => {
+          turnstileGaveUpRef.current = true;
         }}
       />
 

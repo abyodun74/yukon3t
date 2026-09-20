@@ -28,6 +28,10 @@ declare global {
   }
 }
 
+// How long a submit is held back waiting for a token before the widget
+// stops standing in the way — see the "give up" note on TurnstileWidget.
+const GIVE_UP_AFTER_MS = 10_000;
+
 let scriptPromise: Promise<void> | null = null;
 
 // Loaded once per page, on demand. Appended from a script that already
@@ -50,8 +54,6 @@ function loadTurnstileScript(): Promise<void> {
   return scriptPromise;
 }
 
-type Status = "loading" | "ready" | "error";
-
 /**
  * Cloudflare Turnstile bot check. Renders nothing at all until
  * NEXT_PUBLIC_TURNSTILE_SITE_KEY is set (see src/lib/turnstile.ts), and is
@@ -62,11 +64,22 @@ type Status = "loading" | "ready" | "error";
  *  - Inside a <form>: Cloudflare writes it into a hidden
  *    `cf-turnstile-response` input, so a server-action form needs nothing
  *    else. This component also guards that form: a submit that arrives
- *    before the token is ready is held back with a message instead of
- *    reaching the server just to be rejected.
+ *    while the token is still on its way is held back with a message
+ *    instead of reaching the server just to be rejected.
  *  - Outside a form (ad-booking-form.tsx builds its own FormData): pass
  *    `onToken`, which fires with the token, and with null once it's spent or
- *    expired.
+ *    expired; `onGiveUp` fires if none arrives (see below).
+ *
+ * The server is the ONLY thing that enforces (src/lib/turnstile.ts). This
+ * client guard exists purely to spare people a wasted round trip, so it must
+ * never be able to lock anyone out by itself: if no token has arrived after
+ * GIVE_UP_AFTER_MS, or the widget reports an error (script blocked, bad
+ * hostname config, network), it stops holding submits back and lets them
+ * through. If the server is enforcing, it rejects the tokenless submit with
+ * a clear message; if it isn't (only the site key is configured), sign-in
+ * just works. Without this, a half-configured deploy — site key baked into
+ * the client bundle, secret not set — would block every sign-in in the
+ * browser while enforcing nothing on the server.
  *
  * A token is single-use and is consumed by the server-side check whether or
  * not the action then succeeds, so after every submit — and after any
@@ -76,10 +89,13 @@ type Status = "loading" | "ready" | "error";
  */
 export function TurnstileWidget({
   onToken,
+  onGiveUp,
   resetSignal = 0,
   className,
 }: {
   onToken?: (token: string | null) => void;
+  /** Called when no token arrived in time, or the widget errored — stop waiting for one. */
+  onGiveUp?: () => void;
   /** Bump this to discard the current token and get a fresh one. */
   resetSignal?: number;
   className?: string;
@@ -88,15 +104,19 @@ export function TurnstileWidget({
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const tokenRef = useRef<string | null>(null);
-  const onTokenRef = useRef(onToken);
+  // True once we've stopped waiting for a token (timeout or widget error).
   // A ref, not state: handleSubmit below is a native listener created once
-  // per mount, so it has to read the *current* status when a submit arrives,
-  // not the value captured when the effect ran.
-  const statusRef = useRef<Status>("loading");
+  // per mount, so it has to read the *current* value when a submit arrives.
+  const gaveUpRef = useRef(false);
+  const onTokenRef = useRef(onToken);
+  const onGiveUpRef = useRef(onGiveUp);
+  // Lets the resetSignal effect below reach the mount effect's own helper.
+  const discardTokenRef = useRef<(() => void) | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     onTokenRef.current = onToken;
+    onGiveUpRef.current = onGiveUp;
   });
 
   useEffect(() => {
@@ -104,15 +124,43 @@ export function TurnstileWidget({
     if (!siteKey || !container) return undefined;
 
     let cancelled = false;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function giveUp() {
+      clearTimeout(graceTimer);
+      if (cancelled || tokenRef.current) return;
+      gaveUpRef.current = true;
+      setNotice(null);
+      onGiveUpRef.current?.();
+    }
+
+    // Start (or restart) the clock on waiting for a token.
+    function armGrace() {
+      clearTimeout(graceTimer);
+      gaveUpRef.current = false;
+      graceTimer = setTimeout(giveUp, GIVE_UP_AFTER_MS);
+    }
 
     function setToken(token: string | null) {
       tokenRef.current = token;
       onTokenRef.current?.(token);
       if (token) {
-        statusRef.current = "ready";
+        clearTimeout(graceTimer);
+        gaveUpRef.current = false;
         setNotice(null);
+      } else {
+        armGrace();
       }
     }
+
+    // Spent (or expired) token: drop it and fetch a fresh one.
+    function discardToken() {
+      setToken(null);
+      if (widgetIdRef.current) window.turnstile?.reset(widgetIdRef.current);
+    }
+    discardTokenRef.current = discardToken;
+
+    armGrace();
 
     loadTurnstileScript()
       .then(() => {
@@ -126,38 +174,34 @@ export function TurnstileWidget({
           "expired-callback": () => setToken(null),
           "timeout-callback": () => setToken(null),
           "error-callback": () => {
-            setToken(null);
-            statusRef.current = "error";
+            tokenRef.current = null;
+            onTokenRef.current?.(null);
+            giveUp();
           },
         });
       })
-      .catch(() => {
-        if (!cancelled) statusRef.current = "error";
-      });
+      .catch(() => giveUp());
 
     const form = container.closest("form");
     function handleSubmit(e: Event) {
       if (!tokenRef.current) {
-        e.preventDefault();
-        setNotice(
-          statusRef.current === "error"
-            ? "Couldn't load the security check. Turn off any content blocker or try another network, then reload."
-            : "Finishing the security check — try again in a moment.",
-        );
+        if (!gaveUpRef.current) {
+          e.preventDefault();
+          setNotice("Finishing the security check — try again in a moment.");
+        }
+        // else: we've stopped waiting — let the server decide.
         return;
       }
       // Deferred so the form's FormData is captured with this token first;
       // then get a new one for the next attempt (this one is spent).
-      setTimeout(() => {
-        tokenRef.current = null;
-        onTokenRef.current?.(null);
-        if (widgetIdRef.current) window.turnstile?.reset(widgetIdRef.current);
-      }, 0);
+      setTimeout(discardToken, 0);
     }
     form?.addEventListener("submit", handleSubmit);
 
     return () => {
       cancelled = true;
+      clearTimeout(graceTimer);
+      discardTokenRef.current = null;
       form?.removeEventListener("submit", handleSubmit);
       if (widgetIdRef.current) {
         window.turnstile?.remove(widgetIdRef.current);
@@ -171,9 +215,7 @@ export function TurnstileWidget({
   const firstResetSignal = useRef(resetSignal);
   useEffect(() => {
     if (resetSignal === firstResetSignal.current) return;
-    tokenRef.current = null;
-    onTokenRef.current?.(null);
-    if (widgetIdRef.current) window.turnstile?.reset(widgetIdRef.current);
+    discardTokenRef.current?.();
   }, [resetSignal]);
 
   if (!siteKey) return null;

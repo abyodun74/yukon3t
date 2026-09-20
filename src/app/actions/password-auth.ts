@@ -255,6 +255,14 @@ export async function loginWithPassword(formData: FormData) {
   if (!(await verifyTurnstile(formData, ip))) {
     redirect("/sign-in?error=captcha");
   }
+  // Skipped when the IP couldn't be determined: every such request would
+  // otherwise share one "unknown" bucket and throttle everyone together.
+  if (ip !== "unknown") {
+    const ipAllowed = await checkRateLimit("passwordLoginIp", `loginip:${ip}`);
+    if (!ipAllowed) {
+      redirect("/sign-in?error=rate_limited");
+    }
+  }
   const parsed = loginSchema.safeParse({
     identifier: formData.get("identifier"),
     password: formData.get("password"),

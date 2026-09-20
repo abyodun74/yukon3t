@@ -61,6 +61,14 @@ export const rateLimiters = {
   signIn: makeLimiter(5, "10 m"),
   passwordSignUp: makeLimiter(5, "1 h"),
   passwordLogin: makeLimiter(10, "10 m"),
+  // Per-IP ceiling across ALL accounts, on top of passwordLogin's per-IP+
+  // account bucket above — that one alone lets a single IP try unlimited
+  // different accounts (credential stuffing), bounded only by pageRequest's
+  // 300/min. Deliberately loose: mobile carriers (CGNAT) put thousands of
+  // real users behind one shared IP, and every attempt counts, successful or
+  // not, so a tight cap here would lock legitimate people out. 100 per 10
+  // minutes still cuts a stuffing run from ~18,000 tries/hour per IP to 600.
+  passwordLoginIp: makeLimiter(100, "10 m"),
   passwordResetRequest: makeLimiter(5, "1 h"),
   call: makeLimiter(20, "10 m"),
   messageSend: makeLimiter(20, "1 m"),
