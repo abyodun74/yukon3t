@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { confirmPasswordChangeDeviceChallenge, resendPasswordChangeDeviceChallenge } from "@/app/actions/profile";
 import { SubmitButton } from "@/components/submit-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_code: "That code didn't match — check it and try again.",
@@ -10,6 +11,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   too_many_attempts: "Too many wrong attempts — request a new code below.",
   not_found: "That verification link is no longer valid — request a new code below.",
   rate_limited: "Too many attempts. Please wait a bit and try again.",
+  captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
 };
 
 export default async function VerifyDeviceSettingsPage({
@@ -72,6 +74,7 @@ export default async function VerifyDeviceSettingsPage({
           placeholder="000000"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
         />
+        <TurnstileWidget />
         <SubmitButton
           label="Confirm password change"
           pendingLabel="Confirming..."
@@ -81,6 +84,7 @@ export default async function VerifyDeviceSettingsPage({
 
       <form action={resendPasswordChangeDeviceChallenge} className="mt-4">
         <input type="hidden" name="challengeId" value={challenge.id} />
+        <TurnstileWidget />
         <SubmitButton
           label="Resend code"
           pendingLabel="Resending..."

@@ -94,17 +94,18 @@ export default async function SignInPage({
           </p>
         )}
         {passwordError && (
-          <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          <div className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
             {error === "unverified" && email && (
               <form action={resendEmailOtp} className="mt-2">
                 <input type="hidden" name="email" value={email} />
+                <TurnstileWidget />
                 <button type="submit" className="font-medium underline">
                   Resend confirmation code
                 </button>
               </form>
             )}
-          </p>
+          </div>
         )}
 
         <form action={loginWithPassword} className="mt-3 space-y-3">

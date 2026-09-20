@@ -21,6 +21,8 @@ import { signOut } from "@/lib/auth";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
+import { getClientIp } from "@/lib/client-ip";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -259,6 +261,9 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
   const challengeId = String(formData.get("challengeId") ?? "");
   const code = String(formData.get("code") ?? "").trim();
 
+  if (!(await verifyTurnstile(formData, await getClientIp()))) {
+    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
+  }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${user.id}`);
   if (!allowed) {
     redirect(`/settings/verify-device?challengeId=${challengeId}&error=rate_limited`);
@@ -285,6 +290,10 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
 export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
   const user = await requireUser();
   const challengeId = String(formData.get("challengeId") ?? "");
+
+  if (!(await verifyTurnstile(formData, await getClientIp()))) {
+    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
+  }
 
   const existing = await prisma.securityChallenge.findUnique({ where: { id: challengeId } });
   if (

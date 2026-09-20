@@ -2,6 +2,7 @@ import Link from "next/link";
 import { confirmLoginDeviceChallenge, resendLoginDeviceChallenge } from "@/app/actions/password-auth";
 import { readPendingDeviceChallengeCookie } from "@/lib/device-challenge";
 import { SubmitButton } from "@/components/submit-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_code: "That code didn't match — check it and try again.",
@@ -9,6 +10,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   too_many_attempts: "Too many wrong attempts — request a new code below.",
   not_found: "That verification link is no longer valid — request a new code below.",
   rate_limited: "Too many attempts. Please wait a bit and try again.",
+  captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
 };
 
 export default async function VerifyDevicePage({
@@ -67,6 +69,7 @@ export default async function VerifyDevicePage({
           placeholder="000000"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
         />
+        <TurnstileWidget />
         <SubmitButton
           label="Confirm and sign in"
           pendingLabel="Confirming..."
@@ -75,6 +78,7 @@ export default async function VerifyDevicePage({
       </form>
 
       <form action={resendLoginDeviceChallenge} className="mt-4">
+        <TurnstileWidget />
         <SubmitButton
           label="Resend code"
           pendingLabel="Resending..."

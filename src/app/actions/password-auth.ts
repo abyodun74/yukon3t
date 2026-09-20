@@ -217,6 +217,13 @@ export async function resendEmailOtp(formData: FormData) {
   const ip = await clientIp();
   const pending = await readPendingVerification();
 
+  // Each resend is a real outbound email. The two entry points land on
+  // different pages, so the failure goes back to whichever one it came from
+  // (the /sign-in one has no pending cookie — it's the "unverified" box).
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect(pending ? "/verify-email?error=captcha" : "/sign-in?error=captcha");
+  }
+
   if (!pending) {
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     if (!email) {
@@ -389,6 +396,9 @@ export async function confirmLoginDeviceChallenge(formData: FormData) {
   }
 
   const ip = await clientIp();
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/sign-in/verify-device?error=captcha");
+  }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${ip}:${pending.sub}`);
   if (!allowed) {
     redirect("/sign-in/verify-device?error=rate_limited");
@@ -417,10 +427,14 @@ export async function confirmLoginDeviceChallenge(formData: FormData) {
   redirect("/home");
 }
 
-export async function resendLoginDeviceChallenge() {
+export async function resendLoginDeviceChallenge(formData: FormData) {
   const pending = await readPendingDeviceChallengeCookie();
   if (!pending) {
     redirect("/sign-in");
+  }
+
+  if (!(await verifyTurnstile(formData, await clientIp()))) {
+    redirect("/sign-in/verify-device?error=captcha");
   }
 
   const allowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${pending.sub}`);

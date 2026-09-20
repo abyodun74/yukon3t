@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { resendEmailOtp, confirmEmailOtp, ensureFreshEmailOtp } from "@/app/actions/password-auth";
 import { readPendingVerification } from "@/lib/pending-verification";
 import { SubmitButton } from "@/components/submit-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_code: "That code didn't match — check it and try again.",
   expired: "That code expired — we've sent you a new one.",
   too_many_attempts: "Too many wrong attempts — we've sent you a new code.",
   rate_limited: "Too many attempts. Please wait a bit and try again.",
+  captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
 };
 
 export default async function VerifyEmailPage({
@@ -126,6 +128,7 @@ export default async function VerifyEmailPage({
       </form>
 
       <form action={resendEmailOtp} className="mt-4">
+        <TurnstileWidget />
         <SubmitButton
           label="Resend code"
           pendingLabel="Resending..."
