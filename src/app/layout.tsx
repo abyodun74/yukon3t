@@ -106,9 +106,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   // Both native shells deliberately render edge-to-edge under the status
-  // bar/notch (capacitor.config.ts's iOS contentInset: "automatic", and
-  // Android's StatusBar plugin default of overlaysWebView: true) rather than
-  // leaving a hard gap above the page. Without `viewport-fit=cover` in the
+  // bar/notch (capacitor.config.ts's iOS contentInset: "never" — WKWebView's
+  // own "automatic" inset handling fought with this same CSS-based approach
+  // and was dropped for it, see that file's own comment — and Android's
+  // StatusBar plugin default of overlaysWebView: true) rather than leaving a
+  // hard gap above the page. Without `viewport-fit=cover` in the
   // meta tag, though, `env(safe-area-inset-*)` reports 0 everywhere — the
   // spec only populates it once the layout viewport is told it's allowed to
   // extend into the safe area — so nothing in the app could actually react

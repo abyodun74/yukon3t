@@ -92,6 +92,18 @@
 }
 
 html {
+  /* Safety net against horizontal page-level scroll: a single long
+     unbroken string (a long URL, hashtag, username) anywhere on the page
+     could otherwise overflow its container's width and make the whole
+     page horizontally scrollable — on iOS specifically, that leaves
+     `position: fixed` chrome (the bottom nav, sticky headers) visibly
+     "static" against content that shifts under it as the user scrolls
+     sideways, reading as broken/clipped layout that never seems to
+     "settle." overflow-wrap below fixes the actual cause (the long string
+     itself never wrapping); this is the backstop for anything else that
+     manages to overflow regardless.
+  */
+  overflow-x: hidden;
   /* Stops the native rubber-band/bounce overscroll at the top and bottom of
      the page — on Android specifically, letting that overscroll gesture
      complete is what lets the system WebView's own anti-phishing safety UI
@@ -111,6 +123,15 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   overscroll-behavior-y: contain;
+  overflow-x: hidden;
+  /* Lets a long unbroken string (a URL, hashtag, or username with no
+     spaces to break on) wrap onto a new line instead of overflowing its
+     container — the actual source of the horizontal-overflow problem
+     overflow-x: hidden above only masks. Applies sitewide since any text
+     surface (a post, a bio, a message) can contain user-entered text like
+     this, not just one specific component. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .font-display {
