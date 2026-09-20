@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard, MessageCircle } from "lucide-react";
@@ -45,7 +45,41 @@ function bottomTabs(userId: string) {
 }
 
 export function Nav({ session, theme }: { session: Session | null; theme: Theme }) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Nav lives in the root layout and survives every navigation, so `open`
+  // used to stay true when the route changed by any means OTHER than tapping
+  // a link inside the menu itself — a footer tab, the swipe between tabs
+  // below (router.push), a header icon, the browser's back button — leaving
+  // the menu hanging open over the new page instead of showing it full
+  // screen. Resetting it whenever the pathname changes fixes all of those at
+  // once. Done during render (React's documented "adjust state when a value
+  // changes" pattern) rather than in an effect, so the menu is already closed
+  // in the very first render of the new page — no frame with it still open.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
+    setOpen(false);
+  }
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+
+  // Route changes are covered above; this covers a tap that DOESN'T change the
+  // route — the footer tab you're already on, a header icon for the current
+  // page, empty space — which should also dismiss the menu. `click` (not
+  // `pointerdown`) so the tapped element's own action runs first and closing
+  // the menu (which shifts content up) can't move the target out from under
+  // the finger mid-tap.
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      const target = e.target as Node | null;
+      if (target && (menuRef.current?.contains(target) || menuToggleRef.current?.contains(target))) return;
+      setOpen(false);
+    }
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [open]);
   // The bottom tab bar's width is measured via visualViewport rather than
   // left-0/right-0 (which resolve against the *layout* viewport) — on the
   // Android Capacitor build this WebView renders `position: fixed` sized
@@ -63,7 +97,6 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
     vv.addEventListener("resize", update);
     return () => vv.removeEventListener("resize", update);
   }, []);
-  const pathname = usePathname();
   const router = useRouter();
   const links = session?.user ? navLinks(session.user.id) : [];
   // Memoized (unlike `links` above) because it's a useEffect dependency
@@ -328,6 +361,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   Sign out
                 </button>
                 <button
+                  ref={menuToggleRef}
                   type="button"
                   aria-label={open ? "Close menu" : "Open menu"}
                   aria-expanded={open}
@@ -349,7 +383,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         </div>
 
         {open && session?.user && (
-          <div className="border-t border-line px-4 py-3 md:hidden">
+          <div ref={menuRef} className="border-t border-line px-4 py-3 md:hidden">
             <nav className="flex flex-col gap-1 text-sm font-medium">
               <Link
                 href="/messages"
