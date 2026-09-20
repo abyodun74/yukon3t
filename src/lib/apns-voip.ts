@@ -14,7 +14,23 @@ import { prisma } from "@/lib/prisma";
 // target — VoIP pushes go to "<bundle-id>.voip", not the plain bundle ID
 // topic regular APNs pushes use.
 const BUNDLE_ID = "com.yukon3t.app";
-const APNS_HOST = "https://api.push.apple.com";
+// Apple runs two entirely separate APNs deployments, and a device token is
+// only ever valid against the one it was issued under: a build signed with
+// a Development provisioning profile (ios/App/App/App.entitlements'
+// aps-environment, e.g. any plain Xcode "Run" to a device) registers a
+// *sandbox* token, while a build signed for Ad Hoc/App Store distribution
+// (TestFlight, the App Store) registers a *production* one — sending a
+// sandbox token to the production host (or vice versa) gets rejected
+// outright with 400 BadDeviceToken, which looks identical to a dead/expired
+// token. Confirmed live: a token registered from a direct Xcode-to-device
+// dev build never rang at all when the app was fully force-quit (the one
+// scenario that has no other delivery path to mask this — see
+// incoming-call-listener.tsx's in-app realtime listener, which is what
+// actually receives the ring whenever the WebView is still alive at all,
+// backgrounded or foregrounded), because every send was quietly going to
+// the wrong environment for that token the entire time.
+const APNS_HOST_PRODUCTION = "https://api.push.apple.com";
+const APNS_HOST_SANDBOX = "https://api.sandbox.push.apple.com";
 
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -98,18 +114,19 @@ export function isVoipPushConfigured() {
 const APNS_TIMEOUT_MS = 5000;
 
 /**
- * Sends one VoIP push to a single device token, resolving the APNs HTTP
- * status (0 on a connection-level failure or timeout, never throws) — the
- * caller decides what a given status means (200 = delivered; 400/410 mean
- * the token itself is bad/expired and should be pruned).
+ * Sends one VoIP push to a single device token against one specific APNs
+ * host, resolving the HTTP status (0 on a connection-level failure or
+ * timeout, never throws) — the caller decides what a given status means
+ * (200 = delivered; 400/410 mean the token itself is bad/expired/wrong-
+ * environment for *this* host, not necessarily dead outright).
  */
-async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unknown>): Promise<number> {
+async function sendVoipPushOnce(host: string, deviceToken: string, payload: Record<string, unknown>): Promise<number> {
   const jwt = buildProviderToken();
   if (!jwt) return 0;
 
   return new Promise((resolve) => {
     let settled = false;
-    const client = http2.connect(APNS_HOST);
+    const client = http2.connect(host);
     const finish = (result: number) => {
       if (settled) return;
       settled = true;
@@ -145,6 +162,24 @@ async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unkn
 
     req.end(JSON.stringify(payload));
   });
+}
+
+/**
+ * Tries the production APNs host first (the common case for every real
+ * user's TestFlight/App Store install), and only falls back to the sandbox
+ * host on exactly a 400 (BadDeviceToken) — the specific status a
+ * wrong-environment token gets — so a genuinely dead/expired token (still
+ * 400, but from a fruitless *second* attempt) or a real 410 still gets
+ * treated as stale by the caller. This makes a mixed fleet of tokens (dev
+ * builds during development, real installs in production) work from the
+ * same code without needing to know up front which environment issued a
+ * given token — APNs doesn't expose that, and this app's client never
+ * reports it either.
+ */
+async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unknown>): Promise<number> {
+  const prodStatus = await sendVoipPushOnce(APNS_HOST_PRODUCTION, deviceToken, payload);
+  if (prodStatus !== 400) return prodStatus;
+  return sendVoipPushOnce(APNS_HOST_SANDBOX, deviceToken, payload);
 }
 
 export type VoipIncomingCallPayload = {
