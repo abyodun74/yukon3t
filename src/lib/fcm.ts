@@ -169,26 +169,15 @@ export async function sendFcmActivityToUser(
   const tokens = await prisma.fcmToken.findMany({ where: { userId } });
   if (tokens.length === 0) return;
 
-  // TEMPORARY diagnostic — this function previously had zero logging at
-  // all, silently swallowing every failure, while investigating a report
-  // of "in-app notification but no iOS device notification." Remove once
-  // iOS delivery is confirmed reliable.
   try {
-    const response = await getMessaging(app).sendEachForMulticast({
+    await getMessaging(app).sendEachForMulticast({
       tokens: tokens.map((t) => t.token),
       notification: { title: payload.title, body: payload.body },
       data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
       android: { priority: "high" },
     });
-    console.log("[fcm-activity-debug] send result", {
-      userId,
-      type: payload.type,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-      errors: response.responses.filter((r) => !r.success).map((r) => r.error?.message),
-    });
-  } catch (err) {
-    console.log("[fcm-activity-debug] sendEachForMulticast threw", { userId, type: payload.type, err: String(err) });
+  } catch {
+    // Best-effort — a push failure should never break the action that triggered it.
   }
 }
 
