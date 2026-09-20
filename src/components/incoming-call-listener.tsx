@@ -37,6 +37,20 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     incomingRef.current = incoming;
   });
 
+  // On iOS, a call already answered/declined via CallKit before this
+  // component ever mounted (the common cold-start-from-force-quit case)
+  // needs to be resolved *before* the very first getIncomingCall() check
+  // below, or that check wins the race and briefly renders this
+  // component's own ringing banner — with its own Accept/Decline — for a
+  // call CallKit already answered, immediately followed by acceptCall
+  // clearing it once the pending-event drain (further down) catches up.
+  // Confirmed live as a real, visible duplicate-buttons flash. Starts
+  // already-true off iOS (or non-native), where there's no such race to
+  // wait for; the effect below flips it true exactly once the drain
+  // finishes, success or failure alike, so a plugin error here can never
+  // permanently block the banner from ever appearing.
+  const [readyToCheckIncoming, setReadyToCheckIncoming] = useState(Capacitor.getPlatform() !== "ios");
+
   const checkIncoming = useCallback(async () => {
     const { call, ringtone: userRingtone } = await getIncomingCall();
     // Ignore a response that arrives after a call has since started.
@@ -58,13 +72,17 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     checkIncomingRef.current = checkIncoming;
   });
   useEffect(() => {
-    if (!activeCall) checkIncomingRef.current();
-  }, [activeCall]);
+    if (!activeCall && readyToCheckIncoming) checkIncomingRef.current();
+  }, [activeCall, readyToCheckIncoming]);
 
   // Replaces the old 5s ring poll — startCall publishes onto the callee's
   // own call:{userId} channel the instant a call is placed (see
   // REALTIME_CHANNELS.callSignal in actions/calls.ts).
-  useRealtimeEvent(!activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null, "changed", checkIncoming);
+  useRealtimeEvent(
+    !activeCall && readyToCheckIncoming ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
+    "changed",
+    checkIncoming,
+  );
 
   // Fallback for the caller hanging up mid-call: normally that ejects us
   // from the Daily room, which fires CallFrame's "left-meeting" -> onLeave
@@ -260,9 +278,13 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       // See getPendingCallEvents()'s own doc comment for why the
       // addListener events above alone can't be relied on for that.
       const pending = await NativeCallKit.getPendingCallEvents().catch(() => null);
-      if (cancelled || !pending) return;
-      pending.answered.forEach((callId) => acceptCall(callId));
-      pending.declined.forEach((callId) => declineCall(callId));
+      if (cancelled) return;
+      pending?.answered.forEach((callId) => acceptCall(callId));
+      pending?.declined.forEach((callId) => declineCall(callId));
+      // Unblocks the ring-check effect above — on a failure (pending is
+      // null) too, so a plugin error here never permanently hides a
+      // genuinely still-ringing call's banner.
+      setReadyToCheckIncoming(true);
     })();
 
     return () => {
