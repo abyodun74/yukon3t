@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -65,11 +65,24 @@
 
         </activity>
 
-        <!-- Handles incoming_call/call_cancelled data pushes (src/lib/fcm.ts)
-             while backgrounded/asleep — see CallMessagingService's own doc
-             comment. Declared alongside, not instead of,
-             @capacitor-firebase/messaging's own MessagingService below,
-             which still owns FCM token issuance. -->
+        <!-- Handles every FCM message for this app, including
+             incoming_call/call_cancelled data pushes (src/lib/fcm.ts) while
+             backgrounded/asleep — see CallMessagingService's own doc
+             comment. Android/Firebase does NOT reliably support two
+             manifest-declared FirebaseMessagingService subclasses sharing
+             the same MESSAGING_EVENT intent-filter: confirmed live via
+             adb logcat that a real incoming call's FCM push produced zero
+             trace of either service's own log tags firing at all — the
+             platform silently resolves the implicit intent to exactly one
+             of them, and which one is not something this app controls or
+             can rely on. The <service tools:node="remove"> below removes
+             @capacitor-firebase/messaging's own manifest-merged
+             MessagingService entirely so there is only ever one candidate;
+             CallMessagingService.onMessageReceived/onNewToken now also
+             forward to FirebaseMessagingPlugin's own static handlers
+             (the exact same calls that service's onMessageReceived/
+             onNewToken made) so token issuance and the plugin's own JS
+             listeners keep working unchanged. -->
         <service
             android:name=".CallMessagingService"
             android:exported="false">
@@ -77,6 +90,9 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.firebase.messaging.MessagingService"
+            tools:node="remove" />
 
         <service
             android:name=".CallForegroundService"

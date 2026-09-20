@@ -7,24 +7,33 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import io.capawesome.capacitorjs.plugins.firebase.messaging.FirebaseMessagingPlugin;
 
 import java.util.Map;
 
 /**
+ * The app's ONLY FirebaseMessagingService — see AndroidManifest.xml's own
+ * comment on why @capacitor-firebase/messaging's own MessagingService is
+ * explicitly removed from the manifest rather than declared alongside this
+ * one: Android/Firebase does not reliably deliver to two services sharing
+ * the same MESSAGING_EVENT intent-filter, confirmed live as the actual
+ * cause of incoming calls silently never ringing at all. Every
+ * onMessageReceived/onNewToken here also forwards to
+ * FirebaseMessagingPlugin's own static handlers — the exact calls that
+ * removed service's own onMessageReceived/onNewToken made — so token
+ * issuance and the plugin's own JS listeners (capacitor-bridge.tsx) are
+ * unaffected; this class ADDS call-specific handling on top, it doesn't
+ * replace the plugin's behavior.
+ *
  * Handles the data-only FCM messages sendFcmCallToUser/sendFcmCallCancelToUser
  * (src/lib/fcm.ts) send for incoming/cancelled calls, so a ring still
  * surfaces while the app is backgrounded or the device is asleep/in Doze —
  * the whole reason those messages are sent with android priority "high"
  * instead of relying on the WebView's JS polling (incoming-call-listener.tsx),
- * which is throttled/frozen in that state.
- *
- * Declared as a second <service> in AndroidManifest.xml alongside
- * @capacitor-firebase/messaging's own MessagingService, which only drives
- * token issuance/JS listeners (capacitor-bridge.tsx) and has no call-specific
- * handling. Actually building/showing the ring notification is
- * CallForegroundService's job (it needs to be the one holding the
- * foreground-service-backed notification anyway), so this class only
- * decides *whether* to start/stop it.
+ * which is throttled/frozen in that state. Actually building/showing the
+ * ring notification is CallForegroundService's job (it needs to be the one
+ * holding the foreground-service-backed notification anyway), so this class
+ * only decides *whether* to start/stop it.
  */
 public class CallMessagingService extends FirebaseMessagingService {
 
@@ -33,7 +42,20 @@ public class CallMessagingService extends FirebaseMessagingService {
     private static final String TAG = "YuKon3tCall";
 
     @Override
+    public void onNewToken(@NonNull String token) {
+        super.onNewToken(token);
+        FirebaseMessagingPlugin.onNewToken(token);
+    }
+
+    @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
+        super.onMessageReceived(remoteMessage);
+        // Preserves the plugin's own behavior (JS notificationReceived
+        // listeners, lastRemoteMessage) for every message, call-related or
+        // not — this class ADDS the call handling below, it doesn't
+        // replace what the removed service used to do.
+        FirebaseMessagingPlugin.onMessageReceived(remoteMessage);
+
         // An uncaught exception here crashes the whole app process, not just
         // this push handler — same reasoning as CallForegroundService's own
         // top-level try/catch. A missed ring is recoverable (the caller's
