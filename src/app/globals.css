@@ -102,8 +102,16 @@ html {
      "settle." overflow-wrap below fixes the actual cause (the long string
      itself never wrapping); this is the backstop for anything else that
      manages to overflow regardless.
+
+     MUST be `clip`, not `hidden`. `hidden` on html AND body turns body into
+     its own scroll container, and combined with `overscroll-behavior-y:
+     contain` below (also on both) the page stops scrolling entirely on
+     Chromium/Android WebView — reproduced live: touch swipe and wheel both
+     left scrollY at 0 on every page. Either rule alone scrolls fine; it's
+     only the pair. `clip` clips the overflow without creating a scroll
+     container, so the viewport stays the one and only vertical scroller.
   */
-  overflow-x: hidden;
+  overflow-x: clip;
   /* Stops the native rubber-band/bounce overscroll at the top and bottom of
      the page — on Android specifically, letting that overscroll gesture
      complete is what lets the system WebView's own anti-phishing safety UI
@@ -123,7 +131,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   overscroll-behavior-y: contain;
-  overflow-x: hidden;
+  overflow-x: clip; /* not `hidden` — see html's comment above */
   /* Lets a long unbroken string (a URL, hashtag, or username with no
      spaces to break on) wrap onto a new line instead of overflowing its
      container — the actual source of the horizontal-overflow problem
