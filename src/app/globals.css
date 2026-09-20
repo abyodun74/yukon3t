@@ -135,11 +135,18 @@ body {
   /* Lets a long unbroken string (a URL, hashtag, or username with no
      spaces to break on) wrap onto a new line instead of overflowing its
      container — the actual source of the horizontal-overflow problem
-     overflow-x: hidden above only masks. Applies sitewide since any text
+     the overflow-x: clip above only masks. Applies sitewide since any text
      surface (a post, a bio, a message) can contain user-entered text like
-     this, not just one specific component. */
+     this, not just one specific component.
+
+     Do NOT add `word-break: break-word` here. It behaves like
+     `overflow-wrap: anywhere`, which drops the "can't shrink below the
+     longest word" floor for every flex/grid/table item on the site, so
+     short labels (names, badges, button text) sitting next to long text get
+     squeezed and wrap 2-4 lines a few characters wide — measured: a name
+     collapsed to 38px over 4 lines, a "Message" button to 3 lines.
+     `overflow-wrap: break-word` alone leaves that sizing untouched. */
   overflow-wrap: break-word;
-  word-break: break-word;
 }
 
 .font-display {
