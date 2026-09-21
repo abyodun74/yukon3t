@@ -22,6 +22,7 @@ import {
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
 
 // Not migrated to realtime — this is a periodic "I'm still here" keepalive
 // the end-inactive-streams cron watches for, not a "refetch when something
@@ -1051,6 +1052,13 @@ export function LiveStreamRoom({
                   {emoji}
                 </button>
               ))}
+              {/* + for every other emoji */}
+              <EmojiPickerButton
+                triggerVariant="plus"
+                triggerClassName="rounded-full border border-white/30 p-2 text-white hover:bg-white/20"
+                popupZClass="z-[90]"
+                onSelect={sendReaction}
+              />
             </div>
           )}
           <button

@@ -34,15 +34,38 @@ const SUGGESTIONS_BAR_HEIGHT = 40;
 // content instead of the full picker's fixed box, same WhatsApp-style
 // long-press reaction bar pattern already used in story-viewer.tsx.
 const QUICK_BAR_HEIGHT = 44;
-const QUICK_BUTTON_WIDTH = 36;
+// One quick-reaction emoji button (a text-xl glyph + p-1.5 padding + the gap after it) and the trailing "+" button
+// (border included) — measured, not guessed: an earlier width of 36 per emoji left the row ~50px too narrow, so the
+// last emoji was cut off and the "+" was pushed entirely out of the popup.
+const QUICK_EMOJI_WIDTH = 40;
+const QUICK_PLUS_WIDTH = 44;
+const QUICK_BAR_PADDING = 16;
+
+function quickBarWidth(count: number) {
+  return count * QUICK_EMOJI_WIDTH + QUICK_PLUS_WIDTH + QUICK_BAR_PADDING;
+}
 
 type Position = PopoverPosition;
 
 export function EmojiPickerButton({
   onSelect,
   quickReactions,
+  triggerVariant = "smile",
+  triggerClassName,
+  popupZClass = "z-50",
+  onOpenChange,
 }: {
   onSelect: (emoji: string) => void;
+  /**
+   * "plus" renders the trigger as a + (for an inline row of quick reactions that has no room for a popup row of its
+   * own): tapping it opens the full picker directly. Default is the smiley used everywhere else.
+   */
+  triggerVariant?: "smile" | "plus";
+  triggerClassName?: string;
+  /** Stacking class for the popup — full-screen overlays (Stories, live) sit above z-50 and need a higher one. */
+  popupZClass?: string;
+  /** Fires when the popup opens/closes (a Story pauses while someone picks an emoji). */
+  onOpenChange?: (open: boolean) => void;
   /**
    * When given, the button opens to a small WhatsApp-style quick-reaction
    * row first (no emoji-picker-react import triggered yet) instead of the
@@ -53,6 +76,15 @@ export function EmojiPickerButton({
   quickReactions?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const skippedFirstOpenChange = useRef(false);
+  useEffect(() => {
+    if (!skippedFirstOpenChange.current) {
+      skippedFirstOpenChange.current = true;
+      return;
+    }
+    onOpenChange?.(open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const [showFullPicker, setShowFullPicker] = useState(!quickReactions);
   const [emojiStyle] = useEmojiStyle();
   const [position, setPosition] = useState<Position | null>(null);
@@ -113,10 +145,10 @@ export function EmojiPickerButton({
     function reposition() {
       if (!buttonRef.current) return;
       const rect = buttonRef.current.getBoundingClientRect();
-      const quickBarWidth = quickReactions ? (quickReactions.length + 1) * QUICK_BUTTON_WIDTH : PICKER_WIDTH;
+      const barWidth = quickReactions ? quickBarWidth(quickReactions.length) : PICKER_WIDTH;
       setPosition(
         !showFullPicker && quickReactions
-          ? computePopoverPosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
+          ? computePopoverPosition(rect, barWidth, QUICK_BAR_HEIGHT)
           : computePopoverPosition(rect, PICKER_WIDTH, PICKER_HEIGHT),
       );
     }
@@ -154,10 +186,10 @@ export function EmojiPickerButton({
       const startsWithQuickBar = Boolean(quickReactions);
       setShowFullPicker(!startsWithQuickBar);
       const rect = buttonRef.current.getBoundingClientRect();
-      const quickBarWidth = quickReactions ? (quickReactions.length + 1) * QUICK_BUTTON_WIDTH : PICKER_WIDTH;
+      const barWidth = quickReactions ? quickBarWidth(quickReactions.length) : PICKER_WIDTH;
       setPosition(
         startsWithQuickBar
-          ? computePopoverPosition(rect, quickBarWidth, QUICK_BAR_HEIGHT)
+          ? computePopoverPosition(rect, barWidth, QUICK_BAR_HEIGHT)
           : computePopoverPosition(rect, PICKER_WIDTH, PICKER_HEIGHT),
       );
       // Cleared here (a plain event handler) rather than in the effect
@@ -182,24 +214,27 @@ export function EmojiPickerButton({
         ref={buttonRef}
         type="button"
         onClick={toggleOpen}
-        className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"
-        title="Add an emoji"
-        aria-label="Add an emoji"
+        className={triggerClassName ?? "rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"}
+        title={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
+        aria-label={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
       >
-        <Smile size={16} />
+        {triggerVariant === "plus" ? <Plus size={16} /> : <Smile size={16} />}
       </button>
       {open &&
         position &&
         createPortal(
           <div
             ref={popupRef}
-            className="fixed z-50 flex flex-col overflow-hidden rounded-lg shadow-lg"
+            className={`fixed ${popupZClass} flex flex-col overflow-hidden rounded-lg shadow-lg`}
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             {!showFullPicker && quickReactions ? (
               // Compact WhatsApp-style quick-reaction row — no
               // emoji-picker-react import triggered until "+" is tapped.
-              <div className="flex h-full items-center gap-1 bg-surface px-1.5">
+              <div className="flex h-full items-center gap-1 bg-surface px-2">
+                {/* The emoji scroll if the popup is ever squeezed narrower than its content; the + stays pinned at the
+                    end so it can never be pushed out of view. */}
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
                 {quickReactions.map((emoji) => (
                   <button
                     key={emoji}
@@ -213,12 +248,13 @@ export function EmojiPickerButton({
                     {emoji}
                   </button>
                 ))}
+                </div>
                 <button
                   type="button"
                   onClick={expandToFullPicker}
                   title="More emoji"
                   aria-label="More emoji"
-                  className="ml-auto shrink-0 rounded-full border border-line p-1.5 text-foreground-soft hover:bg-line"
+                  className="shrink-0 rounded-full border border-line p-1.5 text-foreground-soft hover:bg-line"
                 >
                   <Plus size={18} />
                 </button>

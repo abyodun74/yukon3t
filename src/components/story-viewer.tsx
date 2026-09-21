@@ -22,6 +22,7 @@ import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-
 import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
+import { EmojiPickerButton } from "@/components/emoji-picker-button";
 
 type StoryComment = {
   id: string;
@@ -573,6 +574,14 @@ export function StoryViewer({
                 {emoji}
               </button>
             ))}
+            {/* + opens the full emoji picker for anything beyond the six quick reactions; the story pauses while it's open. */}
+            <EmojiPickerButton
+              triggerVariant="plus"
+              triggerClassName="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
+              popupZClass="z-[80]"
+              onOpenChange={setPaused}
+              onSelect={handleReact}
+            />
             <button
               type="button"
               onClick={loadComments}
