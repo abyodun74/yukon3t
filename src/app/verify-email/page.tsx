@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { resendEmailOtp, confirmEmailOtp, ensureFreshEmailOtp } from "@/app/actions/password-auth";
+import {
+  resendEmailOtp,
+  confirmEmailOtp,
+  ensureFreshEmailOtp,
+  switchToPhoneVerification,
+} from "@/app/actions/password-auth";
 import { readPendingVerification } from "@/lib/pending-verification";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
@@ -10,6 +15,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   expired: "That code expired — we've sent you a new one.",
   too_many_attempts: "Too many wrong attempts — we've sent you a new code.",
   rate_limited: "Too many attempts. Please wait a bit and try again.",
+  invalid_phone: "Enter a valid phone number with country code (e.g. +14155551234).",
+  phone_taken: "That phone number is already verified on another account.",
   captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
 };
 
@@ -135,6 +142,33 @@ export default async function VerifyEmailPage({
           className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
         />
       </form>
+
+      {/* Email delivery can be slow or blocked — never leave someone stuck waiting on it. */}
+      <div className="mt-8 w-full border-t border-line pt-5 text-left">
+        <p className="text-sm font-medium">Email taking too long?</p>
+        <p className="mt-1 text-xs text-foreground-soft">
+          Verify with your phone number instead — we&apos;ll text you a code.
+        </p>
+        <form action={switchToPhoneVerification} className="mt-3 flex gap-2">
+          <label htmlFor="switch-phone" className="sr-only">
+            Phone number
+          </label>
+          <input
+            id="switch-phone"
+            type="tel"
+            name="phone"
+            required
+            autoComplete="tel"
+            placeholder="+14155551234"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+          />
+          <SubmitButton
+            label="Use phone"
+            pendingLabel="Switching..."
+            className="shrink-0 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
+          />
+        </form>
+      </div>
     </div>
   );
 }

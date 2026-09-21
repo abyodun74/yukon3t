@@ -4,7 +4,7 @@ import { signIn } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { redirect } from "next/navigation";
-import { loginWithPassword, resendEmailOtp } from "@/app/actions/password-auth";
+import { loginWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
@@ -60,8 +60,6 @@ function passwordErrorMessage(error: string | undefined) {
   switch (error) {
     case "invalid_credentials":
       return "Incorrect username/email or password.";
-    case "unverified":
-      return "Confirm your account before signing in — check your inbox or phone for a verification code.";
     case "rate_limited":
       return "Too many attempts. Please wait a few minutes and try again.";
     case "captcha":
@@ -76,14 +74,21 @@ function passwordErrorMessage(error: string | undefined) {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; email?: string; reset?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error, email, reset } = await searchParams;
+  const { error, reset } = await searchParams;
   const passwordError = passwordErrorMessage(error);
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="font-display text-3xl font-semibold">Sign in to YuKon3t</h1>
+
+      <Link
+        href="/sign-up"
+        className="mt-6 w-full rounded-lg border border-accent px-4 py-3 text-center text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink"
+      >
+        New here? Create account
+      </Link>
 
       <div className="mt-8 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <h2 className="text-sm font-semibold">Username &amp; password</h2>
@@ -96,15 +101,6 @@ export default async function SignInPage({
         {passwordError && (
           <div className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
-            {error === "unverified" && email && (
-              <form action={resendEmailOtp} className="mt-2">
-                <input type="hidden" name="email" value={email} />
-                <TurnstileWidget />
-                <button type="submit" className="font-medium underline">
-                  Resend confirmation code
-                </button>
-              </form>
-            )}
           </div>
         )}
 

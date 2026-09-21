@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
   signUpSchema,
+  phoneSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -21,6 +22,7 @@ import { track } from "@/lib/analytics";
 import { requireAdmin } from "@/lib/auth-guards";
 import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
 import { getClientIp as clientIp } from "@/lib/client-ip";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { generateOtpCode, hashOtpCode, EMAIL_OTP_TTL_MS, EMAIL_OTP_MAX_ATTEMPTS } from "@/lib/otp";
 import {
   issuePendingVerificationCookie,
@@ -40,27 +42,6 @@ import {
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 4;
 const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Sign-up no longer collects a username up front (just email + password +
- * birth date) — this derives one from the email's local part so every user
- * still has the unique handle the rest of the app (profile links, mentions,
- * search) depends on. They can pick a custom one later in Settings, same as
- * magic-link-only accounts already do.
- */
-async function generateUniqueUsername(email: string) {
-  const base = email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15) || "user";
-  const padded = base.length < 3 ? base.padEnd(3, "0") : base;
-
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const suffix = attempt === 0 ? "" : String(Math.floor(1000 + Math.random() * 9000));
-    const candidate = `${padded}${suffix}`.slice(0, 20);
-    const existing = await prisma.user.findUnique({ where: { username: candidate }, select: { id: true } });
-    if (!existing) return candidate;
-  }
-
-  return `user${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-}
 
 async function sendEmailOtp(userId: string, email: string) {
   const code = generateOtpCode();
@@ -114,34 +95,69 @@ export async function signUpWithPassword(formData: FormData) {
     redirect("/sign-up?error=rate_limited");
   }
 
-  const parsed = signUpSchema.safeParse({
+  const raw = {
+    username: formData.get("username"),
     email: formData.get("email"),
     password: formData.get("password"),
     birthDate: formData.get("birthDate"),
     verificationMethod: formData.get("verificationMethod"),
-  });
+    phone: formData.get("phone") ?? undefined,
+  };
+  const parsed = signUpSchema.safeParse(raw);
+
+  // Sent back with the error so the form keeps what was typed (never the password or birth date).
+  const keep = new URLSearchParams();
+  for (const key of ["username", "email", "phone"] as const) {
+    const v = String(raw[key] ?? "").trim();
+    if (v) keep.set(key, v.slice(0, 254));
+  }
+  if (raw.verificationMethod === "PHONE") keep.set("method", "PHONE");
+  const back = (error: string) => redirect(`/sign-up?error=${error}&${keep.toString()}`);
 
   if (!parsed.success) {
-    const underage = parsed.error.issues.some((i) => i.path[0] === "birthDate");
-    redirect(`/sign-up?error=${underage ? "underage" : "invalid"}`);
+    const failed = new Set(parsed.error.issues.map((i) => i.path[0]));
+    back(failed.has("birthDate") ? "underage" : failed.has("username") ? "invalid_username" : failed.has("phone") ? "invalid_phone" : "invalid");
   }
 
-  const { email, password, birthDate, verificationMethod } = parsed.data;
+  const { username, email, password, birthDate, verificationMethod, phone } = parsed.data!;
 
   const existingEmail = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existingEmail) {
-    redirect("/sign-up?error=email_taken");
+    back("email_taken");
+  }
+  // Case-insensitive so "Bola" can't be registered next to "bola".
+  const existingUsername = await prisma.user.findFirst({
+    where: { username: { equals: username, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (existingUsername) {
+    back("username_taken");
+  }
+  if (verificationMethod === "PHONE") {
+    const phoneOwner = await prisma.user.findUnique({ where: { phone: phone! }, select: { id: true } });
+    if (phoneOwner) {
+      back("phone_taken");
+    }
   }
 
-  const username = await generateUniqueUsername(email);
   const passwordHash = await hashPassword(password);
-  const created = await prisma.user.create({
-    data: { email, username, passwordHash, birthDate, status: "ACTIVE", pendingVerificationMethod: verificationMethod },
-  });
+  let created;
+  try {
+    created = await prisma.user.create({
+      data: { email, username, passwordHash, birthDate, status: "ACTIVE", pendingVerificationMethod: verificationMethod },
+    });
+  } catch (err) {
+    // Two people racing for the same email/username: the loser gets the same message as the pre-check.
+    if (isUniqueConstraintError(err)) back("username_taken");
+    throw err;
+  }
   await track("SIGN_UP", created.id, { method: "password" });
 
   if (verificationMethod === "PHONE") {
-    await issuePendingVerificationCookie(created.id);
+    // The number rides along in the pending-verification cookie; the verify-phone page texts the code to it as soon as
+    // it opens (behind the same Turnstile check as every SMS send), so there is no second "enter your number" step.
+    // It is only saved on the account once the code is confirmed.
+    await issuePendingVerificationCookie(created.id, phone);
     redirect("/sign-up/verify-phone");
   }
 
@@ -204,44 +220,20 @@ export async function confirmEmailOtp(formData: FormData) {
 }
 
 /**
- * Called both from /verify-email's "Resend code" button (has the
- * pending-verification cookie from the same signup) and from /sign-in's
- * "Resend confirmation code" link when login was blocked as unverified —
- * that second case may be a different browser/device with no cookie, so it
- * falls back to the submitted email, same as the old link-based resend did.
- * Always redirects to the same page regardless of whether the email is
- * registered, to avoid becoming an account-enumeration oracle (same
- * reasoning as requestPasswordReset below).
+ * /verify-email's "Resend code" button. Needs the pending-verification cookie, which only exists in the browser that
+ * just signed up or just proved the password of an unverified account (see loginWithPassword) — never from an email
+ * address alone, which would let anyone trigger (or hijack) verification of someone else's account.
  */
 export async function resendEmailOtp(formData: FormData) {
   const ip = await clientIp();
   const pending = await readPendingVerification();
-
-  // Each resend is a real outbound email. The two entry points land on
-  // different pages, so the failure goes back to whichever one it came from
-  // (the /sign-in one has no pending cookie — it's the "unverified" box).
-  if (!(await verifyTurnstile(formData, ip))) {
-    redirect(pending ? "/verify-email?error=captcha" : "/sign-in?error=captcha");
+  if (!pending) {
+    redirect("/sign-in");
   }
 
-  if (!pending) {
-    const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!email) {
-      redirect("/sign-in");
-    }
-    const allowed = await checkRateLimit("emailOtpSend", `otpsend:${ip}:${email}`);
-    if (allowed) {
-      const user = await prisma.user.findUnique({ where: { email }, select: { id: true, emailVerified: true } });
-      if (user && !user.emailVerified) {
-        await sendEmailOtp(user.id, email);
-        await issuePendingVerificationCookie(user.id);
-      }
-    }
-    // Always land on the same static page regardless of whether the email
-    // was registered — /verify-email's rendering branches on the pending-
-    // verification cookie, which would otherwise turn this into an
-    // account-enumeration oracle.
-    redirect("/sign-in/check-email?context=verify");
+  // Each resend is a real outbound email.
+  if (!(await verifyTurnstile(formData, ip))) {
+    redirect("/verify-email?error=captcha");
   }
 
   const { userId } = pending;
@@ -255,6 +247,51 @@ export async function resendEmailOtp(formData: FormData) {
     await sendEmailOtp(userId, user.email);
   }
   redirect("/verify-email?sent=1");
+}
+
+/**
+ * "Email not arriving?" on /verify-email: verify by phone instead. The number is typed right there; the verify-phone
+ * page texts the code to it as soon as it opens (behind the same Turnstile check as every SMS send). Requires the
+ * pending-verification cookie, and the number is only saved on the account once its code is confirmed.
+ */
+export async function switchToPhoneVerification(formData: FormData) {
+  const pending = await readPendingVerification();
+  if (!pending) {
+    redirect("/sign-in");
+  }
+  if (!(await checkRateLimit("verifyMethodSwitch", `switch:${pending.userId}`))) {
+    redirect("/verify-email?error=rate_limited");
+  }
+
+  const parsed = phoneSchema.safeParse(formData.get("phone"));
+  if (!parsed.success) {
+    redirect("/verify-email?error=invalid_phone");
+  }
+  const owner = await prisma.user.findUnique({ where: { phone: parsed.data }, select: { id: true } });
+  if (owner && owner.id !== pending.userId) {
+    redirect("/verify-email?error=phone_taken");
+  }
+
+  await prisma.user.update({ where: { id: pending.userId }, data: { pendingVerificationMethod: "PHONE" } });
+  await issuePendingVerificationCookie(pending.userId, parsed.data);
+  redirect("/sign-up/verify-phone");
+}
+
+/**
+ * "Not getting the text?" on /sign-up/verify-phone: verify by email code instead. /verify-email sends a fresh code by
+ * itself when there isn't a live one (ensureFreshEmailOtp, rate-limited), so this just switches the method.
+ */
+export async function switchToEmailVerification() {
+  const pending = await readPendingVerification();
+  if (!pending) {
+    redirect("/sign-in");
+  }
+  if (!(await checkRateLimit("verifyMethodSwitch", `switch:${pending.userId}`))) {
+    redirect("/sign-up/verify-phone?error=rate_limited");
+  }
+  await prisma.user.update({ where: { id: pending.userId }, data: { pendingVerificationMethod: "EMAIL" } });
+  await issuePendingVerificationCookie(pending.userId);
+  redirect("/verify-email");
 }
 
 export async function loginWithPassword(formData: FormData) {
@@ -285,11 +322,20 @@ export async function loginWithPassword(formData: FormData) {
     redirect("/sign-in?error=rate_limited");
   }
 
-  const user = await prisma.user.findFirst({
+  let user = await prisma.user.findFirst({
     where: {
       OR: [{ email: identifier.toLowerCase() }, { username: identifier }],
     },
   });
+  if (!user) {
+    // Usernames are unique case-insensitively for new sign-ups, so "Bola" and "bola" are the same person — but only
+    // accept a case-different match when it is unambiguous (older accounts could differ only by case).
+    const loose = await prisma.user.findMany({
+      where: { username: { equals: identifier, mode: "insensitive" } },
+      take: 2,
+    });
+    if (loose.length === 1) user = loose[0];
+  }
 
   if (!user || !user.passwordHash) {
     redirect("/sign-in?error=invalid_credentials");
@@ -323,7 +369,10 @@ export async function loginWithPassword(formData: FormData) {
     redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
   }
   if (!user.emailVerified && !user.phoneVerifiedAt) {
-    redirect(`/sign-in?error=unverified&email=${encodeURIComponent(user.email)}`);
+    // The password was just proven, so this browser may finish verifying the account: pick up where signup left off on
+    // the page for the method they chose — both pages offer switching to the other (email delayed? use your phone).
+    await issuePendingVerificationCookie(user.id);
+    redirect(user.pendingVerificationMethod === "PHONE" ? "/sign-up/verify-phone" : "/verify-email");
   }
 
   // Logging back in with the right password is treated as an explicit

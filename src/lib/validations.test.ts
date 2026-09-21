@@ -37,6 +37,7 @@ describe("usernameSchema", () => {
 
 describe("signUpSchema", () => {
   const validBase = {
+    username: "jane_doe",
     email: "jane@example.com",
     password: "correct horse battery staple",
     verificationMethod: "EMAIL" as const,
@@ -67,7 +68,7 @@ describe("signUpSchema", () => {
   it("accepts PHONE as the verification method", () => {
     const birthDate = new Date();
     birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
-    const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "PHONE" });
+    const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "PHONE", phone: "+14155551234" });
     expect(result.success).toBe(true);
   });
 
@@ -99,5 +100,34 @@ describe("phoneSchema", () => {
 
   it("trims surrounding whitespace before validating", () => {
     expect(phoneSchema.safeParse("  +14155551234  ").success).toBe(true);
+  });
+});
+
+describe("signUpSchema — username and phone", () => {
+  const base = { username: "Bola_99", email: "Bola@Example.com", password: "longenough1", birthDate: "1990-05-05", verificationMethod: "EMAIL" as const };
+
+  it("accepts a username, email, password and birth date for email verification", () => {
+    const r = signUpSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.email).toBe("bola@example.com");
+  });
+
+  it("requires a valid phone number only when verifying by phone", () => {
+    expect(signUpSchema.safeParse({ ...base, verificationMethod: "PHONE" }).success).toBe(false);
+    expect(signUpSchema.safeParse({ ...base, verificationMethod: "PHONE", phone: "4155551234" }).success).toBe(false);
+    expect(signUpSchema.safeParse({ ...base, verificationMethod: "PHONE", phone: "+14155551234" }).success).toBe(true);
+    // a stray phone value is ignored for email verification
+    expect(signUpSchema.safeParse({ ...base, phone: "" }).success).toBe(true);
+  });
+
+  it("rejects bad usernames: too short/long, illegal characters, reserved names", () => {
+    for (const username of ["ab", "a".repeat(21), "has space", "bad-dash", "émile", "admin", "Support", "YuKon3t"]) {
+      expect(signUpSchema.safeParse({ ...base, username }).success, username).toBe(false);
+    }
+  });
+
+  it("rejects an under-13 birth date", () => {
+    const year = new Date().getFullYear() - 10;
+    expect(signUpSchema.safeParse({ ...base, birthDate: `${year}-01-01` }).success).toBe(false);
   });
 });

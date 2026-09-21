@@ -1260,13 +1260,15 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Do I need to pick a username when I sign up?",
+        q: "What do I need to sign up?",
         a: (
           <>
-            No — signing up only asks for your email, a password, your date
-            of birth, and how you&apos;d like to verify your account. We
-            assign you a starting username automatically, and you can change
-            it any time from Settings.
+            From the home page tap Get started, then Create account. Enter a
+            username (3–20 letters, numbers, or underscores), your email, a
+            password, and your date of birth, then choose how to verify:
+            an email code, or a phone number (enter it right there). Tap
+            Create account and we send the code. You can change your username
+            later from Settings.
           </>
         ),
       },
@@ -1279,7 +1281,11 @@ const sections: Section[] = [
             next screen to finish creating your account. Didn&apos;t get it
             or the code expired? Just reopen that screen and a new one is
             sent automatically, no need to hunt for a resend button (though
-            one&apos;s there too if you want to trigger it yourself).
+            one&apos;s there too if you want to trigger it yourself). If
+            email is slow to arrive, use &ldquo;Use phone&rdquo; on that
+            screen to verify by text instead — and if a text doesn&apos;t
+            arrive, &ldquo;Use email code instead&rdquo; switches you back.
+            You can also sign in at any time to pick up where you left off.
           </>
         ),
       },

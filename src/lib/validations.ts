@@ -69,14 +69,32 @@ export const passwordSchema = z.string().min(8).max(72);
 
 export const verificationMethodValues = ["EMAIL", "PHONE"] as const;
 
-export const signUpSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: passwordSchema,
-  birthDate: z.coerce.date().refine(isOldEnough, {
-    message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
-  }),
-  verificationMethod: z.enum(verificationMethodValues),
-});
+// Handles nobody should be able to register — they'd read as the app or its staff.
+const RESERVED_USERNAMES = new Set([
+  "admin", "administrator", "support", "moderator", "mod", "staff", "help", "root", "system", "official", "yukon3t", "yukon", "team",
+]);
+
+export function isReservedUsername(username: string) {
+  return RESERVED_USERNAMES.has(username.trim().toLowerCase());
+}
+
+export const signUpSchema = z
+  .object({
+    username: usernameSchema.refine((u) => !isReservedUsername(u), { message: "That username isn't available." }),
+    email: z.string().trim().toLowerCase().email(),
+    password: passwordSchema,
+    birthDate: z.coerce.date().refine(isOldEnough, {
+      message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
+    }),
+    verificationMethod: z.enum(verificationMethodValues),
+    // Only used (and only required) when verifying by phone: the number the code is texted to.
+    phone: z.string().trim().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.verificationMethod === "PHONE" && !phoneSchema.safeParse(data.phone).success) {
+      ctx.addIssue({ code: "custom", path: ["phone"], message: "Enter a valid phone number with country code." });
+    }
+  });
 
 export const loginSchema = z.object({
   identifier: z.string().trim().min(1).max(255),

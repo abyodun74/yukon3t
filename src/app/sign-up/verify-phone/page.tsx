@@ -2,6 +2,8 @@ import Link from "next/link";
 import { readPendingVerification } from "@/lib/pending-verification";
 import { prisma } from "@/lib/prisma";
 import { SignupPhoneVerificationForm } from "@/components/signup-phone-verification-form";
+import { SubmitButton } from "@/components/submit-button";
+import { switchToEmailVerification } from "@/app/actions/password-auth";
 
 export default async function VerifyPhonePage() {
   const pending = await readPendingVerification();
@@ -44,6 +46,17 @@ export default async function VerifyPhonePage() {
       <div className="mt-6 w-full">
         <SignupPhoneVerificationForm initialPhone={pending.phone ?? null} />
       </div>
+
+      {/* A text can be slow or blocked too — always offer the other way in. */}
+      <form action={switchToEmailVerification} className="mt-8 w-full border-t border-line pt-5 text-center">
+        <p className="text-sm font-medium">Not getting the text?</p>
+        <p className="mt-1 text-xs text-foreground-soft">We can send the code to your email instead.</p>
+        <SubmitButton
+          label="Use email code instead"
+          pendingLabel="Switching..."
+          className="mt-3 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
+        />
+      </form>
     </div>
   );
 }

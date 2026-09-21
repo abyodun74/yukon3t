@@ -136,6 +136,8 @@ export const rateLimiters = {
   // Same send/check split as phoneVerifyRequest/Check above, for the
   // signup-time email OTP code (src/app/actions/password-auth.ts).
   emailOtpSend: makeLimiter(5, "1 h"),
+  // Switching email <-> phone while verifying a new account (a delayed email / text shouldn't dead-end anyone).
+  verifyMethodSwitch: makeLimiter(10, "1 h", "verify-switch"),
   emailOtpCheck: makeLimiter(10, "1 h"),
   // Each call is a real OpenAI Whisper charge, same reasoning as
   // phoneVerifyRequest above (real per-call cost) — a tight bucket keeps

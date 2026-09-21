@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { VerifyMethodFields } from "@/components/verify-method-fields";
 import { MIN_AGE } from "@/lib/validations";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
@@ -37,6 +38,14 @@ function errorMessage(error: string | undefined) {
       return "You must be at least 13 years old to use YuKon3t.";
     case "email_taken":
       return "An account with that email already exists.";
+    case "username_taken":
+      return "That username is taken — try another.";
+    case "invalid_username":
+      return "Usernames are 3–20 characters: letters, numbers and underscores only.";
+    case "invalid_phone":
+      return "Enter a valid phone number with country code (e.g. +14155551234).";
+    case "phone_taken":
+      return "That phone number is already verified on another account.";
     case "rate_limited":
       return "Too many attempts. Please wait a bit and try again.";
     case "captcha":
@@ -51,18 +60,17 @@ function errorMessage(error: string | undefined) {
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; username?: string; email?: string; phone?: string; method?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, username, email, phone, method } = await searchParams;
   const message = errorMessage(error);
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">Create an account</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">
-        Sign up with your email and a password. We&apos;ll send you a code
-        by email or text to confirm your account before you can sign in. You
-        can pick a username later in Settings.
+        Choose a username and password, then confirm your account with a
+        code we send by email or text before you can sign in.
       </p>
 
       {message && (
@@ -73,6 +81,25 @@ export default async function SignUpPage({
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
         <BotProtectionFields />
+        <label htmlFor="signup-username" className="sr-only">
+          Username
+        </label>
+        <input
+          id="signup-username"
+          type="text"
+          name="username"
+          required
+          minLength={3}
+          maxLength={20}
+          pattern="[A-Za-z0-9_]+"
+          title="Letters, numbers and underscores only"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          defaultValue={username ?? ""}
+          placeholder="Username (3–20 letters, numbers, _)"
+          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+        />
         <label htmlFor="signup-email" className="sr-only">
           Email address
         </label>
@@ -82,6 +109,7 @@ export default async function SignUpPage({
           name="email"
           required
           autoComplete="email"
+          defaultValue={email ?? ""}
           placeholder="you@example.com"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
@@ -109,21 +137,7 @@ export default async function SignUpPage({
             You must be at least 13 to use YuKon3t.
           </p>
         </div>
-        <fieldset>
-          <legend className="block text-xs font-medium text-foreground-soft">
-            Verify with
-          </legend>
-          <div className="mt-1 flex gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="radio" name="verificationMethod" value="EMAIL" defaultChecked />
-              Email code
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" name="verificationMethod" value="PHONE" />
-              Phone number
-            </label>
-          </div>
-        </fieldset>
+        <VerifyMethodFields defaultMethod={method === "PHONE" ? "PHONE" : "EMAIL"} defaultPhone={phone ?? ""} />
         <TurnstileWidget />
         <SubmitButton
           label="Create account"
