@@ -1,6 +1,11 @@
 "use client";
 
-import { requestUploadUrl } from "@/app/actions/media";
+import {
+  requestUploadUrls,
+  startMultipartUpload,
+  completeMultipartUpload,
+  abortMultipartUpload,
+} from "@/app/actions/media";
 import type { UploadKind } from "@/lib/storage";
 import { isStaleDeploymentError } from "@/lib/stale-deployment";
 
@@ -239,15 +244,153 @@ type RequestUploadUrlFn = (
   fd: FormData,
 ) => Promise<{ error: string | null; uploadUrl?: string; publicUrl?: string; key?: string }>;
 
+// --- Batched presigning -----------------------------------------------------
+// Next.js runs one browser's Server Action calls strictly one after another. A post with five photos, or a video plus
+// its thumbnail, used to make five/two presign calls in a row — each a full round trip through auth, the rate limit
+// and R2 signing — before the last file could even start uploading. Every presign request made in the same instant
+// (callers use Promise.all) is now coalesced into ONE requestUploadUrls call.
+type PresignResult = { error: string | null; uploadUrl?: string; publicUrl?: string; key?: string };
+type PendingPresign = {
+  item: { kind: string; contentType: string };
+  resolve: (r: PresignResult) => void;
+  reject: (e: unknown) => void;
+};
+const BATCH_WINDOW_MS = 12;
+const MAX_BATCH = 12; // matches requestUploadBatchSchema
+let pendingPresigns: PendingPresign[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function flushPresigns() {
+  flushTimer = null;
+  const all = pendingPresigns;
+  pendingPresigns = [];
+  for (let i = 0; i < all.length; i += MAX_BATCH) {
+    const chunk = all.slice(i, i + MAX_BATCH);
+    try {
+      const res = await requestUploadUrls(chunk.map((p) => p.item));
+      const items = "items" in res ? res.items : null;
+      if (items) {
+        chunk.forEach((p, idx) => p.resolve(items[idx] ?? { error: "invalid" }));
+      } else {
+        chunk.forEach((p) => p.resolve({ error: res.error }));
+      }
+    } catch (err) {
+      chunk.forEach((p) => p.reject(err));
+    }
+  }
+}
+
+/** Default presign function: same shape as the single-file action, but shares one server round trip with its neighbours. */
+const requestUploadUrlBatched: RequestUploadUrlFn = (fd) =>
+  new Promise<PresignResult>((resolve, reject) => {
+    pendingPresigns.push({
+      item: { kind: String(fd.get("kind") ?? ""), contentType: String(fd.get("contentType") ?? "") },
+      resolve,
+      reject,
+    });
+    if (!flushTimer) flushTimer = setTimeout(() => void flushPresigns(), BATCH_WINDOW_MS);
+  });
+
+// --- Multipart (parallel + resumable) video upload ---------------------------
+// A big video sent as ONE PUT can only be restarted from byte zero when the connection drops, and rides one stream.
+// Split into 16MB parts, up to PART_CONCURRENCY at a time, and a dropped connection only re-sends the part it hit.
+// Below MULTIPART_MIN_BYTES the extra round trips aren't worth it, so small videos still take the single PUT.
+// (Numbers mirror MULTIPART_* in storage.ts; duplicated because that file is server-only.)
+const MULTIPART_MIN_BYTES = 32 * 1024 * 1024;
+const PART_CONCURRENCY = 4;
+const PART_ATTEMPTS = 6;
+
+/**
+ * Uploads `file` as a multipart upload. Returns null when multipart couldn't even be started (the caller then falls
+ * back to the ordinary single PUT), otherwise the final result. Never throws.
+ */
+async function uploadMultipart(file: File, kind: UploadKind, contentType: string): Promise<ClientUploadResult | null> {
+  const startFd = new FormData();
+  startFd.set("kind", kind);
+  startFd.set("contentType", contentType);
+  startFd.set("size", String(file.size));
+
+  let started;
+  try {
+    started = await withRetry(
+      () => withTimeout(startMultipartUpload(startFd), MIN_ATTEMPT_TIMEOUT_MS),
+      2,
+      800,
+      false,
+      (err) => !isStaleDeploymentError(err),
+    );
+  } catch {
+    return null;
+  }
+  if (started.error || !("uploadId" in started)) return null;
+  const { key, uploadId, partSize, partUrls, publicUrl } = started;
+
+  const ref = new FormData();
+  ref.set("key", key);
+  ref.set("uploadId", uploadId);
+  const abort = () => void abortMultipartUpload(ref).catch(() => {});
+
+  let nextPart = 0;
+  let failed = false;
+  const worker = async () => {
+    while (!failed && nextPart < partUrls.length) {
+      const index = nextPart++;
+      const blob = file.slice(index * partSize, Math.min(file.size, (index + 1) * partSize));
+      try {
+        await withRetry(
+          async () => {
+            const res = await fetchWithTimeout(partUrls[index], { method: "PUT", body: blob }, attemptTimeoutMs(blob.size));
+            if (!res.ok) throw new Error(`part_${index + 1}_${res.status}`);
+          },
+          PART_ATTEMPTS,
+          800,
+          true,
+        );
+      } catch {
+        failed = true;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, partUrls.length) }, worker));
+  if (failed) {
+    abort();
+    return { ok: false, error: "network" };
+  }
+
+  const doneFd = new FormData();
+  doneFd.set("key", key);
+  doneFd.set("uploadId", uploadId);
+  doneFd.set("partCount", String(partUrls.length));
+  try {
+    const done = await withRetry(() => withTimeout(completeMultipartUpload(doneFd), 60_000), 3, 800);
+    if (done.error) {
+      abort();
+      return { ok: false, error: "upload_failed" };
+    }
+  } catch {
+    abort();
+    return { ok: false, error: "network" };
+  }
+  return { ok: true, publicUrl, key };
+}
+
 export async function uploadFileDirect(
   file: File,
   kind: UploadKind,
   // Defaults to the authenticated requestUploadUrl action; the public
   // /advertise booking flow passes requestAdUploadUrl instead, since there's
   // no signed-in user to attribute the upload to there.
-  requestUrlFn: RequestUploadUrlFn = requestUploadUrl,
+  requestUrlFn: RequestUploadUrlFn = requestUploadUrlBatched,
 ): Promise<ClientUploadResult> {
   const uploadFile = RESIZABLE_KINDS.includes(kind) ? await resizeImageFile(file) : file;
+
+  // Big videos go up as parallel, individually-retried parts. Only on the signed-in path (the public /advertise flow
+  // passes its own presign function and has no multipart counterpart), and only when multipart could be started —
+  // otherwise this falls straight through to the single PUT below.
+  if (requestUrlFn === requestUploadUrlBatched && VIDEO_KINDS.has(kind) && uploadFile.size >= MULTIPART_MIN_BYTES) {
+    const multipart = await uploadMultipart(uploadFile, kind, uploadFile.type);
+    if (multipart) return multipart;
+  }
 
   const fd = new FormData();
   fd.set("kind", kind);

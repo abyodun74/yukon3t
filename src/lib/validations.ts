@@ -279,6 +279,26 @@ export const requestUploadSchema = z.object({
   contentType: z.string().trim().min(1).max(100),
 });
 
+export const requestUploadBatchSchema = z
+  .array(requestUploadSchema)
+  .min(1)
+  .max(12);
+
+export const startMultipartSchema = z.object({
+  kind: z.enum(uploadKindValues),
+  contentType: z.string().trim().min(1).max(100),
+  size: z.coerce.number().int().positive(),
+});
+
+export const multipartRefSchema = z.object({
+  key: z.string().trim().min(1).max(500),
+  uploadId: z.string().trim().min(1).max(1000),
+});
+
+export const completeMultipartSchema = multipartRefSchema.extend({
+  partCount: z.coerce.number().int().positive().max(10_000),
+});
+
 export const confirmAvatarUploadSchema = z.object({
   key: z.string().trim().min(1).max(500),
   publicUrl: z.string().url(),

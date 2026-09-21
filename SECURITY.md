@@ -277,6 +277,19 @@ To reproduce this setup elsewhere (a new deploy target, a teammate's machine):
 5. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` in `.env`.
 6. Restart the dev server — `src/proxy.ts` reads `R2_ACCOUNT_ID`/`R2_PUBLIC_URL` at request time to open the CSP's `connect-src`/`media-src`/`img-src` only as far as needed.
 
+### Faster, resumable uploads (2026-09-21)
+
+Video uploads of 32MB or more go up as an S3 **multipart upload** the browser fills in directly (`startMultipartUpload` /
+`completeMultipartUpload` / `abortMultipartUpload` in `actions/media.ts`, `createMultipartUpload` etc. in `storage.ts`): 16MB
+parts, up to 4 at a time, each retried on its own, so a dropped connection re-sends one part instead of the whole file.
+Server-side checks: only video kinds and allowlisted content types, size capped per kind at start, key must carry the
+caller's user id (same `keyBelongsToOwner` rule as everything else), and on completion the part list is read back from R2
+itself (no ETag/CORS exposure needed) and the upload is aborted if a part is missing or the total exceeds the cap;
+`verifyUploadedSize` still runs when the post/story/etc. is created. Presign requests made together (e.g. several photos)
+are coalesced into one `requestUploadUrls` call (each item still counts against `mediaUpload`). The S3 client also now sets
+`requestChecksumCalculation/responseChecksumValidation: "WHEN_REQUIRED"`, Cloudflare's documented setting for R2 with SDK v3.
+`R2_ENDPOINT` exists only so tests can point the SDK at a local S3 stand-in; production never sets it.
+
 ### QuickTime (.mov) uploads and their conversion (2026-09-21)
 
 Every video upload kind accepts `video/quicktime` (an iPhone's default; storage.ts `CONTENT_TYPE_ALLOWLIST`). An iPhone's

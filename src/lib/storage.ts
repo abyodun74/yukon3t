@@ -4,6 +4,11 @@ import {
   HeadObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  ListPartsCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -190,7 +195,12 @@ function client() {
   if (cachedClient) return cachedClient;
   cachedClient = new S3Client({
     region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    // R2_ENDPOINT only exists so tests can point the SDK at a local S3 stand-in; production never sets it.
+    endpoint: process.env.R2_ENDPOINT ?? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    // Cloudflare's documented setting for R2 with AWS SDK v3 >= 3.729: only add request/response checksums when an
+    // operation requires one, instead of by default (R2 doesn't implement the SDK's default trailing checksums).
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
     // Path-style (endpoint/bucket/key) instead of the SDK's default
     // virtual-hosted-style (bucket.endpoint/key) — keeps the presigned URL's
     // host exactly matching what the CSP connect-src in src/proxy.ts allows.
@@ -385,6 +395,117 @@ export async function deleteObject(key: string) {
 export async function deleteOwnedObject(key: string, ownerId: string) {
   if (!keyBelongsToOwner(key, ownerId)) return;
   await deleteObject(key);
+}
+
+/** Size of each part of a browser-side multipart video upload. R2 requires every part except the last to be the same size. */
+export const MULTIPART_PART_BYTES = 16 * 1024 * 1024;
+/** Videos smaller than this are still sent as one PUT — the extra round trips only pay off for big files. */
+export const MULTIPART_MIN_FILE_BYTES = 32 * 1024 * 1024;
+
+/** Whether `kind` is one of the video upload kinds (the only ones eligible for multipart). */
+export function isVideoKind(kind: string): kind is UploadKind {
+  return VIDEO_KINDS.has(kind as UploadKind);
+}
+
+/** How many parts a file of `sizeBytes` is split into. */
+export function multipartPartCount(sizeBytes: number, partBytes = MULTIPART_PART_BYTES) {
+  return Math.max(1, Math.ceil(sizeBytes / partBytes));
+}
+
+/**
+ * Starts a multipart upload the browser fills in directly: returns one presigned PUT URL per part. The browser can
+ * send parts in parallel and re-send just a failed part, instead of restarting a whole multi-hundred-MB file after
+ * one dropped connection. Ownership and content-type checks are the same as createUploadUrl.
+ */
+export async function createMultipartUpload({
+  kind,
+  contentType,
+  userId,
+  sizeBytes,
+}: {
+  kind: UploadKind;
+  contentType: string;
+  userId: string;
+  sizeBytes: number;
+}) {
+  if (!isStorageConfigured()) throw new Error("not_configured");
+  const ext = validateContentType(kind, contentType);
+  if (!ext || !isVideoKind(kind)) throw new Error("invalid_content_type");
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MEDIA_LIMITS[kind]) throw new Error("invalid_size");
+
+  const bucket = process.env.R2_BUCKET_NAME!;
+  const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
+  const created = await client().send(new CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: contentType }));
+  const uploadId = created.UploadId;
+  if (!uploadId) throw new Error("multipart_start_failed");
+
+  const partCount = multipartPartCount(sizeBytes);
+  const partUrls = await Promise.all(
+    Array.from({ length: partCount }, (_, i) =>
+      getSignedUrl(client(), new UploadPartCommand({ Bucket: bucket, Key: key, UploadId: uploadId, PartNumber: i + 1 }), {
+        expiresIn: 21_600,
+      }),
+    ),
+  );
+  const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
+  return { key, uploadId, partSize: MULTIPART_PART_BYTES, partUrls, publicUrl };
+}
+
+/**
+ * Finishes a multipart upload once the browser has sent every part. The part ETags come from R2's own part list
+ * (not from the browser), so this needs no CORS change to expose the ETag header. Refuses to assemble anything that
+ * is missing a part or that adds up to more than the kind's size cap, and aborts the upload in those cases.
+ */
+export async function completeMultipartUpload({
+  key,
+  uploadId,
+  partCount,
+}: {
+  key: string;
+  uploadId: string;
+  partCount: number;
+}) {
+  const kind = key.split("/")[0];
+  if (!isVideoKind(kind)) throw new Error("invalid_key");
+  const bucket = process.env.R2_BUCKET_NAME!;
+  const c = client();
+
+  const parts: { PartNumber: number; ETag: string; Size: number }[] = [];
+  let marker: string | undefined;
+  for (;;) {
+    const page = await c.send(new ListPartsCommand({ Bucket: bucket, Key: key, UploadId: uploadId, PartNumberMarker: marker }));
+    for (const p of page.Parts ?? []) {
+      if (p.PartNumber && p.ETag) parts.push({ PartNumber: p.PartNumber, ETag: p.ETag, Size: p.Size ?? 0 });
+    }
+    if (!page.IsTruncated) break;
+    marker = page.NextPartNumberMarker;
+    if (!marker) break;
+  }
+  parts.sort((a, b) => a.PartNumber - b.PartNumber);
+
+  const total = parts.reduce((sum, p) => sum + p.Size, 0);
+  const complete = parts.length === partCount && parts.every((p, i) => p.PartNumber === i + 1);
+  if (!complete || total <= 0 || total > MEDIA_LIMITS[kind]) {
+    await c.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId })).catch(() => {});
+    throw new Error(complete ? "invalid_size" : "incomplete_parts");
+  }
+
+  await c.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: bucket,
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: { Parts: parts.map((p) => ({ PartNumber: p.PartNumber, ETag: p.ETag })) },
+    }),
+  );
+}
+
+/** Best-effort: discards a multipart upload the browser gave up on, so its parts don't sit in the bucket. */
+export async function abortMultipartUpload({ key, uploadId }: { key: string; uploadId: string }) {
+  if (!isStorageConfigured()) return;
+  await client()
+    .send(new AbortMultipartUploadCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key, UploadId: uploadId }))
+    .catch((err) => console.error(`[storage] failed to abort multipart upload for ${key}`, err));
 }
 
 /**

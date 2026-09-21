@@ -14,8 +14,20 @@ import {
   deleteObject,
   keyFromPublicUrl,
   uploadBuffer,
+  keyBelongsToOwner,
+  createMultipartUpload,
+  completeMultipartUpload as completeMultipart,
+  abortMultipartUpload as abortMultipart,
 } from "@/lib/storage";
-import { requestUploadSchema, confirmAvatarUploadSchema, imageFromUrlSchema } from "@/lib/validations";
+import {
+  requestUploadSchema,
+  requestUploadBatchSchema,
+  startMultipartSchema,
+  multipartRefSchema,
+  completeMultipartSchema,
+  confirmAvatarUploadSchema,
+  imageFromUrlSchema,
+} from "@/lib/validations";
 import { fetchRemoteImage } from "@/lib/fetch-remote-image";
 
 export async function requestUploadUrl(formData: FormData) {
@@ -48,6 +60,109 @@ export async function requestUploadUrl(formData: FormData) {
   } catch {
     return { error: "invalid" as const };
   }
+}
+
+/**
+ * Several presigned URLs in ONE call. Next.js runs a browser's Server Action calls one at a time, so a post with
+ * five photos (or a video plus its thumbnail) used to wait through five back-to-back round trips before the last
+ * upload could even start; the client now coalesces the requests it makes together into this. Each item still costs
+ * one unit of the same per-user upload limit and is validated exactly like requestUploadUrl.
+ */
+export async function requestUploadUrls(items: { kind: string; contentType: string }[]) {
+  const user = await requireVerifiedUser();
+
+  if (!isStorageConfigured()) {
+    return { error: "not_configured" as const };
+  }
+
+  const parsed = requestUploadBatchSchema.safeParse(items);
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  for (let i = 0; i < parsed.data.length; i++) {
+    if (!(await checkRateLimit("mediaUpload", user.id))) {
+      return { error: "rate_limited" as const };
+    }
+  }
+
+  const results = await Promise.all(
+    parsed.data.map(async ({ kind, contentType }) => {
+      try {
+        const { uploadUrl, publicUrl, key } = await createUploadUrl({ kind, contentType, userId: user.id });
+        return { error: null, uploadUrl, publicUrl, key };
+      } catch {
+        return { error: "invalid" as const };
+      }
+    }),
+  );
+  return { error: null, items: results };
+}
+
+/** Starts a multipart video upload — see createMultipartUpload in storage.ts for why and how. */
+export async function startMultipartUpload(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  if (!isStorageConfigured()) {
+    return { error: "not_configured" as const };
+  }
+  if (!(await checkRateLimit("mediaUpload", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const parsed = startMultipartSchema.safeParse({
+    kind: formData.get("kind"),
+    contentType: formData.get("contentType"),
+    size: formData.get("size"),
+  });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  try {
+    const started = await createMultipartUpload({
+      kind: parsed.data.kind,
+      contentType: parsed.data.contentType,
+      userId: user.id,
+      sizeBytes: parsed.data.size,
+    });
+    return { error: null, ...started };
+  } catch {
+    return { error: "invalid" as const };
+  }
+}
+
+/** Finishes a multipart upload after every part is in; the key must be the caller's own. */
+export async function completeMultipartUpload(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = completeMultipartSchema.safeParse({
+    key: formData.get("key"),
+    uploadId: formData.get("uploadId"),
+    partCount: formData.get("partCount"),
+  });
+  if (!parsed.success || !keyBelongsToOwner(parsed.data.key, user.id)) {
+    return { error: "invalid" as const };
+  }
+
+  try {
+    await completeMultipart(parsed.data);
+    return { error: null };
+  } catch {
+    return { error: "upload_failed" as const };
+  }
+}
+
+/** Best-effort cleanup of a multipart upload the browser gave up on. */
+export async function abortMultipartUpload(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const parsed = multipartRefSchema.safeParse({ key: formData.get("key"), uploadId: formData.get("uploadId") });
+  if (!parsed.success || !keyBelongsToOwner(parsed.data.key, user.id)) {
+    return { error: "invalid" as const };
+  }
+  await abortMultipart(parsed.data);
+  return { error: null };
 }
 
 /**
