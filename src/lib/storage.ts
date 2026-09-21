@@ -5,7 +5,9 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 
 export type UploadKind =
@@ -383,6 +385,36 @@ export async function deleteObject(key: string) {
 export async function deleteOwnedObject(key: string, ownerId: string) {
   if (!keyBelongsToOwner(key, ownerId)) return;
   await deleteObject(key);
+}
+
+/**
+ * Streams `body` into R2 under `key` as a multipart upload — for server-side
+ * copies of large files (the converted MP4 coming back from Cloudflare Stream,
+ * see video-convert.ts) that must not be buffered in memory. Returns the
+ * object's public URL. Aborts cleanly (no half-written object) on error or when
+ * `signal` fires.
+ */
+export async function uploadStream({
+  key,
+  body,
+  contentType,
+  signal,
+}: {
+  key: string;
+  body: Readable;
+  contentType: string;
+  signal?: AbortSignal;
+}) {
+  const upload = new Upload({
+    client: client(),
+    params: { Bucket: process.env.R2_BUCKET_NAME!, Key: key, Body: body, ContentType: contentType },
+    queueSize: 4,
+    partSize: 8 * 1024 * 1024,
+    leavePartsOnError: false,
+  });
+  signal?.addEventListener("abort", () => void upload.abort(), { once: true });
+  await upload.done();
+  return `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
 }
 
 export function keyFromPublicUrl(url: string) {

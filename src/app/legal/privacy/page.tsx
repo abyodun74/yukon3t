@@ -98,7 +98,7 @@ export default function PrivacyPage() {
         <li><b>Neon</b> — our PostgreSQL database provider, storing account and content data.</li>
         <li><b>Resend</b> — sends sign-in and account-related emails.</li>
         <li><b>Cloudflare (R2)</b> — stores uploaded photos and videos, including Story and ad media.</li>
-        <li><b>Cloudflare (Stream)</b> — a temporary copy of an uploaded video may be sent here for automated moderation scanning and caption generation; the original video is still served from R2 above.</li>
+        <li><b>Cloudflare (Stream)</b> — a temporary copy of an uploaded video may be sent here for automated moderation scanning and caption generation, and QuickTime (.mov) videos are sent here to be converted to a widely playable MP4; the video is still served from R2 above, and the Stream copy is deleted once it is no longer needed.</li>
         <li><b>Cloudflare (Turnstile)</b> — a bot check on sign-up, sign-in, password reset, device verification, phone-verification code requests, and ad booking forms, used to tell real people from automated scripts. When it runs, Cloudflare receives technical signals from your browser and network connection (such as your IP address) and processes them under Cloudflare&apos;s own privacy policy; most people never see it, since it usually completes invisibly.</li>
         <li><b>OpenAI</b> — automated content moderation of text and images before publication. We do not send full account profiles to this provider — only the specific content being screened.</li>
         <li><b>Daily.co</b> — powers 1:1 voice/video calls and Collab live sessions. If a live session&apos;s host enables cloud recording, the recording is stored by Daily until the host or an admin deletes it.</li>

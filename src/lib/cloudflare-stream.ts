@@ -71,6 +71,47 @@ export async function createStreamCopy(sourceUrl: string): Promise<string | null
   return data?.result?.uid ?? null;
 }
 
+/**
+ * Processing state of a Stream video: `ready` once it's playable, `failed` if
+ * Cloudflare gave up on it (unreadable/unsupported input). Neither → still
+ * downloading/encoding. null → the status call itself failed (transient).
+ */
+export async function getStreamStatus(uid: string): Promise<{ ready: boolean; failed: boolean } | null> {
+  const res = await cfFetch(`/stream/${uid}`);
+  if (!res?.ok) return null;
+  const data = await res.json();
+  const result = data?.result;
+  return { ready: Boolean(result?.readyToStream), failed: result?.status?.state === "error" };
+}
+
+export type Mp4DownloadState = { status: "inprogress" | "ready" | "error" | "missing"; url: string | null };
+
+function parseMp4Download(data: unknown): Mp4DownloadState {
+  const d = (data as { result?: { default?: { status?: string; url?: string } } } | null)?.result?.default;
+  if (!d) return { status: "missing", url: null };
+  const status = d.status === "ready" ? "ready" : d.status === "error" ? "error" : "inprogress";
+  return { status, url: d.url ?? null };
+}
+
+/**
+ * Asks Cloudflare to build the MP4 download (H.264 video + AAC audio, however
+ * the source was encoded — this is what turns an iPhone's HEVC .mov into
+ * something every browser plays). Safe to call again while one is in progress.
+ */
+export async function requestMp4Download(uid: string): Promise<Mp4DownloadState | null> {
+  const res = await cfFetch(`/stream/${uid}/downloads`, { method: "POST" });
+  if (!res?.ok) return null;
+  return parseMp4Download(await res.json());
+}
+
+/** Current state of the MP4 download; "missing" when none was requested yet. */
+export async function getMp4Download(uid: string): Promise<Mp4DownloadState | null> {
+  const res = await cfFetch(`/stream/${uid}/downloads`);
+  if (res?.status === 404) return { status: "missing", url: null };
+  if (!res?.ok) return null;
+  return parseMp4Download(await res.json());
+}
+
 /** True once Cloudflare has finished downloading+encoding the copy and it's playable. */
 export async function isStreamReady(uid: string): Promise<boolean | null> {
   const res = await cfFetch(`/stream/${uid}`);

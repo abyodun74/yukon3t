@@ -2117,3 +2117,33 @@ model AnalyticsEvent {
   @@index([type, createdAt])
   @@index([userId])
 }
+
+enum VideoConversionStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/**
+ * One row per QuickTime (.mov) upload that's being re-encoded to a broadly
+ * playable H.264 MP4 (see src/lib/video-convert.ts). Keyed by the source
+ * object's public URL rather than by the row that references it: the same
+ * conversion swaps that URL wherever it was stored (a post, comment, message,
+ * story, Muse or ad), so this needs no per-kind foreign key.
+ */
+model VideoConversion {
+  id        String                @id @default(cuid())
+  sourceUrl String                @unique
+  status    VideoConversionStatus @default(PENDING)
+  // The temporary Cloudflare Stream copy doing the actual encode; deleted once the MP4 is back in R2.
+  streamUid String?
+  outputUrl String?
+  attempts  Int                   @default(0)
+  lastError String?
+  // Same claim-with-staleness pattern as Post.videoLongReviewClaimedAt.
+  claimedAt DateTime?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@index([status, createdAt])
+}

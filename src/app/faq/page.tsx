@@ -232,6 +232,19 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Which video formats can I upload, and can everyone watch them?",
+        a: (
+          <>
+            MP4, WebM, and QuickTime (.mov — what an iPhone records) up to
+            2GB. A .mov is re-encoded in the background to a standard MP4 so
+            it plays in every browser, not just Safari; that usually takes a
+            few minutes, and until it&apos;s done the original plays for
+            anyone whose browser supports it. If a video can&apos;t be
+            converted, the original stays as it is.
+          </>
+        ),
+      },
+      {
         q: "Why was my photo or video rejected?",
         a: (
           <>

@@ -277,6 +277,19 @@ To reproduce this setup elsewhere (a new deploy target, a teammate's machine):
 5. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` in `.env`.
 6. Restart the dev server — `src/proxy.ts` reads `R2_ACCOUNT_ID`/`R2_PUBLIC_URL` at request time to open the CSP's `connect-src`/`media-src`/`img-src` only as far as needed.
 
+### QuickTime (.mov) uploads and their conversion (2026-09-21)
+
+Every video upload kind accepts `video/quicktime` (an iPhone's default; storage.ts `CONTENT_TYPE_ALLOWLIST`). An iPhone's
+HEVC `.mov` plays only in Safari/hardware-HEVC browsers, so the `convert-mov-videos` cron (`src/lib/video-convert.ts`,
+`video-convert-db.ts`, `api/cron/convert-mov-videos`, state in `VideoConversion`) re-encodes each one to an H.264 MP4 and
+swaps the stored URL. Consistent with the no-ffmpeg-on-untrusted-bytes policy above, the decode/encode happens on
+**Cloudflare Stream** (copy the R2 object in → request the MP4 download → stream Stream's own output back into R2 next to the
+`.mov`, same owner path segment → update every row holding the URL → delete the `.mov` and the Stream copy). Our code only
+handles URLs and Stream's well-formed output; it refuses a download URL that isn't `https://*.cloudflarestream.com`. Fail-soft:
+after 3 failed attempts the original `.mov` is left in place. Until the swap lands, viewers get the `.mov` (plays wherever it
+always did). Needs `CLOUDFLARE_STREAM_*` + R2 configured, else the cron does nothing. Not covered: thumbnails are still
+captured in the uploader's own browser, so a browser that cannot decode an HEVC `.mov` still cannot create a thumbnail for it.
+
 ## Automated database backups — status: built, pending bucket setup (2026-09-16)
 
 A daily encrypted logical backup of every table (`src/lib/db-backup.ts`, driven by the `backup-database` cron — same Netlify Scheduled Function pattern as every other `src/app/api/cron/*` route, see `netlify/functions/backup-database.mts`) uploads to a dedicated R2 bucket. `restore-database-backup.ts` (`npm run db:restore-backup`) is the corresponding manual, deliberate restore path — it is never run automatically.
