@@ -99,7 +99,8 @@ export const rateLimiters = {
   e2eeReset: makeLimiter(3, "1 h", "e2eeReset"),
   e2eeToggle: makeLimiter(30, "10 m", "e2eeToggle"),
   groupChatCreate: makeLimiter(5, "1 h"),
-  mediaUpload: makeLimiter(20, "10 m"),
+  // Uploads now start when a file is picked (see prefetchUpload), so trying out and removing attachments costs uploads too.
+  mediaUpload: makeLimiter(40, "10 m"),
   like: makeLimiter(60, "1 m"),
   rsvp: makeLimiter(30, "1 m"),
   comment: makeLimiter(20, "5 m"),

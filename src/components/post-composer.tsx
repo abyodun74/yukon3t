@@ -6,7 +6,8 @@ import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, 
 import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
+import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry } from "@/lib/upload-client";
+import { useEagerUploads } from "@/lib/use-eager-uploads";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
@@ -164,6 +165,16 @@ export function PostComposer({
   const [images, setImages] = useState<File[]>([]);
   const [urlImages, setUrlImages] = useState<string[]>([]);
   const [video, setVideo] = useState<File | null>(null);
+  // Attachments start uploading the moment they're picked (while the person writes their caption) instead of when they
+  // tap Post; a removed or replaced one has its upload deleted again.
+  const eagerItems = useMemo(
+    () => [
+      ...images.map((file) => ({ file, kind: "post-image" as const })),
+      ...(video ? [{ file: video, kind: "post-video" as const, withThumb: true }] : []),
+    ],
+    [images, video],
+  );
+  useEagerUploads(eagerItems);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   // Set when a video was picked via Android's native picker (see
   // pickVideoNative) instead of the plain <input type="file"> — that path
@@ -640,12 +651,8 @@ export function PostComposer({
       // used to be. That chain was the main cause of "video posting feels
       // slow": two full network round-trips in sequence when neither one
       // needed to wait for the other.
-      const [videoResult, thumbnailUrl] = await Promise.all([
-        uploadFileDirect(video, "post-video"),
-        captureVideoFrameFromFile(video).then((frame) =>
-          frame ? uploadFileDirect(frame, "video-thumb") : null,
-        ),
-      ]);
+      // Uploading started when the video was attached (see useEagerUploads), so this usually just collects the result.
+      const [videoResult, thumbnailUrl] = await uploadVideoWithThumb(video, "post-video");
       if (!videoResult.ok) return { error: videoResult.error };
 
       return {

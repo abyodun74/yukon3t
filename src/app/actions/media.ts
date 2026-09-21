@@ -12,6 +12,7 @@ import {
   MEDIA_LIMITS,
   verifyUploadedSize,
   deleteObject,
+  deleteOwnedObject,
   keyFromPublicUrl,
   uploadBuffer,
   keyBelongsToOwner,
@@ -162,6 +163,36 @@ export async function abortMultipartUpload(formData: FormData) {
     return { error: "invalid" as const };
   }
   await abortMultipart(parsed.data);
+  return { error: null };
+}
+
+// Kinds a composer may upload ahead of posting and then throw away (see discardUpload in upload-client.ts).
+const DISCARDABLE_KINDS = new Set([
+  "post-image",
+  "post-video",
+  "video-thumb",
+  "muse-video",
+  "message-image",
+  "message-video",
+  "comment-video",
+  "story-image",
+  "story-video",
+]);
+
+/**
+ * Deletes media the caller uploaded ahead of posting and then removed from the composer. Only their own keys, only
+ * post-style media kinds — never an avatar, cover or anything else.
+ */
+export async function discardUploads(keys: string[]) {
+  const user = await requireVerifiedUser();
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > 12) {
+    return { error: "invalid" as const };
+  }
+  await Promise.all(
+    keys
+      .filter((k): k is string => typeof k === "string" && k.length < 500 && DISCARDABLE_KINDS.has(k.split("/")[0]))
+      .map((k) => deleteOwnedObject(k, user.id)),
+  );
   return { error: null };
 }
 

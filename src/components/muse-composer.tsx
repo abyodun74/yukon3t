@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Video, Music, Upload } from "lucide-react";
 import { createMuse } from "@/app/actions/muse";
-import { uploadFileDirect, captureVideoFrameFromFile, withRetry } from "@/lib/upload-client";
+import { uploadFileDirect, uploadVideoWithThumb, withRetry } from "@/lib/upload-client";
+import { useEagerUploads } from "@/lib/use-eager-uploads";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
@@ -48,6 +49,12 @@ type SoundMode = "original" | "custom";
 export function MuseComposer({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [video, setVideo] = useState<File | null>(null);
+  // The video (and its poster frame) starts uploading as soon as it's picked; removing it deletes the upload again.
+  const eagerItems = useMemo(
+    () => (video ? [{ file: video, kind: "muse-video" as const, withThumb: true }] : []),
+    [video],
+  );
+  useEagerUploads(eagerItems);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   const [soundMode, setSoundMode] = useState<SoundMode>("original");
   const [audio, setAudio] = useState<File | null>(null);
@@ -94,11 +101,9 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
     // All three uploads run concurrently rather than chained — same
     // "don't make the user wait on sequential round-trips" reasoning as
     // post-composer.tsx's own video+thumbnail upload.
-    const [videoResult, thumbnailResult, audioResult] = await Promise.all([
-      uploadFileDirect(video, "muse-video"),
-      captureVideoFrameFromFile(video).then((frame) =>
-        frame ? uploadFileDirect(frame, "video-thumb") : null,
-      ),
+    // The video and its poster frame started uploading when the video was picked (useEagerUploads).
+    const [[videoResult, thumbnailResult], audioResult] = await Promise.all([
+      uploadVideoWithThumb(video, "muse-video"),
       customAudioFile ? uploadFileDirect(customAudioFile, "muse-audio") : Promise.resolve(null),
     ]);
     if (!videoResult.ok) {

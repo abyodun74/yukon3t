@@ -290,6 +290,13 @@ are coalesced into one `requestUploadUrls` call (each item still counts against 
 `requestChecksumCalculation/responseChecksumValidation: "WHEN_REQUIRED"`, Cloudflare's documented setting for R2 with SDK v3.
 `R2_ENDPOINT` exists only so tests can point the SDK at a local S3 stand-in; production never sets it.
 
+Uploads also **start when a file is attached** rather than when Post is tapped (`prefetchUpload` / `useEagerUploads`; post and
+Muse composers): the eventual submit reuses the finished upload. A removed/replaced/abandoned attachment is deleted again via
+`discardUploads` — the caller's own keys only, and only post-style media kinds (never avatars/covers). A file a submit has taken is
+marked consumed and can never be discarded. Cost: the `mediaUpload` limit went from 20 to 40 per 10 minutes since trying out and
+removing attachments now spends uploads. Gap: closing the browser tab mid-upload can't run the cleanup, so an abandoned pick can
+leave an unreferenced object behind.
+
 ### QuickTime (.mov) uploads and their conversion (2026-09-21)
 
 Every video upload kind accepts `video/quicktime` (an iPhone's default; storage.ts `CONTENT_TYPE_ALLOWLIST`). An iPhone's

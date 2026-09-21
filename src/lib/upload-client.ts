@@ -5,6 +5,7 @@ import {
   startMultipartUpload,
   completeMultipartUpload,
   abortMultipartUpload,
+  discardUploads,
 } from "@/app/actions/media";
 import type { UploadKind } from "@/lib/storage";
 import { isStaleDeploymentError } from "@/lib/stale-deployment";
@@ -374,7 +375,7 @@ async function uploadMultipart(file: File, kind: UploadKind, contentType: string
   return { ok: true, publicUrl, key };
 }
 
-export async function uploadFileDirect(
+async function uploadNow(
   file: File,
   kind: UploadKind,
   // Defaults to the authenticated requestUploadUrl action; the public
@@ -474,6 +475,94 @@ export async function uploadFileDirect(
   }
 
   return { ok: true, publicUrl, key };
+}
+
+// --- Start uploading when a file is picked ----------------------------------
+// Composers used to upload only when the person tapped Post, so the whole transfer sat between "Post" and "posted".
+// prefetchUpload starts it the moment the file is attached — while they write their caption — and the eventual
+// uploadFileDirect / uploadVideoWithThumb call at submit just picks up the (usually finished) result. If the file is
+// removed or replaced first, discardUpload deletes what was uploaded so abandoned picks don't pile up in storage.
+type EagerEntry = {
+  kind: UploadKind;
+  main: Promise<ClientUploadResult>;
+  /** Only for videos: the poster frame, captured and uploaded alongside. */
+  thumb: Promise<ClientUploadResult | null> | null;
+  /** Set once a submit has taken the result — from then on the upload belongs to a post and must never be discarded. */
+  consumed: boolean;
+};
+const eagerUploads = new WeakMap<File, EagerEntry>();
+
+function startEntry(file: File, kind: UploadKind, withThumb: boolean): EagerEntry {
+  const entry: EagerEntry = {
+    kind,
+    main: uploadNow(file, kind),
+    thumb: withThumb
+      ? captureVideoFrameFromFile(file).then((frame) => (frame ? uploadNow(frame, "video-thumb") : null))
+      : null,
+    consumed: false,
+  };
+  eagerUploads.set(file, entry);
+  return entry;
+}
+
+/** Begin uploading `file` now (idempotent). Fire and forget — never throws. */
+export function prefetchUpload(file: File, kind: UploadKind, options: { withThumb?: boolean } = {}) {
+  if (eagerUploads.has(file)) return;
+  startEntry(file, kind, Boolean(options.withThumb));
+}
+
+/**
+ * Uploads a file to R2 and resolves to its public URL. If prefetchUpload already started (or finished) this exact
+ * file, that upload is reused instead of sending it again. Never throws.
+ */
+export async function uploadFileDirect(
+  file: File,
+  kind: UploadKind,
+  requestUrlFn?: RequestUploadUrlFn,
+): Promise<ClientUploadResult> {
+  if (requestUrlFn) return uploadNow(file, kind, requestUrlFn); // the public ad-booking flow: never prefetched
+
+  const entry = eagerUploads.get(file);
+  if (entry && entry.kind === kind) {
+    entry.consumed = true;
+    const result = await entry.main;
+    if (result.ok) return result;
+    eagerUploads.delete(file); // the early attempt failed (e.g. offline) — try again now, from scratch
+  }
+  return uploadNow(file, kind);
+}
+
+/** A video and its poster frame, uploaded together — reusing whatever prefetchUpload already got done. */
+export async function uploadVideoWithThumb(
+  file: File,
+  kind: UploadKind,
+): Promise<[ClientUploadResult, ClientUploadResult | null]> {
+  let entry = eagerUploads.get(file);
+  if (!entry || entry.kind !== kind || !entry.thumb) entry = startEntry(file, kind, true);
+  entry.consumed = true;
+  const [video, thumb] = await Promise.all([entry.main, entry.thumb ?? Promise.resolve(null)]);
+  if (video.ok) return [video, thumb];
+  eagerUploads.delete(file);
+  const retry = startEntry(file, kind, true);
+  retry.consumed = true;
+  return Promise.all([retry.main, retry.thumb ?? Promise.resolve(null)]);
+}
+
+/**
+ * The picked file was removed or replaced without being posted: delete whatever was (or is still being) uploaded for
+ * it. A no-op for a file a submit already took. Best effort, never throws.
+ */
+export function discardUpload(file: File) {
+  const entry = eagerUploads.get(file);
+  if (!entry) return;
+  eagerUploads.delete(file);
+  if (entry.consumed) return;
+  void Promise.all([entry.main, entry.thumb ?? Promise.resolve(null)])
+    .then((results) => {
+      const keys = results.flatMap((r) => (r?.ok ? [r.key] : []));
+      if (keys.length > 0) return discardUploads(keys);
+    })
+    .catch(() => {});
 }
 
 export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {
