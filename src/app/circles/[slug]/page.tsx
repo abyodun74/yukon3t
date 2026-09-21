@@ -88,7 +88,7 @@ export default async function CirclePage({
       ? `/circles/${circle.slug}`
       : circle.parent
         ? `/circles/${circle.parent.slug}`
-        : null;
+        : "/circles";
 
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
@@ -151,10 +151,10 @@ export default async function CirclePage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      {/* Back goes to the Circle's main page rather than through history (which would step through every channel visited):
-          from a non-default channel → this Circle's own page; from a sub-circle's page → its main Circle's page. From a
-          main Circle's own page it's still a plain back, falling back to the Circles list. */}
-      {backHref ? <BackButton href={backHref} /> : <BackButton fallbackHref="/circles" />}
+      {/* Back always goes one level up, never through history (which would step through every channel visited, or land
+          on the "Add a sub-circle" form the Circle was just created from): a non-default channel → this Circle's own
+          page; a sub-circle → its main Circle; a main Circle → the Circles page. */}
+      <BackButton href={backHref} />
       {circle.parent && (
         <p className="text-xs text-foreground-soft">
           Sub-circle of{" "}

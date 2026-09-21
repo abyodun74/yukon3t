@@ -1,4 +1,5 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
+import { BackButton } from "@/components/back-button";
 import { prisma } from "@/lib/prisma";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { PeopleYouMayKnow } from "@/components/people-you-may-know";
@@ -156,6 +157,7 @@ export default async function DiscoverPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
+      <BackButton href="/home" />
       <h1 className="text-2xl font-semibold">Discover people</h1>
       <p className="mt-1 text-sm text-foreground-soft">
         Filter by what you&apos;re both open to — no drifting into

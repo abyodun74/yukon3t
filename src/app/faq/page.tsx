@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
+import { BackButton } from "@/components/back-button";
+import { auth } from "@/lib/auth";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
@@ -1352,9 +1354,12 @@ const sections: Section[] = [
   },
 ];
 
-export default function FaqPage() {
+export default async function FaqPage() {
+  // The FAQ is public: someone signed in goes Back to Home, a visitor to the landing page.
+  const session = await auth();
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
+      <BackButton href={session?.user ? "/home" : "/"} />
       <h1 className="font-display text-3xl font-semibold">Frequently asked questions</h1>
       <p className="mt-2 text-sm text-foreground-soft">
         Everything you need to find your way around YuKon3t. Can&apos;t find

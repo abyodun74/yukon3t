@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
 import { listBlockedUsers } from "@/app/actions/blocks";
@@ -32,6 +33,7 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
       <div>
+        <BackButton href="/home" />
         <h1 className="font-display text-2xl font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-foreground-soft">
           Signed in as {user.email}
