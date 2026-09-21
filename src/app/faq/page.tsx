@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { HideInIosApp } from "@/components/hide-in-ios-app";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
@@ -28,7 +29,8 @@ export const metadata: Metadata = {
 };
 
 type Faq = { q: string; a: ReactNode };
-type Section = { title: string; items: Faq[] };
+// hideInIosApp: the ad-booking Q&A points at a web/Stripe purchase flow, which the native iOS app doesn't surface (see HideInIosApp).
+type Section = { title: string; items: Faq[]; hideInIosApp?: boolean };
 
 const sections: Section[] = [
   {
@@ -1149,6 +1151,7 @@ const sections: Section[] = [
   },
   {
     title: "Advertising",
+    hideInIosApp: true,
     items: [
       {
         q: "How do I advertise on YuKon3t?",
@@ -1347,29 +1350,36 @@ export default function FaqPage() {
       </p>
 
       <div className="mt-10 space-y-10">
-        {sections.map((section) => (
-          <section key={section.title}>
-            <h2 className="font-display text-xl font-semibold text-teal">{section.title}</h2>
-            <div className="mt-3 space-y-2">
-              {section.items.map((item) => (
-                <details
-                  key={item.q}
-                  className="group rounded-xl border border-line bg-surface p-4 open:shadow-sm"
-                >
-                  <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
-                    <span className="flex items-center justify-between gap-3">
-                      {item.q}
-                      <span className="shrink-0 text-foreground-soft transition-transform group-open:rotate-45">
-                        +
+        {sections.map((section) => {
+          const block = (
+            <section key={section.hideInIosApp ? undefined : section.title}>
+              <h2 className="font-display text-xl font-semibold text-teal">{section.title}</h2>
+              <div className="mt-3 space-y-2">
+                {section.items.map((item) => (
+                  <details
+                    key={item.q}
+                    className="group rounded-xl border border-line bg-surface p-4 open:shadow-sm"
+                  >
+                    <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
+                      <span className="flex items-center justify-between gap-3">
+                        {item.q}
+                        <span className="shrink-0 text-foreground-soft transition-transform group-open:rotate-45">
+                          +
+                        </span>
                       </span>
-                    </span>
-                  </summary>
-                  <div className="mt-2 text-sm leading-relaxed text-foreground-soft">{item.a}</div>
-                </details>
-              ))}
-            </div>
-          </section>
-        ))}
+                    </summary>
+                    <div className="mt-2 text-sm leading-relaxed text-foreground-soft">{item.a}</div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          );
+          return section.hideInIosApp ? (
+            <HideInIosApp key={section.title}>{block}</HideInIosApp>
+          ) : (
+            block
+          );
+        })}
       </div>
     </div>
   );

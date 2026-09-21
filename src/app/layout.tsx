@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { AppSplash } from "@/components/app-splash";
@@ -17,6 +17,8 @@ import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
 import { ShareTargetGate } from "@/components/share-target-gate";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { auth } from "@/lib/auth";
+import { HideInIosApp } from "@/components/hide-in-ios-app";
+import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
@@ -130,6 +132,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  const iosApp = isLikelyIosAppUserAgent((await headers()).get("user-agent"));
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
@@ -201,9 +204,12 @@ export default async function RootLayout({
               <a href="/legal/disclaimer" className="hover:text-accent">
                 Disclaimer
               </a>
-              <a href="/advertise" className="hover:text-accent">
-                Advertise
-              </a>
+              {/* Ad booking is a web/Stripe business purchase — not surfaced inside the iOS app (see HideInIosApp). */}
+              <HideInIosApp hiddenOnServer={iosApp}>
+                <a href="/advertise" className="hover:text-accent">
+                  Advertise
+                </a>
+              </HideInIosApp>
             </div>
             <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
           </footer>
