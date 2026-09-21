@@ -2147,3 +2147,20 @@ model VideoConversion {
 
   @@index([status, createdAt])
 }
+
+/**
+ * Every post-style upload a signed-in user was given a URL for (see recordUploads in src/lib/upload-records.ts).
+ * A daily-ish sweep looks at the ones older than a couple of days and deletes any that nothing ever referenced —
+ * an attachment picked (and eagerly uploaded) and then abandoned. The row is dropped once it has been dealt with.
+ */
+model UploadRecord {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  userId    String
+  kind      String
+  createdAt DateTime  @default(now())
+  // Set by a dry-run sweep on an unreferenced upload, so the next dry run moves on to newer ones.
+  checkedAt DateTime?
+
+  @@index([createdAt])
+}

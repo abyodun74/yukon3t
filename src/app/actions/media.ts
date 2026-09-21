@@ -30,6 +30,7 @@ import {
   imageFromUrlSchema,
 } from "@/lib/validations";
 import { fetchRemoteImage } from "@/lib/fetch-remote-image";
+import { recordUploads } from "@/lib/upload-records";
 
 export async function requestUploadUrl(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -57,6 +58,7 @@ export async function requestUploadUrl(formData: FormData) {
       contentType: parsed.data.contentType,
       userId: user.id,
     });
+    await recordUploads([{ key, kind: parsed.data.kind }], user.id);
     return { error: null, uploadUrl, publicUrl, key };
   } catch {
     return { error: "invalid" as const };
@@ -97,6 +99,10 @@ export async function requestUploadUrls(items: { kind: string; contentType: stri
       }
     }),
   );
+  await recordUploads(
+    results.flatMap((r, i) => (r.error === null && r.key ? [{ key: r.key, kind: parsed.data[i].kind }] : [])),
+    user.id,
+  );
   return { error: null, items: results };
 }
 
@@ -127,6 +133,7 @@ export async function startMultipartUpload(formData: FormData) {
       userId: user.id,
       sizeBytes: parsed.data.size,
     });
+    await recordUploads([{ key: started.key, kind: parsed.data.kind }], user.id);
     return { error: null, ...started };
   } catch {
     return { error: "invalid" as const };

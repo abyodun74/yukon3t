@@ -295,7 +295,14 @@ Muse composers): the eventual submit reuses the finished upload. A removed/repla
 `discardUploads` — the caller's own keys only, and only post-style media kinds (never avatars/covers). A file a submit has taken is
 marked consumed and can never be discarded. Cost: the `mediaUpload` limit went from 20 to 40 per 10 minutes since trying out and
 removing attachments now spends uploads. Gap: closing the browser tab mid-upload can't run the cleanup, so an abandoned pick can
-leave an unreferenced object behind.
+leave an unreferenced object behind — which the **abandoned-upload sweep** backstops: every post-style presigned upload is
+recorded (`UploadRecord`, `lib/upload-records.ts`), and the hourly `sweep-abandoned-uploads` cron looks at records older than 48h
+(`UPLOAD_SWEEP_MIN_AGE_HOURS`, never less than 24) and deletes those nothing references. Deleting media is irreversible, so it is
+cautious: **dry-run (log only) unless `UPLOAD_SWEEP_DELETE=1` is set**; exact-URL reference check across every column that can
+hold such a URL (`findReferencedUrls` — a NEW column that stores a media URL must be added there or the sweep would delete what it
+uses), counting a `.mov` still being converted as in use; 200 per run; and a tripwire that refuses to delete when 20+ candidates are
+half or more unreferenced (what a broken reference check looks like). Only uploads made after this shipped are covered, not
+historical orphans. Abandoned *multipart* uploads never become an object; R2's default lifecycle rule aborts them after 7 days.
 
 ### QuickTime (.mov) uploads and their conversion (2026-09-21)
 
