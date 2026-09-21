@@ -13,14 +13,13 @@ import {
   deleteMuseComment,
   deleteMuse,
   toggleMuseRepost,
-  recordMuseShare,
   recordMuseView,
 } from "@/app/actions/muse";
+import { MuseShareModal } from "@/components/muse-share-modal";
 import { UserLink, UserAvatar } from "@/components/user-link";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
 import { SubscribeButton } from "@/components/subscribe-button";
-import { canShareNatively, shareNative } from "@/lib/native-share";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
@@ -42,6 +41,7 @@ type MuseItem = {
   caption: string | null;
   videoUrl: string;
   videoThumbnailUrl: string | null;
+  videoDurationSeconds: number;
   audioUrl: string | null;
   createdAt: Date;
   likeCount: number;
@@ -104,14 +104,16 @@ export function MuseFeed({
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
-  // Starts muted — a guaranteed-to-autoplay baseline (unlike story-viewer.tsx,
-  // which can lean on the tap that opened it as a prior user gesture, /muse
-  // can be the very first interaction on page load, where several browsers/
-  // WebViews block autoplay-with-sound outright). The speaker button on
-  // each card is how sound actually gets heard; shared globally across
-  // every card, same "one sound setting for the whole feed" convention the
-  // Home feed's own videos already use.
-  const [muted, setMuted] = useState(true);
+  // Muse opens playing WITH sound; the speaker button mutes it. `muted` is the viewer's own choice, shared by every
+  // card (the same "one sound setting for the whole feed" convention Home's videos use).
+  const [muted, setMuted] = useState(false);
+  // Some browsers/WebViews refuse to autoplay with sound until the person has interacted with the page (most likely
+  // when /muse is the very first thing opened). When a card's play-with-sound is refused it plays muted instead and
+  // this flips on: a "Tap for sound" pill shows and the next tap anywhere turns sound on — that tap is the gesture
+  // the browser was waiting for. Distinct from `muted` so it never overrides a deliberate mute.
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const [shareMuseId, setShareMuseId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<MuseCommentData[] | null>(null);
 
@@ -196,6 +198,10 @@ export function MuseFeed({
       ),
     );
     const result = await toggleMuseRepost(museId);
+    if (!result.error) {
+      setToast(nextReposted ? "Shared to your Home" : "Removed from your Home");
+      setTimeout(() => setToast(null), 2500);
+    }
     if (result.error) {
       setItems((prev) =>
         prev.map((it) =>
@@ -207,28 +213,30 @@ export function MuseFeed({
     }
   }
 
-  async function shareMuse(item: MuseItem) {
-    const url = `${window.location.origin}/muse/${item.id}`;
-    if (canShareNatively()) {
-      await shareNative({ url, text: item.caption ?? undefined });
-    } else if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ url, text: item.caption ?? undefined });
-      } catch {
-        return; // Cancelled — don't count it as a share.
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        return;
-      }
-    }
-    const result = await recordMuseShare(item.id);
-    if (!result.error) {
-      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, shareCount: it.shareCount + 1 } : it)));
-    }
-  }
+  // When the first tap is what turned sound on, the card that receives that same tap must not also treat it as
+  // "pause": React re-renders between this window listener and the card's own click handler, so the card can't tell
+  // from props alone. It asks here instead.
+  const lastUnblockAtRef = useRef(0);
+  const consumeUnblockTap = useCallback(() => {
+    const justUnblocked = Date.now() - lastUnblockAtRef.current < 400;
+    lastUnblockAtRef.current = 0;
+    return justUnblocked;
+  }, []);
+
+  useEffect(() => {
+    if (!soundBlocked) return;
+    const enable = () => {
+      lastUnblockAtRef.current = Date.now();
+      setSoundBlocked(false);
+    };
+    // Capture, so it still fires when a control below stops propagation; once, so it is just the first tap.
+    window.addEventListener("click", enable, { capture: true, once: true });
+    window.addEventListener("keydown", enable, { capture: true, once: true });
+    return () => {
+      window.removeEventListener("click", enable, { capture: true });
+      window.removeEventListener("keydown", enable, { capture: true });
+    };
+  }, [soundBlocked]);
 
   const viewedRef = useRef(new Set<string>());
   function recordView(museId: string) {
@@ -258,6 +266,7 @@ export function MuseFeed({
   }
 
   const commentsMuse = commentsOpenForId ? items.find((it) => it.id === commentsOpenForId) : undefined;
+  const shareMuse = shareMuseId ? items.find((it) => it.id === shareMuseId) : undefined;
 
   return (
     <>
@@ -280,18 +289,45 @@ export function MuseFeed({
             key={item.id}
             item={item}
             muted={muted}
+            soundBlocked={soundBlocked}
+            onSoundBlocked={() => setSoundBlocked(true)}
+            consumeUnblockTap={consumeUnblockTap}
             currentUserId={currentUserId}
             onToggleMute={() => setMuted((m) => !m)}
             onToggleReaction={(emoji) => toggleReaction(item.id, emoji)}
             onOpenComments={() => openComments(item.id)}
             onDelete={() => removeMuse(item.id)}
             onToggleRepost={() => toggleRepost(item.id)}
-            onShare={() => shareMuse(item)}
+            onShare={() => setShareMuseId(item.id)}
             onView={() => recordView(item.id)}
           />
         ))}
         <div ref={sentinelRef} aria-hidden className="h-px w-full" />
       </div>
+
+      {toast && (
+        <div
+          role="status"
+          className="pointer-events-none fixed inset-x-0 top-24 z-[55] flex justify-center px-4"
+        >
+          <p className="rounded-full bg-black/75 px-4 py-2 text-sm text-white">{toast}</p>
+        </div>
+      )}
+
+      {shareMuse && (
+        <MuseShareModal
+          museId={shareMuse.id}
+          caption={shareMuse.caption}
+          videoUrl={shareMuse.videoUrl}
+          videoDurationSeconds={shareMuse.videoDurationSeconds}
+          reshared={shareMuse.isReposted}
+          onToggleReshare={() => toggleRepost(shareMuse.id)}
+          onShareCountChange={(count) =>
+            setItems((prev) => prev.map((it) => (it.id === shareMuse.id ? { ...it, shareCount: count } : it)))
+          }
+          onClose={() => setShareMuseId(null)}
+        />
+      )}
 
       {/*
        * A true sibling of the scrollable feed above, not nested inside it —
@@ -338,6 +374,9 @@ export function MuseFeed({
 function MuseCard({
   item,
   muted,
+  soundBlocked,
+  onSoundBlocked,
+  consumeUnblockTap,
   currentUserId,
   onToggleMute,
   onToggleReaction,
@@ -349,6 +388,11 @@ function MuseCard({
 }: {
   item: MuseItem;
   muted: boolean;
+  /** Autoplay-with-sound was refused somewhere in the feed: play muted for now, and a tap turns sound on. */
+  soundBlocked: boolean;
+  onSoundBlocked: () => void;
+  /** True (once) when the tap being handled is the one that just turned sound on. */
+  consumeUnblockTap: () => boolean;
   currentUserId: string;
   onToggleMute: () => void;
   onToggleReaction: (emoji: string) => Promise<ReactionSummary[] | undefined>;
@@ -418,14 +462,29 @@ function MuseCard({
     const video = videoRef.current;
     const audio = audioRef.current;
     const shouldPlay = isVisible && !paused;
+
+    // Plays with sound. If the browser refuses (no user gesture yet), plays muted instead and tells the feed, which
+    // shows "Tap for sound" — never a silent failure, never a card that just sits there.
+    async function start(el: HTMLMediaElement) {
+      try {
+        await el.play();
+      } catch {
+        if (!el.muted) {
+          onSoundBlocked();
+          el.muted = true;
+          el.play().catch(() => {});
+        }
+      }
+    }
     if (video) {
-      if (shouldPlay) video.play().catch(() => {});
+      if (shouldPlay) void start(video);
       else video.pause();
     }
     if (audio) {
-      if (shouldPlay) audio.play().catch(() => {});
+      if (shouldPlay) void start(audio);
       else audio.pause();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, paused]);
 
   async function handleToggleReaction(emoji: string) {
@@ -438,7 +497,11 @@ function MuseCard({
       ref={sectionRef}
       style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
       className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black"
-      onClick={() => setPaused((p) => !p)}
+      onClick={() => {
+        // While sound is blocked the first tap is the "turn sound on" gesture (the feed handles it) — it shouldn't also pause.
+        if (soundBlocked || consumeUnblockTap()) return;
+        setPaused((p) => !p);
+      }}
     >
       <video
         ref={videoRef}
@@ -447,12 +510,18 @@ function MuseCard({
         // Always muted when a separate audioUrl is replacing the video's
         // own sound (playing both would double up), otherwise follows the
         // shared mute toggle — same source either way, never both at once.
-        muted={Boolean(item.audioUrl) || muted}
+        muted={Boolean(item.audioUrl) || muted || soundBlocked}
         loop
         playsInline
         className="absolute inset-0 h-full w-full object-contain"
       />
-      {item.audioUrl && <audio ref={audioRef} src={item.audioUrl} muted={muted} loop />}
+      {item.audioUrl && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
+
+      {soundBlocked && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
+          <p className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">Tap for sound</p>
+        </div>
+      )}
 
       {paused && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -558,7 +627,7 @@ function MuseCard({
               <button
                 type="button"
                 onClick={onToggleRepost}
-                aria-label={item.isReposted ? "Undo reshare" : "Reshare"}
+                aria-label={item.isReposted ? "Undo reshare" : "Reshare to Home"}
                 aria-pressed={item.isReposted}
                 className="flex flex-col items-center gap-0.5 text-white"
               >

@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { storySchema, messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
-import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
@@ -205,14 +206,8 @@ export async function deleteStory(id: string) {
   }
 
   await prisma.story.delete({ where: { id } });
-  await Promise.all(
-    [story.mediaUrl, story.mediaThumbnailUrl]
-      .filter((url): url is string => Boolean(url))
-      .map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
-      }),
-  );
+  // A Story can share its file with the post/Muse it came from — only delete it once nothing else uses it.
+  await deleteMediaIfUnreferenced([story.mediaUrl, story.mediaThumbnailUrl]);
 
   revalidatePath(`/u/${story.authorId}`);
   revalidatePath("/home");

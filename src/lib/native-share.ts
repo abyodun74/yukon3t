@@ -25,6 +25,12 @@ function mimeTypeFromFileName(fileName: string): string {
       return "image/webp";
     case "gif":
       return "image/gif";
+    case "mp4":
+      return "video/mp4";
+    case "mov":
+      return "video/quicktime";
+    case "webm":
+      return "video/webm";
     default:
       return "image/jpeg";
   }

@@ -694,13 +694,18 @@ const sections: Section[] = [
         a: (
           <>
             Yes, all three sit alongside the comment and reaction buttons on
-            each Muse: the share icon opens your device&apos;s own share
-            sheet with a direct link to that Muse; the reshare icon (a
-            circular arrow) boosts it and notifies the creator, and tapping
-            it again undoes it; and &ldquo;Subscribe&rdquo; next to the
-            creator&apos;s name follows them so you hear about their future
-            posts — none of these require being connected to the creator
-            first, same as reacting or commenting.
+            each Muse. The share icon opens a sheet: share it to your{" "}
+            <strong>Home</strong>, add it to your <strong>Story</strong>{" "}
+            (for Muses up to 2 minutes), send it to a friend or group, use
+            your device&apos;s share sheet, or copy the link. Home, Story,
+            friends and the device share sheet all send the actual video,
+            not just a link. The reshare icon (a circular arrow) is a
+            one-tap way to put the video on your Home — it credits the
+            creator, notifies them, and tapping it again takes it back off.
+            &ldquo;Subscribe&rdquo; next to the creator&apos;s name follows
+            them so you hear about their future posts. None of these require
+            being connected to the creator first, same as reacting or
+            commenting.
           </>
         ),
       },
@@ -730,13 +735,15 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Why is a Muse muted when I open the feed?",
+        q: "Does Muse play with sound?",
         a: (
           <>
-            Sound starts muted so videos can reliably autoplay the instant
-            you land on the tab — tap the speaker icon near the top of the
-            screen to turn sound on, and it stays on as you scroll to the
-            next Muse.
+            Yes — Muse starts playing with the volume on as soon as it
+            opens; tap the speaker icon near the top of the screen to mute
+            it, and it stays muted as you scroll to the next Muse. Some
+            browsers won&apos;t play sound until you&apos;ve tapped the page
+            once — if yours does that, the video plays muted with a &ldquo;Tap
+            for sound&rdquo; hint, and your next tap turns the sound on.
           </>
         ),
       },
@@ -744,8 +751,8 @@ const sections: Section[] = [
         q: "Can I react or comment on a Muse?",
         a: (
           <>
-            Yes — the same quick-reaction row and full emoji picker as posts
-            and Stories, plus a public comment thread (tap the comment icon
+            Yes — the same quick-reaction row as posts and Stories (tap the +
+            at the end of it for every emoji), plus a public comment thread (tap the comment icon
             to open it as a sheet from the bottom). The creator, the
             commenter, or an admin can remove any comment.
           </>

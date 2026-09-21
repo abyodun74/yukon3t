@@ -12,11 +12,11 @@ import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { isGiphyUrl } from "@/lib/giphy";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import {
   verifyUploadedSize,
   keyFromPublicUrl,
   deleteOwnedObject,
-  deleteObject,
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
 } from "@/lib/storage";
@@ -316,14 +316,7 @@ export async function deleteComment(commentId: string) {
   // above) — a reply chain deeper than that is a pre-existing gap in this
   // scope, not one this feature introduces.
   const repliesMedia = comment.replies.flatMap((r) => [r.audioUrl, r.videoUrl, r.videoThumbnailUrl]);
-  await Promise.all(
-    [comment.audioUrl, comment.videoUrl, comment.videoThumbnailUrl, ...repliesMedia]
-      .filter((url): url is string => Boolean(url))
-      .map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
-      }),
-  );
+  await deleteMediaIfUnreferenced([comment.audioUrl, comment.videoUrl, comment.videoThumbnailUrl, ...repliesMedia]);
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null };

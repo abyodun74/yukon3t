@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isCronAuthorized } from "@/lib/cron-auth";
 
 /**
@@ -30,16 +30,8 @@ export async function GET(request: Request) {
 
   await prisma.story.deleteMany({ where: { id: { in: expired.map((s) => s.id) } } });
 
-  await Promise.all(
-    expired.flatMap((s) =>
-      [s.mediaUrl, s.mediaThumbnailUrl]
-        .filter((url): url is string => Boolean(url))
-        .map((url) => {
-          const key = keyFromPublicUrl(url);
-          return key ? deleteObject(key) : Promise.resolve();
-        }),
-    ),
-  );
+  // A story shared from a post/Muse reuses that file — only delete files nothing else still uses.
+  await deleteMediaIfUnreferenced(expired.flatMap((s) => [s.mediaUrl, s.mediaThumbnailUrl]));
 
   return NextResponse.json({ error: null, deleted: expired.length });
 }

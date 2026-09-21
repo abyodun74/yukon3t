@@ -9,16 +9,21 @@ import { moderateMedia, moderateText } from "@/lib/moderation";
 import {
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
+  MAX_STORY_VIDEO_SECONDS,
+  STORY_LIFETIME_MS,
   verifyUploadedSize,
-  deleteObject,
   deleteOwnedObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { isEmojiOnly } from "@/lib/emoji";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { publishEvent } from "@/lib/realtime-server";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import type { ReactionSummary } from "@/lib/reactions";
 
 /**
@@ -220,6 +225,7 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       caption: m.caption,
       videoUrl: m.videoUrl,
       videoThumbnailUrl: m.videoThumbnailUrl,
+      videoDurationSeconds: m.videoDurationSeconds,
       audioUrl: m.audioUrl,
       createdAt: m.createdAt,
       likeCount: m.likeCount,
@@ -269,6 +275,7 @@ export async function getMuseById(id: string) {
       caption: m.caption,
       videoUrl: m.videoUrl,
       videoThumbnailUrl: m.videoThumbnailUrl,
+      videoDurationSeconds: m.videoDurationSeconds,
       audioUrl: m.audioUrl,
       createdAt: m.createdAt,
       likeCount: m.likeCount,
@@ -298,14 +305,9 @@ export async function deleteMuse(id: string) {
   }
 
   await prisma.muse.delete({ where: { id } });
-  await Promise.all(
-    [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl]
-      .filter((url): url is string => Boolean(url))
-      .map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteObject(key) : Promise.resolve();
-      }),
-  );
+  // A Muse's video can be shared with the post it came from, or reshared to Home / a Story / a message — only delete
+  // the files nothing else still uses.
+  await deleteMediaIfUnreferenced([muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl]);
 
   revalidatePath("/muse");
   revalidatePath(`/u/${muse.authorId}`);
@@ -529,12 +531,9 @@ export async function recordMuseShare(museId: string) {
 }
 
 /**
- * Toggles the caller's "reshare" of a Muse — a lightweight boost (bumps
- * repostCount, notifies the author) rather than Post's repost(), which
- * creates a whole new quotable Post row: /muse is already one global feed
- * visible to everyone, so a reshare has no separate feed placement to create
- * the way a Post repost does for followers' Home feeds. See MuseRepost in
- * schema.prisma.
+ * Toggles the caller's reshare of a Muse. A reshare puts the actual VIDEO on the resharer's Home feed and profile — a
+ * video post that plays the same file (never a link) and credits the Muse's author — and bumps repostCount / notifies
+ * the author. Undoing it takes that post down again. See MuseRepost in schema.prisma.
  */
 export async function toggleMuseRepost(museId: string) {
   const user = await requireVerifiedUser();
@@ -544,7 +543,10 @@ export async function toggleMuseRepost(museId: string) {
     return { error: "rate_limited" as const };
   }
 
-  const muse = await prisma.muse.findUnique({ where: { id: museId } });
+  const muse = await prisma.muse.findUnique({
+    where: { id: museId },
+    include: { author: { select: { name: true, username: true } } },
+  });
   if (!muse || muse.moderationStatus !== "PUBLISHED") {
     return { error: "not_found" as const };
   }
@@ -557,18 +559,45 @@ export async function toggleMuseRepost(museId: string) {
   });
 
   if (existing) {
-    const [, updated] = await prisma.$transaction([
-      prisma.museRepost.delete({ where: { id: existing.id } }),
-      prisma.muse.update({ where: { id: museId }, data: { repostCount: { decrement: 1 } } }),
-    ]);
+    const updated = await prisma.$transaction(async (tx) => {
+      if (existing.postId) await tx.post.deleteMany({ where: { id: existing.postId, authorId: user.id } });
+      await tx.museRepost.delete({ where: { id: existing.id } });
+      return tx.muse.update({ where: { id: museId }, data: { repostCount: { decrement: 1 } } });
+    });
+    // The file stays: the Muse itself still uses it.
     revalidatePath("/muse");
+    revalidatePath("/home");
+    revalidatePath(`/u/${user.id}`);
     return { error: null, reposted: false, repostCount: updated.repostCount };
   }
 
-  const [, updated] = await prisma.$transaction([
-    prisma.museRepost.create({ data: { userId: user.id, museId } }),
-    prisma.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } }),
-  ]);
+  let postId: string;
+  let repostCount: number;
+  try {
+    ({ postId, repostCount } = await prisma.$transaction(async (tx) => {
+      // Already moderated when the Muse was published, so the copy skips a second pass (videoModeratedAt).
+      const post = await tx.post.create({
+        data: {
+          authorId: user.id,
+          content: reshareText(muse.author, muse.caption),
+          mediaType: "VIDEO",
+          videoUrl: muse.videoUrl,
+          videoThumbnailUrl: muse.videoThumbnailUrl,
+          videoDurationSeconds: muse.videoDurationSeconds,
+          visibility: "PUBLIC",
+          moderationStatus: "PUBLISHED",
+          videoModeratedAt: new Date(),
+        },
+      });
+      await tx.museRepost.create({ data: { userId: user.id, museId, postId: post.id } });
+      const updated = await tx.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } });
+      return { postId: post.id, repostCount: updated.repostCount };
+    }));
+  } catch (err) {
+    // A fast double tap raced past the check above — the reshare exists already, which is the outcome asked for.
+    if (isUniqueConstraintError(err)) return { error: null, reposted: true, repostCount: muse.repostCount };
+    throw err;
+  }
 
   if (muse.authorId !== user.id) {
     await prisma.notification.create({
@@ -576,9 +605,73 @@ export async function toggleMuseRepost(museId: string) {
     });
     await pushActivityNotification(muse.authorId, "MUSE_REPOST", user.name ?? "Someone", "/muse");
   }
+  // Same fan-out as any new public video post: subscribers hear about it and open Home feeds refresh.
+  await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId });
+  await publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed");
 
   revalidatePath("/muse");
-  return { error: null, reposted: true, repostCount: updated.repostCount };
+  revalidatePath("/home");
+  revalidatePath(`/u/${user.id}`);
+  return { error: null, reposted: true, repostCount };
+}
+
+/** The caption a reshared Muse carries on Home: credits the Muse's author, then their caption. */
+function reshareText(author: { name: string | null; username: string | null }, caption: string | null) {
+  const credit = `🎬 Muse by ${author.name ?? (author.username ? `@${author.username}` : "someone")}`;
+  return (caption?.trim() ? `${credit}\n${caption.trim()}` : credit).slice(0, 500);
+}
+
+/**
+ * Shares a Muse to the caller's Story as the actual video (a Story is a 24-hour photo/video) — the same file plays,
+ * not a link. A Muse can run up to 3 minutes and a Story only takes MAX_STORY_VIDEO_SECONDS, so a longer one is
+ * refused ("too_long"). Counts as a share.
+ */
+export async function shareMuseToStory(museId: string) {
+  const user = await requireVerifiedUser();
+
+  if (!(await checkRateLimit("museShare", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const muse = await prisma.muse.findUnique({ where: { id: museId } });
+  if (!muse || muse.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, muse.authorId)) {
+    return { error: "not_found" as const };
+  }
+  if (muse.videoDurationSeconds > MAX_STORY_VIDEO_SECONDS) {
+    return { error: "too_long" as const };
+  }
+
+  const { storyId, shareCount } = await prisma.$transaction(async (tx) => {
+    const story = await tx.story.create({
+      data: {
+        authorId: user.id,
+        mediaType: "VIDEO",
+        mediaUrl: muse.videoUrl,
+        mediaThumbnailUrl: muse.videoThumbnailUrl,
+        caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
+        expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+      },
+    });
+    await tx.museShare.create({ data: { userId: user.id, museId } });
+    const updated = await tx.muse.update({ where: { id: museId }, data: { shareCount: { increment: 1 } } });
+    return { storyId: story.id, shareCount: updated.shareCount };
+  });
+
+  if (muse.authorId !== user.id) {
+    await prisma.notification.create({
+      data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_SHARE", museId },
+    });
+    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name ?? "Someone", "/muse");
+  }
+  await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId });
+
+  revalidatePath("/muse");
+  revalidatePath("/home");
+  revalidatePath(`/u/${user.id}`);
+  return { error: null, shareCount };
 }
 
 /**

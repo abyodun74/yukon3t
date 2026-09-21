@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
-import { Smile } from "lucide-react";
+import { Plus, Smile } from "lucide-react";
 // Type-only import — erased entirely at build time, so this doesn't pull
 // the package into this file's bundle. The actual component is loaded via
 // next/dynamic below, fetched only once a user clicks the emoji button
@@ -218,9 +218,9 @@ export function EmojiPickerButton({
                   onClick={expandToFullPicker}
                   title="More emoji"
                   aria-label="More emoji"
-                  className="ml-auto shrink-0 rounded-full p-1.5 text-foreground-soft hover:bg-line"
+                  className="ml-auto shrink-0 rounded-full border border-line p-1.5 text-foreground-soft hover:bg-line"
                 >
-                  <Smile size={18} />
+                  <Plus size={18} />
                 </button>
               </div>
             ) : (

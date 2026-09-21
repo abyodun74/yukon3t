@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { postSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
@@ -80,10 +80,8 @@ export async function deletePost(postId: string) {
     ...(post.videoUrl ? [post.videoUrl] : []),
     ...(post.videoThumbnailUrl ? [post.videoThumbnailUrl] : []),
   ];
-  for (const url of mediaUrls) {
-    const key = keyFromPublicUrl(url);
-    if (key) await deleteObject(key);
-  }
+  // Only files nothing else still uses (a Muse / Story / message may share this post's video).
+  await deleteMediaIfUnreferenced(mediaUrls);
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");

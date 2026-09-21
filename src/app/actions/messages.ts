@@ -15,7 +15,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend, textForModeration, pushPreview } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
@@ -365,6 +366,79 @@ export async function respondToJoinRequest(requestId: string, approve: boolean) 
 }
 
 /**
+ * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
+ * rows, badge counts and the realtime nudge. Shared by sendMessage and shareMuseToConversation so a message sent either
+ * way reaches the recipient identically.
+ */
+async function afterMessageSent({
+  user,
+  conversationId,
+  memberIds,
+  secret,
+  content,
+  mediaType,
+}: {
+  user: { id: string; name: string | null };
+  conversationId: string;
+  memberIds: string[];
+  secret: boolean;
+  content: string;
+  mediaType: "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
+}) {
+  await recordActivity(user.id);
+  await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
+
+  const recipientIds =
+    memberIds.filter((id) => id !== user.id);
+  // Never the message text in a secret chat, and never ciphertext anywhere.
+  const preview = pushPreview({ secret, content, mediaType });
+  await Promise.all(
+    recipientIds.map((recipientId) =>
+      sendPushToUser(recipientId, {
+        title: user.name ?? "New message",
+        body: preview.slice(0, 120),
+        url: `/messages/${conversationId}`,
+      }),
+    ),
+  );
+  // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
+  // WebView doesn't support the Push API at all, and Android's own native
+  // notification path for messages was this same gap (only comments/likes/
+  // connections/muse activity went through sendFcmActivityToUser; sending a
+  // message had no FCM path whatsoever). Confirmed live: a real message
+  // showed the in-app bell/badge update instantly (Realtime, unaffected)
+  // but never surfaced as a native push on iOS.
+  await Promise.all(
+    recipientIds.map((recipientId) =>
+      sendFcmActivityToUser(recipientId, {
+        title: user.name ?? "New message",
+        body: preview.slice(0, 120),
+        type: "MESSAGE",
+        url: `/messages/${conversationId}`,
+      }),
+    ),
+  );
+  // In-app only (no email) — see MESSAGE in the NotificationType enum. One
+  // row per recipient per message, same as every other notification type
+  // here (no dedup/throttling), so it shows up in the bell alongside likes,
+  // comments, etc. instead of only in the Messages tab's own unread badge.
+  if (recipientIds.length > 0) {
+    await prisma.notification.createMany({
+      data: recipientIds.map((recipientId) => ({
+        recipientId,
+        actorId: user.id,
+        type: "MESSAGE" as const,
+        conversationId,
+      })),
+    });
+  }
+  await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
+  await publishEvent(REALTIME_CHANNELS.conversation(conversationId), "changed");
+
+  revalidatePath(`/messages/${conversationId}`);
+}
+
+/**
  * Admin-only: deletes a conversation outright, cascading to its members and
  * messages (see onDelete: Cascade on ConversationMember/Message in schema.prisma).
  * Used by the admin moderation "Duplicates" tool to clean up a redundant DM
@@ -544,56 +618,14 @@ export async function sendMessage(formData: FormData) {
       replyTo: REPLY_TO_SELECT,
     },
   });
-  await recordActivity(user.id);
-  await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
-
-  const recipientIds =
-    conversation?.members.map((m) => m.userId).filter((id) => id !== user.id) ?? [];
-  // Never the message text in a secret chat, and never ciphertext anywhere.
-  const preview = pushPreview({ secret, content, mediaType });
-  await Promise.all(
-    recipientIds.map((recipientId) =>
-      sendPushToUser(recipientId, {
-        title: user.name ?? "New message",
-        body: preview.slice(0, 120),
-        url: `/messages/${conversationId}`,
-      }),
-    ),
-  );
-  // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
-  // WebView doesn't support the Push API at all, and Android's own native
-  // notification path for messages was this same gap (only comments/likes/
-  // connections/muse activity went through sendFcmActivityToUser; sending a
-  // message had no FCM path whatsoever). Confirmed live: a real message
-  // showed the in-app bell/badge update instantly (Realtime, unaffected)
-  // but never surfaced as a native push on iOS.
-  await Promise.all(
-    recipientIds.map((recipientId) =>
-      sendFcmActivityToUser(recipientId, {
-        title: user.name ?? "New message",
-        body: preview.slice(0, 120),
-        type: "MESSAGE",
-        url: `/messages/${conversationId}`,
-      }),
-    ),
-  );
-  // In-app only (no email) — see MESSAGE in the NotificationType enum. One
-  // row per recipient per message, same as every other notification type
-  // here (no dedup/throttling), so it shows up in the bell alongside likes,
-  // comments, etc. instead of only in the Messages tab's own unread badge.
-  if (recipientIds.length > 0) {
-    await prisma.notification.createMany({
-      data: recipientIds.map((recipientId) => ({
-        recipientId,
-        actorId: user.id,
-        type: "MESSAGE" as const,
-        conversationId,
-      })),
-    });
-  }
-  await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
-  await publishEvent(REALTIME_CHANNELS.conversation(conversationId), "changed");
-
+  await afterMessageSent({
+    user,
+    conversationId,
+    memberIds: conversation?.members.map((m) => m.userId) ?? [],
+    secret,
+    content,
+    mediaType,
+  });
   revalidatePath(`/messages/${conversationId}`);
   return { error: null, message };
 }
@@ -922,12 +954,7 @@ export async function deleteMessageForEveryone(messageId: string) {
 
   // A voice/video note's actual file otherwise keeps sitting in R2 forever,
   // unreferenced — same cleanup discipline as deletePost's media handling.
-  await Promise.all(
-    [message.mediaUrl, message.mediaThumbnailUrl].filter((url): url is string => Boolean(url)).map((url) => {
-      const key = keyFromPublicUrl(url);
-      return key ? deleteObject(key) : Promise.resolve();
-    }),
-  );
+  await deleteMediaIfUnreferenced([message.mediaUrl, message.mediaThumbnailUrl]);
 
   await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
@@ -983,4 +1010,78 @@ export async function getMyConversationsForShare() {
       };
     }),
   };
+}
+
+
+/**
+ * Sends a Muse to a friend or group as the actual VIDEO (a video message that plays in the chat), not a link.
+ * Reuses the Muse's already-moderated file, so there is no upload or size check — and no ownership check either,
+ * which sendMessage rightly demands of a fresh upload (the file belongs to the Muse's author).
+ */
+export async function shareMuseToConversation(museId: string, conversationId: string) {
+  const user = await requireVerifiedUser();
+
+  if (!(await checkRateLimit("messageSend", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const muse = await prisma.muse.findUnique({ where: { id: museId } });
+  if (!muse || muse.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  if (await isBlockedEitherWay(user.id, muse.authorId)) {
+    return { error: "not_found" as const };
+  }
+
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+  });
+  if (!membership) {
+    return { error: "not_a_member" as const };
+  }
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true } } },
+  });
+  if (!conversation) {
+    return { error: "not_found" as const };
+  }
+  if (!conversation.isGroup) {
+    const other = conversation.members.find((m) => m.userId !== user.id);
+    if (other && (await isBlockedEitherWay(user.id, other.userId))) {
+      return { error: "blocked" as const };
+    }
+  }
+
+  await prisma.message.create({
+    data: {
+      conversationId,
+      senderId: user.id,
+      // Empty text is what a plain video message carries (in a secret chat too — nothing to encrypt).
+      content: "",
+      mediaType: "VIDEO",
+      mediaUrl: muse.videoUrl,
+      mediaThumbnailUrl: muse.videoThumbnailUrl,
+      moderationStatus: "PUBLISHED",
+    },
+  });
+  await afterMessageSent({
+    user,
+    conversationId,
+    memberIds: conversation.members.map((m) => m.userId),
+    secret: isSecretChat(conversation),
+    content: "",
+    mediaType: "VIDEO",
+  });
+
+  const [, updated] = await prisma.$transaction([
+    prisma.museShare.create({ data: { userId: user.id, museId } }),
+    prisma.muse.update({ where: { id: museId }, data: { shareCount: { increment: 1 } } }),
+  ]);
+  if (muse.authorId !== user.id) {
+    await prisma.notification.create({
+      data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_SHARE", museId },
+    });
+  }
+  return { error: null, shareCount: updated.shareCount };
 }

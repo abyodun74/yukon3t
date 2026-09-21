@@ -1475,6 +1475,9 @@ model MuseRepost {
   id        String   @id @default(cuid())
   userId    String
   museId    String
+  // The Post this reshare put on the resharer's Home/profile (a video post playing the same file), so undoing the
+  // reshare can take it down again. Null for reshares made before reshares created a post.
+  postId    String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

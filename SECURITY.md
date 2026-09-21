@@ -304,6 +304,16 @@ uses), counting a `.mov` still being converted as in use; 200 per run; and a tri
 half or more unreferenced (what a broken reference check looks like). Only uploads made after this shipped are covered, not
 historical orphans. Abandoned *multipart* uploads never become an object; R2's default lifecycle rule aborts them after 7 days.
 
+### Shared media is reference-counted (2026-09-21)
+
+A video can be used by several rows at once: a post shared to Muse or a Story, a Muse reshared to Home, sent to a friend as a
+video message (`shareMuseToStory`, `shareMuseToConversation`, `toggleMuseRepost`, `shareToMuse`/`shareToStory`) all point at the
+same stored file rather than copying it. Every content-deletion path (post, comment, message, story + expiry cron, Muse) now
+deletes files through `deleteMediaIfUnreferenced` (`lib/media-cleanup.ts`, built on `findReferencedUrls`), after the row is
+gone, so removing the original no longer breaks the copies; if the reference check errors it deletes nothing. A NEW column that
+stores a media URL must be added to `findReferencedUrls` (same rule as the abandoned-upload sweep). Reshared/shared copies reuse
+already-moderated media, so they skip a second moderation pass; a Muse over the Story length limit is refused for Story.
+
 ### QuickTime (.mov) uploads and their conversion (2026-09-21)
 
 Every video upload kind accepts `video/quicktime` (an iPhone's default; storage.ts `CONTENT_TYPE_ALLOWLIST`). An iPhone's
