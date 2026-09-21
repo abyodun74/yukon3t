@@ -19,8 +19,8 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const VIDEO_TYPES = ["video/mp4", "video/webm"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 // createStory has no batch endpoint — each item is its own upload + DB row —
 // 5 keeps a single picker selection from turning into an unbounded upload
 // run in one go. Story creation itself has no rate limit (unlimited
@@ -171,7 +171,7 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
   return new Promise((resolve) => {
     const f = normalizeVideoFile(rawFile);
     if (!f) {
-      resolve({ error: "Use an MP4 or WebM video." });
+      resolve({ error: "Use an MP4, MOV or WebM video." });
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {

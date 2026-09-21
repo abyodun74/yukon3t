@@ -41,8 +41,8 @@ const MAX_RECORD_VIDEO_SECONDS = 60;
 const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const VIDEO_INSTANT_PUBLISH_MAX_SECONDS = 600;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const VIDEO_TYPES = ["video/mp4", "video/webm"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 // Same content:// URI MIME-type gap as ad-booking-form.tsx's and
 // story-upload-modal.tsx's pickVideo — a mobile picker (confirmed live via
@@ -424,7 +424,7 @@ export function PostComposer({
     const file = normalizeVideoFile(rawFile);
     if (!file) {
       setStatus("error");
-      setErrorText("Use an MP4 or WebM video.");
+      setErrorText("Use an MP4, MOV or WebM video.");
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {

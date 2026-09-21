@@ -51,7 +51,7 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
 const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 function dictationErrorMessage(code: string) {
   switch (code) {
@@ -1406,7 +1406,7 @@ export function ChatThread({
   function pickVideoFile(file: File | undefined) {
     if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
-      setError("Use an MP4 or WebM video.");
+      setError("Use an MP4, MOV or WebM video.");
       return;
     }
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {

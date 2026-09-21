@@ -179,7 +179,7 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/mp4,video/webm"
+          accept="video/mp4,video/webm,video/quicktime"
           className="hidden"
           onChange={(e) => {
             markNativePickerInactive();

@@ -21,8 +21,8 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const VIDEO_TYPES = ["video/mp4", "video/webm"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm" };
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 // Same content:// URI MIME-type gap as story-upload-modal.tsx's pickVideo —
 // a mobile document picker often hands back an empty/wrong File.type even
@@ -123,7 +123,7 @@ export function AdBookingForm() {
     if (!rawFile) return;
     const f = normalizeVideoFile(rawFile);
     if (!f) {
-      setError("Use an MP4 or WebM video.");
+      setError("Use an MP4, MOV or WebM video.");
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {

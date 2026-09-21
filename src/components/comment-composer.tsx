@@ -25,7 +25,7 @@ const MAX_VOICE_COMMENT_SECONDS = 60;
 const MAX_RECORD_VIDEO_SECONDS = 60;
 const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
-const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 function formatSecondsLabel(seconds: number) {
   if (seconds % 60 === 0 && seconds >= 60) {
@@ -97,7 +97,7 @@ export function CommentComposer({
   function pickVideo(file: File | undefined) {
     if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
-      setErrorText("Use an MP4 or WebM video.");
+      setErrorText("Use an MP4, MOV or WebM video.");
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {

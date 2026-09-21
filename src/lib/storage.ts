@@ -41,26 +41,28 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "post-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "circle-cover": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "video-thumb": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
-  "post-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "post-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   "message-audio": { "audio/webm": "webm" },
   "voice-dictation": { "audio/webm": "webm" },
   "comment-audio": { "audio/webm": "webm" },
-  "comment-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "comment-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   // Recorded voice/video notes are always webm (MediaRecorder's output);
   // mp4 is here too because "attach from device" lets a user pick a video
-  // their phone actually recorded, which is virtually always mp4.
-  "message-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  // their phone actually recorded, which is virtually always mp4 — or, from
+  // an iPhone, QuickTime (.mov, "video/quicktime": what iOS hands the file
+  // picker). Every video kind below accepts .mov for the same reason.
+  "message-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
-  "story-video": { "video/mp4": "mp4", "video/webm": "webm" },
-  "muse-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "story-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
+  "muse-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   // Broader than message/comment audio's webm-only allowlist (those are
   // always a live MediaRecorder capture) — this is a "pick a sound" file
   // picker, most often an existing music/audio file from the device, so it
   // needs to accept the common formats those actually come in as.
   "muse-audio": { "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
-  "ad-video": { "video/mp4": "mp4", "video/webm": "webm" },
+  "ad-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   // Material shared into a Collab session's chat — documents in addition to
   // the image types every other image kind already allows, since a shared
   // "material" is as often a PDF/slide deck as it is a photo.
