@@ -1672,6 +1672,13 @@ export function ChatThread({
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            // Without this, re-picking the exact same file (the natural
+            // retry after a failed upload/send — it's right there, most
+            // recent in the picker) never fires another change event, since
+            // the input's value hasn't changed — the second attempt looks
+            // like nothing happened at all. Same fix as avatar-upload.tsx/
+            // muse-composer.tsx/story-upload-modal.tsx's own file inputs.
+            e.target.value = "";
           }}
         />
         {/* accept must include the literal "image/*" — Capacitor's own
@@ -1688,6 +1695,7 @@ export function ChatThread({
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            e.target.value = "";
           }}
         />
         <input
@@ -1698,6 +1706,10 @@ export function ChatThread({
           onChange={(e) => {
             markNativePickerInactive();
             pickVideoFile(e.target.files?.[0]);
+            // See the imageInputRef input above — same fix, same reason:
+            // retrying a failed video upload/send with the same file
+            // picked again would otherwise never re-fire this handler.
+            e.target.value = "";
           }}
         />
         <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
