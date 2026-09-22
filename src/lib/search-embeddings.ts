@@ -164,7 +164,13 @@ export async function semanticSearch(
       : Promise.resolve([]),
     collabCandidates.length
       ? prisma.collabBoardPost.findMany({
-          where: { id: { in: collabCandidates.map((c) => c.id) }, status: "OPEN", visibility: "PUBLIC" },
+          where: {
+            id: { in: collabCandidates.map((c) => c.id) },
+            status: "OPEN",
+            visibility: "PUBLIC",
+            // Same admin exclusion as search/page.tsx's exact-match collab query.
+            author: { isAdmin: false },
+          },
           include: { author: { select: { id: true, name: true } }, _count: { select: { participants: true } } },
           take: CANDIDATE_LIMIT,
         })

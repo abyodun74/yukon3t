@@ -23,7 +23,11 @@ export default async function SubscribersPage({
   if (user.isAdmin && user.id !== me.id) notFound();
 
   const rows = await prisma.subscription.findMany({
-    where: { subscribedToId: userId },
+    // Admins are invisible platform-wide — excluded from the listed rows
+    // too, not just when they're the profile being viewed (see the isAdmin
+    // guard above). Kept in sync with loadMoreSubscribers in
+    // actions/subscriptions.ts, which this list hands off to for paging.
+    where: { subscribedToId: userId, subscriber: { isAdmin: false } },
     include: {
       subscriber: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
     },

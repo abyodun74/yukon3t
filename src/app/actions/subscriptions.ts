@@ -41,7 +41,10 @@ export async function toggleSubscription(targetId: string) {
   }
 
   const target = await prisma.user.findUnique({ where: { id: targetId } });
-  if (!target || target.status !== "ACTIVE") {
+  // Same "not_found" as a blocked/inactive target below — admins are
+  // invisible platform-wide (see requestConnection/startDirectMessage in
+  // actions/connections.ts), so this stays indistinguishable too.
+  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
     return { error: "not_found" };
   }
   // Deliberately indistinguishable from "not_found" — same reasoning as
@@ -75,7 +78,10 @@ export async function toggleSubscription(targetId: string) {
 export async function loadMoreSubscribers(profileUserId: string, cursor: string) {
   const viewer = await requireUser();
   const rows = await prisma.subscription.findMany({
-    where: { subscribedToId: profileUserId },
+    // Admins are invisible platform-wide — excluded from the *listed* rows
+    // here, not just when they're the profile being viewed (see the
+    // isAdmin guard on /u/[userId]/subscribers itself).
+    where: { subscribedToId: profileUserId, subscriber: { isAdmin: false } },
     include: { subscriber: { select: subscriptionUserSelect } },
     orderBy: { createdAt: "desc" },
     take: SUBSCRIPTIONS_PAGE_SIZE,
@@ -97,7 +103,8 @@ export async function loadMoreSubscribers(profileUserId: string, cursor: string)
 export async function loadMoreSubscribing(profileUserId: string, cursor: string) {
   const viewer = await requireUser();
   const rows = await prisma.subscription.findMany({
-    where: { subscriberId: profileUserId },
+    // Same admin exclusion as loadMoreSubscribers above.
+    where: { subscriberId: profileUserId, subscribedTo: { isAdmin: false } },
     include: { subscribedTo: { select: subscriptionUserSelect } },
     orderBy: { createdAt: "desc" },
     take: SUBSCRIPTIONS_PAGE_SIZE,

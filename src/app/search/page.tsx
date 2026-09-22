@@ -159,6 +159,9 @@ export default async function SearchPage({
         where: {
           status: "OPEN",
           visibility: "PUBLIC",
+          // Admins are invisible platform-wide — a collab they authored
+          // shouldn't surface their name in results either.
+          author: { isAdmin: false },
           ...(country ? { OR: [{ worldwide: true }, { countries: { has: country } }] } : {}),
           ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
           AND: [
@@ -198,7 +201,13 @@ export default async function SearchPage({
         where: {
           isGroup: true,
           discoverable: true,
-          NOT: { members: { some: { userId: me.id } } },
+          // Two independent exclusions — Prisma's NOT accepts an array,
+          // AND-ing "not both" rather than the last one silently
+          // overwriting the other in a single object literal. A group with
+          // no creator left (account deleted, createdBy SetNull) doesn't
+          // match the isAdmin condition either way, so it stays visible —
+          // only an admin-created group is excluded here.
+          NOT: [{ members: { some: { userId: me.id } } }, { createdBy: { isAdmin: true } }],
           ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
           name: { contains: q, mode: "insensitive" },
         },

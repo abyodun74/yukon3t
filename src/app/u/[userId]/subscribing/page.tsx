@@ -23,7 +23,9 @@ export default async function SubscribingPage({
   if (user.isAdmin && user.id !== me.id) notFound();
 
   const rows = await prisma.subscription.findMany({
-    where: { subscriberId: userId },
+    // Same admin exclusion as /u/[userId]/subscribers, kept in sync with
+    // loadMoreSubscribing in actions/subscriptions.ts.
+    where: { subscriberId: userId, subscribedTo: { isAdmin: false } },
     include: {
       subscribedTo: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true } },
     },
