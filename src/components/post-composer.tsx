@@ -333,7 +333,7 @@ export function PostComposer({
   // FileList, but ShareTargetGate's pending-share pickup (below) only has a
   // plain File[] (there's no real DOM FileList to build without a fake
   // DataTransfer), and Array.from() treats both identically.
-  async function pickImages(files: FileList | File[] | null, options: { autoPost?: boolean } = {}) {
+  async function pickImages(files: FileList | File[] | null) {
     if (!files) return;
     const all = Array.from(files);
     const picked = all.filter((f) => IMAGE_TYPES.includes(f.type));
@@ -367,22 +367,6 @@ export function PostComposer({
     if (tooBig) {
       setStatus("error");
       setErrorText("Images must be 25MB or smaller each.");
-      return;
-    }
-    if (options.autoPost) {
-      setStatus("uploading");
-      setErrorText(null);
-      const uploaded = await Promise.all(next.map((f) => uploadFileDirect(f, "post-image")));
-      const failed = uploaded.find((u) => !u.ok);
-      if (failed && !failed.ok) {
-        setStatus("error");
-        setErrorText(errorMessage(failed.error));
-        return;
-      }
-      await autoSubmitMedia({
-        mediaType: "IMAGE",
-        mediaUrls: uploaded.map((u) => (u.ok ? u.publicUrl : "")).filter(Boolean),
-      });
       return;
     }
     setVideo(null);
@@ -504,10 +488,7 @@ export function PostComposer({
    * the usual way; the content:// URI itself may also not stay valid
    * indefinitely, so uploading promptly is the safer choice anyway.
    */
-  async function handleNativeVideoAttach(
-    native: NonNullable<Awaited<ReturnType<typeof pickVideoNative>>>,
-    options: { autoPost?: boolean } = {},
-  ) {
+  async function handleNativeVideoAttach(native: NonNullable<Awaited<ReturnType<typeof pickVideoNative>>>) {
     if (native.size > MAX_VIDEO_BYTES) {
       setStatus("error");
       setErrorText("Video must be 2GB or smaller.");
@@ -554,17 +535,6 @@ export function PostComposer({
       const thumbnailResult = native.thumbnailFile
         ? await uploadFileDirect(native.thumbnailFile, "video-thumb")
         : null;
-
-      if (options.autoPost) {
-        await autoSubmitMedia({
-          mediaType: "VIDEO",
-          mediaUrls: [],
-          videoUrl: requested.publicUrl,
-          videoThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
-          videoDurationSeconds: native.durationSeconds ?? undefined,
-        });
-        return;
-      }
 
       setNativeVideoUpload({
         videoUrl: requested.publicUrl,
@@ -685,35 +655,6 @@ export function PostComposer({
    * shared by the normal submit path and confirmDeviceCode's resubmission
    * below so neither has to duplicate the retry/result handling.
    */
-  // Publishes attached media straight away with an empty caption — no
-  // review-in-the-composer step, no separate "Post" tap. Requested
-  // explicitly: "Upload from device" should behave like the existing
-  // Share-to-Feed flow already does for shared content (picking the
-  // destination is itself the confirmation to publish), not require a
-  // second manual step after the picker already closes. Reuses
-  // submitPostFormData as-is — same retry/device-challenge/error handling
-  // and post-success state reset every other post already gets, just with
-  // a synthetic FormData instead of the real form's fields.
-  async function autoSubmitMedia(media: {
-    mediaType: "IMAGE" | "VIDEO";
-    mediaUrls: string[];
-    videoUrl?: string;
-    videoThumbnailUrl?: string;
-    videoDurationSeconds?: number;
-  }) {
-    const fd = new FormData();
-    fd.set("content", "");
-    fd.set("visibility", defaultVisibility);
-    if (circleId) fd.set("circleId", circleId);
-    if (channelId) fd.set("channelId", channelId);
-    fd.set("mediaType", media.mediaType);
-    fd.set("mediaUrls", JSON.stringify(media.mediaUrls));
-    if (media.videoUrl) fd.set("videoUrl", media.videoUrl);
-    if (media.videoThumbnailUrl) fd.set("videoThumbnailUrl", media.videoThumbnailUrl);
-    if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
-    await submitPostFormData(fd);
-  }
-
   async function submitPostFormData(fd: FormData) {
     let result;
     try {
@@ -1078,7 +1019,7 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => {
               markNativePickerInactive();
-              pickImages(e.target.files, { autoPost: true });
+              pickImages(e.target.files);
             }}
           />
           {/* accept must include the literal "image/*" — Capacitor's own
@@ -1138,7 +1079,7 @@ export function PostComposer({
                   // a no-op, same as cancelling the file dialog.
                   const native = await pickImagesNative(MAX_IMAGES - imageCount);
                   if (native) {
-                    if (native.length > 0) await pickImages(native, { autoPost: true });
+                    if (native.length > 0) await pickImages(native);
                     return;
                   }
                   markNativePickerActive();
@@ -1180,7 +1121,7 @@ export function PostComposer({
                   if (isNativePickerActive()) return;
                   const native = await pickVideoNative();
                   if (native) {
-                    await handleNativeVideoAttach(native, { autoPost: true });
+                    await handleNativeVideoAttach(native);
                     return;
                   }
                   markNativePickerActive();
@@ -1265,11 +1206,11 @@ export function PostComposer({
             disabled={isPending || nativeVideoUploading || status === "uploading"}
             className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
           >
-            {/* status stays "uploading" through the auto-post paths below
-                too (pickImages/handleNativeVideoAttach with autoPost),
-                which don't run inside startTransition (isPending would
-                never flip true for them) — checking status alone covers
-                both that flow and the normal Post-button submit. */}
+            {/* status also goes "uploading" during confirmDeviceCode's
+                resubmission above, which isn't wrapped in startTransition
+                (isPending would never flip true for it) — checking status
+                alone covers both that flow and the normal Post-button
+                submit. */}
             {status === "uploading" ? "Posting..." : "Post"}
           </button>
         </div>
