@@ -8,6 +8,7 @@ import type { Session } from "next-auth";
 import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
+import { clearDraftsForUser } from "@/lib/message-draft-storage";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsNewBell } from "@/components/whats-new-bell";
@@ -191,8 +192,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
       await unregisterFcmToken(token).catch(() => {});
     }
+    // So a shared/public device doesn't keep this account's unsent draft
+    // text around after they've signed out — see message-draft-storage.ts.
+    if (userId) clearDraftsForUser(userId);
     await signOutAction();
-  }, []);
+  }, [userId]);
 
   return (
     <>
@@ -328,6 +332,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                       Circles & Collabs (admin)
                     </Link>
                     <Link
+                      href="/admin/groups"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      Groups (admin)
+                    </Link>
+                    <Link
                       href="/admin/analytics"
                       className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                     >
@@ -450,6 +460,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Circles & Collabs (admin)
+                  </Link>
+                  <Link
+                    href="/admin/groups"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    Groups (admin)
                   </Link>
                   <Link
                     href="/admin/analytics"

@@ -265,11 +265,14 @@ export async function leaveGroup(conversationId: string) {
 }
 
 /**
- * Creator-only: deletes a group entirely for every member, not just the
- * caller — see leaveGroup above for removing just yourself (which only
- * deletes the conversation as a side effect of the last member leaving).
- * Same cascade as the admin-only deleteConversation below, scoped to a
- * group's own creator instead of requiring an admin.
+ * Creator or site admin: deletes a group entirely for every member, not
+ * just the caller — see leaveGroup above for removing just yourself (which
+ * only deletes the conversation as a side effect of the last member
+ * leaving). Same cascade as the admin-only deleteConversation below;
+ * unlike that one this also covers a non-admin creator's own group, and is
+ * reachable both from inside the group itself (creator) and from
+ * /admin/groups (any admin, for policy violations/spam — same
+ * isAdminOverride pattern as deleteCircle in actions/circles.ts).
  */
 export async function deleteGroupChat(conversationId: string) {
   const user = await requireVerifiedUser();
@@ -278,7 +281,7 @@ export async function deleteGroupChat(conversationId: string) {
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (conversation.createdById !== user.id) {
+  if (conversation.createdById !== user.id && !user.isAdmin) {
     return { error: "forbidden" as const };
   }
 

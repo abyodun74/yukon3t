@@ -38,6 +38,7 @@ import { utf8ByteLength } from "@/lib/e2ee/crypto";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { getDraft, setDraft } from "@/lib/message-draft-storage";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -910,7 +911,13 @@ export function ChatThread({
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
-  const [content, setContent] = useState("");
+  // Seeded from whatever was last saved for this conversation (see the
+  // persistence effect below) rather than always blank, so an unsent
+  // message survives a full page reload too, not just a conversation
+  // switch. Returns "" during SSR/first paint (no localStorage there) —
+  // harmless for a controlled <textarea>, which React reconciles against
+  // the client value on hydration without warning.
+  const [content, setContent] = useState(() => getDraft(currentUserId, conversationId));
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -1089,13 +1096,22 @@ export function ChatThread({
   // React just updates this same instance's props in place. Every piece of
   // per-conversation local state below has to be reset here explicitly, or
   // it leaks from whatever conversation was open right before: a stale
-  // draft/pending attachment/reply-quote carried into the new thread, the
+  // pending attachment/reply-quote carried into the new thread (content
+  // itself is swapped for the *new* thread's own saved draft, not simply
+  // blanked — see message-draft-storage.ts), the
   // old thread's messages left on screen until the mount/conversation-switch
   // effect's refetch above overwrites them, every message in the new thread
   // wrongly replaying the "just added" entrance animation, and the view
   // landing wherever the old thread's scroll position happened to be
   // instead of this thread's newest message.
   const isFirstRenderRef = useRef(true);
+  // Set right before setContent below, and read (then cleared) by the
+  // persist effect just after this one — without it, that effect would
+  // run once per conversation switch with this render's *old* conversation's
+  // content (setContent's new value isn't visible until the next render),
+  // briefly writing the outgoing thread's leftover text over the incoming
+  // thread's own saved draft before a second pass corrects it back.
+  const skipNextDraftPersistRef = useRef(false);
   useEffect(() => {
     if (isFirstRenderRef.current) {
       // The initial useState()/useRef() calls above already seeded
@@ -1106,7 +1122,8 @@ export function ChatThread({
     }
     setMessages(initialMessages);
     setMembers(initialMembers);
-    setContent("");
+    skipNextDraftPersistRef.current = true;
+    setContent(getDraft(currentUserId, conversationId));
     setPendingAudio(null);
     setPendingVideo(null);
     setPendingImage(null);
@@ -1121,10 +1138,31 @@ export function ChatThread({
     // initialMembers too — those can get new array references on every
     // server round-trip for the *same* conversation (e.g. a revalidatePath
     // elsewhere), and re-running this on every such render would wipe out
-    // an in-progress draft/attachment for no reason. Only an actual
-    // conversation switch should reset anything.
+    // an in-progress attachment for no reason (content itself is safe
+    // either way, re-reading the same conversation's own unchanged draft).
+    // Only an actual conversation switch should reset anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  // Saves the composer text on every change so it survives navigating away
+  // (this component unmounting entirely, e.g. back to /messages) or an
+  // outright page reload, not just an in-app conversation switch (handled
+  // above by re-seeding content from the same store). Fires for the
+  // programmatic clears too — handleSend blanks content the instant a send
+  // starts, which this persists as "no draft" right away, and restores it
+  // again through this same effect if that send goes on to fail.
+  useEffect(() => {
+    // The switch effect above just requested this run be skipped — content
+    // here is still the *previous* conversation's leftover text (its own
+    // setContent call hasn't landed yet), so persisting it now would
+    // clobber the new conversation's draft. The re-render that setContent
+    // triggers fires this effect again with the real value, un-skipped.
+    if (skipNextDraftPersistRef.current) {
+      skipNextDraftPersistRef.current = false;
+      return;
+    }
+    setDraft(currentUserId, conversationId, content);
+  }, [currentUserId, conversationId, content]);
 
   // Opens the conversation already scrolled to the newest message, not the
   // top of history — instant (not smooth) on the first mount and on every

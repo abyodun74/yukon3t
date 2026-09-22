@@ -205,7 +205,9 @@ export default async function ConversationPage({
               )}
               <CopyInviteLinkButton conversationId={id} />
               <LeaveGroupButton conversationId={id} />
-              {conversation.createdById === me.id && <DeleteGroupButton conversationId={id} />}
+              {(conversation.createdById === me.id || me.isAdmin) && (
+                <DeleteGroupButton conversationId={id} isAdminOverride={conversation.createdById !== me.id} />
+              )}
             </>
           )}
         </div>

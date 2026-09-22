@@ -880,6 +880,22 @@ const sections: Section[] = [
             the creator leaves); the creator also has a &ldquo;Delete
             group&rdquo; option that removes the whole group — messages and
             all — for everyone at once, once it&apos;s no longer needed.
+            YuKon3t admins can also delete a group outright — for spam,
+            duplicates, or a Guidelines violation — even if they never
+            joined it.
+          </>
+        ),
+      },
+      {
+        q: "I typed a message but didn't send it — is it gone if I leave the chat?",
+        a: (
+          <>
+            No — whatever you&apos;ve typed but not sent is saved as a draft
+            on your device the moment you type it. Switch to another
+            conversation, close the app, or reload the page, and it&apos;ll
+            still be sitting in the message box when you come back to that
+            chat. It only clears once you actually send it (or delete the
+            text yourself).
           </>
         ),
       },
