@@ -12,7 +12,18 @@
  * (confirmed live: this silently broke photo AND video attach from any page
  * other than Home, no error, the composer just vanished under the user).
  */
-let activeCount = 0;
+// Two independent tracks, kept deliberately separate so a backstop for one
+// (resolveStuckImperativePicker below) can never affect the other's own
+// timing:
+//  - "promise" track: withNativePickerActive wraps a pick*Native() plugin
+//    call (post-composer.tsx's native gallery/video picker) that resolves
+//    on its own once the result arrives.
+//  - "imperative" track: markNativePickerActive/markNativePickerInactive
+//    bracket a plain `<input type="file">.click()` hand-off (chat-thread.tsx's
+//    messaging attach, and post-composer.tsx's own camera-capture input),
+//    which has no promise of its own to await.
+let promiseActiveCount = 0;
+let imperativeActive = false;
 
 // Also doubles as a re-entrancy guard: nothing previously disabled "Upload
 // from device"/"Take a photo" while a pick was still awaiting a result, so
@@ -25,7 +36,7 @@ let activeCount = 0;
 // markNativePickerActive() call and bail out early if it's already true —
 // see post-composer.tsx.
 export function isNativePickerActive() {
-  return activeCount > 0;
+  return promiseActiveCount > 0 || imperativeActive;
 }
 
 // How long to keep the guard up after a native pick call itself resolves.
@@ -39,12 +50,12 @@ export function isNativePickerActive() {
 const SETTLE_MS = 1500;
 
 export async function withNativePickerActive<T>(fn: () => Promise<T>): Promise<T> {
-  activeCount++;
+  promiseActiveCount++;
   try {
     return await fn();
   } finally {
     setTimeout(() => {
-      activeCount = Math.max(0, activeCount - 1);
+      promiseActiveCount = Math.max(0, promiseActiveCount - 1);
     }, SETTLE_MS);
   }
 }
@@ -54,15 +65,15 @@ export async function withNativePickerActive<T>(fn: () => Promise<T>): Promise<T
  * which has no promise to bracket with withNativePickerActive above —
  * mark active right before `.click()`, mark inactive once the input's own
  * change/cancel resolves it (pickImages/pickVideo's onChange handlers
- * already run for that). The safety timeout guards only against the user
+ * already run for that). The 60s failsafe below guards against the user
  * backgrounding the app entirely mid-capture and never returning through
- * this input's change event — worst case a later real resume goes
- * unhandled once, not a stuck app.
+ * this input's change event at all — but see resolveStuckImperativePicker
+ * for the much more common gap this alone doesn't cover.
  */
 let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function markNativePickerActive() {
-  activeCount++;
+  imperativeActive = true;
   if (pendingTimeout) clearTimeout(pendingTimeout);
   pendingTimeout = setTimeout(() => {
     pendingTimeout = null;
@@ -77,6 +88,33 @@ export function markNativePickerInactive() {
   }
   // Same settle-time reasoning as withNativePickerActive above.
   setTimeout(() => {
-    activeCount = Math.max(0, activeCount - 1);
+    imperativeActive = false;
   }, SETTLE_MS);
+}
+
+/**
+ * Force-clears just the imperative track (never the promise one — a
+ * still-pending pick*Native() call resolves, and clears itself, on its own
+ * regardless of how many resumes fire while it's in flight). Used only by
+ * capacitor-bridge.tsx's "resume" listener, as a backstop for the one case
+ * markNativePickerInactive can't reach on its own: the OS file/camera
+ * chooser closes — cancelled, or just a flaky WebView — without the
+ * `<input>`'s change/cancel event ever firing at all. Without this, that one
+ * cancelled/flaky attempt left every later "Upload from device"/"Take a
+ * photo"/video tap silently blocked (isNativePickerActive() stayed true) for
+ * up to the full 60s failsafe above — long enough that a user retrying
+ * within that window (the normal case) saw the picker as simply broken.
+ * "resume" itself is confirmed to fire reliably the instant that Activity
+ * closes either way (see the module doc comment above), so the caller can
+ * safely treat it as "the chooser is definitely gone now" far sooner than
+ * 60s, with a short grace delay first for a genuine change event already in
+ * flight to resolve this on its own (the normal case, where this is a
+ * harmless no-op).
+ */
+export function resolveStuckImperativePicker() {
+  imperativeActive = false;
+  if (pendingTimeout) {
+    clearTimeout(pendingTimeout);
+    pendingTimeout = null;
+  }
 }

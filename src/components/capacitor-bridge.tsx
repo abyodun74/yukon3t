@@ -6,7 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { markAllAsRead } from "@/app/actions/notifications";
-import { isNativePickerActive } from "@/lib/native-picker-activity";
+import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
@@ -235,7 +235,21 @@ export function CapacitorBridge() {
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
       App.addListener("resume", () => {
-        if (isNativePickerActive()) return;
+        if (isNativePickerActive()) {
+          // The picker/camera Activity closing is exactly what just fired
+          // this resume — confirmed reliable either way a pick ends,
+          // including a cancel (see native-picker-activity.ts's module doc
+          // comment) — but the WebView's own change/cancel event on the
+          // <input> that opened it isn't equally guaranteed to follow,
+          // particularly on a cancelled chooser on some Android WebView
+          // versions. A short grace delay lets a genuine change event (the
+          // normal case) clear the guard itself first; if it's still up
+          // after that, force it closed rather than leaving every later
+          // attach attempt silently blocked for up to a minute (see
+          // resolveStuckImperativePicker for the full reasoning).
+          setTimeout(resolveStuckImperativePicker, 1000);
+          return;
+        }
         const current = pathnameRef.current;
         if (current === "/home") return;
         if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
