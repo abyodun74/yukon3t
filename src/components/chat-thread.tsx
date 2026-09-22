@@ -515,8 +515,8 @@ function MessageBubble({
           {message.replyTo && (
             <div
               className={cn(
-                "mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs",
-                mine ? "border-accent-ink/40 bg-black/10" : "border-accent bg-black/5",
+                "mb-1.5 rounded-lg px-2 py-1 text-xs",
+                mine ? "bg-black/10" : "bg-black/5",
               )}
             >
               <p className={cn("font-medium", mine ? "text-accent-ink/80" : "text-accent")}>
@@ -1578,7 +1578,7 @@ export function ChatThread({
         // this banner when the composer sits near the bottom of a short
         // viewport (e.g. with the on-screen keyboard open) — losing sight of
         // who you're replying to, or the cancel button, mid-pick.
-        <div className="relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line border-l-2 border-l-accent bg-background px-3 py-2 text-xs">
+        <div className="relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line bg-background px-3 py-2 text-xs">
           <Reply size={14} className="shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-accent">
