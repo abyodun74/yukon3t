@@ -44,7 +44,11 @@ export async function requestConnection(formData: FormData) {
   }
 
   const target = await prisma.user.findUnique({ where: { id: targetId } });
-  if (!target || target.status !== "ACTIVE") {
+  // Same "not_found" as a blocked/inactive target below — admins are
+  // invisible platform-wide (see /u/[userId] and the search/discover
+  // exclusions), so no one should even learn an admin account exists by
+  // getting a *different* error here.
+  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
     return { error: "not_found" };
   }
   // Deliberately indistinguishable from "not_found" — a request shouldn't
@@ -205,7 +209,10 @@ export async function startDirectMessage(targetId: string) {
   }
 
   const target = await prisma.user.findUnique({ where: { id: targetId } });
-  if (!target || target.status !== "ACTIVE") {
+  // Same as requestConnection above (this action creates a Connection row
+  // too, further down) — admins are invisible platform-wide, so this stays
+  // indistinguishable from an inactive/nonexistent target.
+  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
     return { error: "not_found" as const };
   }
   if (await isBlockedEitherWay(user.id, targetId)) {

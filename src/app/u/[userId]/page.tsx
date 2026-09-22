@@ -38,8 +38,12 @@ export default async function PublicProfilePage({
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
-
   const isOwnProfile = user.id === me.id;
+  // Site admins are invisible platform-wide — see the same guard on
+  // /u/[userId]/subscribers and /subscribing, and the isAdmin exclusions
+  // in search/discover and requestConnection/startDirectMessage. Skipped
+  // only for the admin viewing their own profile.
+  if (user.isAdmin && !isOwnProfile) notFound();
   const online = isOnline(user.lastSeenAt);
 
   const iBlockedThem = isOwnProfile

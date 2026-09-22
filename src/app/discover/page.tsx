@@ -101,6 +101,9 @@ export default async function DiscoverPage({
       status: "ACTIVE",
       name: { not: null },
       discoverable: true,
+      // Site admins are invisible platform-wide, not just opted out of
+      // discoverable suggestions — see actions/discover.ts and search/page.tsx.
+      isAdmin: false,
       ...(intent ? { openToIntents: { has: intent as never } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
       ...(sort === "online" ? { lastSeenAt: { gt: onlineSince() } } : {}),

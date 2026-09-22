@@ -106,6 +106,10 @@ export default async function SearchPage({
         where: {
           id: { notIn: [me.id, ...blockedIds] },
           status: "ACTIVE",
+          // Site admins are invisible platform-wide, not just opted out of
+          // algorithmic suggestions — see the same exclusion in discover.ts/
+          // search-embeddings.ts and the isAdmin check on /u/[userId] itself.
+          isAdmin: false,
           // Deliberately not gated on `discoverable` — that flag opts someone
           // out of *passive* algorithmic suggestions (see /discover), not out
           // of being found by someone who already knows their name and

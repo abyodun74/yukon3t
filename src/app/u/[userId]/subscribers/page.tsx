@@ -18,6 +18,9 @@ export default async function SubscribersPage({
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
+  // Site admins are invisible platform-wide — see the same guard on
+  // /u/[userId] itself.
+  if (user.isAdmin && user.id !== me.id) notFound();
 
   const rows = await prisma.subscription.findMany({
     where: { subscribedToId: userId },

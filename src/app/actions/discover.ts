@@ -73,7 +73,14 @@ export async function getPeopleYouMayKnow(userId: string) {
   if (rankedCandidateIds.length === 0) return [];
 
   const people = await prisma.user.findMany({
-    where: { id: { in: rankedCandidateIds }, status: "ACTIVE", name: { not: null }, discoverable: true },
+    where: {
+      id: { in: rankedCandidateIds },
+      status: "ACTIVE",
+      name: { not: null },
+      discoverable: true,
+      // Site admins are invisible platform-wide — see /discover/page.tsx.
+      isAdmin: false,
+    },
     select: {
       id: true,
       name: true,
@@ -121,6 +128,8 @@ export async function loadMoreDiscoverPeople(
       status: "ACTIVE",
       name: { not: null },
       discoverable: true,
+      // Site admins are invisible platform-wide — see /discover/page.tsx.
+      isAdmin: false,
       ...(intent ? { openToIntents: { has: intent as (typeof intentTagValues)[number] } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
       ...(sort === "online" ? { lastSeenAt: { gt: onlineSince() } } : {}),
