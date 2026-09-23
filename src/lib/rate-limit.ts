@@ -182,6 +182,11 @@ export const rateLimiters = {
   // Not fixing those other five here — out of scope for this change — but
   // not repeating the same mistake in new code either.
   appFeedback: makeLimiter(5, "1 h", "appFeedback"),
+  // Each call can trigger a real Cloudflare Stream encode (see
+  // branded-video-service.ts) — generous enough for the client's own poll
+  // loop while a share is preparing (a few calls over ~20s), tight enough
+  // to bound spend if something calls this in a loop.
+  brandedVideo: makeLimiter(30, "5 m", "brandedVideo"),
 };
 
 export async function checkRateLimit(

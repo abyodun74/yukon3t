@@ -2216,6 +2216,43 @@ model VideoConversion {
   @@index([status, createdAt])
 }
 
+enum BrandedVideoStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/**
+ * One row per video that's had a yukon3t-watermarked copy generated for
+ * native-share attachment (see src/lib/branded-video.ts) — the video
+ * equivalent of watermark.ts's client-side canvas stamp for images, which
+ * has no equivalent client-side pixel path for video (see that file's own
+ * comment). Same shape/pipeline as VideoConversion just above (a source URL
+ * copied into Cloudflare Stream, encoded, downloaded, and re-hosted in R2),
+ * with two real differences: the Stream copy requests
+ * CLOUDFLARE_STREAM_WATERMARK_UID's watermark profile, and — unlike
+ * VideoConversion, which *replaces* the stored URL everywhere — this is a
+ * side artifact only: the original unwatermarked video stays exactly as it
+ * was for in-app viewing, `outputUrl` here is only ever handed to the
+ * native share sheet.
+ */
+model BrandedVideoRendition {
+  id        String             @id @default(cuid())
+  sourceUrl String             @unique
+  status    BrandedVideoStatus @default(PENDING)
+  // The temporary Cloudflare Stream copy doing the watermarked encode; deleted once the MP4 is back in R2.
+  streamUid String?
+  outputUrl String?
+  attempts  Int                @default(0)
+  lastError String?
+  // Same claim-with-staleness pattern as VideoConversion.claimedAt.
+  claimedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([status, createdAt])
+}
+
 /**
  * Every post-style upload a signed-in user was given a URL for (see recordUploads in src/lib/upload-records.ts).
  * A daily-ish sweep looks at the ones older than a couple of days and deletes any that nothing ever referenced —

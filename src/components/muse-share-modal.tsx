@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/skeleton";
 import { recordMuseShare, shareMuseToStory } from "@/app/actions/muse";
 import { getMyConversationsForShare, shareMuseToConversation } from "@/app/actions/messages";
 import { canShareNatively, shareNative } from "@/lib/native-share";
+import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 
 // A Story only takes a clip up to this long (storage.ts MAX_STORY_VIDEO_SECONDS — duplicated because that file is
 // server-only); a longer Muse can still go to Home, a friend, or anywhere via the device share sheet.
@@ -94,11 +95,19 @@ export function MuseShareModal({
     setNotice(null);
     setSharingViaDevice(true);
     try {
+      // Bakes the yukon3t brand mark into the actual video file server-side
+      // (see branded-video-client.ts) — the video counterpart to
+      // watermark.ts's client-side canvas stamp for a still image. Resolves
+      // to the original, unwatermarked URL if Cloudflare Stream can't
+      // produce a branded copy within a short wait, so a share is never
+      // blocked or degraded over this.
+      const brandedVideoUrl = await resolveBrandedVideoUrl(videoUrl);
+
       if (canShareNatively()) {
         const result = await shareNative({
           url,
           text: caption ?? undefined,
-          sources: [{ src: videoUrl, fileName: `muse-${museId}.mp4`, watermark: false }],
+          sources: [{ src: brandedVideoUrl, fileName: `muse-${museId}.mp4`, watermark: false }],
         });
         if (result.warning) setNotice(result.warning);
         countShare();
@@ -107,7 +116,7 @@ export function MuseShareModal({
       const data: ShareData = { url, text: caption ?? undefined };
       // Attach the actual video so WhatsApp / SMS / etc. receive it, not a bare link. Needs the file to be fetchable
       // from the browser (storage CORS) and the browser to support sharing files; otherwise it falls back to text+link.
-      const file = await fetchAsFile(videoUrl, `muse-${museId}.mp4`);
+      const file = await fetchAsFile(brandedVideoUrl, `muse-${museId}.mp4`);
       if (file && navigator.canShare?.({ files: [file] })) {
         data.files = [file];
       } else {

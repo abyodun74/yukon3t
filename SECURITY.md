@@ -334,6 +334,26 @@ after 3 failed attempts the original `.mov` is left in place. Until the swap lan
 always did). Needs `CLOUDFLARE_STREAM_*` + R2 configured, else the cron does nothing. Not covered: thumbnails are still
 captured in the uploader's own browser, so a browser that cannot decode an HEVC `.mov` still cannot create a thumbnail for it.
 
+### Video branding for native share (2026-09-23)
+
+Sharing a yukon3t photo/video out to another app (Instagram, TikTok, WhatsApp, etc. via the OS share sheet) should attach the
+actual media, branded with the yukon3t mark, the same way a TikTok/Instagram download carries their own watermark wherever it's
+re-shared — `watermark.ts` already did this for a still image (a client-side `<canvas>` stamp, instant). Video has no
+equivalent client-side pixel path (same no-ffmpeg-on-untrusted-bytes policy as everywhere else in this file), so
+`src/lib/branded-video.ts` (+ `branded-video-db.ts`/`branded-video-service.ts`, state in `BrandedVideoRendition`, cron
+`api/cron/brand-shared-videos`) is the same "copy into Cloudflare Stream, wait, download the MP4, re-host in R2" pipeline as
+QuickTime conversion above, just requesting Stream's **watermark** feature (`watermark: { uid }` on `stream/copy`, baked into
+the video at encode time, not just Stream Player's own HLS/DASH playback — confirmed against Cloudflare's docs) and never
+touching/replacing the original. A row is only ever created on-demand, the first time a specific video is actually shared out
+(`src/app/actions/branded-video.ts`, called from `share-modal.tsx`/`muse-share-modal.tsx` via
+`src/lib/branded-video-client.ts`'s short client poll loop) — proactively branding every uploaded video regardless of whether
+it's ever shared would be pure wasted Cloudflare Stream spend. Fail-soft in every direction: not configured
+(`CLOUDFLARE_STREAM_WATERMARK_UID` unset — see `.env.example`), still encoding past the client's ~20s wait, or failed outright
+after 3 attempts all fall back to sharing the plain unwatermarked original, never to blocking or breaking the share. One-time
+setup: `node scripts/upload-cloudflare-watermark.mjs` (needs a currently-valid `CLOUDFLARE_STREAM_API_TOKEN` — verify with
+`GET /client/v4/user/tokens/verify` first if unsure, since an expired/wrong token fails with a generic "Authentication error"
+that looks identical to a permissions problem).
+
 ## Automated database backups — status: built, pending bucket setup (2026-09-16)
 
 A daily encrypted logical backup of every table (`src/lib/db-backup.ts`, driven by the `backup-database` cron — same Netlify Scheduled Function pattern as every other `src/app/api/cron/*` route, see `netlify/functions/backup-database.mts`) uploads to a dedicated R2 bucket. `restore-database-backup.ts` (`npm run db:restore-backup`) is the corresponding manual, deliberate restore path — it is never run automatically.

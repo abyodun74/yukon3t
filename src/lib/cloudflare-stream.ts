@@ -60,11 +60,22 @@ async function cfFetch(path: string, init: RequestInit = {}): Promise<Response |
   }
 }
 
-/** Kicks off a Stream copy of an already-public video URL (our own R2 object). Returns the new video's uid, or null on failure. */
-export async function createStreamCopy(sourceUrl: string): Promise<string | null> {
+/**
+ * Kicks off a Stream copy of an already-public video URL (our own R2
+ * object). Returns the new video's uid, or null on failure. `watermarkUid`
+ * (a profile created once via `stream/watermarks`, see
+ * scripts/upload-cloudflare-watermark.mjs) bakes that logo into the video at
+ * encode time — confirmed against Cloudflare's own docs: this is applied
+ * during encoding, not just Stream Player's HLS/DASH playback, so it's
+ * present in the generated MP4 download too (see branded-video.ts, the only
+ * current caller that passes this).
+ */
+export async function createStreamCopy(sourceUrl: string, options?: { watermarkUid?: string }): Promise<string | null> {
+  const body: { url: string; watermark?: { uid: string } } = { url: sourceUrl };
+  if (options?.watermarkUid) body.watermark = { uid: options.watermarkUid };
   const res = await cfFetch("/stream/copy", {
     method: "POST",
-    body: JSON.stringify({ url: sourceUrl }),
+    body: JSON.stringify(body),
   });
   if (!res?.ok) return null;
   const data = await res.json();

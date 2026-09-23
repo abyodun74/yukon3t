@@ -9,6 +9,7 @@ import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages"
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { watermarkImageFile } from "@/lib/watermark";
+import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
@@ -136,7 +137,7 @@ export function ShareModal({
 
   async function nativeShare() {
     const extension = mediaType === "VIDEO" ? "mp4" : mediaType === "GIF" ? "gif" : "jpg";
-    const sources =
+    const rawSources =
       mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF"
         ? mediaType === "VIDEO"
           ? videoUrl
@@ -146,9 +147,22 @@ export function ShareModal({
         : [];
 
     setShareWarning(null);
+    // Covers the branding wait just below too, not just the actual share
+    // call — otherwise the button would sit back at "Share via device" for
+    // up to ~20s while a video's branded copy is being resolved, looking
+    // like nothing happened.
+    setSharingViaDevice(true);
+
+    // A video's yukon3t brand mark is baked in server-side (see
+    // branded-video-client.ts) rather than stamped client-side the way a
+    // still image is below — resolves to the original, unwatermarked URL if
+    // Cloudflare Stream can't produce a branded copy within a short wait, so
+    // a share is never blocked or degraded over this.
+    const sources = await Promise.all(
+      rawSources.map((src) => (mediaType === "VIDEO" ? resolveBrandedVideoUrl(src) : Promise.resolve(src))),
+    );
 
     if (canShareNatively()) {
-      setSharingViaDevice(true);
       try {
         const result = await shareNative({
           url,
@@ -156,9 +170,8 @@ export function ShareModal({
           sources: sources.map((src, i) => ({
             src,
             fileName: `post-${postId}-${i}.${extension}`,
-            // Only a still IMAGE post is watermark-able client-side (see
-            // watermark.ts) — VIDEO/GIF sources go out unmarked, branded
-            // only via the yukon3t.com link/text alongside them.
+            // Only a still IMAGE is watermarked here — a VIDEO source was
+            // already branded (or not) by resolveBrandedVideoUrl above.
             watermark: mediaType === "IMAGE",
           })),
         });
@@ -172,15 +185,14 @@ export function ShareModal({
 
     const shareData: ShareData = { url, text: content || undefined };
 
-    // Attach the actual photo/video so whatever the OS share sheet sends
-    // this to (WhatsApp, Instagram, SMS, ...) shows the real post instead
-    // of a bare yukon3t.com link most of those don't unfurl richly. Only
-    // attempted when the platform supports file sharing and the media can
-    // actually be fetched (R2 CORS, network) — falls back to the plain
-    // text+url share (still not just a link) on any failure.
-    if (sources.length > 0) {
-      setSharingViaDevice(true);
-      try {
+    try {
+      // Attach the actual photo/video so whatever the OS share sheet sends
+      // this to (WhatsApp, Instagram, SMS, ...) shows the real post instead
+      // of a bare yukon3t.com link most of those don't unfurl richly. Only
+      // attempted when the platform supports file sharing and the media can
+      // actually be fetched (R2 CORS, network) — falls back to the plain
+      // text+url share (still not just a link) on any failure.
+      if (sources.length > 0) {
         const fetchFailures: string[] = [];
         const files = (
           await Promise.all(
@@ -200,9 +212,9 @@ export function ShareModal({
         } else if (files.length > 0 && !navigator.canShare?.({ files })) {
           setShareWarning("Couldn't attach media, sent link only (this browser can't share files)");
         }
-      } finally {
-        setSharingViaDevice(false);
       }
+    } finally {
+      setSharingViaDevice(false);
     }
 
     navigator.share(shareData).then(bumpShareCount).catch(() => {});
