@@ -11,6 +11,7 @@ type EmbeddedPostRow = {
   content: string;
   mediaType: MediaType;
   mediaUrls: string[];
+  albumId: string | null;
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
   videoDurationSeconds: number | null;
@@ -83,8 +84,19 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
         .filter((id) => id !== viewerId),
     ),
   ];
+  // A multi-photo post's lead (the only row a listing ever surfaces — see
+  // LEAD_POST_ONLY) carries the caption/engagement everyone sees, but the
+  // carousel (PostCard's AlbumCarousel) needs its siblings' own ids (to link
+  // into each one's own /post/[id]) and mediaUrls too — batched here the
+  // same way every other per-target lookup below is, instead of once per
+  // card.
+  const albumIds = [
+    ...new Set(
+      posts.map((p) => (p.sharedPost ?? p.repostOf ?? p).albumId).filter((id): id is string => id !== null),
+    ),
+  ];
 
-  const [likes, myReposts, myRsvps, engagementByAuthorId, reactionCounts, myReactions] = targetIds.length
+  const [likes, myReposts, myRsvps, engagementByAuthorId, reactionCounts, myReactions, albumSiblings] = targetIds.length
     ? await Promise.all([
         prisma.like.findMany({
           where: { userId: viewerId, postId: { in: targetIds } },
@@ -110,8 +122,17 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
           where: { userId: viewerId, postId: { in: targetIds } },
           select: { postId: true, emoji: true },
         }),
+        // Most pages have no album posts at all — skip the round trip
+        // rather than querying an empty `IN ()`.
+        albumIds.length
+          ? prisma.post.findMany({
+              where: { albumId: { in: albumIds } },
+              orderBy: { albumIndex: "asc" },
+              select: { id: true, albumId: true, mediaUrls: true },
+            })
+          : Promise.resolve([]),
       ])
-    : [[], [], [], new Map(), [], []];
+    : [[], [], [], new Map(), [], [], []];
 
   const likedSet = new Set(likes.map((l) => l.postId));
   const repostedSet = new Set(myReposts.map((r) => r.repostOfId as string));
@@ -123,6 +144,16 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
     list.push({ emoji: c.emoji, count: c._count.emoji, reactedByMe: c.emoji === myReactionByPostId.get(c.postId) });
     reactionsByPostId.set(c.postId, list);
   }
+  // Already ordered by albumIndex (the query above) — each list is exactly
+  // the carousel order PostCard should render.
+  const siblingsByAlbumId = new Map<string, { id: string; url: string }[]>();
+  for (const s of albumSiblings) {
+    const url = s.mediaUrls[0];
+    if (!url) continue;
+    const list = siblingsByAlbumId.get(s.albumId!) ?? [];
+    list.push({ id: s.id, url });
+    siblingsByAlbumId.set(s.albumId!, list);
+  }
 
   return posts.map((post) => {
     const target = post.sharedPost ?? post.repostOf ?? post;
@@ -132,6 +163,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       content: post.content,
       mediaType: post.mediaType,
       mediaUrls: post.mediaUrls,
+      albumPhotos: target.albumId ? (siblingsByAlbumId.get(target.albumId) ?? []) : [],
       videoUrl: post.videoUrl,
       videoThumbnailUrl: post.videoThumbnailUrl,
       videoDurationSeconds: post.videoDurationSeconds,

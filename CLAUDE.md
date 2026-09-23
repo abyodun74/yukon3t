@@ -22,6 +22,7 @@ npm run db:studio                      # prisma studio
 npm run db:seed                        # tsx prisma/seed.ts
 npm run db:backfill-embeddings         # tsx scripts/backfill-embeddings.ts
 npm run db:backfill-group-discoverable
+npm run db:backfill-post-albums        # one-off: splits a legacy multi-photo Post row into one-post-per-photo siblings (see schema.prisma's Post.albumId) — dry run by default, needs --apply
 ```
 
 Tests are co-located `*.test.ts` files next to the source they cover (e.g. `src/lib/utils.test.ts`), run by Vitest in `node` environment — see `vitest.config.ts`.
@@ -102,7 +103,7 @@ Video calls also have a front/back camera flip button (`cycleCamera()`, wired up
 ### Domain model (see `prisma/schema.prisma`)
 
 - **Circles** (communities) → **Channels** → `ChannelVoiceParticipant` for live voice
-- **Posts/Comments/Likes/Stories** — standard social graph
+- **Posts/Comments/Likes/Stories** — standard social graph. A multi-photo post is *not* one Post row with several `mediaUrls` — each photo is its own Post row (one `mediaUrls` entry each), sharing a `Post.albumId` and ordered by `albumIndex`; only `albumIndex 0` (the "lead", which also carries the caption) is ever surfaced by a feed/search/profile listing (`LEAD_POST_ONLY` in `src/lib/post-visibility.ts`) — the rest are reached via that lead's own carousel (`PostCard`'s `AlbumCarousel`) and are each independently likeable/commentable/repostable/shareable through their own `/post/[id]`. Deleting any post in an album deletes the whole album together (`deletePost` in `actions/posts.ts`); partial-album deletion isn't supported. Any new query that lists posts (not a single-post lookup) needs to apply `LEAD_POST_ONLY` too, or a multi-photo post's siblings will double-render as separate feed entries.
 - **Collab** — `CollabBoardPost`/`CollabParticipant`/`CollabSessionParticipant`, a separate live-collaboration feature from Circles/posts
 - **Connections** (follow/friend) + **Conversations/Messages** — conversations are always exactly 2 people (no group-DM join table; `deliveredAt`/`readAt` are plain nullable columns on `Message`). Live updates run on Supabase Realtime, not polling — see "Realtime layer" below (this was polling until 2026-09; if you find code or docs elsewhere still describing a poll interval for chat, it's stale)
 - **Report/AuditLog/Block** — trust & safety; every moderation action writes an `AuditLog` row

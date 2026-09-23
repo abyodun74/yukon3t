@@ -7,7 +7,7 @@ import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { postSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
 
 const POSTS_PAGE_SIZE = 20;
 
@@ -57,38 +57,56 @@ export async function deletePost(postId: string) {
     return { error: "forbidden" };
   }
 
+  // A multi-photo post is several sibling Post rows sharing one albumId
+  // (see createPost in actions/circles.ts) — deleting any one of them
+  // (lead or not) deletes the whole set together, the same granularity
+  // "delete this post" had before an album could exist at all (it used to
+  // be one Post row holding every image). Partial-album deletion (removing
+  // just one photo, keeping the rest) isn't supported.
+  const albumPosts = post.albumId
+    ? await prisma.post.findMany({ where: { albumId: post.albumId } })
+    : [post];
+
   // Cascades (onDelete: Cascade on Post.repostOf/sharedPost) remove any
-  // reposts/shares of this post along with it — a post is always public, so
-  // there's no separate "delete for me" state to track the way there is for
-  // a private message. Deleting a post that is itself a repost or a share
-  // (repostOfId/sharedPostId set) doesn't cascade anywhere, but must still
-  // decrement the original's repostCount/shareCount — those were bumped
-  // when the repost/share row was created (see repost()/shareToCircle() in
-  // reposts.ts/shares.ts) and would otherwise stay permanently inflated.
+  // reposts/shares of each of these posts along with it — a post is always
+  // public, so there's no separate "delete for me" state to track the way
+  // there is for a private message. A post that is itself a repost or a
+  // share (repostOfId/sharedPostId set) doesn't cascade anywhere, but must
+  // still decrement the original's repostCount/shareCount — those were
+  // bumped when the repost/share row was created (see repost()/
+  // shareToCircle() in reposts.ts/shares.ts) and would otherwise stay
+  // permanently inflated. (An album's own siblings are never themselves
+  // reposts/shares — only a standalone post being deleted here can have
+  // repostOfId/sharedPostId set — but the same handling covers both
+  // shapes without needing to special-case which one this is.)
   await prisma.$transaction([
-    prisma.post.delete({ where: { id: postId } }),
-    ...(post.repostOfId
-      ? [prisma.post.update({ where: { id: post.repostOfId }, data: { repostCount: { decrement: 1 } } })]
-      : []),
-    ...(post.sharedPostId
-      ? [prisma.post.update({ where: { id: post.sharedPostId }, data: { shareCount: { decrement: 1 } } })]
-      : []),
+    prisma.post.deleteMany({ where: { id: { in: albumPosts.map((p) => p.id) } } }),
+    ...albumPosts.flatMap((p) => [
+      ...(p.repostOfId
+        ? [prisma.post.update({ where: { id: p.repostOfId }, data: { repostCount: { decrement: 1 } } })]
+        : []),
+      ...(p.sharedPostId
+        ? [prisma.post.update({ where: { id: p.sharedPostId }, data: { shareCount: { decrement: 1 } } })]
+        : []),
+    ]),
   ]);
 
-  const mediaUrls = [
-    ...post.mediaUrls,
-    ...(post.videoUrl ? [post.videoUrl] : []),
-    ...(post.videoThumbnailUrl ? [post.videoThumbnailUrl] : []),
-  ];
+  const mediaUrls = albumPosts.flatMap((p) => [
+    ...p.mediaUrls,
+    ...(p.videoUrl ? [p.videoUrl] : []),
+    ...(p.videoThumbnailUrl ? [p.videoThumbnailUrl] : []),
+  ]);
   // Only files nothing else still uses (a Muse / Story / message may share this post's video).
   await deleteMediaIfUnreferenced(mediaUrls);
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");
   revalidatePath(`/u/${post.authorId}`);
-  revalidatePath(`/post/${postId}`);
-  if (post.repostOfId) revalidatePath(`/post/${post.repostOfId}`);
-  if (post.sharedPostId) revalidatePath(`/post/${post.sharedPostId}`);
+  for (const p of albumPosts) {
+    revalidatePath(`/post/${p.id}`);
+    if (p.repostOfId) revalidatePath(`/post/${p.repostOfId}`);
+    if (p.sharedPostId) revalidatePath(`/post/${p.sharedPostId}`);
+  }
   return { error: null };
 }
 
@@ -137,7 +155,14 @@ export async function loadMoreProfilePosts(profileUserId: string, cursor: string
   }
 
   const rawPosts = await prisma.post.findMany({
-    where: { authorId: profileUserId, circleId: null, ...(await getVisiblePostsWhere(viewer.id)) },
+    // AND, not a flat spread: getVisiblePostsWhere and LEAD_POST_ONLY each
+    // have their own top-level OR — spreading both into one object would
+    // let the second silently clobber the first instead of ANDing them.
+    where: {
+      authorId: profileUserId,
+      circleId: null,
+      AND: [await getVisiblePostsWhere(viewer.id), LEAD_POST_ONLY],
+    },
     orderBy: { createdAt: "desc" },
     take: POSTS_PAGE_SIZE,
     cursor: { id: cursor },

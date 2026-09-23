@@ -636,6 +636,20 @@ model Post {
   createdAt           DateTime         @default(now())
   editedAt            DateTime?
 
+  // A multi-photo post is no longer one Post row holding several mediaUrls —
+  // it's several IMAGE Post rows (one photo each, mediaUrls always length 1),
+  // sharing one albumId and ordered by albumIndex (0 = the "lead" post: the
+  // only one a feed/search/profile listing ever surfaces — see
+  // LEAD_POST_ONLY in post-visibility.ts — and the one that carries the
+  // caption; see createPost in actions/circles.ts). Each sibling is still a
+  // fully independent Post otherwise: its own id, likes, comments, reposts,
+  // shares, and its own /post/[id] page, reachable by tapping it in the
+  // lead's carousel (see PostCard's AlbumCarousel). null on every ordinary
+  // (single-photo, video, text, ...) post — that's the vast majority and
+  // behaves exactly as before this existed.
+  albumId    String?
+  albumIndex Int?
+
   // See User.embedding — embeds content only.
   embedding Unsupported("vector(1536)")?
 
@@ -702,6 +716,10 @@ model Post {
   // stale-claimed by a killed run and due for retry) the OpenAI review
   // pipeline — independent of moderationStatus, see videoLongReviewNeeded.
   @@index([mediaType, videoLongReviewNeeded, videoLongReviewClaimedAt])
+  // Backs both createPost's sibling-fetch-by-order and attachViewerState's
+  // batched sibling lookup for the feed carousel (WHERE albumId IN (...)
+  // ORDER BY albumIndex).
+  @@index([albumId, albumIndex])
 }
 
 model Comment {

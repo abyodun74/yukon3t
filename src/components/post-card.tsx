@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type UIEvent } from "react";
 import Link from "next/link";
 import { Calendar, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
@@ -61,6 +61,14 @@ type EmbeddedPost = {
   content: string;
   mediaType: MediaType;
   mediaUrls: string[];
+  // A multi-photo post's siblings (own id + single mediaUrl each, in
+  // carousel order — see attachViewerState in post-card-data.ts), present
+  // only on this post's own top-level engagement target. Left undefined
+  // (never populated) on a repost/share's embedded original — that nested
+  // object is passed through unenriched, so it degrades to showing just its
+  // own lead photo, no carousel, rather than a stale/wrong one; every
+  // MediaBlock read of this is written to tolerate that.
+  albumPhotos?: { id: string; url: string }[];
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
   videoDurationSeconds: number | null;
@@ -184,6 +192,63 @@ function EventBlock({
   );
 }
 
+/**
+ * A multi-photo post's own carousel — one photo at a time, native
+ * touch-swipe via scroll-snap (no library/JS drag handling needed), a dot
+ * per photo. Each photo is a real `<Link>` to *its own* /post/[id], not a
+ * zoom modal like a single-image post's tap-to-open (Lightbox, in
+ * MediaBlock below): every photo in the set is its own fully independent
+ * post — its own like/comment/repost/share — so opening one means
+ * navigating to it, not just viewing it bigger in place. The dots track
+ * scroll position (onScroll), not clicks, so they stay correct if the
+ * viewer swipes past them directly.
+ */
+function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[]; alt: string }) {
+  const [index, setIndex] = useState(0);
+
+  function handleScroll(e: UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    if (el.clientWidth === 0) return;
+    const i = Math.round(el.scrollLeft / el.clientWidth);
+    if (i !== index) setIndex(i);
+  }
+
+  return (
+    <div className="mt-3">
+      <div
+        onScroll={handleScroll}
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {photos.map((photo) => (
+          <Link key={photo.id} href={`/post/${photo.id}`} className="block w-full shrink-0 snap-center cursor-pointer">
+            {/* Plain <img>, not next/image: avoids routing user-uploaded
+                content through Next's bundled sharp (see SECURITY.md). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.url}
+              alt={alt}
+              className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
+              loading="lazy"
+              ref={markImageLoadedIfComplete}
+              onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+            />
+          </Link>
+        ))}
+      </div>
+      {photos.length > 1 && (
+        <div className="mt-1.5 flex items-center justify-center gap-1.5">
+          {photos.map((photo, i) => (
+            <span
+              key={photo.id}
+              className={cn("h-1.5 w-1.5 rounded-full transition-colors", i === index ? "bg-accent" : "bg-line")}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MediaBlock({
   post,
   onOpenImage,
@@ -275,34 +340,42 @@ function MediaBlock({
         )
       )}
 
-      {post.mediaType === "IMAGE" && post.mediaUrls.length > 0 && (
-        <div
-          className={cn(
-            "mt-3 grid gap-1.5 overflow-hidden rounded-lg",
-            post.mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
-          )}
-        >
-          {post.mediaUrls.map((url, i) => (
-            <button
-              key={url}
-              type="button"
-              onClick={() => onOpenImage(i)}
-              className="block cursor-zoom-in"
-            >
-              {/* Plain <img>, not next/image: avoids routing user-uploaded
-                  content through Next's bundled sharp (see SECURITY.md). */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt={post.content || `Photo posted by ${post.author.name}`}
-                className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
-                loading="lazy"
-                ref={markImageLoadedIfComplete}
-                onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
-              />
-            </button>
-          ))}
-        </div>
+      {post.mediaType === "IMAGE" && post.albumPhotos && post.albumPhotos.length > 1 ? (
+        <AlbumCarousel
+          photos={post.albumPhotos}
+          alt={post.content || `Photo posted by ${post.author.name}`}
+        />
+      ) : (
+        post.mediaType === "IMAGE" &&
+        post.mediaUrls.length > 0 && (
+          <div
+            className={cn(
+              "mt-3 grid gap-1.5 overflow-hidden rounded-lg",
+              post.mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
+            )}
+          >
+            {post.mediaUrls.map((url, i) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => onOpenImage(i)}
+                className="block cursor-zoom-in"
+              >
+                {/* Plain <img>, not next/image: avoids routing user-uploaded
+                    content through Next's bundled sharp (see SECURITY.md). */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={post.content || `Photo posted by ${post.author.name}`}
+                  className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
+                  loading="lazy"
+                  ref={markImageLoadedIfComplete}
+                  onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+                />
+              </button>
+            ))}
+          </div>
+        )
       )}
 
       {post.mediaType === "GIF" && post.mediaUrls.length > 0 && (

@@ -87,12 +87,30 @@ export const NOT_MEMBERS_ONLY: Prisma.PostWhereInput = {
 };
 
 /**
+ * Keeps a multi-photo post's non-lead siblings out of any listing that
+ * shows one card per post — Home, search, a profile's posts, a Circle
+ * channel's feed. A multi-photo post is several Post rows sharing one
+ * albumId (one photo each), ordered by albumIndex; only albumIndex 0 (the
+ * "lead", which also carries the caption — see createPost in
+ * actions/circles.ts) represents the whole set there, with the rest reached
+ * via its own carousel (PostCard's AlbumCarousel). An ordinary post has no
+ * albumId at all and passes through untouched. NOT for single-post access
+ * (canViewPost, /post/[id]) — a sibling still needs its own full page, so
+ * it's independently open-able/likeable/commentable/shareable exactly like
+ * the lead; only *listing* queries should ever apply this.
+ */
+export const LEAD_POST_ONLY: Prisma.PostWhereInput = {
+  OR: [{ albumId: null }, { albumIndex: 0 }],
+};
+
+/**
  * getVisiblePostsWhere for a general listing — the viewer's visible posts
- * minus anything members-only (see NOT_MEMBERS_ONLY). Combined with AND so
- * neither side's own OR/NOT is clobbered.
+ * minus anything members-only (see NOT_MEMBERS_ONLY) and minus a multi-photo
+ * post's non-lead siblings (see LEAD_POST_ONLY). Combined with AND so no
+ * side's own OR/NOT is clobbered.
  */
 export async function getListablePostsWhere(viewerId: string) {
-  return { AND: [await getVisiblePostsWhere(viewerId), NOT_MEMBERS_ONLY] };
+  return { AND: [await getVisiblePostsWhere(viewerId), NOT_MEMBERS_ONLY, LEAD_POST_ONLY] };
 }
 
 /** Pure rule behind isMembersOnlyPost: a PRIVATE Circle or a PRIVATE channel makes a post members-only. */

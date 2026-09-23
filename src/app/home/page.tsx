@@ -9,7 +9,7 @@ import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
 import { HomeQuickActions } from "@/components/home-quick-actions";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getListablePostsWhere, NOT_MEMBERS_ONLY } from "@/lib/post-visibility";
+import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
@@ -48,8 +48,9 @@ export default async function HomePage({
         // admin's own HIDDEN posts don't leak into another admin's view
         // either.
         NOT: { author: { postsVisibility: "HIDDEN" as const } },
-        // Even an admin's wider feed never lists members-only (private Circle / private channel) posts.
-        AND: [NOT_MEMBERS_ONLY],
+        // Even an admin's wider feed never lists members-only (private Circle / private channel) posts,
+        // and never lists a multi-photo post's non-lead siblings as their own separate cards.
+        AND: [NOT_MEMBERS_ONLY, LEAD_POST_ONLY],
       }
     : await getListablePostsWhere(me.id);
   // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter

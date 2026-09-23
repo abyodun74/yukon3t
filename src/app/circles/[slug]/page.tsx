@@ -20,6 +20,7 @@ import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { CirclePostsList } from "@/components/circle-posts-list";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
+import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { getMyCircles } from "@/app/actions/circles";
 import { CirclePostFab } from "@/components/circle-post-fab";
@@ -110,7 +111,7 @@ export default async function CirclePage({
 
     activeChannel?.type === "TEXT" && !isPrivateNonMember
       ? prisma.post.findMany({
-          where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED" },
+          where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED", ...LEAD_POST_ONLY },
           orderBy: { createdAt: "desc" },
           take: POSTS_PAGE_SIZE,
           include: postCardInclude,

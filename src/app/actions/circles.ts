@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
@@ -27,7 +28,7 @@ import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
-import { isMembersOnlyPost } from "@/lib/post-visibility";
+import { isMembersOnlyPost, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
@@ -820,44 +821,87 @@ export async function createPost(formData: FormData) {
   );
   const streamUid = await streamUidPromise;
 
-  const post = await prisma.post.create({
-    data: {
-      authorId: user.id,
-      circleId: parsed.data.circleId,
-      channelId: parsed.data.channelId,
-      content: parsed.data.content,
-      intentTag: parsed.data.intentTag,
-      // Meaningless inside a Circle (membership is already the access
-      // boundary there) — always stored PUBLIC regardless of what the
-      // composer sent, rather than trusting a client-chosen value that
-      // getVisiblePostsWhere would ignore for circle posts anyway.
-      visibility: parsed.data.circleId ? "PUBLIC" : parsed.data.visibility,
-      feedCategory,
-      mediaType,
-      mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
-      videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
-      videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
-      videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined,
-      embedProvider: embed?.provider,
-      embedId: embed?.id,
-      linkUrl: linkUrl ?? undefined,
-      eventAt,
-      eventLocation,
-      moderationStatus,
-      // Long videos never reach the moderate-videos cron (Hive can't scan
-      // past 60s anyway) — pre-claiming here keeps its
-      // `mediaType VIDEO, videoModeratedAt IS NULL` scan from picking them
-      // up and wasting/failing a Hive call on something it was never going
-      // to handle.
-      videoModeratedAt: videoNeedsLongReview ? new Date() : undefined,
-      videoStreamUid: streamUid ?? undefined,
-      // Independent of moderationStatus (see schema.prisma) — true for both
-      // the FLAGGED-hold tier and the new instant-publish-but-still-review
-      // tier, so moderate-long-videos picks either up regardless of whether
-      // this post is already visible.
-      videoLongReviewNeeded: videoNeedsLongReview,
-    },
-  });
+  // Fields every sibling in a multi-photo album shares identically with the
+  // single-post case below — factored out so the two create paths can't
+  // drift apart on anything but content/mediaUrls/albumId/albumIndex.
+  const sharedPostData = {
+    authorId: user.id,
+    circleId: parsed.data.circleId,
+    channelId: parsed.data.channelId,
+    intentTag: parsed.data.intentTag,
+    // Meaningless inside a Circle (membership is already the access
+    // boundary there) — always stored PUBLIC regardless of what the
+    // composer sent, rather than trusting a client-chosen value that
+    // getVisiblePostsWhere would ignore for circle posts anyway.
+    visibility: parsed.data.circleId ? "PUBLIC" : parsed.data.visibility,
+    feedCategory,
+    mediaType,
+    videoUrl: mediaType === "VIDEO" ? videoUrl : undefined,
+    videoThumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
+    videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined,
+    embedProvider: embed?.provider,
+    embedId: embed?.id,
+    linkUrl: linkUrl ?? undefined,
+    eventAt,
+    eventLocation,
+    moderationStatus,
+    // Long videos never reach the moderate-videos cron (Hive can't scan
+    // past 60s anyway) — pre-claiming here keeps its
+    // `mediaType VIDEO, videoModeratedAt IS NULL` scan from picking them
+    // up and wasting/failing a Hive call on something it was never going
+    // to handle.
+    videoModeratedAt: videoNeedsLongReview ? new Date() : undefined,
+    videoStreamUid: streamUid ?? undefined,
+    // Independent of moderationStatus (see schema.prisma) — true for both
+    // the FLAGGED-hold tier and the new instant-publish-but-still-review
+    // tier, so moderate-long-videos picks either up regardless of whether
+    // this post is already visible.
+    videoLongReviewNeeded: videoNeedsLongReview,
+  };
+
+  let post;
+  if (mediaType === "IMAGE" && mediaUrls.length > 1) {
+    // A multi-photo post: instead of one Post row carrying every image, each
+    // photo gets its own Post row — its own id, so it's independently
+    // likeable/commentable/reshareable/shareable via its own /post/[id],
+    // not sharing one engagement total across the whole set. All of them
+    // share a fresh albumId (just a grouping key, not a foreign key to
+    // another table) and are ordered by albumIndex; only index 0 (the
+    // "lead") carries the caption and is what a feed/search/profile listing
+    // ever surfaces (see LEAD_POST_ONLY) — the rest are reached from its
+    // carousel (PostCard's AlbumCarousel) and by tapping into it. moderateMedia
+    // above already checked the whole caption+image set together and would
+    // have rejected the post outright on a violation, so there's no
+    // per-sibling moderation status to compute here — every sibling is
+    // simply PUBLISHED (moderationStatus from sharedPostData, unchanged).
+    const albumId = randomUUID();
+    const albumPosts = await prisma.$transaction(
+      mediaUrls.map((url, i) =>
+        prisma.post.create({
+          data: {
+            ...sharedPostData,
+            content: i === 0 ? parsed.data.content : "",
+            mediaUrls: [url],
+            albumId,
+            albumIndex: i,
+          },
+        }),
+      ),
+    );
+    post = albumPosts[0];
+  } else {
+    post = await prisma.post.create({
+      data: {
+        ...sharedPostData,
+        content: parsed.data.content,
+        mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
+      },
+    });
+  }
+  // Only the lead post's caption/embed-title vector is stored — an album's
+  // non-lead siblings have no caption of their own to embed, and (per
+  // LEAD_POST_ONLY) never surface in a search/semantic result independently
+  // of their lead anyway, so there's nothing for their own embedding to do.
   if (embedding) {
     await prisma.$executeRaw`UPDATE "Post" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${post.id}`;
   }
@@ -996,7 +1040,7 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
   }
 
   const rawPosts = await prisma.post.findMany({
-    where: { channelId: channel.id, moderationStatus: "PUBLISHED" },
+    where: { channelId: channel.id, moderationStatus: "PUBLISHED", ...LEAD_POST_ONLY },
     orderBy: { createdAt: "desc" },
     take: CIRCLE_POSTS_PAGE_SIZE,
     cursor: { id: cursor },

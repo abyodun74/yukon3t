@@ -17,7 +17,7 @@ import { BackButton } from "@/components/back-button";
 import { ProfileStoryRing } from "@/components/profile-story-ring";
 import { PostMuseButton } from "@/components/post-muse-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isOnline } from "@/lib/presence";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
 
@@ -95,7 +95,14 @@ export default async function PublicProfilePage({
   // Private choice underneath that.
   const rawPosts = canSeePosts
     ? await prisma.post.findMany({
-        where: { authorId: user.id, circleId: null, ...(await getVisiblePostsWhere(me.id)) },
+        // AND, not a flat spread — see loadMoreProfilePosts (actions/posts.ts)'s
+        // identical query for why getVisiblePostsWhere and LEAD_POST_ONLY
+        // can't both be spread into the same object.
+        where: {
+          authorId: user.id,
+          circleId: null,
+          AND: [await getVisiblePostsWhere(me.id), LEAD_POST_ONLY],
+        },
         orderBy: { createdAt: "desc" },
         take: POSTS_PAGE_SIZE,
         include: postCardInclude,
