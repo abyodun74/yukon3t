@@ -1,63 +1,96 @@
-# iOS Share Extension — plan (not yet built)
+# iOS Share Extension — status
 
-Android now has a working "Share to YuKon3t" target (see
-`android/app/src/main/AndroidManifest.xml`'s SEND/SEND_MULTIPLE
-intent-filters, `ShareReceiverPlugin.java`, and the JS side —
-`src/lib/share-receiver.ts`, `src/lib/share-target-store.ts`,
-`src/components/share-target-gate.tsx`). iOS needs the equivalent, but it's
-a meaningfully bigger lift than Android's manifest change: it requires a
-**separate Xcode target** — something that can't be done safely by hand-
-editing text files the way `AndroidManifest.xml`/Gradle files can (the
-`.xcodeproj` is a generated, fragile format; this needs to be done in Xcode
-itself, on a Mac, same prerequisite as the rest of `ios/SUBMISSION.md`).
+Android's "Share to YuKon3t" target (SEND/SEND_MULTIPLE intent-filters in
+`AndroidManifest.xml`, `ShareReceiverPlugin.java`, and the JS side —
+`src/lib/share-receiver.ts`, `src/components/share-target-gate.tsx`) now has
+an iOS counterpart, built entirely from this repo (no Xcode/Mac needed for
+this part):
 
-## Why this is bigger than Android's version
+- `ios/App/ShareExtension/` — the extension target's own files:
+  `ShareViewController.swift` (reads whatever the OS handed over — image(s),
+  a movie, plain text, or a URL — and writes it into a shared App Group
+  container), `ShareExtension-Info.plist` (declares which content types
+  activate it, mirroring Android's `image/*`/`video/*`/`text/plain`), and
+  `ShareExtension.entitlements` (the App Group).
+- `ios/App/App/ShareReceiverPlugin.swift` + `.m` — the main app's own
+  Capacitor plugin, registered under the exact same `"ShareReceiver"` /
+  `getPendingShare()` name Android's plugin uses, so
+  `src/lib/share-receiver.ts`'s `checkForPendingShare()` needs only a
+  platform check, not two different code paths. Reads the App Group
+  container the extension wrote to, then deletes it — consumed exactly
+  once, same contract as the Android plugin.
+- `ios/App/App/App.entitlements` — same App Group added to the main target
+  too (both sides of the hand-off need it).
+- `ios/App/App/Info.plist` — registers the `yukon3t://` URL scheme, which
+  `ShareViewController.swift` opens via `extensionContext.open(...)` (the
+  sanctioned way for a Share Extension to bring its host app to the
+  foreground — there's no `UIApplication` inside an extension to call
+  `openURL` on directly).
+- `scripts/fix-ios-package-class-list.mjs` — `ShareReceiverPlugin` added to
+  `LOCAL_PLUGIN_CLASSES`, so `npm run cap:sync:ios` keeps registering it in
+  `capacitor.config.json`'s `packageClassList` the way it already does for
+  `ScreenCaptureGuardPlugin`/`NativeCallKitPlugin` (see CLAUDE.md's
+  "packageClassList gotcha").
+- **The Xcode project target itself is registered** —
+  `ios/App/App.xcodeproj/project.pbxproj` now has a `ShareExtension` app
+  extension target (product type `com.apple.product-type.app-extension`),
+  wired up via `scripts/add-ios-share-extension-target.mjs`, which used the
+  `xcode` npm package (the same library `@capacitor/cli` itself uses to edit
+  this file) rather than hand-editing the format directly. It's already run
+  once — the target, its Sources/Resources/Frameworks build phases, the
+  App target's "Copy Files" (Embed App Extensions) phase + dependency on it,
+  and all the relevant build settings (bundle id
+  `com.yukon3t.app.ShareExtension`, entitlements path, matching team/
+  deployment target/Swift version) are all committed. **Don't re-run that
+  script** — it has no update path, only a "does this target already exist"
+  guard, and running it again would create a duplicate target.
+  - Two real bugs in that library surfaced and were worked around in the
+    script (both documented inline there): `addTargetDependency` silently
+    no-ops on a project that never had more than one target before (the
+    two sections it needs don't exist yet — the script pre-creates them
+    empty), and `addTarget`'s `INFOPLIST_FILE` value is built with Node's
+    `path.join`, which emits a **backslash** on this Windows dev machine —
+    not a valid Xcode path separator — so the script normalizes it back to
+    `/` afterward. Confirmed by re-parsing the written file with the same
+    library multiple times and inspecting the object graph (target
+    dependencies, build phases, group membership, build settings) — see
+    that script's own comments for the exact checks. This is as much
+    verification as is possible without a Mac.
 
-Android's share target runs *inside* the same app process that's already
-running — `MainActivity` just gets handed a different `Intent`. iOS Share
-Extensions are a **separate mini-app** with their own process, memory limit
-(~120MB, much tighter than the main app), and lifecycle — they can't reach
-into the main app's WebView or JS runtime directly at all. The only way
-data crosses between them is a shared **App Group** container on disk.
+## What still needs a person with Apple Developer Portal / Xcode access
 
-## What it takes
+None of this needs hand-editing the `.xcodeproj` anymore — it's just
+account-level configuration Codemagic's automatic signing depends on:
 
-1. **New target in Xcode**: File → New → Target → Share Extension, added to
-   the same `App.xcworkspace`. Gets its own `Info.plist` with an
-   `NSExtension` dict declaring `NSExtensionActivationRule` (which content
-   types it accepts — images, movies, plain text, matching the Android
-   intent-filters' `image/*`/`video/*`/`text/plain`).
-2. **App Group entitlement**: both the main app target and the new
-   extension target need the same App Group ID (e.g.
-   `group.com.yukon3t.app.share`) added under Signing & Capabilities. This
-   is also an Apple Developer Portal change (registering the App Group ID
-   against this app's bundle ID), not just an Xcode setting.
-3. **Extension UI**: a minimal SwiftUI/UIKit share sheet — doesn't need to
-   look like the full app, just needs to read the shared item(s) via
-   `NSExtensionItem`/`NSItemProvider`, write them into the App Group's
-   shared container (`FileManager.default.containerURL(forSecurityApplicationGroupIdentifier:)`)
-   as files (not the Android plugin's base64-over-the-bridge approach —
-   there's no bridge to cross here, so writing real files is both simpler
-   and doesn't have that approach's memory-doubling problem), and call
-   `completeRequest` to dismiss.
-4. **Main app pickup**: `capacitor-bridge.tsx`'s native-launch wiring (or a
-   new small native plugin, mirroring `ShareReceiverPlugin.java`) checks the
-   same App Group container on launch/resume, and if there's a pending
-   share, hands it to `ShareTargetGate.tsx` the same way the Android path
-   does — that component and everything downstream of it
-   (`share-target-store.ts`, the `PostComposer`/`ChatThread` pickup effects)
-   is already platform-agnostic and needs no changes for iOS. Only
-   `share-receiver.ts`'s `checkForPendingShare()` needs an iOS branch
-   alongside its existing Android one.
-5. **Provisioning**: the extension needs its own entry in whatever
-   provisioning profile/signing setup `ios/SUBMISSION.md` already walks
-   through for the main app — one more thing to configure in App Store
-   Connect before a build with this can be archived.
+1. **Register the App Group.** In Xcode (`ios/SUBMISSION.md` step 3) or
+   directly in the [Apple Developer
+   portal](https://developer.apple.com/account) → Identifiers → App Groups,
+   create `group.com.yukon3t.app.share` and associate it with both the
+   `com.yukon3t.app` and `com.yukon3t.app.ShareExtension` App IDs. Both
+   entitlements files in this repo already reference this exact group id.
+2. **Register the ShareExtension App ID** (`com.yukon3t.app.ShareExtension`)
+   if it doesn't already exist as a byproduct of step 1 — same portal
+   section, Identifiers → App IDs.
+3. **A Codemagic run.** `codemagic.yaml`'s existing `ios-testflight`
+   workflow builds the whole scheme, which now includes ShareExtension —
+   `xcode-project use-profiles` should pick up a matching profile for it
+   automatically via the App Store Connect integration once steps 1–2 are
+   done, the same way it already does for the App target. This is also the
+   first real compile-and-sign check this new target gets, since nothing in
+   this dev environment can run `xcodebuild`.
+4. **Standard native-release rules still apply**: per the standing hold on
+   native builds/releases (see the project's own memory on this), don't
+   trigger that Codemagic run or submit a build until asked — this doc and
+   the committed source are enough to have the feature *ready*, not shipped.
 
-## Suggested order, when picked up
+## What happens once it reaches a device
 
-Steps 1–3 are pure Xcode/Swift work with no dependency on this repo's web
-code. Step 4 only needs `share-receiver.ts`'s existing `isAndroid()` check
-generalized to branch on `Capacitor.getPlatform()` — everything else in the
-share-target flow already reads through that one function's return value,
-so it should be a small, contained change once the native side exists.
+Tapping "Share" in Photos/Instagram/TikTok/WhatsApp/etc. and choosing
+YuKon3t opens `ShareViewController`'s brief "Sharing…" spinner, which reads
+the shared item(s), writes them into the App Group container, then hands off
+to the main app — which shows the exact same `ShareTargetGate` picker
+(Story / Muse / Feed / a friend) Android already gets, since that component
+and everything downstream of it (`share-target-store.ts`, the upload/
+publish flows) was already platform-agnostic — only `share-receiver.ts`'s
+platform check needed to widen from Android-only to Android-or-iOS, which
+it now does.

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Same App Group as ios/App/App/App.entitlements — this is the only
+	     channel data can cross between this extension's own sandboxed
+	     process and the main app (see ShareViewController.swift /
+	     ShareReceiverPlugin.swift). Needs registering as an App Group ID
+	     against both this extension's and the main app's bundle IDs in the
+	     Apple Developer Portal before a build using it can be signed. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.yukon3t.app.share</string>
+	</array>
+</dict>
+</plist>

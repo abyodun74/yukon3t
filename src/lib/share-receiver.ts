@@ -11,19 +11,23 @@ interface NativePendingShareFile {
 interface NativePendingShare {
   text: string | null;
   files: NativePendingShareFile[];
+  /** Count of items the OS handed over that couldn't be read/fit under the native side's size cap — surfaced so a share doesn't just silently come back with fewer items than were actually sent (see ShareReceiverPlugin.java/ShareExtension's own doc comments). */
+  skipped: number;
 }
 
 interface ShareReceiverPluginType {
   getPendingShare(): Promise<NativePendingShare>;
 }
 
-/** Bridges to ShareReceiverPlugin.java — see its own doc comment. Android only for now; iOS needs its own Share Extension target, see ios/SHARE_EXTENSION_PLAN.md. */
+/** Bridges to ShareReceiverPlugin.java (Android) / ShareReceiverPlugin.swift (iOS) — see their own doc comments. */
 const ShareReceiver = registerPlugin<ShareReceiverPluginType>("ShareReceiver");
 
 export interface PendingShareMedia {
   images: File[];
   video: File | null;
   text: string | null;
+  /** See NativePendingShare.skipped above. */
+  skipped: number;
 }
 
 function base64ToFile(f: NativePendingShareFile): File {
@@ -43,10 +47,11 @@ function base64ToFile(f: NativePendingShareFile): File {
  * distinguish the two, there's nothing actionable either way.
  */
 export async function checkForPendingShare(): Promise<PendingShareMedia | null> {
-  if (Capacitor.getPlatform() !== "android") return null;
+  const platform = Capacitor.getPlatform();
+  if (platform !== "android" && platform !== "ios") return null;
 
   const result = await ShareReceiver.getPendingShare().catch(() => null);
-  if (!result || (!result.text && result.files.length === 0)) return null;
+  if (!result || (!result.text && result.files.length === 0 && !result.skipped)) return null;
 
   const images: File[] = [];
   let video: File | null = null;
@@ -63,5 +68,5 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
     // produce their own File objects internally); wire this up if that
     // changes rather than half-supporting it now.
   }
-  return { images, video, text: result.text };
+  return { images, video, text: result.text, skipped: result.skipped ?? 0 };
 }

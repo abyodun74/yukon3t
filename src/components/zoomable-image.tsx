@@ -3,8 +3,8 @@
 import { useRef, useState, type MouseEvent, type TouchEvent, type Touch, type WheelEvent } from "react";
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 4;
-const DOUBLE_TAP_SCALE = 2.5;
+const MAX_SCALE = 8;
+const DOUBLE_TAP_SCALE = 3;
 const DOUBLE_TAP_MAX_DELAY_MS = 300;
 const DOUBLE_TAP_MAX_MOVE_PX = 12;
 

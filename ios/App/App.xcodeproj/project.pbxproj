@@ -22,6 +22,10 @@
 		85B91950A68FA502E3D464DC /* NativeCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491C30FCB966F019FAA15B03 /* NativeCallManager.swift */; };
 		B11B79B5B7C351815E03C278 /* NativeCallKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226267DEF4883E4ED71691DB /* NativeCallKitPlugin.swift */; };
 		21062A893C7445BFB03E9E6F /* NativeCallKitPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 12F500E676CC12C79E18B52B /* NativeCallKitPlugin.m */; };
+		943697DDAF09440492268662 /* ShareExtension.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 118A4C4E1FB74474BD7C91DA /* ShareExtension.appex */; };
+		959F464EDCFF4B8BB6591BE7 /* ShareExtension-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B6EC79214A5C43B193AF53F9 /* ShareExtension-Info.plist */; };
+		E11AABF1CD554C3C8A29B0D3 /* ShareExtension.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = BC02E2BFA7C34C888BB0CC2F /* ShareExtension.entitlements */; };
+		A21AB2EBE2F04CA595D3EAF1 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9FB301EEA694DFD937D8339 /* ShareViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +47,10 @@
 		491C30FCB966F019FAA15B03 /* NativeCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCallManager.swift; sourceTree = "<group>"; };
 		226267DEF4883E4ED71691DB /* NativeCallKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCallKitPlugin.swift; sourceTree = "<group>"; };
 		12F500E676CC12C79E18B52B /* NativeCallKitPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeCallKitPlugin.m; sourceTree = "<group>"; };
+		118A4C4E1FB74474BD7C91DA /* ShareExtension.appex */ = {isa = PBXFileReference; name = "ShareExtension.appex"; path = "ShareExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; fileEncoding = undefined; lastKnownFileType = undefined; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
+		B6EC79214A5C43B193AF53F9 /* ShareExtension-Info.plist */ = {isa = PBXFileReference; name = "ShareExtension-Info.plist"; path = "ShareExtension-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; };
+		BC02E2BFA7C34C888BB0CC2F /* ShareExtension.entitlements */ = {isa = PBXFileReference; name = "ShareExtension.entitlements"; path = "ShareExtension.entitlements"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		D9FB301EEA694DFD937D8339 /* ShareViewController.swift */ = {isa = PBXFileReference; name = "ShareViewController.swift"; path = "ShareViewController.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +59,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F4D0DAFAD5C2495FBAE61E26 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -63,6 +78,7 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				EE2DF302B4484C65BA7B5535 /* ShareExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -70,6 +86,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				118A4C4E1FB74474BD7C91DA /* ShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -97,6 +114,17 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		EE2DF302B4484C65BA7B5535 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				B6EC79214A5C43B193AF53F9 /* ShareExtension-Info.plist */,
+				BC02E2BFA7C34C888BB0CC2F /* ShareExtension.entitlements */,
+				D9FB301EEA694DFD937D8339 /* ShareViewController.swift */,
+			);
+			name = ShareExtension;
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -107,10 +135,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				EDAF62750F284A7183AB0726 /* Copy Files */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				889A0E818C0A46C4A92C74F1 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -120,19 +150,40 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E8F03ED881D343A9ADE2CC3C /* "ShareExtension" */ = {
+			isa = PBXNativeTarget;
+			name = "ShareExtension";
+			productName = "ShareExtension";
+			productReference = 118A4C4E1FB74474BD7C91DA;
+			productType = "com.apple.product-type.app-extension";
+			buildConfigurationList = 15FCD326D8A6407EABB92B31;
+			buildPhases = (
+				775B7DA1B65547FABBA47ECD /* Sources */,
+				EEE9A01E9DA8490BB5DB691E /* Resources */,
+				F4D0DAFAD5C2495FBAE61E26 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 920;
+				LastUpgradeCheck = 920;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
+					};
+					E8F03ED881D343A9ADE2CC3C = {
+						ProvisioningStyle = Automatic;
+						DevelopmentTeam = 3465L6ZHRJ;
 					};
 				};
 			};
@@ -153,6 +204,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				E8F03ED881D343A9ADE2CC3C /* "ShareExtension" */,
 			);
 		};
 /* End PBXProject section */
@@ -172,6 +224,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EEE9A01E9DA8490BB5DB691E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -186,6 +245,14 @@
 				85B91950A68FA502E3D464DC /* NativeCallManager.swift in Sources */,
 				B11B79B5B7C351815E03C278 /* NativeCallKitPlugin.swift in Sources */,
 				21062A893C7445BFB03E9E6F /* NativeCallKitPlugin.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		775B7DA1B65547FABBA47ECD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A21AB2EBE2F04CA595D3EAF1 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,6 +435,44 @@
 			};
 			name = Release;
 		};
+		2E595F934A7D4D8A9BBFA8EF /* Debug */ = {
+			name = Debug;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "ShareExtension/ShareExtension-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "ShareExtension";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yukon3t.app.ShareExtension";
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3465L6ZHRJ;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+		};
+		707A8C239D8F42CBA079AA8A /* Release */ = {
+			name = Release;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "ShareExtension/ShareExtension-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "ShareExtension";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yukon3t.app.ShareExtension";
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3465L6ZHRJ;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -389,6 +494,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		15FCD326D8A6407EABB92B31 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E595F934A7D4D8A9BBFA8EF /* Debug */,
+				707A8C239D8F42CBA079AA8A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -405,6 +519,38 @@
 			productName = "CapApp-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXTargetDependency section */
+		889A0E818C0A46C4A92C74F1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E8F03ED881D343A9ADE2CC3C /* "ShareExtension" */;
+			targetProxy = B0FE050872004E68BF73A7BD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		B0FE050872004E68BF73A7BD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E8F03ED881D343A9ADE2CC3C;
+			remoteInfo = "ShareExtension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EDAF62750F284A7183AB0726 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				943697DDAF09440492268662 /* ShareExtension.appex in Copy Files */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Copy Files";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+/* End PBXCopyFilesBuildPhase section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }

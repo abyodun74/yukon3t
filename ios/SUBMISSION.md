@@ -56,7 +56,17 @@ In Xcode:
    "Push Notifications") and the **Background Modes** capability with
    **Remote notifications** checked (Info.plist already declares this, but
    Xcode also needs the capability added to the project's entitlements).
-3. Pick a physical device or simulator and hit Run to confirm it launches
+3. Select the **ShareExtension** target (added for the "Share to YuKon3t"
+   feature — see `ios/SHARE_EXTENSION_PLAN.md`) → **Signing & Capabilities**
+   → add the **App Groups** capability to *both* this target and **App**,
+   and check `group.com.yukon3t.app.share` in each (Xcode registers a new
+   App Group ID against your Developer account the first time you check a
+   box that doesn't exist yet). Both targets' entitlements files already
+   reference this group id; this step is what actually authorizes it on
+   Apple's side — without it, `xcode-project use-profiles` in
+   `codemagic.yaml` will fail to find a matching provisioning profile for
+   either target.
+4. Pick a physical device or simulator and hit Run to confirm it launches
    and loads yukon3t.com inside the app shell.
 
 ## 3. Wire up push notifications (APNs + Firebase)

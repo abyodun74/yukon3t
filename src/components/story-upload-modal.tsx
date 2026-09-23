@@ -22,10 +22,12 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 // createStory has no batch endpoint — each item is its own upload + DB row —
-// 5 keeps a single picker selection from turning into an unbounded upload
-// run in one go. Story creation itself has no rate limit (unlimited
-// uploads over time); this is purely a per-selection UI/resource cap.
-const MAX_ITEMS = 5;
+// and story creation itself has no rate limit (unlimited uploads over
+// time). There's deliberately no cap on how many items one picker
+// selection can queue up either; NATIVE_PICKER_LIMIT below only bounds the
+// single call to Android's native picker (it needs *some* integer), not
+// how many batches/selections you can add in a row.
+const NATIVE_PICKER_LIMIT = 100;
 
 type UploadState =
   | { status: "uploading" }
@@ -305,10 +307,9 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     });
   }
 
-  function addResults(results: ({ item: StoryItem } | { error: string })[], overflow: number) {
+  function addResults(results: ({ item: StoryItem } | { error: string })[]) {
     const newItems = results.filter((r): r is { item: StoryItem } => "item" in r).map((r) => r.item);
     const messages = [...new Set(results.filter((r): r is { error: string } => "error" in r).map((r) => r.error))];
-    if (overflow > 0) messages.push(`You can add up to ${MAX_ITEMS} items per story batch — ${overflow} left out.`);
     if (newItems.length) {
       setItems((prev) => [...prev, ...newItems]);
       for (const item of newItems) startUpload(item);
@@ -319,9 +320,8 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   async function addImages(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList);
-    const allowed = Math.max(0, MAX_ITEMS - items.length);
-    const results = await Promise.all(incoming.slice(0, allowed).map(processImageFile));
-    addResults(results, incoming.length - allowed);
+    const results = await Promise.all(incoming.map(processImageFile));
+    addResults(results);
   }
 
   /**
@@ -334,8 +334,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
    */
   async function pickImagesOrFallback() {
     if (isNativePickerActive()) return;
-    const allowed = Math.max(0, MAX_ITEMS - items.length);
-    const native = await pickImagesNative(allowed);
+    const native = await pickImagesNative(NATIVE_PICKER_LIMIT);
     if (native) {
       if (native.length > 0) addImages(native);
       return;
@@ -347,9 +346,8 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   async function addVideos(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList);
-    const allowed = Math.max(0, MAX_ITEMS - items.length);
-    const results = await Promise.all(incoming.slice(0, allowed).map(processVideoFile));
-    addResults(results, incoming.length - allowed);
+    const results = await Promise.all(incoming.map(processVideoFile));
+    addResults(results);
   }
 
   function removeItem(id: string) {
@@ -445,7 +443,6 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
     });
   }
 
-  const atCapacity = items.length >= MAX_ITEMS;
   const readyCount = items.filter((i) => i.upload.status === "done").length;
   const anyUploading = items.some((i) => i.upload.status === "uploading");
 
@@ -628,7 +625,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
               </div>
             ))}
 
-            {!atCapacity && !isPending && (
+            {!isPending && (
               <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-line">
                 <MediaPickerButton
                   icon={<Upload size={16} />}
@@ -701,7 +698,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
         {items.length > 0 && (
           <>
             <p className="mt-2 text-center text-[11px] text-foreground-soft">
-              {items.length} of {MAX_ITEMS} — tap the × to remove, or a failed item to retry it.
+              {items.length} added — tap the × to remove, or a failed item to retry it.
             </p>
             <input
               type="text"

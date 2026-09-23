@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const LOCAL_PLUGIN_CLASSES = ["ScreenCaptureGuardPlugin", "NativeCallKitPlugin"];
+const LOCAL_PLUGIN_CLASSES = ["ScreenCaptureGuardPlugin", "NativeCallKitPlugin", "ShareReceiverPlugin"];
 
 const configPath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

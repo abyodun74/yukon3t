@@ -286,17 +286,23 @@ const sections: Section[] = [
         ),
       },
       {
-        q: "Can I share a photo or video from another app straight into YuKon3t?",
+        q: "Can I share a photo or video from another app (Instagram, TikTok, WhatsApp, etc.) straight into YuKon3t?",
         a: (
           <>
-            Yes — from your phone&apos;s own share sheet in Photos, your
-            camera roll, or another app, choose YuKon3t as the target. A
-            small dialog opens right away letting you post it to your Home
-            feed, add it to your Story, or send it to a friend — pick one and
-            it publishes immediately (after passing the same automatic
-            content check every upload goes through), no extra taps or
-            navigating to the composer separately. Android only, since this
-            depends on the device&apos;s own share sheet.
+            Yes — from that app&apos;s own share sheet, choose YuKon3t as the
+            target. A small dialog opens right away with a preview and lets
+            you add it to your Story, post it to Muse (video only), post it
+            to your Home feed, or send it to a friend — pick one and it
+            publishes immediately (after passing the same automatic content
+            check every upload goes through), no extra taps or navigating to
+            the composer separately. This only works when the other app
+            actually hands over the real photo or video file — some
+            apps&apos; share action only sends a link to their own post
+            instead (that
+            varies by app and by whose content it is, not something YuKon3t
+            controls); if that happens, YuKon3t tells you so rather than
+            posting a bare link, and you can still send that link to a
+            friend from the same dialog. Android only for now.
           </>
         ),
       },

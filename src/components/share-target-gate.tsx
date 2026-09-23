@@ -2,19 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, SquarePen, CirclePlus, X } from "lucide-react";
+import { Send, SquarePen, CirclePlus, Clapperboard, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { checkForPendingShare, type PendingShareMedia } from "@/lib/share-receiver";
 import { setPendingShareMedia } from "@/lib/share-target-store";
 import { getMyConversationsForShare, sendMessage } from "@/app/actions/messages";
 import { createPost } from "@/app/actions/circles";
 import { createStory } from "@/app/actions/stories";
+import { createMuse } from "@/app/actions/muse";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { UserAvatar } from "@/components/user-link";
+
+// Duplicated from storage.ts's server-only constants (same pattern as
+// share-modal.tsx/muse-share-modal.tsx's own duplicates of these) — a Story
+// video tops out at 2 minutes, a Muse at 3.
+const MAX_STORY_VIDEO_SECONDS = 120;
+const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type View = "root" | "friends";
 type Status = "idle" | "busy" | "done" | "error";
+
+/**
+ * Drops any http(s) link out of shared text before it's used as a public
+ * post/story/Muse caption — the whole point of this feature is handing over
+ * the actual photo/video Instagram/TikTok/etc. attached, not the bare link
+ * those apps' own "Share" action often tacks on alongside it (or, for an
+ * app that only ever shares a link with nothing attached, in place of real
+ * media). Left untouched for a DM (sendToFriend below) — a link is normal,
+ * expected content there. Returns "" (not the original text) when nothing
+ * but a link remains, so callers can tell "had a real caption" apart from
+ * "was just a link" without a second check.
+ */
+function stripLinks(text: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/\bhttps?:\/\/\S+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 type UploadedMedia =
   | { mediaType: "NONE"; mediaUrls: [] }
@@ -68,23 +94,34 @@ function probeVideoDuration(file: File): Promise<number | null> {
 }
 
 /**
- * Root-mounted (src/app/layout.tsx), Android-only — the incoming half of
+ * Root-mounted (src/app/layout.tsx), Android and iOS — the incoming half of
  * the Share-target feature: another app's Share sheet ("Share to YuKon3t")
  * launches or resumes this app with an ACTION_SEND/SEND_MULTIPLE intent,
  * MainActivity stashes it (see its handleShareIntent), and
  * checkForPendingShare() below reads/consumes it exactly once per launch.
+ * iOS reaches the same component via its own Share Extension + App Group
+ * hand-off — see ios/ShareExtension and ShareReceiverPlugin.swift — with
+ * checkForPendingShare() branching on platform so everything from here down
+ * is already shared between both.
  *
- * Picking a destination (Feed / a friend / your story) uploads the shared
+ * Picking a destination (Story / Muse / Feed / a friend) uploads the shared
  * media and publishes to it immediately — no separate "review in the
  * composer, then tap Post" step. The moderation gate each of
- * createPost/sendMessage/createStory already runs server-side is what's
- * actually standing in for a manual review step here; picking the
+ * createStory/createMuse/createPost/sendMessage already runs server-side is
+ * what's actually standing in for a manual review step here; picking the
  * destination is itself the user's explicit confirmation to publish there,
  * same as tapping "Post" always was, just merged into one action instead
  * of two. The one exception: createPost's own device-verification gate
  * (src/lib/device-trust.ts) needs a real code-entry UI that already lives
  * in post-composer.tsx — on that specific response this falls back to the
  * old "hand off to the composer" path rather than duplicating it here.
+ *
+ * Story/Muse/Feed captions all run through stripLinks() first — see its own
+ * doc comment for why a link tagging along with real media shouldn't end up
+ * in a public caption. A share that never actually carried a photo/video
+ * (the source app only sent a link) can't produce one at all — Feed/Story/
+ * Muse are hidden and a notice explains why, but "Send to a friend" stays
+ * available since forwarding a link privately is still useful.
  */
 export function ShareTargetGate({ userId }: { userId: string }) {
   const router = useRouter();
@@ -93,10 +130,12 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
   const uploadCacheRef = useRef<UploadedMedia | null>(null);
 
   useEffect(() => {
-    if (Capacitor.getPlatform() !== "android") return;
+    const platform = Capacitor.getPlatform();
+    if (platform !== "android" && platform !== "ios") return;
     let cancelled = false;
     let listener: { remove: () => void } | undefined;
 
@@ -138,8 +177,36 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     };
   }, [previewUrl]);
 
+  // Needed up front (before ensureUploaded ever runs) to decide whether
+  // "Add to your story"/"Post to Muse" even show at all — Story and Muse
+  // each have their own duration ceiling, same as share-modal.tsx/
+  // muse-share-modal.tsx's own canShareToStory/canShareToMuse checks for an
+  // already-posted video, just probed client-side here since a freshly
+  // shared file's duration isn't known any other way yet.
+  useEffect(() => {
+    // No reset-to-null branch for the no-video case: initial state is
+    // already null, and close() (below) resets it whenever a share is
+    // dismissed — a mounted share never actually swaps from a video to a
+    // different, non-video one in place (checkForPendingShare only ever
+    // hands over one share per mount), so there's nothing to reset here.
+    if (!share?.video) return;
+    let cancelled = false;
+    probeVideoDuration(share.video).then((d) => {
+      if (!cancelled) setVideoDurationSeconds(d);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [share]);
+
   if (!share) return null;
   const hasMedia = share.images.length > 0 || Boolean(share.video);
+  // A duration probe failure fails open (same reasoning as story-upload-
+  // modal.tsx's own probe) — an unknown duration doesn't block sharing.
+  const canShareToStory =
+    hasMedia && (!share.video || videoDurationSeconds === null || videoDurationSeconds <= MAX_STORY_VIDEO_SECONDS);
+  const canShareToMuse =
+    Boolean(share.video) && videoDurationSeconds !== null && videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS;
 
   function close() {
     setShare(null);
@@ -147,6 +214,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     setConversations(null);
     setStatus("idle");
     setErrorText(null);
+    setVideoDurationSeconds(null);
     uploadCacheRef.current = null;
   }
 
@@ -203,7 +271,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       return;
     }
     const fd = new FormData();
-    fd.set("content", share!.text ?? "");
+    fd.set("content", stripLinks(share!.text));
     fd.set("mediaType", uploaded.media.mediaType);
     fd.set("mediaUrls", JSON.stringify(uploaded.media.mediaUrls));
     if (uploaded.media.mediaType === "VIDEO") {
@@ -290,7 +358,8 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     // caption fail the whole story with a generic "invalid" error, since
     // the point of this flow is that picking a destination is supposed to
     // just work, not surface a validation error with no way to edit it.
-    if (share!.text) fd.set("caption", share!.text.slice(0, 200));
+    const caption = stripLinks(share!.text);
+    if (caption) fd.set("caption", caption.slice(0, 200));
     const result = await createStory(fd);
     if (result.error) {
       setStatus("error");
@@ -303,7 +372,40 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     setTimeout(close, 500);
   }
 
+  async function postToMuse() {
+    setStatus("busy");
+    setErrorText(null);
+    const uploaded = await ensureUploaded();
+    if (!uploaded.ok) {
+      setStatus("error");
+      setErrorText(uploadErrorMessage(uploaded.error));
+      return;
+    }
+    if (uploaded.media.mediaType !== "VIDEO") {
+      setStatus("error");
+      setErrorText("Muse needs a video.");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("videoUrl", uploaded.media.videoUrl);
+    if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
+    if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+    const caption = stripLinks(share!.text);
+    if (caption) fd.set("caption", caption);
+    const result = await createMuse(fd);
+    if (result.error) {
+      setStatus("error");
+      setErrorText(publishErrorMessage(result.error));
+      return;
+    }
+    setStatus("done");
+    router.push("/muse");
+    router.refresh();
+    setTimeout(close, 500);
+  }
+
   const busy = status === "busy";
+  const linkOnly = !hasMedia && Boolean(share.text);
 
   return (
     <div
@@ -334,9 +436,18 @@ export function ShareTargetGate({ userId }: { userId: string }) {
             // eslint-disable-next-line @next/next/no-img-element -- a transient blob: URL, not a real asset next/image can optimize
             <img src={previewUrl} alt="" className="mt-3 max-h-48 w-full rounded-lg object-contain" />
           ))}
-        {share.text && !hasMedia && (
-          <p className="mt-3 line-clamp-3 rounded-lg bg-background px-3 py-2 text-sm text-foreground-soft">
-            {share.text}
+
+        {linkOnly && (
+          <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
+            That app only shared a link, not the actual photo or video — YuKon3t needs the real
+            file. Try &ldquo;Save&rdquo;/&ldquo;Download&rdquo; in that app first, then share
+            again, or just send the link to a friend below.
+          </p>
+        )}
+        {share.skipped > 0 && (
+          <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+            {share.skipped === 1 ? "One item was" : `${share.skipped} items were`} too large to
+            import and couldn&apos;t be included.
           </p>
         )}
 
@@ -346,16 +457,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {view === "root" && (
           <div className="mt-3 space-y-1">
-            <button
-              type="button"
-              onClick={publishToFeed}
-              disabled={busy}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-            >
-              <SquarePen size={16} />
-              Post to Feed
-            </button>
-            {hasMedia && (
+            {canShareToStory && (
               <button
                 type="button"
                 onClick={addToStory}
@@ -364,6 +466,28 @@ export function ShareTargetGate({ userId }: { userId: string }) {
               >
                 <CirclePlus size={16} />
                 Add to your story
+              </button>
+            )}
+            {canShareToMuse && (
+              <button
+                type="button"
+                onClick={postToMuse}
+                disabled={busy}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
+              >
+                <Clapperboard size={16} />
+                Post to Muse
+              </button>
+            )}
+            {hasMedia && (
+              <button
+                type="button"
+                onClick={publishToFeed}
+                disabled={busy}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
+              >
+                <SquarePen size={16} />
+                Post to Feed
               </button>
             )}
             <button

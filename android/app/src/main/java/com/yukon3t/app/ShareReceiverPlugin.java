@@ -61,6 +61,7 @@ public class ShareReceiverPlugin extends Plugin {
         JSArray files = new JSArray();
         result.put("files", files);
         result.put("text", (String) null);
+        result.put("skipped", 0);
 
         if (intent == null) {
             call.resolve(result);
@@ -81,29 +82,44 @@ public class ShareReceiverPlugin extends Plugin {
             if (list != null) uris.addAll(list);
         }
 
+        int skipped = 0;
         for (Uri uri : uris) {
-            JSObject file = readUriToJson(resolver, uri, intent.getType());
-            if (file != null) files.put(file);
+            ReadResult read = readUriToJson(resolver, uri, intent.getType());
+            if (read.file != null) {
+                files.put(read.file);
+            } else {
+                skipped++;
+            }
         }
+        result.put("skipped", skipped);
 
         call.resolve(result);
     }
 
-    private JSObject readUriToJson(ContentResolver resolver, Uri uri, String fallbackMimeType) {
+    /** Tags a null result with why, so the caller (getPendingShare above) can tell the JS side "N item(s) couldn't be imported" instead of the share silently coming back with fewer items than were actually sent — see share-receiver.ts/share-target-gate.tsx's "skipped" handling. */
+    private static final class ReadResult {
+        final JSObject file;
+        ReadResult(JSObject file) { this.file = file; }
+    }
+
+    private ReadResult readUriToJson(ContentResolver resolver, Uri uri, String fallbackMimeType) {
         try {
             String mimeType = resolver.getType(uri);
             if (mimeType == null) mimeType = fallbackMimeType != null ? fallbackMimeType : "application/octet-stream";
             String name = queryDisplayName(resolver, uri);
 
             try (InputStream in = resolver.openInputStream(uri)) {
-                if (in == null) return null;
+                if (in == null) return new ReadResult(null);
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream();
                 byte[] chunk = new byte[16 * 1024];
                 int read;
                 long total = 0;
                 while ((read = in.read(chunk)) != -1) {
                     total += read;
-                    if (total > MAX_FILE_BYTES) return null; // silently skip — oversized files just don't show up on the JS side
+                    // Oversized (e.g. a longer video) — reported back as "skipped" rather
+                    // than silently vanishing, since the whole point of this feature is
+                    // handing over the real media, not quietly falling back to nothing.
+                    if (total > MAX_FILE_BYTES) return new ReadResult(null);
                     buffer.write(chunk, 0, read);
                 }
 
@@ -111,10 +127,10 @@ public class ShareReceiverPlugin extends Plugin {
                 file.put("name", name);
                 file.put("mimeType", mimeType);
                 file.put("base64", Base64.encodeToString(buffer.toByteArray(), Base64.NO_WRAP));
-                return file;
+                return new ReadResult(file);
             }
         } catch (Exception e) {
-            return null; // best-effort — one unreadable file shouldn't fail the whole share
+            return new ReadResult(null); // best-effort — one unreadable file shouldn't fail the whole share
         }
     }
 

@@ -4,5 +4,17 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Shared container with the ShareExtension target — the only channel
+	     data can cross between them (a Share Extension is a separate
+	     process/sandbox, unlike Android's share target which runs inside
+	     this same app; see ios/SHARE_EXTENSION_PLAN.md and
+	     ShareReceiverPlugin.swift). Also needs registering as an App
+	     Group ID against this app's bundle ID in the Apple Developer
+	     Portal before a build using it can be signed — see
+	     ios/SUBMISSION.md. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.yukon3t.app.share</string>
+	</array>
 </dict>
 </plist>

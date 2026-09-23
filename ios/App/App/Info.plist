@@ -20,6 +20,25 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- Registers the "yukon3t://" scheme so ShareExtension's
+		     ShareViewController can hand off to this app via
+		     NSExtensionContext.open() once it's written the shared item into
+		     the App Group container (see ShareReceiverPlugin.swift) — the
+		     supported way for an extension to bring its host app to the
+		     foreground. Capacitor's own bridge surfaces the open as an
+		     appUrlOpen event / a "resume" App event, either of which
+		     share-target-gate.tsx already listens for. -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.yukon3t.app.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>yukon3t</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
