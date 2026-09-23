@@ -196,8 +196,14 @@ android {
         // the same MESSAGING_EVENT intent-filter, and Android/Firebase does
         // not reliably deliver to both. No new permission, no new Play
         // Console declaration.
-        versionCode 25
-        versionName "1.22"
+        // 26: adds @capacitor-community/in-app-review, backing the new
+        // review-prompt gate's "I love it" path (src/lib/in-app-review.ts) —
+        // triggers Play Core's in-app ReviewManager popup instead of
+        // deep-linking out to the Play Store listing. No manifest
+        // permission (ReviewManager is a Play Core API, not a Restricted
+        // Permission) and no new Play Console declaration.
+        versionCode 26
+        versionName "1.23"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
