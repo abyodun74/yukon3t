@@ -15,7 +15,12 @@ export type AnalyticsEventType =
   | "DEVICE_CHALLENGE_SENT"
   | "DEVICE_CHALLENGE_PASSED"
   | "DEVICE_CHALLENGE_FAILED"
-  | "DEVICE_TRUSTED";
+  | "DEVICE_TRUSTED"
+  // The "How's the app?" gate (review-prompt-gate.tsx / actions/review-prompt.ts).
+  | "REVIEW_PROMPT_SHOWN"
+  | "REVIEW_PROMPT_LOVED"
+  | "REVIEW_PROMPT_DECLINED"
+  | "REVIEW_PROMPT_SNOOZED";
 
 /**
  * First-party, privacy-minimal product-usage log — a handful of key

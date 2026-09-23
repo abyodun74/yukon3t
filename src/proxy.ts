@@ -76,16 +76,32 @@ export async function proxy(request: NextRequest) {
     ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
     : null;
 
-  // GTM/GA and Clarity's bootstrap snippets are inline scripts carrying the
-  // nonce (see layout.tsx), so 'strict-dynamic' already lets them load their
-  // actual script bundles from any host without a script-src entry here —
-  // but connect-src has no 'strict-dynamic' equivalent, so their
-  // beacon/fetch endpoints still need to be explicitly opened, and only once
-  // each is actually configured (same gating pattern as r2ApiHost above).
+  // GTM/GA's bootstrap snippet is an inline script carrying the nonce (see
+  // layout.tsx), so 'strict-dynamic' already lets it load its actual script
+  // bundle from any host without a script-src entry here — but connect-src
+  // has no 'strict-dynamic' equivalent, so its beacon/fetch endpoints still
+  // need to be explicitly opened, and only once actually configured (same
+  // gating pattern as r2ApiHost above).
   const gtmConnectSrc = process.env.NEXT_PUBLIC_GTM_ID
     ? " https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com"
     : "";
-  const clarityConnectSrc = process.env.NEXT_PUBLIC_CLARITY_ID ? " https://*.clarity.ms" : "";
+  // PostHog (src/lib/posthog-client.ts) is a bundled npm package, not an
+  // inline snippet, so strict-dynamic doesn't cover it at all — its event
+  // capture and session-replay upload calls need an explicit connect-src
+  // entry, opened only once both env vars are set (same gating as
+  // everything else here). Host is derived from NEXT_PUBLIC_POSTHOG_HOST
+  // rather than hardcoded, since that var is itself how a self-hosted (vs.
+  // PostHog Cloud US/EU) instance is chosen.
+  const posthogHost = (() => {
+    try {
+      return process.env.NEXT_PUBLIC_POSTHOG_KEY && process.env.NEXT_PUBLIC_POSTHOG_HOST
+        ? new URL(process.env.NEXT_PUBLIC_POSTHOG_HOST).origin
+        : null;
+    } catch {
+      return null;
+    }
+  })();
+  const posthogConnectSrc = posthogHost ? ` ${posthogHost}` : "";
 
   // supabase-js's realtime client does an HTTPS handshake/health-check
   // against the project's own REST host before (and alongside) opening its
@@ -124,7 +140,7 @@ export async function proxy(request: NextRequest) {
     // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
     // scheme-only (not host-scoped) because Daily's signaling/TURN relay
     // hosts are dynamically assigned, not a fixed domain.
-    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${clarityConnectSrc}${supabaseConnectSrc}${turnstileOrigin}`,
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${posthogConnectSrc}${supabaseConnectSrc}${turnstileOrigin}`,
     // blob: is call-object mode's echo-cancellation/audio-processing worker
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.

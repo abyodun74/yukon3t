@@ -155,6 +155,13 @@ ordinary (scanned) chat and the UI says so. Groups are never secret.
 - **Forgetting the passphrase is unrecoverable.** `resetEncryptionKeys` deletes the keys; messages under the old key can
   then never be read again by either person, and the user's secret chats switch off.
 - Length is not hidden (no padding); a secret message is capped at 2,900 bytes so ciphertext fits the 4,000-char column.
+- **Third-party session replay (PostHog, added 2026-09) is explicitly excluded**, not merely an accepted gap: the
+  decrypted plaintext only ever exists as rendered pixels in the browser, which a screen recorder would otherwise
+  capture regardless of the encryption itself. Every message bubble (`chat-thread.tsx`, secret or not) carries a
+  `ph-no-capture` class that PostHog's `session_recording.blockClass` config (`posthog-client.ts`) turns into an
+  actual recording exclusion. This is enforced client-side, not server-side — a compromised/malicious build of this
+  app's own frontend could still remove the class and record it, same trust boundary as everything else client-side
+  in this threat model.
 
 ## Known gaps / accepted risk
 

@@ -118,6 +118,17 @@ enum IntentTag {
   TRAVEL_TIPS
 }
 
+// The in-app "How's the app?" gate (src/components/review-prompt-gate.tsx)
+// deliberately never lets a lukewarm/negative signal reach the native store
+// review popup — only LOVED does; DECLINED routes to a private feedback
+// form instead. Both are terminal (never asked again); PENDING tracks the
+// "maybe later" snooze state via User.reviewPromptAskCount/LastAskedAt.
+enum ReviewPromptStatus {
+  PENDING
+  LOVED
+  DECLINED
+}
+
 // Synthesized client-side via Web Audio (src/lib/ringtones.ts), not audio
 // files — one preference covers both audio and video calls, same as a
 // phone's ringtone applying regardless of call type.
@@ -181,6 +192,14 @@ model User {
 
   trustScore Int       @default(0)
   trustBand  TrustBand @default(NEW)
+
+  // The "How's the app?" gate's own state — see ReviewPromptStatus's own
+  // comment. reviewPromptAskCount/LastAskedAt only matter while status is
+  // still PENDING (a "maybe later" snooze); both are frozen in place once
+  // it becomes LOVED or DECLINED, since neither is ever asked again.
+  reviewPromptStatus      ReviewPromptStatus @default(PENDING)
+  reviewPromptAskCount    Int                @default(0)
+  reviewPromptLastAskedAt DateTime?
 
   currentStreak Int       @default(0)
   longestStreak Int       @default(0)
@@ -319,6 +338,7 @@ model User {
   fcmTokens         FcmToken[]
   voipPushTokens    VoipPushToken[]
   analyticsEvents   AnalyticsEvent[]
+  appFeedback       AppFeedback[]
 
   knownDevices       KnownDevice[]
   securityChallenges SecurityChallenge[]
@@ -975,6 +995,10 @@ enum NotificationType {
   // createStoryComment in actions/stories.ts) — distinct from a story
   // "reply", which is a private DM and never generates this type.
   STORY_COMMENT
+  // Sent to every site admin when someone submits free-text feedback via
+  // the review-prompt gate's "Could be better" path — see AppFeedback and
+  // /admin/feedback. Notification.message carries a truncated preview.
+  APP_FEEDBACK_SUBMITTED
 }
 
 model Notification {
@@ -2071,6 +2095,11 @@ enum AnalyticsEventType {
   DEVICE_CHALLENGE_PASSED
   DEVICE_CHALLENGE_FAILED
   DEVICE_TRUSTED
+  // The "How's the app?" gate (review-prompt-gate.tsx / actions/review-prompt.ts).
+  REVIEW_PROMPT_SHOWN
+  REVIEW_PROMPT_LOVED
+  REVIEW_PROMPT_DECLINED
+  REVIEW_PROMPT_SNOOZED
 }
 
 enum SecurityChallengePurpose {
@@ -2137,6 +2166,24 @@ model AnalyticsEvent {
 
   @@index([type, createdAt])
   @@index([userId])
+}
+
+/**
+ * The private free-text collected when someone picks "Could be better" on
+ * the review-prompt gate (see ReviewPromptStatus) — deliberately never
+ * reaches a public app-store review; an admin is the only reader (see
+ * /admin/feedback and the APP_FEEDBACK_SUBMITTED notification it fires).
+ */
+model AppFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 enum VideoConversionStatus {

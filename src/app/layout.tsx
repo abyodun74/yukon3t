@@ -15,7 +15,9 @@ import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
 import { ShareTargetGate } from "@/components/share-target-gate";
+import { ReviewPromptGate } from "@/components/review-prompt-gate";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
+import { PostHogProvider } from "@/components/posthog-provider";
 import { auth } from "@/lib/auth";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
@@ -157,6 +159,7 @@ export default async function RootLayout({
       >
         <GtmNoScript />
         <AnalyticsScripts />
+        <PostHogProvider userId={session?.user?.id} />
         <div className="aurora-bg" aria-hidden>
           <div className="aurora-blob" />
           <div className="aurora-blob" />
@@ -175,6 +178,7 @@ export default async function RootLayout({
           {session?.user && <ScreenshotGuard />}
           {session?.user && <FeedVideoVolumeSync />}
           {session?.user && <ShareTargetGate userId={session.user.id} />}
+          {session?.user && <ReviewPromptGate />}
           <main className="flex-1">{children}</main>
           {/* Signed-in mobile users already have a dedicated bottom tab bar
               (nav.tsx's `md:hidden` nav, reserved for via body's pb-16

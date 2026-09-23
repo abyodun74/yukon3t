@@ -47,6 +47,11 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // Notification.message with the specific violation type(s), which
   // notification-row.tsx prefers over this generic text.
   VIDEO_MODERATION_FAILED: "A video you posted was removed for violating our content guidelines",
+  // Sent to every admin, actor is whoever submitted it (see
+  // submitAppFeedback in actions/review-prompt.ts) — Notification.message
+  // always carries a truncated preview, which notification-row.tsx prefers
+  // over this fallback, same convention as VIDEO_MODERATION_FAILED above.
+  APP_FEEDBACK_SUBMITTED: "submitted app feedback",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

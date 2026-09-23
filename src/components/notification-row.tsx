@@ -51,7 +51,8 @@ type NotificationData = {
     | "VOICE_CHANNEL_INVITE_ACCEPTED"
     | "MISSED_CALL"
     | "SCREENSHOT_TAKEN"
-    | "VIDEO_MODERATION_FAILED";
+    | "VIDEO_MODERATION_FAILED"
+    | "APP_FEEDBACK_SUBMITTED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -90,6 +91,9 @@ function hrefFor(notification: NotificationData) {
   // moderation review that triggered this) — nothing more specific to
   // send the reader to than their own profile/feed.
   if (notification.type === "VIDEO_MODERATION_FAILED") return "/home";
+  // Admin-only queue — see /admin/feedback and submitAppFeedback in
+  // actions/review-prompt.ts.
+  if (notification.type === "APP_FEEDBACK_SUBMITTED") return "/admin/feedback";
   return `/u/${notification.actor.id}`;
 }
 

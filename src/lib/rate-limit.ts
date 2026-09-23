@@ -170,6 +170,18 @@ export const rateLimiters = {
   // IP rather than user.id since it has to run before auth is known, at the
   // edge, on every route.
   pageRequest: makeLimiter(300, "1 m"),
+  // The review-prompt gate's own free-text feedback form (submitAppFeedback
+  // in actions/review-prompt.ts) — generous since a real user only ever
+  // submits this once (DECLINED is terminal), just a backstop against a
+  // scripted flood of the admin notification it fires. Needs its own
+  // prefix — called with the bare user id like circleCreate/groupChatCreate/
+  // dataExport/phoneVerifyRequest/transcribeAudio above, all also on a "1 h"
+  // window with no prefix of their own, which means they already silently
+  // share one counter per user per rolling hour (confirmed live: 3 Circles
+  // created in an hour left only 2 of "appFeedback"'s own 5 before this fix).
+  // Not fixing those other five here — out of scope for this change — but
+  // not repeating the same mistake in new code either.
+  appFeedback: makeLimiter(5, "1 h", "appFeedback"),
 };
 
 export async function checkRateLimit(

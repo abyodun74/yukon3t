@@ -9,6 +9,7 @@ import { signOutAction } from "@/app/actions/auth";
 import { unregisterFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { clearDraftsForUser } from "@/lib/message-draft-storage";
+import { resetPostHog } from "@/lib/posthog-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsNewBell } from "@/components/whats-new-bell";
@@ -195,6 +196,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
     // So a shared/public device doesn't keep this account's unsent draft
     // text around after they've signed out — see message-draft-storage.ts.
     if (userId) clearDraftsForUser(userId);
+    // Same reasoning — clears the identified user from PostHog so the next
+    // signed-in session on this device isn't recorded/attributed under the
+    // account that just signed out.
+    resetPostHog();
     await signOutAction();
   }, [userId]);
 
@@ -338,6 +343,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                       Groups (admin)
                     </Link>
                     <Link
+                      href="/admin/feedback"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      App Feedback
+                    </Link>
+                    <Link
                       href="/admin/analytics"
                       className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                     >
@@ -467,6 +478,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Groups (admin)
+                  </Link>
+                  <Link
+                    href="/admin/feedback"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    App Feedback
                   </Link>
                   <Link
                     href="/admin/analytics"

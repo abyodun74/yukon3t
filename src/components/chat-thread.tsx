@@ -209,7 +209,12 @@ function CorrectionList({
       {corrections.map((c) => (
         <div
           key={c.id}
-          className="max-w-[min(calc(100vw-7.5rem),26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
+          // Same reasoning as the message bubble itself (see its own
+          // ph-no-capture comment) — a suggested correction is private DM
+          // content too, rendered as a sibling of the bubble div rather
+          // than inside it, so it needs its own exclusion from PostHog
+          // session replay rather than inheriting the bubble's.
+          className="ph-no-capture max-w-[min(calc(100vw-7.5rem),26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
         >
           <div className="flex items-center gap-2">
             <span className="font-medium text-foreground-soft">{c.author.name ?? "Someone"} suggests</span>
@@ -510,6 +515,17 @@ function MessageBubble({
             "max-w-[min(calc(100vw-7.5rem),26rem)] rounded-2xl px-3 py-2 text-sm transition-opacity",
             mine ? "bg-accent text-accent-ink" : "bg-surface",
             sending && "opacity-60",
+            // Excludes every message bubble — text, photo, video, voice
+            // note, GIF, story-reply preview, all of it — from PostHog
+            // session replay (see posthog-client.ts's session_recording
+            // config: blockClass: "ph-no-capture"). A secret chat's
+            // decrypted plaintext only ever exists as rendered pixels right
+            // here — a third-party screen recorder capturing that would
+            // quietly undermine "not even our own servers can read it"
+            // regardless of the encryption itself, and an ordinary
+            // (non-secret) DM is still private content a viewer never
+            // consented to a support/analytics tool seeing either.
+            "ph-no-capture",
           )}
         >
           {message.replyTo && (
@@ -1578,7 +1594,7 @@ export function ChatThread({
         // this banner when the composer sits near the bottom of a short
         // viewport (e.g. with the on-screen keyboard open) — losing sight of
         // who you're replying to, or the cancel button, mid-pick.
-        <div className="relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line bg-background px-3 py-2 text-xs">
+        <div className="ph-no-capture relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line bg-background px-3 py-2 text-xs">
           <Reply size={14} className="shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-accent">

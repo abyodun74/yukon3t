@@ -19,6 +19,10 @@ const EVENT_LABELS: Record<AnalyticsEventType, string> = {
   DEVICE_CHALLENGE_PASSED: "New-device verifications passed",
   DEVICE_CHALLENGE_FAILED: "New-device verification wrong-code attempts",
   DEVICE_TRUSTED: "Devices newly trusted",
+  REVIEW_PROMPT_SHOWN: "Review prompt shown",
+  REVIEW_PROMPT_LOVED: "Review prompt: \"I love it\"",
+  REVIEW_PROMPT_DECLINED: "Review prompt: \"Could be better\"",
+  REVIEW_PROMPT_SNOOZED: "Review prompt: \"Maybe later\"",
 };
 
 async function countsSince(daysAgo: number) {
