@@ -60,7 +60,7 @@ form.set("name", "yukon3t brand mark");
 // Small enough not to obscure the video, matching watermark.ts's own
 // WATERMARK_SIZE_RATIO reasoning for the image version.
 form.set("scale", "0.12");
-form.set("position", "bottomRight");
+form.set("position", "lowerRight");
 form.set("padding", "0.04");
 form.set("opacity", "0.92");
 
