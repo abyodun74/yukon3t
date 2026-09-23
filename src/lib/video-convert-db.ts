@@ -42,6 +42,37 @@ export async function findMovSources(limit: number, excludeUrls: string[]): Prom
   return [...new Set(urls)].slice(0, limit);
 }
 
+/**
+ * Muse videos still awaiting orientation normalization (see video-convert.ts's
+ * top-of-file comment), oldest first — every Muse video, not just .mov ones,
+ * since the bug this fixes isn't specific to that format. Unlike
+ * findMovSources above, a video's extension alone can't signal "already
+ * done" here (the output is still just an .mp4, same as the input usually
+ * already was) — so a candidate is instead recognized by checking whether
+ * its current videoUrl is any earlier job's own source or finished output.
+ * Bounded by how many videos have ever gone through this pipeline, not by
+ * the total Muse count, so this scales with conversion volume rather than
+ * total Muse volume.
+ */
+export async function findMuseVideoSources(limit: number, excludeUrls: string[]): Promise<string[]> {
+  const tracked = await prisma.videoConversion.findMany({
+    select: { sourceUrl: true, outputUrl: true },
+  });
+  const excluded = new Set(excludeUrls);
+  for (const t of tracked) {
+    excluded.add(t.sourceUrl);
+    if (t.outputUrl) excluded.add(t.outputUrl);
+  }
+
+  const muses = await prisma.muse.findMany({
+    where: excluded.size ? { videoUrl: { notIn: [...excluded] } } : undefined,
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: { videoUrl: true },
+  });
+  return [...new Set(muses.map((m) => m.videoUrl))];
+}
+
 /** Points every stored reference to `fromUrl` at `toUrl` (every table that keeps a video URL); returns rows changed. */
 export async function swapVideoUrl(fromUrl: string, toUrl: string): Promise<number> {
   const results = await Promise.all([

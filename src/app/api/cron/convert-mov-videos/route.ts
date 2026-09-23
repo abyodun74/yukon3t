@@ -4,7 +4,7 @@ import { isCronAuthorized } from "@/lib/cron-auth";
 import { isStreamConfigured } from "@/lib/cloudflare-stream";
 import { isStorageConfigured } from "@/lib/storage";
 import { advanceConversion } from "@/lib/video-convert";
-import { findMovSources, productionConversionDeps } from "@/lib/video-convert-db";
+import { findMovSources, findMuseVideoSources, productionConversionDeps } from "@/lib/video-convert-db";
 
 // Same platform ceiling and shape as moderate-long-videos: one tick can hold a
 // few conversions open, polling Cloudflare, and anything still unfinished at
@@ -74,10 +74,12 @@ async function driveConversion(id: string, sourceUrl: string, deadline: number):
 }
 
 /**
- * Triggered every minute (Netlify Scheduled Function). Finds stored .mov videos,
- * and re-encodes each to a broadly playable H.264 MP4 through Cloudflare Stream —
- * see src/lib/video-convert.ts for the whole story. Does nothing until Cloudflare
- * Stream and R2 are configured.
+ * Triggered every minute (Netlify Scheduled Function). Finds stored .mov
+ * videos and every Muse video regardless of format, and re-encodes each
+ * through Cloudflare Stream to a broadly playable H.264 MP4 with its
+ * orientation correctly baked in — see src/lib/video-convert.ts for the
+ * whole story (two different reasons a video ends up here, one pipeline).
+ * Does nothing until Cloudflare Stream and R2 are configured.
  */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
@@ -87,18 +89,43 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: "not_configured" });
   }
 
-  // 1. Register any .mov we haven't seen (skipping ones already given up on).
+  // 1. Register any candidate we haven't seen — .mov uploads (compatibility)
+  // and every Muse video (orientation) — skipping ones already given up on.
+  // Deduplicated before insert: a .mov Muse video can appear in both lists,
+  // and one re-encode through this same pipeline satisfies both reasons at
+  // once.
   const givenUp = (await prisma.videoConversion.findMany({ where: { status: "FAILED" }, select: { sourceUrl: true } })).map((r) => r.sourceUrl);
-  const sources = await findMovSources(BATCH_SIZE * 4, givenUp);
+  const [movSources, museSources] = await Promise.all([
+    findMovSources(BATCH_SIZE * 4, givenUp),
+    findMuseVideoSources(BATCH_SIZE * 4, givenUp),
+  ]);
+  const sources = [...new Set([...movSources, ...museSources])];
   if (sources.length > 0) {
     await prisma.videoConversion.createMany({ data: sources.map((sourceUrl) => ({ sourceUrl })), skipDuplicates: true });
   }
 
   // 2. Claim a few PENDING ones (one at a time so two overlapping ticks never take the same one).
+  //
+  // Deliberately NOT filtered to `sources` above — that list only drives
+  // step 1's registration (what's new since last tick) and, for a Muse
+  // candidate specifically, findMuseVideoSources excludes any URL already
+  // registered (that's what stops it being registered twice), including
+  // ones still PENDING. Reusing `sources` here would starve exactly that
+  // case: a still-in-progress Muse conversion (a transient Stream failure,
+  // or one that didn't finish inside a single tick's POLL_BUDGET_MS) would
+  // never reappear in `sources` on a later tick, so it could never be
+  // reclaimed and would sit PENDING forever. A .mov row didn't hit this —
+  // findMovSources re-derives its list from the live table every tick, so
+  // an unfinished .mov conversion (still ending in .mov) always reappears
+  // — but that's exactly the kind of live signal a Muse candidate has none
+  // of. Querying PENDING rows directly, independent of `sources`, is
+  // correct for both: a row already exists in the table the moment it's
+  // claimable, whether or not this tick's registration pass happened to
+  // rediscover its URL.
   const staleBefore = new Date(Date.now() - CLAIM_STALE_MS);
   const claimable = { OR: [{ claimedAt: null }, { claimedAt: { lt: staleBefore } }] };
   const candidates = await prisma.videoConversion.findMany({
-    where: { status: "PENDING", sourceUrl: { in: sources }, ...claimable },
+    where: { status: "PENDING", ...claimable },
     orderBy: { createdAt: "asc" },
     take: BATCH_SIZE,
     select: { id: true, sourceUrl: true },

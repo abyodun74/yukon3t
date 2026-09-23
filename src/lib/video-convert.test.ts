@@ -3,7 +3,7 @@ import {
   advanceConversion,
   isCloudflareStreamUrl,
   isMovUrl,
-  mp4KeyForMovKey,
+  outputKeyFor,
   MAX_CONVERSION_ATTEMPTS,
   type ConversionState,
 } from "./video-convert";
@@ -39,10 +39,13 @@ describe("helpers", () => {
     expect(isMovUrl("not a url")).toBe(false);
   });
 
-  it("mp4KeyForMovKey keeps the owner segment and swaps only the extension", () => {
-    expect(mp4KeyForMovKey("post-video/user1/abc.mov")).toBe("post-video/user1/abc.mp4");
-    expect(mp4KeyForMovKey("post-video/user1/abc.MOV")).toBe("post-video/user1/abc.mp4");
-    expect(mp4KeyForMovKey("post-video/user1/abc.mp4")).toBeNull();
+  it("outputKeyFor keeps the owner segment and swaps a non-.mp4 extension to .mp4", () => {
+    expect(outputKeyFor("post-video/user1/abc.mov")).toBe("post-video/user1/abc.mp4");
+    expect(outputKeyFor("post-video/user1/abc.MOV")).toBe("post-video/user1/abc.mp4");
+  });
+
+  it("outputKeyFor still differs from the source when it's already .mp4 (the Muse orientation case)", () => {
+    expect(outputKeyFor("muse-video/user1/abc.mp4")).toBe("muse-video/user1/abc.norm.mp4");
   });
 
   it("only fetches the converted file from Cloudflare Stream over https", () => {
@@ -148,9 +151,9 @@ describe("advanceConversion", () => {
     expect(deps.copyToR2).not.toHaveBeenCalled();
   });
 
-  it("ignores a .mov that isn't in our own bucket (terminal, nothing touched)", async () => {
+  it("ignores a video that isn't in our own bucket (terminal, nothing touched)", async () => {
     const step = await advanceConversion(fresh({ sourceUrl: "https://elsewhere.example.com/a.mov" }), deps);
-    expect(step).toMatchObject({ kind: "failed", reason: "not_our_mov", terminal: true });
+    expect(step).toMatchObject({ kind: "failed", reason: "not_our_video", terminal: true });
     expect(deps.createStreamCopy).not.toHaveBeenCalled();
   });
 });
