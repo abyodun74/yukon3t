@@ -1,7 +1,5 @@
 const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
 
-export const isLinkSafetyCheckConfigured = !!apiKey;
-
 export type LinkSafetyResult = {
   status: "safe" | "flagged" | "unknown";
   threatTypes?: string[];

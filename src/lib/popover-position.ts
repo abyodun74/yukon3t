@@ -1,6 +1,6 @@
 "use client";
 
-export const POPOVER_VIEWPORT_MARGIN = 8;
+const POPOVER_VIEWPORT_MARGIN = 8;
 
 export type PopoverPosition = { top: string; left: number; width: number; height: number };
 
@@ -11,7 +11,7 @@ export type PopoverPosition = { top: string; left: number; width: number; height
  * time someone taps the trigger. Falls back to the layout viewport for
  * browsers without the API.
  */
-export function getViewportSize() {
+function getViewportSize() {
   const vv = typeof window !== "undefined" ? window.visualViewport : null;
   return { width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
 }

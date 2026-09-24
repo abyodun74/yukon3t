@@ -9,7 +9,7 @@ export function bandFromScore(score: number): TrustBand {
   return "NEW";
 }
 
-export function dayNumber(date: Date) {
+function dayNumber(date: Date) {
   return Math.floor(date.getTime() / DAY_MS);
 }
 

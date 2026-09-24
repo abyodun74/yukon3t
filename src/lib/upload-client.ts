@@ -117,7 +117,7 @@ export async function resizeImageFile(file: File): Promise<File> {
  * again. A no-op outside a browser (SSR) or in a context with no
  * Page Visibility API.
  */
-export function waitForForeground(): Promise<void> {
+function waitForForeground(): Promise<void> {
   if (typeof document === "undefined" || document.visibilityState === "visible") {
     return Promise.resolve();
   }
@@ -565,7 +565,7 @@ export function discardUpload(file: File) {
     .catch(() => {});
 }
 
-export function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {
+function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {
   return new Promise((resolve) => {
     const canvas = document.createElement("canvas");
     // Capped the same as resizeImageFile above — a 4K phone video would

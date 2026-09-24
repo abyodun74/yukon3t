@@ -74,7 +74,7 @@ export async function findMuseVideoSources(limit: number, excludeUrls: string[])
 }
 
 /** Points every stored reference to `fromUrl` at `toUrl` (every table that keeps a video URL); returns rows changed. */
-export async function swapVideoUrl(fromUrl: string, toUrl: string): Promise<number> {
+async function swapVideoUrl(fromUrl: string, toUrl: string): Promise<number> {
   const results = await Promise.all([
     prisma.post.updateMany({ where: { videoUrl: fromUrl }, data: { videoUrl: toUrl } }),
     prisma.comment.updateMany({ where: { videoUrl: fromUrl }, data: { videoUrl: toUrl } }),

@@ -20,10 +20,6 @@
 // gets picked up on the next cron run, matching the "publish immediately,
 // flag retroactively if needed" approach already used for text/image.
 
-export function isVideoModerationConfigured() {
-  return Boolean(process.env.HIVE_API_KEY);
-}
-
 // Threshold matches the confidence level SECURITY.md's own OpenAI
 // moderation test case used as a genuine positive (sexual: 0.78) — a
 // starting point, worth revisiting once real report/flag volume shows it's

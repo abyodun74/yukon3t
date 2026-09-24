@@ -189,47 +189,6 @@ export async function inviteToVoiceChannel(channelId: string, inviteeId: string)
   return { error: null };
 }
 
-/** Invitee only: accepts or declines a pending ChannelVoiceInvite. A pure RSVP — does not join the Daily room. */
-export async function respondToVoiceChannelInvite(inviteId: string, accept: boolean) {
-  const user = await requireVerifiedUser();
-
-  const invite = await prisma.channelVoiceInvite.findUnique({
-    where: { id: inviteId },
-    include: { channel: { include: { circle: true } } },
-  });
-  if (!invite) {
-    return { error: "not_found" as const };
-  }
-  if (invite.inviteeId !== user.id) {
-    return { error: "forbidden" as const };
-  }
-  // Already handled — idempotent no-op rather than an error.
-  if (invite.status !== "PENDING") {
-    return { error: null };
-  }
-
-  await prisma.channelVoiceInvite.update({
-    where: { id: inviteId },
-    data: { status: accept ? "ACCEPTED" : "DECLINED", respondedAt: new Date() },
-  });
-
-  if (accept) {
-    await prisma.notification.create({
-      data: {
-        recipientId: invite.inviterId,
-        actorId: user.id,
-        type: "VOICE_CHANNEL_INVITE_ACCEPTED",
-        channelId: invite.channelId,
-        circleId: invite.channel.circleId,
-      },
-    });
-  }
-  await publishEvent(REALTIME_CHANNELS.voiceChannel(invite.channelId), "changed");
-
-  revalidatePath(`/circles/${invite.channel.circle.slug}`);
-  return { error: null };
-}
-
 /** Pending/accepted/declined invite counts for a voice Channel, shown next to the invite button. */
 export async function getVoiceChannelInviteCounts(channelId: string) {
   const user = await requireVerifiedUser();
@@ -252,17 +211,4 @@ export async function getVoiceChannelInviteCounts(channelId: string) {
     else if (row.status === "DECLINED") result.declined = row._count;
   }
   return result;
-}
-
-/** Pending voice-channel invites addressed to the caller, for a notification-bell entry. */
-export async function getMyVoiceChannelInvites() {
-  const user = await requireVerifiedUser();
-
-  return prisma.channelVoiceInvite.findMany({
-    where: { inviteeId: user.id, status: "PENDING" },
-    include: {
-      channel: { select: { id: true, name: true, circle: { select: { slug: true, name: true } } } },
-      inviter: { select: { id: true, name: true, avatarUrl: true } },
-    },
-  });
 }

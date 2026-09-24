@@ -41,7 +41,7 @@ type ServerState = Extract<Awaited<ReturnType<typeof getSecretChatState>>, { eli
  *  - "needs-restore": they have, but this device doesn't hold the key yet.
  *  - "ready":         this device holds their key.
  */
-export type SecretPhase = "loading" | "unavailable" | "no-keys" | "needs-restore" | "ready";
+type SecretPhase = "loading" | "unavailable" | "no-keys" | "needs-restore" | "ready";
 
 const sameKey = (a: PublicJwk, b: PublicJwk) => a.x === b.x && a.y === b.y;
 

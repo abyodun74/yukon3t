@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export const EMOJI_STYLE_COOKIE = "yk3-emoji-style";
+const EMOJI_STYLE_COOKIE = "yk3-emoji-style";
 // Matches emoji-picker-react's own EmojiStyle enum values exactly (see
 // node_modules/emoji-picker-react/src/types/exposedTypes.ts) — kept as
 // plain string literals here so this file doesn't need to import the
@@ -10,7 +10,7 @@ export const EMOJI_STYLE_COOKIE = "yk3-emoji-style";
 export const EMOJI_STYLE_VALUES = ["native", "apple", "google", "facebook", "twitter"] as const;
 export type EmojiStyleValue = (typeof EMOJI_STYLE_VALUES)[number];
 
-export function parseEmojiStyle(value: string | undefined | null): EmojiStyleValue {
+function parseEmojiStyle(value: string | undefined | null): EmojiStyleValue {
   return (EMOJI_STYLE_VALUES as readonly string[]).includes(value ?? "")
     ? (value as EmojiStyleValue)
     : "native";

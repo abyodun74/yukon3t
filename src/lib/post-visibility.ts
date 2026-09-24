@@ -70,7 +70,7 @@ export async function getVisiblePostsWhere(viewerId: string) {
  * A post only its Circle's members may see: made in a PRIVATE Circle, or in a
  * private channel of any Circle. (Posts in a PUBLIC Circle are general/public.)
  */
-export const MEMBERS_ONLY_POST: Prisma.PostWhereInput = {
+const MEMBERS_ONLY_POST: Prisma.PostWhereInput = {
   OR: [{ circle: { visibility: "PRIVATE" } }, { channel: { visibility: "PRIVATE" } }],
 };
 

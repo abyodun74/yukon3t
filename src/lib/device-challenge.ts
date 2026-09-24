@@ -9,8 +9,8 @@ import type { SecurityChallengePurpose } from "@/generated/prisma/enums";
 // Same TTL/attempt budget as the existing signup email OTP (src/lib/otp.ts)
 // — no reason for this step-up code to behave differently from the one
 // users already know from signing up.
-export const DEVICE_CHALLENGE_TTL_MS = 10 * 60 * 1000;
-export const DEVICE_CHALLENGE_MAX_ATTEMPTS = 5;
+const DEVICE_CHALLENGE_TTL_MS = 10 * 60 * 1000;
+const DEVICE_CHALLENGE_MAX_ATTEMPTS = 5;
 
 function subjectLine(purpose: SecurityChallengePurpose) {
   switch (purpose) {

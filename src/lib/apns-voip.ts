@@ -101,7 +101,7 @@ function buildProviderToken(): string | null {
   }
 }
 
-export function isVoipPushConfigured() {
+function isVoipPushConfigured() {
   return Boolean(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_AUTH_KEY);
 }
 

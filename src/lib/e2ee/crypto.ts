@@ -31,13 +31,13 @@ export type PublicJwk = { kty: "EC"; crv: "P-256"; x: string; y: string };
 export type WrappedKey = { v: 1; salt: string; iv: string; iter: number; ct: string };
 
 // ---------- base64url ----------
-export function toB64Url(bytes: Uint8Array): string {
+function toB64Url(bytes: Uint8Array): string {
   let bin = "";
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function fromB64Url(s: string): Uint8Array<ArrayBuffer> {
+function fromB64Url(s: string): Uint8Array<ArrayBuffer> {
   const padded = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4);
   const bin = atob(padded);
   const out = new Uint8Array(new ArrayBuffer(bin.length));

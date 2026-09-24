@@ -24,15 +24,6 @@ function isAndroid() {
   return Capacitor.getPlatform() === "android";
 }
 
-export type NativePickedVideo = {
-  uri: string;
-  name: string;
-  mimeType: string;
-  size: number;
-  durationSeconds: number | null;
-  thumbnailBase64: string | null;
-};
-
 function base64ToFile(base64: string, mimeType: string, name: string): File {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);

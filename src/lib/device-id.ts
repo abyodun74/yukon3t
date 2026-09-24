@@ -1,8 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER } from "@/lib/device-id-constants";
 
-export { DEVICE_ID_COOKIE, DEVICE_ID_HEADER };
-
 /**
  * The current request's device id. Never null in practice — proxy.ts's
  * matcher covers every route that could call this — but callers should
@@ -25,7 +23,7 @@ export async function getDeviceId(): Promise<string | null> {
  * matching, not a real UA-parsing library: good enough for a label, never
  * used for a security decision.
  */
-export function labelFromUserAgent(ua: string): string {
+function labelFromUserAgent(ua: string): string {
   if (!ua) return "Unknown device";
 
   const os = (() => {

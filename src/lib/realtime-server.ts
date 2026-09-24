@@ -23,7 +23,7 @@
 
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
-export function isRealtimeConfigured() {
+function isRealtimeConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
 }
 

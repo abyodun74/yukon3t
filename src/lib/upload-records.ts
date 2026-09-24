@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 // what a broken reference check would look like).
 
 /** Kinds recorded and swept — the ones a composer uploads ahead of posting. Same set discardUploads may delete. */
-export const SWEEPABLE_KINDS = new Set([
+const SWEEPABLE_KINDS = new Set([
   "post-image",
   "post-video",
   "video-thumb",

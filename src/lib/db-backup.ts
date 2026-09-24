@@ -159,7 +159,7 @@ function encrypt(plaintext: Buffer): Buffer {
 }
 
 /** Inverse of encrypt() — exported for restore-database-backup.ts. */
-export function decrypt(blob: Buffer): Buffer {
+function decrypt(blob: Buffer): Buffer {
   const key = createHash("sha256").update(process.env.BACKUP_ENCRYPTION_KEY!).digest();
   const iv = blob.subarray(0, GCM_IV_BYTES);
   const authTag = blob.subarray(GCM_IV_BYTES, GCM_IV_BYTES + 16);

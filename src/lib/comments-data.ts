@@ -10,7 +10,7 @@ import type { ReactionSummary } from "@/lib/reactions";
 // pagination yet" tradeoff as getPostLikers' LIKERS_LIMIT (src/app/actions/
 // likes.ts) — revisit with real cursor pagination if a post's comment count
 // actually approaches this in practice.
-export const COMMENT_LOAD_LIMIT = 500;
+const COMMENT_LOAD_LIMIT = 500;
 
 /**
  * Shared between the SSR standalone post page (src/app/post/[id]/page.tsx)

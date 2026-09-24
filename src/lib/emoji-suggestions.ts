@@ -11,7 +11,7 @@
  * the library's own search, read straight from its search input's live
  * value (see attachSuggestionListener there).
  */
-export const EMOJI_KEYWORD_SUGGESTIONS: Record<string, string[]> = {
+const EMOJI_KEYWORD_SUGGESTIONS: Record<string, string[]> = {
   pray: ["🙏", "🙌"],
   prayer: ["🙏"],
   praying: ["🙏"],

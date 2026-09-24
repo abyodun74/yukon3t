@@ -7,7 +7,7 @@ import { track } from "@/lib/analytics";
  * evaluateDevice below) or one that previously completed a
  * SecurityChallenge.
  */
-export async function isKnownDevice(userId: string, deviceId: string): Promise<boolean> {
+async function isKnownDevice(userId: string, deviceId: string): Promise<boolean> {
   const existing = await prisma.knownDevice.findUnique({
     where: { userId_deviceId: { userId, deviceId } },
     select: { id: true },
@@ -15,7 +15,7 @@ export async function isKnownDevice(userId: string, deviceId: string): Promise<b
   return Boolean(existing);
 }
 
-export async function hasAnyKnownDevice(userId: string): Promise<boolean> {
+async function hasAnyKnownDevice(userId: string): Promise<boolean> {
   const existing = await prisma.knownDevice.findFirst({
     where: { userId },
     select: { id: true },

@@ -134,7 +134,6 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "muse-video",
 ]);
 
-export const MAX_POST_IMAGES = 10;
 // Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS — the ceiling for a
 // picked-from-device post video. Recording (MAX_RECORD_VIDEO_SECONDS) stays
 // short separately; it's bounded by in-browser MediaRecorder memory, not
@@ -398,7 +397,7 @@ export async function deleteOwnedObject(key: string, ownerId: string) {
 }
 
 /** Size of each part of a browser-side multipart video upload. R2 requires every part except the last to be the same size. */
-export const MULTIPART_PART_BYTES = 16 * 1024 * 1024;
+const MULTIPART_PART_BYTES = 16 * 1024 * 1024;
 /** Videos smaller than this are still sent as one PUT — the extra round trips only pay off for big files. */
 export const MULTIPART_MIN_FILE_BYTES = 32 * 1024 * 1024;
 

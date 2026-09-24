@@ -215,7 +215,7 @@ export async function createLiveStreamRoom({
   }
 }
 
-export type DailyRecording = {
+type DailyRecording = {
   id: string;
   status: string;
   start_ts: number;

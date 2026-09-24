@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
-export const isPushConfigured = !!vapidPublicKey && !!vapidPrivateKey;
+const isPushConfigured = !!vapidPublicKey && !!vapidPrivateKey;
 
 if (isPushConfigured) {
   // The VAPID "subject" is just a contact identifier for push services to

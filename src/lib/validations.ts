@@ -65,16 +65,16 @@ export const usernameSchema = z
   .max(20)
   .regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, and underscores only.");
 
-export const passwordSchema = z.string().min(8).max(72);
+const passwordSchema = z.string().min(8).max(72);
 
-export const verificationMethodValues = ["EMAIL", "PHONE"] as const;
+const verificationMethodValues = ["EMAIL", "PHONE"] as const;
 
 // Handles nobody should be able to register — they'd read as the app or its staff.
 const RESERVED_USERNAMES = new Set([
   "admin", "administrator", "support", "moderator", "mod", "staff", "help", "root", "system", "official", "yukon3t", "yukon", "team",
 ]);
 
-export function isReservedUsername(username: string) {
+function isReservedUsername(username: string) {
   return RESERVED_USERNAMES.has(username.trim().toLowerCase());
 }
 
@@ -133,14 +133,14 @@ export const resetPasswordSchema = z.object({
 
 // HIDDEN is admin-only — enforced server-side in updatePrivacy (src/app/actions/profile.ts),
 // not just by hiding the option in the Settings UI for non-admins.
-export const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY", "HIDDEN"] as const;
+const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY", "HIDDEN"] as const;
 
 export const privacySchema = z.object({
   postsVisibility: z.enum(postsVisibilityValues),
   discoverable: z.boolean(),
 });
 
-export const ringtoneValues = ["CLASSIC", "CHIME", "DIGITAL", "MARIMBA", "PULSE"] as const;
+const ringtoneValues = ["CLASSIC", "CHIME", "DIGITAL", "MARIMBA", "PULSE"] as const;
 
 export const ringtoneSchema = z.object({
   ringtone: z.enum(ringtoneValues),
@@ -271,7 +271,7 @@ export const postSchema = z
     path: ["eventLocation"],
   });
 
-export const uploadKindValues = [
+const uploadKindValues = [
   "avatar",
   "post-image",
   "post-video",

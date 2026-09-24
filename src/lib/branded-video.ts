@@ -72,7 +72,7 @@ function fail(state: BrandingState, reason: string, patch: Partial<BrandingState
  * distinct from the source (so it's never mistaken for a replacement of it,
  * and a repeat run has a stable, predictable target).
  */
-export function brandedKeyFor(sourceKey: string): string {
+function brandedKeyFor(sourceKey: string): string {
   return `${sourceKey.replace(/\.\w+$/, "")}.branded.mp4`;
 }
 

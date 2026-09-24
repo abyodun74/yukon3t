@@ -2,7 +2,7 @@
 
 import { registerPlugin } from "@capacitor/core";
 
-export type CallKitCallEvent = { callId: string };
+type CallKitCallEvent = { callId: string };
 
 export interface NativeCallKitPlugin {
   addListener(

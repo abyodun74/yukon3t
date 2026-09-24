@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export function isRealtimeConfigured() {
+function isRealtimeConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 }
 

@@ -7,7 +7,7 @@ import { sendMessage } from "@/app/actions/messages";
 export type SharedMaterial = { url: string; name: string; contentType: string };
 
 /** Daily's app-message payload shape for a shared-material broadcast — see shareCollabMaterial/isCollabMaterialMessage below. */
-export const COLLAB_MATERIAL_MESSAGE_TYPE = "collab-material-shared";
+const COLLAB_MATERIAL_MESSAGE_TYPE = "collab-material-shared";
 
 /**
  * Uploads a file and posts it into the Collab's group chat (so it's there

@@ -56,7 +56,7 @@ export function isBlockedIp(ip: string): boolean {
   return true; // unrecognized format — refuse rather than guess
 }
 
-export type FetchRemoteImageError =
+type FetchRemoteImageError =
   | "invalid_url"
   | "blocked_host"
   | "fetch_failed"

@@ -4,7 +4,7 @@ import type { DailyCall } from "@daily-co/daily-js";
 import type { CaptureKind } from "@/lib/screen-capture-guard";
 
 /** Daily app-message payload shape for a capture alert — see broadcastCaptureAlert/captureAlertFromAppMessage below. */
-export const CAPTURE_ALERT_MESSAGE_TYPE = "capture-alert";
+const CAPTURE_ALERT_MESSAGE_TYPE = "capture-alert";
 
 /**
  * Broadcasts a locally-detected screenshot/recording to the other

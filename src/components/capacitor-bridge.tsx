@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
+import { VOIP_TOKEN_STORAGE_KEY } from "@/lib/voip-token-storage";
 import { markAllAsRead } from "@/app/actions/notifications";
 import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
@@ -116,6 +117,7 @@ export function CapacitorBridge() {
       const { NativeCallKit } = await import("@/lib/native-callkit");
       if (cancelled) return;
       listener = await NativeCallKit.addListener("voipTokenReceived", (event) => {
+        localStorage.setItem(VOIP_TOKEN_STORAGE_KEY, event.token);
         registerVoipToken(event.token).catch(() => {});
       });
       // The actual delivery path, not a belt-and-suspenders extra — see
@@ -124,6 +126,7 @@ export function CapacitorBridge() {
       // common case) before this effect ever got a chance to attach it.
       const pending = await NativeCallKit.getPendingToken().catch(() => null);
       if (!cancelled && pending?.token) {
+        localStorage.setItem(VOIP_TOKEN_STORAGE_KEY, pending.token);
         registerVoipToken(pending.token).catch(() => {});
       }
     })();
