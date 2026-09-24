@@ -202,8 +202,14 @@ android {
         // deep-linking out to the Play Store listing. No manifest
         // permission (ReviewManager is a Play Core API, not a Restricted
         // Permission) and no new Play Console declaration.
-        versionCode 26
-        versionName "1.23"
+        // 27: ShareReceiverPlugin.java rewritten to stream shared files to
+        // disk instead of buffering+base64-encoding them over the JS bridge
+        // — the old 20MB cap that trade-off required was silently dropping
+        // real-world shared videos (a typical Instagram Reel/TikTok/
+        // Facebook video routinely exceeds it). No manifest/permission
+        // change, no new Play Console declaration.
+        versionCode 27
+        versionName "1.24"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
