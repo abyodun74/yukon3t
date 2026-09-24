@@ -127,6 +127,18 @@ export const viewport: Viewport = {
   // globals.css's `overflow-x: hidden` kicked in.
   width: "device-width",
   initialScale: 1,
+  // Without this, the browser/WebView's own native page-pinch-zoom stays
+  // fully enabled everywhere, competing with (and on Android WebView,
+  // often winning over) ZoomableImage's own JS-driven pinch handling for
+  // the actual two-finger touch events — `touch-action: none` on that
+  // component's own container isn't reliably enough on its own to suppress
+  // *native pinch* specifically across WebView versions, only panning/
+  // scroll. This is the standard fix for "my custom pinch gesture does
+  // nothing": disable native page zoom globally (nothing in this app wants
+  // the whole page to zoom) so touch events reach JS uncontested, and let
+  // Lightbox's ZoomableImage be the only pinch-zoom surface.
+  maximumScale: 1,
+  userScalable: false,
   // Both native shells deliberately render edge-to-edge under the status
   // bar/notch (capacitor.config.ts's iOS contentInset: "never" — WKWebView's
   // own "automatic" inset handling fought with this same CSS-based approach
