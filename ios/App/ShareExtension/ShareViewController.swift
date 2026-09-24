@@ -19,13 +19,22 @@ import UniformTypeIdentifiers
  * interacts with, moments after this hands off to it.
  */
 class ShareViewController: UIViewController {
-    // Mirrors ShareReceiverPlugin.java's own MAX_FILE_BYTES and its own
-    // reasoning: this reads a whole item into memory before copying it, and
-    // an app extension's memory ceiling (~120MB) is far tighter than the
-    // main app's — going much above this risks the extension being killed
-    // by the OS mid-share, which would silently lose the item, exactly what
-    // this feature exists to avoid.
-    private let maxFileBytes = 20 * 1024 * 1024
+    // A shared video/image URL (the common case — see handleShare below)
+    // goes through saveToAppGroup, which is a disk-to-disk
+    // FileManager.copyItem — the OS streams it, never holding the file's
+    // bytes in this process's memory at all, so this can be generous
+    // without risking the extension's tight ~120MB ceiling. Confirmed live
+    // need for this: Android's equivalent cap (ShareReceiverPlugin.java,
+    // before it was fixed the same way) silently dropped real-world shared
+    // Reels/TikTok/Facebook videos, which routinely exceed the old 20MB
+    // limit even at well under a minute long.
+    private let maxVideoFileBytes = 500 * 1024 * 1024
+    // saveDataToAppGroup, by contrast, *is* an in-memory Data write (the
+    // provider handed back a UIImage directly, already decoded, rather than
+    // a file URL) — this path keeps the original conservative ceiling,
+    // since it's the one case here that actually holds bytes in this
+    // process's memory. 20MB is already generous for a single photo.
+    private let maxImageDataBytes = 20 * 1024 * 1024
     private let appGroupId = "group.com.yukon3t.app.share"
 
     override func viewDidLoad() {
@@ -112,13 +121,13 @@ class ShareViewController: UIViewController {
     }
 
     /// Copies a provider-owned temp file into the App Group's shared
-    /// PendingShare directory, enforcing maxFileBytes — an oversized file is
-    /// reported back as "skipped" (nil here) rather than silently dropped,
-    /// same reasoning as ShareReceiverPlugin.java's own size cap.
+    /// PendingShare directory, enforcing maxVideoFileBytes — an oversized
+    /// file is reported back as "skipped" (nil here) rather than silently
+    /// dropped, same reasoning as ShareReceiverPlugin.java's own size cap.
     private func saveToAppGroup(from sourceURL: URL, suggestedName: String) -> [String: String]? {
         guard
             let size = (try? FileManager.default.attributesOfItem(atPath: sourceURL.path)[.size]) as? Int,
-            size <= maxFileBytes,
+            size <= maxVideoFileBytes,
             let containerURL = pendingShareDirectory()
         else { return nil }
 
@@ -134,7 +143,7 @@ class ShareViewController: UIViewController {
     }
 
     private func saveDataToAppGroup(_ data: Data, suggestedName: String, mimeType: String) -> [String: String]? {
-        guard data.count <= maxFileBytes, let containerURL = pendingShareDirectory() else { return nil }
+        guard data.count <= maxImageDataBytes, let containerURL = pendingShareDirectory() else { return nil }
         let ext = (suggestedName as NSString).pathExtension
         let storedName = "\(UUID().uuidString).\(ext.isEmpty ? "dat" : ext)"
         let destURL = containerURL.appendingPathComponent(storedName)

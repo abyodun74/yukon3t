@@ -14,6 +14,17 @@ import Capacitor
  * process/sandbox with no way to reach into this app directly — the App
  * Group container on disk is the only channel, and it has to be read back
  * here as a real file, not handed across an in-memory reference.
+ *
+ * Each file is *moved* out of the App Group container into this app's own
+ * tmp directory and handed to JS as a plain path — not read into a `Data`
+ * and base64-encoded the way an earlier version of this file did. Reading a
+ * whole video into memory just to re-encode it ~33% larger for the bridge
+ * call is exactly the mistake Android's ShareReceiverPlugin.java made (see
+ * its own doc comment: it silently dropped anything over 20MB, which is
+ * nowhere near enough for a typical shared Reel/TikTok/Facebook video) —
+ * fixed there the same way, moving a file on disk instead of copying its
+ * bytes through memory twice. Capacitor.convertFileSrc (share-receiver.ts)
+ * then lets the WebView read the moved file directly via fetch().
  */
 @objc(ShareReceiverPlugin)
 public class ShareReceiverPlugin: CAPPlugin {
@@ -38,27 +49,41 @@ public class ShareReceiverPlugin: CAPPlugin {
         }
 
         let text = manifest["text"] as? String
-        let skipped = manifest["skipped"] as? Int ?? 0
+        let manifestSkipped = manifest["skipped"] as? Int ?? 0
         let rawFiles = manifest["files"] as? [[String: String]] ?? []
 
-        // Read every file's bytes out of the shared container *before*
-        // deleting it below — deleting first would remove the very files
-        // this is about to read.
+        let destDir = FileManager.default.temporaryDirectory.appendingPathComponent("pending_share", isDirectory: true)
+        try? FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
         var files: [[String: Any]] = []
+        var moveFailures = 0
         for entry in rawFiles {
             guard
                 let relativePath = entry["path"],
                 let name = entry["name"],
-                let mimeType = entry["mimeType"],
-                let fileData = try? Data(contentsOf: pendingDir.appendingPathComponent(relativePath))
-            else { continue }
-            files.append(["name": name, "mimeType": mimeType, "base64": fileData.base64EncodedString()])
+                let mimeType = entry["mimeType"]
+            else {
+                moveFailures += 1
+                continue
+            }
+            let sourceURL = pendingDir.appendingPathComponent(relativePath)
+            let ext = sourceURL.pathExtension
+            let destURL = destDir.appendingPathComponent(ext.isEmpty ? UUID().uuidString : "\(UUID().uuidString).\(ext)")
+            do {
+                try FileManager.default.moveItem(at: sourceURL, to: destURL)
+                files.append(["name": name, "mimeType": mimeType, "path": destURL.path])
+            } catch {
+                moveFailures += 1
+            }
         }
 
         // Consumed exactly once, same contract as the Android plugin — a
-        // later relaunch/resume must never redeliver the same share.
+        // later relaunch/resume must never redeliver the same share. Every
+        // file that moved successfully is already out of pendingDir by now;
+        // this just clears the manifest and anything left behind (e.g. a
+        // file this loop failed to move).
         try? FileManager.default.removeItem(at: pendingDir)
 
-        call.resolve(["text": text ?? NSNull(), "files": files, "skipped": skipped])
+        call.resolve(["text": text ?? NSNull(), "files": files, "skipped": manifestSkipped + moveFailures])
     }
 }

@@ -1,11 +1,11 @@
 package com.yukon3t.app;
 
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
-import android.util.Base64;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -14,10 +14,13 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Backs the Share-target intent-filters in AndroidManifest.xml — MainActivity's
@@ -27,23 +30,38 @@ import java.util.List;
  * JS side (share-receiver.ts) once, then clears it, so a later relaunch never
  * redelivers stale content.
  *
- * Files are read fully into memory and returned base64-encoded — the
- * simplest thing that works over the JS bridge, and fine for the photos/short
- * clips this is realistically used for, but not a good fit for a large
- * video: there's no streaming/chunking here, and base64 adds ~33% on top of
- * whatever's already held in memory twice over (the raw bytes, then the
- * encoded string) before it ever reaches JS. Revisit with a real disk-backed
- * transfer (e.g. copy to a FileProvider-exposed cache file, hand JS the
- * content:// URI, let it stream via a Capacitor filesystem read) if large
- * video sharing becomes a real use case.
+ * Copies each shared file into this app's own cache dir via a streaming copy
+ * and hands JS a plain file path — NOT the base64-over-the-bridge approach
+ * this file used before. That approach had to cap files at 20MB to avoid an
+ * OutOfMemoryError from holding both the raw bytes and the ~33%-larger
+ * base64 string in memory at once — comfortably enough for a photo, nowhere
+ * near enough for a real-world shared video: an Instagram Reel, TikTok, or
+ * Facebook video commonly exceeds 20MB even at well under a minute long, so
+ * it silently vanished under that cap with no indication why — confirmed
+ * live: a user sharing an Instagram Reel got told "that app only shared a
+ * link," which was wrong — Instagram *had* attached the actual video (same
+ * as it does to WhatsApp/TikTok/etc., which is also why those platforms'
+ * own watermarks are baked into videos shared this way — there'd be no
+ * point watermarking pixels that never leave the app as a real file), this
+ * plugin just dropped it before JS ever saw it. Handing JS a file path
+ * instead (read via Capacitor.convertFileSrc + fetch(), see
+ * share-receiver.ts) lets the WebView stream the bytes itself — no full
+ * in-memory duplicate at any point on this side — so the only real ceiling
+ * left is MAX_SHARE_FILE_BYTES below, sized to match this app's own upload
+ * limits rather than an implementation artifact of the old approach.
  */
 @CapacitorPlugin(name = "ShareReceiver")
 public class ShareReceiverPlugin extends Plugin {
 
-    // 20MB — comfortably covers a phone photo or a short clip without risking
-    // an OutOfMemoryError from double-buffering (raw bytes + base64 string)
-    // a large video in memory on a mid-range device.
-    private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
+    // Matches storage.ts's own MAX_VIDEO_BYTES ceiling — no reason a shared
+    // video should be held to a tighter limit than one recorded/picked
+    // directly in the app, now that this no longer double-buffers in memory.
+    private static final long MAX_SHARE_FILE_BYTES = 2048L * 1024 * 1024;
+    // A share whose JS side never finished reading it (app killed mid-flow,
+    // a crash, etc.) would otherwise leave its cached copy behind forever —
+    // swept out the next time a *new* share comes in, rather than needing a
+    // separate cleanup round-trip from JS once it's done fetching.
+    private static final long STALE_FILE_MS = 5 * 60 * 1000;
 
     private static Intent pendingShareIntent;
 
@@ -56,6 +74,10 @@ public class ShareReceiverPlugin extends Plugin {
     public void getPendingShare(PluginCall call) {
         Intent intent = pendingShareIntent;
         pendingShareIntent = null; // consumed — never redelivered on a later call/relaunch
+
+        Context context = getContext();
+        File shareDir = new File(context.getCacheDir(), "pending_share");
+        sweepStaleFiles(shareDir);
 
         JSObject result = new JSObject();
         JSArray files = new JSArray();
@@ -72,7 +94,7 @@ public class ShareReceiverPlugin extends Plugin {
         String text = intent.getStringExtra(Intent.EXTRA_TEXT);
         if (text != null) result.put("text", text);
 
-        ContentResolver resolver = getContext().getContentResolver();
+        ContentResolver resolver = context.getContentResolver();
         List<Uri> uris = new ArrayList<>();
         if (Intent.ACTION_SEND.equals(action)) {
             Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -84,9 +106,9 @@ public class ShareReceiverPlugin extends Plugin {
 
         int skipped = 0;
         for (Uri uri : uris) {
-            ReadResult read = readUriToJson(resolver, uri, intent.getType());
-            if (read.file != null) {
-                files.put(read.file);
+            JSObject file = copyUriToCache(resolver, uri, intent.getType(), shareDir);
+            if (file != null) {
+                files.put(file);
             } else {
                 skipped++;
             }
@@ -96,41 +118,77 @@ public class ShareReceiverPlugin extends Plugin {
         call.resolve(result);
     }
 
-    /** Tags a null result with why, so the caller (getPendingShare above) can tell the JS side "N item(s) couldn't be imported" instead of the share silently coming back with fewer items than were actually sent — see share-receiver.ts/share-target-gate.tsx's "skipped" handling. */
-    private static final class ReadResult {
-        final JSObject file;
-        ReadResult(JSObject file) { this.file = file; }
-    }
-
-    private ReadResult readUriToJson(ContentResolver resolver, Uri uri, String fallbackMimeType) {
+    /**
+     * Streams `uri`'s content straight to a file in `shareDir` — never
+     * holding more than one 64KB chunk in memory at a time, unlike the old
+     * ByteArrayOutputStream-then-base64 approach. Returns the file's own
+     * absolute path (not a content:// URI — this is now *our* file, on
+     * local disk, not something the WebView needs SAF permissions to read).
+     */
+    private JSObject copyUriToCache(ContentResolver resolver, Uri uri, String fallbackMimeType, File shareDir) {
+        File dest = null;
         try {
+            if (!shareDir.exists()) shareDir.mkdirs();
+
             String mimeType = resolver.getType(uri);
             if (mimeType == null) mimeType = fallbackMimeType != null ? fallbackMimeType : "application/octet-stream";
             String name = queryDisplayName(resolver, uri);
+            dest = new File(shareDir, UUID.randomUUID().toString() + extensionFor(mimeType, name));
 
-            try (InputStream in = resolver.openInputStream(uri)) {
-                if (in == null) return new ReadResult(null);
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                byte[] chunk = new byte[16 * 1024];
+            try (InputStream in = resolver.openInputStream(uri);
+                 OutputStream out = new FileOutputStream(dest)) {
+                if (in == null) return null;
+                byte[] chunk = new byte[64 * 1024];
                 int read;
                 long total = 0;
                 while ((read = in.read(chunk)) != -1) {
                     total += read;
-                    // Oversized (e.g. a longer video) — reported back as "skipped" rather
-                    // than silently vanishing, since the whole point of this feature is
-                    // handing over the real media, not quietly falling back to nothing.
-                    if (total > MAX_FILE_BYTES) return new ReadResult(null);
-                    buffer.write(chunk, 0, read);
+                    // Oversized — reported back as "skipped" rather than
+                    // silently vanishing, since the whole point of this
+                    // feature is handing over the real media, not quietly
+                    // falling back to nothing.
+                    if (total > MAX_SHARE_FILE_BYTES) {
+                        out.close();
+                        dest.delete();
+                        return null;
+                    }
+                    out.write(chunk, 0, read);
                 }
-
-                JSObject file = new JSObject();
-                file.put("name", name);
-                file.put("mimeType", mimeType);
-                file.put("base64", Base64.encodeToString(buffer.toByteArray(), Base64.NO_WRAP));
-                return new ReadResult(file);
             }
+
+            JSObject file = new JSObject();
+            file.put("name", name);
+            file.put("mimeType", mimeType);
+            file.put("path", dest.getAbsolutePath());
+            return file;
         } catch (Exception e) {
-            return new ReadResult(null); // best-effort — one unreadable file shouldn't fail the whole share
+            if (dest != null) dest.delete(); // don't leave a partial file behind
+            return null; // best-effort — one unreadable file shouldn't fail the whole share
+        }
+    }
+
+    /**
+     * The cached copy needs *some* extension for Capacitor.convertFileSrc's
+     * MIME sniffing (and for the JS-side File object's own name) to work
+     * reliably — the source content:// URI's own display name usually
+     * already has one, but content providers aren't required to supply one
+     * at all, so this falls back to inferring one from the MIME type itself.
+     */
+    private String extensionFor(String mimeType, String name) {
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0 && dot < name.length() - 1) return name.substring(dot);
+        if (mimeType.startsWith("video/")) return ".mp4";
+        if (mimeType.equals("image/png")) return ".png";
+        if (mimeType.startsWith("image/")) return ".jpg";
+        return "";
+    }
+
+    private void sweepStaleFiles(File shareDir) {
+        File[] existing = shareDir.listFiles();
+        if (existing == null) return;
+        long cutoff = System.currentTimeMillis() - STALE_FILE_MS;
+        for (File f : existing) {
+            if (f.lastModified() < cutoff) f.delete();
         }
     }
 

@@ -5,7 +5,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 interface NativePendingShareFile {
   name: string;
   mimeType: string;
-  base64: string;
+  /** Absolute native filesystem path (Android) — see ShareReceiverPlugin.java's own doc comment for why this isn't base64 anymore. */
+  path: string;
 }
 
 interface NativePendingShare {
@@ -30,11 +31,26 @@ export interface PendingShareMedia {
   skipped: number;
 }
 
-function base64ToFile(f: NativePendingShareFile): File {
-  const byteChars = atob(f.base64);
-  const bytes = new Uint8Array(byteChars.length);
-  for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-  return new File([bytes], f.name, { type: f.mimeType || "application/octet-stream" });
+/**
+ * Reads the native file at `f.path` into a File via Capacitor's local-
+ * resource loading (Capacitor.convertFileSrc + fetch) rather than a base64
+ * bridge payload — see ShareReceiverPlugin.java's own doc comment for why:
+ * this lets the WebView stream the bytes itself instead of ever holding two
+ * full in-memory copies (raw + base64) at once, which is what capped the
+ * old approach at 20MB — nowhere near enough for a typical shared Reel/
+ * TikTok/Facebook video. Returns null on any failure (unreadable path,
+ * fetch error) — best-effort, same as every other step in this pipeline.
+ */
+async function pathToFile(f: NativePendingShareFile): Promise<File | null> {
+  try {
+    const url = Capacitor.convertFileSrc(f.path);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new File([blob], f.name, { type: f.mimeType || blob.type || "application/octet-stream" });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -55,8 +71,18 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
 
   const images: File[] = [];
   let video: File | null = null;
+  // Starts from the native side's own count (files it couldn't fit under
+  // its size cap) and adds any that failed on this side too (an unreadable
+  // path, a failed fetch) — either way, "skipped" should reflect every item
+  // the OS handed over that didn't make it into images/video, not just the
+  // native-side subset.
+  let skipped = result.skipped ?? 0;
   for (const f of result.files) {
-    const file = base64ToFile(f);
+    const file = await pathToFile(f);
+    if (!file) {
+      skipped++;
+      continue;
+    }
     if (f.mimeType.startsWith("video/") && !video) {
       video = file;
     } else if (f.mimeType.startsWith("image/")) {
@@ -68,5 +94,5 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
     // produce their own File objects internally); wire this up if that
     // changes rather than half-supporting it now.
   }
-  return { images, video, text: result.text, skipped: result.skipped ?? 0 };
+  return { images, video, text: result.text, skipped };
 }
