@@ -78,7 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user?.email) return false;
       const existing = await prisma.user.findUnique({
         where: { email: user.email },
-        select: { id: true, status: true },
+        select: { id: true, status: true, isAppReviewDemo: true },
       });
       if (
         existing?.status === "SUSPENDED" ||
@@ -110,30 +110,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // every magic-link/OAuth user out of their account.
         try {
           const deviceId = await getDeviceId();
-          const evaluation = await evaluateDevice(existing.id, deviceId);
-          if (evaluation.status === "unrecognized" && deviceId) {
-            const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${existing.id}`);
-            if (sendAllowed) {
-              const label = await getDeviceLabel();
-              const challenge = await createDeviceChallenge({
-                userId: existing.id,
-                email: user.email,
-                purpose: "LOGIN",
-                deviceId,
-                deviceLabel: label,
-              });
-              await issuePendingDeviceChallengeCookie(existing.id, deviceId, challenge.id);
-              // Returning a URL instead of true aborts this sign-in attempt
-              // (no session cookie gets issued) and redirects there instead
-              // — /sign-in/verify-device finishes the sign-in itself once
-              // the emailed code is confirmed (confirmLoginDeviceChallenge).
-              return "/sign-in/verify-device";
-            }
-          } else if (deviceId) {
-            if (evaluation.status === "trusted_first_device") {
-              await trustDevice(existing.id, deviceId, await getDeviceLabel());
-            } else {
-              await touchKnownDevice(existing.id, deviceId);
+          // See isAppReviewDemo in password-auth.ts's loginWithPassword —
+          // same exemption, kept here too in case a future demo account
+          // ever signs in via magic link/OAuth instead of a password.
+          if (existing.isAppReviewDemo) {
+            if (deviceId) await trustDevice(existing.id, deviceId, await getDeviceLabel());
+          } else {
+            const evaluation = await evaluateDevice(existing.id, deviceId);
+            if (evaluation.status === "unrecognized" && deviceId) {
+              const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${existing.id}`);
+              if (sendAllowed) {
+                const label = await getDeviceLabel();
+                const challenge = await createDeviceChallenge({
+                  userId: existing.id,
+                  email: user.email,
+                  purpose: "LOGIN",
+                  deviceId,
+                  deviceLabel: label,
+                });
+                await issuePendingDeviceChallengeCookie(existing.id, deviceId, challenge.id);
+                // Returning a URL instead of true aborts this sign-in attempt
+                // (no session cookie gets issued) and redirects there instead
+                // — /sign-in/verify-device finishes the sign-in itself once
+                // the emailed code is confirmed (confirmLoginDeviceChallenge).
+                return "/sign-in/verify-device";
+              }
+            } else if (deviceId) {
+              if (evaluation.status === "trusted_first_device") {
+                await trustDevice(existing.id, deviceId, await getDeviceLabel());
+              } else {
+                await touchKnownDevice(existing.id, deviceId);
+              }
             }
           }
         } catch (err) {

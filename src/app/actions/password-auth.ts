@@ -347,8 +347,11 @@ export async function loginWithPassword(formData: FormData) {
   // Brute-force lockout, separate from (and stricter than) the IP-scoped
   // passwordLogin rate limit above — this one is per-account and survives
   // the attacker switching IPs. Checked before verifying the password so a
-  // locked account can't be probed at all during the lockout window.
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
+  // locked account can't be probed at all during the lockout window. The
+  // App Review demo account is exempt — it must never end up 24h-locked
+  // out right before the one sign-in attempt that matters (see
+  // isAppReviewDemo above the device step-up further down).
+  if (!user.isAppReviewDemo && user.lockedUntil && user.lockedUntil > new Date()) {
     redirect("/sign-in?error=locked");
   }
 
@@ -360,15 +363,17 @@ export async function loginWithPassword(formData: FormData) {
     // resolve-login-issues cron (src/app/api/cron/resolve-login-issues) —
     // only set on the first attempt in a fresh window, same as
     // failedLoginAttempts itself only starting to count from 0 there.
-    await prisma.user.update({
-      where: { id: user.id },
-      data: lockingNow
-        ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS), failedLoginAt: null }
-        : { failedLoginAttempts: attempts, failedLoginAt: user.failedLoginAttempts === 0 ? new Date() : undefined },
-    });
+    if (!user.isAppReviewDemo) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: lockingNow
+          ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS), failedLoginAt: null }
+          : { failedLoginAttempts: attempts, failedLoginAt: user.failedLoginAttempts === 0 ? new Date() : undefined },
+      });
+    }
     redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
   }
-  if (!user.emailVerified && !user.phoneVerifiedAt) {
+  if (!user.isAppReviewDemo && !user.emailVerified && !user.phoneVerifiedAt) {
     // The password was just proven, so this browser may finish verifying the account: pick up where signup left off on
     // the page for the method they chose — both pages offer switching to the other (email delayed? use your phone).
     await issuePendingVerificationCookie(user.id);
@@ -399,29 +404,40 @@ export async function loginWithPassword(formData: FormData) {
   // require an emailed code before actually establishing the session. The
   // account's very first-ever device is auto-trusted (evaluateDevice), so
   // this never blocks a brand-new signup's first sign-in.
+  //
+  // App Review reruns this exact sign-in from a different, unrecognized
+  // device on every submission, from a mailbox reviewers can't read — an
+  // emailed code would be an unclearable dead end (Apple Guideline 2.1).
+  // isAppReviewDemo marks the one account behind App Store Connect's
+  // demo credentials as exempt: every device it logs in from is trusted
+  // outright, no challenge ever sent.
   const deviceId = await getDeviceId();
-  const evaluation = await evaluateDevice(user.id, deviceId);
-  if (evaluation.status === "unrecognized" && deviceId) {
-    const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
-    if (!sendAllowed) {
-      redirect("/sign-in?error=rate_limited");
+  if (user.isAppReviewDemo) {
+    if (deviceId) await trustDevice(user.id, deviceId, await getDeviceLabel());
+  } else {
+    const evaluation = await evaluateDevice(user.id, deviceId);
+    if (evaluation.status === "unrecognized" && deviceId) {
+      const sendAllowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${user.id}`);
+      if (!sendAllowed) {
+        redirect("/sign-in?error=rate_limited");
+      }
+      const label = await getDeviceLabel();
+      const challenge = await createDeviceChallenge({
+        userId: user.id,
+        email: user.email,
+        purpose: "LOGIN",
+        deviceId,
+        deviceLabel: label,
+      });
+      await issuePendingDeviceChallengeCookie(user.id, deviceId, challenge.id);
+      redirect("/sign-in/verify-device");
     }
-    const label = await getDeviceLabel();
-    const challenge = await createDeviceChallenge({
-      userId: user.id,
-      email: user.email,
-      purpose: "LOGIN",
-      deviceId,
-      deviceLabel: label,
-    });
-    await issuePendingDeviceChallengeCookie(user.id, deviceId, challenge.id);
-    redirect("/sign-in/verify-device");
-  }
-  if (deviceId) {
-    if (evaluation.status === "trusted_first_device") {
-      await trustDevice(user.id, deviceId, await getDeviceLabel());
-    } else {
-      await touchKnownDevice(user.id, deviceId);
+    if (deviceId) {
+      if (evaluation.status === "trusted_first_device") {
+        await trustDevice(user.id, deviceId, await getDeviceLabel());
+      } else {
+        await touchKnownDevice(user.id, deviceId);
+      }
     }
   }
 

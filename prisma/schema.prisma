@@ -217,6 +217,14 @@ model User {
   deactivatedAt    DateTime?
   isAdmin          Boolean    @default(false)
 
+  // Marks the one account whose credentials go in App Store Connect's
+  // "Notes for Review" / demo-account field. App Review signs in from a
+  // fresh device on every submission and can't complete an emailed
+  // verification/device-challenge code — see loginWithPassword and
+  // auth.ts's signIn callback, which skip both gates for this flag so the
+  // account always signs in cleanly regardless of device history.
+  isAppReviewDemo Boolean @default(false)
+
   // Set whenever an active session should be forced to re-authenticate
   // (e.g. password reset) even though the JWT itself hasn't expired yet.
   sessionInvalidatedAt DateTime?
