@@ -444,6 +444,18 @@ export function ShareTargetGate({ userId }: { userId: string }) {
             again, or just send the link to a friend below.
           </p>
         )}
+        {/* TEMPORARY diagnostic (2026-09-25) — remove once the underlying
+            bug is found. Shows exactly what the native side handed over, so
+            a screenshot of this notice is enough to tell "native gave zero
+            files" apart from "native gave files but something dropped
+            them" without needing adb/USB debugging. */}
+        {linkOnly && (
+          <p className="mt-2 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
+            Debug: native reported {share.debugRawFileCount} file(s)
+            {share.debugRawFileCount > 0 && ` (${share.debugRawMimeTypes.join(", ")})`}, skipped=
+            {share.skipped}.
+          </p>
+        )}
         {share.skipped > 0 && (
           <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
             {share.skipped === 1 ? "One item" : `${share.skipped} items`} couldn&apos;t be

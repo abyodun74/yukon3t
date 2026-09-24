@@ -29,6 +29,14 @@ export interface PendingShareMedia {
   text: string | null;
   /** See NativePendingShare.skipped above. */
   skipped: number;
+  // TEMPORARY diagnostic (added 2026-09-25, remove once the "every share
+  // comes back link-only" bug is actually found) — the raw native
+  // response's own file count/types, captured before any JS-side reading
+  // or classification touches them, so a screenshot of the notice that
+  // renders this can tell apart "native handed over zero files" from
+  // "native handed over files but something after that dropped them."
+  debugRawFileCount: number;
+  debugRawMimeTypes: string[];
 }
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp"]);
@@ -136,5 +144,12 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
       skipped++;
     }
   }
-  return { images, video, text: result.text, skipped };
+  return {
+    images,
+    video,
+    text: result.text,
+    skipped,
+    debugRawFileCount: result.files.length,
+    debugRawMimeTypes: result.files.map((f) => f.mimeType),
+  };
 }
