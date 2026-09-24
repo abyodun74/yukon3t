@@ -1311,17 +1311,33 @@ model LiveStreamStageRequest {
 enum StoryMediaType {
   IMAGE
   VIDEO
+  // A Story built from a link another app only shared a link for (no real
+  // file attached — see ShareReceiverPlugin.java's own doc comment) rather
+  // than an uploaded file: mediaUrl is null, embedProvider/embedId are set
+  // instead, and the story renders the source platform's own player. Same
+  // "moderated by the source, not us" trust boundary Post's own EMBED type
+  // already uses — see createPost in actions/circles.ts.
+  EMBED
 }
 
 /**
- * A profile story — always has a media file (unlike a Post, which can be text-only) and disappears 24h after posting.
+ * A profile story — almost always has a media file (unlike a Post, which can
+ * be text-only) and disappears 24h after posting. The one exception is
+ * EMBED (see StoryMediaType above), which has no file of ours at all.
  */
 model Story {
   id                String         @id @default(cuid())
   authorId          String
   mediaType         StoryMediaType
-  mediaUrl          String
+  // Nullable only for EMBED — every other mediaType still requires it (see
+  // createStory's own validation, mirroring Post's identical embed/upload split).
+  mediaUrl          String?
   mediaThumbnailUrl String?
+  // EMBED-only, same "store only the validated provider+id, never the raw
+  // pasted URL — the iframe src is always rebuilt server-side from these
+  // two known-safe values" discipline as Post.embedProvider/embedId.
+  embedProvider     EmbedProvider?
+  embedId           String?
   caption           String?        @db.Text
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
@@ -1429,14 +1445,33 @@ model StoryView {
  * driven by the moderate-long-videos cron) — a video 60s or under still
  * skips that fork entirely and is covered by the short-form Hive scan alone
  * (moderate-videos cron), exactly as before.
+ *
+ * mediaType EMBED is the one exception to all of the above: a Muse built
+ * from a link another app only shared a link for (no real file attached),
+ * same "moderated by the source, not us" trust boundary as Post/Story's own
+ * EMBED type — no video body of ours exists to run Hive/Cloudflare Stream
+ * against, so videoUrl/videoDurationSeconds/every video-moderation field
+ * below stays null/unset for these rows; only the caption gets moderated
+ * (moderateText, same treatment createPost gives its own EMBED posts).
  */
+enum MuseMediaType {
+  VIDEO
+  EMBED
+}
+
 model Muse {
   id                   String           @id @default(cuid())
   authorId             String
   caption              String?          @db.Text
-  videoUrl             String
+  mediaType            MuseMediaType    @default(VIDEO)
+  // Nullable only for EMBED — see mediaType's own doc comment above.
+  videoUrl             String?
   videoThumbnailUrl    String?
-  videoDurationSeconds Int
+  videoDurationSeconds Int?
+  // EMBED-only — see Post.embedProvider/embedId's own doc comment for the
+  // "never store the raw URL" discipline this mirrors.
+  embedProvider        EmbedProvider?
+  embedId              String?
   // A separate uploaded audio track ("add sound"-style) — when set, it
   // entirely replaces the video's own sound for playback (the video plays
   // muted, this plays instead) rather than mixing with it; the creator

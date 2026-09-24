@@ -105,15 +105,20 @@ async function moderateCommentVideos() {
   return { checked: pending.length, flagged, cleared, failed };
 }
 
-// Same logic as moderateCommentVideos, applied to Muse — every Muse is
-// always a video (no mediaType discriminant needed, same reasoning as
-// Comment). A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS is excluded here
+// Same logic as moderateCommentVideos, applied to Muse. mediaType: "VIDEO"
+// excludes EMBED rows (see Muse's own mediaType doc comment — no video body
+// of ours exists for those to scan; Hive would just error on a null
+// videoUrl). A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS is excluded here
 // (its videoModeratedAt is already pre-claimed at creation — see createMuse)
 // and instead goes through moderate-long-videos' Cloudflare Stream review
 // fork, same as an over-the-cap Post/Comment.
 async function moderateMuseVideos() {
   const pending = await prisma.muse.findMany({
-    where: { videoModeratedAt: null, videoDurationSeconds: { lte: HIVE_VIDEO_MODERATION_MAX_SECONDS } },
+    where: {
+      mediaType: "VIDEO",
+      videoModeratedAt: null,
+      videoDurationSeconds: { lte: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+    },
     select: { id: true, videoUrl: true },
     take: BATCH_SIZE,
   });
@@ -130,7 +135,7 @@ async function moderateMuseVideos() {
     if (claimed.count === 0) continue;
 
     try {
-      const result = await moderateVideo(muse.videoUrl);
+      const result = await moderateVideo(muse.videoUrl!);
       if (result === null) {
         await prisma.muse.updateMany({ where: { id: muse.id }, data: { videoModeratedAt: null } });
         failed += 1;

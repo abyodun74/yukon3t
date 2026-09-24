@@ -23,6 +23,7 @@ import { formatDateTime } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 
 type StoryComment = {
   id: string;
@@ -32,6 +33,11 @@ type StoryComment = {
 };
 
 const IMAGE_DURATION_MS = 5000;
+// An embedded player is a cross-origin iframe — no onTimeUpdate/onEnded to
+// drive advance off of the way a real <video> gets (see the auto-advance
+// effect below), so this behaves like a timed image, just longer: enough to
+// actually watch some of whatever's playing before it moves on.
+const EMBED_DURATION_MS = 15000;
 const TAP_MAX_HOLD_MS = 250;
 // A pointer that moved at least this far horizontally before release is a
 // swipe (move to the next/previous person's stack), not a tap (move within
@@ -41,9 +47,13 @@ const SWIPE_THRESHOLD_PX = 60;
 
 export type StoryData = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
-  mediaUrl: string;
+  mediaType: "IMAGE" | "VIDEO" | "EMBED";
+  // Nullable only for EMBED — see StoryMediaType's own doc comment
+  // (prisma/schema.prisma) for why an embed has no file of ours.
+  mediaUrl: string | null;
   mediaThumbnailUrl: string | null;
+  embedProvider: EmbedProvider | null;
+  embedId: string | null;
   caption: string | null;
   createdAt: Date;
   viewCount: number;
@@ -204,16 +214,19 @@ export function StoryViewer({
     };
   }, [story]);
 
-  // Image auto-advance timer — videos drive their own progress via onTimeUpdate/onEnded below.
+  // Image/embed auto-advance timer — a real video drives its own progress
+  // via onTimeUpdate/onEnded below; an embed can't (see EMBED_DURATION_MS's
+  // own comment), so it times out the same way an image does, just longer.
   useEffect(() => {
-    if (!story || story.mediaType !== "IMAGE" || paused || showViewers || showComments) return undefined;
+    if (!story || (story.mediaType !== "IMAGE" && story.mediaType !== "EMBED") || paused || showViewers || showComments) return undefined;
+    const durationMs = story.mediaType === "EMBED" ? EMBED_DURATION_MS : IMAGE_DURATION_MS;
 
     let raf: number;
     let lastTs = performance.now();
     const tick = (ts: number) => {
       elapsedRef.current += ts - lastTs;
       lastTs = ts;
-      const pct = Math.min(1, elapsedRef.current / IMAGE_DURATION_MS);
+      const pct = Math.min(1, elapsedRef.current / durationMs);
       setProgress(pct);
       if (pct >= 1) {
         next();
@@ -330,11 +343,23 @@ export function StoryViewer({
       <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={story.mediaUrl} alt={`Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
+          <img src={story.mediaUrl ?? undefined} alt={`Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
+        ) : story.mediaType === "EMBED" && story.embedProvider && story.embedId ? (
+          // Instagram/TikTok/etc.'s own player — see StoryMediaType's own
+          // doc comment for the trust boundary this implies (not moderated
+          // by this app). pointer-events-none: tap zones below drive
+          // pause/advance the same as any other story, not the iframe's own
+          // controls, which this app has no way to keep in sync anyway.
+          <iframe
+            src={embedSrc({ provider: story.embedProvider, id: story.embedId })}
+            className="pointer-events-none h-full w-full border-0"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            title={`Story by ${authorName}`}
+          />
         ) : (
           <video
             ref={videoRef}
-            src={story.mediaUrl}
+            src={story.mediaUrl ?? undefined}
             poster={story.mediaThumbnailUrl ?? undefined}
             autoPlay
             playsInline

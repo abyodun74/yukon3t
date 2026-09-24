@@ -387,16 +387,28 @@ export const adBookingSchema = z.object({
 });
 
 export const storySchema = z.object({
-  mediaType: z.enum(["IMAGE", "VIDEO"]),
-  mediaUrl: z.string().url(),
+  mediaType: z.enum(["IMAGE", "VIDEO", "EMBED"]),
+  // Required for IMAGE/VIDEO, absent for EMBED — createStory enforces the
+  // actual per-mediaType requirement imperatively, same pattern postSchema
+  // already uses for its own EMBED case (see mediaUrls/videoUrl there).
+  mediaUrl: z.string().url().optional(),
   mediaThumbnailUrl: z.string().url().optional(),
+  // EMBED only — raw pasted link, input to parseVideoEmbedUrl() server-side
+  // (only the parsed provider+id is ever stored, never this raw string).
+  // Same field/purpose as postSchema's own embedUrl.
+  embedUrl: z.string().url().optional(),
   caption: z.string().trim().max(200).optional().default(""),
 });
 
 export const museSchema = z.object({
   caption: z.string().trim().max(200).optional().default(""),
-  videoUrl: z.string().url(),
+  mediaType: z.enum(["VIDEO", "EMBED"]).optional().default("VIDEO"),
+  // Required for VIDEO, absent for EMBED — same imperative-enforcement
+  // pattern as storySchema's own mediaUrl above.
+  videoUrl: z.string().url().optional(),
   videoThumbnailUrl: z.string().url().optional(),
+  // EMBED only — see storySchema's own embedUrl.
+  embedUrl: z.string().url().optional(),
   // Client-probed <video>.duration, same non-authoritative routing-hint
   // status as postSchema's own videoDurationSeconds — createMuse re-checks
   // it server-side against MAX_MUSE_VIDEO_DURATION_SECONDS regardless. The
@@ -407,7 +419,9 @@ export const museSchema = z.object({
   // with "node:crypto ... Unhandled scheme" once this file imported it.
   // Same reasoning post-composer.tsx's own MAX_UPLOAD_VIDEO_SECONDS
   // duplicate and muse-composer.tsx's MAX_MUSE_SECONDS already document.
-  videoDurationSeconds: z.coerce.number().int().min(1).max(180),
+  // Required for VIDEO, absent for EMBED — an embed's actual video has no
+  // known duration this app controls (see Muse.mediaType's own doc comment).
+  videoDurationSeconds: z.coerce.number().int().min(1).max(180).optional(),
   // Set only when the creator chose "use this audio instead" in
   // MuseComposer — absent (not just empty) means "use the video's own
   // sound," never a mix of both. See Muse.audioUrl's schema comment.

@@ -23,6 +23,7 @@ import { SubscribeButton } from "@/components/subscribe-button";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
+import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -39,9 +40,14 @@ const ACTIVE_VISIBILITY_THRESHOLD = 0.6;
 type MuseItem = {
   id: string;
   caption: string | null;
-  videoUrl: string;
+  mediaType: "VIDEO" | "EMBED";
+  // Nullable only for EMBED — see Muse.mediaType's own doc comment
+  // (prisma/schema.prisma) for why an embed has no file/duration of ours.
+  videoUrl: string | null;
   videoThumbnailUrl: string | null;
-  videoDurationSeconds: number;
+  videoDurationSeconds: number | null;
+  embedProvider: EmbedProvider | null;
+  embedId: string | null;
   audioUrl: string | null;
   createdAt: Date;
   likeCount: number;
@@ -314,7 +320,7 @@ export function MuseFeed({
         </div>
       )}
 
-      {shareMuse && (
+      {shareMuse && shareMuse.mediaType === "VIDEO" && shareMuse.videoUrl && shareMuse.videoDurationSeconds != null && (
         <MuseShareModal
           museId={shareMuse.id}
           caption={shareMuse.caption}
@@ -492,38 +498,59 @@ function MuseCard({
     if (next) setReactions(next);
   }
 
+  const isEmbed = item.mediaType === "EMBED";
+
   return (
     <section
       ref={sectionRef}
       style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
       className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black"
       onClick={() => {
+        // An embed's play/pause lives inside the source platform's own
+        // iframe player, entirely outside this app's control (no shared JS
+        // control API across Instagram/TikTok/etc.) — this tap-to-pause
+        // gesture only makes sense for a real <video> this app drives.
+        if (isEmbed) return;
         // While sound is blocked the first tap is the "turn sound on" gesture (the feed handles it) — it shouldn't also pause.
         if (soundBlocked || consumeUnblockTap()) return;
         setPaused((p) => !p);
       }}
     >
-      <video
-        ref={videoRef}
-        src={item.videoUrl}
-        poster={item.videoThumbnailUrl ?? undefined}
-        // Always muted when a separate audioUrl is replacing the video's
-        // own sound (playing both would double up), otherwise follows the
-        // shared mute toggle — same source either way, never both at once.
-        muted={Boolean(item.audioUrl) || muted || soundBlocked}
-        loop
-        playsInline
-        className="absolute inset-0 h-full w-full object-contain"
-      />
+      {isEmbed && item.embedProvider && item.embedId ? (
+        // Instagram/TikTok/etc.'s own player, complete with their own
+        // branding/controls — this app doesn't control its playback (see
+        // Muse.mediaType's own doc comment on the trust boundary this
+        // implies). allow="autoplay" is a best-effort ask, not a guarantee.
+        <iframe
+          src={embedSrc({ provider: item.embedProvider, id: item.embedId })}
+          className="absolute inset-0 h-full w-full border-0"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          title="Embedded video"
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          src={item.videoUrl ?? undefined}
+          poster={item.videoThumbnailUrl ?? undefined}
+          // Always muted when a separate audioUrl is replacing the video's
+          // own sound (playing both would double up), otherwise follows the
+          // shared mute toggle — same source either way, never both at once.
+          muted={Boolean(item.audioUrl) || muted || soundBlocked}
+          loop
+          playsInline
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      )}
       {item.audioUrl && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
 
-      {soundBlocked && (
+      {!isEmbed && soundBlocked && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
           <p className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">Tap for sound</p>
         </div>
       )}
 
-      {paused && (
+      {!isEmbed && paused && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-full bg-black/40 p-4 text-white">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
@@ -636,17 +663,23 @@ function MuseCard({
                 </span>
                 <span className="text-[11px]">{item.repostCount}</span>
               </button>
-              <button
-                type="button"
-                onClick={onShare}
-                aria-label="Share"
-                className="flex flex-col items-center gap-0.5 text-white"
-              >
-                <span className="rounded-full bg-black/40 p-2">
-                  <Share2 size={20} />
-                </span>
-                <span className="text-[11px]">{item.shareCount}</span>
-              </button>
+              {/* "Share via device" brands/downloads the actual video file
+                  (see resolveBrandedVideoUrl) — nothing to brand or
+                  download for an EMBED item, which has no file of ours at
+                  all. Reshare-to-Home/Story above already cover it. */}
+              {!isEmbed && (
+                <button
+                  type="button"
+                  onClick={onShare}
+                  aria-label="Share"
+                  className="flex flex-col items-center gap-0.5 text-white"
+                >
+                  <span className="rounded-full bg-black/40 p-2">
+                    <Share2 size={20} />
+                  </span>
+                  <span className="text-[11px]">{item.shareCount}</span>
+                </button>
+              )}
             </div>
           </div>
 

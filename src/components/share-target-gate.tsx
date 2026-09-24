@@ -12,6 +12,16 @@ import { createStory } from "@/app/actions/stories";
 import { createMuse } from "@/app/actions/muse";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { UserAvatar } from "@/components/user-link";
+import { parseVideoEmbedUrl } from "@/lib/video-embed";
+
+const EMBED_PROVIDER_LABEL: Record<string, string> = {
+  YOUTUBE: "YouTube",
+  VIMEO: "Vimeo",
+  TIKTOK: "TikTok",
+  DAILYMOTION: "Dailymotion",
+  INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
+};
 
 // Duplicated from storage.ts's server-only constants (same pattern as
 // share-modal.tsx/muse-share-modal.tsx's own duplicates of these) — a Story
@@ -40,6 +50,18 @@ function stripLinks(text: string | null): string {
     .replace(/\bhttps?:\/\/\S+/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+/**
+ * The inverse of stripLinks() — pulls out just the first http(s) URL from
+ * shared text, e.g. "Check this out! https://instagram.com/reel/xyz" → the
+ * URL alone. Needed because parseVideoEmbedUrl (video-embed.ts) expects a
+ * bare URL, not caption text with one embedded in it — some source apps
+ * send exactly that combined string as EXTRA_TEXT.
+ */
+function extractFirstUrl(text: string | null): string | null {
+  if (!text) return null;
+  return text.match(/\bhttps?:\/\/\S+/i)?.[0] ?? null;
 }
 
 type UploadedMedia =
@@ -119,9 +141,16 @@ function probeVideoDuration(file: File): Promise<number | null> {
  * Story/Muse/Feed captions all run through stripLinks() first — see its own
  * doc comment for why a link tagging along with real media shouldn't end up
  * in a public caption. A share that never actually carried a photo/video
- * (the source app only sent a link) can't produce one at all — Feed/Story/
- * Muse are hidden and a notice explains why, but "Send to a friend" stays
- * available since forwarding a link privately is still useful.
+ * (the source app only sent a link — confirmed live, 2026-09-25: Instagram/
+ * TikTok/etc. genuinely never attach a file to their own "More"/system-share
+ * option for any third-party app, not something this app can read around)
+ * still gets real Feed/Story/Muse options whenever that link resolves to a
+ * known video-embed provider (parseVideoEmbedUrl, same recognizer the Feed
+ * composer's own EMBED post type already uses) — the actual YouTube/Vimeo/
+ * TikTok/Instagram/Facebook player shows up in the post, not a bare link,
+ * same "moderated by the source, not us" trust boundary createPost's EMBED
+ * branch already established. Only a link to something NOT a recognized
+ * provider falls back to "Send to a friend" only.
  */
 export function ShareTargetGate({ userId }: { userId: string }) {
   const router = useRouter();
@@ -201,12 +230,23 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
   if (!share) return null;
   const hasMedia = share.images.length > 0 || Boolean(share.video);
+  // Only attempted when there's no real file — a share that already has one
+  // never needs this (and share.text alongside real media is usually a
+  // caption/link the source app tacked on, not itself the point). Cheap and
+  // pure, recomputed on every render rather than memoized.
+  const embedUrl = !hasMedia ? extractFirstUrl(share.text) : null;
+  const embed = embedUrl ? parseVideoEmbedUrl(embedUrl) : null;
+  const hasPostableContent = hasMedia || Boolean(embed);
   // A duration probe failure fails open (same reasoning as story-upload-
-  // modal.tsx's own probe) — an unknown duration doesn't block sharing.
+  // modal.tsx's own probe) — an unknown duration doesn't block sharing. An
+  // embed has no duration of ours to check at all (see Story/Muse's own
+  // mediaType doc comments) — same no-cap treatment the server side gives it.
   const canShareToStory =
-    hasMedia && (!share.video || videoDurationSeconds === null || videoDurationSeconds <= MAX_STORY_VIDEO_SECONDS);
+    hasPostableContent &&
+    (Boolean(embed) || !share.video || videoDurationSeconds === null || videoDurationSeconds <= MAX_STORY_VIDEO_SECONDS);
   const canShareToMuse =
-    Boolean(share.video) && videoDurationSeconds !== null && videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS;
+    Boolean(embed) ||
+    (Boolean(share.video) && videoDurationSeconds !== null && videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS);
 
   function close() {
     setShare(null);
@@ -264,20 +304,33 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   async function publishToFeed() {
     setStatus("busy");
     setErrorText(null);
-    const uploaded = await ensureUploaded();
-    if (!uploaded.ok) {
-      setStatus("error");
-      setErrorText(uploadErrorMessage(uploaded.error));
-      return;
-    }
     const fd = new FormData();
-    fd.set("content", stripLinks(share!.text));
-    fd.set("mediaType", uploaded.media.mediaType);
-    fd.set("mediaUrls", JSON.stringify(uploaded.media.mediaUrls));
-    if (uploaded.media.mediaType === "VIDEO") {
-      fd.set("videoUrl", uploaded.media.videoUrl);
-      if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
-      if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+    if (embed) {
+      // No upload at all — the actual bytes stay on the source platform's
+      // own servers (see this component's own doc comment on the trust
+      // boundary this implies). createPost's EMBED branch re-parses the
+      // link itself server-side; this raw text is never trusted as-is.
+      // stripLinks() still runs on the caption in case the source app sent
+      // a caption alongside the link (e.g. "Check this out! <link>") — only
+      // the link itself feeds embedUrl, same split as the real-media path.
+      fd.set("content", stripLinks(share!.text));
+      fd.set("mediaType", "EMBED");
+      fd.set("embedUrl", embedUrl!);
+    } else {
+      const uploaded = await ensureUploaded();
+      if (!uploaded.ok) {
+        setStatus("error");
+        setErrorText(uploadErrorMessage(uploaded.error));
+        return;
+      }
+      fd.set("content", stripLinks(share!.text));
+      fd.set("mediaType", uploaded.media.mediaType);
+      fd.set("mediaUrls", JSON.stringify(uploaded.media.mediaUrls));
+      if (uploaded.media.mediaType === "VIDEO") {
+        fd.set("videoUrl", uploaded.media.videoUrl);
+        if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
+        if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+      }
     }
     const result = await createPost(fd);
     if (result.error === "device_verification_required") {
@@ -336,22 +389,27 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   async function addToStory() {
     setStatus("busy");
     setErrorText(null);
-    const uploaded = await ensureUploaded();
-    if (!uploaded.ok) {
-      setStatus("error");
-      setErrorText(uploadErrorMessage(uploaded.error));
-      return;
-    }
-    if (uploaded.media.mediaType === "NONE") {
-      setStatus("error");
-      setErrorText("Stories need a photo or video.");
-      return;
-    }
     const fd = new FormData();
-    fd.set("mediaType", uploaded.media.mediaType);
-    fd.set("mediaUrl", uploaded.media.mediaType === "VIDEO" ? uploaded.media.videoUrl : uploaded.media.mediaUrls[0]);
-    if (uploaded.media.mediaType === "VIDEO" && uploaded.media.videoThumbnailUrl) {
-      fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
+    if (embed) {
+      fd.set("mediaType", "EMBED");
+      fd.set("embedUrl", embedUrl!);
+    } else {
+      const uploaded = await ensureUploaded();
+      if (!uploaded.ok) {
+        setStatus("error");
+        setErrorText(uploadErrorMessage(uploaded.error));
+        return;
+      }
+      if (uploaded.media.mediaType === "NONE") {
+        setStatus("error");
+        setErrorText("Stories need a photo or video.");
+        return;
+      }
+      fd.set("mediaType", uploaded.media.mediaType);
+      fd.set("mediaUrl", uploaded.media.mediaType === "VIDEO" ? uploaded.media.videoUrl : uploaded.media.mediaUrls[0]);
+      if (uploaded.media.mediaType === "VIDEO" && uploaded.media.videoThumbnailUrl) {
+        fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
+      }
     }
     // storySchema caps captions at 200 chars (unlike post/message content,
     // which allow far more) — truncate rather than let a longer shared
@@ -375,21 +433,26 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   async function postToMuse() {
     setStatus("busy");
     setErrorText(null);
-    const uploaded = await ensureUploaded();
-    if (!uploaded.ok) {
-      setStatus("error");
-      setErrorText(uploadErrorMessage(uploaded.error));
-      return;
-    }
-    if (uploaded.media.mediaType !== "VIDEO") {
-      setStatus("error");
-      setErrorText("Muse needs a video.");
-      return;
-    }
     const fd = new FormData();
-    fd.set("videoUrl", uploaded.media.videoUrl);
-    if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
-    if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+    if (embed) {
+      fd.set("mediaType", "EMBED");
+      fd.set("embedUrl", embedUrl!);
+    } else {
+      const uploaded = await ensureUploaded();
+      if (!uploaded.ok) {
+        setStatus("error");
+        setErrorText(uploadErrorMessage(uploaded.error));
+        return;
+      }
+      if (uploaded.media.mediaType !== "VIDEO") {
+        setStatus("error");
+        setErrorText("Muse needs a video.");
+        return;
+      }
+      fd.set("videoUrl", uploaded.media.videoUrl);
+      if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
+      if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+    }
     const caption = stripLinks(share!.text);
     if (caption) fd.set("caption", caption);
     const result = await createMuse(fd);
@@ -405,7 +468,11 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   }
 
   const busy = status === "busy";
-  const linkOnly = !hasMedia && Boolean(share.text);
+  // Only truly "link only, nothing this app can do with it" when there's no
+  // real media AND the link isn't a recognized embeddable provider either —
+  // an embeddable link still gets real Feed/Story/Muse options (see embed
+  // above), so it doesn't hit this notice at all.
+  const linkOnly = !hasMedia && !embed && Boolean(share.text);
 
   return (
     <div
@@ -436,6 +503,15 @@ export function ShareTargetGate({ userId }: { userId: string }) {
             // eslint-disable-next-line @next/next/no-img-element -- a transient blob: URL, not a real asset next/image can optimize
             <img src={previewUrl} alt="" className="mt-3 max-h-48 w-full rounded-lg object-contain" />
           ))}
+        {/* No File object exists for an embed (see this component's own doc
+            comment) — nothing to build a previewUrl from — so this is its
+            own notice instead of previewUrl's own <video>/<img> branch. */}
+        {embed && (
+          <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
+            {EMBED_PROVIDER_LABEL[embed.provider] ?? "Video"} link detected — the actual player
+            will show up wherever you post this, not just a link.
+          </p>
+        )}
 
         {linkOnly && (
           <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
@@ -480,7 +556,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
                 Post to Muse
               </button>
             )}
-            {hasMedia && (
+            {hasPostableContent && (
               <button
                 type="button"
                 onClick={publishToFeed}

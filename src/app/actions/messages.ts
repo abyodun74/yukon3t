@@ -36,7 +36,15 @@ const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as c
 // (Message.storyId is onDelete: SetNull, so it just quietly goes back to
 // null afterward and the message renders as a normal text message).
 const STORY_SELECT = {
-  select: { id: true, mediaType: true, mediaUrl: true, mediaThumbnailUrl: true, caption: true },
+  select: {
+    id: true,
+    mediaType: true,
+    mediaUrl: true,
+    mediaThumbnailUrl: true,
+    embedProvider: true,
+    embedId: true,
+    caption: true,
+  },
 } as const;
 // Enough to render a quoted preview above the reply bubble — content is
 // already blanked by deleteMessageForEveryone if the original was deleted,
@@ -1030,6 +1038,15 @@ export async function shareMuseToConversation(museId: string, conversationId: st
 
   const muse = await prisma.muse.findUnique({ where: { id: museId } });
   if (!muse || muse.moderationStatus !== "PUBLISHED") {
+    return { error: "not_found" as const };
+  }
+  // Chat messages have no EMBED media type of their own (see
+  // MessageMediaType) — a message's mediaUrl always has to be a real file
+  // this app hosts, which an EMBED Muse doesn't have. Not wired up rather
+  // than half-supporting it (same reasoning this codebase already applies
+  // to audio in share-receiver.ts) — revisit if messages ever get their own
+  // embed support.
+  if (muse.mediaType === "EMBED") {
     return { error: "not_found" as const };
   }
   if (await isBlockedEitherWay(user.id, muse.authorId)) {

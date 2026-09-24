@@ -123,6 +123,8 @@ export default async function PublicProfilePage({
     mediaType: s.mediaType,
     mediaUrl: s.mediaUrl,
     mediaThumbnailUrl: s.mediaThumbnailUrl,
+    embedProvider: s.embedProvider,
+    embedId: s.embedId,
     caption: s.caption,
     createdAt: s.createdAt,
     viewCount: s._count.views,

@@ -310,12 +310,15 @@ async function claimCommentCandidates(claimable: object) {
   return claimed;
 }
 
-// Same claiming logic as claimPostCandidates, against Muse instead of Post —
-// no mediaType filter needed (every Muse is always a video, same reasoning
-// as Comment's own claimCommentCandidates).
+// Same claiming logic as claimPostCandidates, against Muse instead of Post.
+// mediaType: "VIDEO" excludes EMBED rows (see Muse's own mediaType doc
+// comment) — they have no video body of ours to review at all, and their
+// null videoDurationSeconds would never satisfy the gt filter below anyway
+// (defensive, not load-bearing on its own).
 async function claimMuseCandidates(claimable: object) {
   const candidates = await prisma.muse.findMany({
     where: {
+      mediaType: "VIDEO",
       moderationStatus: "FLAGGED",
       videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
       ...claimable,

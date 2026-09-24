@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { linkifyText } from "@/lib/linkify";
 
 const DEFAULT_MAX_LENGTH = 400;
 
@@ -29,7 +30,7 @@ export function TruncatedText({
   const [expanded, setExpanded] = useState(false);
 
   if (text.length <= maxLength) {
-    return <p className={cn("break-words", className)}>{text}</p>;
+    return <p className={cn("break-words", className)}>{linkifyText(text)}</p>;
   }
 
   const cutAt = text.lastIndexOf(" ", maxLength);
@@ -37,7 +38,7 @@ export function TruncatedText({
 
   return (
     <p className={cn("break-words", className)}>
-      {expanded ? text : `${truncated}… `}
+      {linkifyText(expanded ? text : `${truncated}… `)}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}

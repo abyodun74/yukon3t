@@ -291,18 +291,24 @@ const sections: Section[] = [
           <>
             Yes — from that app&apos;s own share sheet, choose YuKon3t as the
             target. A small dialog opens right away with a preview and lets
-            you add it to your Story, post it to Muse (video only), post it
-            to your Home feed, or send it to a friend — pick one and it
-            publishes immediately (after passing the same automatic content
-            check every upload goes through), no extra taps or navigating to
-            the composer separately. This only works when the other app
-            actually hands over the real photo or video file — some
-            apps&apos; share action only sends a link to their own post
-            instead (that
-            varies by app and by whose content it is, not something YuKon3t
-            controls); if that happens, YuKon3t tells you so rather than
-            posting a bare link, and you can still send that link to a
-            friend from the same dialog. Android only for now.
+            you add it to your Story, post it to Muse, post it to your Home
+            feed, or send it to a friend — pick one and it publishes
+            immediately (after passing the same automatic content check
+            every upload goes through), no extra taps or navigating to the
+            composer separately. This works best when the other app hands
+            over the real photo or video file — some apps&apos; share action
+            only sends a link to their own post instead (that&apos;s a
+            choice each app makes, not something YuKon3t controls; Instagram
+            and TikTok, among others, generally only do this for a handful
+            of their own partner apps). When that happens and the link is
+            from a recognized video platform (YouTube, Vimeo, TikTok,
+            Instagram, Facebook, Dailymotion), YuKon3t still offers Story,
+            Muse, and Feed — the actual video plays right there, the same
+            way pasting one of those links directly into the Feed composer
+            already works, just moderated by that platform rather than
+            YuKon3t itself. For any other link, YuKon3t tells you so and you
+            can still send it to a friend from the same dialog. Android only
+            for now.
           </>
         ),
       },

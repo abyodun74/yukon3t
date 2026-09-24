@@ -65,12 +65,14 @@ export async function findMuseVideoSources(limit: number, excludeUrls: string[])
   }
 
   const muses = await prisma.muse.findMany({
-    where: excluded.size ? { videoUrl: { notIn: [...excluded] } } : undefined,
+    // mediaType: "VIDEO" excludes EMBED rows — no videoUrl of ours to
+    // convert for those (see Muse.mediaType's own doc comment).
+    where: { mediaType: "VIDEO", ...(excluded.size ? { videoUrl: { notIn: [...excluded] } } : {}) },
     orderBy: { createdAt: "asc" },
     take: limit,
     select: { videoUrl: true },
   });
-  return [...new Set(muses.map((m) => m.videoUrl))];
+  return [...new Set(muses.map((m) => m.videoUrl!))];
 }
 
 /** Points every stored reference to `fromUrl` at `toUrl` (every table that keeps a video URL); returns rows changed. */

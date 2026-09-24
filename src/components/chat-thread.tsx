@@ -25,10 +25,12 @@ import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { getStory } from "@/app/actions/stories";
+import type { EmbedProvider } from "@/lib/video-embed";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
+import { linkifyText } from "@/lib/linkify";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { useSecretChat } from "@/lib/e2ee/use-secret-chat";
 import { SecretChatBar } from "@/components/secret-chat-bar";
@@ -94,9 +96,12 @@ type MessageData = {
   // been swept by the cron.
   story: {
     id: string;
-    mediaType: "IMAGE" | "VIDEO";
-    mediaUrl: string;
+    mediaType: "IMAGE" | "VIDEO" | "EMBED";
+    // Nullable only for EMBED — see StoryMediaType's own doc comment.
+    mediaUrl: string | null;
     mediaThumbnailUrl: string | null;
+    embedProvider: EmbedProvider | null;
+    embedId: string | null;
     caption: string | null;
   } | null;
   isForwardedStory: boolean;
@@ -612,7 +617,7 @@ function MessageBubble({
                     {(message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl) && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl!}
+                        src={(message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl) ?? undefined}
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -711,7 +716,7 @@ function MessageBubble({
                     bigEmoji && "text-3xl leading-none",
                   )}
                 >
-                  {message.content}
+                  {linkifyText(message.content)}
                 </p>
               )}
             </>

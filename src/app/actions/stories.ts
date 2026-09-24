@@ -13,6 +13,7 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { sendPushToUser } from "@/lib/push";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -57,9 +58,11 @@ export async function getConnectionsStories() {
       latestAt: Date;
       stories: {
         id: string;
-        mediaType: "IMAGE" | "VIDEO";
-        mediaUrl: string;
+        mediaType: "IMAGE" | "VIDEO" | "EMBED";
+        mediaUrl: string | null;
         mediaThumbnailUrl: string | null;
+        embedProvider: EmbedProvider | null;
+        embedId: string | null;
         caption: string | null;
         createdAt: Date;
         viewCount: number;
@@ -92,6 +95,8 @@ export async function getConnectionsStories() {
       mediaType: story.mediaType,
       mediaUrl: story.mediaUrl,
       mediaThumbnailUrl: story.mediaThumbnailUrl,
+      embedProvider: story.embedProvider,
+      embedId: story.embedId,
       caption: story.caption,
       createdAt: story.createdAt,
       viewCount: story._count.views,
@@ -113,16 +118,52 @@ export async function createStory(formData: FormData) {
 
   const parsed = storySchema.safeParse({
     mediaType: formData.get("mediaType"),
-    mediaUrl: formData.get("mediaUrl"),
+    mediaUrl: formData.get("mediaUrl") || undefined,
     mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
+    embedUrl: formData.get("embedUrl") || undefined,
     caption: formData.get("caption") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { mediaType, mediaUrl, mediaThumbnailUrl, caption } = parsed.data;
+  const { mediaType, mediaUrl, mediaThumbnailUrl, embedUrl, caption } = parsed.data;
 
-  const uploadedUrls = [mediaUrl, ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : [])];
+  // EMBED carries no upload of ours at all — a link another app shared
+  // (Instagram/TikTok/etc. only handing over a link, no real file; see
+  // ShareReceiverPlugin.java) resolved into the source platform's own
+  // player instead. Same "moderated by the source, not us" trust boundary
+  // createPost's own EMBED branch already uses for the embedded video
+  // itself — but unlike Post, Story has no moderationStatus/soft-flag
+  // state at all (every other branch below already just rejects outright
+  // on a moderateMedia failure), so a flagged caption rejects here too,
+  // consistently, rather than introducing a hidden-pending-review state
+  // this model was never built to represent.
+  if (mediaType === "EMBED") {
+    const embed = embedUrl ? parseVideoEmbedUrl(embedUrl) : null;
+    if (!embed) {
+      return { error: "invalid" as const };
+    }
+    const modResult = await moderateText(caption);
+    if (!modResult.allowed) {
+      return { error: "moderation" as const, categories: modResult.flaggedCategories };
+    }
+    const story = await prisma.story.create({
+      data: {
+        authorId: user.id,
+        mediaType: "EMBED",
+        embedProvider: embed.provider,
+        embedId: embed.id,
+        caption: caption || undefined,
+        expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+      },
+    });
+    await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId: story.id });
+    revalidatePath(`/u/${user.id}`);
+    revalidatePath("/home");
+    return { error: null };
+  }
+
+  const uploadedUrls = [mediaUrl!, ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : [])];
   async function cleanupUploads() {
     await Promise.all(
       uploadedUrls.map((url) => {
@@ -132,7 +173,7 @@ export async function createStory(formData: FormData) {
     );
   }
 
-  const key = keyFromPublicUrl(mediaUrl);
+  const key = keyFromPublicUrl(mediaUrl!);
   const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["story-image"] : MEDIA_LIMITS["story-video"];
   const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: user.id }));
   if (!sizeOk) {
@@ -142,7 +183,7 @@ export async function createStory(formData: FormData) {
 
   const modResult = await moderateMedia({
     text: caption,
-    imageUrls: mediaType === "IMAGE" ? [mediaUrl] : [],
+    imageUrls: mediaType === "IMAGE" ? [mediaUrl!] : [],
     thumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
   });
   if (!modResult.allowed) {
@@ -493,6 +534,8 @@ export async function getStory(storyId: string) {
       mediaType: story.mediaType,
       mediaUrl: story.mediaUrl,
       mediaThumbnailUrl: story.mediaThumbnailUrl,
+      embedProvider: story.embedProvider,
+      embedId: story.embedId,
       caption: story.caption,
       createdAt: story.createdAt,
       viewCount: story._count.views,

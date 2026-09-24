@@ -16,6 +16,7 @@ import {
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import type { Prisma } from "@/generated/prisma/client";
+import type { EmbedProvider } from "@/lib/video-embed";
 
 /** Shared by every share destination: bumps shareCount, records the Share row, and notifies the original author. */
 async function applyShareEffect(
@@ -187,20 +188,18 @@ export async function shareToStory(postId: string) {
     return { error: "not_shareable" as const };
   }
 
-  let mediaType: "IMAGE" | "VIDEO";
-  let mediaUrl: string;
-  let mediaThumbnailUrl: string | undefined;
+  let storyData: { mediaType: "IMAGE" | "VIDEO" | "EMBED"; mediaUrl?: string; mediaThumbnailUrl?: string; embedProvider?: EmbedProvider; embedId?: string };
   if (root.mediaType === "IMAGE" && root.mediaUrls[0]) {
-    mediaType = "IMAGE";
-    mediaUrl = root.mediaUrls[0];
+    storyData = { mediaType: "IMAGE", mediaUrl: root.mediaUrls[0] };
   } else if (root.mediaType === "VIDEO" && root.videoUrl) {
-    mediaType = "VIDEO";
-    mediaUrl = root.videoUrl;
-    mediaThumbnailUrl = root.videoThumbnailUrl ?? undefined;
+    storyData = { mediaType: "VIDEO", mediaUrl: root.videoUrl, mediaThumbnailUrl: root.videoThumbnailUrl ?? undefined };
+  } else if (root.mediaType === "EMBED" && root.embedProvider && root.embedId) {
+    // Same "moderated by the source, not us" trust boundary the post's own
+    // EMBED already carries — just copying the provider+id across, same as
+    // IMAGE/VIDEO above copy a URL.
+    storyData = { mediaType: "EMBED", embedProvider: root.embedProvider, embedId: root.embedId };
   } else {
-    // Stories are always a photo/video canvas (StoryMediaType has no NONE/
-    // LINK/EMBED/GIF) — a text-only, link, embedded-video, or GIF post has
-    // no media that fits it.
+    // A text-only, link, or GIF post has no media that fits a Story canvas.
     return { error: "unsupported_media" as const };
   }
 
@@ -208,9 +207,7 @@ export async function shareToStory(postId: string) {
     const story = await tx.story.create({
       data: {
         authorId: user.id,
-        mediaType,
-        mediaUrl,
-        mediaThumbnailUrl,
+        ...storyData,
         // Same 200-char cap storySchema (validations.ts) enforces for a
         // normal story caption — this isn't run through that schema itself
         // since mediaUrl here is a known-good copy, not raw user input.
@@ -235,9 +232,10 @@ export async function shareToStory(postId: string) {
  * Shares a video Post's video onto the public /muse feed, as a new Muse
  * crediting the original (sharedPostId) — same "any viewer can reshare,
  * crediting the source" shape as shareToStory above, just targeting Muse
- * instead of Story. Only VIDEO posts qualify (Muse has no image/text
- * variant at all), and only up to MAX_MUSE_VIDEO_DURATION_SECONDS — a Post
- * video can run up to an hour, far past what Muse allows.
+ * instead of Story. Only VIDEO and EMBED posts qualify (Muse has no image/
+ * text variant at all) — a VIDEO is capped at MAX_MUSE_VIDEO_DURATION_SECONDS
+ * (a Post video can run up to an hour, far past what Muse allows); an EMBED
+ * has no such cap, same as Muse's own EMBED creation path.
  */
 export async function shareToMuse(postId: string) {
   const user = await requireVerifiedUser();
@@ -275,10 +273,11 @@ export async function shareToMuse(postId: string) {
     return { error: "not_shareable" as const };
   }
 
-  if (root.mediaType !== "VIDEO" || !root.videoUrl || !root.videoDurationSeconds) {
+  const isEmbed = root.mediaType === "EMBED" && root.embedProvider && root.embedId;
+  if (!isEmbed && (root.mediaType !== "VIDEO" || !root.videoUrl || !root.videoDurationSeconds)) {
     return { error: "unsupported_media" as const };
   }
-  if (root.videoDurationSeconds > MAX_MUSE_VIDEO_DURATION_SECONDS) {
+  if (!isEmbed && root.videoDurationSeconds! > MAX_MUSE_VIDEO_DURATION_SECONDS) {
     return { error: "too_long" as const };
   }
 
@@ -287,18 +286,26 @@ export async function shareToMuse(postId: string) {
   // a freshly-uploaded one. Every shared Muse gets its own independent
   // moderation pass here (videoModeratedAt/moderationStatus start fresh,
   // not inherited from the source post) — defense in depth, and cheap since
-  // it's the same pipeline that already ran once.
-  const videoNeedsManualReview = root.videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+  // it's the same pipeline that already ran once. None of this applies to
+  // an EMBED share — no video body of ours exists to review (see
+  // Muse.mediaType's own doc comment), same "moderated by the source, not
+  // us" trust boundary the post's own EMBED already carries.
+  const videoNeedsManualReview = !isEmbed && root.videoDurationSeconds! > HIVE_VIDEO_MODERATION_MAX_SECONDS;
   const streamUid =
-    videoNeedsManualReview && isStreamConfigured() ? await createStreamCopy(root.videoUrl) : null;
+    videoNeedsManualReview && isStreamConfigured() ? await createStreamCopy(root.videoUrl!) : null;
 
   const { museId, shareCount } = await prisma.$transaction(async (tx) => {
     const muse = await tx.muse.create({
       data: {
         authorId: user.id,
-        videoUrl: root.videoUrl!,
-        videoThumbnailUrl: root.videoThumbnailUrl,
-        videoDurationSeconds: root.videoDurationSeconds!,
+        ...(isEmbed
+          ? { mediaType: "EMBED" as const, embedProvider: root.embedProvider!, embedId: root.embedId! }
+          : {
+              mediaType: "VIDEO" as const,
+              videoUrl: root.videoUrl!,
+              videoThumbnailUrl: root.videoThumbnailUrl,
+              videoDurationSeconds: root.videoDurationSeconds!,
+            }),
         // Same 200-char cap museSchema (validations.ts) enforces for a
         // normal caption — this isn't run through that schema itself since
         // videoUrl here is a known-good copy, not raw user input.

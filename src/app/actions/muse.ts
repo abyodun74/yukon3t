@@ -25,6 +25,7 @@ import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import type { ReactionSummary } from "@/lib/reactions";
+import { parseVideoEmbedUrl } from "@/lib/video-embed";
 
 /**
  * Creates a new short-form public Muse video. Modeled closely on createStory
@@ -48,8 +49,10 @@ export async function createMuse(formData: FormData) {
 
   const parsed = museSchema.safeParse({
     caption: formData.get("caption") || undefined,
-    videoUrl: formData.get("videoUrl"),
+    mediaType: formData.get("mediaType") || undefined,
+    videoUrl: formData.get("videoUrl") || undefined,
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
+    embedUrl: formData.get("embedUrl") || undefined,
     videoDurationSeconds: formData.get("videoDurationSeconds"),
     audioUrl: formData.get("audioUrl") || undefined,
   });
@@ -58,7 +61,47 @@ export async function createMuse(formData: FormData) {
   }
   // museSchema's own .max(MAX_MUSE_VIDEO_DURATION_SECONDS) already rejects
   // (as "invalid") anything longer before this point is reached.
-  const { caption, videoUrl, videoThumbnailUrl, videoDurationSeconds, audioUrl } = parsed.data;
+  const { caption, mediaType, videoUrl, videoThumbnailUrl, embedUrl, videoDurationSeconds, audioUrl } = parsed.data;
+
+  // EMBED carries no upload of ours at all — see Muse.mediaType's own doc
+  // comment for the full "moderated by the source, not us" reasoning
+  // (same trust boundary createPost's own EMBED branch already uses). Only
+  // the caption gets text-moderated; no size check, no Hive scan, no
+  // Cloudflare Stream copy, no duration cap — there's no video body of
+  // ours to run any of that against.
+  if (mediaType === "EMBED") {
+    const embed = embedUrl ? parseVideoEmbedUrl(embedUrl) : null;
+    if (!embed) {
+      return { error: "invalid" as const };
+    }
+    const modResult = await moderateText(caption);
+    if (!modResult.allowed) {
+      return { error: "moderation" as const, categories: modResult.flaggedCategories };
+    }
+    let muse;
+    try {
+      muse = await prisma.muse.create({
+        data: {
+          authorId: user.id,
+          caption: caption || undefined,
+          mediaType: "EMBED",
+          embedProvider: embed.provider,
+          embedId: embed.id,
+          moderationStatus: "PUBLISHED",
+        },
+      });
+    } catch (err) {
+      console.error("[createMuse] failed to create embed muse row", err);
+      return { error: "server_error" as const };
+    }
+    await notifySubscribers(user.id, "SUBSCRIPTION_MUSE", { museId: muse.id });
+    revalidatePath("/muse");
+    revalidatePath(`/u/${user.id}`);
+    return { error: null, museId: muse.id };
+  }
+  if (!videoUrl || !videoDurationSeconds) {
+    return { error: "invalid" as const };
+  }
 
   const uploadedUrls = [
     videoUrl,
@@ -139,6 +182,7 @@ export async function createMuse(formData: FormData) {
       data: {
         authorId: user.id,
         caption: caption || undefined,
+        mediaType: "VIDEO",
         videoUrl,
         videoThumbnailUrl,
         videoDurationSeconds,
@@ -223,9 +267,12 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
     items: items.map((m) => ({
       id: m.id,
       caption: m.caption,
+      mediaType: m.mediaType,
       videoUrl: m.videoUrl,
       videoThumbnailUrl: m.videoThumbnailUrl,
       videoDurationSeconds: m.videoDurationSeconds,
+      embedProvider: m.embedProvider,
+      embedId: m.embedId,
       audioUrl: m.audioUrl,
       createdAt: m.createdAt,
       likeCount: m.likeCount,
@@ -273,9 +320,12 @@ export async function getMuseById(id: string) {
     item: {
       id: m.id,
       caption: m.caption,
+      mediaType: m.mediaType,
       videoUrl: m.videoUrl,
       videoThumbnailUrl: m.videoThumbnailUrl,
       videoDurationSeconds: m.videoDurationSeconds,
+      embedProvider: m.embedProvider,
+      embedId: m.embedId,
       audioUrl: m.audioUrl,
       createdAt: m.createdAt,
       likeCount: m.likeCount,
@@ -575,20 +625,37 @@ export async function toggleMuseRepost(museId: string) {
   let repostCount: number;
   try {
     ({ postId, repostCount } = await prisma.$transaction(async (tx) => {
-      // Already moderated when the Muse was published, so the copy skips a second pass (videoModeratedAt).
-      const post = await tx.post.create({
-        data: {
-          authorId: user.id,
-          content: reshareText(muse.author, muse.caption),
-          mediaType: "VIDEO",
-          videoUrl: muse.videoUrl,
-          videoThumbnailUrl: muse.videoThumbnailUrl,
-          videoDurationSeconds: muse.videoDurationSeconds,
-          visibility: "PUBLIC",
-          moderationStatus: "PUBLISHED",
-          videoModeratedAt: new Date(),
-        },
-      });
+      // Already moderated when the Muse was published, so the copy skips a
+      // second pass (videoModeratedAt) — except an EMBED Muse, which was
+      // never ours to Hive-scan in the first place (see mediaType's own doc
+      // comment on the Muse model) and reposts as its own EMBED post instead
+      // of a VIDEO one, same provider/id, no videoModeratedAt to set.
+      const post =
+        muse.mediaType === "EMBED"
+          ? await tx.post.create({
+              data: {
+                authorId: user.id,
+                content: reshareText(muse.author, muse.caption),
+                mediaType: "EMBED",
+                embedProvider: muse.embedProvider,
+                embedId: muse.embedId,
+                visibility: "PUBLIC",
+                moderationStatus: "PUBLISHED",
+              },
+            })
+          : await tx.post.create({
+              data: {
+                authorId: user.id,
+                content: reshareText(muse.author, muse.caption),
+                mediaType: "VIDEO",
+                videoUrl: muse.videoUrl,
+                videoThumbnailUrl: muse.videoThumbnailUrl,
+                videoDurationSeconds: muse.videoDurationSeconds,
+                visibility: "PUBLIC",
+                moderationStatus: "PUBLISHED",
+                videoModeratedAt: new Date(),
+              },
+            });
       await tx.museRepost.create({ data: { userId: user.id, museId, postId: post.id } });
       const updated = await tx.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } });
       return { postId: post.id, repostCount: updated.repostCount };
@@ -640,21 +707,37 @@ export async function shareMuseToStory(museId: string) {
   if (await isBlockedEitherWay(user.id, muse.authorId)) {
     return { error: "not_found" as const };
   }
-  if (muse.videoDurationSeconds > MAX_STORY_VIDEO_SECONDS) {
+  // An EMBED Muse has no video file of ours with a known duration to check
+  // against (see mediaType's own doc comment on the Muse model) — same
+  // "no cap, moderated by the source" treatment Post's own EMBED type
+  // already gets, so this check is skipped entirely for one.
+  if (muse.mediaType !== "EMBED" && (muse.videoDurationSeconds ?? 0) > MAX_STORY_VIDEO_SECONDS) {
     return { error: "too_long" as const };
   }
 
   const { storyId, shareCount } = await prisma.$transaction(async (tx) => {
-    const story = await tx.story.create({
-      data: {
-        authorId: user.id,
-        mediaType: "VIDEO",
-        mediaUrl: muse.videoUrl,
-        mediaThumbnailUrl: muse.videoThumbnailUrl,
-        caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
-        expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
-      },
-    });
+    const story =
+      muse.mediaType === "EMBED"
+        ? await tx.story.create({
+            data: {
+              authorId: user.id,
+              mediaType: "EMBED",
+              embedProvider: muse.embedProvider,
+              embedId: muse.embedId,
+              caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
+              expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+            },
+          })
+        : await tx.story.create({
+            data: {
+              authorId: user.id,
+              mediaType: "VIDEO",
+              mediaUrl: muse.videoUrl,
+              mediaThumbnailUrl: muse.videoThumbnailUrl,
+              caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
+              expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+            },
+          });
     await tx.museShare.create({ data: { userId: user.id, museId } });
     const updated = await tx.muse.update({ where: { id: museId }, data: { shareCount: { increment: 1 } } });
     return { storyId: story.id, shareCount: updated.shareCount };
