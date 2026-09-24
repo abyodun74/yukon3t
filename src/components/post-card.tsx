@@ -12,6 +12,7 @@ import { toggleRsvp } from "@/app/actions/rsvp";
 import { repost } from "@/app/actions/reposts";
 import { getPostComments } from "@/app/actions/comments";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
+import { usePinchZoom } from "@/lib/use-pinch-zoom";
 import { isEmojiOnly } from "@/lib/emoji";
 import { PostOptionsMenu } from "@/components/post-options-menu";
 import { TrustBadge } from "@/components/trust-badge";
@@ -203,6 +204,71 @@ function EventBlock({
  * scroll position (onScroll), not clicks, so they stay correct if the
  * viewer swipes past them directly.
  */
+// Smaller ceiling than the full Lightbox (8x) — this is a quick in-place
+// preview layered on a carousel photo that still has to double as a tap
+// target for navigating to that photo's own post, not the primary zoom
+// surface (opening the Lightbox from a single-image post still gets the
+// full zoom range).
+const ALBUM_PHOTO_MAX_SCALE = 4;
+const ALBUM_PHOTO_DOUBLE_TAP_SCALE = 2.5;
+
+/**
+ * Wraps one AlbumCarousel photo with the same pinch/pan/double-tap gesture
+ * ZoomableImage's Lightbox uses (usePinchZoom), without disturbing the
+ * carousel's own native horizontal scroll-snap swipe-between-photos or the
+ * surrounding <Link>'s tap-to-open-this-photo's-own-post behavior — pinching
+ * zooms this photo in place; a plain tap (not zoomed, no pinch/pan just
+ * happened) still navigates exactly as before.
+ *
+ * touch-action flips between "pan-x" (not zoomed: let the browser's native
+ * scroll-snap handle single-finger swipes between photos, same as an
+ * unwrapped <img> would) and "none" (zoomed: claim the gesture exclusively,
+ * so dragging around a zoomed-in photo doesn't also scroll the carousel to
+ * the next one) — a pinch itself is always available either way, since
+ * neither value claims two-finger input.
+ */
+function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
+  const { containerRef, imgRef, scale, translate, isGesturing, resetIfZoomed, wasZoomGesture, movedPastTapThreshold, bind } =
+    usePinchZoom({ maxScale: ALBUM_PHOTO_MAX_SCALE, doubleTapScale: ALBUM_PHOTO_DOUBLE_TAP_SCALE });
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full overflow-hidden"
+      style={{ touchAction: scale > 1 ? "none" : "pan-x" }}
+      onClick={(e) => {
+        // Suppress the parent <Link>'s navigation when this tap is actually
+        // the tail end of a pinch/pan, or a tap-to-reset while zoomed —
+        // neither should open this photo's own post page.
+        if (wasZoomGesture() || movedPastTapThreshold(e.clientX, e.clientY)) {
+          e.preventDefault();
+          e.stopPropagation();
+          resetIfZoomed();
+        }
+      }}
+      {...bind}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={(el) => {
+          imgRef.current = el;
+          markImageLoadedIfComplete(el);
+        }}
+        src={src}
+        alt={alt}
+        draggable={false}
+        loading="lazy"
+        className="img-fade-in max-h-96 w-full select-none rounded-lg bg-line/40 object-cover"
+        onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+        style={{
+          transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+          transition: isGesturing ? "none" : "transform 150ms ease-out",
+        }}
+      />
+    </div>
+  );
+}
+
 function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[]; alt: string }) {
   const [index, setIndex] = useState(0);
 
@@ -221,17 +287,12 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
       >
         {photos.map((photo) => (
           <Link key={photo.id} href={`/post/${photo.id}`} className="block w-full shrink-0 snap-center cursor-pointer">
-            {/* Plain <img>, not next/image: avoids routing user-uploaded
-                content through Next's bundled sharp (see SECURITY.md). */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.url}
-              alt={alt}
-              className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
-              loading="lazy"
-              ref={markImageLoadedIfComplete}
-              onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
-            />
+            {/* Not a plain <img> here — ZoomableAlbumPhoto layers pinch/pan
+                zoom on top while still avoiding next/image (see
+                SECURITY.md's reasoning against routing user-uploaded
+                content through Next's bundled sharp) for the underlying
+                <img> itself. */}
+            <ZoomableAlbumPhoto src={photo.url} alt={alt} />
           </Link>
         ))}
       </div>
