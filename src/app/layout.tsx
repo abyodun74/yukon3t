@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
@@ -25,21 +25,39 @@ import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
-const geistSans = Geist({
+// Self-hosted (next/font/local) instead of next/font/google — a Netlify
+// production build started failing outright (`next/font`'s Google fetch:
+// "TypeError: Cannot read properties of null (reading '1')" in
+// next-font-loader) on 2026-09-23, well after this app had built fine for
+// months, with no code change of ours involved: Google Fonts itself
+// resolved fine from elsewhere, so this looks like Netlify's own build
+// infrastructure having trouble reaching fonts.gstatic.com, not a real
+// content/config problem. next/font/google fetches font files over the
+// network at *build* time regardless of runtime caching, so any such
+// network hiccup — Netlify's, Google's, or anything in between — fails the
+// whole production build outright. Self-hosting removes that build-time
+// network dependency entirely; the files themselves (see
+// src/app/fonts/*.woff2, downloaded from the exact same Google Fonts URLs
+// this app was already using) are unchanged from what was being served
+// before, so nothing about the actual typography changes.
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.woff2",
+  weight: "100 900",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
+  weight: "100 900",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
 });
 
-const fraunces = Fraunces({
+const fraunces = localFont({
+  src: [
+    { path: "./fonts/Fraunces-Variable.woff2", weight: "500 700", style: "normal" },
+    { path: "./fonts/Fraunces-Italic-Variable.woff2", weight: "500 700", style: "italic" },
+  ],
   variable: "--font-fraunces",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
