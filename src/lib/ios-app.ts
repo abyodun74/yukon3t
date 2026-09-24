@@ -11,3 +11,18 @@ export function isLikelyIosAppUserAgent(userAgent: string | null | undefined): b
   if (!userAgent) return false;
   return /iPhone|iPad|iPod/.test(userAgent) && !/Safari\//.test(userAgent);
 }
+
+/**
+ * True for any iOS device — the native app's WKWebView, mobile Safari, or
+ * any other iOS browser (they all report an iPhone/iPad/iPod user agent
+ * regardless of rendering engine). Unlike isLikelyIosAppUserAgent above,
+ * this deliberately does NOT try to exclude Safari — used for content that
+ * should show anywhere on iOS (e.g. "Sign in with Apple"), not just inside
+ * the native app specifically. Purely UA-based and fully server-derivable —
+ * no client-side recheck needed the way HideInIosApp does for the
+ * native-vs-web distinction this function doesn't care about.
+ */
+export function isIosUserAgent(userAgent: string | null | undefined): boolean {
+  if (!userAgent) return false;
+  return /iPhone|iPad|iPod/.test(userAgent);
+}

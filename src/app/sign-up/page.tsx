@@ -11,8 +11,7 @@ import { VerifyMethodFields } from "@/components/verify-method-fields";
 import { MIN_AGE } from "@/lib/validations";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
-import { IosAppOnly } from "@/components/ios-app-only";
-import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
+import { isIosUserAgent } from "@/lib/ios-app";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
 const description =
@@ -85,15 +84,15 @@ export default async function SignUpPage({
         </p>
       )}
 
-      {isAppleSignInConfigured() && (
-        <IosAppOnly shownOnServer={isLikelyIosAppUserAgent(userAgent)}>
+      {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (
+        <>
           <AppleSignInButton showCaptchaError={error === "apple_captcha"} returnPath="/sign-up" />
           <div className="my-6 flex w-full items-center gap-3 text-xs text-foreground-soft">
             <div className="h-px flex-1 bg-line" />
             or create an account with a password
             <div className="h-px flex-1 bg-line" />
           </div>
-        </IosAppOnly>
+        </>
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
