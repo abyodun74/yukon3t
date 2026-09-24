@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { signIn } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
@@ -11,6 +12,8 @@ import { TurnstileWidget } from "@/components/turnstile-widget";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
+import { IosAppOnly } from "@/components/ios-app-only";
+import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 
 const title = "Sign In to YuKon3t";
 const description =
@@ -80,6 +83,7 @@ export default async function SignInPage({
 }) {
   const { error, reset } = await searchParams;
   const passwordError = passwordErrorMessage(error);
+  const userAgent = (await headers()).get("user-agent");
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
@@ -93,7 +97,9 @@ export default async function SignInPage({
       </Link>
 
       {isAppleSignInConfigured() && (
-        <AppleSignInButton showCaptchaError={error === "apple_captcha"} />
+        <IosAppOnly shownOnServer={isLikelyIosAppUserAgent(userAgent)}>
+          <AppleSignInButton showCaptchaError={error === "apple_captcha"} />
+        </IosAppOnly>
       )}
 
       <div className="mt-8 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">

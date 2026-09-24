@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { signUpWithPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
@@ -10,6 +11,8 @@ import { VerifyMethodFields } from "@/components/verify-method-fields";
 import { MIN_AGE } from "@/lib/validations";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
+import { IosAppOnly } from "@/components/ios-app-only";
+import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
 const description =
@@ -66,6 +69,7 @@ export default async function SignUpPage({
 }) {
   const { error, username, email, phone, method } = await searchParams;
   const message = errorMessage(error);
+  const userAgent = (await headers()).get("user-agent");
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
@@ -82,14 +86,14 @@ export default async function SignUpPage({
       )}
 
       {isAppleSignInConfigured() && (
-        <>
+        <IosAppOnly shownOnServer={isLikelyIosAppUserAgent(userAgent)}>
           <AppleSignInButton showCaptchaError={error === "apple_captcha"} returnPath="/sign-up" />
           <div className="my-6 flex w-full items-center gap-3 text-xs text-foreground-soft">
             <div className="h-px flex-1 bg-line" />
             or create an account with a password
             <div className="h-px flex-1 bg-line" />
           </div>
-        </>
+        </IosAppOnly>
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
