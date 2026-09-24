@@ -130,6 +130,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
     let startY = 0;
     let scroller: Element | null = null;
     let scrollerStartLeft = 0;
+    let startedInModal = false;
 
     // A touch that starts inside a horizontally-scrollable element (e.g.
     // the story tray on Home) should scroll that element, not flip tabs —
@@ -154,9 +155,22 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       startY = touch.clientY;
       scroller = findHorizontalScroller(e.target);
       scrollerStartLeft = scroller?.scrollLeft ?? 0;
+      // A modal (Lightbox's pinch-zoom/pan, a share sheet, the story
+      // uploader, ...) sits *on top of* one of the 5 tab root screens
+      // without changing the pathname this effect gates on below — so
+      // without this check, any gesture inside one that happens to cover
+      // >SWIPE_THRESHOLD_PX horizontally (a pinch or drag easily does) also
+      // satisfies this listener and fires a tab navigation mid-gesture,
+      // which yanks the user off the page and looks exactly like the
+      // gesture itself "did nothing." Every modal in this app uses the
+      // standard aria-modal="true" dialog pattern, so checking for that
+      // ancestor covers all of them without each one needing its own
+      // opt-out.
+      startedInModal = e.target instanceof Element ? Boolean(e.target.closest('[aria-modal="true"]')) : false;
     }
 
     function onTouchEnd(e: TouchEvent) {
+      if (startedInModal) return;
       if (scroller && Math.abs(scroller.scrollLeft - scrollerStartLeft) > 1) return;
       const touch = e.changedTouches[0];
       const dx = touch.clientX - startX;
