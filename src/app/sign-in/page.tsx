@@ -9,6 +9,8 @@ import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
+import { AppleSignInButton } from "@/components/apple-sign-in-button";
 
 const title = "Sign In to YuKon3t";
 const description =
@@ -89,6 +91,10 @@ export default async function SignInPage({
       >
         New here? Create account
       </Link>
+
+      {isAppleSignInConfigured() && (
+        <AppleSignInButton showCaptchaError={error === "apple_captcha"} />
+      )}
 
       <div className="mt-8 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <h2 className="text-sm font-semibold">Username &amp; password</h2>

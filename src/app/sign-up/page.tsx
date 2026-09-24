@@ -8,6 +8,8 @@ import { BotProtectionFields } from "@/components/bot-protection-fields";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { VerifyMethodFields } from "@/components/verify-method-fields";
 import { MIN_AGE } from "@/lib/validations";
+import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
+import { AppleSignInButton } from "@/components/apple-sign-in-button";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
 const description =
@@ -77,6 +79,17 @@ export default async function SignUpPage({
         <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           {message}
         </p>
+      )}
+
+      {isAppleSignInConfigured() && (
+        <>
+          <AppleSignInButton showCaptchaError={error === "apple_captcha"} returnPath="/sign-up" />
+          <div className="my-6 flex w-full items-center gap-3 text-xs text-foreground-soft">
+            <div className="h-px flex-1 bg-line" />
+            or create an account with a password
+            <div className="h-px flex-1 bg-line" />
+          </div>
+        </>
       )}
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">

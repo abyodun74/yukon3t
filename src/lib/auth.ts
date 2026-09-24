@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Resend from "next-auth/providers/resend";
 import Google from "next-auth/providers/google";
+import Apple from "next-auth/providers/apple";
+import { isAppleSignInConfigured, getAppleClientSecret } from "@/lib/apple-client-secret";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
@@ -24,6 +26,17 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
+  );
+}
+
+if (isAppleSignInConfigured()) {
+  providers.push(
+    Apple({
+      clientId: process.env.AUTH_APPLE_ID!,
+      // A fresh JWT signed on demand (see apple-client-secret.ts), not a
+      // static env var — same reasoning as that file's own doc comment.
+      clientSecret: getAppleClientSecret(),
     }),
   );
 }
