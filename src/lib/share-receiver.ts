@@ -12,7 +12,7 @@ interface NativePendingShareFile {
 interface NativePendingShare {
   text: string | null;
   files: NativePendingShareFile[];
-  /** Count of items the OS handed over that couldn't be read/fit under the native side's size cap — surfaced so a share doesn't just silently come back with fewer items than were actually sent (see ShareReceiverPlugin.java/ShareExtension's own doc comments). */
+  /** Count of items the OS handed over that couldn't fit under the native side's size cap or otherwise failed to read — surfaced so a share doesn't just silently come back with fewer items than were actually sent (see ShareReceiverPlugin.java/ShareExtension's own doc comments). checkForPendingShare() below adds to this for its own JS-side failures (an unreadable path, a failed fetch, a genuinely unrecognized file type). */
   skipped: number;
 }
 
@@ -29,6 +29,41 @@ export interface PendingShareMedia {
   text: string | null;
   /** See NativePendingShare.skipped above. */
   skipped: number;
+}
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "mov", "m4v", "3gp", "3gpp", "webm", "mkv", "avi"]);
+const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "aac", "wav", "ogg", "opus"]);
+
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 && dot < name.length - 1 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+/**
+ * Classifies a shared file as image/video/audio, preferring the native
+ * side's reported MIME type but falling back to the file's own extension
+ * when that type isn't a clear image/*, video/*, or audio/* — confirmed
+ * live (2026-09-25) as the actual cause of "every share from Instagram/
+ * TikTok/Facebook/WhatsApp comes back link-only": several of those apps'
+ * own content providers report a generic type (e.g.
+ * "application/octet-stream") for shared media rather than a precise one,
+ * which matched neither the image nor video branch below and silently
+ * vanished the file — not even counted as skipped, since that only ever
+ * tracked native-side size failures and unreadable paths, not a
+ * classification miss. This affected every source app and both media
+ * types uniformly, exactly as reported, rather than being specific to any
+ * one app or format.
+ */
+function mediaKind(mimeType: string, name: string): "image" | "video" | "audio" | null {
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  const ext = extensionOf(name);
+  if (VIDEO_EXTENSIONS.has(ext)) return "video";
+  if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+  return null;
 }
 
 /**
@@ -83,16 +118,23 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
       skipped++;
       continue;
     }
-    if (f.mimeType.startsWith("video/") && !video) {
+    const kind = mediaKind(f.mimeType, f.name);
+    if (kind === "video" && !video) {
       video = file;
-    } else if (f.mimeType.startsWith("image/")) {
+    } else if (kind === "image") {
       images.push(file);
+    } else if (kind === "audio") {
+      // audio/* shared files are dropped here deliberately — neither
+      // PostComposer nor ChatThread's pending-media slots have an "attach
+      // an arbitrary shared audio file" path today (their own audio
+      // recorders produce their own File objects internally); wire this up
+      // if that changes rather than half-supporting it now.
+    } else {
+      // Genuinely unrecognized (e.g. a second video when one was already
+      // claimed, or a type/extension this doesn't know) — counted as
+      // skipped so it's visible, rather than silently vanishing.
+      skipped++;
     }
-    // audio/* shared files are dropped here deliberately — neither
-    // PostComposer nor ChatThread's pending-media slots have an "attach an
-    // arbitrary shared audio file" path today (their own audio recorders
-    // produce their own File objects internally); wire this up if that
-    // changes rather than half-supporting it now.
   }
   return { images, video, text: result.text, skipped };
 }

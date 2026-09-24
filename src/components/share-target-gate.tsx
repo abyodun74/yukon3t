@@ -446,8 +446,8 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         )}
         {share.skipped > 0 && (
           <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-            {share.skipped === 1 ? "One item was" : `${share.skipped} items were`} too large to
-            import and couldn&apos;t be included.
+            {share.skipped === 1 ? "One item" : `${share.skipped} items`} couldn&apos;t be
+            included (too large, or not a supported photo/video type).
           </p>
         )}
 
