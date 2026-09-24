@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.OpenableColumns;
 
 import com.getcapacitor.JSArray;
@@ -34,21 +35,27 @@ import java.util.UUID;
  * and hands JS a plain file path — NOT the base64-over-the-bridge approach
  * this file used before. That approach had to cap files at 20MB to avoid an
  * OutOfMemoryError from holding both the raw bytes and the ~33%-larger
- * base64 string in memory at once — comfortably enough for a photo, nowhere
- * near enough for a real-world shared video: an Instagram Reel, TikTok, or
- * Facebook video commonly exceeds 20MB even at well under a minute long, so
- * it silently vanished under that cap with no indication why — confirmed
- * live: a user sharing an Instagram Reel got told "that app only shared a
- * link," which was wrong — Instagram *had* attached the actual video (same
- * as it does to WhatsApp/TikTok/etc., which is also why those platforms'
- * own watermarks are baked into videos shared this way — there'd be no
- * point watermarking pixels that never leave the app as a real file), this
- * plugin just dropped it before JS ever saw it. Handing JS a file path
- * instead (read via Capacitor.convertFileSrc + fetch(), see
- * share-receiver.ts) lets the WebView stream the bytes itself — no full
- * in-memory duplicate at any point on this side — so the only real ceiling
- * left is MAX_SHARE_FILE_BYTES below, sized to match this app's own upload
- * limits rather than an implementation artifact of the old approach.
+ * base64 string in memory at once — too tight for a real video file, so this
+ * plugin now streams straight to disk instead (see MAX_SHARE_FILE_BYTES).
+ * This matters whenever a source app *does* hand over a real file — most
+ * reliably a locally-saved photo/video shared from Gallery/Photos, or
+ * whichever other apps turn out to behave this way.
+ *
+ * IMPORTANT, confirmed live via adb logcat (2026-09-25) — corrects a wrong
+ * assumption an earlier pass at this file stated as fact: sharing an
+ * Instagram Reel or photo post to this app via its own share sheet's
+ * "More"/system-chooser option does NOT attach a real file at all, for
+ * either photos or videos — the actual Android Intent handed to this app
+ * contains only ACTION_SEND with a text/plain EXTRA_TEXT link, no
+ * EXTRA_STREAM whatsoever. Same result from TikTok. This is decided
+ * entirely inside those apps' own closed-source code before the Intent is
+ * even constructed — there is nothing on the receiving side (this plugin,
+ * or any third-party app) that can change what gets attached. The apps
+ * that reportedly *do* receive real media from Instagram this way
+ * (WhatsApp, Messenger) are Meta's own sibling apps, special-cased in
+ * Instagram's own code — not reachable via any public Android API. Do not
+ * re-investigate this as a receiving-side bug without new evidence; if it
+ * needs revisiting, capture a fresh adb logcat of the actual Intent first.
  */
 @CapacitorPlugin(name = "ShareReceiver")
 public class ShareReceiverPlugin extends Plugin {
@@ -94,13 +101,26 @@ public class ShareReceiverPlugin extends Plugin {
         String text = intent.getStringExtra(Intent.EXTRA_TEXT);
         if (text != null) result.put("text", text);
 
+        // A Uri (Parcelable) extra crossing over from another app's process
+        // needs the receiving side's own ClassLoader explicitly set before
+        // it's read, or Bundle.getParcelable can silently return null
+        // instead of the real value/throwing. Genuinely worth doing (the
+        // typed getParcelableExtra(String, Class) overload below is
+        // Android's own recommended fix for exactly this on API 33+) — but
+        // NOT what was behind the "Instagram/TikTok share comes back
+        // link-only" report: confirmed via adb logcat (2026-09-25) that
+        // those apps' own Intent never carries EXTRA_STREAM at all, a
+        // source-app decision this class-level fix can't touch. See the
+        // class doc comment above.
+        intent.setExtrasClassLoader(Uri.class.getClassLoader());
+
         ContentResolver resolver = context.getContentResolver();
         List<Uri> uris = new ArrayList<>();
         if (Intent.ACTION_SEND.equals(action)) {
-            Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            Uri uri = getStreamExtra(intent);
             if (uri != null) uris.add(uri);
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
-            ArrayList<Uri> list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            ArrayList<Uri> list = getStreamListExtra(intent);
             if (list != null) uris.addAll(list);
         }
 
@@ -116,6 +136,32 @@ public class ShareReceiverPlugin extends Plugin {
         result.put("skipped", skipped);
 
         call.resolve(result);
+    }
+
+    /**
+     * The single-argument Intent#getParcelableExtra(String) is deprecated
+     * as of API 33 (Tiramisu) specifically because of the silent-null
+     * failure mode described above — the typed two-argument overload is
+     * Android's own recommended replacement and doesn't have that issue.
+     * Older OS versions never had the typed overload at all, so they keep
+     * using the deprecated one (still reliable pre-33 — this bug is
+     * specific to 33+'s Bundle/ClassLoader handling).
+     */
+    @SuppressWarnings("deprecation")
+    private Uri getStreamExtra(Intent intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
+        }
+        return intent.getParcelableExtra(Intent.EXTRA_STREAM);
+    }
+
+    /** Same reasoning as getStreamExtra above, for ACTION_SEND_MULTIPLE's list form. */
+    @SuppressWarnings("deprecation")
+    private ArrayList<Uri> getStreamListExtra(Intent intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri.class);
+        }
+        return intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
     }
 
     /**

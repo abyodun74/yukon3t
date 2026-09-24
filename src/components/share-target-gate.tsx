@@ -439,21 +439,10 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {linkOnly && (
           <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
-            That app only shared a link, not the actual photo or video — YuKon3t needs the real
-            file. Try &ldquo;Save&rdquo;/&ldquo;Download&rdquo; in that app first, then share
-            again, or just send the link to a friend below.
-          </p>
-        )}
-        {/* TEMPORARY diagnostic (2026-09-25) — remove once the underlying
-            bug is found. Shows exactly what the native side handed over, so
-            a screenshot of this notice is enough to tell "native gave zero
-            files" apart from "native gave files but something dropped
-            them" without needing adb/USB debugging. */}
-        {linkOnly && (
-          <p className="mt-2 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
-            Debug: native reported {share.debugRawFileCount} file(s)
-            {share.debugRawFileCount > 0 && ` (${share.debugRawMimeTypes.join(", ")})`}, skipped=
-            {share.skipped}.
+            That app only shared a link, not the actual photo or video — some apps (Instagram,
+            TikTok, and others) don&apos;t hand over the real file when sharing to outside apps.
+            To bring in the actual photo/video: save it in that app first, then share the saved
+            copy from your Gallery/Photos to YuKon3t. Or just send the link to a friend below.
           </p>
         )}
         {share.skipped > 0 && (

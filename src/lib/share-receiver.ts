@@ -29,14 +29,6 @@ export interface PendingShareMedia {
   text: string | null;
   /** See NativePendingShare.skipped above. */
   skipped: number;
-  // TEMPORARY diagnostic (added 2026-09-25, remove once the "every share
-  // comes back link-only" bug is actually found) — the raw native
-  // response's own file count/types, captured before any JS-side reading
-  // or classification touches them, so a screenshot of the notice that
-  // renders this can tell apart "native handed over zero files" from
-  // "native handed over files but something after that dropped them."
-  debugRawFileCount: number;
-  debugRawMimeTypes: string[];
 }
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp"]);
@@ -51,17 +43,14 @@ function extensionOf(name: string): string {
 /**
  * Classifies a shared file as image/video/audio, preferring the native
  * side's reported MIME type but falling back to the file's own extension
- * when that type isn't a clear image/*, video/*, or audio/* — confirmed
- * live (2026-09-25) as the actual cause of "every share from Instagram/
- * TikTok/Facebook/WhatsApp comes back link-only": several of those apps'
- * own content providers report a generic type (e.g.
- * "application/octet-stream") for shared media rather than a precise one,
- * which matched neither the image nor video branch below and silently
- * vanished the file — not even counted as skipped, since that only ever
- * tracked native-side size failures and unreadable paths, not a
- * classification miss. This affected every source app and both media
- * types uniformly, exactly as reported, rather than being specific to any
- * one app or format.
+ * when that type isn't a clear image/*, video/*, or audio/* — some content
+ * providers report a generic type (e.g. "application/octet-stream")
+ * instead of a precise one, which would otherwise match neither branch
+ * below and silently vanish the file without even being counted as
+ * skipped. Real (if less common) case, worth keeping — but confirmed
+ * live (2026-09-25) NOT to be the cause of "share from Instagram/TikTok
+ * comes back link-only": that's a source-app platform restriction (see
+ * ShareReceiverPlugin.java's own doc comment), unrelated to classification.
  */
 function mediaKind(mimeType: string, name: string): "image" | "video" | "audio" | null {
   if (mimeType.startsWith("video/")) return "video";
@@ -144,12 +133,5 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
       skipped++;
     }
   }
-  return {
-    images,
-    video,
-    text: result.text,
-    skipped,
-    debugRawFileCount: result.files.length,
-    debugRawMimeTypes: result.files.map((f) => f.mimeType),
-  };
+  return { images, video, text: result.text, skipped };
 }
