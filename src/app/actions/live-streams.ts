@@ -19,6 +19,7 @@ import { notifySubscribers } from "@/lib/notify-subscribers";
 import { moderateText } from "@/lib/moderation";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { captureError } from "@/lib/error-tracking";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -298,6 +299,7 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
     // what makes the next occurrence actually diagnosable via Netlify
     // function logs instead of another guess.
     console.error("joinLiveStream failed:", err);
+    await captureError(err, { action: "joinLiveStream", liveStreamId });
     return { error: "unavailable" as const };
   }
 }

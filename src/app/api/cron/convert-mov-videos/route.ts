@@ -5,6 +5,7 @@ import { isStreamConfigured } from "@/lib/cloudflare-stream";
 import { isStorageConfigured } from "@/lib/storage";
 import { advanceConversion } from "@/lib/video-convert";
 import { findMovSources, findMuseVideoSources, productionConversionDeps } from "@/lib/video-convert-db";
+import { captureError } from "@/lib/error-tracking";
 
 // Same platform ceiling and shape as moderate-long-videos: one tick can hold a
 // few conversions open, polling Cloudflare, and anything still unfinished at
@@ -66,6 +67,7 @@ async function driveConversion(id: string, sourceUrl: string, deadline: number):
     return "pending";
   } catch (err) {
     console.error(`[convert-mov-videos] ${sourceUrl} threw`, err);
+    await captureError(err, { route: "cron/convert-mov-videos", sourceUrl });
     await prisma.videoConversion.update({ where: { id }, data: { claimedAt: null } }).catch(() => {});
     return "pending";
   } finally {

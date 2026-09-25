@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { moderateVideo } from "@/lib/hive";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
+import { captureError } from "@/lib/error-tracking";
 
 const BATCH_SIZE = 20;
 
@@ -54,6 +55,7 @@ async function moderatePostVideos() {
       await prisma.post.updateMany({ where: { id: post.id }, data: { videoModeratedAt: null } });
       failed += 1;
       console.error(`[moderate-videos] failed to moderate video for post ${post.id}`, err);
+      await captureError(err, { route: "cron/moderate-videos", kind: "post", postId: post.id });
     }
   }
 
@@ -99,6 +101,7 @@ async function moderateCommentVideos() {
       await prisma.comment.updateMany({ where: { id: comment.id }, data: { videoModeratedAt: null } });
       failed += 1;
       console.error(`[moderate-videos] failed to moderate video for comment ${comment.id}`, err);
+      await captureError(err, { route: "cron/moderate-videos", kind: "comment", commentId: comment.id });
     }
   }
 
@@ -151,6 +154,7 @@ async function moderateMuseVideos() {
       await prisma.muse.updateMany({ where: { id: muse.id }, data: { videoModeratedAt: null } });
       failed += 1;
       console.error(`[moderate-videos] failed to moderate video for muse ${muse.id}`, err);
+      await captureError(err, { route: "cron/moderate-videos", kind: "muse", museId: muse.id });
     }
   }
 

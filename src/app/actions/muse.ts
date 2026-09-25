@@ -26,6 +26,7 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import type { ReactionSummary } from "@/lib/reactions";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
+import { captureError } from "@/lib/error-tracking";
 
 /**
  * Creates a new short-form public Muse video. Modeled closely on createStory
@@ -92,6 +93,7 @@ export async function createMuse(formData: FormData) {
       });
     } catch (err) {
       console.error("[createMuse] failed to create embed muse row", err);
+      await captureError(err, { action: "createMuse", mediaType: "EMBED", userId: user.id });
       return { error: "server_error" as const };
     }
     await notifySubscribers(user.id, "SUBSCRIPTION_MUSE", { museId: muse.id });
@@ -201,6 +203,7 @@ export async function createMuse(formData: FormData) {
     // orphan the just-uploaded media or get misreported client-side as an
     // upload failure.
     console.error("[createMuse] failed to create muse row after successful upload", err);
+    await captureError(err, { action: "createMuse", mediaType: "VIDEO", userId: user.id });
     await cleanupUploads();
     return { error: "server_error" as const };
   }

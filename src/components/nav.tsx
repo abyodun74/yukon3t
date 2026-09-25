@@ -397,6 +397,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     >
                       Users
                     </Link>
+                    <Link
+                      href="/admin/system"
+                      className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
+                    >
+                      System
+                    </Link>
                   </>
                 )}
                 <button
@@ -538,6 +544,13 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                     className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
                   >
                     Users
+                  </Link>
+                  <Link
+                    href="/admin/system"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
+                  >
+                    System
                   </Link>
                 </>
               )}

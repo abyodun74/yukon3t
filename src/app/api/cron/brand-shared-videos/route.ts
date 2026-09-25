@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { isBrandingConfigured, getOrAdvanceBrandedVideo } from "@/lib/branded-video-service";
+import { captureError } from "@/lib/error-tracking";
 
 // Same platform ceiling/shape as convert-mov-videos: one tick can hold a few
 // brandings open, polling Cloudflare, and anything still unfinished at the
@@ -37,6 +38,7 @@ async function driveBranding(sourceUrl: string, deadline: number): Promise<"done
     return "pending";
   } catch (err) {
     console.error(`[brand-shared-videos] ${sourceUrl} threw`, err);
+    await captureError(err, { route: "cron/brand-shared-videos", sourceUrl });
     return "pending";
   } finally {
     clearTimeout(timer);

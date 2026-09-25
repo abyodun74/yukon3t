@@ -7,6 +7,7 @@ import { notifyVideoModerationFailed } from "@/lib/video-moderation-notice";
 import { recomputeTrustScore } from "@/lib/trust";
 import { revalidatePath } from "next/cache";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
+import { captureError } from "@/lib/error-tracking";
 
 // A tick can span a Cloudflare API call plus (once captions are ready) up to
 // MAX_FRAMES OpenAI moderation calls batched at FRAME_MODERATION_CONCURRENCY
@@ -71,6 +72,7 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
       });
     } catch (err) {
       console.error(`[moderate-long-videos] unhandled error reviewing post ${candidate.id}`, err);
+      await captureError(err, { route: "cron/moderate-long-videos", kind: "post", postId: candidate.id });
       await prisma.post.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
       return "error";
     }
@@ -169,6 +171,7 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
       });
     } catch (err) {
       console.error(`[moderate-long-videos] unhandled error reviewing comment ${candidate.id}`, err);
+      await captureError(err, { route: "cron/moderate-long-videos", kind: "comment", commentId: candidate.id });
       await prisma.comment.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
       return "error";
     }
@@ -366,6 +369,7 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
       });
     } catch (err) {
       console.error(`[moderate-long-videos] unhandled error reviewing muse ${candidate.id}`, err);
+      await captureError(err, { route: "cron/moderate-long-videos", kind: "muse", museId: candidate.id });
       await prisma.muse.updateMany({ where: { id: candidate.id }, data: { videoLongReviewClaimedAt: null } });
       return "error";
     }

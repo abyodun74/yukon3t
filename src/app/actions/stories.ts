@@ -14,6 +14,7 @@ import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { sendPushToUser } from "@/lib/push";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
+import { captureError } from "@/lib/error-tracking";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -211,6 +212,7 @@ export async function createStory(formData: FormData) {
     // failure was this DB write, not the upload. Surface it as its own
     // distinct error instead, and don't orphan the just-uploaded media.
     console.error("[createStory] failed to create story row after successful upload", err);
+    await captureError(err, { action: "createStory", userId: user.id });
     await cleanupUploads();
     return { error: "server_error" as const };
   }

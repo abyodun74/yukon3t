@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmEventReminderToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
+import { captureError } from "@/lib/error-tracking";
 
 // How far ahead to look for events that are about to start. Matched to the
 // scheduled function's own run interval (every 15 minutes, see
@@ -73,6 +74,7 @@ export async function GET(request: Request) {
     } catch (err) {
       postsFailed += 1;
       console.error(`[event-reminders] failed to notify for post ${post.id}`, err);
+      await captureError(err, { route: "cron/event-reminders", postId: post.id });
     }
   }
 

@@ -3,6 +3,7 @@
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getOrAdvanceBrandedVideo, isBrandingConfigured, type BrandedVideoResult } from "@/lib/branded-video-service";
+import { captureError } from "@/lib/error-tracking";
 
 // Bounds a single call's own Cloudflare Stream round-trip — the client's own
 // poll loop (src/lib/branded-video-client.ts) is what provides the overall
@@ -32,6 +33,7 @@ export async function getBrandedVideoStatus(sourceUrl: string): Promise<BrandedV
     return await getOrAdvanceBrandedVideo(sourceUrl, controller.signal);
   } catch (err) {
     console.error("[getBrandedVideoStatus] failed", err);
+    await captureError(err, { action: "getBrandedVideoStatus", sourceUrl });
     return { status: "pending" };
   } finally {
     clearTimeout(timeout);

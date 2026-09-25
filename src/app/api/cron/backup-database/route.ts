@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { isBackupConfigured, runDatabaseBackup } from "@/lib/db-backup";
+import { captureError } from "@/lib/error-tracking";
 
 // A full logical dump of every table can take a while on a larger database
 // — same platform ceiling moderate-long-videos already uses.
@@ -25,9 +26,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isBackupConfigured()) {
-    console.error(
-      "[backup-database] BACKUP_R2_BUCKET_NAME/BACKUP_ENCRYPTION_KEY (and BACKUP_R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY or their R2_* fallback) are not set — skipping run.",
-    );
+    const message =
+      "[backup-database] BACKUP_R2_BUCKET_NAME/BACKUP_ENCRYPTION_KEY (and BACKUP_R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY or their R2_* fallback) are not set — skipping run.";
+    console.error(message);
+    // Not an exception (nothing threw) but genuinely worth paging someone —
+    // this branch firing means daily backups have silently stopped, one of
+    // the worst things to only discover from /admin/system days later.
+    await captureError(new Error(message), { route: "cron/backup-database" });
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
 
@@ -39,6 +44,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: null, ...result });
   } catch (err) {
     console.error("[backup-database] backup run failed", err);
+    await captureError(err, { route: "cron/backup-database" });
     return NextResponse.json({ error: "backup_failed" }, { status: 500 });
   }
 }
