@@ -411,6 +411,18 @@ function MuseCard({
 }) {
   const [paused, setPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  // Wider than isVisible on purpose — isVisible means "this is the active,
+  // playing card" (0.6 threshold, tight); isNearby means "close enough to
+  // the active card to be worth keeping a real <video> mounted at all."
+  // Every loaded card is simultaneously mounted here (a real scrollable
+  // list, not index-virtualized the way Feed's is — see this file's own
+  // notes on why: absolute-positioning virtualization and this feed's CSS
+  // scroll-snap don't mix reliably), so without this, a video 20 cards away
+  // from what you're watching stays fully decoded and buffered in memory
+  // for the rest of the session. Starts true so the very first paint (before
+  // the observer below has fired even once) doesn't flash a placeholder for
+  // whichever card starts on screen.
+  const [isNearby, setIsNearby] = useState(true);
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const isOwner = item.author.id === currentUserId;
@@ -453,6 +465,22 @@ function MuseCard({
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(Boolean(entry?.isIntersecting)),
       { threshold: ACTIVE_VISIBILITY_THRESHOLD },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Deliberately a separate observer/threshold from isVisible above, not a
+  // second read of the same one — see isNearby's own doc comment. A ±100%
+  // viewport rootMargin keeps the card you'd swipe to next already primed
+  // (no pop-in the moment it becomes active) while still tearing down
+  // anything genuinely scrolled away.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsNearby(Boolean(entry?.isIntersecting)),
+      { rootMargin: "100% 0px" },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -543,7 +571,7 @@ function MuseCard({
           allowFullScreen
           title="Embedded video"
         />
-      ) : (
+      ) : isNearby ? (
         <video
           ref={videoRef}
           src={item.videoUrl ?? undefined}
@@ -556,8 +584,23 @@ function MuseCard({
           playsInline
           className="absolute inset-0 h-full w-full object-contain"
         />
+      ) : item.videoThumbnailUrl ? (
+        // Scrolled far enough away that the real <video> (and whatever it
+        // was still buffering/decoding) has been torn down entirely — see
+        // isNearby's own doc comment. Its poster frame in a plain <img>
+        // costs essentially nothing to keep mounted by comparison, and
+        // means scrolling back doesn't first show a blank black card before
+        // the real video re-mounts and starts loading again.
+        // eslint-disable-next-line @next/next/no-img-element -- a poster frame, not something next/image needs to optimize
+        <img
+          src={item.videoThumbnailUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black" />
       )}
-      {item.audioUrl && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
+      {item.audioUrl && isNearby && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
 
       {!isEmbed && soundBlocked && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">

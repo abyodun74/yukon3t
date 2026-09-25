@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { PostCard, type PostCardData } from "@/components/post-card";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -34,6 +35,28 @@ function reviveDates(post: PostCardData): PostCardData {
       : null,
   };
 }
+
+// Rough starting guess before a card is actually measured (a text-only or
+// single-image post lands somewhere near this) — the virtualizer corrects
+// itself immediately once each card's real height is measured via
+// measureElement's own ResizeObserver, this is only what the very first
+// paint estimates before that happens.
+const ESTIMATED_POST_HEIGHT = 360;
+// Items rendered outside the visible viewport as a buffer, so fast
+// scrolling doesn't show blank space before a card's had a chance to
+// measure/paint.
+const OVERSCAN = 3;
+// Matches the old `space-y-4` gap (1rem) — now the virtualizer's own `gap`
+// option instead of a parent's flex/space-y margin, since it has to be part
+// of the actual position math for absolutely-positioned items.
+const ITEM_GAP = 16;
+// Fetches the next page once the rendered range gets this close to the end
+// of what's currently loaded — same "start well before you'd actually miss
+// it" idea the old 600px-rootMargin IntersectionObserver sentinel used, just
+// keyed off the virtualizer's own visible range instead of a DOM sentinel
+// (which would sit outside the render window most of the time once
+// virtualized, and never actually intersect).
+const LOAD_MORE_THRESHOLD = 3;
 
 export function PostFeedSection({
   category,
@@ -124,54 +147,102 @@ export function PostFeedSection({
 
   // Always points at the latest loadMore (which itself changes identity
   // every time `posts` grows) without needing to tear down and recreate the
-  // observer below on every fetch — only `hasMore` flipping false/true
-  // should do that.
+  // range-watching effect below on every fetch.
   const loadMoreRef = useRef(loadMore);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
-
-  // Fires loadMore automatically once the sentinel at the bottom scrolls
-  // near the viewport — a generous 600px rootMargin starts the next page
-  // fetching well before it's actually reached, so more posts are already
-  // in place by the time you scroll to them instead of a visible pause.
-  // Replaces the old tap-to-load-more button entirely.
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!hasMore) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) loadMoreRef.current();
-      },
-      { rootMargin: "600px 0px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore]);
 
   // Shown on every category tab regardless of `category` — the server hasn't
   // classified this post yet (classifyPostCategory runs inside createPost),
   // so there's no real category to filter by until it lands for real. A
   // pending post is gone within a few seconds either way, so being visible
   // on a tab it won't ultimately belong to is a minor, short-lived tradeoff.
+  // Rendered above (outside of) the virtualized list below, not as part of
+  // it — there's realistically 0-1 of these at a time and they're gone
+  // within seconds, not worth folding into the index math.
   const optimisticPosts = useOptimisticPosts();
+
+  // Distance from the top of the document to the top of the virtualized
+  // list itself (the story tray, streak banner, category tabs, and any
+  // optimistic-post placeholders all sit above it on the actual page) —
+  // useWindowVirtualizer needs this to translate window scroll position
+  // into "which post index is at the top" correctly. Measured after mount
+  // (parentRef.current is still null during the render that creates it)
+  // and re-measured whenever the optimistic-post count changes, since that's
+  // the one thing this component itself renders above the list that can
+  // change its height after the fact. Content further up the actual page
+  // (outside this component) resizing later — e.g. a story-tray image
+  // finishing loading — could still drift this slightly; harmless (a small,
+  // self-correcting misalignment until the next recompute), not worth
+  // chasing with a page-wide ResizeObserver for a first pass.
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [parentOffset, setParentOffset] = useState(0);
+  useLayoutEffect(() => {
+    setParentOffset(parentRef.current?.offsetTop ?? 0);
+  }, [optimisticPosts.length]);
+
+  const virtualizer = useWindowVirtualizer({
+    count: posts.length,
+    estimateSize: () => ESTIMATED_POST_HEIGHT,
+    overscan: OVERSCAN,
+    gap: ITEM_GAP,
+    getItemKey: (index) => posts[index]!.id,
+    scrollMargin: parentOffset,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
+  const endIndex = virtualizer.range?.endIndex ?? -1;
+  useEffect(() => {
+    if (!hasMore || endIndex < 0) return;
+    if (endIndex >= posts.length - 1 - LOAD_MORE_THRESHOLD) {
+      loadMoreRef.current();
+    }
+  }, [endIndex, hasMore, posts.length]);
 
   if (posts.length === 0 && optimisticPosts.length === 0) return null;
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-6">
       {optimisticPosts.map((post) => (
         <OptimisticPostCard key={post.localId} post={post} />
       ))}
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
-      ))}
-      {hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-4">
-          {loadingMore && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
-        </div>
+      <div ref={parentRef} style={{ position: "relative", height: virtualizer.getTotalSize() }}>
+        {virtualItems.map((virtualItem) => {
+          const post = posts[virtualItem.index];
+          if (!post) return null;
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              // top, not transform: PostCard renders several plain
+              // `fixed inset-0` modals as normal descendants (Lightbox,
+              // ShareModal, LikersModal — none of them portal out to
+              // document.body). A `transform` on this wrapper would make it
+              // the CSS containing block for all of those `position: fixed`
+              // descendants, clipping/mispositioning them to this card's own
+              // small box instead of the real viewport — a real, easy-to-miss
+              // bug this specific combination (absolute-positioned
+              // virtualization + un-portaled fixed-position modals) would
+              // otherwise cause. `top` costs a layout recalc instead of a
+              // compositor-only repaint, but only on measure/prepend, not on
+              // every scroll frame (the actual scrolling here is native
+              // window scroll, not JS-driven repositioning) — negligible.
+              style={{
+                position: "absolute",
+                top: virtualItem.start - parentOffset,
+                left: 0,
+                width: "100%",
+              }}
+            >
+              <PostCard post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
+            </div>
+          );
+        })}
+      </div>
+      {loadingMore && (
+        <p className="animate-loading-pulse flex justify-center py-4 text-xs text-foreground-soft">Loading more...</p>
       )}
     </div>
   );
