@@ -100,27 +100,27 @@ describe("parseVideoEmbedUrl", () => {
 });
 
 describe("embedSrc", () => {
-  it("rebuilds a privacy-enhanced YouTube embed URL", () => {
+  it("rebuilds a privacy-enhanced YouTube embed URL, requesting muted autoplay", () => {
     expect(embedSrc({ provider: "YOUTUBE", id: "abc12345678" })).toBe(
-      "https://www.youtube-nocookie.com/embed/abc12345678",
+      "https://www.youtube-nocookie.com/embed/abc12345678?autoplay=1&mute=1&playsinline=1",
     );
   });
 
-  it("rebuilds a Vimeo player URL", () => {
+  it("rebuilds a Vimeo player URL, requesting muted autoplay", () => {
     expect(embedSrc({ provider: "VIMEO", id: "123456" })).toBe(
-      "https://player.vimeo.com/video/123456",
+      "https://player.vimeo.com/video/123456?autoplay=1&muted=1&playsinline=1",
     );
   });
 
-  it("rebuilds an Instagram embed URL, preserving the post type", () => {
+  it("rebuilds an Instagram embed URL, preserving the post type (no autoplay param — not documented for this provider)", () => {
     expect(embedSrc({ provider: "INSTAGRAM", id: "reel/CxAbc123" })).toBe(
       "https://www.instagram.com/reel/CxAbc123/embed",
     );
   });
 
-  it("rebuilds a Facebook video plugin URL", () => {
+  it("rebuilds a Facebook video plugin URL, requesting muted autoplay", () => {
     expect(embedSrc({ provider: "FACEBOOK", id: "someuser/videos/1234567890" })).toBe(
-      "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsomeuser%2Fvideos%2F1234567890&show_text=false",
+      "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsomeuser%2Fvideos%2F1234567890&show_text=false&autoplay=true&mute=1",
     );
   });
 });

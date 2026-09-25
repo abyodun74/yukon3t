@@ -116,24 +116,36 @@ export function parseVideoEmbedUrl(raw: string): ParsedEmbed | null {
   return null;
 }
 
-/** Rebuilds a safe iframe src from a provider+id pair — the only place this string is constructed. */
+/**
+ * Rebuilds a safe iframe src from a provider+id pair — the only place this
+ * string is constructed. Requests autoplay wherever the provider's embed
+ * player has a documented URL param for it — muted, since every mainstream
+ * browser engine blocks unmuted autoplay without a prior user gesture on
+ * that exact origin, which an embed's cross-origin iframe never has; the
+ * player's own visible controls (rendered by the provider, not this app)
+ * still let the viewer unmute with one tap. TikTok and Instagram have no
+ * documented autoplay param for their plain iframe embed (unlike the other
+ * four) — both stay click-to-play, their own default.
+ */
 export function embedSrc({ provider, id }: ParsedEmbed): string {
   switch (provider) {
     case "YOUTUBE":
-      return `https://www.youtube-nocookie.com/embed/${id}`;
+      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
     case "VIMEO":
-      return `https://player.vimeo.com/video/${id}`;
+      return `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
     case "TIKTOK":
       return `https://www.tiktok.com/embed/v2/${id}`;
     case "DAILYMOTION":
-      return `https://www.dailymotion.com/embed/video/${id}`;
+      return `https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1`;
     case "INSTAGRAM":
       return `https://www.instagram.com/${id}/embed`;
     case "FACEBOOK":
       // show_text=false keeps this a bare video player (no Facebook post
       // caption/reaction chrome) — consistent with every other provider
-      // here rendering just the player itself.
-      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(`https://www.facebook.com/${id}`)}&show_text=false`;
+      // here rendering just the player itself. autoplay/mute are the video
+      // plugin's own documented params, same "muted, since that's what
+      // reliably works" reasoning as every other provider above.
+      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(`https://www.facebook.com/${id}`)}&show_text=false&autoplay=true&mute=1`;
   }
 }
 

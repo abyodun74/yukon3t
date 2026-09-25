@@ -24,6 +24,7 @@ import { QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
+import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -417,6 +418,17 @@ function MuseCard({
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Same visibility-gated src management Feed's own EMBED cards already use
+  // (post-card.tsx) — every loaded card is simultaneously mounted here too
+  // (a real scrollable list, not virtualized), so an off-screen embed would
+  // otherwise autoplay and keep playing indefinitely, same waste that hook
+  // was built to stop. Empty string when there's no embed is a harmless
+  // no-op (observes a null ref).
+  const embedIframeSrc =
+    item.mediaType === "EMBED" && item.embedProvider && item.embedId
+      ? embedSrc({ provider: item.embedProvider, id: item.embedId })
+      : "";
+  const embedRef = useStopEmbedOnScrollOut<HTMLIFrameElement>(embedIframeSrc);
 
   // Fetches this card's full per-emoji breakdown once, on mount — the feed
   // list itself only carries likeCount (a cheap denormalized total) and
@@ -520,9 +532,12 @@ function MuseCard({
         // Instagram/TikTok/etc.'s own player, complete with their own
         // branding/controls — this app doesn't control its playback (see
         // Muse.mediaType's own doc comment on the trust boundary this
-        // implies). allow="autoplay" is a best-effort ask, not a guarantee.
+        // implies). Autoplay (muted) is requested via embedSrc's own query
+        // params for providers that document one — best-effort, not a
+        // guarantee, same as any other cross-origin embed.
         <iframe
-          src={embedSrc({ provider: item.embedProvider, id: item.embedId })}
+          ref={embedRef}
+          src={embedIframeSrc}
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
