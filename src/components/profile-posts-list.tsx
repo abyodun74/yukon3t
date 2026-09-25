@@ -3,6 +3,8 @@
 import { PostCard, type PostCardData } from "@/components/post-card";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreProfilePosts } from "@/app/actions/posts";
+import { useOptimisticPosts } from "@/lib/optimistic-posts-store";
+import { OptimisticPostCard } from "@/components/optimistic-post-card";
 
 export function ProfilePostsList({
   profileUserId,
@@ -23,9 +25,18 @@ export function ProfilePostsList({
     loadMore: (cursor) => loadMoreProfilePosts(profileUserId, cursor),
     getCursor: (post) => post.id,
   });
+  // The store is per-browser-tab, not per-user — nothing stops it holding a
+  // pending post while the viewer is looking at someone else's profile (they
+  // navigated away from their own before it confirmed). Only ever show it on
+  // the viewer's own profile, never anyone else's.
+  const allOptimisticPosts = useOptimisticPosts();
+  const optimisticPosts = profileUserId === viewerId ? allOptimisticPosts : [];
 
   return (
     <>
+      {optimisticPosts.map((post) => (
+        <OptimisticPostCard key={post.localId} post={post} />
+      ))}
       {items.map((post) => (
         <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
       ))}

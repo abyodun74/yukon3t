@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PostCard, type PostCardData } from "@/components/post-card";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { useOptimisticPosts } from "@/lib/optimistic-posts-store";
+import { OptimisticPostCard } from "@/components/optimistic-post-card";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -149,10 +151,20 @@ export function PostFeedSection({
     return () => observer.disconnect();
   }, [hasMore]);
 
-  if (posts.length === 0) return null;
+  // Shown on every category tab regardless of `category` — the server hasn't
+  // classified this post yet (classifyPostCategory runs inside createPost),
+  // so there's no real category to filter by until it lands for real. A
+  // pending post is gone within a few seconds either way, so being visible
+  // on a tab it won't ultimately belong to is a minor, short-lived tradeoff.
+  const optimisticPosts = useOptimisticPosts();
+
+  if (posts.length === 0 && optimisticPosts.length === 0) return null;
 
   return (
     <div className="mt-6 space-y-4">
+      {optimisticPosts.map((post) => (
+        <OptimisticPostCard key={post.localId} post={post} />
+      ))}
       {posts.map((post) => (
         <PostCard key={post.id} post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
       ))}

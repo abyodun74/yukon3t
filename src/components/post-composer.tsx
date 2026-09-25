@@ -13,6 +13,7 @@ import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
+import { addOptimisticPost, removeOptimisticPost, markOptimisticPostError } from "@/lib/optimistic-posts-store";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -156,11 +157,20 @@ export function PostComposer({
   // PUBLIC server-side since Circle membership is already that post's real
   // access boundary (see createPost/getVisiblePostsWhere).
   defaultVisibility = "PUBLIC",
+  // Only used to render the optimistic "Posting…" placeholder (see
+  // optimistic-posts-store.ts) — that placeholder shows the real author
+  // name/avatar since it appears in a real feed alongside real PostCards.
+  // Unused (and fine to leave unset) for a Circle post — see the optimistic
+  // dispatch below for why that path doesn't build one at all yet.
+  authorName,
+  authorAvatarUrl,
 }: {
   circleId?: string;
   channelId?: string;
   placeholder?: string;
   defaultVisibility?: "PUBLIC" | "CONNECTIONS_ONLY";
+  authorName?: string | null;
+  authorAvatarUrl?: string | null;
 }) {
   const [images, setImages] = useState<File[]>([]);
   const [urlImages, setUrlImages] = useState<string[]>([]);
@@ -654,8 +664,17 @@ export function PostComposer({
    * and handles every outcome, including the device-verification pause —
    * shared by the normal submit path and confirmDeviceCode's resubmission
    * below so neither has to duplicate the retry/result handling.
+   *
+   * `optimisticId`, when set, means the composer already reset its own
+   * fields and handed a placeholder to optimistic-posts-store the moment
+   * Post was tapped (see the action handler below) — its own inline
+   * status/error UI is no longer what the user is looking at, so every
+   * outcome here reports through that placeholder instead. Absent for
+   * confirmDeviceCode's resubmission and for a Circle post (see the action
+   * handler for why those two stay on the old blocking behavior), where the
+   * composer itself is still the thing to update.
    */
-  async function submitPostFormData(fd: FormData) {
+  async function submitPostFormData(fd: FormData, optimisticId?: string) {
     let result;
     try {
       // By this point any media has already been uploaded — a single
@@ -677,22 +696,38 @@ export function PostComposer({
       // A rejected server-action call (e.g. no connectivity) would
       // otherwise be an uncaught exception that crashes the whole
       // page instead of showing a normal composer error.
-      setStatus("error");
-      setErrorText(isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network"));
+      const message = isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network");
+      if (optimisticId) markOptimisticPostError(optimisticId, message);
+      else {
+        setStatus("error");
+        setErrorText(message);
+      }
       return;
     }
     if (result.error === "device_verification_required" && result.challengeId) {
       // Held, not failed — don't clear the draft or the uploaded media
       // reference. The composer switches to a small inline code-entry
       // step; confirmDeviceCode resubmits this same fd once it passes.
+      // Rare enough (a genuinely new/unrecognized device) that an
+      // optimistic placeholder just gets withdrawn here rather than kept
+      // spinning through a step that needs the composer's own UI anyway —
+      // deviceChallenge is its own independent state, so its code-entry
+      // prompt renders correctly regardless of whether the rest of the
+      // composer already looks reset/empty at this point.
+      if (optimisticId) removeOptimisticPost(optimisticId);
       setStatus("idle");
       setDeviceChallenge({ id: result.challengeId, fd });
       return;
     }
     if (result.error) {
-      setStatus("error");
-      setErrorText(errorMessage(result.error));
+      const message = errorMessage(result.error);
+      if (optimisticId) markOptimisticPostError(optimisticId, message);
+      else {
+        setStatus("error");
+        setErrorText(message);
+      }
     } else {
+      if (optimisticId) removeOptimisticPost(optimisticId);
       setStatus("idle");
       setImages([]);
       setUrlImages([]);
@@ -708,6 +743,23 @@ export function PostComposer({
       formRef.current?.reset();
       router.refresh();
     }
+  }
+
+  /**
+   * Builds the optimistic placeholder's preview — deliberately its OWN fresh
+   * URL.createObjectURL() for a picked file, not a reference to
+   * imagePreviewUrls (memoized on `images`, revoked the moment `images`
+   * changes — which the optimistic dispatch below does immediately after
+   * calling this, to reset the composer). Owned and later revoked by
+   * optimistic-posts-store itself once this post's placeholder is removed.
+   */
+  function buildOptimisticPreview(): { url: string | null; kind: "image" | "video" | "none" } {
+    if (images[0]) return { url: URL.createObjectURL(images[0]), kind: "image" };
+    if (urlImages[0]) return { url: urlImages[0], kind: "image" };
+    if (video) return { url: URL.createObjectURL(video), kind: "video" };
+    if (nativeVideoUpload) return { url: nativeVideoUpload.videoUrl, kind: "video" };
+    if (pendingGif) return { url: pendingGif, kind: "image" };
+    return { url: null, kind: "none" };
   }
 
   async function confirmDeviceCode() {
@@ -764,13 +816,64 @@ export function PostComposer({
         // timezone) if we sent it unconverted — silently shifting the
         // event time by the server/client UTC offset.
         if (isEvent && eventAt) fd.set("eventAt", new Date(eventAt).toISOString());
-        setStatus("uploading");
-        setErrorText(null);
+
+        // Optimistic path: a plain Home post (not a Circle post — Circle
+        // pages don't render PostFeedSection/ProfilePostsList, nothing
+        // there to show a placeholder in — and not an event, which reads
+        // oddly as a "Posting…" media-style card) shows up in the feed the
+        // instant Post is tapped instead of the composer sitting on
+        // "Uploading…"/"Posting…" until the whole round trip finishes. See
+        // optimistic-posts-store.ts / submitPostFormData's own doc comment.
+        const optimisticId =
+          !circleId && !isEvent
+            ? typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`
+            : null;
+
+        if (optimisticId) {
+          const preview = buildOptimisticPreview();
+          addOptimisticPost({
+            localId: optimisticId,
+            content,
+            previewUrl: preview.url,
+            previewKind: preview.kind,
+            authorName: authorName ?? "You",
+            authorAvatarUrl: authorAvatarUrl ?? null,
+            createdAt: new Date(),
+            status: "sending",
+          });
+          // Same reset the success path below used to wait for the whole
+          // upload + createPost round trip before doing — the feed's own
+          // placeholder is now what shows this post is on its way, so
+          // there's nothing left for the composer itself to keep showing.
+          // uploadAll() below is unaffected: it's called from a closure
+          // created earlier this same tick, over this render's images/
+          // video/etc. bindings — these setState calls affect the *next*
+          // render, not the values that closure already captured.
+          setImages([]);
+          setUrlImages([]);
+          setVideo(null);
+          setVideoDurationSeconds(null);
+          setNativeVideoUpload(null);
+          setEmbedUrl(null);
+          setPendingGif(null);
+          setSuggestionText("");
+          formRef.current?.reset();
+        } else {
+          setStatus("uploading");
+          setErrorText(null);
+        }
+
         startTransition(async () => {
           const media = await uploadAll();
           if ("error" in media) {
-            setStatus("error");
-            setErrorText(errorMessage(media.error));
+            const message = errorMessage(media.error);
+            if (optimisticId) markOptimisticPostError(optimisticId, message);
+            else {
+              setStatus("error");
+              setErrorText(message);
+            }
             return;
           }
           fd.set("mediaType", media.mediaType);
@@ -780,7 +883,7 @@ export function PostComposer({
           if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
-          await submitPostFormData(fd);
+          await submitPostFormData(fd, optimisticId ?? undefined);
         });
       }}
     >

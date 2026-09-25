@@ -248,7 +248,11 @@ export default async function PublicProfilePage({
         {isOwnProfile && (
           <div id="profile-composer">
             <ProfileComposeFocus />
-            <PostComposer defaultVisibility={me.postsVisibility === "CONNECTIONS_ONLY" ? "CONNECTIONS_ONLY" : "PUBLIC"} />
+            <PostComposer
+              defaultVisibility={me.postsVisibility === "CONNECTIONS_ONLY" ? "CONNECTIONS_ONLY" : "PUBLIC"}
+              authorName={me.name}
+              authorAvatarUrl={me.avatarUrl}
+            />
           </div>
         )}
         {isOwnProfile && <ProfilePostFab />}
