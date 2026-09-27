@@ -220,12 +220,26 @@ const ALBUM_PHOTO_DOUBLE_TAP_SCALE = 2.5;
  * zooms this photo in place; a plain tap (not zoomed, no pinch/pan just
  * happened) still navigates exactly as before.
  *
- * touch-action flips between "pan-x" (not zoomed: let the browser's native
- * scroll-snap handle single-finger swipes between photos, same as an
+ * touch-action flips between "pan-x pan-y" (not zoomed: let the browser's
+ * native scroll-snap handle single-finger swipes between photos, same as an
  * unwrapped <img> would) and "none" (zoomed: claim the gesture exclusively,
  * so dragging around a zoomed-in photo doesn't also scroll the carousel to
  * the next one) — a pinch itself is always available either way, since
  * neither value claims two-finger input.
+ *
+ * REAL BUG, confirmed live on a real device (2026-09-26): this used to be
+ * plain "pan-x" — which doesn't just prefer horizontal panning, it actively
+ * *disallows* the browser from ever treating this touch as vertical page
+ * scroll at all, including bubbling to the page. Since an album photo is
+ * large and visually dominant in a feed card, a completely ordinary
+ * vertical scroll swipe that happens to start on top of one was silently
+ * swallowed with nowhere to go — reported as "the Home feed doesn't scroll"
+ * (it wasn't the feed itself; only touches starting on an album photo were
+ * affected, but that's most of a card's visible area). "pan-x pan-y" tells
+ * the browser both axes are fair game and lets its normal per-gesture
+ * direction heuristic decide, exactly like an unwrapped <img> would with no
+ * touch-action override at all — this is the value that was actually meant
+ * here, not a relaxation of the fix's original intent.
  */
 function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
   const { containerRef, imgRef, scale, translate, isGesturing, resetIfZoomed, wasZoomGesture, movedPastTapThreshold, bind } =
@@ -235,7 +249,7 @@ function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
     <div
       ref={containerRef}
       className="w-full overflow-hidden"
-      style={{ touchAction: scale > 1 ? "none" : "pan-x" }}
+      style={{ touchAction: scale > 1 ? "none" : "pan-x pan-y" }}
       onClick={(e) => {
         // Suppress the parent <Link>'s navigation when this tap is actually
         // the tail end of a pinch/pan, or a tap-to-reset while zoomed —

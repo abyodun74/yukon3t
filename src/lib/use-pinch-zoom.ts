@@ -222,8 +222,9 @@ export function usePinchZoom({
     movedPastTapThreshold,
     // Deliberately no `touchAction` in here — ZoomableImage always wants
     // "none" (nothing else on that surface needs native touch), but the
-    // album carousel needs it to flip between "pan-x" (let native
-    // horizontal scroll-snap swipe between photos while not zoomed) and
+    // album carousel needs it to flip between "pan-x pan-y" (let native
+    // scroll-snap swipe between photos, and let vertical page scroll
+    // through, while not zoomed) and
     // "none" (claim the gesture exclusively once zoomed, so panning around
     // a zoomed-in photo doesn't also scroll to the next one) — a static
     // value here couldn't serve both.
