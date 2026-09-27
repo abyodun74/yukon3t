@@ -92,6 +92,7 @@ export function TurnstileWidget({
   onGiveUp,
   resetSignal = 0,
   className,
+  appearance = "interaction-only",
 }: {
   onToken?: (token: string | null) => void;
   /** Called when no token arrived in time, or the widget errored — stop waiting for one. */
@@ -99,6 +100,17 @@ export function TurnstileWidget({
   /** Bump this to discard the current token and get a fresh one. */
   resetSignal?: number;
   className?: string;
+  /**
+   * Cloudflare's own render option — "interaction-only" (default) is
+   * invisible to a real user unless Cloudflare's risk scoring decides an
+   * explicit challenge is needed, which is the right default everywhere
+   * this component is used for low-friction forms (sign-up, phone/device
+   * verification, ad booking). "always" instead renders a persistent
+   * checkbox widget on every load, for a surface that specifically wants
+   * the visible reassurance/friction (sign-in's password form) rather than
+   * the invisible default.
+   */
+  appearance?: "always" | "execute" | "interaction-only";
 }) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +181,7 @@ export function TurnstileWidget({
           sitekey: siteKey,
           theme: "auto",
           size: "flexible",
-          appearance: "interaction-only",
+          appearance,
           callback: (token) => setToken(token),
           "expired-callback": () => setToken(null),
           "timeout-callback": () => setToken(null),
@@ -209,7 +221,7 @@ export function TurnstileWidget({
       }
       tokenRef.current = null;
     };
-  }, [siteKey]);
+  }, [siteKey, appearance]);
 
   // Non-form consumers ask for a fresh token by bumping resetSignal.
   const firstResetSignal = useRef(resetSignal);
