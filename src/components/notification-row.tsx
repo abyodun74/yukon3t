@@ -64,6 +64,7 @@ type NotificationData = {
   liveStreamId: string | null;
   channel: { slug: string } | null;
   museId: string | null;
+  storyId: string | null;
 };
 
 function hrefFor(notification: NotificationData) {
@@ -86,6 +87,20 @@ function hrefFor(notification: NotificationData) {
       notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
       notification.type === "SUBSCRIPTION_MUSE") {
     return notification.museId ? `/muse/${notification.museId}` : "/muse";
+  }
+  // Stories have no permalink route of their own — they only ever live
+  // inside the story ring on the author's profile. ?story=<id> tells
+  // ProfileStoryRing (see that component) to open the viewer straight to
+  // this one instead of just landing on the profile and making the reader
+  // find it themself. Falls back to a plain profile link if the story has
+  // since expired/been deleted (ProfileStoryRing won't find it in the
+  // list it fetches and just won't auto-open — same graceful "the thing
+  // this linked to is gone" fallback every other stale notification target
+  // in this app already gets).
+  if (notification.type === "STORY_COMMENT" || notification.type === "SUBSCRIPTION_STORY") {
+    return notification.storyId
+      ? `/u/${notification.actor.id}?story=${notification.storyId}`
+      : `/u/${notification.actor.id}`;
   }
   // The post it'd otherwise link to no longer exists (removed by the
   // moderation review that triggered this) — nothing more specific to

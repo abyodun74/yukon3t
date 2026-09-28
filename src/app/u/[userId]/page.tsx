@@ -30,11 +30,11 @@ export default async function PublicProfilePage({
   searchParams,
 }: {
   params: Promise<{ userId: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; story?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
-  const { error, saved } = await searchParams;
+  const { error, saved, story: storyParam } = await searchParams;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -159,6 +159,7 @@ export default async function PublicProfilePage({
             isOwner={isOwnProfile}
             currentUserId={me.id}
             online={online}
+            initialStoryId={storyParam}
           />
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-semibold">{user.name}</h1>

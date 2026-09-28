@@ -22,6 +22,7 @@ export function ProfileStoryRing({
   isOwner,
   currentUserId,
   online,
+  initialStoryId,
 }: {
   userId: string;
   avatarUrl: string | null;
@@ -30,8 +31,20 @@ export function ProfileStoryRing({
   isOwner: boolean;
   currentUserId: string;
   online?: boolean;
+  /**
+   * From a notification's `?story=<id>` deep link (see notification-row.tsx's
+   * hrefFor) — if it matches one of `stories`, the viewer opens immediately
+   * at that story instead of waiting for a tap on the ring. Silently
+   * ignored (findIndex returns -1, treated the same as "no deep link") if
+   * the story has since expired or been deleted — it simply won't be in
+   * `stories`, same "the thing this linked to is gone" fallback every other
+   * notification target in this app already gets.
+   */
+  initialStoryId?: string;
 }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
+  const initialIndex = initialStoryId ? stories.findIndex((s) => s.id === initialStoryId) : -1;
+  const [viewerOpen, setViewerOpen] = useState(initialIndex >= 0);
+  const [startIndex, setStartIndex] = useState(Math.max(initialIndex, 0));
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const hasStories = stories.length > 0;
@@ -44,8 +57,17 @@ export function ProfileStoryRing({
           disabled={!hasStories && !avatarUrl}
           // Stories take priority when present (they're the time-sensitive
           // content); otherwise tapping the photo just enlarges it for a
-          // clearer look, rather than being a dead tap like before.
-          onClick={() => (hasStories ? setViewerOpen(true) : setPhotoOpen(true))}
+          // clearer look, rather than being a dead tap like before. Always
+          // starts at the first story on a manual tap — startIndex only
+          // points elsewhere when the viewer auto-opened from a deep link.
+          onClick={() => {
+            if (hasStories) {
+              setStartIndex(0);
+              setViewerOpen(true);
+            } else {
+              setPhotoOpen(true);
+            }
+          }}
           aria-label={hasStories ? "View story" : avatarUrl ? "Enlarge profile photo" : undefined}
           className={cn(
             "h-16 w-16 overflow-hidden rounded-full border bg-surface",
@@ -86,7 +108,7 @@ export function ProfileStoryRing({
       {viewerOpen && hasStories && (
         <StoryViewer
           stories={stories}
-          startIndex={0}
+          startIndex={startIndex}
           authorId={userId}
           authorName={name}
           authorAvatarUrl={avatarUrl}
