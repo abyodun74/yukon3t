@@ -38,21 +38,37 @@ import type { FlatComment } from "@/lib/comment-tree";
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
 /**
- * Every other provider here (YouTube/Vimeo/Dailymotion/Facebook) is a
- * landscape player that's happy in a 16:9 box, but TikTok and Instagram
- * Reels are natively portrait and Instagram feed posts are closer to
- * square — forcing those into aspect-video squeezed their embed page's own
- * responsive layout into the wrong shape, which is what made them appear
- * to "slide"/scroll inside the card instead of sitting still (confirmed
- * live — see the sandbox comment on the iframe below re: Instagram's
- * embed.js already fighting the container). Matching the container to the
- * embed's actual native aspect ratio is what actually fixes that, not any
- * scroll/touch CSS on the iframe itself.
+ * Every other provider here (YouTube/Vimeo/Dailymotion) is a landscape
+ * player that's happy in a 16:9 box, but TikTok and Instagram Reels are
+ * natively portrait, a Facebook Reel is exactly as portrait as those two,
+ * and an Instagram feed post is closer to square — forcing any of those
+ * into aspect-video squeezed their embed page's own responsive layout into
+ * the wrong shape, which is what made them appear to "slide"/scroll inside
+ * the card instead of sitting still (confirmed live — see the sandbox
+ * comment on the iframe below re: Instagram's embed.js already fighting
+ * the container). Matching the container to the embed's actual native
+ * aspect ratio is what actually fixes that, not any scroll/touch CSS on
+ * the iframe itself.
+ *
+ * REAL BUG, confirmed live (2026-09-28): Facebook was left out of the
+ * portrait special-case even though video-embed.ts's own FACEBOOK_ID
+ * already recognizes `reel/<id>` as a distinct URL shape — a Facebook
+ * Reel squeezed into a 16:9 box doesn't just look wrong, the mismatch
+ * between Facebook's own internal layout (sized for its real 9:16 content)
+ * and this container's reported (wrong) dimensions put its actual
+ * play/next-video hit targets somewhere other than where they visually
+ * appeared, so a tap aimed at "play" could land on a different control
+ * entirely — reported as "jumps to other video when tap to play." Same
+ * root cause as the "not displaying content properly/fully" complaint,
+ * not two separate bugs.
  */
 function embedContainerClass(provider: EmbedProvider, id: string): string {
   if (provider === "TIKTOK") return "aspect-[9/16] max-h-[70vh] mx-auto";
   if (provider === "INSTAGRAM") {
     return id.startsWith("reel/") ? "aspect-[9/16] max-h-[70vh] mx-auto" : "aspect-square max-w-md mx-auto";
+  }
+  if (provider === "FACEBOOK" && id.startsWith("reel/")) {
+    return "aspect-[9/16] max-h-[70vh] mx-auto";
   }
   return "aspect-video";
 }
