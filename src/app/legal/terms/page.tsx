@@ -27,12 +27,14 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 20, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 29, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
-        These Terms of Service (&quot;Terms&quot;) govern your access to and
-        use of YuKon3t. By creating an account or otherwise using YuKon3t,
-        you agree to these Terms, our{" "}
+        YuKon3t is operated by Motiff Core Holdings, a Delaware company
+        (&quot;Motiff Core Holdings,&quot; &quot;we,&quot; &quot;us,&quot;
+        or &quot;our&quot;). These Terms of Service (&quot;Terms&quot;)
+        govern your access to and use of YuKon3t. By creating an account or
+        otherwise using YuKon3t, you agree to these Terms, our{" "}
         <a href="/legal/privacy" className="text-accent">Privacy Policy</a>,
         our{" "}
         <a href="/legal/guidelines" className="text-accent">Community Guidelines</a>,
@@ -196,6 +198,20 @@ export default function TermsPage() {
         YuKon3t or its users. Where practical, we will state a reason and
         provide an appeal path, as described in the Guidelines.
       </p>
+      <p className="mt-2 text-foreground-soft">
+        We may also suspend or terminate any account or your access to all
+        or part of YuKon3t for any other reason, or no reason, with
+        reasonable notice where practical — for example, if we discontinue
+        YuKon3t or a feature of it. This does not limit any other right or
+        remedy we have.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Effect of termination.</b> Upon termination, your right to access
+        and use YuKon3t ends immediately. Sections 4 (as to the license
+        wind-down described there), 11 through 17, and this sentence survive
+        termination of your account or these Terms, along with any other
+        provision that by its nature should survive.
+      </p>
 
       <h2 className="mt-8 font-semibold">11. Disclaimers</h2>
       <p className="mt-2 text-foreground-soft">
@@ -227,25 +243,110 @@ export default function TermsPage() {
 
       <h2 className="mt-8 font-semibold">13. Indemnification</h2>
       <p className="mt-2 text-foreground-soft">
-        You agree to indemnify and hold YuKon3t harmless from any claims,
-        damages, liabilities, and expenses (including reasonable legal fees)
-        arising from your use of YuKon3t, your User Content, any ad you
-        submit as an Advertiser, or your violation of these Terms or any
-        applicable law.
+        You agree to indemnify, defend, and hold harmless Motiff Core
+        Holdings and YuKon3t, and our officers, employees, and agents, from
+        any claims, damages, liabilities, and expenses (including reasonable
+        legal fees) arising from your use of YuKon3t, your User Content, any
+        ad you submit as an Advertiser, or your violation of these Terms or
+        any applicable law. We reserve the right, at our own expense, to
+        assume the exclusive defense and control of any matter otherwise
+        subject to indemnification by you, in which case you agree to
+        cooperate with our defense of that claim.
       </p>
 
-      <h2 className="mt-8 font-semibold">14. Dispute resolution &amp; governing law</h2>
+      <h2 className="mt-8 font-semibold">14. Governing law</h2>
       <p className="mt-2 text-foreground-soft">
-        Before filing a formal claim, please contact us so we can try to
-        resolve the issue informally. These Terms are governed by applicable
-        law without regard to conflict-of-law principles, and any dispute
-        not resolved informally will be subject to the exclusive
-        jurisdiction of the courts competent to hear it, except where local
-        consumer-protection law grants you the right to bring a claim in
-        your own jurisdiction, which these Terms do not override.
+        These Terms, and any dispute arising out of or relating to them, the
+        Privacy Policy, or your use of YuKon3t, are governed by the laws of
+        the State of Delaware, USA, without regard to its conflict-of-laws
+        principles. Subject to Section 15 (Binding Arbitration Agreement and
+        Class Action Waiver) below, the state and federal courts located in
+        Delaware have exclusive jurisdiction over any dispute not resolved
+        through arbitration or brought in small claims court, and you and we
+        each consent to personal jurisdiction there. Nothing in this Section
+        overrides any right you may have under mandatory consumer-protection
+        law in your own jurisdiction to bring a claim in your local courts.
       </p>
 
-      <h2 className="mt-8 font-semibold">15. Changes to these Terms</h2>
+      <h2 className="mt-8 font-semibold">
+        15. Binding arbitration agreement and class action waiver
+      </h2>
+      <p className="mt-2 text-foreground-soft">
+        <b>
+          Please read this section carefully — it affects your legal rights,
+          including your right to file a lawsuit in court and to participate
+          in a class action.
+        </b>
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Informal resolution first.</b> Before filing an arbitration
+        demand or a small claims action, you agree to first contact us and
+        give us 30 days to try to resolve the dispute informally.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Agreement to arbitrate.</b> You and Motiff Core Holdings agree
+        that any dispute, claim, or controversy arising out of or relating
+        to these Terms, the Privacy Policy, or your use of YuKon3t
+        (&quot;Dispute&quot;) that is not resolved informally or in small
+        claims court will be resolved by binding, individual arbitration
+        administered by the American Arbitration Association
+        (&quot;AAA&quot;) under its Consumer Arbitration Rules then in
+        effect, rather than in court, except that either party may bring an
+        individual Dispute in small claims court if it qualifies, and either
+        party may seek injunctive relief in court to prevent infringement of
+        intellectual property rights or unauthorized access to or misuse of
+        YuKon3t. This agreement to arbitrate is governed by the Federal
+        Arbitration Act. The arbitrator, not any court, will decide all
+        disputes about the interpretation, applicability, or enforceability
+        of this arbitration agreement, except that only a court decides the
+        validity and effect of the Class Action Waiver below.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Class action waiver.</b> You and Motiff Core Holdings each agree
+        that any Dispute will be brought only in an individual capacity, and
+        not as a plaintiff or class member in any purported class,
+        collective, consolidated, or representative action or arbitration.
+        The arbitrator may not consolidate more than one person&apos;s
+        claims and may not otherwise preside over any form of a
+        representative or class proceeding. If a court or arbitrator decides
+        that this Class Action Waiver is unenforceable as to a particular
+        claim or request for relief, that particular claim or request for
+        relief must be brought in court, severed from any arbitration, and
+        every remaining claim or request for relief remains subject to
+        arbitration on an individual basis.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Coordinated/mass filings.</b> If 25 or more similar arbitration
+        demands represented by the same or coordinated counsel or entities
+        are filed against us within a short period, we may ask AAA to apply
+        its Mass Arbitration Supplementary Rules (or an equivalent
+        batching/staged-filing procedure it makes available), and you agree
+        that your Dispute may be resolved under those procedures rather than
+        as a fully separate proceeding.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Opting out.</b> You may opt out of this arbitration agreement and
+        the Class Action Waiver by contacting us within 30 days of first
+        creating your account (or, for an existing account, within 30 days
+        of the date this Section is added or materially changed), stating
+        your username and that you wish to opt out of arbitration. If you
+        opt out, any Dispute between you and us will instead be resolved as
+        described in Section 14 (Governing Law), and the Class Action Waiver
+        in this Section will not apply to you.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Outside the United States.</b> If you are located in the European
+        Economic Area, the United Kingdom, Switzerland, Australia, or
+        another jurisdiction where mandatory pre-dispute arbitration or a
+        waiver of class or representative actions is not enforceable against
+        consumers under local law, this Section 15 applies only to the
+        extent permitted by that law, and any Dispute we cannot arbitrate as
+        a result will instead be resolved as described in Section 14
+        (Governing Law), including in your local courts where mandatory
+        consumer-protection law requires it.
+      </p>
+
+      <h2 className="mt-8 font-semibold">16. Changes to these Terms</h2>
       <p className="mt-2 text-foreground-soft">
         We may update these Terms as YuKon3t evolves. Material changes will
         be announced in-app or by email before they take effect. Continued
@@ -253,14 +354,15 @@ export default function TermsPage() {
         the updated Terms.
       </p>
 
-      <h2 className="mt-8 font-semibold">16. General</h2>
+      <h2 className="mt-8 font-semibold">17. General</h2>
       <p className="mt-2 text-foreground-soft">
         If any provision of these Terms is found unenforceable, the
-        remaining provisions remain in full effect. Our failure to enforce
-        any right or provision is not a waiver of that right. These Terms,
-        together with the Privacy Policy, Community Guidelines, and
-        Disclaimer, constitute the entire agreement between you and YuKon3t
-        regarding its use.
+        remaining provisions remain in full effect (see also the
+        arbitration-specific severability rule in Section 15). Our failure
+        to enforce any right or provision is not a waiver of that right.
+        These Terms, together with the Privacy Policy, Community Guidelines,
+        and Disclaimer, constitute the entire agreement between you and
+        Motiff Core Holdings regarding your use of YuKon3t.
       </p>
     </div>
   );

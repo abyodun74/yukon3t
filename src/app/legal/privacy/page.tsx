@@ -27,14 +27,16 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 20, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 29, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
-        This Privacy Policy explains what information YuKon3t (&quot;YuKon3t,&quot;
-        &quot;we,&quot; &quot;us&quot;) collects when you use the service, why we
-        collect it, and the rights you have over it. We collect the minimum
-        needed to run a global, trust-based social platform, and we never
-        sell your personal data.
+        YuKon3t is operated by Motiff Core Holdings, a Delaware company,
+        which is the data controller for the personal information described
+        below (&quot;Motiff Core Holdings,&quot; &quot;we,&quot;
+        &quot;us&quot;). This Privacy Policy explains what information we
+        collect when you use YuKon3t, why we collect it, and the rights you
+        have over it. We collect the minimum needed to run a global,
+        trust-based social platform, and we never sell your personal data.
       </p>
 
       <h2 className="mt-8 font-semibold">1. Information we collect</h2>
