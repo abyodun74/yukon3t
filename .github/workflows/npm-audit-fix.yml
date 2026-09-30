@@ -1,0 +1,171 @@
+name: Monthly npm audit fix
+
+# Runs every Monday, but only actually does anything on the first Monday
+# of the month (cron has no native "nth weekday of month" syntax — the
+# standard workaround is to schedule every Monday and gate on day-of-month
+# inside the job). workflow_dispatch lets it be run manually any time
+# (e.g. to test this workflow itself), bypassing the date gate.
+on:
+  schedule:
+    - cron: "0 9 * * 1" # 09:00 UTC every Monday
+  workflow_dispatch: {}
+
+# contents: write — to push the fix branch. pull-requests: write — to open
+# the PR. Nothing else. This workflow never needs repo secrets beyond the
+# GITHUB_TOKEN GitHub provides automatically — see the "no full build" note
+# in the PR body template below for why.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: npm-audit-fix
+  cancel-in-progress: false
+
+jobs:
+  audit-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only proceed on the first Monday of the month
+        id: gate
+        run: |
+          DAY=$(date +%-d)
+          if [ "$DAY" -le 7 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Day $DAY of the month — not the first Monday, skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.proceed == 'true'
+
+      # gh label create is idempotent (--force updates if it already exists)
+      # — without this, the PR/issue steps below could silently fail to
+      # apply labels that don't exist in the repo yet on a first run.
+      - name: Ensure labels exist
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create dependencies --color 0366d6 --description "Dependency updates" --force
+          gh label create automated --color 5319e7 --description "Opened by a scheduled workflow, not a person" --force
+
+      - uses: actions/setup-node@v7
+        if: steps.gate.outputs.proceed == 'true'
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        if: steps.gate.outputs.proceed == 'true'
+        run: npm ci
+
+      - name: Check for known vulnerabilities
+        id: audit
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          if npm audit > audit-before.txt 2>&1; then
+            echo "No vulnerabilities found."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+          cat audit-before.txt
+
+      # Deliberately no --force: that flag can apply a breaking/major-version
+      # bump to "fix" an advisory, which is not a "known good" patch — the
+      # whole point of this job is unattended safety, so anything that
+      # needs --force is reported (see "File an issue" step below) instead
+      # of applied automatically.
+      - name: Apply known-good fixes
+        if: steps.gate.outputs.proceed == 'true' && steps.audit.outputs.found == 'true'
+        run: npm audit fix
+
+      - name: Check whether anything was actually fixable
+        id: diff
+        if: steps.gate.outputs.proceed == 'true' && steps.audit.outputs.found == 'true'
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Deliberately no full `next build` here — that needs a large set of
+      # production secrets (Stripe, R2, Turnstile, ...) this workflow was
+      # never given, on purpose, to keep its permissions minimal. Netlify
+      # already builds every push to master for real, with real secrets —
+      # this is the fast, secret-free check that catches a fix breaking
+      # actual app code before a human ever sees the PR.
+      - name: Typecheck
+        if: steps.diff.outputs.changed == 'true'
+        run: npm run typecheck
+
+      - name: Lint
+        if: steps.diff.outputs.changed == 'true'
+        run: npm run lint
+
+      - name: Test
+        if: steps.diff.outputs.changed == 'true'
+        run: npm test
+
+      - name: Record remaining vulnerabilities (if any need a breaking fix)
+        if: steps.diff.outputs.changed == 'true'
+        run: npm audit > audit-after.txt 2>&1 || true
+
+      - name: Build pull request body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          {
+            echo "Automated monthly \`npm audit fix\` run (first Monday of the month)."
+            echo ""
+            echo "Applied non-breaking security fixes only (\`npm audit fix\`, no \`--force\`) —"
+            echo "anything left below needs a breaking/major-version bump and was **not** applied automatically."
+            echo ""
+            echo "**Verified before opening this PR**: typecheck, lint, and the full test suite (\`npm test\`) all passed against the updated lockfile."
+            echo ""
+            echo "This does **not** run a full production build — that needs secrets this workflow"
+            echo "intentionally doesn't have. Netlify will build it for real once this merges to master;"
+            echo "Vercel still needs its own \`vercel --prod --scope team_7Nzn0mLUYlVb7eUPeuDLAUQU\` afterward, as usual."
+            echo ""
+            echo "<details><summary>npm audit — before</summary>"
+            echo ""
+            echo '```'
+            cat audit-before.txt
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "<details><summary>npm audit — after (should be empty or only breaking-fix-only advisories)</summary>"
+            echo ""
+            echo '```'
+            cat audit-after.txt
+            echo '```'
+            echo "</details>"
+          } > pr-body.md
+
+      - name: Open pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automated/npm-audit-fix
+          delete-branch: true
+          commit-message: "npm audit fix: automated monthly dependency security update"
+          title: "npm audit fix — automated monthly security update"
+          body-path: pr-body.md
+          labels: dependencies, automated
+
+      # Covers the case npm audit itself never surfaces as a workflow
+      # failure: vulnerabilities exist, but every one of them needs --force
+      # (a breaking change) to fix, so `npm audit fix` made no changes at
+      # all. Nothing to PR, but a human still needs to know.
+      - name: File an issue if nothing was auto-fixable
+        if: steps.gate.outputs.proceed == 'true' && steps.audit.outputs.found == 'true' && steps.diff.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "npm audit: vulnerabilities found, none auto-fixable without a breaking change" \
+            --label "dependencies,automated" \
+            --body-file audit-before.txt
