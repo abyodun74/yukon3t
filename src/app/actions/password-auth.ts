@@ -761,3 +761,110 @@ export async function adminDeleteUser(formData: FormData) {
   revalidatePath("/admin/users");
   return { error: null };
 }
+
+// The single fixed identity App Store Connect's demo-account field points
+// at — see scripts/fix-app-review-demo-account.ts's own doc comment for the
+// full backstory (Apple reviews from a device/network this app has never
+// seen and a mailbox they can't read, so this account needs
+// isAppReviewDemo to skip every gate a normal new/unverified account would
+// hit). Hardcoded, not a form field: there is deliberately exactly one of
+// these, matching the one identity typed into App Store Connect.
+const APP_REVIEW_DEMO_USERNAME = "abiodunapplereview";
+const APP_REVIEW_DEMO_EMAIL = "appreview@yukon3t.com";
+const APP_REVIEW_DEMO_PASSWORD = "AppReview001";
+
+/**
+ * Admin one-click fix for the App Store review demo account — same
+ * find-or-create-and-repair logic as scripts/fix-app-review-demo-account.ts,
+ * exposed as a real Server Action instead of a local script specifically
+ * because that script needs DATABASE_URL pointed at production to do
+ * anything useful, and this repo's own local dev .env points at a
+ * different (non-production) database — confirmed live 2026-09-30 when
+ * running the script locally reported "No user found" for an account that
+ * demonstrably exists in real production. A Server Action always runs with
+ * the exact production DATABASE_URL the deployed app itself uses — no
+ * local env configuration to get wrong.
+ *
+ * Unlike the script, always resets the password to the known value rather
+ * than making that optional — this button only exists to make the account
+ * provably match what's typed into App Store Connect, so leaving an
+ * unknown current password in place would defeat the point.
+ */
+export async function fixAppReviewDemoAccount() {
+  const admin = await requireAdmin();
+
+  const existing = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: { equals: APP_REVIEW_DEMO_USERNAME, mode: "insensitive" } },
+        { email: APP_REVIEW_DEMO_EMAIL },
+      ],
+    },
+  });
+
+  const passwordHash = await hashPassword(APP_REVIEW_DEMO_PASSWORD);
+
+  const before = existing
+    ? {
+        id: existing.id,
+        username: existing.username,
+        email: existing.email,
+        status: existing.status,
+        emailVerified: Boolean(existing.emailVerified),
+        lockedUntil: existing.lockedUntil,
+        failedLoginAttempts: existing.failedLoginAttempts,
+        isAppReviewDemo: existing.isAppReviewDemo,
+      }
+    : null;
+
+  if (!existing) {
+    const created = await prisma.user.create({
+      data: {
+        username: APP_REVIEW_DEMO_USERNAME,
+        email: APP_REVIEW_DEMO_EMAIL,
+        passwordHash,
+        // Any adult date works — this account never goes through the real
+        // signup age-gate, and nothing else reads birthDate for it.
+        birthDate: new Date("1995-01-01"),
+        status: "ACTIVE",
+        emailVerified: new Date(),
+        isAppReviewDemo: true,
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        targetId: created.id,
+        action: "APP_REVIEW_DEMO_ACCOUNT_FIXED",
+        reason: "Created — did not exist in production at all.",
+        performedBy: admin.id,
+      },
+    });
+    return { error: null, before: null, action: "created" as const };
+  }
+
+  await prisma.user.update({
+    where: { id: existing.id },
+    data: {
+      username: APP_REVIEW_DEMO_USERNAME,
+      email: APP_REVIEW_DEMO_EMAIL,
+      passwordHash,
+      isAppReviewDemo: true,
+      status: "ACTIVE",
+      deactivatedAt: null,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      failedLoginAt: null,
+      emailVerified: existing.emailVerified ?? new Date(),
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      targetId: existing.id,
+      action: "APP_REVIEW_DEMO_ACCOUNT_FIXED",
+      reason: `Repaired — before: ${JSON.stringify(before)}`,
+      performedBy: admin.id,
+    },
+  });
+
+  return { error: null, before, action: "repaired" as const };
+}

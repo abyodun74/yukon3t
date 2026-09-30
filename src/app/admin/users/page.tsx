@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminSendResetButton } from "@/components/admin-send-reset-button";
 import { AdminResendVerificationButton } from "@/components/admin-resend-verification-button";
 import { AdminDeleteUserButton } from "@/components/admin-delete-user-button";
+import { FixAppReviewDemoButton } from "@/components/fix-app-review-demo-button";
 
 /** Support tool: look up an account and send them a password reset link — for a customer who can't complete their own reset, or is locked out and doesn't want to wait 24h. */
 export default async function AdminUsersPage({
@@ -55,6 +56,10 @@ export default async function AdminUsersPage({
         resetting their own password, or who&apos;s locked out after too
         many failed attempts.
       </p>
+
+      <div className="mt-6">
+        <FixAppReviewDemoButton />
+      </div>
 
       <form className="mt-6 flex items-center gap-2">
         <input

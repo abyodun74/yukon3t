@@ -1961,6 +1961,11 @@ enum AuditAction {
   CONTENT_REMOVED
   PASSWORD_RESET_SENT
   VERIFICATION_EMAIL_SENT
+  // Written by fixAppReviewDemoAccount (actions/password-auth.ts) — an
+  // admin one-click repair for the single account App Store Connect's
+  // demo-account field points at, since Apple reviews from a
+  // device/network this app has never seen and a mailbox they can't read.
+  APP_REVIEW_DEMO_ACCOUNT_FIXED
 }
 
 model AuditLog {
