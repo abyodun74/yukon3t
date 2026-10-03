@@ -33,7 +33,11 @@ export type UploadKind =
   | "comment-audio"
   | "comment-video"
   | "muse-video"
-  | "muse-audio";
+  | "muse-audio"
+  // Ambient presence groundwork (see actions/ambient.ts) — a single photo,
+  // same allowlist/size cap as story-image, since it's the same "casual
+  // phone photo" use case, not a polished-post-grade upload.
+  | "ambient-image";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -61,6 +65,7 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "message-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   "message-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" },
   "story-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "ambient-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "story-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   "muse-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   // Broader than message/comment audio's webm-only allowlist (those are
@@ -101,6 +106,7 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "message-image": 25 * 1024 * 1024,
   "circle-cover": 12 * 1024 * 1024,
   "story-image": 25 * 1024 * 1024,
+  "ambient-image": 25 * 1024 * 1024,
   "story-video": MAX_VIDEO_BYTES,
   "ad-image": 25 * 1024 * 1024,
   "ad-video": MAX_VIDEO_BYTES,

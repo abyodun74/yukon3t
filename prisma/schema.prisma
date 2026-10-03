@@ -352,6 +352,15 @@ model User {
   securityChallenges SecurityChallenge[]
   encryptionKey      UserEncryptionKey?
 
+  // "Ambient presence" groundwork (2026-10-02) — see InnerCircleMember/
+  // AmbientMoment/AmbientWidgetToken's own doc comments. No native lock-
+  // screen/widget/watch surface exists yet; this is the data layer a future
+  // one would be built against.
+  innerCircleOf   InnerCircleMember[] @relation("InnerCircleOwner")
+  inSomeonesCircle InnerCircleMember[] @relation("InnerCircleMember")
+  ambientMoments   AmbientMoment[]
+  ambientWidgetTokens AmbientWidgetToken[]
+
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
   // equality filters, ordered by trustScore) — without this, that query
@@ -1720,6 +1729,102 @@ model Subscription {
   @@unique([subscriberId, subscribedToId])
   @@index([subscribedToId])
   @@index([subscriberId])
+}
+
+/**
+ * "Ambient presence" groundwork (2026-10-02) — data layer for a future
+ * lock-screen/widget/watch surface showing content from "a handful of
+ * people you actually know," without opening the app. No native widget
+ * exists yet (that needs a real iOS WidgetKit extension, an Android
+ * AppWidgetProvider, and/or a WatchOS app — none of which this Capacitor/
+ * web codebase can build or verify); this and AmbientMoment/
+ * AmbientWidgetToken below are the server-side pieces a future native
+ * developer would build against, kept deliberately isolated from every
+ * existing feature (Post/Story/Subscription/Connection) so adding this
+ * can't break any of them.
+ *
+ * Deliberately gated on an ACCEPTED Connection, not a Subscription —
+ * Subscription already means "show me this person's public posts" and can
+ * target anyone, including a creator you've never met; "a handful of
+ * people you actually know" is a narrower, more personal claim than that,
+ * so it's modeled as its own curated list layered on top of a real mutual
+ * Connection rather than reusing or overloading either existing
+ * relationship.
+ *
+ * ownerId is the *viewer* (whose ambient surface this is); memberId is
+ * the person whose moments flow into it — one-directional like
+ * Subscription (you can add someone without them adding you back), capped
+ * at a small number server-side (see MAX_INNER_CIRCLE_SIZE in
+ * actions/ambient.ts) to stay "a handful," not a second feed.
+ */
+model InnerCircleMember {
+  id        String   @id @default(cuid())
+  ownerId   String
+  memberId  String
+  createdAt DateTime @default(now())
+
+  owner  User @relation("InnerCircleOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  member User @relation("InnerCircleMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, memberId])
+  @@index([ownerId])
+  @@index([memberId])
+}
+
+/**
+ * A single lightweight, ephemeral "ambient moment" — one photo, optional
+ * caption, nothing else (no likes/comments/reposts/albums — "ambient
+ * presence over performed posting" is the entire point, so this
+ * deliberately doesn't grow any of Post's engagement surface). Visible
+ * only to whoever has the author in *their* InnerCircleMember list, never
+ * public, never shown in Feed/Muse/Discover/search.
+ *
+ * Goes through the same image moderation gate as every other image
+ * upload in this app (see createAmbientMoment in actions/ambient.ts) —
+ * "new, low-stakes surface" is not a reason to skip it.
+ */
+model AmbientMoment {
+  id               String           @id @default(cuid())
+  authorId         String
+  imageUrl         String
+  caption          String?          @db.Text
+  moderationStatus ModerationStatus @default(PUBLISHED)
+  createdAt        DateTime         @default(now())
+  // Ambient moments are ephemeral like Stories, not a permanent feed — see
+  // AMBIENT_MOMENT_LIFETIME_MS in actions/ambient.ts for the actual value.
+  expiresAt        DateTime
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, createdAt])
+  @@index([expiresAt])
+}
+
+/**
+ * A long-lived, revocable, scoped credential a future native widget/watch
+ * app would store and send as a bearer token to GET /api/ambient/feed —
+ * deliberately NOT the same session JWT the main app/web session uses.
+ * tokenHash is a plain SHA-256 digest (see hashAmbientWidgetToken in
+ * actions/ambient.ts, same pattern as hashOtpCode in lib/otp.ts) rather
+ * than a slow password-style hash: the raw token is already
+ * high-entropy/random (unlike a user-chosen password), so there's no
+ * offline-guessing risk a slow hash would need to defend against, only a
+ * fast, safe equality check on every widget poll. If this token leaks, the
+ * blast radius is deliberately tiny — read-only access to this one user's
+ * inner-circle ambient feed, nothing else (no posting, no messages, no
+ * profile data) — see the route's own auth check.
+ */
+model AmbientWidgetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Conversation {

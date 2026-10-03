@@ -784,6 +784,45 @@ const sections: Section[] = [
     ],
   },
   {
+    title: "Ambient",
+    items: [
+      {
+        q: "What is Ambient?",
+        a: (
+          <>
+            Settings → Ambient lets you pick a small Inner Circle — up to 8
+            people you&apos;re already connected with — and share casual
+            photo &ldquo;moments&rdquo; that only they can see, instead of a
+            composed public post. A moment disappears after 48 hours.
+          </>
+        ),
+      },
+      {
+        q: "Who can see my ambient moments?",
+        a: (
+          <>
+            Only people who&apos;ve added <em>you</em> to their own Inner
+            Circle — never anyone else, and never your public profile, Feed,
+            or Discover. Adding someone to your Inner Circle is one-directional,
+            like subscribing: they don&apos;t need to add you back for you to
+            see theirs.
+          </>
+        ),
+      },
+      {
+        q: "Is there a lock-screen or watch widget for this?",
+        a: (
+          <>
+            Not yet — that needs real native development for each platform.
+            Settings → Ambient shows an in-app preview of what your ambient
+            feed would look like in the meantime, and a widget access token
+            is already available to generate for whenever a widget exists.
+          </>
+        ),
+      },
+    ],
+  },
+  {
     title: "Connecting, messaging, and calls",
     items: [
       {

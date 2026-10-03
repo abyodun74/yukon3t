@@ -129,6 +129,20 @@ export default async function SettingsPage({
       </div>
 
       <div>
+        <h2 className="text-lg font-semibold">Ambient</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          A handful of people you actually know, and casual moments instead
+          of composed posts — early groundwork, no lock-screen widget yet.
+        </p>
+        <Link
+          href="/settings/ambient"
+          className="mt-3 inline-block rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+        >
+          Manage Inner Circle
+        </Link>
+      </div>
+
+      <div>
         <h2 className="text-lg font-semibold">Invite friends</h2>
         <p className="mt-1 text-sm text-foreground-soft">
           Send the app link straight to people in your phone&apos;s contacts

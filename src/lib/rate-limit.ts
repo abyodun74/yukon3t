@@ -187,6 +187,16 @@ export const rateLimiters = {
   // loop while a share is preparing (a few calls over ~20s), tight enough
   // to bound spend if something calls this in a loop.
   brandedVideo: makeLimiter(30, "5 m", "brandedVideo"),
+  // Ambient presence groundwork (actions/ambient.ts). Adding/removing a
+  // handful of people is an occasional settings action, not something
+  // anyone legitimately does dozens of times a minute.
+  innerCircleManage: makeLimiter(20, "10 m", "innerCircleManage"),
+  // A real upload + moderation call per attempt, same cost shape as
+  // postCreate — "ambient" doesn't mean "unthrottled."
+  ambientMomentCreate: makeLimiter(10, "10 m", "ambientMomentCreate"),
+  // Token generation/revocation — rare by nature (done once when setting up
+  // a future widget), tight on purpose.
+  ambientWidgetToken: makeLimiter(10, "1 h", "ambientWidgetToken"),
 };
 
 export async function checkRateLimit(

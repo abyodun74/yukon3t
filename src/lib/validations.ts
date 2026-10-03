@@ -386,6 +386,11 @@ export const adBookingSchema = z.object({
   }),
 });
 
+export const ambientMomentSchema = z.object({
+  imageUrl: z.string().url(),
+  caption: z.string().trim().max(120).optional().default(""),
+});
+
 export const storySchema = z.object({
   mediaType: z.enum(["IMAGE", "VIDEO", "EMBED"]),
   // Required for IMAGE/VIDEO, absent for EMBED — createStory enforces the
