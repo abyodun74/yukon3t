@@ -6,7 +6,7 @@ import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, 
 import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
-import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry } from "@/lib/upload-client";
+import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry, probeVideoDuration } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
@@ -424,7 +424,7 @@ export function PostComposer({
     setShowImageUrlInput(false);
   }
 
-  function pickVideo(rawFile: File | undefined) {
+  async function pickVideo(rawFile: File | undefined) {
     if (!rawFile) return;
     const file = normalizeVideoFile(rawFile);
     if (!file) {
@@ -438,16 +438,16 @@ export function PostComposer({
       return;
     }
 
-    // Attach synchronously rather than waiting on the <video> element's
-    // loadedmetadata event — that event can take a while (or, on some
-    // Android devices/codecs, never fire at all, nor does onerror) to
-    // resolve for a large file. Gating attachment on it left `video` state
-    // null in the meantime, so a user who picked a valid video and hit
-    // "Post" before it resolved fell through to the generic "attach a
-    // photo/video" validation error despite having picked one. Duration is
-    // now checked in the background below and only removes the video
-    // after the fact if it's too long — the common case (post submitted
-    // any time after the picker closes) never sees that window at all.
+    // Attach synchronously rather than waiting on the duration probe below
+    // to resolve — that can take a while (or, on some Android devices/
+    // codecs, never resolve at all) for a large file. Gating attachment on
+    // it left `video` state null in the meantime, so a user who picked a
+    // valid video and hit "Post" before it resolved fell through to the
+    // generic "attach a photo/video" validation error despite having picked
+    // one. Duration is checked in the background below and only removes
+    // the video after the fact if it's too long — the common case (post
+    // submitted any time after the picker closes) never sees that window
+    // at all.
     setImages([]);
     setUrlImages([]);
     setEmbedUrl(null);
@@ -457,35 +457,39 @@ export function PostComposer({
     setStatus("idle");
     setErrorText(null);
 
-    const url = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.src = url;
-    probe.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      if (!Number.isFinite(probe.duration)) return;
-      if (probe.duration > MAX_UPLOAD_VIDEO_SECONDS) {
-        // Only clear it if this is still the video that was picked — a
-        // second, different pick before this one's metadata resolved
-        // shouldn't clobber it.
-        setVideo((current) => (current === file ? null : current));
+    // probeVideoDuration (not a plain loadedmetadata read) because some
+    // video files — notably anything recorded via VideoRecorderModal's
+    // "Record live" option just below, a MediaRecorder WebM blob — report
+    // Infinity here until the file is actually scanned; see that
+    // function's own doc comment. Resolving the real duration (rather than
+    // giving up on it, which this used to do) also means a long recorded
+    // video now correctly gets routed to manual review below instead of
+    // silently skipping that check.
+    const duration = await probeVideoDuration(file);
+    // A different file may have been picked while this was resolving —
+    // don't clobber it with a stale result.
+    setVideo((current) => {
+      if (current !== file) return current;
+      if (duration === null) {
+        // Can't determine duration — fails open (video stays attached
+        // unchecked) rather than blocking a post over a client-side probe
+        // that isn't a security boundary anyway. The server simply won't
+        // get a videoDurationSeconds for this one, so if it's actually
+        // over 60s it'll still just publish immediately like before this
+        // check existed.
+        return current;
+      }
+      if (duration > MAX_UPLOAD_VIDEO_SECONDS) {
         setStatus("error");
         setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
-        return;
+        return null;
       }
       // Sent along with the post so the server can route anything over
       // Hive's 60s scan limit to manual review instead of publishing it
       // unmoderated — see videoNeedsManualReview in actions/circles.ts.
-      setVideoDurationSeconds(Math.round(probe.duration));
-    };
-    probe.onerror = () => {
-      // Can't determine duration — fails open (video stays attached
-      // unchecked) rather than blocking a post over a client-side probe
-      // that isn't a security boundary anyway. The server simply won't get
-      // a videoDurationSeconds for this one, so if it's actually over 60s
-      // it'll still just publish immediately like before this change.
-      URL.revokeObjectURL(url);
-    };
+      setVideoDurationSeconds(Math.round(duration));
+      return current;
+    });
   }
 
   /**

@@ -643,3 +643,72 @@ export function captureVideoFrameFromFile(file: File): Promise<File | null> {
     probe.onerror = () => finish(null);
   });
 }
+
+/**
+ * Resolves a local video File's real, finite duration in seconds — or null
+ * if it genuinely can't be determined. Exists because of a well-documented
+ * Chromium/WebView behavior: a video file with no (or an unreliable)
+ * Duration box/element — most commonly a WebM Blob straight out of
+ * MediaRecorder (see video-recorder-modal.tsx, Post's own in-app "record
+ * live" option), but also plenty of ordinary picked files: anything
+ * re-encoded/forwarded through another app (chat apps, some camera
+ * firmwares) can ship the same incomplete metadata — reads `<video>.duration`
+ * as Infinity at `loadedmetadata` instead of a real number. The fix is also
+ * well-documented: seeking near the end forces the browser to actually scan
+ * the file, after which `duration` reads correctly.
+ *
+ * REAL BUG this fixes, confirmed from a live report: muse-composer.tsx's
+ * own probe used to just bail out (`if (!Number.isFinite(duration)) return`)
+ * on an Infinity duration, leaving its `videoDurationSeconds` state stuck at
+ * null forever — which permanently disabled the "Post Muse" button with no
+ * error message at all, for a video that was genuinely well under the 3-
+ * minute cap (Muse has no in-app recorder, so this was hit by an ordinary
+ * picked file). Unlike Post (whose own duration check is advisory only — a
+ * post still submits without one), Muse's server action *requires*
+ * videoDurationSeconds for a VIDEO Muse, so this probe actually has to
+ * succeed, not just fail open.
+ */
+export function probeVideoDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const probeUrl = URL.createObjectURL(file);
+    const probe = document.createElement("video");
+    probe.src = probeUrl;
+    probe.muted = true;
+    probe.preload = "metadata";
+
+    // Same reasoning as captureVideoFrameFromFile's own timeout: some
+    // devices/codecs never fire any of these events for a video this hidden
+    // element can't decode, and the Infinity-duration workaround below adds
+    // a second async step (a seek) that could itself hang just as easily.
+    let settled = false;
+    const finish = (result: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      URL.revokeObjectURL(probeUrl);
+      resolve(result);
+    };
+    const timeout = setTimeout(() => finish(null), 4000);
+
+    probe.onloadedmetadata = () => {
+      if (Number.isFinite(probe.duration)) {
+        finish(probe.duration);
+        return;
+      }
+      // Force the browser to scan the file for its real duration. A huge
+      // currentTime clamps to the file's actual end, firing durationchange
+      // (sometimes also timeupdate) with a now-finite duration — listening
+      // for both covers the browsers that only fire one or the other.
+      const onResolved = () => {
+        if (!Number.isFinite(probe.duration)) return;
+        probe.removeEventListener("durationchange", onResolved);
+        probe.removeEventListener("timeupdate", onResolved);
+        finish(probe.duration);
+      };
+      probe.addEventListener("durationchange", onResolved);
+      probe.addEventListener("timeupdate", onResolved);
+      probe.currentTime = Number.MAX_SAFE_INTEGER;
+    };
+    probe.onerror = () => finish(null);
+  });
+}

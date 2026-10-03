@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Video, Music, Upload } from "lucide-react";
 import { createMuse } from "@/app/actions/muse";
-import { uploadFileDirect, uploadVideoWithThumb, withRetry } from "@/lib/upload-client";
+import { probeVideoDuration, uploadFileDirect, uploadVideoWithThumb, withRetry } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -64,32 +64,40 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
-  function pickVideo(file: File) {
+  async function pickVideo(file: File) {
     setVideo(file);
     setVideoDurationSeconds(null);
     setStatus("idle");
     setErrorText(null);
 
-    const url = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.src = url;
-    probe.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      if (!Number.isFinite(probe.duration)) return;
-      if (probe.duration > MAX_MUSE_SECONDS) {
-        setVideo((current) => (current === file ? null : current));
+    // probeVideoDuration (not a plain loadedmetadata read) specifically
+    // because some picked video files — anything re-encoded/forwarded
+    // through another app, in particular — report Infinity here until the
+    // file is actually scanned; see that function's own doc comment. A
+    // video genuinely well under MAX_MUSE_SECONDS used to get silently
+    // stuck here forever: unlike Post's own duration probe, Muse's server
+    // action requires videoDurationSeconds for a VIDEO Muse, so this can't
+    // fail open the way Post's does — it has to actually resolve a real
+    // number, or tell the person why it didn't, not just leave "Post Muse"
+    // disabled with no explanation.
+    const duration = await probeVideoDuration(file);
+    // A different file may have been picked while this was resolving —
+    // don't clobber it with a stale result.
+    setVideo((current) => {
+      if (current !== file) return current;
+      if (duration === null) {
+        setStatus("error");
+        setErrorText("Couldn't read this video's length — try picking a different file.");
+        return null;
+      }
+      if (duration > MAX_MUSE_SECONDS) {
         setStatus("error");
         setErrorText(`A Muse can be at most ${MAX_MUSE_SECONDS / 60} minutes — pick a shorter clip.`);
-        return;
+        return null;
       }
-      setVideoDurationSeconds(Math.round(probe.duration));
-    };
-    probe.onerror = () => {
-      // Fails open, same reasoning as post-composer's own probe — the
-      // server re-validates duration itself regardless.
-      URL.revokeObjectURL(url);
-    };
+      setVideoDurationSeconds(Math.round(duration));
+      return current;
+    });
   }
 
   async function submit() {
