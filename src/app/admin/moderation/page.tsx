@@ -45,6 +45,7 @@ export default async function ModerationQueuePage() {
     flaggedPosts,
     flaggedComments,
     flaggedMessages,
+    flaggedMuses,
     hiddenComments,
     lockedUsers,
     failedAttemptUsers,
@@ -90,6 +91,22 @@ export default async function ModerationQueuePage() {
       orderBy: { createdAt: "asc" },
       take: 20,
       include: { sender: { select: { name: true } } },
+    }),
+    // A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS (60s) publishes FLAGGED
+    // pending the moderate-long-videos cron's Cloudflare Stream + OpenAI
+    // pipeline (see createMuse, actions/muse.ts) — that cron runs every
+    // minute and normally clears this within a few, so most rows here are
+    // just in-flight, not stuck. Still worth a real queue (this used to have
+    // none at all, unlike Post/Comment/Message above): a review whose
+    // automated verdict never lands — a crashed tick, a Cloudflare/OpenAI
+    // outage — had no way for an admin to see or rescue it, and its author
+    // had no way to see it either; "Posted!" would show client-side, then
+    // the Muse would just never appear, with nothing telling anyone why.
+    prisma.muse.findMany({
+      where: { moderationStatus: "FLAGGED" },
+      orderBy: { createdAt: "asc" },
+      take: 20,
+      include: { author: { select: { name: true } } },
     }),
     // Hidden by a post author/Circle co-admin, not an admin — see hideComment
     // in comments.ts. Unlike a report or a flagged-at-creation item, these
@@ -153,7 +170,7 @@ export default async function ModerationQueuePage() {
   const activeIds = new Set([...lockedUsers, ...failedAttemptUsers, ...unverifiedStuckUsers].map((u) => u.id));
   const recentlyResolvedLoginIssueUsers = resolvedLoginIssueUsers.filter((u) => !activeIds.has(u.id));
 
-  const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length;
+  const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length + flaggedMuses.length;
 
   // Duplicate posts: same author + identical content within the scan
   // window — grouped in memory rather than a raw GROUP BY so the "keep the
@@ -460,6 +477,20 @@ export default async function ModerationQueuePage() {
             <p className="text-xs text-foreground-soft">Message from {message.sender.name}</p>
             <p className="mt-1 break-words text-sm">{message.content}</p>
             <FlaggedContentActions contentType="MESSAGE" contentId={message.id} />
+          </div>
+        ))}
+        {flaggedMuses.map((muse) => (
+          <div key={muse.id} className="rounded-lg border border-line p-3">
+            <p className="text-xs text-foreground-soft">
+              Muse by {muse.author.name} · {muse.videoDurationSeconds}s · posted {muse.createdAt.toLocaleString()}
+            </p>
+            <p className="mt-1 break-words text-sm">{muse.caption || "(no caption)"}</p>
+            <p className="mt-1 text-xs text-foreground-soft">
+              {muse.videoLongReviewClaimedAt
+                ? "Automated review in progress — only publish/remove manually if this has sat here a while."
+                : "Not currently being reviewed automatically — safe to resolve now."}
+            </p>
+            <FlaggedContentActions contentType="MUSE" contentId={muse.id} />
           </div>
         ))}
         {flaggedCount === 0 && (

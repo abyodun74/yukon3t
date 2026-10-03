@@ -583,7 +583,7 @@ export const transcribeAudioSchema = z.object({
 });
 
 export const flaggedContentActionSchema = z.object({
-  contentType: z.enum(["POST", "COMMENT", "MESSAGE"]),
+  contentType: z.enum(["POST", "COMMENT", "MESSAGE", "MUSE"]),
   contentId: z.string().cuid(),
   decision: z.enum(["APPROVE", "REMOVE"]),
 });

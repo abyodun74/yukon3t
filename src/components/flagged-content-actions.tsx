@@ -8,7 +8,7 @@ export function FlaggedContentActions({
   contentType,
   contentId,
 }: {
-  contentType: "POST" | "COMMENT" | "MESSAGE";
+  contentType: "POST" | "COMMENT" | "MESSAGE" | "MUSE";
   contentId: string;
 }) {
   const [isPending, startTransition] = useTransition();

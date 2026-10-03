@@ -199,6 +199,18 @@ export async function approveFlaggedContent(formData: FormData) {
         data: { commentCount: { increment: 1 } },
       });
     });
+  } else if (contentType === "MUSE") {
+    // Same terminal update the moderate-long-videos cron's own "clean"
+    // verdict makes (see reviewOneMuse) — this is the manual equivalent for
+    // a Muse an admin looked at directly instead of waiting on that
+    // pipeline (or rescuing one whose automated review never reached a
+    // verdict). Matches that path exactly: no notifySubscribers fan-out
+    // here either, same as the automated "clean" case.
+    await prisma.muse.update({
+      where: { id: contentId },
+      data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+    });
+    revalidatePath("/muse");
   } else {
     await prisma.message.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
   }
