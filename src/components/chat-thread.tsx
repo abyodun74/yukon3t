@@ -1679,12 +1679,17 @@ export function ChatThread({
 
       <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
 
-      {/* WhatsApp/Instagram-style composer: one continuous rounded pill
-          holding text entry + emoji + attach, with circular icon-only
-          action buttons (mic, send) outside it — not a bordered toolbar of
-          equal-weight icon buttons next to a plain text "Send" button, the
-          shape this replaced. */}
-      <div className="mt-3 flex shrink-0 items-end gap-2">
+      {/* Mirrors the Post composer's own shape (post-composer.tsx: a
+          bordered textarea, then a plain icon row underneath split
+          left/right) instead of the WhatsApp/Instagram-style rounded pill
+          this replaced, so Post and Messages read as one consistent
+          composer design. Every capability is kept, just regrouped into
+          that shape: attach-photo/attach-video/emoji/GIF/dictate sit in
+          the icon row exactly like Post's equivalents, and the single
+          circular action button on the right still toggles record ↔ send
+          — idle (nothing typed, nothing attached) means "record a voice
+          note", anything typed or attached means "send". */}
+      <div className="mt-3">
         <input
           ref={imageInputRef}
           type="file"
@@ -1733,121 +1738,119 @@ export function ChatThread({
             e.target.value = "";
           }}
         />
-        <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-line bg-background py-1 pl-2 pr-1">
-          <EmojiPickerButton onSelect={insertEmoji} />
-          <GifPickerButton
-            onSelect={(gifUrl) => {
-              setPendingAudio(null);
-              setPendingVideo(null);
-              setPendingImage(null);
-              setPendingGif(gifUrl);
-            }}
-          />
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            onPaste={handlePaste}
-            maxLength={4000}
-            rows={1}
-            placeholder={
-              pendingAudio || pendingVideo || pendingImage || pendingGif
-                ? "Add a caption (optional)..."
-                : `Message ${conversationLabel}...`
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
             }
-            className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none"
-          />
-          <MediaPickerButton
-            icon={<ImagePlus size={16} />}
-            title="Add a photo"
-            options={[
-              {
-                label: "Upload from device",
-                icon: <Upload size={14} />,
-                onSelect: () => {
-                  if (isNativePickerActive()) return;
-                  markNativePickerActive();
-                  imageInputRef.current?.click();
+          }}
+          onPaste={handlePaste}
+          maxLength={4000}
+          rows={1}
+          placeholder={
+            pendingAudio || pendingVideo || pendingImage || pendingGif
+              ? "Add a caption (optional)..."
+              : `Message ${conversationLabel}...`
+          }
+          className="max-h-32 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
+        <div className="mt-2 flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1">
+            <MediaPickerButton
+              icon={<ImagePlus size={16} />}
+              title="Add a photo"
+              options={[
+                {
+                  label: "Upload from device",
+                  icon: <Upload size={14} />,
+                  onSelect: () => {
+                    if (isNativePickerActive()) return;
+                    markNativePickerActive();
+                    imageInputRef.current?.click();
+                  },
                 },
-              },
-              {
-                label: "Take a photo",
-                icon: <Camera size={14} />,
-                onSelect: () => {
-                  if (isNativePickerActive()) return;
-                  markNativePickerActive();
-                  cameraInputRef.current?.click();
+                {
+                  label: "Take a photo",
+                  icon: <Camera size={14} />,
+                  onSelect: () => {
+                    if (isNativePickerActive()) return;
+                    markNativePickerActive();
+                    cameraInputRef.current?.click();
+                  },
                 },
-              },
-            ]}
-          />
-          <MediaPickerButton
-            icon={<Video size={16} />}
-            title="Add a video"
-            options={[
-              {
-                label: "Upload from device",
-                icon: <Upload size={14} />,
-                onSelect: () => {
-                  if (isNativePickerActive()) return;
-                  markNativePickerActive();
-                  videoFileInputRef.current?.click();
+              ]}
+            />
+            <MediaPickerButton
+              icon={<Video size={16} />}
+              title="Add a video"
+              options={[
+                {
+                  label: "Upload from device",
+                  icon: <Upload size={14} />,
+                  onSelect: () => {
+                    if (isNativePickerActive()) return;
+                    markNativePickerActive();
+                    videoFileInputRef.current?.click();
+                  },
                 },
-              },
-              {
-                label: "Record live",
-                icon: <Circle size={14} className="text-danger" fill="currentColor" />,
-                onSelect: () => {
-                  setPendingAudio(null);
-                  setPendingImage(null);
-                  setShowVideoRecorder(true);
+                {
+                  label: "Record live",
+                  icon: <Circle size={14} className="text-danger" fill="currentColor" />,
+                  onSelect: () => {
+                    setPendingAudio(null);
+                    setPendingImage(null);
+                    setShowVideoRecorder(true);
+                  },
                 },
-              },
-            ]}
-          />
-          <button
-            type="button"
-            onClick={() => setShowDictation(true)}
-            disabled={showDictation}
-            title="Dictate text"
-            aria-label="Dictate text"
-            className="rounded-lg p-1.5 text-foreground-soft hover:bg-line disabled:opacity-40"
-          >
-            <Mic size={16} />
-          </button>
+              ]}
+            />
+            <EmojiPickerButton onSelect={insertEmoji} />
+            <GifPickerButton
+              onSelect={(gifUrl) => {
+                setPendingAudio(null);
+                setPendingVideo(null);
+                setPendingImage(null);
+                setPendingGif(gifUrl);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowDictation(true)}
+              disabled={showDictation}
+              title="Dictate text"
+              aria-label="Dictate text"
+              className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
+            >
+              <Mic size={16} />
+            </button>
+          </div>
+          {content.trim() || pendingAudio || pendingVideo || pendingImage || pendingGif ? (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleSend}
+              aria-label="Send"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
+            >
+              <Send size={17} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAudioRecorder(true)}
+              title="Record a voice note"
+              aria-label="Record a voice note"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink"
+            >
+              <Mic size={18} />
+            </button>
+          )}
         </div>
-        {/* One circular action button that toggles mic ↔ send, like both
-            reference apps — not a mic button and a send button sitting
-            side by side. Idle (nothing typed, nothing attached) always
-            means "record a voice note"; anything typed or attached means
-            "send". */}
-        {content.trim() || pendingAudio || pendingVideo || pendingImage || pendingGif ? (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={handleSend}
-            aria-label="Send"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
-          >
-            <Send size={17} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowAudioRecorder(true)}
-            title="Record a voice note"
-            aria-label="Record a voice note"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink"
-          >
-            <Mic size={18} />
-          </button>
-        )}
       </div>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
 
