@@ -1,9 +1,15 @@
 // Turns the raw category tokens produced by moderation.ts/profanity-wordlist.ts
 // (OpenAI's own moderation category names, e.g. "sexual", "sexual/minors",
 // plus this app's own "profanity" and "moderation_api_error" sentinels)
-// into short human-readable phrases for a user-facing violation notice —
-// see video-review.ts's VideoReviewResult "flagged" reasons and
-// notifyVideoModerationFailed in content-moderation.ts.
+// into short human-readable phrases — see video-review.ts's
+// VideoReviewResult "flagged" reasons, the shape these are derived from.
+// videoViolationNoticeText below has no production caller as of the
+// moderate-long-videos cron change that made a "flagged" long video hold
+// for admin review instead of auto-removing with a notice — kept rather
+// than deleted since it's small, correct, and exactly what a future
+// "show the admin why this was flagged" feature (/admin/moderation
+// currently doesn't surface a reason inline, only in the AuditLog) would
+// reach for.
 const CATEGORY_LABELS: Record<string, string> = {
   sexual: "sexually explicit content",
   "sexual/minors": "sexual content involving minors",

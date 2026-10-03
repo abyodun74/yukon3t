@@ -2071,6 +2071,14 @@ enum AuditAction {
   // demo-account field points at, since Apple reviews from a
   // device/network this app has never seen and a mailbox they can't read.
   APP_REVIEW_DEMO_ACCOUNT_FIXED
+  // Written by the moderate-long-videos cron (route.ts) when its own
+  // automated Cloudflare Stream + OpenAI review flags a long (over
+  // HIVE_VIDEO_MODERATION_MAX_SECONDS) Post/Comment/Muse video — the content
+  // is held (moderationStatus FLAGGED, surfaced in /admin/moderation) for a
+  // human to publish or remove, not auto-deleted the way it used to be;
+  // CONTENT_REMOVED is still what's written if an admin then removes it,
+  // same as every other flagged-content-queue removal.
+  CONTENT_FLAGGED_FOR_REVIEW
 }
 
 model AuditLog {

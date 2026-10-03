@@ -43,9 +43,13 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   VOICE_CHANNEL_INVITE_ACCEPTED: "accepted your voice channel invite",
   MISSED_CALL: "called you",
   SCREENSHOT_TAKEN: "took a screenshot",
-  // Fallback only — notifyVideoModerationFailed always sets
-  // Notification.message with the specific violation type(s), which
-  // notification-row.tsx prefers over this generic text.
+  // Legacy only: the moderate-long-videos cron no longer auto-removes a
+  // flagged long video (it now holds for admin review instead — see that
+  // route's own comment), so nothing creates a new row of this type
+  // anymore. Kept so a notification row from before that change still
+  // renders correctly. Every existing row of this type already has
+  // Notification.message set with the specific violation type(s), which
+  // notification-row.tsx prefers over this generic fallback text.
   VIDEO_MODERATION_FAILED: "A video you posted was removed for violating our content guidelines",
   // Sent to every admin, actor is whoever submitted it (see
   // submitAppFeedback in actions/review-prompt.ts) — Notification.message

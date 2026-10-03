@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { advanceLongVideoReview, type VideoReviewResult } from "@/lib/video-review";
-import { removeModeratedContent, cleanUpModeratedMedia } from "@/lib/content-moderation";
-import { notifyVideoModerationFailed } from "@/lib/video-moderation-notice";
-import { recomputeTrustScore } from "@/lib/trust";
 import { revalidatePath } from "next/cache";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
 import { captureError } from "@/lib/error-tracking";
@@ -115,34 +112,46 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
       return "clean";
     }
 
-    // result.kind === "flagged"
-    const removed = await prisma.$transaction(async (tx) => {
-      const removal = await removeModeratedContent("POST", candidate.id, tx);
-      if (removal) {
-        await tx.auditLog.create({
-          data: {
-            targetId: removal.authorId,
-            action: "CONTENT_REMOVED",
-            // Not FK'd to any User (see AuditLog.performedBy comment in
-            // schema.prisma) — a plain sentinel identifying this as an
-            // automated verdict rather than an admin's own action.
-            performedBy: "system:openai-video-review",
-            reason: `Long-video automated review flagged: ${result.reasons.join("; ")}`,
-          },
-        });
-      }
-      return removal;
+    // result.kind === "flagged" — held for a human to decide, not
+    // auto-deleted: OpenAI's moderation categories (harassment in
+    // particular) have a real false-positive rate on ordinary spoken audio,
+    // and an automated "flagged" verdict used to delete the video outright
+    // with no review step at all — unlike every other flagged-content path
+    // in this app (createPost/createComment's own synchronous text-flag,
+    // same as this), which holds for /admin/moderation instead of
+    // discarding. videoLongReviewNeeded: false stops claimPostCandidates
+    // from claiming this again now that a verdict has landed.
+    const post = await prisma.$transaction(async (tx) => {
+      const updated = await tx.post.update({
+        where: { id: candidate.id },
+        data: {
+          moderationStatus: "FLAGGED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          targetId: updated.authorId,
+          action: "CONTENT_FLAGGED_FOR_REVIEW",
+          // Not FK'd to any User (see AuditLog.performedBy comment in
+          // schema.prisma) — a plain sentinel identifying this as an
+          // automated verdict rather than an admin's own action.
+          performedBy: "system:openai-video-review",
+          reason: `Long-video automated review flagged for admin review: ${result.reasons.join("; ")}`,
+        },
+      });
+      return updated;
     });
-    if (removed) {
-      await cleanUpModeratedMedia(removed.mediaKeysToDelete);
-      await recomputeTrustScore(removed.authorId);
-      // Tells the uploader why, with the specific violation type(s) — the
-      // synchronous rejection path (createPost in actions/circles.ts)
-      // already surfaces this to the uploader directly in-request; this is
-      // the async pipeline's equivalent since nothing else would ever tell
-      // them their post got silently removed.
-      await notifyVideoModerationFailed(removed.authorId, result.reasons);
-    }
+    // A post in the instant-publish window (HIVE_VIDEO_MODERATION_MAX_SECONDS
+    // up to VIDEO_INSTANT_PUBLISH_MAX_SECONDS) was already live — this just
+    // took it back down, so the same caches that would show it need
+    // invalidating, same set the "clean" branch above already revalidates.
+    revalidatePath("/circles", "layout");
+    revalidatePath("/home");
+    revalidatePath(`/post/${post.id}`);
+    revalidatePath("/admin/moderation");
     return "flagged";
   }
 }
@@ -201,26 +210,29 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
       return "clean";
     }
 
-    // result.kind === "flagged"
-    const removed = await prisma.$transaction(async (tx) => {
-      const removal = await removeModeratedContent("COMMENT", candidate.id, tx);
-      if (removal) {
-        await tx.auditLog.create({
-          data: {
-            targetId: removal.authorId,
-            action: "CONTENT_REMOVED",
-            performedBy: "system:openai-video-review",
-            reason: `Long-video automated review flagged: ${result.reasons.join("; ")}`,
-          },
-        });
-      }
-      return removal;
+    // result.kind === "flagged" — held for review, same reasoning as
+    // reviewOnePost's own "flagged" branch above (see its comment). A
+    // long-video comment is already stored FLAGGED from creation time (see
+    // claimCommentCandidates' own query), so this is really just "stop
+    // reclaiming it and make sure an admin can see it," not a visibility
+    // change.
+    const comment = await prisma.$transaction(async (tx) => {
+      const updated = await tx.comment.update({
+        where: { id: candidate.id },
+        data: { moderationStatus: "FLAGGED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      });
+      await tx.auditLog.create({
+        data: {
+          targetId: updated.authorId,
+          action: "CONTENT_FLAGGED_FOR_REVIEW",
+          performedBy: "system:openai-video-review",
+          reason: `Long-video automated review flagged for admin review: ${result.reasons.join("; ")}`,
+        },
+      });
+      return updated;
     });
-    if (removed) {
-      await cleanUpModeratedMedia(removed.mediaKeysToDelete);
-      await recomputeTrustScore(removed.authorId);
-      await notifyVideoModerationFailed(removed.authorId, result.reasons);
-    }
+    revalidatePath(`/post/${comment.postId}`);
+    revalidatePath("/admin/moderation");
     return "flagged";
   }
 }
@@ -399,26 +411,29 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
       return "clean";
     }
 
-    // result.kind === "flagged"
-    const removed = await prisma.$transaction(async (tx) => {
-      const removal = await removeModeratedContent("MUSE", candidate.id, tx);
-      if (removal) {
-        await tx.auditLog.create({
-          data: {
-            targetId: removal.authorId,
-            action: "CONTENT_REMOVED",
-            performedBy: "system:openai-video-review",
-            reason: `Long-video automated review flagged: ${result.reasons.join("; ")}`,
-          },
-        });
-      }
-      return removal;
+    // result.kind === "flagged" — held for review, same reasoning as
+    // reviewOnePost's own "flagged" branch above (see its comment); this is
+    // the exact scenario that prompted adding Muse to /admin/moderation in
+    // the first place. A long Muse is already stored FLAGGED from creation
+    // time (see claimMuseCandidates' own query), so this is "stop
+    // reclaiming it and make sure an admin can see it," not a visibility
+    // change.
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.muse.update({
+        where: { id: candidate.id },
+        data: { moderationStatus: "FLAGGED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      });
+      await tx.auditLog.create({
+        data: {
+          targetId: updated.authorId,
+          action: "CONTENT_FLAGGED_FOR_REVIEW",
+          performedBy: "system:openai-video-review",
+          reason: `Long-video automated review flagged for admin review: ${result.reasons.join("; ")}`,
+        },
+      });
+      return updated;
     });
-    if (removed) {
-      await cleanUpModeratedMedia(removed.mediaKeysToDelete);
-      await recomputeTrustScore(removed.authorId);
-      await notifyVideoModerationFailed(removed.authorId, result.reasons);
-    }
+    revalidatePath("/admin/moderation");
     return "flagged";
   }
 }
