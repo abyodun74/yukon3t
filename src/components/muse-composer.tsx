@@ -161,7 +161,17 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
       aria-modal="true"
     >
       <div
-        className="animate-modal-panel-in w-full max-w-sm rounded-t-2xl bg-surface p-4 sm:rounded-2xl"
+        // On mobile this panel is a bottom sheet flush with the screen edge
+        // (the backdrop above is `items-end`), so its own z-50 renders over
+        // the app's bottom tab bar entirely — but a plain p-4 still leaves
+        // the "Post Muse" button sitting right at the edge of (or under)
+        // the device's own home-indicator/gesture-nav area on a phone with
+        // a tall safe-area-inset-bottom, the same gap nav.tsx/story-viewer.tsx/
+        // muse-feed.tsx already had to account for. At the sm: breakpoint
+        // this becomes a centered dialog (backdrop switches to
+        // items-center), not a bottom sheet, so no extra clearance is
+        // needed there.
+        className="animate-modal-panel-in w-full max-w-sm rounded-t-2xl bg-surface p-4 pb-[calc(1rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] sm:rounded-2xl sm:pb-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
