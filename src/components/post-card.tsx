@@ -288,7 +288,17 @@ function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
         alt={alt}
         draggable={false}
         loading="lazy"
-        className="img-fade-in max-h-96 w-full select-none rounded-lg bg-line/40 object-cover"
+        // aspect-[4/5], not max-h-96: every photo in an album — portrait,
+        // landscape, or square — now fills the same fixed frame instead of
+        // rendering at its own intrinsic height (capped only if it happened
+        // to be taller than 384px). Same frame shape the VIDEO branch below
+        // already uses ("Instagram feed video convention"), so a photo post
+        // and a video post read as the same size/shape swiping down the
+        // feed. object-cover does the actual cropping to fill it; a
+        // side-effect of giving the box a fixed aspect-ratio up front is
+        // that it also reserves this exact space before the image has
+        // loaded, instead of collapsing to 0 height first.
+        className="img-fade-in aspect-[4/5] w-full select-none rounded-lg bg-line/40 object-cover"
         onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
@@ -458,7 +468,18 @@ function MediaBlock({
                 <img
                   src={url}
                   alt={post.content || `Photo posted by ${post.author.name}`}
-                  className="img-fade-in max-h-96 w-full rounded-lg bg-line/40 object-cover"
+                  // Fixed frame instead of intrinsic-height-capped, same
+                  // reasoning as ZoomableAlbumPhoto above: a lone image
+                  // fills the same 4/5 "feed" frame every video/album photo
+                  // uses; this grid only ever renders >1 tile for legacy
+                  // pre-backfill rows (see actions/circles.ts's createPost —
+                  // every current multi-photo post is split one-row-per-photo
+                  // into the AlbumCarousel path instead), where square tiles
+                  // read better side by side than a tall 4/5 crop would.
+                  className={cn(
+                    "img-fade-in w-full rounded-lg bg-line/40 object-cover",
+                    post.mediaUrls.length === 1 ? "aspect-[4/5]" : "aspect-square",
+                  )}
                   loading="lazy"
                   ref={markImageLoadedIfComplete}
                   onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
