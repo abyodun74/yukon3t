@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
+import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { startRingback, stopRingback } from "@/lib/ringback";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -43,11 +44,28 @@ export function CallButton({
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
   const { startSession, endSession } = useCallSession();
 
+  // Tracks the prewarm.ts key for a call this side has started joining
+  // early (see call()) but the callee hasn't accepted yet — cleared without
+  // cancelling once DirectCallFrame adopts it (the "in-call" effect below),
+  // or cleared WITH cancelPrewarm wherever this component itself gives up
+  // on the call first (cancel()/checkStatus()'s DECLINED/ENDED branches, or
+  // this component unmounting mid-ring).
+  const pendingPrewarmKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    return () => {
+      if (pendingPrewarmKeyRef.current) cancelPrewarm(pendingPrewarmKeyRef.current);
+    };
+  }, []);
+
   // Hands the fullscreen/minimizable UI off to the root-mounted
   // GlobalCallFrame the moment the call connects, so navigating away doesn't
   // hang up (see src/lib/call-session.tsx).
   useEffect(() => {
     if (state.phase !== "in-call") return;
+    // Ownership of any prewarmed join for this call transfers to
+    // DirectCallFrame now (it looks itself up by the same key) — this
+    // component no longer owns tearing it down.
+    pendingPrewarmKeyRef.current = null;
     startSession({
       key: `call:${state.callId}`,
       roomUrl: state.roomUrl,
@@ -108,6 +126,13 @@ export function CallButton({
     } else if (result.status === "RINGING" && result.ringing) {
       setState((s) => (s.phase === "ringing" && !s.calleeRinging ? { ...s, calleeRinging: true } : s));
     } else if (result.status === "DECLINED") {
+      // Declined before ever being adopted by DirectCallFrame — this
+      // component still owns the prewarmed join (if any) and has to tear
+      // it down itself, or it'd sit connected to an empty room forever.
+      if (pendingPrewarmKeyRef.current) {
+        cancelPrewarm(pendingPrewarmKeyRef.current);
+        pendingPrewarmKeyRef.current = null;
+      }
       setState({ phase: "ended", message: `${calleeName} declined the call.` });
     } else if (result.status === "ENDED" || result.status === "MISSED") {
       // Normally the callee hanging up ejects us from the Daily room, which
@@ -119,6 +144,13 @@ export function CallButton({
       // server-side). Also closes the global call widget directly, in case
       // this fires before Daily's own "left-meeting" event does.
       if (current.phase === "in-call") endSession();
+      // Same as the DECLINED branch above — only matters if this is firing
+      // for a call that was still ringing (never adopted), but harmless to
+      // check unconditionally since the ref is already null once adopted.
+      if (pendingPrewarmKeyRef.current) {
+        cancelPrewarm(pendingPrewarmKeyRef.current);
+        pendingPrewarmKeyRef.current = null;
+      }
       setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
     }
   }, [calleeName, endSession]);
@@ -164,12 +196,22 @@ export function CallButton({
       setState({ phase: "ended", message: callErrorMessage(result.error ?? undefined) });
       return;
     }
+    const resolvedType = (result.type as CallType) ?? type;
+    // Starts joining the Daily room right now, while the callee's phone is
+    // still ringing, instead of waiting for them to accept — see
+    // call-prewarm.ts for why only the caller's side can do this safely.
+    // DirectCallFrame adopts this same-keyed join once (if) the call
+    // actually connects; cancelled/declined/unmounted-while-ringing paths
+    // elsewhere in this component tear it down if it's never adopted.
+    const prewarmKey = `call:${result.callId}`;
+    prewarmCall(prewarmKey, { roomUrl: result.roomUrl, token: result.token, type: resolvedType });
+    pendingPrewarmKeyRef.current = prewarmKey;
     setState({
       phase: "ringing",
       callId: result.callId,
       roomUrl: result.roomUrl,
       token: result.token,
-      type: (result.type as CallType) ?? type,
+      type: resolvedType,
       calleeRinging: false,
     });
   }
@@ -180,6 +222,10 @@ export function CallButton({
   function cancel() {
     if (state.phase === "ringing") {
       endCall(state.callId);
+      if (pendingPrewarmKeyRef.current) {
+        cancelPrewarm(pendingPrewarmKeyRef.current);
+        pendingPrewarmKeyRef.current = null;
+      }
     }
     setState({ phase: "idle" });
   }

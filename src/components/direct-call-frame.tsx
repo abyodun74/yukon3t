@@ -6,6 +6,7 @@ import type { DailyCall, DailyMediaDeviceInfo, DailyParticipant } from "@daily-c
 import { Capacitor } from "@capacitor/core";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
 import { broadcastHoldState, holdStateFromAppMessage } from "@/lib/call-hold";
+import { takePrewarmedCall } from "@/lib/call-prewarm";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
@@ -41,6 +42,7 @@ export function DirectCallFrame({
   onLeave,
   onCallObject,
   peerName,
+  prewarmKey,
 }: {
   roomUrl: string;
   token: string;
@@ -49,6 +51,8 @@ export function DirectCallFrame({
   onCallObject?: (call: DailyCall | null) => void;
   /** The other participant's display name — used only for the hold overlay's "X put the call on hold" text. Falls back to a generic phrase when omitted. */
   peerName?: string;
+  /** Same `call:${callId}` key call-session.tsx uses — if call-prewarm.ts already has (or is still joining) a call object under this key, adopt it instead of creating/joining a fresh one. See call-prewarm.ts. Omitted (the callee's side) always creates fresh — see that file for why only the caller prewarms. */
+  prewarmKey?: string;
 }) {
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
@@ -97,47 +101,84 @@ export function DirectCallFrame({
       if (onHold !== null) setRemoteOnHold(onHold);
     }
 
-    // Dynamic import, not static — same reasoning as CallFrame/
-    // LiveVideoFrame: this package touches browser globals at module load,
-    // which can't happen during this "use client" component's initial
-    // server-rendered pass.
-    import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
-      if (cancelled) return;
-
-      // avoidEval: true — this app's CSP (src/proxy.ts) never allows
-      // 'unsafe-eval' in production; without this the call object fails to
-      // initialize (same requirement live-video-frame.tsx already has).
-      call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
-      callRef.current = call;
-
-      call.on("participant-joined", refreshParticipants);
-      call.on("participant-updated", refreshParticipants);
-      call.on("participant-left", refreshParticipants);
-      call.on("left-meeting", onLeave);
-      call.on("available-devices-updated", (ev) =>
+    function attach(c: DailyCall) {
+      c.on("participant-joined", refreshParticipants);
+      c.on("participant-updated", refreshParticipants);
+      c.on("participant-left", refreshParticipants);
+      c.on("left-meeting", onLeave);
+      c.on("available-devices-updated", (ev) =>
         applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]),
       );
-      call.on("app-message", handleAppMessage);
+      c.on("app-message", handleAppMessage);
       // Covers devices already available the moment the call starts — the
       // event above only fires on a later change.
-      call.enumerateDevices().then(({ devices }) => applyDevices(devices as DailyMediaDeviceInfo[]));
+      c.enumerateDevices().then(({ devices }) => applyDevices(devices as DailyMediaDeviceInfo[]));
+    }
 
-      call
-        .join({ url: roomUrl, token, startVideoOff: type === "AUDIO" })
-        .then(() => {
-          if (cancelled) return;
+    // The prewarmed path (caller only — see call-prewarm.ts) has already
+    // started, or finished, exactly this same import+createCallObject+join
+    // sequence while this call was still ringing; adopting that object
+    // means this mount (which only ever happens post-Accept) skips redoing
+    // any of it. Falls back to the normal cold-start path otherwise (the
+    // callee's side, always).
+    const prewarmed = prewarmKey ? takePrewarmedCall(prewarmKey) : undefined;
+
+    if (prewarmed) {
+      prewarmed
+        .then((c) => {
+          if (cancelled) {
+            c.destroy();
+            return;
+          }
+          call = c;
+          callRef.current = c;
+          attach(c);
+          // Already joined — no join() call here (Daily doesn't support
+          // joining twice; see call-session.tsx's reconnectingRef comment
+          // on that same constraint). participants() already reflects
+          // whoever's in the room by now.
           refreshParticipants();
+          onCallObject?.(c);
         })
         .catch((err: unknown) => {
           if (cancelled) return;
-          // A clean, fixed message — not err.message — regardless of what
-          // Daily's SDK actually threw.
+          // Same clean, fixed message as the cold-start path below — not
+          // err.message — regardless of what Daily's SDK actually threw.
           console.error("Daily call join failed:", err);
           setJoinError("Couldn't join the call. Check your connection and try again.");
         });
+    } else {
+      // Dynamic import, not static — same reasoning as CallFrame/
+      // LiveVideoFrame: this package touches browser globals at module load,
+      // which can't happen during this "use client" component's initial
+      // server-rendered pass.
+      import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
+        if (cancelled) return;
 
-      onCallObject?.(call);
-    });
+        // avoidEval: true — this app's CSP (src/proxy.ts) never allows
+        // 'unsafe-eval' in production; without this the call object fails to
+        // initialize (same requirement live-video-frame.tsx already has).
+        call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
+        callRef.current = call;
+        attach(call);
+
+        call
+          .join({ url: roomUrl, token, startVideoOff: type === "AUDIO" })
+          .then(() => {
+            if (cancelled) return;
+            refreshParticipants();
+          })
+          .catch((err: unknown) => {
+            if (cancelled) return;
+            // A clean, fixed message — not err.message — regardless of what
+            // Daily's SDK actually threw.
+            console.error("Daily call join failed:", err);
+            setJoinError("Couldn't join the call. Check your connection and try again.");
+          });
+
+        onCallObject?.(call);
+      });
+    }
 
     return () => {
       cancelled = true;
