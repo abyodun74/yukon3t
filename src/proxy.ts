@@ -116,6 +116,21 @@ export async function proxy(request: NextRequest) {
     }
   })();
 
+  // Sentry's browser SDK (instrumentation-client.ts) posts events straight
+  // to its own ingest host, not through this app's own backend — needs its
+  // own connect-src entry, derived from the DSN itself (a DSN is just
+  // "https://<key>@<ingest-host>/<project>"; .origin strips the key) rather
+  // than hardcoded to sentry.io, since a self-hosted or regionalized
+  // ingest host wouldn't be on that domain. Same conditional-once-
+  // configured gating as every other integration above.
+  const sentryConnectSrc = (() => {
+    try {
+      return process.env.NEXT_PUBLIC_SENTRY_DSN ? ` ${new URL(process.env.NEXT_PUBLIC_SENTRY_DSN).origin}` : "";
+    } catch {
+      return "";
+    }
+  })();
+
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -140,7 +155,7 @@ export async function proxy(request: NextRequest) {
     // since a blocked connect-src fetch/WebSocket doesn't throw. wss: is
     // scheme-only (not host-scoped) because Daily's signaling/TURN relay
     // hosts are dynamically assigned, not a fixed domain.
-    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${posthogConnectSrc}${supabaseConnectSrc}${turnstileOrigin}`,
+    `connect-src 'self' https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net wss:${r2ApiHost ? ` ${r2ApiHost}` : ""}${r2PublicHost ? ` ${r2PublicHost}` : ""}${gtmConnectSrc}${posthogConnectSrc}${supabaseConnectSrc}${sentryConnectSrc}${turnstileOrigin}`,
     // blob: is call-object mode's echo-cancellation/audio-processing worker
     // bundle (also per Daily's CSP guide) — with no worker-src at all this
     // falls back to default-src 'self', which doesn't include blob:.

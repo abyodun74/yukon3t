@@ -426,7 +426,10 @@ export function LiveStreamRoom({
           });
       })
       .catch((err: unknown) => {
-        setCameraStartError(err instanceof Error ? err.message : String(err));
+        // A clean, fixed message — not err.message/String(err) — regardless
+        // of what Daily's SDK actually threw.
+        console.error("Daily camera start failed:", err);
+        setCameraStartError("Couldn't start your camera. Check your connection and try again.");
       });
   }, [role, isHost, phase, dailyCall, liveStreamId, reconnectingRef]);
 

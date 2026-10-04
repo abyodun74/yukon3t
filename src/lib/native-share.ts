@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { watermarkImageFile } from "@/lib/watermark";
+import { captureError } from "@/lib/error-tracking";
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -49,10 +50,11 @@ function base64ToFile(base64: string, fileName: string, mimeType: string): File 
  * built straight from a fetch()'d Blob) — so a media URL has to be
  * downloaded into the app's own cache dir first to get a URI Share.share()
  * can actually attach. Returns a reason string on failure (not just null)
- * — this is the only path a "share via device" failure has to a human,
- * since this app's release build doesn't forward WebView console output
- * to logcat and has remote debugging disabled, so a plain console.error
- * here is otherwise completely invisible.
+ * — shown to the user as part of shareNative's own warning, so it's a
+ * fixed, clean phrase naming which file failed, not the raw underlying
+ * error; the real detail goes to Sentry via captureError instead (console
+ * output alone is otherwise invisible — this app's release build doesn't
+ * forward WebView console output to logcat).
  *
  * Every source downloads via Filesystem.downloadFile — Android's native
  * HTTP stack, entirely outside the WebView's fetch()/CORS layer — rather
@@ -90,7 +92,9 @@ async function downloadToCache(src: string, fileName: string, watermark: boolean
     const { uri } = await Filesystem.writeFile({ path: fileName, data: base64Watermarked, directory: Directory.Cache });
     return { ok: true, uri };
   } catch (err) {
-    return { ok: false, reason: `${fileName}: ${err instanceof Error ? err.message : String(err)}` };
+    console.error(`downloadToCache failed for ${fileName}:`, err);
+    await captureError(err, { fn: "downloadToCache", fileName, watermark });
+    return { ok: false, reason: fileName };
   }
 }
 
@@ -166,6 +170,12 @@ export async function shareNative(options: {
         warning: "A previous share didn't finish — fully close and reopen the app, then try again.",
       };
     }
-    return { attachedFiles: false, warning: message };
+    // Any other failure — used to surface the plugin's own raw message
+    // here; that's gone to Sentry via captureError below instead now (see
+    // instrumentation-client.ts), same reasoning as downloadToCache's own
+    // catch above.
+    console.error("Native share failed:", err);
+    await captureError(err, { fn: "shareNative" });
+    return { attachedFiles: false, warning: "Couldn't share — please try again." };
   }
 }

@@ -96,7 +96,10 @@ export function LiveVideoFrame({
         })
         .catch((err: unknown) => {
           if (cancelled) return;
-          setJoinError(err instanceof Error ? err.message : "Couldn't connect");
+          // A clean, fixed message — not err.message — regardless of what
+          // Daily's SDK actually threw.
+          console.error("Daily call join failed:", err);
+          setJoinError("Couldn't join the call. Check your connection and try again.");
         });
 
       onCallObject?.(call);

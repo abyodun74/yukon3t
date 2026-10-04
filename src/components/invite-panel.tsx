@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Check, Link2, MessageSquareText, Search, Share2, Users, X } from "lucide-react";
 import type { ContactPayload } from "@capacitor-community/contacts";
+import { captureError } from "@/lib/error-tracking";
 
 const INVITE_MESSAGE = "Join me on YuKon3t — connect across cultures, interests, and borders:";
 
@@ -121,13 +122,15 @@ export function InvitePanel() {
         }
         setNativeRows(rows);
       } catch (err) {
-        // The real reason surfaced inline (not just console.error) — this
-        // app's release build doesn't forward WebView console output to
-        // logcat and has remote debugging disabled, so an on-screen message
-        // is the only way to see a real failure reason at all on-device.
-        setPickError(
-          `Couldn't open your contacts — please try again. (${err instanceof Error ? err.message : String(err)})`,
-        );
+        // Used to surface err.message inline — this app's release build
+        // doesn't forward WebView console output to logcat and has no
+        // client-side Sentry, so that was the only way to see a real
+        // failure reason at all on-device. captureError now reaches Sentry
+        // instead (see instrumentation-client.ts), so the raw detail still
+        // isn't lost — it just doesn't go to the user's screen anymore.
+        console.error("Native contact picker failed:", err);
+        await captureError(err, { component: "invite-panel", flow: "native-contacts" });
+        setPickError("Couldn't open your contacts — please try again.");
       } finally {
         setNativeLoading(false);
       }
