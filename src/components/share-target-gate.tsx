@@ -25,9 +25,9 @@ const EMBED_PROVIDER_LABEL: Record<string, string> = {
 
 // Duplicated from storage.ts's server-only constants (same pattern as
 // share-modal.tsx/muse-share-modal.tsx's own duplicates of these) — a Story
-// video tops out at 2 minutes, a Muse at 3.
+// video tops out at 2 minutes, a Muse at 5.
 const MAX_STORY_VIDEO_SECONDS = 120;
-const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
+const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type View = "root" | "friends";

@@ -276,7 +276,7 @@ const sections: Section[] = [
           <>
             Tap the share icon on any post for a menu: copy the link, share
             via your device&apos;s own share sheet, add it to your own Story,
-            share it to Muse (video posts up to 3 minutes only), send it
+            share it to Muse (video posts up to 5 minutes only), send it
             straight to a friend as a message, or share it into a Circle.
             Device sharing attaches the actual photo or video where
             possible (not just a bare link), stamped with a small yukon3t
@@ -678,7 +678,7 @@ const sections: Section[] = [
         a: (
           <>
             Open your own profile and tap &ldquo;Post a Muse.&rdquo; Choose a
-            video (up to 3 minutes), optionally add a caption, and post —
+            video (up to 5 minutes), optionally add a caption, and post —
             that&apos;s it, no extra screens. A longer video (over about a
             minute) goes through an extra automated safety review before it
             becomes visible to others, which can take a little longer than a
@@ -725,7 +725,7 @@ const sections: Section[] = [
         q: "Can I share a post to Muse?",
         a: (
           <>
-            Yes — any post with a video (up to 3 minutes) can be shared to
+            Yes — any post with a video (up to 5 minutes) can be shared to
             Muse: open the share menu on that post and tap &ldquo;Share to
             Muse.&rdquo; It becomes a new Muse under your own name, crediting
             the original with a &ldquo;View original post&rdquo; link, and

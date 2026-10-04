@@ -1451,7 +1451,7 @@ model StoryView {
 }
 
 /**
- * Short (<=MAX_MUSE_VIDEO_DURATION_SECONDS, currently 3 minutes — see
+ * Short (<=MAX_MUSE_VIDEO_DURATION_SECONDS, currently 5 minutes — see
  * src/lib/storage.ts), public, video-only posts for the dedicated /muse feed
  * — a TikTok/Reels-style discovery surface, distinct from both the
  * Circle/Connection-scoped Post feed and the 24h-ephemeral Story tray: a

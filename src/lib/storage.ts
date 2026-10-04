@@ -171,13 +171,13 @@ export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;
 export const MAX_STORY_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
-// A Muse can run up to 3 minutes — well past Hive's HIVE_VIDEO_MODERATION_MAX_SECONDS
+// A Muse can run up to 5 minutes — well past Hive's HIVE_VIDEO_MODERATION_MAX_SECONDS
 // scan limit above, so (as of createMuse's videoNeedsManualReview fork) a
 // Muse over that cap now goes through the same Cloudflare Stream long-form
 // review pipeline (videoStreamUid/videoLongReviewClaimedAt) Post/Comment
 // already use, driven by the moderate-long-videos cron — see Muse's own
 // schema.prisma doc comment.
-export const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
+export const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
 
 export function isStorageConfigured() {
   return Boolean(

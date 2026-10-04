@@ -33,7 +33,7 @@ import { captureError } from "@/lib/error-tracking";
  * (src/app/actions/stories.ts) rather than createPost — no device step-up
  * gate and no Circle/channel checks, since a Muse is always public and
  * outside the Circle system. Every Muse is capped at
- * MAX_MUSE_VIDEO_DURATION_SECONDS (3 minutes), which is well past Hive's own
+ * MAX_MUSE_VIDEO_DURATION_SECONDS (5 minutes), which is well past Hive's own
  * HIVE_VIDEO_MODERATION_MAX_SECONDS scan limit — a Muse over that limit
  * takes the same long-form-review fork as createPost (see
  * videoNeedsManualReview below), publishing FLAGGED and pending until the
@@ -698,7 +698,7 @@ function reshareText(author: { name: string | null; username: string | null }, c
 
 /**
  * Shares a Muse to the caller's Story as the actual video (a Story is a 24-hour photo/video) — the same file plays,
- * not a link. A Muse can run up to 3 minutes and a Story only takes MAX_STORY_VIDEO_SECONDS, so a longer one is
+ * not a link. A Muse can run up to 5 minutes and a Story only takes MAX_STORY_VIDEO_SECONDS, so a longer one is
  * refused ("too_long"). Counts as a share.
  */
 export async function shareMuseToStory(museId: string) {

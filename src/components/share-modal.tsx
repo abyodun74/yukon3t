@@ -15,7 +15,7 @@ import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
 // and isn't safe in a client bundle. Same reasoning/pattern as
 // muse-composer.tsx's own MAX_MUSE_SECONDS duplicate.
-const MAX_MUSE_VIDEO_DURATION_SECONDS = 180;
+const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
 
 type Conversation = { id: string; label: string; avatarUrl: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null; parentName: string | null };

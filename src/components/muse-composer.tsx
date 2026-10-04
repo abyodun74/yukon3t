@@ -16,7 +16,7 @@ import { markNativePickerActive, markNativePickerInactive, isNativePickerActive 
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only and
 // isn't safe in a client bundle. Same reasoning/pattern as post-composer.tsx's
 // own MAX_UPLOAD_VIDEO_SECONDS duplicate.
-const MAX_MUSE_SECONDS = 180;
+const MAX_MUSE_SECONDS = 300;
 
 // Covers both uploadFileDirect's error codes and createMuse's own — same
 // "one switch, both sources" shape post-composer.tsx uses for its own

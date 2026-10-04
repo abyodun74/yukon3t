@@ -417,7 +417,7 @@ export const museSchema = z.object({
   // Client-probed <video>.duration, same non-authoritative routing-hint
   // status as postSchema's own videoDurationSeconds — createMuse re-checks
   // it server-side against MAX_MUSE_VIDEO_DURATION_SECONDS regardless. The
-  // 180 below is duplicated from that constant (src/lib/storage.ts), not
+  // 300 below is duplicated from that constant (src/lib/storage.ts), not
   // imported — this file is also bundled client-side (e.g. report-form.tsx),
   // and storage.ts pulls in the AWS S3 SDK + node:crypto, which broke the
   // webpack production build (Netlify forces --webpack; see netlify.toml)
@@ -426,7 +426,7 @@ export const museSchema = z.object({
   // duplicate and muse-composer.tsx's MAX_MUSE_SECONDS already document.
   // Required for VIDEO, absent for EMBED — an embed's actual video has no
   // known duration this app controls (see Muse.mediaType's own doc comment).
-  videoDurationSeconds: z.coerce.number().int().min(1).max(180).optional(),
+  videoDurationSeconds: z.coerce.number().int().min(1).max(300).optional(),
   // Set only when the creator chose "use this audio instead" in
   // MuseComposer — absent (not just empty) means "use the video's own
   // sound," never a mix of both. See Muse.audioUrl's schema comment.
