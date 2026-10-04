@@ -305,7 +305,12 @@ export async function getMuseById(id: string) {
       reposts: { where: { userId: user.id }, select: { id: true } },
     },
   });
-  if (!m || m.moderationStatus !== "PUBLISHED" || (await isBlockedEitherWay(user.id, m.authorId))) {
+  // Same author/admin exception /post/[id] already has: the point of
+  // notifying an author their Muse is held pending review (see
+  // moderate-long-videos' reviewOneMuse) is defeated if the link that
+  // notification carries 404s for them specifically.
+  const isOwnMuse = m?.authorId === user.id;
+  if (!m || (m.moderationStatus !== "PUBLISHED" && !isOwnMuse && !user.isAdmin) || (await isBlockedEitherWay(user.id, m.authorId))) {
     return { error: "not_found" as const, item: null };
   }
 

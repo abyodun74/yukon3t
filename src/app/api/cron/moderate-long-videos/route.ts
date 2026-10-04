@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { advanceLongVideoReview, type VideoReviewResult } from "@/lib/video-review";
+import { notifyVideoFlaggedForReview } from "@/lib/video-review-notice";
 import { revalidatePath } from "next/cache";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
 import { captureError } from "@/lib/error-tracking";
@@ -152,6 +153,7 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
     revalidatePath("/home");
     revalidatePath(`/post/${post.id}`);
     revalidatePath("/admin/moderation");
+    await notifyVideoFlaggedForReview(post.authorId, result.reasons, { postId: post.id });
     return "flagged";
   }
 }
@@ -233,6 +235,15 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
     });
     revalidatePath(`/post/${comment.postId}`);
     revalidatePath("/admin/moderation");
+    // Links to the parent post, not the comment itself — a FLAGGED comment
+    // is excluded from that post's own comment list even for its author
+    // (see comments-data.ts's commentWhere), so landing there won't show it
+    // highlighted, just the right post; Notification.message still says
+    // plainly it was their comment.
+    await notifyVideoFlaggedForReview(comment.authorId, result.reasons, {
+      postId: comment.postId,
+      commentId: comment.id,
+    });
     return "flagged";
   }
 }
@@ -418,7 +429,7 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
     // time (see claimMuseCandidates' own query), so this is "stop
     // reclaiming it and make sure an admin can see it," not a visibility
     // change.
-    await prisma.$transaction(async (tx) => {
+    const muse = await prisma.$transaction(async (tx) => {
       const updated = await tx.muse.update({
         where: { id: candidate.id },
         data: { moderationStatus: "FLAGGED", videoLongReviewClaimedAt: null, videoStreamUid: null },
@@ -434,6 +445,9 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
       return updated;
     });
     revalidatePath("/admin/moderation");
+    // getMuseById now lets the author view their own FLAGGED Muse
+    // specifically so this link resolves instead of 404ing for them.
+    await notifyVideoFlaggedForReview(muse.authorId, result.reasons, { museId: muse.id });
     return "flagged";
   }
 }

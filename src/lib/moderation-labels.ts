@@ -3,13 +3,6 @@
 // plus this app's own "profanity" and "moderation_api_error" sentinels)
 // into short human-readable phrases — see video-review.ts's
 // VideoReviewResult "flagged" reasons, the shape these are derived from.
-// videoViolationNoticeText below has no production caller as of the
-// moderate-long-videos cron change that made a "flagged" long video hold
-// for admin review instead of auto-removing with a notice — kept rather
-// than deleted since it's small, correct, and exactly what a future
-// "show the admin why this was flagged" feature (/admin/moderation
-// currently doesn't surface a reason inline, only in the AuditLog) would
-// reach for.
 const CATEGORY_LABELS: Record<string, string> = {
   sexual: "sexually explicit content",
   "sexual/minors": "sexual content involving minors",
@@ -48,11 +41,17 @@ export function violationLabelsFromReasons(reasons: string[]): string[] {
   return [...labels];
 }
 
-/** User-facing sentence for a removed video, naming the specific violation(s) found. */
-export function videoViolationNoticeText(reasons: string[]): string {
+/**
+ * User-facing sentence for a long video held pending admin review (see
+ * VIDEO_FLAGGED_FOR_REVIEW and moderate-long-videos' "flagged" branches),
+ * naming the specific violation(s) found. Deliberately doesn't say
+ * "removed" — unlike the old (now-legacy) VIDEO_MODERATION_FAILED notice
+ * this replaces, the content isn't gone: an admin can still publish it.
+ */
+export function videoPendingReviewNoticeText(reasons: string[]): string {
   const labels = violationLabelsFromReasons(reasons);
   if (labels.length === 0) {
-    return "The video you tried to post violated our content guidelines and was removed.";
+    return "A video you posted was flagged by our automated review and is on hold pending a closer look.";
   }
-  return `The video you tried to post violates our prohibited content policy: ${labels.join(", ")}.`;
+  return `A video you posted was flagged by our automated review (${labels.join(", ")}) and is on hold pending a closer look.`;
 }

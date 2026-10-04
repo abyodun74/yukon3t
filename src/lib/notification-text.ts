@@ -44,13 +44,18 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   MISSED_CALL: "called you",
   SCREENSHOT_TAKEN: "took a screenshot",
   // Legacy only: the moderate-long-videos cron no longer auto-removes a
-  // flagged long video (it now holds for admin review instead — see that
-  // route's own comment), so nothing creates a new row of this type
-  // anymore. Kept so a notification row from before that change still
-  // renders correctly. Every existing row of this type already has
-  // Notification.message set with the specific violation type(s), which
-  // notification-row.tsx prefers over this generic fallback text.
+  // flagged long video (it now holds for admin review instead — see
+  // VIDEO_FLAGGED_FOR_REVIEW below, and that route's own comment), so
+  // nothing creates a new row of this type anymore. Kept so a notification
+  // row from before that change still renders correctly. Every existing
+  // row of this type already has Notification.message set with the
+  // specific violation type(s), which notification-row.tsx prefers over
+  // this generic fallback text.
   VIDEO_MODERATION_FAILED: "A video you posted was removed for violating our content guidelines",
+  // Same violation-type(s)-in-Notification.message convention as
+  // VIDEO_MODERATION_FAILED above, just worded for "on hold," not "gone" —
+  // see that cron's "flagged" branch (moderate-long-videos/route.ts).
+  VIDEO_FLAGGED_FOR_REVIEW: "A video you posted was flagged by our automated review and is on hold pending a closer look",
   // Sent to every admin, actor is whoever submitted it (see
   // submitAppFeedback in actions/review-prompt.ts) — Notification.message
   // always carries a truncated preview, which notification-row.tsx prefers
@@ -62,5 +67,5 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
 // so the usual "{actor} {verb}" phrasing doesn't apply; NOTIFICATION_VERB
 // (or Notification.message) already returns a complete sentence for these.
 export function notificationHasActor(type: NotificationType) {
-  return type !== "EVENT_REMINDER" && type !== "VIDEO_MODERATION_FAILED";
+  return type !== "EVENT_REMINDER" && type !== "VIDEO_MODERATION_FAILED" && type !== "VIDEO_FLAGGED_FOR_REVIEW";
 }

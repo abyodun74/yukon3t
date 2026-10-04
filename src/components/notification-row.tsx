@@ -52,6 +52,7 @@ type NotificationData = {
     | "MISSED_CALL"
     | "SCREENSHOT_TAKEN"
     | "VIDEO_MODERATION_FAILED"
+    | "VIDEO_FLAGGED_FOR_REVIEW"
     | "APP_FEEDBACK_SUBMITTED";
   readAt: Date | null;
   createdAt: Date;
@@ -85,7 +86,7 @@ function hrefFor(notification: NotificationData) {
   // feed on the off chance museId is somehow missing.
   if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
       notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
-      notification.type === "SUBSCRIPTION_MUSE") {
+      notification.type === "SUBSCRIPTION_MUSE" || notification.type === "VIDEO_FLAGGED_FOR_REVIEW") {
     return notification.museId ? `/muse/${notification.museId}` : "/muse";
   }
   // Stories have no permalink route of their own — they only ever live

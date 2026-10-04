@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { violationLabelsFromReasons, videoViolationNoticeText } from "@/lib/moderation-labels";
+import { violationLabelsFromReasons, videoPendingReviewNoticeText } from "@/lib/moderation-labels";
 
 describe("violationLabelsFromReasons", () => {
   it("extracts and dedupes categories from frame reasons", () => {
@@ -27,16 +27,16 @@ describe("violationLabelsFromReasons", () => {
   });
 });
 
-describe("videoViolationNoticeText", () => {
+describe("videoPendingReviewNoticeText", () => {
   it("names the specific violation(s) found", () => {
-    expect(videoViolationNoticeText(["frame@30s: sexual"])).toBe(
-      "The video you tried to post violates our prohibited content policy: sexually explicit content.",
+    expect(videoPendingReviewNoticeText(["frame@30s: sexual"])).toBe(
+      "A video you posted was flagged by our automated review (sexually explicit content) and is on hold pending a closer look.",
     );
   });
 
   it("falls back to a generic notice when no categories are present", () => {
-    expect(videoViolationNoticeText([])).toBe(
-      "The video you tried to post violated our content guidelines and was removed.",
+    expect(videoPendingReviewNoticeText([])).toBe(
+      "A video you posted was flagged by our automated review and is on hold pending a closer look.",
     );
   });
 });
