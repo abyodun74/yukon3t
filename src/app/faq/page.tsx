@@ -896,6 +896,19 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I put a call on hold?",
+        a: (
+          <>
+            Yes — tap the pause icon in the call controls to put a 1:1 voice
+            or video call on hold. This pauses your microphone and camera and
+            stops you from hearing the other person, and they&apos;ll see
+            that you&apos;ve put the call on hold. Tap the same button (now a
+            play icon) to resume — your mic and camera pick back up exactly
+            how they were before you held the call.
+          </>
+        ),
+      },
+      {
         q: "Why do I hear a ringing sound when I call someone?",
         a: (
           <>

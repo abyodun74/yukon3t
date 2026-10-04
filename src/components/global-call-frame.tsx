@@ -160,6 +160,7 @@ export function GlobalCallFrame() {
             roomUrl={session.roomUrl}
             token={session.token}
             type={session.type}
+            peerName={session.label}
             onCallObject={setDailyCall}
             onLeave={() => {
               // Same reconnect-vs-real-hangup distinction as CallFrame below.

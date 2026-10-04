@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, ScreenShare, ScreenShareOff, SwitchCamera, Video, VideoOff, Volume2 } from "lucide-react";
+import { Mic, MicOff, Pause, Play, ScreenShare, ScreenShareOff, SwitchCamera, Video, VideoOff, Volume2 } from "lucide-react";
 import type { DailyCall, DailyMediaDeviceInfo, DailyParticipant } from "@daily-co/daily-js";
 import { Capacitor } from "@capacitor/core";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
+import { broadcastHoldState, holdStateFromAppMessage } from "@/lib/call-hold";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
@@ -39,12 +40,15 @@ export function DirectCallFrame({
   type,
   onLeave,
   onCallObject,
+  peerName,
 }: {
   roomUrl: string;
   token: string;
   type: "AUDIO" | "VIDEO";
   onLeave: () => void;
   onCallObject?: (call: DailyCall | null) => void;
+  /** The other participant's display name — used only for the hold overlay's "X put the call on hold" text. Falls back to a generic phrase when omitted. */
+  peerName?: string;
 }) {
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
@@ -52,6 +56,17 @@ export function DirectCallFrame({
   const [outputDevices, setOutputDevices] = useState<DailyMediaDeviceInfo[]>([]);
   const [outputIndex, setOutputIndex] = useState(0);
   const [cameraCount, setCameraCount] = useState(0);
+  // isOnHold: this side placed the call on hold (local audio/video forced
+  // off, remote's audio muted locally — see toggleHold). remoteOnHold: the
+  // other side did, learned only from their broadcastHoldState app-message
+  // (see call-hold.ts) since their tracks simply going "off" is otherwise
+  // indistinguishable from an ordinary mute.
+  const [isOnHold, setIsOnHold] = useState(false);
+  const [remoteOnHold, setRemoteOnHold] = useState(false);
+  // What to restore on Resume — captured the moment Hold is pressed, not
+  // read back from Daily, since setLocalAudio/setLocalVideo(false) below
+  // overwrites the very state this needs to remember.
+  const preHoldStateRef = useRef<{ audio: boolean; video: boolean } | null>(null);
   const selfViewRef = useRef<HTMLDivElement>(null);
   const { position: selfViewPosition, handlers: selfViewHandlers } = useViewportDrag(selfViewRef);
   // Tap-to-swap (FaceTime/Zoom-style): false is the normal layout (remote
@@ -77,6 +92,11 @@ export function DirectCallFrame({
       setCameraCount(devices.filter((d) => d.kind === "videoinput").length);
     }
 
+    function handleAppMessage(ev: { data: unknown }) {
+      const onHold = holdStateFromAppMessage(ev.data);
+      if (onHold !== null) setRemoteOnHold(onHold);
+    }
+
     // Dynamic import, not static — same reasoning as CallFrame/
     // LiveVideoFrame: this package touches browser globals at module load,
     // which can't happen during this "use client" component's initial
@@ -97,6 +117,7 @@ export function DirectCallFrame({
       call.on("available-devices-updated", (ev) =>
         applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]),
       );
+      call.on("app-message", handleAppMessage);
       // Covers devices already available the moment the call starts — the
       // event above only fires on a later change.
       call.enumerateDevices().then(({ devices }) => applyDevices(devices as DailyMediaDeviceInfo[]));
@@ -126,6 +147,7 @@ export function DirectCallFrame({
         c.off("participant-updated", refreshParticipants);
         c.off("participant-left", refreshParticipants);
         c.off("left-meeting", onLeave);
+        c.off("app-message", handleAppMessage);
         onCallObject?.(null);
         c.destroy();
         callRef.current = null;
@@ -183,6 +205,26 @@ export function DirectCallFrame({
     if (localScreenSharing) callRef.current?.stopScreenShare();
     else callRef.current?.startScreenShare();
   }
+  function toggleHold() {
+    const call = callRef.current;
+    if (!call) return;
+    if (isOnHold) {
+      const prev = preHoldStateRef.current;
+      call.setLocalAudio(prev?.audio ?? true);
+      call.setLocalVideo(prev?.video ?? false);
+      setIsOnHold(false);
+      broadcastHoldState(call, false);
+    } else {
+      // Captured before muting below — setLocalAudio/Video(false) is what
+      // Resume needs to undo, so the pre-hold state has to be read first.
+      preHoldStateRef.current = { audio: localAudioOn, video: localVideoOn };
+      if (localScreenSharing) call.stopScreenShare();
+      call.setLocalAudio(false);
+      call.setLocalVideo(false);
+      setIsOnHold(true);
+      broadcastHoldState(call, true);
+    }
+  }
   function switchOutput() {
     if (outputDevices.length === 0) return;
     const nextIndex = (outputIndex + 1) % outputDevices.length;
@@ -199,14 +241,25 @@ export function DirectCallFrame({
   // The tile only ever holds whichever participant ISN'T currently the
   // main view — undefined when that participant isn't actually available
   // yet (e.g. swapped to "remote main" before remote has joined), which
-  // hides the tile entirely rather than showing an empty box.
-  const tileParticipant = selfViewIsMain ? remote : local && localVideoOn ? local : undefined;
+  // hides the tile entirely rather than showing an empty box. Also hidden
+  // during a hold on either side — there's no local video being sent (ours
+  // off while isOnHold) or worth showing (remote's off while remoteOnHold)
+  // for the draggable tile to usefully display.
+  const onHold = isOnHold || remoteOnHold;
+  const tileParticipant = onHold ? undefined : selfViewIsMain ? remote : local && localVideoOn ? local : undefined;
 
   return (
     <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black">
-      {remote && <RemoteAudio participant={remote} />}
+      {/* Muted (not unmounted) while we're the one on hold — keeps the
+          remote audio track alive so it picks back up instantly on Resume,
+          same reasoning as SelfVideo always muting its own mic playback. */}
+      {remote && <RemoteAudio participant={remote} muted={isOnHold} />}
 
-      {selfViewIsMain && local ? (
+      {isOnHold ? (
+        <HoldOverlay text="Call on hold" />
+      ) : remoteOnHold ? (
+        <HoldOverlay text={`${peerName || "The other participant"} put the call on hold`} />
+      ) : selfViewIsMain && local ? (
         <SelfVideo participant={local} />
       ) : remote ? (
         <RemoteVideo participant={remote} className="h-full w-full object-contain" />
@@ -247,15 +300,17 @@ export function DirectCallFrame({
           <button
             type="button"
             onClick={toggleAudio}
+            disabled={isOnHold}
             title={localAudioOn ? "Mute" : "Unmute"}
             aria-label={localAudioOn ? "Mute microphone" : "Unmute microphone"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localAudioOn ? "bg-white/20" : "bg-danger"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localAudioOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localAudioOn ? <Mic size={16} /> : <MicOff size={16} />}
           </button>
           <button
             type="button"
             onClick={toggleVideo}
+            disabled={isOnHold}
             // Not gated on the call's initial `type` — the underlying Daily
             // room/token draws no distinction between "audio" and "video"
             // calls (see daily.ts), so switching video on/off is always
@@ -263,16 +318,33 @@ export function DirectCallFrame({
             // side turn a voice call into a video call and back mid-call.
             title={localVideoOn ? "Turn off camera" : "Turn on camera"}
             aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
+          </button>
+          {/* Hold/Resume — pauses this side's outgoing audio/video (and any
+              screen share) and mutes incoming audio locally, same mental
+              model as a phone system's hold, without hold music. Left
+              enabled even while remoteOnHold (either side can hold
+              independently) — only our OWN hold state gates the other
+              media buttons above/below, since resuming those mid-hold would
+              silently undo the hold without the explicit Resume tap. */}
+          <button
+            type="button"
+            onClick={toggleHold}
+            title={isOnHold ? "Resume call" : "Hold call"}
+            aria-label={isOnHold ? "Resume call" : "Put call on hold"}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${isOnHold ? "bg-accent text-accent-ink" : "bg-white/20"}`}
+          >
+            {isOnHold ? <Play size={16} /> : <Pause size={16} />}
           </button>
           <button
             type="button"
             onClick={toggleScreenShare}
+            disabled={isOnHold}
             title={localScreenSharing ? "Stop sharing" : "Share screen"}
             aria-label={localScreenSharing ? "Stop sharing screen" : "Share screen"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
           </button>
@@ -286,9 +358,10 @@ export function DirectCallFrame({
             <button
               type="button"
               onClick={switchCamera}
+              disabled={isOnHold}
               title="Switch between front and back camera"
               aria-label="Switch camera"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-transform active:scale-90"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-transform active:scale-90 disabled:opacity-50"
             >
               <SwitchCamera size={16} />
             </button>
@@ -313,6 +386,16 @@ export function DirectCallFrame({
   );
 }
 
+/** Replaces the main video area while either side has the call on hold. */
+function HoldOverlay({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-4 text-center text-sm text-white/70">
+      <Pause size={28} />
+      <span>{text}</span>
+    </div>
+  );
+}
+
 /**
  * Remote participant's audio only — mounted once, unconditionally,
  * regardless of whether their video is currently in the main slot or the
@@ -321,7 +404,7 @@ export function DirectCallFrame({
  * recreate the audio element, which would otherwise blip the call audio
  * on every tap.
  */
-function RemoteAudio({ participant }: { participant: DailyParticipant }) {
+function RemoteAudio({ participant, muted = false }: { participant: DailyParticipant; muted?: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioTrack = participant.tracks.audio;
 
@@ -333,6 +416,14 @@ function RemoteAudio({ participant }: { participant: DailyParticipant }) {
         ? new MediaStream([audioTrack.persistentTrack])
         : null;
   }, [audioTrack.state, audioTrack.persistentTrack]);
+
+  // Muted via the element itself, not by tearing down srcObject — the track
+  // stays attached so Resume picks audio back up instantly instead of
+  // waiting on a fresh attach.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) el.muted = muted;
+  }, [muted]);
 
   return <audio ref={audioRef} autoPlay playsInline />;
 }
