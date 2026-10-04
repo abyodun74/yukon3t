@@ -32,7 +32,7 @@ export default async function ConnectionsPage() {
     // Ordered by most recent DM activity (not respondedAt) — see
     // getInitialAcceptedConnections in actions/connections.ts, also used
     // by the "Connected" tab's own auto-load-more.
-    getInitialAcceptedConnections(me.id),
+    getInitialAcceptedConnections(),
     // Exact counts for the tab pills — initialItems.length is capped at
     // PAGE_SIZE and would silently undercount past the first page.
     prisma.connection.count({ where: { targetId: me.id, status: "PENDING" } }),

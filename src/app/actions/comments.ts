@@ -248,9 +248,12 @@ export async function editComment(commentId: string, formData: FormData) {
   // the client (comment-card.tsx's saveEdit) only reads content/editedAt
   // off this result, so re-fetching reactions here would just be wasted
   // work (see getPostComments for where reactions actually get loaded).
+  // select, not the default full row, for that same reason — moderationStatus/
+  // authorId/postId/parentId etc. have no reason to reach the client.
   const updated = await prisma.comment.update({
     where: { id: commentId },
     data: { content, moderationStatus, editedAt: new Date() },
+    select: { content: true, editedAt: true },
   });
 
   revalidatePath(`/post/${comment.postId}`);

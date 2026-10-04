@@ -25,8 +25,21 @@ const PEOPLE_YOU_MAY_KNOW_LIMIT = 12;
  * gets (see respondToConnection's auto-subscribe) — someone shows up here
  * purely because you have people in common, not because you've interacted
  * with them at all.
+ *
+ * REAL BUG fixed here: this used to take `userId` as a plain parameter
+ * with no auth check at all. /discover/page.tsx only ever calls this with
+ * the signed-in viewer's own id, but as an exported Server Action it's
+ * independently callable by anyone — an unauthenticated caller could have
+ * passed any user's id and gotten back a ranked, named list of that
+ * specific person's likely friends-of-friends with mutual-connection
+ * counts: a real signal about their private connections graph, not
+ * something Discover/search otherwise exposes about an arbitrary user.
+ * requireUser() now establishes whose suggestions this returns; the caller
+ * can no longer choose.
  */
-export async function getPeopleYouMayKnow(userId: string) {
+export async function getPeopleYouMayKnow() {
+  const user = await requireUser();
+  const userId = user.id;
   const myConnections = await prisma.connection.findMany({
     where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { targetId: userId }] },
     select: { requesterId: true, targetId: true },

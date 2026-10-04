@@ -69,12 +69,33 @@ async function sendEmailOtp(userId: string, email: string) {
  * repeated page loads can't be abused to spam mail) instead of waiting for
  * the user to click "Resend code". This is the "automatic resend when stuck"
  * behavior for the email verification path.
+ *
+ * REAL BUG fixed here: this used to take userId/email/expires as plain
+ * parameters instead of deriving them from the pending-verification cookie
+ * the way every sibling function in this file does. The page only ever
+ * called it with its own server-fetched user.email, but as an exported
+ * Server Action it's independently callable by anyone with any arguments —
+ * an attacker could have called this directly with a real pending user's
+ * id alongside an email address they control, causing that user's real OTP
+ * code to be generated and sent to the attacker's inbox instead (and
+ * invalidating whatever code the real owner already had), a genuine
+ * account-verification-hijack/DoS vector, plus an open relay for sending
+ * arbitrary "your verification code is X" email to any address. Now derives
+ * both the user id and email from the signed pending-verification cookie
+ * and a direct DB lookup — nothing the caller supplies is trusted.
  */
-export async function ensureFreshEmailOtp(userId: string, email: string, expires: Date | null) {
-  if (expires && expires > new Date()) return;
-  const allowed = await checkRateLimit("emailOtpSend", `otpsend:auto:${userId}`);
+export async function ensureFreshEmailOtp() {
+  const pending = await readPendingVerification();
+  if (!pending) return;
+  const user = await prisma.user.findUnique({
+    where: { id: pending.userId },
+    select: { email: true, emailVerified: true, emailOtpExpires: true },
+  });
+  if (!user || user.emailVerified) return;
+  if (user.emailOtpExpires && user.emailOtpExpires > new Date()) return;
+  const allowed = await checkRateLimit("emailOtpSend", `otpsend:auto:${pending.userId}`);
   if (!allowed) return;
-  await sendEmailOtp(userId, email);
+  await sendEmailOtp(pending.userId, user.email);
 }
 
 export async function signUpWithPassword(formData: FormData) {

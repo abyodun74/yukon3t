@@ -93,7 +93,7 @@ export default async function VerifyEmailPage({
   // If the account's been sitting here with no active code (never sent, or
   // expired since the last visit), fire off a fresh one automatically —
   // rather than making a stuck user click "resend" themselves.
-  await ensureFreshEmailOtp(pending.userId, user.email, user.emailOtpExpires);
+  await ensureFreshEmailOtp();
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">

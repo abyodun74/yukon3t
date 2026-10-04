@@ -46,7 +46,7 @@ export default async function DiscoverPage({
   const [blockedIds, connectedIds, mayKnow] = await Promise.all([
     getBlockedEitherWayIds(me.id),
     getConnectedOrPendingIds(me.id),
-    getPeopleYouMayKnow(me.id),
+    getPeopleYouMayKnow(),
   ]);
 
   // Same batch connection/conversation lookup the main grid below does,

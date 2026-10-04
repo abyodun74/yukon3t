@@ -181,10 +181,38 @@ export async function createAdCampaign(formData: FormData) {
   redirect(checkoutUrl);
 }
 
-/** Admin-only: what's waiting on review, live, or otherwise worth seeing at a glance. */
+/**
+ * Admin-only: what's waiting on review, live, or otherwise worth seeing at
+ * a glance. `select` scoped to exactly what /admin/ads (and the
+ * AdReviewActions it renders per row) actually display — advertiserUserId/
+ * startAt/stripeCheckoutSessionId/stripePaymentIntentId/paidAt/
+ * refundedAt/reviewedAt/reviewedBy/createdAt/updatedAt aren't shown there.
+ */
 export async function getAdCampaigns() {
   await requireAdmin();
-  return prisma.adCampaign.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  return prisma.adCampaign.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: {
+      id: true,
+      companyName: true,
+      headline: true,
+      body: true,
+      linkUrl: true,
+      mediaType: true,
+      mediaUrl: true,
+      contactName: true,
+      contactEmail: true,
+      priceCents: true,
+      currency: true,
+      durationDays: true,
+      status: true,
+      endAt: true,
+      impressionCount: true,
+      clickCount: true,
+      rejectionReason: true,
+    },
+  });
 }
 
 /** Admin-only: approves a paid campaign and starts its run now. */
@@ -255,7 +283,18 @@ export async function pauseAdCampaign(id: string) {
   return { error: null };
 }
 
-/** The one currently-running ad to show a viewer — picked at random among everything active and within its date window, not the same ad every time. */
+/**
+ * The one currently-running ad to show a viewer — picked at random among
+ * everything active and within its date window, not the same ad every
+ * time. Deliberately public/unauthenticated, same as createAdCampaign
+ * above — AdSlot renders on the logged-out landing page (src/app/page.tsx)
+ * as well as /home, so this can't require a session. `select` is scoped to
+ * exactly what AdSlot/AdClickTracker render (id/companyName/headline/body/
+ * linkUrl/mediaType/mediaUrl) — AdCampaign otherwise carries real PII
+ * (contactName/contactEmail) and Stripe identifiers
+ * (stripeCheckoutSessionId/stripePaymentIntentId) that have no business
+ * reaching an anonymous viewer's browser.
+ */
 export async function getActiveAdForDisplay() {
   const now = new Date();
   const count = await prisma.adCampaign.count({
@@ -268,10 +307,17 @@ export async function getActiveAdForDisplay() {
     where: { status: "ACTIVE", startAt: { lte: now }, endAt: { gt: now } },
     skip,
     take: 1,
+    select: { id: true, companyName: true, headline: true, body: true, linkUrl: true, mediaType: true, mediaUrl: true },
   });
   return campaign ?? null;
 }
 
+// Deliberately public/unauthenticated, same reasoning as
+// getActiveAdForDisplay above — AdSlot (which calls this right after
+// fetching the ad) renders for anonymous landing-page visitors too. Scoped
+// to an already-ACTIVE campaign id and returns nothing, so the only
+// possible abuse is inflating a count, not reading or writing anything
+// sensitive.
 export async function recordAdImpression(id: string) {
   await prisma.adCampaign.updateMany({
     where: { id, status: "ACTIVE" },
@@ -279,6 +325,7 @@ export async function recordAdImpression(id: string) {
   });
 }
 
+// Same reasoning as recordAdImpression above.
 export async function recordAdClick(id: string) {
   await prisma.adCampaign.updateMany({
     where: { id, status: "ACTIVE" },

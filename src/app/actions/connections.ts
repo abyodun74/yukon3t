@@ -434,12 +434,28 @@ export async function loadMoreAcceptedConnections(cursor: string) {
   };
 }
 
-/** First page (items + hasMore) of the "Connected" list, ordered by DM activity — used by connections/page.tsx's initial SSR render, alongside the same-shaped incoming/sent queries it already runs directly. */
-export async function getInitialAcceptedConnections(userId: string) {
-  const sortedIds = await getAcceptedConnectionIdsByActivity(userId);
+/**
+ * First page (items + hasMore) of the "Connected" list, ordered by DM
+ * activity — used by connections/page.tsx's initial SSR render, alongside
+ * the same-shaped incoming/sent queries it already runs directly.
+ *
+ * REAL BUG fixed here: this used to take `userId` as a plain parameter
+ * instead of deriving it from the caller's own session, exactly like every
+ * sibling function in this file (loadMoreAcceptedConnections, etc.) does.
+ * The page itself only ever calls this with the signed-in viewer's own id,
+ * but as an exported Server Action it's independently callable by anyone —
+ * with no auth check and a caller-controlled userId, anyone could have
+ * called this directly with another person's id and gotten back their full
+ * accepted-connections list (names/usernames/avatars/trustBand/
+ * lastSeenAt/conversationId), a real IDOR. requireUser() now establishes
+ * whose connections this returns; the caller can no longer choose.
+ */
+export async function getInitialAcceptedConnections() {
+  const user = await requireUser();
+  const sortedIds = await getAcceptedConnectionIdsByActivity(user.id);
   const pageIds = sortedIds.slice(0, CONNECTIONS_PAGE_SIZE);
   return {
-    items: await getAcceptedConnectionsByIds(userId, pageIds),
+    items: await getAcceptedConnectionsByIds(user.id, pageIds),
     hasMore: sortedIds.length > CONNECTIONS_PAGE_SIZE,
   };
 }

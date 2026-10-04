@@ -32,9 +32,14 @@ export async function editPost(postId: string, formData: FormData) {
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
+  // select, not the default full row — post-card.tsx's saveEdit only ever
+  // reads result.post.content/editedAt; the rest (videoStreamUid,
+  // videoLongReviewClaimedAt, sharedPostId, etc.) is internal pipeline
+  // state with no reason to reach the client.
   const updated = await prisma.post.update({
     where: { id: postId },
     data: { content, moderationStatus, editedAt: new Date() },
+    select: { content: true, editedAt: true },
   });
 
   revalidatePath("/circles", "layout");
