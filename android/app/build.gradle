@@ -208,8 +208,12 @@ android {
         // real-world shared videos (a typical Instagram Reel/TikTok/
         // Facebook video routinely exceeds it). No manifest/permission
         // change, no new Play Console declaration.
-        versionCode 27
-        versionName "1.24"
+        // 28: adds @capacitor/haptics (registered via `npx cap sync android`)
+        // for real native haptic feedback at the touchpoints added in the
+        // Apple HIG pass — no new Android permission (vibration doesn't
+        // need one on this targetSdk), no manifest change.
+        versionCode 28
+        versionName "1.25"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
