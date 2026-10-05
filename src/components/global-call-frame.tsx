@@ -206,7 +206,7 @@ export function GlobalCallFrame() {
           // contained corner of its own, nothing else renders there, so no
           // stacking-context concerns like the fullscreen button below.
           <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
-            <span className="max-w-[7rem] truncate rounded-md bg-black/60 px-2 py-1 text-xs text-white">
+            <span className="hig-material-dark max-w-[7rem] truncate rounded-md bg-black/60 backdrop-blur-md px-2 py-1 text-xs text-white">
               {session.label}
             </span>
             <button
@@ -214,7 +214,7 @@ export function GlobalCallFrame() {
               onClick={expand}
               title="Expand"
               aria-label="Expand"
-              className="rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
+              className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
             >
               <Maximize2 size={14} />
             </button>
@@ -363,7 +363,7 @@ export function GlobalCallFrame() {
                 }}
                 title="Upload material to share with participants"
                 aria-label="Upload material to share with participants"
-                className="rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
+                className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
               >
                 <Upload size={14} />
               </button>
@@ -391,7 +391,7 @@ export function GlobalCallFrame() {
             onClick={minimize}
             title="Minimize"
             aria-label="Minimize"
-            className="ms-1 rounded-md bg-black/60 p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
+            className="hig-material-dark ms-1 rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
           >
             <Minimize2 size={14} />
           </button>

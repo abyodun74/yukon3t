@@ -780,7 +780,7 @@ export function LiveStreamRoom({
         className="fixed inset-x-0 z-[70] flex flex-wrap items-start justify-between gap-2 px-3"
         style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
-        <div className="flex flex-wrap items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white">
+        <div className="flex flex-wrap items-center gap-3 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs text-white">
           <span className="flex items-center gap-1 font-semibold text-danger">
             <span className="h-1.5 w-1.5 rounded-full bg-danger" />
             LIVE
@@ -818,7 +818,7 @@ export function LiveStreamRoom({
                 title={recording ? "Stop recording" : "Record"}
                 aria-label={recording ? "Stop recording" : "Record"}
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${
-                  recording ? "bg-danger" : "bg-black/60"
+                  recording ? "bg-danger" : "hig-material-dark bg-black/60 backdrop-blur-md"
                 }`}
               >
                 <RecordIcon size={14} className={recording ? "fill-white" : "fill-danger text-danger"} />
@@ -830,7 +830,7 @@ export function LiveStreamRoom({
               onClick={handleScreenshot}
               title="Screenshot"
               aria-label="Screenshot"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white disabled:opacity-50"
+              className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white disabled:opacity-50"
             >
               <Camera size={14} />
             </button>
@@ -840,7 +840,7 @@ export function LiveStreamRoom({
                 onClick={() => setShowRecordings((v) => !v)}
                 title={`Recordings (${recordings.length})`}
                 aria-label={`Recordings (${recordings.length})`}
-                className="relative flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
               >
                 <Download size={14} />
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-ink">
@@ -912,7 +912,7 @@ export function LiveStreamRoom({
           className="fixed inset-x-0 z-[70] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
-          <div className="flex max-w-full items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+          <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
             <span className="min-w-0">
               Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…
             </span>
@@ -985,7 +985,7 @@ export function LiveStreamRoom({
             {comments.map((c) => (
               <div
                 key={c.id}
-                className="w-fit max-w-full rounded-xl bg-black/50 px-2.5 py-1.5 text-xs text-white"
+                className="w-fit max-w-full rounded-xl hig-material-dark bg-black/50 backdrop-blur-md px-2.5 py-1.5 text-xs text-white"
               >
                 <span className="font-semibold">{c.author.name ?? "Someone"}</span>{" "}
                 <span className="break-words">{c.content}</span>
@@ -1004,7 +1004,7 @@ export function LiveStreamRoom({
             maxLength={300}
             placeholder="Write something..."
             aria-label="Write a comment"
-            className="min-w-0 flex-1 rounded-full bg-black/50 px-3 py-1.5 text-xs text-white placeholder-white/60 outline-none focus:bg-black/70"
+            className="min-w-0 flex-1 rounded-full hig-material-dark bg-black/50 backdrop-blur-md px-3 py-1.5 text-xs text-white placeholder-white/60 outline-none focus:bg-black/70"
           />
           <button
             type="submit"
@@ -1043,7 +1043,7 @@ export function LiveStreamRoom({
         </div>
         <div className="pointer-events-auto relative">
           {reactionPickerOpen && (
-            <div className="absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/70 px-2 py-1.5 left-1/2">
+            <div className="absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-2 py-1.5 left-1/2">
               {QUICK_REACTIONS.map((emoji) => (
                 <button
                   key={emoji}
@@ -1068,7 +1068,7 @@ export function LiveStreamRoom({
             type="button"
             onClick={() => setReactionPickerOpen((v) => !v)}
             aria-label="React"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
           >
             <Smile size={16} />
           </button>
@@ -1080,7 +1080,7 @@ export function LiveStreamRoom({
           className="fixed inset-x-0 z-[70] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
-          <div className="flex max-w-full items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white">
+          <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
             <span className="min-w-0">The host declined your stage request.</span>
             <button
               type="button"

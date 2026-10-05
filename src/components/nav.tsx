@@ -248,7 +248,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
           --status-bar-inset-top from Android's real WindowInsets API as a
           fallback for whichever of the two ends up bigger. */}
       <header
-        className="sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80"
+        className="hig-material sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80"
         style={{ paddingTop: "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))" }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
@@ -598,7 +598,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // just already provided for us instead of needing our own native
         // plugin call. No-op (0px) anywhere it isn't set, including iOS/web.
         <nav
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface md:hidden"
+          className="hig-material fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/90 backdrop-blur-xl supports-[backdrop-filter]:bg-surface/75 md:hidden"
           style={{
             paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
             width: footerWidth,

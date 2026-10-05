@@ -693,6 +693,61 @@ button:not(:disabled):active {
   }
 }
 
+/* Marker classes for the translucent "material" chrome surfaces below
+   (bottom tab bar, call controls tray, floating call widgets) — carries no
+   look of its own (each surface still sets its own backdrop-blur-*/bg-*
+   Tailwind utilities, same mechanism nav.tsx's header already used before
+   any of this existed), it's purely a hook for the two accessibility
+   media queries right after it. Modal/sheet panels (share, report,
+   likers, recorders, etc.) get this treatment when they're migrated onto
+   a shared Sheet component rather than retrofitted individually — see
+   that work for the ~20 call sites this doesn't yet cover. */
+.hig-material {
+  /* intentionally empty */
+}
+
+.hig-material-dark {
+  /* intentionally empty */
+}
+
+/* prefers-reduced-transparency: make a translucent material read as a
+   plain solid surface instead — drop the blur (the part that visually
+   moves/distorts whatever's behind it) and raise the background to fully
+   opaque, rather than leaving it see-through-but-unblurred (still
+   distracting for exactly the sensitivity this setting exists for). */
+@media (prefers-reduced-transparency: reduce) {
+  .hig-material {
+    background-color: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .hig-material-dark {
+    background-color: black !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* prefers-contrast: more — pair the same solid fallback with a defined,
+   contrasting border, since a flat surface with no edge can still read as
+   ambiguous against a busy background for low-vision users. */
+@media (prefers-contrast: more) {
+  .hig-material {
+    background-color: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: var(--foreground) !important;
+  }
+
+  .hig-material-dark {
+    background-color: black !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid white !important;
+  }
+}
+
 /* WhatsApp-style emoji picker (see emoji-picker-button.tsx's
    className="wa-emoji-picker"). emoji-picker-react always renders its
    category icon row (.epr-category-nav) inline next to the search bar, at
