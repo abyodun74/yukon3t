@@ -6,6 +6,7 @@ import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { startRingback, stopRingback } from "@/lib/ringback";
+import { Sheet } from "@/components/sheet";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
@@ -43,6 +44,21 @@ export function CallButton({
 }) {
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
   const { startSession, endSession } = useCallSession();
+
+  // The "ringing"/"duplicate" dialogs below now stay mounted through their
+  // own close animation (Sheet's AnimatePresence — see that file), but
+  // `state` itself flips to "idle"/"in-call" in the very same tick the
+  // dialog starts closing (cancel()/cancelExistingAndRetry() both change
+  // phase and trigger the close together) — without this, the dialog
+  // would visibly animate out showing blank content instead of the
+  // "Calling.../Cancel" (or "You already have a call...") text it was
+  // just showing. Remembers the last ringing/duplicate state so the still-
+  // closing dialog has real content to fade out with; adjusted during
+  // render (React's documented pattern for this) rather than a useEffect.
+  const [displayState, setDisplayState] = useState(state);
+  if ((state.phase === "ringing" || state.phase === "duplicate") && state !== displayState) {
+    setDisplayState(state);
+  }
 
   // Tracks the prewarm.ts key for a call this side has started joining
   // early (see call()) but the callee hasn't accepted yet — cleared without
@@ -261,10 +277,10 @@ export function CallButton({
         </button>
       </div>
 
-      {state.phase === "ringing" && (
-        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
-            <p className="text-sm text-foreground-soft">{state.calleeRinging ? "Ringing" : "Calling"}</p>
+      <Sheet open={state.phase === "ringing"} onClose={cancel} panelClassName="max-w-xs text-center">
+        {displayState.phase === "ringing" && (
+          <>
+            <p className="text-sm text-foreground-soft">{displayState.calleeRinging ? "Ringing" : "Calling"}</p>
             <p className="mt-1 break-words text-lg font-semibold">{calleeName}</p>
             <button
               type="button"
@@ -273,13 +289,17 @@ export function CallButton({
             >
               <PhoneOff size={16} /> Cancel
             </button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Sheet>
 
-      {state.phase === "duplicate" && (
-        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
+      <Sheet
+        open={state.phase === "duplicate"}
+        onClose={() => setState({ phase: "idle" })}
+        panelClassName="max-w-xs text-center"
+      >
+        {displayState.phase === "duplicate" && (
+          <>
             <p className="text-sm font-medium">You already have a call with {calleeName}</p>
             <p className="mt-1 text-sm text-foreground-soft">
               A previous call is still ringing or active. Cancel it and start a new one?
@@ -300,9 +320,9 @@ export function CallButton({
                 Never mind
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Sheet>
 
       {state.phase === "ended" && (
         <div className="fixed inset-x-0 bottom-4 z-50 mx-auto w-fit rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg">

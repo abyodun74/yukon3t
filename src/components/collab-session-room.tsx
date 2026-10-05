@@ -14,6 +14,7 @@ import { useCallSession } from "@/lib/call-session";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { Sheet } from "@/components/sheet";
 
 const MATERIAL_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
@@ -288,33 +289,29 @@ export function CollabSessionRoom({
         </div>
       )}
 
-      {confirmingJoin && (
-        <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="animate-modal-panel-in w-full max-w-xs rounded-xl bg-surface p-5 text-center">
-            <p className="text-sm font-medium">A session is already in progress</p>
-            <p className="mt-1 text-sm text-foreground-soft">
-              {participants.map((p) => p.name).join(", ")}{" "}
-              {participants.length === 1 ? "is" : "are"} already in this session. Ready to join?
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={confirmJoin}
-                className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
-              >
-                Yes, join now
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingJoin(false)}
-                className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
-              >
-                Leave — not now
-              </button>
-            </div>
-          </div>
+      <Sheet open={confirmingJoin} onClose={() => setConfirmingJoin(false)} panelClassName="max-w-xs text-center">
+        <p className="text-sm font-medium">A session is already in progress</p>
+        <p className="mt-1 text-sm text-foreground-soft">
+          {participants.map((p) => p.name).join(", ")} {participants.length === 1 ? "is" : "are"} already in this
+          session. Ready to join?
+        </p>
+        <div className="mt-4 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={confirmJoin}
+            className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
+          >
+            Yes, join now
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingJoin(false)}
+            className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            Leave — not now
+          </button>
         </div>
-      )}
+      </Sheet>
     </div>
   );
 }

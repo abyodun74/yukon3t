@@ -39,15 +39,18 @@ export function ReportModal({
   const [status, setStatus] = useState<"idle" | "sent" | "error">("idle");
   const [isPending, startTransition] = useTransition();
 
-  // Resets the form the moment it closes, so a later reopen starts fresh
-  // (previously automatic, since each open used to be a brand new mount —
-  // see this component's own doc comment). Adjusted during render
-  // (React's documented pattern for this) rather than a useEffect, which
-  // this project's lint config flags for a synchronous setState call.
+  // Resets the form at the start of each new open, so a reopen starts
+  // fresh (previously automatic, since each open used to be a brand new
+  // mount — see this component's own doc comment). On reopen, not on
+  // close — resetting on close would blank the form's visible content
+  // (or the "Reported" thank-you message) while Sheet's exit animation is
+  // still fading the dialog out. Adjusted during render (React's
+  // documented pattern for this) rather than a useEffect, which this
+  // project's lint config flags for a synchronous setState call.
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (!open) {
+    if (open) {
       setCategory("OTHER");
       setReason("");
       setStatus("idle");

@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { updateCircleDetails } from "@/app/actions/circles";
 import { MultiSelect } from "@/components/multi-select";
+import { Sheet } from "@/components/sheet";
 
 const PRIVACY_OPTIONS = [
   ["PUBLIC", "Public", "Anyone can find and join it, and its posts and live streams can appear on Home and in search."],
@@ -53,19 +54,6 @@ export function CircleDetailsEditModal({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Edit Circle details"
-        className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line hover:text-accent"
-      >
-        <Pencil size={16} />
-      </button>
-    );
-  }
-
   function handleSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
@@ -80,16 +68,17 @@ export function CircleDetailsEditModal({
   }
 
   return (
-    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="animate-modal-panel-in max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-surface p-5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Edit Circle</h2>
-          <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-foreground-soft">
-            <X size={16} />
-          </button>
-        </div>
-
-        <form action={handleSubmit} className="mt-3 space-y-3 text-sm">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Edit Circle details"
+        className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line hover:text-accent"
+      >
+        <Pencil size={16} />
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Edit Circle" panelClassName="max-h-[85vh] overflow-y-auto">
+        <form action={handleSubmit} className="space-y-3 text-sm">
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
@@ -180,7 +169,7 @@ export function CircleDetailsEditModal({
             {isPending ? "Saving..." : "Save changes"}
           </button>
         </form>
-      </div>
-    </div>
+      </Sheet>
+    </>
   );
 }

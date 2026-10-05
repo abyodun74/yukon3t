@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { Check, Link2, MessageSquareText, Search, Share2, Users, X } from "lucide-react";
 import type { ContactPayload } from "@capacitor-community/contacts";
 import { captureError } from "@/lib/error-tracking";
+import { Sheet } from "@/components/sheet";
 
 const INVITE_MESSAGE = "Join me on YuKon3t — connect across cultures, interests, and borders:";
 
@@ -65,15 +66,25 @@ export function InvitePanel() {
   const [nativeLoading, setNativeLoading] = useState(false);
   const [nativeSearch, setNativeSearch] = useState("");
   const [nativeSelected, setNativeSelected] = useState<Set<string>>(new Set());
+  // The picker now needs to stay mounted through its own close animation
+  // (Sheet's AnimatePresence — see that file), but nativeRows itself goes
+  // null the instant it's dismissed, which would otherwise blank its
+  // content mid-exit. Remembers the last real list for rendering while
+  // `nativeRows !== null` alone still drives Sheet's `open`; adjusted
+  // during render (React's documented pattern for this) rather than a
+  // useEffect.
+  const [rememberedNativeRows, setRememberedNativeRows] = useState<InviteContact[] | null>(null);
+  if (nativeRows !== null && nativeRows !== rememberedNativeRows) setRememberedNativeRows(nativeRows);
+  const displayedNativeRows = nativeRows ?? rememberedNativeRows;
 
   const filteredNativeRows = useMemo(() => {
-    if (!nativeRows) return [];
+    if (!displayedNativeRows) return [];
     const q = nativeSearch.trim().toLowerCase();
-    if (!q) return nativeRows;
-    return nativeRows.filter(
+    if (!q) return displayedNativeRows;
+    return displayedNativeRows.filter(
       (r) => r.name?.toLowerCase().includes(q) || r.tel.toLowerCase().includes(q),
     );
-  }, [nativeRows, nativeSearch]);
+  }, [displayedNativeRows, nativeSearch]);
 
   async function copyLink() {
     try {
@@ -98,6 +109,7 @@ export function InvitePanel() {
     if (isNative) {
       setNativeLoading(true);
       setNativeSelected(new Set());
+      setNativeSearch("");
       try {
         const { Contacts } = await import("@capacitor-community/contacts");
         let status = await Contacts.checkPermissions();
@@ -164,9 +176,12 @@ export function InvitePanel() {
   }
 
   function closeNativePicker() {
+    // Only nativeRows — that's what drives Sheet's `open` (see below).
+    // nativeSearch/nativeSelected deliberately aren't cleared here anymore:
+    // doing so immediately would blank the visible search text/checkboxes
+    // while the close animation is still playing. openContactPicker
+    // already resets both the moment it's reopened instead.
     setNativeRows(null);
-    setNativeSearch("");
-    setNativeSelected(new Set());
   }
 
   function confirmNativeSelection() {
@@ -294,25 +309,13 @@ export function InvitePanel() {
         )}
       </div>
 
-      {nativeRows && (
-        <div
-          className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={closeNativePicker}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="animate-modal-panel-in flex max-h-[80vh] w-full max-w-sm flex-col rounded-xl bg-surface p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">Choose contacts</h2>
-              <button type="button" onClick={closeNativePicker} aria-label="Close" className="text-foreground-soft hover:text-foreground">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="relative mt-3 shrink-0">
+      <Sheet
+        open={nativeRows !== null}
+        onClose={closeNativePicker}
+        title="Choose contacts"
+        panelClassName="flex max-h-[80vh] flex-col"
+      >
+            <div className="relative shrink-0">
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-soft" />
               <input
                 type="search"
@@ -358,9 +361,7 @@ export function InvitePanel() {
             >
               {nativeSelected.size > 0 ? `Add ${nativeSelected.size} selected` : "Select contacts to add"}
             </button>
-          </div>
-        </div>
-      )}
+      </Sheet>
     </div>
   );
 }

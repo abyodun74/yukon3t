@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Link as LinkIcon, Share as ShareIcon, Send, CirclePlus, House } from "lucide-react";
+import { Link as LinkIcon, Share as ShareIcon, Send, CirclePlus, House } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
 import { recordMuseShare, shareMuseToStory } from "@/app/actions/muse";
 import { getMyConversationsForShare, shareMuseToConversation } from "@/app/actions/messages";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
+import { Sheet } from "@/components/sheet";
 
 // A Story only takes a clip up to this long (storage.ts MAX_STORY_VIDEO_SECONDS — duplicated because that file is
 // server-only); a longer Muse can still go to Home, a friend, or anywhere via the device share sheet.
@@ -40,6 +41,7 @@ export function MuseShareModal({
   reshared,
   onToggleReshare,
   onShareCountChange,
+  open,
   onClose,
 }: {
   museId: string;
@@ -50,9 +52,18 @@ export function MuseShareModal({
   reshared: boolean;
   onToggleReshare: () => Promise<void> | void;
   onShareCountChange: (count: number) => void;
+  open: boolean;
   onClose: () => void;
 }) {
   const [view, setView] = useState<"root" | "friends">("root");
+  // Sends a reopened modal back to its root screen — adjusted during
+  // render (React's documented pattern for this) rather than a useEffect,
+  // which this project's lint config flags for a synchronous setState call.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setView("root");
+  }
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [sentToId, setSentToId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -175,22 +186,14 @@ export function MuseShareModal({
   }
 
   return (
-    <div
-      className="animate-modal-backdrop-in fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Share Muse"
-    >
-      <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{view === "root" ? "Share Muse" : "Send to a friend"}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
-            <X size={18} />
-          </button>
-        </div>
-
-        {notice && <p className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
+    // relative + z-[60] (not Sheet's own default z-50) establishes a new
+    // stacking context at that level — this needs to sit above the Muse
+    // feed's own overlays (e.g. its toast at z-[55]), same stacking-context
+    // nesting trick used wherever else in the app a fixed-position overlay
+    // needs a non-default layer without Sheet itself needing a z-index prop.
+    <div className="relative z-[60]">
+      <Sheet open={open} onClose={onClose} title={view === "root" ? "Share Muse" : "Send to a friend"}>
+        {notice && <p className="break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">
@@ -280,7 +283,7 @@ export function MuseShareModal({
             </ul>
           </div>
         )}
-      </div>
+      </Sheet>
     </div>
   );
 }

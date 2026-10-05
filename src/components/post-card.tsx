@@ -596,9 +596,7 @@ function MediaBlock({
             <ExternalLink size={14} className="shrink-0" />
             <span className="truncate">{post.linkUrl}</span>
           </button>
-          {linkModalOpen && (
-            <LinkSafetyModal url={post.linkUrl} onClose={() => setLinkModalOpen(false)} />
-          )}
+          <LinkSafetyModal url={post.linkUrl} open={linkModalOpen} onClose={() => setLinkModalOpen(false)} />
         </>
       )}
     </>
@@ -1097,18 +1095,17 @@ export function PostCard({
       {likersEverOpened && (
         <LikersModal postId={interactionTargetId} open={likersOpen} onClose={() => setLikersOpen(false)} />
       )}
-      {shareModalOpen && (
-        <ShareModal
-          postId={interactionTargetId}
-          content={displayPost.content}
-          mediaType={displayPost.mediaType}
-          mediaUrls={displayPost.mediaUrls}
-          videoUrl={displayPost.videoUrl}
-          videoDurationSeconds={displayPost.videoDurationSeconds}
-          onClose={() => setShareModalOpen(false)}
-          onShareCountChange={setShareCount}
-        />
-      )}
+      <ShareModal
+        postId={interactionTargetId}
+        content={displayPost.content}
+        mediaType={displayPost.mediaType}
+        mediaUrls={displayPost.mediaUrls}
+        videoUrl={displayPost.videoUrl}
+        videoDurationSeconds={displayPost.videoDurationSeconds}
+        open={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        onShareCountChange={setShareCount}
+      />
     </div>
   );
 }

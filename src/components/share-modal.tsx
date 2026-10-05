@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus, Clapperboard } from "lucide-react";
+import { Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus, Clapperboard } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
 import { recordShare, shareToCircle, shareToStory, shareToMuse } from "@/app/actions/shares";
@@ -10,6 +10,7 @@ import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { watermarkImageFile } from "@/lib/watermark";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
+import { Sheet } from "@/components/sheet";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
@@ -48,7 +49,15 @@ async function fetchAsFile(url: string, name: string): Promise<File | null> {
   }
 }
 
-/** Share destinations for a post — copy link, native device share, send to a friend (DM), or share into a Circle. */
+/**
+ * Share destinations for a post — copy link, native device share, send to a
+ * friend (DM), or share into a Circle. Migrated onto the shared Sheet
+ * component (see that file): the caller now renders this unconditionally
+ * once `open` has ever been true, so the view-reset below is what sends a
+ * reopened modal back to its root screen instead of wherever it was left
+ * last time (previously automatic, since each open used to be a brand new
+ * mount).
+ */
 export function ShareModal({
   postId,
   content,
@@ -56,6 +65,7 @@ export function ShareModal({
   mediaUrls,
   videoUrl,
   videoDurationSeconds,
+  open,
   onClose,
   onShareCountChange,
 }: {
@@ -65,10 +75,19 @@ export function ShareModal({
   mediaUrls: string[];
   videoUrl: string | null;
   videoDurationSeconds: number | null;
+  open: boolean;
   onClose: () => void;
   onShareCountChange: (count: number) => void;
 }) {
   const [view, setView] = useState<View>("root");
+  // Sends a reopened modal back to its root screen — adjusted during
+  // render (React's documented pattern for this) rather than a useEffect,
+  // which this project's lint config flags for a synchronous setState call.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setView("root");
+  }
   const [copied, setCopied] = useState(false);
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [circles, setCircles] = useState<Circle[] | null>(null);
@@ -273,22 +292,11 @@ export function ShareModal({
   }
 
   return (
-    <div
-      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={view === "root" ? "Share post" : view === "friends" ? "Send to a friend" : "Share to a Circle"}
     >
-      <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            {view === "root" ? "Share post" : view === "friends" ? "Send to a friend" : "Share to a Circle"}
-          </h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
-            <X size={18} />
-          </button>
-        </div>
-
         {shareWarning && (
           <p className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
         )}
@@ -411,7 +419,6 @@ export function ShareModal({
             ← Back
           </button>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }

@@ -150,7 +150,7 @@ export function StoryTray({
         />
       )}
 
-      {uploadOpen && <StoryUploadModal onClose={() => setUploadOpen(false)} />}
+      <StoryUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </>
   );
 }

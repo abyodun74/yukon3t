@@ -118,7 +118,7 @@ export function ProfileStoryRing({
         />
       )}
 
-      {uploadOpen && <StoryUploadModal onClose={() => setUploadOpen(false)} />}
+      <StoryUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {photoOpen && avatarUrl && (
         <Lightbox

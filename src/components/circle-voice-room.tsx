@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, UserPlus, X } from "lucide-react";
+import { Mic, UserPlus } from "lucide-react";
+import { Sheet } from "@/components/sheet";
 import {
   joinCircleVoiceRoom,
   leaveCircleVoiceRoom,
@@ -165,53 +166,28 @@ export function CircleVoiceRoom({
 
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 
-      {pickerOpen && (
-        <div
-          className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPickerOpen(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Invite to voice</h2>
+      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Invite to voice">
+        {inviteError && <p className="text-xs text-danger">{inviteError}</p>}
+        <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+          {circleMembers.map((m) => (
+            <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <UserAvatar avatarUrl={m.avatarUrl} name={m.name} size={24} />
+                <span className="min-w-0 truncate">{m.name ?? "Unknown"}</span>
+              </span>
               <button
                 type="button"
-                onClick={() => setPickerOpen(false)}
-                aria-label="Close"
-                className="text-foreground-soft hover:text-danger"
+                disabled={invitedIds.has(m.id)}
+                onClick={() => invite(m.id)}
+                className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-accent disabled:opacity-50"
               >
-                <X size={18} />
+                {invitedIds.has(m.id) ? "Invited" : "Invite"}
               </button>
-            </div>
-            {inviteError && <p className="mt-2 text-xs text-danger">{inviteError}</p>}
-            <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
-              {circleMembers.map((m) => (
-                <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <UserAvatar avatarUrl={m.avatarUrl} name={m.name} size={24} />
-                    <span className="min-w-0 truncate">{m.name ?? "Unknown"}</span>
-                  </span>
-                  <button
-                    type="button"
-                    disabled={invitedIds.has(m.id)}
-                    onClick={() => invite(m.id)}
-                    className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-accent disabled:opacity-50"
-                  >
-                    {invitedIds.has(m.id) ? "Invited" : "Invite"}
-                  </button>
-                </li>
-              ))}
-              {circleMembers.length === 0 && (
-                <li className="text-sm text-foreground-soft">No other Circle members yet.</li>
-              )}
-            </ul>
-          </div>
-        </div>
-      )}
+            </li>
+          ))}
+          {circleMembers.length === 0 && <li className="text-sm text-foreground-soft">No other Circle members yet.</li>}
+        </ul>
+      </Sheet>
 
       {active && (
         <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />

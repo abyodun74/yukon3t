@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Radio, X } from "lucide-react";
+import { Radio } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { getActiveLiveStreams, startLiveStream } from "@/app/actions/live-streams";
 import { getMyCircles } from "@/app/actions/circles";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { Sheet } from "@/components/sheet";
 
 type Stream = {
   id: string;
@@ -88,112 +89,95 @@ export function LiveStreamStrip() {
     });
   }
 
-  if (streams.length === 0 && !composing) {
-    return (
-      <button
-        type="button"
-        onClick={() => setComposing(true)}
-        className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
-      >
-        <Radio size={14} />
-        Go Live
-      </button>
-    );
-  }
+  // Previously an early return of an entirely different, unwrapped <button>
+  // — restructured as a plain conditional INSIDE the same returned tree
+  // instead, so the Sheet below (holding the "Go live" dialog) stays
+  // mounted regardless of which of these two renders, and so closing the
+  // dialog can never instantly unmount it mid-exit-animation the way an
+  // early return swapping the whole tree would.
+  const hasStreams = streams.length > 0;
 
   return (
     <div>
-      <div className="flex items-center gap-3 overflow-x-auto pb-1">
+      {hasStreams ? (
+        <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setComposing(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
+          >
+            <Radio size={14} />
+            Go Live
+          </button>
+          {streams.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => router.push(`/live/${s.id}`)}
+              className="flex shrink-0 flex-col items-center gap-1"
+            >
+              <div className="relative">
+                <UserAvatar avatarUrl={s.host.avatarUrl} name={s.host.name} size={48} className="border-2 border-danger" />
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-danger px-1 text-[9px] font-semibold text-white">
+                  LIVE
+                </span>
+              </div>
+              <span className="max-w-16 truncate text-xs text-foreground-soft">{s.host.name ?? "Unknown"}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
         <button
           type="button"
           onClick={() => setComposing(true)}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
+          className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
         >
           <Radio size={14} />
           Go Live
         </button>
-        {streams.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => router.push(`/live/${s.id}`)}
-            className="flex shrink-0 flex-col items-center gap-1"
-          >
-            <div className="relative">
-              <UserAvatar avatarUrl={s.host.avatarUrl} name={s.host.name} size={48} className="border-2 border-danger" />
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-danger px-1 text-[9px] font-semibold text-white">
-                LIVE
-              </span>
-            </div>
-            <span className="max-w-16 truncate text-xs text-foreground-soft">{s.host.name ?? "Unknown"}</span>
-          </button>
-        ))}
-      </div>
-
-      {composing && (
-        <div
-          className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setComposing(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Go live</h2>
-              <button
-                type="button"
-                onClick={() => setComposing(false)}
-                aria-label="Close"
-                className="text-foreground-soft hover:text-danger"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What's happening?"
-              maxLength={100}
-              autoFocus
-              className="mt-3 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-            />
-
-            <label className="mt-3 block text-xs font-medium text-foreground-soft">
-              Who can watch
-            </label>
-            <select
-              value={circleId}
-              onChange={(e) => setCircleId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-            >
-              <option value="">Everyone — shown on Home</option>
-              {circles?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
-                </option>
-              ))}
-            </select>
-
-            <p className="mt-1 text-xs text-foreground-soft">
-              {circleId
-                ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
-                : "Visible to everyone on Home."}
-            </p>
-
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-
-            <button
-              type="button"
-              disabled={!title.trim() || isPending}
-              onClick={goLive}
-              className="mt-3 w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Start streaming
-            </button>
-          </div>
-        </div>
       )}
+
+      <Sheet open={composing} onClose={() => setComposing(false)} title="Go live">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What's happening?"
+          maxLength={100}
+          autoFocus
+          className="w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
+        />
+
+        <label className="mt-3 block text-xs font-medium text-foreground-soft">Who can watch</label>
+        <select
+          value={circleId}
+          onChange={(e) => setCircleId(e.target.value)}
+          className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
+        >
+          <option value="">Everyone — shown on Home</option>
+          {circles?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
+            </option>
+          ))}
+        </select>
+
+        <p className="mt-1 text-xs text-foreground-soft">
+          {circleId
+            ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
+            : "Visible to everyone on Home."}
+        </p>
+
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+
+        <button
+          type="button"
+          disabled={!title.trim() || isPending}
+          onClick={goLive}
+          className="mt-3 w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Start streaming
+        </button>
+      </Sheet>
     </div>
   );
 }

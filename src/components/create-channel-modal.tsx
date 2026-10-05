@@ -2,8 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createChannel } from "@/app/actions/channels";
+import { Sheet } from "@/components/sheet";
 
 function errorMessage(code: string) {
   switch (code) {
@@ -23,18 +24,6 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground-soft hover:bg-line hover:text-accent"
-      >
-        <Plus size={14} /> Add channel
-      </button>
-    );
-  }
-
   function handleSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
@@ -50,15 +39,16 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
   }
 
   return (
-    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">New channel</h2>
-          <button type="button" onClick={() => setOpen(false)} className="text-foreground-soft">
-            <X size={16} />
-          </button>
-        </div>
-        <form ref={formRef} action={handleSubmit} className="mt-3 space-y-3 text-sm">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground-soft hover:bg-line hover:text-accent"
+      >
+        <Plus size={14} /> Add channel
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="New channel">
+        <form ref={formRef} action={handleSubmit} className="space-y-3 text-sm">
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
@@ -111,7 +101,7 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
             {isPending ? "Creating..." : "Create channel"}
           </button>
         </form>
-      </div>
-    </div>
+      </Sheet>
+    </>
   );
 }

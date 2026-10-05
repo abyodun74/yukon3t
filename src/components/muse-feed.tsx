@@ -120,6 +120,16 @@ export function MuseFeed({
   // the browser was waiting for. Distinct from `muted` so it never overrides a deliberate mute.
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [shareMuseId, setShareMuseId] = useState<string | null>(null);
+  // MuseShareModal now needs to stay mounted through its own close
+  // animation (Sheet's AnimatePresence — see that file), but the `shareMuse`
+  // lookup below goes undefined the instant shareMuseId is cleared, which
+  // would otherwise yank its content out from under the still-playing
+  // exit. Remembers the last real item so the modal has something to
+  // render while closing — the hook itself has to live up here,
+  // unconditionally, ahead of this component's own early return below;
+  // the actual "remember it" adjustment happens where shareMuse is
+  // computed, after that return.
+  const [rememberedShareMuse, setRememberedShareMuse] = useState<MuseItem | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<MuseCommentData[] | null>(null);
@@ -274,6 +284,12 @@ export function MuseFeed({
 
   const commentsMuse = commentsOpenForId ? items.find((it) => it.id === commentsOpenForId) : undefined;
   const shareMuse = shareMuseId ? items.find((it) => it.id === shareMuseId) : undefined;
+  // The actual "remember it" adjustment for rememberedShareMuse (declared
+  // up with this component's other hooks, above its early return) —
+  // during render (React's documented pattern for this) rather than a
+  // useEffect.
+  if (shareMuse && shareMuse !== rememberedShareMuse) setRememberedShareMuse(shareMuse);
+  const displayedShareMuse = shareMuse ?? rememberedShareMuse;
 
   return (
     <>
@@ -321,20 +337,24 @@ export function MuseFeed({
         </div>
       )}
 
-      {shareMuse && shareMuse.mediaType === "VIDEO" && shareMuse.videoUrl && shareMuse.videoDurationSeconds != null && (
-        <MuseShareModal
-          museId={shareMuse.id}
-          caption={shareMuse.caption}
-          videoUrl={shareMuse.videoUrl}
-          videoDurationSeconds={shareMuse.videoDurationSeconds}
-          reshared={shareMuse.isReposted}
-          onToggleReshare={() => toggleRepost(shareMuse.id)}
-          onShareCountChange={(count) =>
-            setItems((prev) => prev.map((it) => (it.id === shareMuse.id ? { ...it, shareCount: count } : it)))
-          }
-          onClose={() => setShareMuseId(null)}
-        />
-      )}
+      {displayedShareMuse &&
+        displayedShareMuse.mediaType === "VIDEO" &&
+        displayedShareMuse.videoUrl &&
+        displayedShareMuse.videoDurationSeconds != null && (
+          <MuseShareModal
+            museId={displayedShareMuse.id}
+            caption={displayedShareMuse.caption}
+            videoUrl={displayedShareMuse.videoUrl}
+            videoDurationSeconds={displayedShareMuse.videoDurationSeconds}
+            reshared={displayedShareMuse.isReposted}
+            onToggleReshare={() => toggleRepost(displayedShareMuse.id)}
+            onShareCountChange={(count) =>
+              setItems((prev) => prev.map((it) => (it.id === displayedShareMuse.id ? { ...it, shareCount: count } : it)))
+            }
+            open={shareMuse !== undefined}
+            onClose={() => setShareMuseId(null)}
+          />
+        )}
 
       {/*
        * A true sibling of the scrollable feed above, not nested inside it —

@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, X } from "lucide-react";
+import { Settings } from "lucide-react";
 import { updateChannel, deleteChannel, addChannelMember, removeChannelMember } from "@/app/actions/channels";
 import { UserLink } from "@/components/user-link";
+import { Sheet } from "@/components/sheet";
 
 type CircleMember = { id: string; name: string | null; username: string | null; avatarUrl: string | null };
 
@@ -38,19 +39,6 @@ export function ChannelSettingsModal({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Channel settings"
-        className="rounded-lg p-1.5 text-foreground-soft hover:bg-line hover:text-accent"
-      >
-        <Settings size={16} />
-      </button>
-    );
-  }
-
   function handleSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
@@ -66,16 +54,22 @@ export function ChannelSettingsModal({
   const memberIdSet = new Set(channelMemberIds);
 
   return (
-    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="animate-modal-panel-in max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-surface p-5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="min-w-0 break-words text-sm font-semibold">#{channel.name} settings</h2>
-          <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-foreground-soft">
-            <X size={16} />
-          </button>
-        </div>
-
-        <form action={handleSubmit} className="mt-3 space-y-3 text-sm">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Channel settings"
+        className="rounded-lg p-1.5 text-foreground-soft hover:bg-line hover:text-accent"
+      >
+        <Settings size={16} />
+      </button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={<span className="break-words">#{channel.name} settings</span>}
+        panelClassName="max-h-[85vh] overflow-y-auto"
+      >
+        <form action={handleSubmit} className="space-y-3 text-sm">
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
@@ -196,7 +190,7 @@ export function ChannelSettingsModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </Sheet>
+    </>
   );
 }

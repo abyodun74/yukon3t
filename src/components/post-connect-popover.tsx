@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, X } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { ConnectButton } from "@/components/connect-button";
 import { cn } from "@/lib/utils";
+import { Sheet } from "@/components/sheet";
 
 type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
@@ -50,40 +51,15 @@ export function PostConnectPopover({
         <UserPlus size={16} />
       </button>
 
-      {open && (
-        <div
-          className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setOpen(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Connect</h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="text-foreground-soft hover:text-danger"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="mt-3">
-              <ConnectButton
-                targetId={targetId}
-                openToIntents={openToIntents}
-                status={status}
-                isRequester={isRequester}
-                conversationId={conversationId}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <Sheet open={open} onClose={() => setOpen(false)} title="Connect">
+        <ConnectButton
+          targetId={targetId}
+          openToIntents={openToIntents}
+          status={status}
+          isRequester={isRequester}
+          conversationId={conversationId}
+        />
+      </Sheet>
     </>
   );
 }

@@ -10,6 +10,7 @@ import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { cn } from "@/lib/utils";
+import { Sheet } from "@/components/sheet";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -225,7 +226,18 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
   });
 }
 
-export function StoryUploadModal({ onClose }: { onClose: () => void }) {
+/**
+ * Migrated onto the shared Sheet component (see that file) — the caller
+ * now renders this unconditionally once `open` has ever been true (Sheet's
+ * AnimatePresence needs it mounted through its own exit animation), so the
+ * reset-on-close block below is what gives a reopened composer its fresh-
+ * form behavior back (previously automatic, since each open used to be a
+ * brand new mount) — including revoking every outstanding item's object
+ * URL, which the existing unmount-only cleanup effect further down no
+ * longer reaches on a mere close (the component doesn't actually unmount
+ * anymore).
+ */
+export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [items, setItems] = useState<StoryItem[]>([]);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -252,6 +264,32 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // Reset happens at the start of the NEXT open, not at close — revoking
+  // still-displayed items' object URLs (or just blanking the form) the
+  // moment it closes would visibly break their thumbnails/reset the form
+  // while Sheet's exit animation is still fading the whole panel out. A
+  // final safety net for "closed and never reopened" still exists below
+  // (the real unmount-only cleanup effect).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      // The plain `items` state (not itemsRef) — safe to read during
+      // render, unlike a ref; itemsRef only exists for the unmount-only
+      // cleanup effect below, which needs the latest array without
+      // re-running itself on every items change.
+      for (const item of items) URL.revokeObjectURL(item.previewUrl);
+      setItems([]);
+      setCaption("");
+      setError(null);
+      setProgress(null);
+      setMode("media");
+      setTextValue("");
+      setTextBgIndex(0);
+    }
+  }
+
   useEffect(() => {
     return () => {
       for (const item of itemsRef.current) URL.revokeObjectURL(item.previewUrl);
@@ -447,15 +485,13 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
   const anyUploading = items.some((i) => i.upload.status === "uploading");
 
   return (
-    <div className="animate-modal-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
-      <div className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Add to your story</h2>
-          <button type="button" onClick={onClose} className="text-foreground-soft hover:text-foreground">
-            <X size={18} />
-          </button>
-        </div>
-
+    // relative + z-[70] (not Sheet's own default z-50) establishes a new
+    // stacking context at that level, same reasoning/trick as
+    // muse-share-modal.tsx's own wrapper — this needs to sit above
+    // whatever z-[6x] chrome the triggering surface (profile story ring,
+    // the home story tray) already has.
+    <div className="relative z-[70]">
+      <Sheet open={open} onClose={onClose} title="Add to your story">
         {/* Switching modes mid-batch would mean juggling two unrelated
             in-progress flows (uploaded media items vs. a typed draft) at
             once, so the toggle itself only shows before either has
@@ -732,7 +768,7 @@ export function StoryUploadModal({ onClose }: { onClose: () => void }) {
         <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
           </>
         )}
-      </div>
+      </Sheet>
     </div>
   );
 }

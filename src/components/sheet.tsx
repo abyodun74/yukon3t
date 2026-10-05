@@ -37,6 +37,7 @@ export function Sheet({
   open,
   onClose,
   variant = "dialog",
+  responsive = false,
   title,
   children,
   panelClassName,
@@ -44,10 +45,12 @@ export function Sheet({
   open: boolean;
   onClose: () => void;
   variant?: SheetVariant;
+  /** bottom-sheet only: becomes a centered dialog at the `sm` breakpoint instead of staying bottom-anchored — same responsive switch muse-composer.tsx/review-prompt-gate.tsx's own hand-rolled modals used (a touch-first bottom sheet makes less sense once there's a mouse pointer and real screen width). Drag-to-dismiss stays active at every width — harmless on desktop, just rarely used there. */
+  responsive?: boolean;
   /** Omit for a panel that renders its own heading — not every migrated modal used a plain string title. */
   title?: ReactNode;
   children: ReactNode;
-  /** Extra width/sizing classes for the dialog variant's panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). Ignored for bottom-sheet (always full-width). */
+  /** Extra width/sizing classes for the panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). */
   panelClassName?: string;
 }) {
   return (
@@ -56,7 +59,7 @@ export function Sheet({
         <motion.div
           className={
             variant === "bottom-sheet"
-              ? "fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+              ? `fixed inset-0 z-50 flex items-end justify-center bg-black/60 ${responsive ? "sm:items-center sm:p-4" : ""}`
               : "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           }
           initial={{ opacity: 0 }}
@@ -68,7 +71,7 @@ export function Sheet({
           aria-modal="true"
         >
           {variant === "bottom-sheet" ? (
-            <BottomSheetPanel onClose={onClose} title={title}>
+            <BottomSheetPanel onClose={onClose} title={title} responsive={responsive} panelClassName={panelClassName}>
               {children}
             </BottomSheetPanel>
           ) : (
@@ -100,9 +103,16 @@ function DialogPanel({
   panelClassName?: string;
   children: ReactNode;
 }) {
+  // panelClassName appends rather than truly overrides (two same-specificity
+  // Tailwind classes setting the same property resolve by generated-CSS
+  // order, not source order, so appending a conflicting max-w-* after the
+  // base one here would be unreliable either way) — dropping the base
+  // max-w-sm whenever the caller supplies its own is what actually makes
+  // a width override behave predictably.
+  const widthOverride = panelClassName?.includes("max-w-");
   return (
     <motion.div
-      className={`hig-material w-full max-w-sm rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
+      className={`hig-material w-full ${widthOverride ? "" : "max-w-sm"} rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -137,10 +147,14 @@ const DISMISS_VELOCITY_PX_PER_S = 800;
 function BottomSheetPanel({
   onClose,
   title,
+  responsive,
+  panelClassName,
   children,
 }: {
   onClose: () => void;
   title?: ReactNode;
+  responsive?: boolean;
+  panelClassName?: string;
   children: ReactNode;
 }) {
   // Only handles the DISMISS decision — a non-dismissing release needs no
@@ -154,9 +168,11 @@ function BottomSheetPanel({
     }
   }
 
+  // Same override-vs-append reasoning as DialogPanel's own widthOverride.
+  const widthOverride = panelClassName?.includes("max-w-");
   return (
     <motion.div
-      className="hig-material w-full max-w-lg rounded-t-2xl border-t border-x border-line bg-surface/90 backdrop-blur-xl"
+      className={`hig-material w-full ${widthOverride ? "" : "max-w-lg"} rounded-t-2xl border-t border-x border-line bg-surface/90 backdrop-blur-xl ${responsive ? "sm:rounded-2xl sm:max-w-sm" : ""} ${panelClassName ?? ""}`}
       style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
