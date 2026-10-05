@@ -154,6 +154,41 @@ body {
   font-optical-sizing: auto;
 }
 
+/* Size-dependent tracking/leading for the app's two dominant heading
+   idioms (grep-verified against every `<h1>`/`<h2>` in the app: `text-2xl`
+   or larger for page titles, `text-sm`/`text-base` for modal/dialog
+   titles) — HIG/"The Details of UI Typography" (WWDC 2020): tracking is
+   size-specific, never one fixed value for every size. Large text wants
+   tighter (negative) tracking as letters otherwise read too far apart;
+   small text wants neutral-to-slightly-positive tracking for legibility.
+   Leading moves the opposite way — tight on large headings, looser on
+   smaller text. Tag+size-scoped (not a blanket h1/h2 rule, and not
+   touching Tailwind's own text-* scale) so this only ever affects an
+   actual heading-sized element, same specificity trick as .hig-material
+   above: an element+class selector outranks Tailwind's own class-only
+   utility, so this applies without `!important` or fighting the cascade.
+
+   h2.text-sm excludes :not(.tracking-wide) — the small-caps section-label
+   variant (ReactionBar group headers, etc.) has already made its own
+   explicit, HIG-correct choice (wide tracking on small all-caps text) and
+   shouldn't be quietly overridden by this rule's milder default. */
+h1.text-2xl {
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+h1.text-3xl,
+h1.text-4xl {
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+h2.text-sm:not(.tracking-wide),
+h2.text-base:not(.tracking-wide) {
+  letter-spacing: 0.005em;
+  line-height: 1.45;
+}
+
 /* Every hover/focus state sitewide gets a considered transition instead of
    an abrupt snap, without having to touch each component individually. */
 a,
