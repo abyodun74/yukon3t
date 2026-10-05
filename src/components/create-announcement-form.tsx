@@ -5,8 +5,20 @@ import { Camera, Upload, Video, X } from "lucide-react";
 import { createAnnouncement } from "@/app/actions/announcements";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { MEDIA_LIMITS, MAX_ANNOUNCEMENT_VIDEO_SECONDS } from "@/lib/storage";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+
+// Not imported from storage.ts — that module pulls in node:crypto/the AWS
+// SDK (server-only), which a "use client" component importing it drags into
+// the browser bundle outright (confirmed live: Netlify's webpack build fails
+// with "node:crypto ... Unhandled scheme" the moment a client file imports
+// any value, even just a constant, from storage.ts). Duplicated locally
+// instead, same reasoning/pattern as ad-booking-form.tsx's own
+// MAX_IMAGE_BYTES/MAX_VIDEO_BYTES — kept in sync with storage.ts's
+// MEDIA_LIMITS["announcement-image"/"announcement-video"] and
+// MAX_ANNOUNCEMENT_VIDEO_SECONDS.
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
+const MAX_VIDEO_SECONDS = 120;
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
@@ -59,7 +71,7 @@ export function CreateAnnouncementForm() {
       return;
     }
     const resized = await resizeImageFile(f);
-    if (resized.size > MEDIA_LIMITS["announcement-image"]) {
+    if (resized.size > MAX_IMAGE_BYTES) {
       setError("Images must be 25MB or smaller.");
       return;
     }
@@ -75,7 +87,7 @@ export function CreateAnnouncementForm() {
       setError("Use an MP4, MOV or WebM video.");
       return;
     }
-    if (f.size > MEDIA_LIMITS["announcement-video"]) {
+    if (f.size > MAX_VIDEO_BYTES) {
       setError("Video must be 2GB or smaller.");
       return;
     }
@@ -103,8 +115,8 @@ export function CreateAnnouncementForm() {
     probe.onloadedmetadata = () => {
       if (settled) return;
       finish();
-      if (Number.isFinite(probe.duration) && probe.duration > MAX_ANNOUNCEMENT_VIDEO_SECONDS) {
-        setError(`Videos must be ${MAX_ANNOUNCEMENT_VIDEO_SECONDS} seconds or shorter.`);
+      if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
+        setError(`Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.`);
         return;
       }
       setError(null);
