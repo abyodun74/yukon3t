@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setGroupDiscoverable } from "@/app/actions/messages";
+import { hapticSelection } from "@/lib/haptics";
 
 export function GroupDiscoverableToggle({
   conversationId,
@@ -14,6 +15,7 @@ export function GroupDiscoverableToggle({
   const [isPending, startTransition] = useTransition();
 
   function toggle() {
+    hapticSelection();
     const next = !discoverable;
     setDiscoverable(next);
     startTransition(async () => {

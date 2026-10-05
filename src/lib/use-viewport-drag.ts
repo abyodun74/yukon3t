@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type RefObject } from "react";
+import { hapticImpact } from "@/lib/haptics";
 
 export type DragPosition = { left: number; top: number } | null;
 
@@ -9,10 +10,9 @@ const EDGE_MARGIN = 8;
 function clampToViewport(left: number, top: number, width: number, height: number) {
   const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth - width - EDGE_MARGIN);
   const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - height - EDGE_MARGIN);
-  return {
-    left: Math.min(Math.max(EDGE_MARGIN, left), maxLeft),
-    top: Math.min(Math.max(EDGE_MARGIN, top), maxTop),
-  };
+  const clampedLeft = Math.min(Math.max(EDGE_MARGIN, left), maxLeft);
+  const clampedTop = Math.min(Math.max(EDGE_MARGIN, top), maxTop);
+  return { left: clampedLeft, top: clampedTop, clamped: clampedLeft !== left || clampedTop !== top };
 }
 
 /**
@@ -35,6 +35,11 @@ export function useViewportDrag(targetRef: RefObject<HTMLElement | null>) {
     startClientY: number;
     startLeft: number;
     startTop: number;
+    // Whether this drag has already fired the edge-reached haptic — set
+    // once per drag, not once per pointermove, so dragging flush against
+    // the boundary doesn't buzz continuously the whole time it's held
+    // there.
+    firedEdgeHaptic: boolean;
   } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLElement>) {
@@ -43,7 +48,14 @@ export function useViewportDrag(targetRef: RefObject<HTMLElement | null>) {
     const rect = el.getBoundingClientRect();
     const startLeft = position?.left ?? rect.left;
     const startTop = position?.top ?? rect.top;
-    dragStateRef.current = { pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startLeft, startTop };
+    dragStateRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startLeft,
+      startTop,
+      firedEdgeHaptic: false,
+    };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
@@ -55,7 +67,17 @@ export function useViewportDrag(targetRef: RefObject<HTMLElement | null>) {
     const height = el?.offsetHeight ?? 0;
     const dx = e.clientX - drag.startClientX;
     const dy = e.clientY - drag.startClientY;
-    setPosition(clampToViewport(drag.startLeft + dx, drag.startTop + dy, width, height));
+    const { left, top, clamped } = clampToViewport(drag.startLeft + dx, drag.startTop + dy, width, height);
+    setPosition({ left, top });
+    // The "caught" feeling of actually hitting the edge — mirrors HIG's
+    // rubber-band boundary moment, fired once per drag rather than on
+    // every frame still pinned against it.
+    if (clamped && !drag.firedEdgeHaptic) {
+      drag.firedEdgeHaptic = true;
+      hapticImpact("light");
+    } else if (!clamped) {
+      drag.firedEdgeHaptic = false;
+    }
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLElement>) {

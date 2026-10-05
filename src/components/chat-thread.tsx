@@ -27,6 +27,7 @@ import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { getStory } from "@/app/actions/stories";
 import type { EmbedProvider } from "@/lib/video-embed";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { hapticSelection } from "@/lib/haptics";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
@@ -336,12 +337,18 @@ function MessageBubble({
   // during render, which React's rules of hooks disallows.
   const [isDragging, setIsDragging] = useState(false);
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; active: boolean } | null>(null);
+  // Fires hapticSelection() once per drag, the instant dx first reaches
+  // SWIPE_REPLY_THRESHOLD_PX — the "this will commit if you let go now"
+  // moment — not on every pointermove past it, which would buzz
+  // continuously for as long as the finger stays there.
+  const thresholdCrossedRef = useRef(false);
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
     if (deleted || editing || sending) return;
     // Only primary touch/mouse input — ignore secondary buttons/multi-touch.
     if (e.button !== 0) return;
     dragStateRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false };
+    thresholdCrossedRef.current = false;
   }
 
   function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
@@ -371,6 +378,16 @@ function MessageBubble({
 
     e.preventDefault();
     setDragX(Math.min(dx, SWIPE_MAX_DRAG_PX));
+    if (dx >= SWIPE_REPLY_THRESHOLD_PX && !thresholdCrossedRef.current) {
+      thresholdCrossedRef.current = true;
+      hapticSelection();
+    } else if (dx < SWIPE_REPLY_THRESHOLD_PX) {
+      // Dragged back below the line — re-arm so crossing it again (a
+      // hesitant back-and-forth before committing) still ticks each time,
+      // same as how a picker wheel ticks on every new value, not just the
+      // first.
+      thresholdCrossedRef.current = false;
+    }
   }
 
   function endDrag(e: PointerEvent<HTMLDivElement>) {

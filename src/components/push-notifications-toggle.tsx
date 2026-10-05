@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { subscribeToPush, unsubscribeFromPush } from "@/app/actions/push";
+import { hapticSelection } from "@/lib/haptics";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -75,6 +76,7 @@ export function PushNotificationsToggle() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
       await subscribeToPush(subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } });
+      hapticSelection();
       setStatus("on");
     } catch {
       setStatus("off");
@@ -90,6 +92,7 @@ export function PushNotificationsToggle() {
         await unsubscribeFromPush(subscription.endpoint);
         await subscription.unsubscribe();
       }
+      hapticSelection();
       setStatus("off");
     } catch {
       setStatus("on");

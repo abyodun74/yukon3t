@@ -9,6 +9,7 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { hapticNotification, hapticImpact } from "@/lib/haptics";
 
 type IncomingCall = {
   id: string;
@@ -191,11 +192,18 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     setIncoming((current) => (current?.id === callId ? null : current));
   }, []);
 
+  // Haptics live in these two in-app-button wrappers, not acceptCall/
+  // declineCall themselves — those are shared with the CallKit/Android
+  // notification-tap/deep-link paths below, where the OS's own native
+  // Accept/Decline UI already provides its own system feedback; firing
+  // ours there too would double up on top of it.
   async function accept() {
+    hapticNotification("success");
     if (incoming) await acceptCall(incoming.id);
   }
 
   async function decline() {
+    hapticImpact("light");
     if (incoming) await declineCall(incoming.id);
   }
 

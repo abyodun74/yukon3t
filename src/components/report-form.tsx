@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { fileReport } from "@/app/actions/reports";
+import { hapticNotification } from "@/lib/haptics";
 import { reportReasonCategoryValues, reportReasonCategoryLabels } from "@/lib/validations";
 
 export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
@@ -89,6 +90,7 @@ export function ReportModal({
                   if (evidenceText !== undefined) fd.set("evidenceText", evidenceText);
                   startTransition(async () => {
                     const result = await fileReport(fd);
+                    hapticNotification(result.error ? "error" : "success");
                     setStatus(result.error ? "error" : "sent");
                   });
                 }}

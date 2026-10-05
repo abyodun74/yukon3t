@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { THEME_COOKIE, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { hapticSelection } from "@/lib/haptics";
 
 const options: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "light", label: "Light", icon: Sun },
@@ -27,6 +28,8 @@ export function ThemeToggle({ initial }: { initial: Theme }) {
   const [theme, setTheme] = useState<Theme>(initial);
 
   function apply(value: Theme) {
+    if (value === theme) return;
+    hapticSelection();
     setTheme(value);
     persistTheme(value);
   }

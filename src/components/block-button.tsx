@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { blockUser, unblockUser } from "@/app/actions/blocks";
+import { hapticNotification, hapticImpact } from "@/lib/haptics";
 
 /** Toggles block state for a profile — always visible next to Report, unlike Report it needs no reason. */
 export function BlockButton({
@@ -28,6 +29,7 @@ export function BlockButton({
           startTransition(async () => {
             const result = await unblockUser(targetId);
             if (!result.error) {
+              hapticImpact("light");
               setBlocked(false);
               router.refresh();
             }
@@ -51,6 +53,7 @@ export function BlockButton({
             startTransition(async () => {
               const result = await blockUser(targetId);
               if (!result.error) {
+                hapticNotification("warning");
                 setBlocked(true);
                 setConfirming(false);
                 router.refresh();

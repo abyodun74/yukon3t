@@ -7,6 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
 import { broadcastHoldState, holdStateFromAppMessage } from "@/lib/call-hold";
 import { takePrewarmedCall } from "@/lib/call-prewarm";
+import { hapticSelection, hapticImpact } from "@/lib/haptics";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
@@ -237,12 +238,15 @@ export function DirectCallFrame({
   const localScreenSharing = Boolean(local && trackIsOn(local.tracks.screenVideo.state));
 
   function toggleAudio() {
+    hapticSelection();
     callRef.current?.setLocalAudio(!localAudioOn);
   }
   function toggleVideo() {
+    hapticSelection();
     callRef.current?.setLocalVideo(!localVideoOn);
   }
   function toggleScreenShare() {
+    hapticSelection();
     if (localScreenSharing) callRef.current?.stopScreenShare();
     else callRef.current?.startScreenShare();
   }
@@ -250,12 +254,18 @@ export function DirectCallFrame({
     const call = callRef.current;
     if (!call) return;
     if (isOnHold) {
+      // Resuming is the lighter touch of the two — picking back up where
+      // you left off, not a new commitment.
+      hapticImpact("light");
       const prev = preHoldStateRef.current;
       call.setLocalAudio(prev?.audio ?? true);
       call.setLocalVideo(prev?.video ?? false);
       setIsOnHold(false);
       broadcastHoldState(call, false);
     } else {
+      // Putting the call on hold is the more deliberate action of the two —
+      // a medium impact, same weight as the call accept/decline below.
+      hapticImpact("medium");
       // Captured before muting below — setLocalAudio/Video(false) is what
       // Resume needs to undo, so the pre-hold state has to be read first.
       preHoldStateRef.current = { audio: localAudioOn, video: localVideoOn };
