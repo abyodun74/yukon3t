@@ -55,6 +55,22 @@ export default async function WhatsNewPage() {
           <div key={a.id} className="rounded-xl border border-line p-4">
             <h2 className="break-words font-semibold">{a.title}</h2>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">{a.body}</p>
+            {a.mediaUrl && (
+              <div className="mt-3 overflow-hidden rounded-lg bg-black">
+                {a.mediaType === "VIDEO" ? (
+                  <video
+                    src={a.mediaUrl}
+                    poster={a.mediaThumbnailUrl ?? undefined}
+                    controls
+                    playsInline
+                    className="w-full"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.mediaUrl} alt="" className="w-full object-contain" />
+                )}
+              </div>
+            )}
             <p className="mt-2 text-xs text-foreground-soft">
               {a.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
             </p>

@@ -34,6 +34,16 @@ export default async function AdminAnnouncementsPage() {
             <div className="min-w-0">
               <h2 className="break-words font-semibold">{a.title}</h2>
               <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">{a.body}</p>
+              {a.mediaUrl && (
+                <div className="mt-2 max-w-xs overflow-hidden rounded-lg bg-black">
+                  {a.mediaType === "VIDEO" ? (
+                    <video src={a.mediaUrl} poster={a.mediaThumbnailUrl ?? undefined} controls className="w-full" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.mediaUrl} alt="" className="w-full object-contain" />
+                  )}
+                </div>
+              )}
               <p className="mt-2 text-xs text-foreground-soft">{a.createdAt.toLocaleString()}</p>
             </div>
             <DeleteAnnouncementButton id={a.id} />

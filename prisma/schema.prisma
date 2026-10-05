@@ -2107,18 +2107,33 @@ model AuditLog {
 // records the deletion of — an AuditLog row FK'd to that user would cascade
 // away the instant the user is deleted, erasing the very record of why,
 // which defeats the point for this one action specifically.
+enum AnnouncementMediaType {
+  IMAGE
+  VIDEO
+}
+
 /**
  * Admin-authored "what's new" post. createdById is deliberately a plain
  * string (no relation), same reasoning as AccountDeletionLog/
  * AuditLog.performedBy — an announcement should survive the authoring
  * admin's account ever being deleted, not cascade away with it.
+ *
+ * mediaType/mediaUrl are nullable, not an AdCampaign-style required pair —
+ * most announcements are text-only, media is an optional attachment (a
+ * screenshot of the feature being announced, or a short demo clip).
+ * mediaThumbnailUrl (VIDEO only, also optional — see createAnnouncement)
+ * is a captured poster frame, same purpose as AdCampaign's own field of the
+ * same name.
  */
 model Announcement {
-  id          String   @id @default(cuid())
-  title       String
-  body        String   @db.Text
-  createdById String
-  createdAt   DateTime @default(now())
+  id                String                 @id @default(cuid())
+  title             String
+  body              String                 @db.Text
+  createdById       String
+  createdAt         DateTime               @default(now())
+  mediaType         AnnouncementMediaType?
+  mediaUrl          String?
+  mediaThumbnailUrl String?
 
   @@index([createdAt])
 }

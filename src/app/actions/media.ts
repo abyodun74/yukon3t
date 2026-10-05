@@ -184,6 +184,8 @@ const DISCARDABLE_KINDS = new Set([
   "comment-video",
   "story-image",
   "story-video",
+  "announcement-image",
+  "announcement-video",
 ]);
 
 /**

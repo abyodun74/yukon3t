@@ -37,7 +37,13 @@ export type UploadKind =
   // Ambient presence groundwork (see actions/ambient.ts) — a single photo,
   // same allowlist/size cap as story-image, since it's the same "casual
   // phone photo" use case, not a polished-post-grade upload.
-  | "ambient-image";
+  | "ambient-image"
+  // Admin-only "what's new" post media (actions/announcements.ts) — a
+  // screenshot or short demo clip attached to an announcement, same
+  // allowlist/size caps as the ad-image/ad-video kinds (same "one piece of
+  // promotional-ish media" shape), not post-grade's gif/multi-photo needs.
+  | "announcement-image"
+  | "announcement-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
@@ -75,6 +81,8 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
   "muse-audio": { "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/webm": "webm" },
   "ad-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
   "ad-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
+  "announcement-image": { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
+  "announcement-video": { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" },
   // Material shared into a Collab session's chat — documents in addition to
   // the image types every other image kind already allows, since a shared
   // "material" is as often a PDF/slide deck as it is a photo.
@@ -110,6 +118,8 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "story-video": MAX_VIDEO_BYTES,
   "ad-image": 25 * 1024 * 1024,
   "ad-video": MAX_VIDEO_BYTES,
+  "announcement-image": 25 * 1024 * 1024,
+  "announcement-video": MAX_VIDEO_BYTES,
   "collab-material": 25 * 1024 * 1024,
   // Short-lived speech-to-text clips (record -> transcribe -> delete) —
   // smaller than message-audio's 5MB since these never persist past the
@@ -138,6 +148,7 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "ad-video",
   "comment-video",
   "muse-video",
+  "announcement-video",
 ]);
 
 // Matches post-composer.tsx's MAX_UPLOAD_VIDEO_SECONDS — the ceiling for a
@@ -170,6 +181,8 @@ export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;
 export const MAX_STORY_VIDEO_SECONDS = 120;
+// A "what's new" demo clip, not a full video post — same ceiling as a Story.
+export const MAX_ANNOUNCEMENT_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 // A Muse can run up to 5 minutes — well past Hive's HIVE_VIDEO_MODERATION_MAX_SECONDS
 // scan limit above, so (as of createMuse's videoNeedsManualReview fork) a

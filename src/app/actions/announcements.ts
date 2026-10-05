@@ -8,6 +8,7 @@ import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 
 /**
  * Admin-only: posts a new "what's new" announcement. Visible to every user
@@ -22,16 +23,62 @@ export async function createAnnouncement(formData: FormData) {
   const parsed = announcementSchema.safeParse({
     title: formData.get("title"),
     body: formData.get("body"),
+    mediaType: formData.get("mediaType") || undefined,
+    mediaUrl: formData.get("mediaUrl") || undefined,
+    mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
+  const { title, body, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
+
+  // mediaType/mediaUrl travel together or not at all — same imperative
+  // pairing check createAdCampaign/createStory use for their own optional
+  // media fields. A thumbnail only ever makes sense alongside a VIDEO.
+  if (Boolean(mediaType) !== Boolean(mediaUrl)) {
+    return { error: "invalid" as const };
+  }
+  if (mediaThumbnailUrl && mediaType !== "VIDEO") {
+    return { error: "invalid" as const };
+  }
+
+  // Cleans up whatever was actually uploaded (create-announcement-form.tsx
+  // already uploaded the file to R2 before calling this action, same
+  // upload-then-confirm shape every other composer in this app uses) —
+  // called on every rejection path below so a failed post never leaves an
+  // orphaned object behind.
+  async function cleanupUploads() {
+    if (!mediaUrl) return;
+    await Promise.all(
+      [mediaUrl, ...(mediaThumbnailUrl ? [mediaThumbnailUrl] : [])].map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteOwnedObject(key, admin.id) : Promise.resolve();
+      }),
+    );
+  }
+
+  if (mediaType && mediaUrl) {
+    const key = keyFromPublicUrl(mediaUrl);
+    const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["announcement-image"] : MEDIA_LIMITS["announcement-video"];
+    const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: admin.id }));
+    if (!sizeOk) {
+      await cleanupUploads();
+      return { error: "too_large" as const };
+    }
+    // No moderateMedia call here, unlike createAdCampaign/createStory — this
+    // is admin-authored content, the same trust level that already reviews
+    // everything else in the moderation queue, and the announcement's own
+    // title/body text has never gone through moderation either.
+  }
 
   await prisma.announcement.create({
     data: {
-      title: parsed.data.title,
-      body: parsed.data.body,
+      title,
+      body,
       createdById: admin.id,
+      mediaType,
+      mediaUrl,
+      mediaThumbnailUrl,
     },
   });
 
@@ -54,7 +101,23 @@ export async function createAnnouncement(formData: FormData) {
 export async function deleteAnnouncement(id: string) {
   await requireAdmin();
 
-  await prisma.announcement.delete({ where: { id } });
+  const deleted = await prisma.announcement.delete({ where: { id } });
+
+  // Not cascaded by the DB (mediaUrl is a plain string, not a storage
+  // reference) — clean up the R2 object(s) ourselves so a deleted
+  // announcement doesn't leave its attachment behind forever. A plain
+  // deleteObject, not deleteOwnedObject/keyBelongsToOwner — any admin can
+  // already delete any announcement outright regardless of who originally
+  // posted it, so this shouldn't silently no-op just because a *different*
+  // admin account's id doesn't match the key's own uploader segment.
+  await Promise.all(
+    [deleted.mediaUrl, deleted.mediaThumbnailUrl]
+      .filter((url): url is string => Boolean(url))
+      .map((url) => {
+        const key = keyFromPublicUrl(url);
+        return key ? deleteObject(key) : Promise.resolve();
+      }),
+  );
 
   revalidatePath("/admin/announcements");
   revalidatePath("/whats-new");

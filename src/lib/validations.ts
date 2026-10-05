@@ -166,6 +166,13 @@ export const updateCircleDetailsSchema = z.object({
 export const announcementSchema = z.object({
   title: z.string().trim().min(3).max(120),
   body: z.string().trim().min(10).max(4000),
+  // All three optional — most announcements are text-only. mediaUrl is
+  // required alongside mediaType and mediaThumbnailUrl is VIDEO-only, both
+  // enforced imperatively in createAnnouncement (same pattern storySchema
+  // uses for its own mediaUrl/mediaThumbnailUrl).
+  mediaType: z.enum(["IMAGE", "VIDEO"]).optional(),
+  mediaUrl: z.string().url().optional(),
+  mediaThumbnailUrl: z.string().url().optional(),
 });
 
 export const channelSchema = z.object({
