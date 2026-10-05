@@ -629,6 +629,16 @@ export function PostCard({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxVideo, setLightboxVideo] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
+  // Sticky "has this ever been opened" flag — LikersModal now needs to
+  // stay mounted through its own close animation (see that file and its
+  // call site below), so this gates a cheap one-time mount instead of
+  // `likersOpen` itself, which would otherwise also hide it while the
+  // Sheet's own exit animation is still playing. Adjusted during render
+  // (React's documented pattern for this, same as this file's own
+  // lastPathname-style checks elsewhere in the app) rather than a ref
+  // mutation, which this project's lint config disallows during render.
+  const [likersEverOpened, setLikersEverOpened] = useState(false);
+  if (likersOpen && !likersEverOpened) setLikersEverOpened(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [isLikePending, startLikeTransition] = useTransition();
   const [, startReactionTransition] = useTransition();
@@ -1080,8 +1090,12 @@ export function PostCard({
       {lightboxVideo && displayPost.videoUrl && (
         <Lightbox video={displayPost.videoUrl} onClose={() => setLightboxVideo(false)} />
       )}
-      {likersOpen && (
-        <LikersModal postId={interactionTargetId} onClose={() => setLikersOpen(false)} />
+      {/* Rendered once likersOpen has ever been true, not gated on it
+          directly — Sheet's AnimatePresence needs this mounted through its
+          own exit animation, which an `{open && <X/>}` parent would tear
+          down instantly instead of letting play. */}
+      {likersEverOpened && (
+        <LikersModal postId={interactionTargetId} open={likersOpen} onClose={() => setLikersOpen(false)} />
       )}
       {shareModalOpen && (
         <ShareModal

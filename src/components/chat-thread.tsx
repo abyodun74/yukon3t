@@ -274,6 +274,10 @@ function MessageBubble({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
+  // Sticky "has this ever been opened" flag — see post-card.tsx's
+  // likersEverOpenedRef for why ReportModal's mount now needs this
+  // instead of `reporting` itself (Sheet owns the exit animation).
+  const [reportEverOpened, setReportEverOpened] = useState(false);
   // Which side the dropdown's own edge pins to (it opens toward the
   // opposite side). Defaults to the old mine-based guess so the first
   // paint before any click is reasonable, but the real decision happens in
@@ -863,6 +867,7 @@ function MessageBubble({
                   onClick={() => {
                     setMenuOpen(false);
                     setReporting(true);
+                    setReportEverOpened(true);
                   }}
                   className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
                 >
@@ -918,13 +923,14 @@ function MessageBubble({
           )}
         </div>
       )}
-      {reporting && (
+      {reportEverOpened && (
         <ReportModal
           targetType="MESSAGE"
           targetId={message.id}
           reportedUserId={message.senderId}
           // From a secret chat the server can't read the message, so the decrypted text rides along with the report.
           evidenceText={message.wasEncrypted ? message.content : undefined}
+          open={reporting}
           onClose={() => setReporting(false)}
         />
       )}

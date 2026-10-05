@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
+import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { AppSplash } from "@/components/app-splash";
@@ -195,59 +196,69 @@ export default async function RootLayout({
           <div className="aurora-blob" />
           <div className="aurora-blob" />
         </div>
-        <CallSessionProvider>
-          <AppSplash />
-          <CapacitorBridge />
-          <RegisterServiceWorker />
-          <OfflineBanner />
-          <Nav session={session} theme={theme} />
-          {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
-          {session?.user && <GlobalCallFrame />}
-          {session?.user && <FcmTokenBridge />}
-          {session?.user && <PresenceHeartbeat />}
-          {session?.user && <ScreenshotGuard />}
-          {session?.user && <FeedVideoVolumeSync />}
-          {session?.user && <ShareTargetGate userId={session.user.id} />}
-          {session?.user && <ReviewPromptGate />}
-          <main className="flex-1">{children}</main>
-          {/* Signed-in mobile users already have a dedicated bottom tab bar
-              (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
-              above) covering navigation — this marketing-site-style footer
-              (FAQ/legal links) has no reason to also appear there. Confirmed
-              live via a real user's screenshot: it was rendering between the
-              message composer and that tab bar on an actual conversation
-              screen, pure clutter competing for scarce phone-screen height.
-              Signed-out visitors (landing/legal/FAQ pages) and desktop still
-              get it — hidden only for the case that's actually a problem. */}
-          <footer
-            className={`border-t border-line py-8 text-center text-sm text-foreground-soft ${session?.user ? "hidden md:block" : ""}`}
-          >
-            <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
-              <a href="/faq" className="hover:text-accent">
-                FAQ
-              </a>
-              <a href="/legal/guidelines" className="hover:text-accent">
-                Community Guidelines
-              </a>
-              <a href="/legal/privacy" className="hover:text-accent">
-                Privacy
-              </a>
-              <a href="/legal/terms" className="hover:text-accent">
-                Terms
-              </a>
-              <a href="/legal/disclaimer" className="hover:text-accent">
-                Disclaimer
-              </a>
-              {/* Ad booking is a web/Stripe business purchase — not surfaced inside the iOS app (see HideInIosApp). */}
-              <HideInIosApp hiddenOnServer={iosApp}>
-                <a href="/advertise" className="hover:text-accent">
-                  Advertise
+        {/* reducedMotion="user" (not the default "never") makes every
+            future motion/react animation in the app — the shared Sheet
+            component, gesture-driven drags, anything else built on this
+            library — automatically swap springs/slides for an instant or
+            near-instant cross-fade under prefers-reduced-motion, with no
+            per-component check needed. Wraps the whole app once here
+            rather than each animated component wrapping itself, same
+            reasoning as CallSessionProvider just inside it. */}
+        <MotionConfig reducedMotion="user">
+          <CallSessionProvider>
+            <AppSplash />
+            <CapacitorBridge />
+            <RegisterServiceWorker />
+            <OfflineBanner />
+            <Nav session={session} theme={theme} />
+            {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
+            {session?.user && <GlobalCallFrame />}
+            {session?.user && <FcmTokenBridge />}
+            {session?.user && <PresenceHeartbeat />}
+            {session?.user && <ScreenshotGuard />}
+            {session?.user && <FeedVideoVolumeSync />}
+            {session?.user && <ShareTargetGate userId={session.user.id} />}
+            {session?.user && <ReviewPromptGate />}
+            <main className="flex-1">{children}</main>
+            {/* Signed-in mobile users already have a dedicated bottom tab bar
+                (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
+                above) covering navigation — this marketing-site-style footer
+                (FAQ/legal links) has no reason to also appear there. Confirmed
+                live via a real user's screenshot: it was rendering between the
+                message composer and that tab bar on an actual conversation
+                screen, pure clutter competing for scarce phone-screen height.
+                Signed-out visitors (landing/legal/FAQ pages) and desktop still
+                get it — hidden only for the case that's actually a problem. */}
+            <footer
+              className={`border-t border-line py-8 text-center text-sm text-foreground-soft ${session?.user ? "hidden md:block" : ""}`}
+            >
+              <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
+                <a href="/faq" className="hover:text-accent">
+                  FAQ
                 </a>
-              </HideInIosApp>
-            </div>
-            <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
-          </footer>
-        </CallSessionProvider>
+                <a href="/legal/guidelines" className="hover:text-accent">
+                  Community Guidelines
+                </a>
+                <a href="/legal/privacy" className="hover:text-accent">
+                  Privacy
+                </a>
+                <a href="/legal/terms" className="hover:text-accent">
+                  Terms
+                </a>
+                <a href="/legal/disclaimer" className="hover:text-accent">
+                  Disclaimer
+                </a>
+                {/* Ad booking is a web/Stripe business purchase — not surfaced inside the iOS app (see HideInIosApp). */}
+                <HideInIosApp hiddenOnServer={iosApp}>
+                  <a href="/advertise" className="hover:text-accent">
+                    Advertise
+                  </a>
+                </HideInIosApp>
+              </div>
+              <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
+            </footer>
+          </CallSessionProvider>
+        </MotionConfig>
       </body>
     </html>
   );

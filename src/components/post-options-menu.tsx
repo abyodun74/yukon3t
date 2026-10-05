@@ -27,6 +27,10 @@ export function PostOptionsMenu({
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [reporting, setReporting] = useState(false);
+  // Sticky "has this ever been opened" flag — see post-card.tsx's
+  // likersEverOpenedRef for why ReportModal's mount now needs this
+  // instead of `reporting` itself (Sheet owns the exit animation).
+  const [reportEverOpened, setReportEverOpened] = useState(false);
   const [isPending, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -76,6 +80,7 @@ export function PostOptionsMenu({
               onClick={() => {
                 setOpen(false);
                 setReporting(true);
+                setReportEverOpened(true);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
             >
@@ -124,11 +129,12 @@ export function PostOptionsMenu({
         </div>
       )}
 
-      {reporting && (
+      {reportEverOpened && (
         <ReportModal
           targetType="POST"
           targetId={reportTargetId}
           reportedUserId={reportedUserId}
+          open={reporting}
           onClose={() => setReporting(false)}
         />
       )}

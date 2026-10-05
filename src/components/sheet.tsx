@@ -1,0 +1,193 @@
+"use client";
+
+import { AnimatePresence, motion, type PanInfo } from "motion/react";
+import { X } from "lucide-react";
+import { type ReactNode } from "react";
+import { hapticImpact } from "@/lib/haptics";
+
+type SheetVariant = "dialog" | "bottom-sheet";
+
+/**
+ * Shared chrome for every modal/dialog in the app — replaces each one
+ * hand-rolling its own backdrop + panel + open/close mechanics (share,
+ * report, likers, recorders, channel settings, the muse composer, etc.;
+ * see the apple-design skill's "spatial consistency"/"materials" sections
+ * for why this needed to be one component, not ~20 slightly-different
+ * ones). Two things no amount of per-component CSS tweaking could fix on
+ * its own:
+ *
+ * - A real exit animation. The old `.animate-modal-panel-in` CSS class
+ *   (still used by anything not yet migrated onto this) only ever played
+ *   on mount — `onClose` just unmounted the component, so every modal
+ *   popped in smoothly and vanished instantly. AnimatePresence here keeps
+ *   the panel mounted for exactly as long as its exit animation takes,
+ *   and that exit mirrors the entrance (HIG's "enters and exits along the
+ *   same path").
+ * - A real material. `.hig-material` (globals.css) + backdrop-blur
+ *   instead of a flat `bg-surface`, with the reduced-transparency/
+ *   contrast fallback that marker class already wires up.
+ *
+ * `variant="bottom-sheet"` adds a drag-to-dismiss handle — `drag`/
+ * `dragElastic` below are motion's own built-in rubber-banding and
+ * velocity tracking, not hand-rolled physics; `dragMomentum` (on by
+ * default) is what gives a fast downward flick its own inertia instead of
+ * stopping the instant the pointer lifts.
+ */
+export function Sheet({
+  open,
+  onClose,
+  variant = "dialog",
+  title,
+  children,
+  panelClassName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  variant?: SheetVariant;
+  /** Omit for a panel that renders its own heading — not every migrated modal used a plain string title. */
+  title?: ReactNode;
+  children: ReactNode;
+  /** Extra width/sizing classes for the dialog variant's panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). Ignored for bottom-sheet (always full-width). */
+  panelClassName?: string;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className={
+            variant === "bottom-sheet"
+              ? "fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+              : "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          }
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+        >
+          {variant === "bottom-sheet" ? (
+            <BottomSheetPanel onClose={onClose} title={title}>
+              {children}
+            </BottomSheetPanel>
+          ) : (
+            <DialogPanel onClose={onClose} title={title} panelClassName={panelClassName}>
+              {children}
+            </DialogPanel>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// Critically damped (no overshoot) — the apple-design skill's default for
+// anything that didn't arrive via a flick/drag of its own. A plain fade+
+// scale from the panel's own center (not a fixed offset), same spatial
+// idea as a popover scaling from its trigger rather than an arbitrary
+// corner.
+const DIALOG_SPRING = { type: "spring" as const, damping: 1, duration: 0.35 };
+
+function DialogPanel({
+  onClose,
+  title,
+  panelClassName,
+  children,
+}: {
+  onClose: () => void;
+  title?: ReactNode;
+  panelClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      className={`hig-material w-full max-w-sm rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={DIALOG_SPRING}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {title !== undefined && (
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      {children}
+    </motion.div>
+  );
+}
+
+// Slightly underdamped — the apple-design skill's own "drawer/sheet"
+// reference row (damping ~0.8, response ~0.3): a little settle motion
+// feels right here specifically because a bottom sheet's enter is a
+// physical "arriving" motion, not a static element fading into place.
+const SHEET_SPRING = { type: "spring" as const, damping: 0.8, duration: 0.3 };
+// Past this downward drag distance (or a fast-enough downward flick,
+// DISMISS_VELOCITY below, regardless of distance), the sheet dismisses
+// instead of springing back — same "use velocity, not just position, to
+// decide reverse vs. commit" rule as the skill's Quick Reference table.
+const DISMISS_DISTANCE_PX = 120;
+const DISMISS_VELOCITY_PX_PER_S = 800;
+
+function BottomSheetPanel({
+  onClose,
+  title,
+  children,
+}: {
+  onClose: () => void;
+  title?: ReactNode;
+  children: ReactNode;
+}) {
+  // Only handles the DISMISS decision — a non-dismissing release needs no
+  // code of its own: dragConstraints={{top:0, bottom:0}} already makes
+  // motion auto-spring the panel back to y:0 the instant the drag ends,
+  // same as any native sheet's "didn't drag far/fast enough" snap-back.
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    if (info.offset.y > DISMISS_DISTANCE_PX || info.velocity.y > DISMISS_VELOCITY_PX_PER_S) {
+      hapticImpact("light");
+      onClose();
+    }
+  }
+
+  return (
+    <motion.div
+      className="hig-material w-full max-w-lg rounded-t-2xl border-t border-x border-line bg-surface/90 backdrop-blur-xl"
+      style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      initial={{ y: "100%" }}
+      animate={{ y: 0 }}
+      exit={{ y: "100%" }}
+      transition={SHEET_SPRING}
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
+      // Free movement downward (1 = no added resistance — there's really
+      // nothing below to "hold it back" except the dismiss decision
+      // itself), real rubber-band resistance upward (there's nowhere
+      // further up to reveal, so dragging up should visibly push back).
+      dragElastic={{ top: 0.15, bottom: 1 }}
+      onDragEnd={handleDragEnd}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Drag handle — a visual affordance, not the only draggable area;
+          the whole panel is the drag target (motion's `drag` prop above
+          applies to this entire motion.div), matching how a real iOS
+          sheet can be dragged from its header, not just a tiny grabber. */}
+      <div className="flex justify-center pb-1 pt-2">
+        <div className="h-1 w-9 rounded-full bg-foreground-soft/30" />
+      </div>
+      {title !== undefined && (
+        <div className="flex items-center justify-between px-4 pb-2">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      <div className="px-4 pb-4">{children}</div>
+    </motion.div>
+  );
+}
