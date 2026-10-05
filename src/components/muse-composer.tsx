@@ -11,6 +11,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { cn } from "@/lib/utils";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { Sheet } from "@/components/sheet";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only and
@@ -46,7 +47,18 @@ function errorMessage(code: string) {
 // own schema comment. Chosen once here at post time, not per-viewer.
 type SoundMode = "original" | "custom";
 
-export function MuseComposer({ onClose }: { onClose: () => void }) {
+/**
+ * Migrated onto the shared Sheet component (see that file), responsive
+ * bottom-sheet variant — the caller now renders this unconditionally once
+ * `open` has ever been true rather than conditionally mounting/unmounting
+ * it, so the reset-on-reopen block below is what gives a reopened
+ * composer its fresh-form behavior back (previously automatic, since each
+ * open used to be a brand new mount). Resetting `video` to null also
+ * discards any abandoned eager upload the normal way — useEagerUploads
+ * already discards whatever drops out of its file list, the same path a
+ * user manually removing a picked video goes through.
+ */
+export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [video, setVideo] = useState<File | null>(null);
   // The video (and its poster frame) starts uploading as soon as it's picked; removing it deletes the upload again.
@@ -63,6 +75,26 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
   const [errorText, setErrorText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+
+  // Resets the form at the start of each new open, so a reopen starts
+  // fresh — on reopen, not on close, so closing doesn't blank the still-
+  // visible form while Sheet's exit animation is fading it out. Adjusted
+  // during render (React's documented pattern for this) rather than a
+  // useEffect, which this project's lint config flags for a synchronous
+  // setState call.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setVideo(null);
+      setVideoDurationSeconds(null);
+      setSoundMode("original");
+      setAudio(null);
+      setCaption("");
+      setStatus("idle");
+      setErrorText(null);
+    }
+  }
 
   async function pickVideo(file: File) {
     setVideo(file);
@@ -162,40 +194,18 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
   const busy = status === "busy";
 
   return (
-    <div
-      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
-      onClick={() => !busy && onClose()}
-      role="dialog"
-      aria-modal="true"
+    <Sheet
+      open={open}
+      // Can't close by backdrop/drag/X while actively uploading/posting —
+      // same guard the old onClick={() => !busy && onClose()} had; passing
+      // the already-guarded function through is enough, Sheet calls
+      // whatever onClose it's given from every dismiss path alike.
+      onClose={() => !busy && onClose()}
+      variant="bottom-sheet"
+      responsive
+      title="Post a Muse"
     >
-      <div
-        // On mobile this panel is a bottom sheet flush with the screen edge
-        // (the backdrop above is `items-end`), so its own z-50 renders over
-        // the app's bottom tab bar entirely — but a plain p-4 still leaves
-        // the "Post Muse" button sitting right at the edge of (or under)
-        // the device's own home-indicator/gesture-nav area on a phone with
-        // a tall safe-area-inset-bottom, the same gap nav.tsx/story-viewer.tsx/
-        // muse-feed.tsx already had to account for. At the sm: breakpoint
-        // this becomes a centered dialog (backdrop switches to
-        // items-center), not a bottom sheet, so no extra clearance is
-        // needed there.
-        className="animate-modal-panel-in w-full max-w-sm rounded-t-2xl bg-surface p-4 pb-[calc(1rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] sm:rounded-2xl sm:pb-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Post a Muse</h2>
-          <button
-            type="button"
-            onClick={() => !busy && onClose()}
-            aria-label="Close"
-            disabled={busy}
-            className="text-foreground-soft hover:text-foreground disabled:opacity-40"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <p className="mt-1 text-xs text-foreground-soft">
+        <p className="text-xs text-foreground-soft">
           Short, funny, creative — up to {MAX_MUSE_SECONDS / 60} minutes. Visible to everyone on YuKon3t.
         </p>
 
@@ -348,7 +358,6 @@ export function MuseComposer({ onClose }: { onClose: () => void }) {
           <Upload size={15} />
           {busy ? "Posting…" : "Post Muse"}
         </button>
-      </div>
-    </div>
+    </Sheet>
   );
 }

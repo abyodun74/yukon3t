@@ -9,6 +9,7 @@ import {
   submitAppFeedback,
 } from "@/app/actions/review-prompt";
 import { requestNativeReview } from "@/lib/in-app-review";
+import { Sheet } from "@/components/sheet";
 
 // How long after mount to check eligibility — long enough that this never
 // competes with a page's own first paint/data loading, short enough that
@@ -37,6 +38,15 @@ export function ReviewPromptGate() {
   const [feedback, setFeedback] = useState("");
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // This now stays mounted through its own close animation (Sheet's
+  // AnimatePresence — see that file) rather than returning null outright,
+  // but `step` itself flips straight to "closed" on every dismiss path,
+  // which would otherwise blank the dialog's title/content mid-exit.
+  // Remembers the last real step for rendering while `step !== "closed"`
+  // alone still drives the Sheet's `open`; adjusted during render (React's
+  // documented pattern for this) rather than a useEffect.
+  const [displayedStep, setDisplayedStep] = useState<Step>("closed");
+  if (step !== "closed" && step !== displayedStep) setDisplayedStep(step);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -93,20 +103,19 @@ export function ReviewPromptGate() {
     });
   }
 
-  if (step === "closed") return null;
+  // dismissAsLater is the right close action only while actually on "ask"
+  // (backdrop/drag dismiss from "feedback"/"thanks" should just close, not
+  // also record a LATER choice on top of whatever was already recorded) —
+  // same condition the old backdrop onClick used, now driving Sheet's
+  // onClose directly.
+  function close() {
+    if (displayedStep === "ask") dismissAsLater();
+    else setStep("closed");
+  }
 
   return (
-    <div
-      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
-      onClick={step === "ask" ? dismissAsLater : undefined}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="animate-modal-panel-in w-full max-w-sm rounded-t-2xl bg-surface p-5 sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {step === "ask" && (
+    <Sheet open={step !== "closed"} onClose={close} variant="bottom-sheet" responsive panelClassName="p-5">
+        {displayedStep === "ask" && (
           <>
             <h2 className="text-base font-semibold">How&apos;s the yukon3t app?</h2>
             <p className="mt-1 text-sm text-foreground-soft">
@@ -141,7 +150,7 @@ export function ReviewPromptGate() {
           </>
         )}
 
-        {step === "feedback" && (
+        {displayedStep === "feedback" && (
           <>
             <h2 className="text-base font-semibold">What could be better?</h2>
             <p className="mt-1 text-sm text-foreground-soft">
@@ -177,7 +186,7 @@ export function ReviewPromptGate() {
           </>
         )}
 
-        {step === "thanks" && (
+        {displayedStep === "thanks" && (
           <>
             <h2 className="text-base font-semibold">Thanks for the feedback 🙏</h2>
             <p className="mt-1 text-sm text-foreground-soft">
@@ -192,7 +201,6 @@ export function ReviewPromptGate() {
             </button>
           </>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }

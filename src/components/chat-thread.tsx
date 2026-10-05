@@ -1885,32 +1885,30 @@ export function ChatThread({
         />
       )}
 
-      {showAudioRecorder && (
-        <AudioRecorderModal
-          maxSeconds={MAX_AUDIO_NOTE_SECONDS}
-          onClose={() => setShowAudioRecorder(false)}
-          onRecorded={(file) => {
-            setShowAudioRecorder(false);
-            setPendingVideo(null);
-            setPendingImage(null);
-            setPendingGif(null);
-            setPendingAudio(file);
-          }}
-        />
-      )}
-      {showVideoRecorder && (
-        <VideoRecorderModal
-          maxSeconds={MAX_VIDEO_NOTE_SECONDS}
-          onClose={() => setShowVideoRecorder(false)}
-          onRecorded={(file) => {
-            setShowVideoRecorder(false);
-            setPendingAudio(null);
-            setPendingImage(null);
-            setPendingGif(null);
-            setPendingVideo(file);
-          }}
-        />
-      )}
+      <AudioRecorderModal
+        open={showAudioRecorder}
+        maxSeconds={MAX_AUDIO_NOTE_SECONDS}
+        onClose={() => setShowAudioRecorder(false)}
+        onRecorded={(file) => {
+          setShowAudioRecorder(false);
+          setPendingVideo(null);
+          setPendingImage(null);
+          setPendingGif(null);
+          setPendingAudio(file);
+        }}
+      />
+      <VideoRecorderModal
+        open={showVideoRecorder}
+        maxSeconds={MAX_VIDEO_NOTE_SECONDS}
+        onClose={() => setShowVideoRecorder(false)}
+        onRecorded={(file) => {
+          setShowVideoRecorder(false);
+          setPendingAudio(null);
+          setPendingImage(null);
+          setPendingGif(null);
+          setPendingVideo(file);
+        }}
+      />
     </div>
   );
 }

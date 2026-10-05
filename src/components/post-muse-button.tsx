@@ -18,7 +18,7 @@ export function PostMuseButton() {
         <Clapperboard size={14} />
         Post a Muse
       </button>
-      {open && <MuseComposer onClose={() => setOpen(false)} />}
+      <MuseComposer open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

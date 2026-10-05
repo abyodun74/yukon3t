@@ -324,26 +324,24 @@ export function CommentComposer({
           onDone={() => setShowDictation(false)}
         />
       )}
-      {showRecorder && (
-        <AudioRecorderModal
-          maxSeconds={MAX_VOICE_COMMENT_SECONDS}
-          onClose={() => setShowRecorder(false)}
-          onRecorded={(file) => {
-            setPendingAudio(file);
-            setShowRecorder(false);
-          }}
-        />
-      )}
-      {showVideoRecorder && (
-        <VideoRecorderModal
-          maxSeconds={MAX_RECORD_VIDEO_SECONDS}
-          onClose={() => setShowVideoRecorder(false)}
-          onRecorded={(file) => {
-            pickVideo(file);
-            setShowVideoRecorder(false);
-          }}
-        />
-      )}
+      <AudioRecorderModal
+        open={showRecorder}
+        maxSeconds={MAX_VOICE_COMMENT_SECONDS}
+        onClose={() => setShowRecorder(false)}
+        onRecorded={(file) => {
+          setPendingAudio(file);
+          setShowRecorder(false);
+        }}
+      />
+      <VideoRecorderModal
+        open={showVideoRecorder}
+        maxSeconds={MAX_RECORD_VIDEO_SECONDS}
+        onClose={() => setShowVideoRecorder(false)}
+        onRecorded={(file) => {
+          pickVideo(file);
+          setShowVideoRecorder(false);
+        }}
+      />
     </form>
   );
 }

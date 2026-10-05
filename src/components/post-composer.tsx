@@ -1348,16 +1348,15 @@ export function PostComposer({
         </p>
       )}
 
-      {showRecorder && (
-        <VideoRecorderModal
-          maxSeconds={MAX_RECORD_VIDEO_SECONDS}
-          onClose={() => setShowRecorder(false)}
-          onRecorded={(file) => {
-            setShowRecorder(false);
-            pickVideo(file);
-          }}
-        />
-      )}
+      <VideoRecorderModal
+        open={showRecorder}
+        maxSeconds={MAX_RECORD_VIDEO_SECONDS}
+        onClose={() => setShowRecorder(false)}
+        onRecorded={(file) => {
+          setShowRecorder(false);
+          pickVideo(file);
+        }}
+      />
       {deviceChallenge && (
         <div className="mt-3 rounded-lg border border-line bg-surface p-4 text-sm">
           <p className="font-semibold">We don&apos;t recognize this device</p>

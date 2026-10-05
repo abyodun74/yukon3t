@@ -1,15 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Circle, RefreshCw, Square, X } from "lucide-react";
+import { Circle, RefreshCw, Square } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
+import { Sheet } from "@/components/sheet";
 
-/** In-browser camera recording (desktop webcam or mobile camera via getUserMedia) — no native app hand-off required. */
+/**
+ * In-browser camera recording (desktop webcam or mobile camera via
+ * getUserMedia) — no native app hand-off required. Migrated onto the
+ * shared Sheet component (see that file), which needs this mounted
+ * continuously rather than torn down on every close — unlike every other
+ * migrated modal, that actually matters here: the mount-time effect below
+ * acquires a real camera/mic stream, so it's now explicitly keyed on
+ * `open` (acquire when it opens, release when it closes) instead of only
+ * ever running once on mount/unmount, so a reopen genuinely re-acquires
+ * the camera rather than silently reusing a closed stream.
+ */
 export function VideoRecorderModal({
+  open,
   onRecorded,
   onClose,
   maxSeconds,
 }: {
+  open: boolean;
   onRecorded: (file: File) => void;
   onClose: () => void;
   maxSeconds: number;
@@ -34,12 +47,13 @@ export function VideoRecorderModal({
   );
 
   useEffect(() => {
+    if (!open) return;
     let cancelled = false;
     // Matches the initial `facingMode` state's default ("environment") —
     // read as a literal rather than the state variable since this effect
-    // only ever runs once at mount; switchCamera() (below) handles every
-    // change after that by mutating the stream in place, not by re-running
-    // this effect.
+    // only runs again when `open` itself changes; switchCamera() (below)
+    // handles every change after that by mutating the stream in place,
+    // not by re-running this effect.
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: "environment" }, audio: true })
       .then((stream) => {
@@ -72,12 +86,27 @@ export function VideoRecorderModal({
           }[name] ?? `Couldn't access your camera/microphone (${name}).`;
         setError(message);
       });
+    // Captured now (not read as videoRef.current inside the cleanup below)
+    // since the ref's own target can already be a different/unmounted node
+    // by the time cleanup runs (e.g. the error branch below swaps the
+    // <video> out of the tree) — the element this effect actually bound
+    // srcObject on is the one that needs it cleared, not whatever the ref
+    // happens to point at later.
+    const videoEl = videoRef.current;
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      if (videoEl) videoEl.srcObject = null;
       if (tickRef.current) clearInterval(tickRef.current);
+      // Reset for the next open — a fresh acquisition shouldn't inherit a
+      // stale error/recording/facing-mode state from the previous session.
+      setError(null);
+      setRecording(false);
+      setSeconds(0);
+      setFacingMode("environment");
     };
-  }, []);
+  }, [open]);
 
   async function switchCamera() {
     const stream = streamRef.current;
@@ -176,20 +205,12 @@ export function VideoRecorderModal({
   }
 
   return (
-    <div className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="animate-modal-panel-in w-full max-w-md rounded-xl bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Record a video</h2>
-          <button type="button" onClick={onClose} className="text-foreground-soft hover:text-danger">
-            <X size={18} />
-          </button>
-        </div>
-
+    <Sheet open={open} onClose={onClose} title="Record a video" panelClassName="max-w-md">
         {error ? (
-          <p className="mt-3 text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{error}</p>
         ) : (
           <>
-            <div className="relative mt-3">
+            <div className="relative">
               <video ref={videoRef} autoPlay muted playsInline className="w-full rounded-lg bg-black" />
               {canSwitchCamera && (
                 <button
@@ -228,7 +249,6 @@ export function VideoRecorderModal({
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }

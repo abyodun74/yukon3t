@@ -8,10 +8,21 @@ import { useEffect, useRef, useState } from "react";
  * and the post/message dictation flow (transcription.ts) can both record a
  * short audio/webm clip without duplicating this logic a third time.
  *
- * Requests mic permission as soon as the hook mounts (same timing as the
- * modal previously did in its own effect) — callers should only mount this
- * hook (or the component using it) once the user has actually opened a
- * recording UI, not unconditionally on every render.
+ * Requests mic permission as soon as the hook mounts AND `active` is true
+ * (same timing as the modal previously did in its own effect) — callers
+ * should only mount this hook (or the component using it) once the user
+ * has actually opened a recording UI, not unconditionally on every render.
+ *
+ * `active` defaults to true (mount = request permission, the original
+ * contract) — DictationRecorder stays on that default (it's genuinely
+ * mounted only while its caller has it open, so mount-timing alone is
+ * still correct there). AudioRecorderModal passes its own `open` prop
+ * instead: since it's now migrated onto the shared Sheet component (which
+ * keeps a modal mounted through its own close animation rather than
+ * unmounting it immediately — see sheet.tsx), mount timing alone no
+ * longer lines up with "the user actually wants the mic on," and a
+ * second open without this would silently reuse a stream already
+ * stopped by the first close.
  */
 export function useAudioRecorder({
   maxSeconds,
@@ -22,11 +33,13 @@ export function useAudioRecorder({
   // dictation UI, which (unlike AudioRecorderModal's separate "Record"
   // button) starts recording as soon as it's opened.
   autoStart = false,
+  active = true,
 }: {
   maxSeconds: number;
   onRecorded: (file: File) => void;
   fileNamePrefix?: string;
   autoStart?: boolean;
+  active?: boolean;
 }) {
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -73,6 +86,7 @@ export function useAudioRecorder({
   }
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     navigator.mediaDevices
       .getUserMedia({ audio: true })
@@ -99,10 +113,16 @@ export function useAudioRecorder({
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
       if (tickRef.current) clearInterval(tickRef.current);
+      // Reset for the next activation — a fresh acquisition shouldn't
+      // inherit a stale error/recording/seconds state from last time.
+      setError(null);
+      setRecording(false);
+      setSeconds(0);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   function start() {
     const stream = streamRef.current;
