@@ -294,11 +294,17 @@ function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
         // to be taller than 384px). Same frame shape the VIDEO branch below
         // already uses ("Instagram feed video convention"), so a photo post
         // and a video post read as the same size/shape swiping down the
-        // feed. object-cover does the actual cropping to fill it; a
-        // side-effect of giving the box a fixed aspect-ratio up front is
-        // that it also reserves this exact space before the image has
-        // loaded, instead of collapsing to 0 height first.
-        className="img-fade-in aspect-[4/5] w-full select-none rounded-lg bg-line/40 object-cover"
+        // feed. A side-effect of giving the box a fixed aspect-ratio up
+        // front is that it also reserves this exact space before the image
+        // has loaded, instead of collapsing to 0 height first.
+        //
+        // object-contain, not -cover: confirmed live that a non-4/5 photo
+        // (a wide screenshot/graphic, in particular) had real content
+        // cropped off its sides to fill this box. -contain always shows the
+        // whole photo, letterboxed into the frame's own bg-line/40 tint
+        // instead — the same "see the whole thing" behavior a chat app's
+        // own image viewer already gives it, just inline in the feed too.
+        className="img-fade-in aspect-[4/5] w-full select-none rounded-lg bg-line/40 object-contain"
         onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
@@ -476,9 +482,22 @@ function MediaBlock({
                   // every current multi-photo post is split one-row-per-photo
                   // into the AlbumCarousel path instead), where square tiles
                   // read better side by side than a tall 4/5 crop would.
+                  //
+                  // object-contain for the single-photo case (not -cover):
+                  // confirmed live that a wide graphic (a sports-score card,
+                  // a screenshot, anything not close to 4/5) had its sides
+                  // cropped off — object-cover fills the box by cropping
+                  // whatever doesn't fit, which for a single photo (the
+                  // user's one real photo, not an interchangeable grid tile)
+                  // means actually losing content, not just an aesthetic
+                  // choice. object-contain always shows the whole photo,
+                  // letterboxed into the frame's own bg-line/40 tint instead
+                  // of cropped. The multi-tile grid below keeps -cover —
+                  // that's still a deliberate, legacy-only square-grid crop,
+                  // not what was reported.
                   className={cn(
-                    "img-fade-in w-full rounded-lg bg-line/40 object-cover",
-                    post.mediaUrls.length === 1 ? "aspect-[4/5]" : "aspect-square",
+                    "img-fade-in w-full rounded-lg bg-line/40",
+                    post.mediaUrls.length === 1 ? "aspect-[4/5] object-contain" : "aspect-square object-cover",
                   )}
                   loading="lazy"
                   ref={markImageLoadedIfComplete}
