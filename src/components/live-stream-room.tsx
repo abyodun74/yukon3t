@@ -32,31 +32,6 @@ const HEARTBEAT_INTERVAL_MS = 5000;
 // Same set as StoryViewer's QUICK_REACTIONS (src/components/story-viewer.tsx) for consistency.
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
-/**
- * TEMPORARY diagnostic — raw dump of permissions.canSend (still shown
- * alongside owner/video/audio in the debug pill below, even though it
- * turned out not to be what actually gates owner_only_broadcast — see the
- * canSend-vs-is_owner findings around joinLiveStream's stage-approval
- * flow). Daily's actual call-machine logic is fetched dynamically from
- * their CDN at runtime, not present in the daily-js package installed
- * here, so its exact runtime shape can't be determined by reading source.
- */
-function debugCanSend(canSend: unknown): string {
-  if (canSend === true) return "true";
-  if (canSend === false) return "false";
-  if (canSend == null) return String(canSend);
-  if (canSend instanceof Set) return `Set[${[...canSend].join(",")}]`;
-  if (Array.isArray(canSend)) return `Arr[${canSend.join(",")}]`;
-  if (typeof canSend === "object") {
-    try {
-      return `Obj${JSON.stringify(canSend)}`;
-    } catch {
-      return `Obj{${Object.keys(canSend).join(",")}}`;
-    }
-  }
-  return `${typeof canSend}:${String(canSend)}`;
-}
-
 type ActiveRoom = { roomUrl: string; token: string };
 type StageRole = "GUEST" | "COHOST";
 type Role = "VIEWER" | StageRole;
@@ -184,17 +159,15 @@ export function LiveStreamRoom({
   // always one available rather than leaving someone stuck approved but
   // silently camera-off with no way to fix it themselves.
   const [localMediaStarted, setLocalMediaStarted] = useState(false);
-  // TEMPORARY diagnostic — setLocalVideo/setLocalAudio return no promise, so
-  // a getUserMedia failure inside them is invisible. startCamera() (below)
-  // does return one; surfacing its rejection reason is the only way to see
-  // *why* the guest's camera never actually starts despite canSend:true.
+  // setLocalVideo/setLocalAudio return no promise, so a getUserMedia
+  // failure inside them (permission denied, camera in use by another app,
+  // no camera present, etc.) would otherwise be invisible — surfaced to
+  // the affected guest/co-host near the "turn on camera & mic" button (see
+  // the onCameraError listener and startMyCamera's own reconnect-failure
+  // catch below) instead of leaving them stuck with no feedback.
   const [cameraStartError, setCameraStartError] = useState<string | null>(null);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string }[]>([]);
-  // TEMPORARY diagnostic state — see the dailyCall participant-tracking effect below.
-  const [dailyParticipants, setDailyParticipants] = useState<
-    { userName: string; canSendRaw: string; video: boolean; audio: boolean; owner: boolean }[]
-  >([]);
   const router = useRouter();
   const { dailyCall, startSession, reconnectingRef } = useCallSession();
   const lastRequestStatusRef = useRef<"PENDING" | "APPROVED" | "DECLINED" | null>(null);
@@ -483,13 +456,11 @@ export function LiveStreamRoom({
       .catch(() => setSendingComment(false));
   }
 
-  // TEMPORARY diagnostic — setLocalVideo/setLocalAudio return no promise, so
-  // a getUserMedia failure inside them (permission denied, camera in use by
-  // another app, no camera present, etc.) is otherwise invisible. Daily's
-  // call-machine emits "camera-error" specifically for this, with a real
-  // message — this is what actually answers "why doesn't the guest's camera
-  // turn on" instead of guessing. Safe to remove alongside the rest of the
-  // diagnostic block once split-screen is confirmed fixed.
+  // Daily's call-machine emits "camera-error" specifically for a
+  // getUserMedia failure inside setLocalVideo/setLocalAudio (see
+  // cameraStartError's own comment above) — this is what actually catches
+  // it and tells the affected guest why their camera never turned on,
+  // instead of leaving the button silently do nothing.
   useEffect(() => {
     if (!dailyCall) return;
     function onCameraError(ev: { errorMsg?: { errorMsg?: string } }) {
@@ -533,38 +504,6 @@ export function LiveStreamRoom({
     dailyCall.on("app-message", onAppMessage);
     return () => {
       dailyCall.off("app-message", onAppMessage);
-    };
-  }, [dailyCall]);
-
-  // TEMPORARY diagnostic — surfaces what Daily's own client actually thinks
-  // is in the room, next to the "👥 1/3" pill (which only ever reflects our
-  // own DB's approved-stage-slot bookkeeping, not Daily's live room state).
-  // Screenshots alone couldn't settle whether two simultaneously-connected
-  // devices were genuinely seeing each other as Daily participants at all —
-  // this makes that directly visible instead of inferred. Safe to remove
-  // once the split-screen issue is confirmed fixed.
-  useEffect(() => {
-    if (!dailyCall) return;
-    function refresh() {
-      const all = Object.values(dailyCall!.participants());
-      setDailyParticipants(
-        all.map((p) => ({
-          userName: p.local ? `${p.user_name || "me"} (me)` : p.user_name || "?",
-          canSendRaw: debugCanSend(p.permissions.canSend),
-          video: p.video,
-          audio: p.audio,
-          owner: p.owner,
-        })),
-      );
-    }
-    refresh();
-    dailyCall.on("participant-joined", refresh);
-    dailyCall.on("participant-updated", refresh);
-    dailyCall.on("participant-left", refresh);
-    return () => {
-      dailyCall.off("participant-joined", refresh);
-      dailyCall.off("participant-updated", refresh);
-      dailyCall.off("participant-left", refresh);
     };
   }, [dailyCall]);
 
@@ -794,19 +733,6 @@ export function LiveStreamRoom({
             <Users size={12} />
             {stageCount}/{stageCapacity}
           </span>
-          {/* TEMPORARY diagnostic — see the dailyCall participant-tracking effect. Remove once split-screen is confirmed fixed. */}
-          <span className="flex items-center gap-1 border-l border-white/30 pl-2 text-[10px] text-white/70" title="Daily's own participant list, for debugging">
-            Daily:{" "}
-            {dailyParticipants.length === 0
-              ? "none"
-              : dailyParticipants
-                  .map(
-                    (p) =>
-                      `${p.userName}=owner:${p.owner},canSend:${p.canSendRaw},video:${p.video},audio:${p.audio}`,
-                  )
-                  .join(" | ")}
-            {cameraStartError ? ` | startCamera error: ${cameraStartError}` : ""}
-          </span>
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -946,10 +872,9 @@ export function LiveStreamRoom({
           >
             You&apos;re on stage — tap to turn on your camera &amp; mic
           </button>
-          {/* TEMPORARY diagnostic — surfaces startCamera()'s rejection reason right next to the button that triggers it, since the top pill can get covered/clipped by this button. Remove alongside the rest of the diagnostic block once split-screen is confirmed fixed. */}
           {cameraStartError && (
-            <span className="max-w-[90vw] rounded-full bg-danger/90 px-3 py-1 text-[10px] text-white">
-              startCamera error: {cameraStartError}
+            <span className="max-w-[90vw] rounded-full bg-danger/90 px-3 py-1 text-xs text-white">
+              {cameraStartError}
             </span>
           )}
         </div>
