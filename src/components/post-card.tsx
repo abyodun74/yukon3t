@@ -257,14 +257,26 @@ const ALBUM_PHOTO_DOUBLE_TAP_SCALE = 2.5;
  * touch-action override at all — this is the value that was actually meant
  * here, not a relaxation of the fix's original intent.
  */
-function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
+function ZoomableAlbumPhoto({
+  src,
+  alt,
+  onNaturalRatio,
+}: {
+  src: string;
+  alt: string;
+  onNaturalRatio: (ratio: number) => void;
+}) {
   const { containerRef, imgRef, scale, translate, isGesturing, resetIfZoomed, wasZoomGesture, movedPastTapThreshold, bind } =
     usePinchZoom({ maxScale: ALBUM_PHOTO_MAX_SCALE, doubleTapScale: ALBUM_PHOTO_DOUBLE_TAP_SCALE });
+
+  function reportRatio(el: HTMLImageElement) {
+    if (el.naturalWidth > 0 && el.naturalHeight > 0) onNaturalRatio(el.naturalWidth / el.naturalHeight);
+  }
 
   return (
     <div
       ref={containerRef}
-      className="w-full overflow-hidden"
+      className="h-full w-full overflow-hidden"
       style={{ touchAction: scale > 1 ? "none" : "pan-x pan-y" }}
       onClick={(e) => {
         // Suppress the parent <Link>'s navigation when this tap is actually
@@ -283,29 +295,28 @@ function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
         ref={(el) => {
           imgRef.current = el;
           markImageLoadedIfComplete(el);
+          // Covers the cached-image case the same way
+          // markImageLoadedIfComplete does for opacity: if the browser
+          // already had this image cached, .complete (and naturalWidth/
+          // Height) are available the instant the element mounts, before
+          // React ever gets to attach onLoad.
+          if (el?.complete) reportRatio(el);
         }}
         src={src}
         alt={alt}
         draggable={false}
         loading="lazy"
-        // aspect-[4/5], not max-h-96: every photo in an album — portrait,
-        // landscape, or square — now fills the same fixed frame instead of
-        // rendering at its own intrinsic height (capped only if it happened
-        // to be taller than 384px). Same frame shape the VIDEO branch below
-        // already uses ("Instagram feed video convention"), so a photo post
-        // and a video post read as the same size/shape swiping down the
-        // feed. A side-effect of giving the box a fixed aspect-ratio up
-        // front is that it also reserves this exact space before the image
-        // has loaded, instead of collapsing to 0 height first.
-        //
-        // object-contain, not -cover: confirmed live that a non-4/5 photo
-        // (a wide screenshot/graphic, in particular) had real content
-        // cropped off its sides to fill this box. -contain always shows the
-        // whole photo, letterboxed into the frame's own bg-line/40 tint
-        // instead — the same "see the whole thing" behavior a chat app's
-        // own image viewer already gives it, just inline in the feed too.
-        className="img-fade-in aspect-[4/5] w-full select-none rounded-lg bg-line/40 object-contain"
-        onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+        // h-full/w-full, not a fixed aspect box: the carousel wrapper
+        // (AlbumCarousel) now sizes itself to *this specific photo's* own
+        // ratio and resizes as you swipe, so each photo fills that
+        // perfectly-fitted box edge to edge. object-contain stays only as a
+        // safety net for the rare case the wrapper's own max-height cap
+        // kicks in (an extreme-portrait photo) — see AlbumCarousel.
+        className="img-fade-in h-full w-full select-none rounded-lg bg-line/40 object-contain"
+        onLoad={(e) => {
+          e.currentTarget.classList.add("img-loaded");
+          reportRatio(e.currentTarget);
+        }}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
           transition: isGesturing ? "none" : "transform 150ms ease-out",
@@ -315,8 +326,20 @@ function ZoomableAlbumPhoto({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+// Width/height ratio reserved for an album's currently-visible slide before
+// its own natural dimensions are known (first paint, or a lazy-loaded photo
+// not yet decoded) — the existing 4:5 "feed" convention, so the box doesn't
+// collapse to 0 height or jump dramatically once the real ratio arrives.
+const ALBUM_FALLBACK_RATIO = 4 / 5;
+
 function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[]; alt: string }) {
   const [index, setIndex] = useState(0);
+  // Each photo in the album can be a completely different shape (a square,
+  // a landscape screenshot, a tall portrait) — keyed per index as each
+  // loads, so the wrapper below can size itself to whichever one is
+  // actually scrolled into view right now instead of forcing every photo
+  // into one shared frame.
+  const [ratios, setRatios] = useState<Record<number, number>>({});
 
   function handleScroll(e: UIEvent<HTMLDivElement>) {
     const el = e.currentTarget;
@@ -329,16 +352,26 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
     <div className="mt-3">
       <div
         onScroll={handleScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        // The wrapper's own aspect-ratio is set to the *active* slide's real
+        // photo ratio (falling back to the 4:5 convention until it's known),
+        // so that photo fills this box edge to edge with no crop and no
+        // letterboxing — and reflows to the next photo's own ratio as you
+        // swipe. max-height caps only the rare extreme-portrait case.
+        className="flex max-h-[32rem] snap-x snap-mandatory overflow-x-auto rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ aspectRatio: ratios[index] ?? ALBUM_FALLBACK_RATIO }}
       >
-        {photos.map((photo) => (
-          <Link key={photo.id} href={`/post/${photo.id}`} className="block w-full shrink-0 snap-center cursor-pointer">
+        {photos.map((photo, i) => (
+          <Link key={photo.id} href={`/post/${photo.id}`} className="block h-full w-full shrink-0 snap-center cursor-pointer">
             {/* Not a plain <img> here — ZoomableAlbumPhoto layers pinch/pan
                 zoom on top while still avoiding next/image (see
                 SECURITY.md's reasoning against routing user-uploaded
                 content through Next's bundled sharp) for the underlying
                 <img> itself. */}
-            <ZoomableAlbumPhoto src={photo.url} alt={alt} />
+            <ZoomableAlbumPhoto
+              src={photo.url}
+              alt={alt}
+              onNaturalRatio={(ratio) => setRatios((prev) => (prev[i] === ratio ? prev : { ...prev, [i]: ratio }))}
+            />
           </Link>
         ))}
       </div>
