@@ -6,7 +6,9 @@ import UIKit
  * Fires a JS "captureDetected" event when the user takes a screenshot
  * (UIApplication.userDidTakeScreenshotNotification) or starts screen
  * recording/mirroring (UIScreen.capturedDidChangeNotification, checked
- * against UIScreen.main.isCaptured) while a call is active. Started/stopped
+ * against the app's own window-scene screen — see
+ * handleScreenCaptureChanged — not UIScreen.main) while a call is active.
+ * Started/stopped
  * around active calls only (src/lib/screen-capture-guard.ts) via
  * startWatching/stopWatching, not for the app's whole lifetime.
  *
@@ -55,7 +57,16 @@ public class ScreenCaptureGuardPlugin: CAPPlugin {
         // capturedDidChangeNotification fires on both the start AND end of
         // recording/mirroring — only the transition into isCaptured==true is
         // worth alerting on, the other direction is just "it stopped".
-        if UIScreen.main.isCaptured {
+        //
+        // Read through this plugin's own view/window/scene chain, not
+        // UIScreen.main: on a multi-window device (Stage Manager, an
+        // external display, a future dual-screen/foldable iPhone),
+        // UIScreen.main isn't guaranteed to be the screen this app's own
+        // window is actually on. Falls back to UIScreen.main only if that
+        // chain isn't available yet (e.g. this fires before the view is
+        // attached to a window).
+        let screen = bridge?.viewController?.view.window?.windowScene?.screen ?? UIScreen.main
+        if screen.isCaptured {
             notifyListeners("captureDetected", data: ["kind": "recording"])
         }
     }
