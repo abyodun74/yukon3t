@@ -474,30 +474,31 @@ function MediaBlock({
                 <img
                   src={url}
                   alt={post.content || `Photo posted by ${post.author.name}`}
-                  // Fixed frame instead of intrinsic-height-capped, same
-                  // reasoning as ZoomableAlbumPhoto above: a lone image
-                  // fills the same 4/5 "feed" frame every video/album photo
-                  // uses; this grid only ever renders >1 tile for legacy
-                  // pre-backfill rows (see actions/circles.ts's createPost —
-                  // every current multi-photo post is split one-row-per-photo
-                  // into the AlbumCarousel path instead), where square tiles
-                  // read better side by side than a tall 4/5 crop would.
-                  //
-                  // object-contain for the single-photo case (not -cover):
-                  // confirmed live that a wide graphic (a sports-score card,
-                  // a screenshot, anything not close to 4/5) had its sides
-                  // cropped off — object-cover fills the box by cropping
-                  // whatever doesn't fit, which for a single photo (the
-                  // user's one real photo, not an interchangeable grid tile)
-                  // means actually losing content, not just an aesthetic
-                  // choice. object-contain always shows the whole photo,
-                  // letterboxed into the frame's own bg-line/40 tint instead
-                  // of cropped. The multi-tile grid below keeps -cover —
-                  // that's still a deliberate, legacy-only square-grid crop,
-                  // not what was reported.
+                  // Single photo: intrinsic size, not a fixed 4/5 box.
+                  // object-contain inside a forced aspect-[4/5] box (the
+                  // previous fix for the sides-cropped bug) traded cropping
+                  // for the opposite problem — confirmed live that a wide
+                  // graphic (a sports-score card) now rendered with large
+                  // empty letterbox bars above/below instead of filling the
+                  // frame. Dropping the fixed box lets the image's own
+                  // width/height ratio size the box directly — a photo
+                  // reasonably close to the feed's width fills it edge to
+                  // edge with no crop and no letterboxing, which covers the
+                  // common case (this screenshot included). max-h caps only
+                  // the rare extreme-portrait image that would otherwise
+                  // tower over the feed; object-contain there just means
+                  // that one capped case still shows the whole photo
+                  // (letterboxed) instead of cropping it — never the
+                  // all-the-time tradeoff the fixed box forced on every
+                  // photo. The multi-tile grid below keeps its own
+                  // aspect-square/-cover — that's a deliberate, legacy-only
+                  // square-grid crop (pre-backfill rows only, see
+                  // actions/circles.ts's createPost), not what was reported.
                   className={cn(
                     "img-fade-in w-full rounded-lg bg-line/40",
-                    post.mediaUrls.length === 1 ? "aspect-[4/5] object-contain" : "aspect-square object-cover",
+                    post.mediaUrls.length === 1
+                      ? "max-h-[32rem] object-contain"
+                      : "aspect-square object-cover",
                   )}
                   loading="lazy"
                   ref={markImageLoadedIfComplete}
