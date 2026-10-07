@@ -52,7 +52,7 @@ export function DirectCallFrame({
   onCallObject?: (call: DailyCall | null) => void;
   /** The other participant's display name — used only for the hold overlay's "X put the call on hold" text. Falls back to a generic phrase when omitted. */
   peerName?: string;
-  /** Same `call:${callId}` key call-session.tsx uses — if call-prewarm.ts already has (or is still joining) a call object under this key, adopt it instead of creating/joining a fresh one. See call-prewarm.ts. Omitted (the callee's side) always creates fresh — see that file for why only the caller prewarms. */
+  /** Same `call:${callId}` key call-session.tsx uses — if call-prewarm.ts already has (or is still joining) a call object under this key, adopt it instead of creating/joining a fresh one (see call-prewarm.ts). Both sides can have one now: the caller's joins live, the callee's joins muted and gets unmuted below once adopted — either way, omitted means create fresh instead (the normal cold-start fallback, e.g. a prewarm that was never started or already failed). */
   prewarmKey?: string;
 }) {
   const callRef = useRef<DailyCall | null>(null);
@@ -102,6 +102,21 @@ export function DirectCallFrame({
       if (onHold !== null) setRemoteOnHold(onHold);
     }
 
+    // Daily's call-machine emits "camera-error" specifically for a
+    // getUserMedia failure inside setLocalVideo/setLocalAudio (confirmed
+    // precedent: live-stream-room.tsx's own onCameraError). setLocalAudio/
+    // setLocalVideo themselves return the call object, not a Promise —
+    // there's nothing to .catch() on that call below, so without this
+    // listener a permission denial at the adopted-prewarm unmute step
+    // (the callee's first-ever media request, now deferred to exactly that
+    // moment — see call-prewarm.ts's `muted` option) would silently do
+    // nothing instead of surfacing through the same joinError the
+    // cold-start path's .join().catch() already shows.
+    function handleCameraError(ev: { errorMsg?: { errorMsg?: string } }) {
+      console.error("Daily camera-error:", ev.errorMsg?.errorMsg);
+      setJoinError("Couldn't access your camera or microphone — check your permissions and try again.");
+    }
+
     function attach(c: DailyCall) {
       c.on("participant-joined", refreshParticipants);
       c.on("participant-updated", refreshParticipants);
@@ -111,17 +126,19 @@ export function DirectCallFrame({
         applyDevices(ev.availableDevices as DailyMediaDeviceInfo[]),
       );
       c.on("app-message", handleAppMessage);
+      c.on("camera-error", handleCameraError);
       // Covers devices already available the moment the call starts — the
       // event above only fires on a later change.
       c.enumerateDevices().then(({ devices }) => applyDevices(devices as DailyMediaDeviceInfo[]));
     }
 
-    // The prewarmed path (caller only — see call-prewarm.ts) has already
-    // started, or finished, exactly this same import+createCallObject+join
-    // sequence while this call was still ringing; adopting that object
-    // means this mount (which only ever happens post-Accept) skips redoing
-    // any of it. Falls back to the normal cold-start path otherwise (the
-    // callee's side, always).
+    // Either side can have a prewarmed join waiting under this key by now
+    // (see call-prewarm.ts) — the caller's already joined live, the
+    // callee's joined muted during their own ring. Adopting it means this
+    // mount (which only ever happens post-Accept) skips redoing the
+    // import+createCallObject+join sequence entirely. Falls back to the
+    // normal cold-start path otherwise (no prewarm was ever started, or it
+    // already failed).
     const prewarmed = prewarmKey ? takePrewarmedCall(prewarmKey) : undefined;
 
     if (prewarmed) {
@@ -139,6 +156,18 @@ export function DirectCallFrame({
           // on that same constraint). participants() already reflects
           // whoever's in the room by now.
           refreshParticipants();
+          // The actual "Accept" moment for local media: a no-op for the
+          // caller's prewarm (already live), but for the callee's muted
+          // prewarm this is the first time audio/video is requested at
+          // all — exactly now, not during ringing, so the permission
+          // prompt (if needed) and any capture/send only ever happen once
+          // the user has actually accepted. A failure here (denied
+          // permission, device in use, ...) surfaces via the
+          // "camera-error" listener attach() just registered, not a thrown
+          // error from these two calls themselves (they return the call
+          // object, not a Promise).
+          c.setLocalAudio(true);
+          if (type === "VIDEO") c.setLocalVideo(true);
           onCallObject?.(c);
         })
         .catch((err: unknown) => {
@@ -190,6 +219,7 @@ export function DirectCallFrame({
         c.off("participant-left", refreshParticipants);
         c.off("left-meeting", onLeave);
         c.off("app-message", handleAppMessage);
+        c.off("camera-error", handleCameraError);
         onCallObject?.(null);
         c.destroy();
         callRef.current = null;

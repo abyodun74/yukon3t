@@ -3,19 +3,26 @@
 import type { DailyCall } from "@daily-co/daily-js";
 
 /**
- * Lets the CALLER side of a 1:1 call join the Daily room the moment it
- * starts ringing, instead of only starting to connect once the callee
- * actually taps Accept (what both sides used to do — see DirectCallFrame).
- * The callee can't do the equivalent (joining before they've agreed to the
- * call would start sending their own media into a room the caller is
- * already in, with no consent yet), but the caller placing the call has
- * already consented by placing it — so the whole ring duration (up to
- * ~55s, see CallForegroundService.RING_TIMEOUT_MS) is idle time that can
- * absorb the same daily-js-fetch + getUserMedia + WebRTC-handshake cost
- * DirectCallFrame would otherwise only start paying once Accept is tapped.
- * By the time the callee accepts, the caller is often already sitting
+ * Lets either side of a 1:1 call join the Daily room early — the caller the
+ * moment it starts ringing, the callee the moment their own device starts
+ * ringing — instead of only starting to connect once the callee actually
+ * taps Accept (what both sides used to do — see DirectCallFrame). By the
+ * time Accept happens, whoever's side this ran for is often already sitting
  * connected in the room — DirectCallFrame then adopts this object (see
- * takePrewarmedCall) instead of creating and joining its own from scratch.
+ * takePrewarmedCall) instead of creating and joining its own from scratch,
+ * skipping the daily-js-fetch + WebRTC-handshake cost entirely.
+ *
+ * The callee's case needs one more thing the caller's doesn't: consent.
+ * Placing a call is itself consent to join, so the caller's prewarm starts
+ * fully live (camera/mic on, same as before this `muted` option existed).
+ * The callee hasn't agreed to anything yet during their own ring — `muted:
+ * true` joins with BOTH local audio and video off, which (confirmed via
+ * daily-js: "settings related to device and media pipeline startup go live
+ * when devices are first initialized — either in startCamera(), or in
+ * join()") means neither track is ever requested at all: no getUserMedia
+ * call, no permission prompt, nothing captured or sent. Only the WebRTC
+ * transport (signaling join, ICE, DTLS) comes up early; DirectCallFrame
+ * does the actual unmute — the real "Accept" moment — once adopted.
  *
  * Keyed by the same `call:${callId}` string call-session.tsx already uses
  * as its own session dedupe key, not a separate identifier — see
@@ -27,23 +34,26 @@ const prewarmed = new Map<string, PrewarmEntry>();
 
 export function prewarmCall(
   key: string,
-  { roomUrl, token, type }: { roomUrl: string; token: string; type: "AUDIO" | "VIDEO" },
+  { roomUrl, token, type, muted = false }: { roomUrl: string; token: string; type: "AUDIO" | "VIDEO"; muted?: boolean },
 ) {
   if (prewarmed.has(key)) return;
 
   // Dynamic import, not static — same reasoning as DirectCallFrame/CallFrame:
   // this package touches browser globals at module load, which can't happen
   // during a "use client" component's initial server-rendered pass (and this
-  // runs from call-button.tsx's event handler, so that's moot here, but the
-  // import is shared module-cache-wide — keeping it dynamic here is also
-  // what lets DirectCallFrame's own later `import("@daily-co/daily-js")`
-  // resolve from cache instantly instead of fetching the chunk twice).
+  // runs from call-button.tsx's/incoming-call-listener.tsx's event handler
+  // or effect, so that's moot here, but the import is shared module-cache-
+  // wide — keeping it dynamic here is also what lets DirectCallFrame's own
+  // later `import("@daily-co/daily-js")` resolve from cache instantly
+  // instead of fetching the chunk twice).
   const promise = import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
     // avoidEval: true — this app's CSP (src/proxy.ts) never allows
     // 'unsafe-eval' in production; without this the call object fails to
     // initialize (same requirement DirectCallFrame/LiveVideoFrame have).
     const call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
-    return call.join({ url: roomUrl, token, startVideoOff: type === "AUDIO" }).then(() => call);
+    return call
+      .join({ url: roomUrl, token, startVideoOff: muted || type === "AUDIO", startAudioOff: muted })
+      .then(() => call);
   });
 
   prewarmed.set(key, { promise });

@@ -5,6 +5,7 @@ import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
+import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
@@ -15,6 +16,14 @@ type IncomingCall = {
   id: string;
   type: "AUDIO" | "VIDEO";
   caller: { id: string; name: string | null };
+  // Both already minted/created at startCall time and present on the Call
+  // row getIncomingCall() returns in full (see that action's own comment) —
+  // just never read by this component until now. Nullable: a Call row
+  // where calleeToken minting somehow failed at startCall time (see
+  // schema.prisma's own comment on that column) falls back to minting on
+  // accept the same way it always has, with no early prewarm to offer.
+  roomUrl: string | null;
+  calleeToken: string | null;
 };
 
 type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO" | "VIDEO"; callerName: string };
@@ -37,6 +46,15 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   useEffect(() => {
     incomingRef.current = incoming;
   });
+
+  // Tracks the prewarm.ts key for a call this side has started joining
+  // early (see the prewarm effect further down) but hasn't accepted yet —
+  // cleared without cancelling once acceptCall adopts it (ownership passes
+  // to DirectCallFrame, which looks itself up by the same key), or left
+  // alone to be cancelled by that same effect's own cleanup wherever this
+  // component gives up on the call first (declined, the caller hangs up/
+  // cancels while still ringing, or this component unmounts mid-ring).
+  const pendingPrewarmKeyRef = useRef<string | null>(null);
 
   // On iOS, a call already answered/declined via CallKit before this
   // component ever mounted (the common cold-start-from-force-quit case)
@@ -127,15 +145,35 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.callId]);
 
-  // Warms the dynamic import CallFrame does on mount as soon as we know a
-  // call is ringing, instead of only starting that fetch after Accept is
-  // tapped — by the time acceptCall's response comes back, the chunk is
-  // already cached and CallFrame's own `import()` resolves instantly.
+  // Joins the Daily room — muted, nothing captured or sent (see
+  // prewarmCall's `muted` option) — the moment we know a call is ringing,
+  // instead of only starting to connect after Accept is tapped. Supersedes
+  // the old "just warm the dynamic import" version of this effect: joining
+  // already does that import as its own first step, so by the time
+  // acceptCall's response comes back, DirectCallFrame can adopt an
+  // already-connected call object instead of starting the
+  // import+createCallObject+join sequence from scratch. Needs roomUrl/
+  // calleeToken, which getIncomingCall() already returns ahead of Accept
+  // (see Call.calleeToken's own schema comment) — previously unused here.
+  //
+  // The cleanup below is what actually tears a never-accepted prewarm back
+  // down — it fires whenever `incoming` changes away from this call for
+  // ANY reason (declined, the caller hangs up/cancels while still ringing,
+  // or this component unmounts), except when acceptCall has already
+  // cleared pendingPrewarmKeyRef to hand ownership to DirectCallFrame
+  // first, in which case the guard below correctly does nothing.
   useEffect(() => {
-    if (!incoming) return;
-    import("@daily-co/daily-js");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incoming?.id]);
+    if (!incoming?.roomUrl || !incoming.calleeToken) return;
+    const key = `call:${incoming.id}`;
+    prewarmCall(key, { roomUrl: incoming.roomUrl, token: incoming.calleeToken, type: incoming.type, muted: true });
+    pendingPrewarmKeyRef.current = key;
+    return () => {
+      if (pendingPrewarmKeyRef.current === key) {
+        cancelPrewarm(key);
+        pendingPrewarmKeyRef.current = null;
+      }
+    };
+  }, [incoming?.id, incoming?.roomUrl, incoming?.calleeToken, incoming?.type]);
 
   // Plays the callee's chosen ringtone on loop for as long as a call is
   // actually ringing, and stops the moment it isn't — accepted, declined,
@@ -183,6 +221,19 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     }
     const callerName =
       incomingRef.current?.id === callId ? incomingRef.current.caller.name ?? "Someone" : "Someone";
+    // Ownership of any prewarmed join for this exact call transfers to
+    // DirectCallFrame now (it looks itself up by this same `call:${callId}`
+    // key, via the `key` passed to startSession below) — only clear the
+    // ref when it's actually this call's own prewarm, never a different
+    // one that happens to still be pending (shouldn't happen given "one
+    // RINGING call at a time", but this is cheap insurance against ever
+    // orphaning a different call's prewarmed, connected-but-unadopted Daily
+    // call object). The prewarm effect's own cleanup is what would
+    // otherwise cancel it once `incoming` changes below — clearing the ref
+    // first is what makes that cleanup correctly do nothing here.
+    if (pendingPrewarmKeyRef.current === `call:${callId}`) {
+      pendingPrewarmKeyRef.current = null;
+    }
     setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName });
     setIncoming((current) => (current?.id === callId ? null : current));
   }, []);
