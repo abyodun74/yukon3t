@@ -22,38 +22,54 @@ describe("canAccessLiveStream", () => {
   });
 
   it("lets anyone into an 'Everyone' stream without any lookup", async () => {
-    expect(await canAccessLiveStream({ circleId: null, hostId: "host" }, viewer)).toBe(true);
+    expect(await canAccessLiveStream({ circleId: null, targetUserId: null, hostId: "host" }, viewer)).toBe(true);
     expect(circleFindUnique).not.toHaveBeenCalled();
   });
 
   it("lets anyone into a PUBLIC Circle's stream (it is listed on Home)", async () => {
     circleFindUnique.mockResolvedValue({ visibility: "PUBLIC" });
     membershipFindUnique.mockResolvedValue(null);
-    expect(await canAccessLiveStream({ circleId: "c1", hostId: "host" }, viewer)).toBe(true);
+    expect(await canAccessLiveStream({ circleId: "c1", targetUserId: null, hostId: "host" }, viewer)).toBe(true);
   });
 
   it("lets a member into a PRIVATE Circle's stream", async () => {
     circleFindUnique.mockResolvedValue({ visibility: "PRIVATE" });
     membershipFindUnique.mockResolvedValue({ id: "m1", role: "MEMBER" });
-    expect(await canAccessLiveStream({ circleId: "c1", hostId: "host" }, viewer)).toBe(true);
+    expect(await canAccessLiveStream({ circleId: "c1", targetUserId: null, hostId: "host" }, viewer)).toBe(true);
   });
 
   it("keeps a non-member out of a PRIVATE Circle's stream", async () => {
     circleFindUnique.mockResolvedValue({ visibility: "PRIVATE" });
     membershipFindUnique.mockResolvedValue(null);
-    expect(await canAccessLiveStream({ circleId: "c1", hostId: "host" }, viewer)).toBe(false);
+    expect(await canAccessLiveStream({ circleId: "c1", targetUserId: null, hostId: "host" }, viewer)).toBe(false);
   });
 
   it("denies a stream whose Circle no longer exists", async () => {
     circleFindUnique.mockResolvedValue(null);
-    expect(await canAccessLiveStream({ circleId: "gone", hostId: "host" }, viewer)).toBe(false);
+    expect(await canAccessLiveStream({ circleId: "gone", targetUserId: null, hostId: "host" }, viewer)).toBe(false);
   });
 
   it("always admits the host and site admins", async () => {
     circleFindUnique.mockResolvedValue({ visibility: "PRIVATE" });
     membershipFindUnique.mockResolvedValue(null);
-    expect(await canAccessLiveStream({ circleId: "c1", hostId: "viewer" }, viewer)).toBe(true);
-    expect(await canAccessLiveStream({ circleId: "c1", hostId: "host" }, { id: "x", isAdmin: true })).toBe(true);
+    expect(await canAccessLiveStream({ circleId: "c1", targetUserId: null, hostId: "viewer" }, viewer)).toBe(true);
+    expect(
+      await canAccessLiveStream({ circleId: "c1", targetUserId: null, hostId: "host" }, { id: "x", isAdmin: true }),
+    ).toBe(true);
+  });
+
+  it("lets only the targeted person into a stream started with one specific user", async () => {
+    expect(await canAccessLiveStream({ circleId: null, targetUserId: "viewer", hostId: "host" }, viewer)).toBe(true);
+    expect(await canAccessLiveStream({ circleId: null, targetUserId: "someone-else", hostId: "host" }, viewer)).toBe(
+      false,
+    );
+    expect(circleFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("always admits the host of a targeted stream, even if they aren't the target", async () => {
+    expect(await canAccessLiveStream({ circleId: null, targetUserId: "someone-else", hostId: "viewer" }, viewer)).toBe(
+      true,
+    );
   });
 });
 

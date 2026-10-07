@@ -6,6 +6,7 @@ import { Radio } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { getActiveLiveStreams, startLiveStream } from "@/app/actions/live-streams";
 import { getMyCircles } from "@/app/actions/circles";
+import { getMyConnectionsForPicker } from "@/app/actions/connections";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { Sheet } from "@/components/sheet";
@@ -18,6 +19,21 @@ type Stream = {
   viewerCount: number;
 };
 type Circle = { id: string; name: string; parentName: string | null };
+type Connection = { id: string; name: string | null };
+
+// The "who can watch" <select> below encodes its three kinds of value into
+// one string (plain HTML <select> only ever has one value) — "" for
+// Everyone, these two prefixes for a Circle or a specific person. Parsed
+// back out via circleIdFrom/targetUserIdFrom rather than threading two
+// separate pieces of state through the same control.
+const CIRCLE_PREFIX = "circle:";
+const USER_PREFIX = "user:";
+function circleIdFrom(audience: string) {
+  return audience.startsWith(CIRCLE_PREFIX) ? audience.slice(CIRCLE_PREFIX.length) : "";
+}
+function targetUserIdFrom(audience: string) {
+  return audience.startsWith(USER_PREFIX) ? audience.slice(USER_PREFIX.length) : "";
+}
 
 function startErrorMessage(code?: string) {
   switch (code) {
@@ -29,6 +45,8 @@ function startErrorMessage(code?: string) {
       return "Slow down a little and try again.";
     case "not_a_member":
       return "You're not a member of that Circle.";
+    case "not_a_connection":
+      return "You're not connected with that person.";
     default:
       return "Couldn't go live — try again.";
   }
@@ -39,9 +57,13 @@ export function LiveStreamStrip() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
-  const [circleId, setCircleId] = useState("");
+  // Raw <select> value — "", "circle:<id>", or "user:<id>" — see
+  // circleIdFrom/targetUserIdFrom above.
+  const [audience, setAudience] = useState("");
   const [circles, setCircles] = useState<Circle[] | null>(null);
   const [circlesFailed, setCirclesFailed] = useState(false);
+  const [connections, setConnections] = useState<Connection[] | null>(null);
+  const [connectionsFailed, setConnectionsFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -96,6 +118,31 @@ export function LiveStreamStrip() {
     setCirclesFailed(false);
   }
 
+  // Same shape as the circles loader above, independent state — a failure
+  // fetching one doesn't block or get confused with the other.
+  const loadConnections = useCallback(() => {
+    getMyConnectionsForPicker()
+      .then((r) => setConnections(r.connections))
+      .catch((err) => {
+        setConnectionsFailed(true);
+        captureError(err, { component: "live-stream-strip", flow: "getMyConnectionsForPicker" });
+      });
+  }, []);
+
+  useEffect(() => {
+    if (composing && connections === null && !connectionsFailed) {
+      loadConnections();
+    }
+  }, [composing, connections, connectionsFailed, loadConnections]);
+
+  function retryConnections() {
+    setConnectionsFailed(false);
+  }
+
+  const circleId = circleIdFrom(audience);
+  const targetUserId = targetUserIdFrom(audience);
+  const targetUserName = targetUserId ? (connections?.find((c) => c.id === targetUserId)?.name ?? "this person") : null;
+
   function goLive() {
     if (!title.trim() || isPending) return;
     setError(null);
@@ -103,6 +150,7 @@ export function LiveStreamStrip() {
       const fd = new FormData();
       fd.set("title", title.trim());
       if (circleId) fd.set("circleId", circleId);
+      if (targetUserId) fd.set("targetUserId", targetUserId);
       const result = await startLiveStream(fd);
       if (result.error || !result.liveStreamId) {
         setError(startErrorMessage(result.error ?? undefined));
@@ -175,16 +223,29 @@ export function LiveStreamStrip() {
 
         <label className="mt-3 block text-xs font-medium text-foreground-soft">Who can watch</label>
         <select
-          value={circleId}
-          onChange={(e) => setCircleId(e.target.value)}
+          value={audience}
+          onChange={(e) => setAudience(e.target.value)}
           className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
         >
           <option value="">Everyone — shown on Home</option>
-          {circles?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
-            </option>
-          ))}
+          {circles && circles.length > 0 && (
+            <optgroup label="A Circle">
+              {circles.map((c) => (
+                <option key={c.id} value={`${CIRCLE_PREFIX}${c.id}`}>
+                  {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {connections && connections.length > 0 && (
+            <optgroup label="A specific person">
+              {connections.map((c) => (
+                <option key={c.id} value={`${USER_PREFIX}${c.id}`}>
+                  {c.name ?? "Unknown"}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
 
         {circlesFailed && (
@@ -197,10 +258,22 @@ export function LiveStreamStrip() {
           </p>
         )}
 
+        {connectionsFailed && (
+          <p className="mt-1 text-xs text-danger">
+            Couldn&apos;t load your connections —{" "}
+            <button type="button" onClick={retryConnections} className="underline">
+              retry
+            </button>
+            .
+          </p>
+        )}
+
         <p className="mt-1 text-xs text-foreground-soft">
-          {circleId
-            ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
-            : "Visible to everyone on Home."}
+          {targetUserId
+            ? `Only ${targetUserName} can see or join it — nobody else, not even your other connections.`
+            : circleId
+              ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
+              : "Visible to everyone on Home."}
         </p>
 
         {error && <p className="mt-2 text-xs text-danger">{error}</p>}

@@ -459,3 +459,27 @@ export async function getInitialAcceptedConnections() {
     hasMore: sortedIds.length > CONNECTIONS_PAGE_SIZE,
   };
 }
+
+/**
+ * Lightweight {id, name}[] of every one of the caller's accepted
+ * Connections, no pagination — for a plain picker that just needs a full
+ * list to choose from (live-stream-strip.tsx's "who can watch" audience
+ * picker, same role getMyCircles plays for the Circle half of it), not the
+ * richer paginated shape getInitialAcceptedConnections returns for the
+ * Connections page itself. Same query messages/new/page.tsx already runs
+ * inline for its own "start a group chat" member picker.
+ */
+export async function getMyConnectionsForPicker() {
+  const user = await requireVerifiedUser();
+  const accepted = await prisma.connection.findMany({
+    where: { status: "ACCEPTED", OR: [{ requesterId: user.id }, { targetId: user.id }] },
+    include: {
+      requester: { select: { id: true, name: true } },
+      target: { select: { id: true, name: true } },
+    },
+    orderBy: { respondedAt: "desc" },
+  });
+  return {
+    connections: accepted.map((c) => (c.requesterId === user.id ? c.target : c.requester)),
+  };
+}

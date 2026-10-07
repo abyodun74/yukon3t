@@ -188,11 +188,12 @@ const sections: Section[] = [
           <>
             Incoming calls, missed calls (with the caller&apos;s name), likes,
             comments, shares, and reshares on your posts and Muse videos,
-            connection requests, and app-wide announcements about new
-            features — these arrive as real Android notifications even when
-            the app isn&apos;t open, not just the bell icon inside the app.
-            Tapping one opens the relevant post, Muse, comment thread, or
-            Connections list. Opening the app (from a notification, the
+            connection requests, someone starting a live stream with just
+            you, and app-wide announcements about new features — these
+            arrive as real Android notifications even when the app
+            isn&apos;t open, not just the bell icon inside the app. Tapping
+            one opens the relevant post, Muse, comment thread, live stream,
+            or Connections list. Opening the app (from a notification, the
             launcher icon, or switching back from another app) automatically
             clears every notification of this kind from your notification
             shade — a ringing or missed call is the one exception, since
@@ -518,6 +519,21 @@ const sections: Section[] = [
             to your own subscribers, the same as any other public post.
             Members also find a Circle&apos;s stream in the &ldquo;Live
             now&rdquo; section on the Circle&apos;s own page.
+          </>
+        ),
+      },
+      {
+        q: "Can I start a live stream with just one specific person?",
+        a: (
+          <>
+            Yes — pick their name under &ldquo;A specific person&rdquo; in
+            the &ldquo;who can watch&rdquo; list when you start a stream
+            (only people you&apos;re connected with show up there). That
+            stream is private between the two of you: it never appears on
+            Home, a Circle page, or anywhere else, and only they (besides
+            you) can see or join it — not your subscribers, not your other
+            connections. They get a notification the moment it starts, same
+            as a call.
           </>
         ),
       },

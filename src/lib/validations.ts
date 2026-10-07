@@ -554,10 +554,17 @@ export const shareToCircleSchema = z.object({
   caption: z.string().trim().max(500).optional().default(""),
 });
 
-export const liveStreamTitleSchema = z.object({
-  title: z.string().trim().min(1).max(100),
-  circleId: z.string().cuid().optional(),
-});
+export const liveStreamTitleSchema = z
+  .object({
+    title: z.string().trim().min(1).max(100),
+    circleId: z.string().cuid().optional(),
+    // "Who can watch" set to one specific person instead — mutually
+    // exclusive with circleId, see the .refine() below.
+    targetUserId: z.string().cuid().optional(),
+  })
+  .refine((data) => !(data.circleId && data.targetUserId), {
+    message: "A stream can be scoped to a Circle or a specific person, not both.",
+  });
 
 /** GUEST/COHOST request a stage slot (see joinLiveStream); omitted/undefined means watch-only. */
 export const liveStreamJoinRoleSchema = z.enum(["GUEST", "COHOST"]).optional();

@@ -67,6 +67,7 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // type here already follows (CIRCLE_JOINED, CIRCLE_JOIN_REQUEST, ...) —
   // hrefFor's link (straight to the stream) carries that context instead.
   CIRCLE_LIVE: "started a live stream",
+  LIVE_STREAM_INVITE: "started a live stream with you",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

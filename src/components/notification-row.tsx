@@ -54,7 +54,8 @@ type NotificationData = {
     | "VIDEO_MODERATION_FAILED"
     | "VIDEO_FLAGGED_FOR_REVIEW"
     | "APP_FEEDBACK_SUBMITTED"
-    | "CIRCLE_LIVE";
+    | "CIRCLE_LIVE"
+    | "LIVE_STREAM_INVITE";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

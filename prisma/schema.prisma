@@ -287,7 +287,10 @@ model User {
   sentVoiceInvites            ChannelVoiceInvite[]       @relation("VoiceInviteInviter")
   receivedVoiceInvites        ChannelVoiceInvite[]       @relation("VoiceInviteInvitee")
 
-  liveStreamsHosted       LiveStream[]
+  liveStreamsHosted       LiveStream[]             @relation("LiveStreamHost")
+  // A stream started with "who can watch" set to this one specific user
+  // instead of a Circle or Everyone — see LiveStream.targetUserId.
+  liveStreamInvites       LiveStream[]             @relation("LiveStreamTarget")
   liveStreamsWatching     LiveStreamViewer[]
   liveStreamStageRequests LiveStreamStageRequest[]
   liveStreamComments      LiveStreamComment[]
@@ -1034,6 +1037,14 @@ enum NotificationType {
   // audience. SUBSCRIPTION_LIVE still fires on its own for an unscoped
   // ("Everyone") stream.
   CIRCLE_LIVE
+  // Sent to the one specific person a host picked as "who can watch"
+  // instead of a Circle or Everyone — see LiveStream.targetUserId and
+  // startLiveStream in actions/live-streams.ts. Single recipient, so
+  // (unlike the bulk CIRCLE_LIVE/SUBSCRIPTION_LIVE fan-outs, which are
+  // bell-only) this also pushes — same reasoning as MISSED_CALL/MESSAGE: a
+  // personally-addressed, happening-right-now invite is exactly the case
+  // push exists for.
+  LIVE_STREAM_INVITE
 }
 
 model Notification {
@@ -1241,6 +1252,13 @@ model LiveStream {
   id        String           @id @default(cuid())
   hostId    String
   circleId  String?
+  // "Who can watch" set to one specific person instead of a Circle or
+  // Everyone — mutually exclusive with circleId (enforced in
+  // startLiveStream/liveStreamTitleSchema, not a DB constraint, same as
+  // every other app-level invariant in this codebase). See
+  // canAccessLiveStream for how this changes who may join/view/comment, and
+  // LIVE_STREAM_INVITE for how that one person learns about it.
+  targetUserId String?
   title     String
   status    LiveStreamStatus @default(LIVE)
   roomName  String
@@ -1252,7 +1270,8 @@ model LiveStream {
   // all of them (see the auto-end-inactive-streams cron), never per-user.
   lastHostActivityAt DateTime?
 
-  host          User                     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  host          User                     @relation("LiveStreamHost", fields: [hostId], references: [id], onDelete: Cascade)
+  targetUser    User?                    @relation("LiveStreamTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
   circle        Circle?                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
   viewers       LiveStreamViewer[]
   stageRequests LiveStreamStageRequest[]
@@ -1261,6 +1280,7 @@ model LiveStream {
 
   @@index([status])
   @@index([hostId])
+  @@index([targetUserId])
 }
 
 /**

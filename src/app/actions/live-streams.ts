@@ -20,6 +20,9 @@ import { moderateText } from "@/lib/moderation";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { captureError } from "@/lib/error-tracking";
+import { sendPushToUser } from "@/lib/push";
+import { sendFcmActivityToUser } from "@/lib/fcm";
+import { NOTIFICATION_VERB } from "@/lib/notification-text";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -40,11 +43,12 @@ export async function startLiveStream(formData: FormData) {
   const parsed = liveStreamTitleSchema.safeParse({
     title: formData.get("title"),
     circleId: formData.get("circleId") || undefined,
+    targetUserId: formData.get("targetUserId") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { title, circleId } = parsed.data;
+  const { title, circleId, targetUserId } = parsed.data;
 
   const existing = await prisma.liveStream.findFirst({
     where: { hostId: user.id, status: "LIVE" },
@@ -57,8 +61,29 @@ export async function startLiveStream(formData: FormData) {
     return { error: "not_a_member" as const };
   }
 
+  if (targetUserId) {
+    // Re-validated server-side, never trusted from the client: the picker
+    // only ever offers the host's own accepted Connections, but a request
+    // is independently callable with any id — without this, anyone could
+    // start a stream "with" an arbitrary user (who'd then get a
+    // LIVE_STREAM_INVITE notification/push naming them, out of nowhere).
+    const isConnection = await prisma.connection.findFirst({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { requesterId: user.id, targetId: targetUserId },
+          { requesterId: targetUserId, targetId: user.id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!isConnection) {
+      return { error: "not_a_connection" as const };
+    }
+  }
+
   const liveStream = await prisma.liveStream.create({
-    data: { hostId: user.id, circleId, title, roomName: "", roomUrl: "" },
+    data: { hostId: user.id, circleId, targetUserId, title, roomName: "", roomUrl: "" },
   });
 
   let room;
@@ -87,7 +112,32 @@ export async function startLiveStream(formData: FormData) {
     where: { id: liveStream.id },
     data: { roomName: room.name, roomUrl: room.url },
   });
-  if (circleId) {
+  if (targetUserId) {
+    // A stream started "with" one specific person is for them alone — a
+    // single-recipient, happening-right-now invite, same shape as
+    // MISSED_CALL/MESSAGE, so it pushes as well as landing in the bell
+    // (unlike CIRCLE_LIVE/SUBSCRIPTION_LIVE's bulk bell-only fan-outs).
+    await prisma.notification.create({
+      data: {
+        recipientId: targetUserId,
+        actorId: user.id,
+        type: "LIVE_STREAM_INVITE",
+        liveStreamId: liveStream.id,
+      },
+    });
+    const liveUrl = `/live/${liveStream.id}`;
+    await sendPushToUser(targetUserId, {
+      title: user.name ?? "Someone",
+      body: NOTIFICATION_VERB.LIVE_STREAM_INVITE,
+      url: liveUrl,
+    });
+    await sendFcmActivityToUser(targetUserId, {
+      title: user.name ?? "Someone",
+      body: NOTIFICATION_VERB.LIVE_STREAM_INVITE,
+      type: "LIVE_STREAM_INVITE",
+      url: liveUrl,
+    });
+  } else if (circleId) {
     // A stream scoped to a Circle/sub-circle is only for the users that
     // scoping actually specifies — its own members — whether the Circle is
     // PUBLIC or PRIVATE. Earlier this also fanned a PUBLIC Circle's stream
@@ -109,7 +159,7 @@ export async function startLiveStream(formData: FormData) {
       });
     }
   } else {
-    // No Circle specified ("Everyone"): announced to all the host's subscribers.
+    // No Circle or specific person: announced to all the host's subscribers.
     await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
   }
   await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
@@ -446,17 +496,25 @@ export async function leaveLiveStream(liveStreamId: string) {
 }
 
 /**
- * The Home "Live now" strip: streams started for "Everyone" (no circleId) and
- * for a PUBLIC Circle. A stream started for a PRIVATE Circle or sub-circle never
- * appears here — not even to that Circle's own members; it's shown on that
- * Circle's page instead (src/app/circles/[slug]/page.tsx), to its members only.
+ * The Home "Live now" strip: streams started for "Everyone" (no circleId, no
+ * targetUserId) and for a PUBLIC Circle. A stream started for a PRIVATE
+ * Circle or sub-circle never appears here — not even to that Circle's own
+ * members; it's shown on that Circle's page instead
+ * (src/app/circles/[slug]/page.tsx), to its members only. A stream started
+ * for one specific person never appears here either, for anyone, including
+ * that person — their only way in is the LIVE_STREAM_INVITE notification's
+ * own link, same as a PRIVATE Circle's members rely on CIRCLE_LIVE.
  */
 export async function getActiveLiveStreams() {
   try {
     await requireVerifiedUser();
 
     const streams = await prisma.liveStream.findMany({
-      where: { status: "LIVE", OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" } }] },
+      where: {
+        status: "LIVE",
+        targetUserId: null,
+        OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" } }],
+      },
       orderBy: { startedAt: "desc" },
       include: {
         host: { select: { id: true, name: true, avatarUrl: true } },
@@ -489,7 +547,7 @@ export async function getLiveStreamViewerCount(liveStreamId: string) {
 
     const liveStream = await prisma.liveStream.findUnique({
       where: { id: liveStreamId },
-      select: { hostId: true, circleId: true },
+      select: { hostId: true, circleId: true, targetUserId: true },
     });
     if (!liveStream || !(await canAccessLiveStream(liveStream, user))) {
       return { count: 0, stageCount: 0, stageCapacity: MAX_STAGE_PARTICIPANTS };
@@ -537,7 +595,8 @@ export async function getLiveStreamStageUserIds(liveStreamId: string) {
  * Lists cloud recordings for this stream's room, fetched live from Daily.
  * Same access rule as the stream itself (canAccessLiveStream): an "Everyone"
  * or PUBLIC-Circle stream's recordings are open to any verified user, a
- * PRIVATE Circle's only to that Circle's members.
+ * PRIVATE Circle's only to that Circle's members, and a stream started with
+ * one specific person's only to that person.
  */
 export async function listLiveStreamRecordings(liveStreamId: string) {
   let user;
@@ -549,7 +608,7 @@ export async function listLiveStreamRecordings(liveStreamId: string) {
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
-    select: { roomName: true, circleId: true, hostId: true },
+    select: { roomName: true, circleId: true, targetUserId: true, hostId: true },
   });
   if (!liveStream?.roomName || !(await canAccessLiveStream(liveStream, user))) {
     return { recordings: [] };
@@ -577,7 +636,7 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
-    select: { roomName: true, circleId: true, hostId: true },
+    select: { roomName: true, circleId: true, targetUserId: true, hostId: true },
   });
   if (!liveStream?.roomName || !(await canAccessLiveStream(liveStream, user))) {
     return { error: "unavailable" as const };
@@ -601,7 +660,8 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
  * Daily's built-in room chat (enabled on every room but rendered inside its
  * cross-origin prebuilt iframe, so this app can't style/position it as the
  * always-visible scrolling feed the UI actually shows). Same visibility
- * rule as joining: a Circle-scoped stream requires membership.
+ * rule as joining (canAccessLiveStream): a Circle-scoped stream requires
+ * membership, a person-scoped one requires being that specific person.
  */
 export async function sendLiveStreamComment(liveStreamId: string, formData: FormData) {
   const user = await requireVerifiedUser();
@@ -648,10 +708,10 @@ export async function getLiveStreamComments(liveStreamId: string, afterId?: stri
   try {
     const user = await requireVerifiedUser();
 
-    // Same rule as joining: without this anyone signed in who had a Circle stream's id could read its chat.
+    // Same rule as joining: without this anyone signed in who had a restricted stream's id (Circle- or person-scoped) could read its chat.
     const liveStream = await prisma.liveStream.findUnique({
       where: { id: liveStreamId },
-      select: { hostId: true, circleId: true },
+      select: { hostId: true, circleId: true, targetUserId: true },
     });
     if (!liveStream || !(await canAccessLiveStream(liveStream, user))) {
       return { comments: [] };
