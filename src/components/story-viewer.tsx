@@ -663,8 +663,17 @@ function StoryCommentsPanel({
     setError(false);
     const ok = await onPost(trimmed);
     setIsPosting(false);
-    if (ok) setText("");
-    else setError(true);
+    if (ok) {
+      setText("");
+      // Closes the whole sheet right after a successful post instead of
+      // leaving it open for a manual X tap — this panel is a transient
+      // overlay on top of the story itself (not a persistent thread like
+      // Feed's own comment section), so "post your reaction and get back
+      // to watching" is the expected flow here.
+      onClose();
+    } else {
+      setError(true);
+    }
   }
 
   return (
