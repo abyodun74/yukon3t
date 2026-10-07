@@ -53,7 +53,8 @@ type NotificationData = {
     | "SCREENSHOT_TAKEN"
     | "VIDEO_MODERATION_FAILED"
     | "VIDEO_FLAGGED_FOR_REVIEW"
-    | "APP_FEEDBACK_SUBMITTED";
+    | "APP_FEEDBACK_SUBMITTED"
+    | "CIRCLE_LIVE";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

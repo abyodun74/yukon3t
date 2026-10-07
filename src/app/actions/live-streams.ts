@@ -88,13 +88,43 @@ export async function startLiveStream(formData: FormData) {
     data: { roomName: room.name, roomUrl: room.url },
   });
   const circle = circleId ? await prisma.circle.findUnique({ where: { id: circleId }, select: { visibility: true } }) : null;
-  if (circle?.visibility === "PRIVATE") {
-    // A PRIVATE Circle's stream is for that Circle's members only. Telling all of the host's subscribers "X is live"
-    // would reveal it exists and hand them its id, so only subscribers who are ALSO members hear about it.
+
+  if (circleId) {
+    // Every Circle/sub-circle member hears about a stream scoped to their
+    // Circle — not just the host's own subscribers, which would miss any
+    // member who doesn't happen to subscribe to this particular host.
+    // CIRCLE_LIVE is the guaranteed channel for that; members who ALSO
+    // subscribe to the host are excluded from the SUBSCRIPTION_LIVE
+    // fan-out below instead of getting both (see notifySubscribers' own
+    // comment on excludeRecipientIds).
     const members = await prisma.circleMembership.findMany({ where: { circleId }, select: { userId: true } });
-    await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id }, { onlyRecipientIds: members.map((m) => m.userId) });
+    const memberIds = members.map((m) => m.userId).filter((id) => id !== user.id);
+    if (memberIds.length > 0) {
+      await prisma.notification.createMany({
+        data: memberIds.map((recipientId) => ({
+          recipientId,
+          actorId: user.id,
+          type: "CIRCLE_LIVE" as const,
+          circleId,
+          liveStreamId: liveStream.id,
+        })),
+      });
+    }
+
+    if (circle?.visibility !== "PRIVATE") {
+      // A PRIVATE Circle's stream is for that Circle's members only — they've
+      // all already been notified above. Telling a non-member subscriber it
+      // exists would reveal it and hand them its id, so there's no
+      // subscriber announcement to send in that case at all.
+      await notifySubscribers(
+        user.id,
+        "SUBSCRIPTION_LIVE",
+        { liveStreamId: liveStream.id },
+        { excludeRecipientIds: memberIds },
+      );
+    }
   } else {
-    // "Everyone" or a PUBLIC Circle: announced to all the host's subscribers.
+    // No Circle at all: announced to all the host's subscribers, same as before.
     await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
   }
   await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");

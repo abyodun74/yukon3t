@@ -1024,6 +1024,15 @@ enum NotificationType {
   // the review-prompt gate's "Could be better" path — see AppFeedback and
   // /admin/feedback. Notification.message carries a truncated preview.
   APP_FEEDBACK_SUBMITTED
+  // Sent to every member of a Circle/sub-circle (the stream's own circleId)
+  // when another member or the owner starts a live stream scoped to that
+  // Circle — see startLiveStream in actions/live-streams.ts. Distinct from
+  // SUBSCRIPTION_LIVE: that only reaches the host's own subscribers, which
+  // misses any circle member who doesn't happen to subscribe to this
+  // particular host. Whichever members already get SUBSCRIPTION_LIVE (they
+  // subscribe to the host) are excluded from this fan-out instead of
+  // getting both — see notifySubscribers' excludeRecipientIds.
+  CIRCLE_LIVE
 }
 
 model Notification {

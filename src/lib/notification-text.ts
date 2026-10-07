@@ -61,6 +61,12 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // always carries a truncated preview, which notification-row.tsx prefers
   // over this fallback, same convention as VIDEO_MODERATION_FAILED above.
   APP_FEEDBACK_SUBMITTED: "submitted app feedback",
+  // Same plain verb as SUBSCRIPTION_LIVE — see CIRCLE_LIVE's own doc comment
+  // on the NotificationType enum for what distinguishes the two. Doesn't
+  // name the circle in the text, same convention every other circle-scoped
+  // type here already follows (CIRCLE_JOINED, CIRCLE_JOIN_REQUEST, ...) —
+  // hrefFor's link (straight to the stream) carries that context instead.
+  CIRCLE_LIVE: "started a live stream",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

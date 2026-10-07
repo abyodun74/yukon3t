@@ -510,8 +510,11 @@ const sections: Section[] = [
             Circle&apos;s members: it never appears on Home or anywhere else
             in the app, isn&apos;t announced to anyone outside the Circle, and
             its page, chat, and recordings are closed to non-members — even
-            with the link. Members find it in the &ldquo;Live now&rdquo;
-            section on the Circle&apos;s page.
+            with the link. Either way, every member of that Circle or
+            sub-circle — not just your own subscribers — gets a notification
+            the moment the stream starts, whether it&apos;s the owner or any
+            other member who starts it. Members also find it in the
+            &ldquo;Live now&rdquo; section on the Circle&apos;s page.
           </>
         ),
       },
