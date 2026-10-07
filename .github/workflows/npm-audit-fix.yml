@@ -78,8 +78,24 @@ jobs:
       # whole point of this job is unattended safety, so anything that
       # needs --force is reported (see "File an issue" step below) instead
       # of applied automatically.
+      #
+      # continue-on-error — REAL BUG fixed here: `npm audit fix` re-audits
+      # at the end and exits non-zero whenever ANY vulnerability remains
+      # that needs --force, even after successfully applying every
+      # non-breaking fix it could (or finding zero to apply, with only
+      # --force-only advisories left — exactly the case the "File an issue"
+      # step further down exists to handle). Without this, that step's own
+      # exit code failed the whole job right here, on a confirmed real run,
+      # skipping every step after it — including "File an issue" — so a
+      # month with only breaking-fix-only advisories (common) silently
+      # produced neither a PR nor an issue, just a red workflow run nobody
+      # was routed to. The steps below already independently re-derive what
+      # actually matters (whether package-lock.json changed, then a fresh
+      # `npm audit` for what remains), so this step's own exit code was
+      # never a meaningful signal to begin with.
       - name: Apply known-good fixes
         if: steps.gate.outputs.proceed == 'true' && steps.audit.outputs.found == 'true'
+        continue-on-error: true
         run: npm audit fix
 
       - name: Check whether anything was actually fixable
