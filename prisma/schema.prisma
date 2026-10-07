@@ -1045,6 +1045,13 @@ enum NotificationType {
   // personally-addressed, happening-right-now invite is exactly the case
   // push exists for.
   LIVE_STREAM_INVITE
+  // Sent to a Collab's author and every joined participant shortly before a
+  // recurring session's next scheduled occurrence — see
+  // CollabBoardPost.nextSessionAt and the collab-session-reminders cron.
+  // System-generated, not "someone did something to you" (same reasoning as
+  // EVENT_REMINDER — actorId is the collab's author themself, no separate
+  // real actor exists).
+  COLLAB_SESSION_REMINDER
 }
 
 model Notification {
@@ -1123,6 +1130,30 @@ model CollabBoardPost {
   visibility  CollabVisibility @default(PUBLIC)
   createdAt   DateTime         @default(now())
 
+  // Recurring session schedule, optional — "every Mon/Wed at 18:00". Entered
+  // and stored directly in UTC (see CollabScheduleField), deliberately not
+  // converted from/to any per-user local timezone: this feature's whole
+  // point is a shared meeting time for a cross-border group (see this
+  // page's own "cross borders" framing), so one unambiguous UTC reference
+  // time avoids ever silently shifting which day a session falls on for
+  // someone on the other side of a timezone boundary. scheduleDays holds
+  // ISO weekday ints (0=Sun..6=Sat, matching Date#getUTCDay()); both empty/
+  // null together means no recurring schedule (the default, unaffected).
+  scheduleDays Int[]   @default([])
+  scheduleTime String?
+  // The next upcoming occurrence of the schedule above, in absolute UTC —
+  // what "add to calendar" and the session-reminder cron both key off.
+  // Rolled forward by the collab-session-reminders cron once each
+  // occurrence's reminder has gone out (see nextOccurrenceUTC in
+  // collab-schedule.ts). Null whenever there's no schedule.
+  nextSessionAt DateTime?
+  // Whether a reminder has already gone out for the CURRENT nextSessionAt
+  // value — mirrors Post.eventReminderSentAt's claim mechanism, but reset
+  // to null every time nextSessionAt rolls forward to the next occurrence
+  // (a recurring schedule needs a fresh reminder every cycle, unlike a
+  // one-off Post event).
+  sessionReminderSentAt DateTime?
+
   // See User.embedding — embeds title+description.
   embedding Unsupported("vector(1536)")?
 
@@ -1147,6 +1178,7 @@ model CollabBoardPost {
   @@index([type])
   @@index([status])
   @@index([visibility])
+  @@index([nextSessionAt])
 }
 
 /**

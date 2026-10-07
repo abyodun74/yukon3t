@@ -12,6 +12,7 @@ import { CollabJoinRequestManager } from "@/components/collab-join-request-manag
 import { CollabInviteManager } from "@/components/collab-invite-manager";
 import { CollabInviteResponse } from "@/components/collab-invite-response";
 import { CollabSessionRoom } from "@/components/collab-session-room";
+import { CollabAddToCalendar } from "@/components/collab-add-to-calendar";
 import { CloseCollabButton } from "@/components/close-collab-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
 import { ChatThread } from "@/components/chat-thread";
@@ -218,6 +219,19 @@ export default async function CollabDetailPage({
       </div>
 
       <p className="mt-2 break-words text-sm text-foreground-soft">{collab.description}</p>
+
+      {canJoinSession && collab.nextSessionAt && collab.scheduleTime && (
+        <div className="mt-3">
+          <CollabAddToCalendar
+            collabId={collab.id}
+            title={collab.title}
+            description={collab.description}
+            scheduleDays={collab.scheduleDays}
+            scheduleTime={collab.scheduleTime}
+            nextSessionAt={collab.nextSessionAt.toISOString()}
+          />
+        </div>
+      )}
 
       {myInvite && (
         <div className="mt-3">

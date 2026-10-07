@@ -5,6 +5,7 @@ import { updateCollabPost } from "@/app/actions/collab";
 import { isCollabAdmin, getCollabMembership } from "@/lib/collab-permissions";
 import { BackButton } from "@/components/back-button";
 import { CollabCountriesField } from "@/components/collab-countries-field";
+import { CollabScheduleField } from "@/components/collab-schedule-field";
 import { CollabSubmitButton } from "@/components/collab-submit-button";
 import { MultiSelect } from "@/components/multi-select";
 import { COLLAB_TYPES } from "@/lib/collab-types";
@@ -74,6 +75,7 @@ export default async function EditCollabPostPage({
           </div>
         </div>
         <CollabCountriesField defaultWorldwide={collab.worldwide} defaultCountries={collab.countries} />
+        <CollabScheduleField defaultDays={collab.scheduleDays} defaultTime={collab.scheduleTime} />
         <div>
           <label htmlFor="collab-edit-description" className="block text-sm font-medium">
             What is this collaboration?

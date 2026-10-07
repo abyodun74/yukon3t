@@ -68,11 +68,17 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // hrefFor's link (straight to the stream) carries that context instead.
   CIRCLE_LIVE: "started a live stream",
   LIVE_STREAM_INVITE: "started a live stream with you",
+  COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,
 // so the usual "{actor} {verb}" phrasing doesn't apply; NOTIFICATION_VERB
 // (or Notification.message) already returns a complete sentence for these.
 export function notificationHasActor(type: NotificationType) {
-  return type !== "EVENT_REMINDER" && type !== "VIDEO_MODERATION_FAILED" && type !== "VIDEO_FLAGGED_FOR_REVIEW";
+  return (
+    type !== "EVENT_REMINDER" &&
+    type !== "VIDEO_MODERATION_FAILED" &&
+    type !== "VIDEO_FLAGGED_FOR_REVIEW" &&
+    type !== "COLLAB_SESSION_REMINDER"
+  );
 }

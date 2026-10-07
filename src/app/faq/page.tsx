@@ -189,10 +189,11 @@ const sections: Section[] = [
             Incoming calls, missed calls (with the caller&apos;s name), likes,
             comments, shares, and reshares on your posts and Muse videos,
             connection requests, someone starting a live stream with just
-            you, and app-wide announcements about new features — these
-            arrive as real Android notifications even when the app
-            isn&apos;t open, not just the bell icon inside the app. Tapping
-            one opens the relevant post, Muse, comment thread, live stream,
+            you, a recurring collaboration session starting soon, and
+            app-wide announcements about new features — these arrive as real
+            Android notifications even when the app isn&apos;t open, not
+            just the bell icon inside the app. Tapping one opens the
+            relevant post, Muse, comment thread, live stream, collaboration,
             or Connections list. Opening the app (from a notification, the
             launcher icon, or switching back from another app) automatically
             clears every notification of this kind from your notification
@@ -1199,6 +1200,37 @@ const sections: Section[] = [
             automatically; tap the minimize icon (bottom right) to shrink it
             to a small widget while you use the rest of the app, the same as
             a 1:1 call.
+          </>
+        ),
+      },
+      {
+        q: "Can I schedule a recurring collaboration session?",
+        a: (
+          <>
+            Yes — when you post a collaboration (or edit one afterward),
+            check &ldquo;Recurring session&rdquo; and pick which day(s) of
+            the week and what time. Time is entered in UTC so everyone in
+            the collaboration sees the same shared time regardless of where
+            they are, rather than it silently shifting to a different day or
+            hour for someone in another timezone. The organizer or a
+            co-admin can change or remove the schedule anytime from
+            &ldquo;Edit.&rdquo;
+          </>
+        ),
+      },
+      {
+        q: "Can I add a collaboration's session to my own calendar?",
+        a: (
+          <>
+            Yes — a collaboration with a recurring schedule shows an
+            &ldquo;Add to Google Calendar&rdquo; link and a &ldquo;Download
+            .ics&rdquo; link (for Apple Calendar, Outlook, or any other app
+            that imports one) on its page, each carrying its own built-in
+            reminder before the session starts. You&apos;ll also get an
+            in-app notification shortly before each occurrence. Only the
+            organizer and joined participants see these — not a casual
+            visitor browsing a public collaboration they haven&apos;t
+            actually joined.
           </>
         ),
       },

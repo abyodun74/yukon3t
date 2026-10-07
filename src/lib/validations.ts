@@ -350,6 +350,14 @@ export const collabPostSchema = z
     // Only meaningful (and required) when visibility is PRIVATE — who the
     // organizer is inviting up front. See createCollabPost.
     inviteeIds: z.array(z.string().cuid()).max(50).optional().default([]),
+    // Optional recurring session schedule — see CollabBoardPost.scheduleDays's
+    // own doc comment on why both are entered directly in UTC. Either both
+    // are set (a schedule) or neither is (no schedule) — enforced below.
+    scheduleDays: z.array(z.coerce.number().int().min(0).max(6)).max(7).optional().default([]),
+    scheduleTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour HH:mm time")
+      .optional(),
   })
   // Worldwide posts skip the country list entirely; anything else still
   // needs at least one — the 10-country cap this replaced was read as "this
@@ -362,6 +370,14 @@ export const collabPostSchema = z
   .refine((data) => data.visibility !== "PRIVATE" || data.inviteeIds.length > 0, {
     message: "Invite at least one person, or make this collaboration public.",
     path: ["inviteeIds"],
+  })
+  .refine((data) => data.scheduleDays.length === 0 || !!data.scheduleTime, {
+    message: "Pick a time for the recurring session.",
+    path: ["scheduleTime"],
+  })
+  .refine((data) => !data.scheduleTime || data.scheduleDays.length > 0, {
+    message: "Pick at least one day for the recurring session.",
+    path: ["scheduleDays"],
   });
 
 export const collabInviteSchema = z.object({

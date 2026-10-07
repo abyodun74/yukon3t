@@ -55,7 +55,8 @@ type NotificationData = {
     | "VIDEO_FLAGGED_FOR_REVIEW"
     | "APP_FEEDBACK_SUBMITTED"
     | "CIRCLE_LIVE"
-    | "LIVE_STREAM_INVITE";
+    | "LIVE_STREAM_INVITE"
+    | "COLLAB_SESSION_REMINDER";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

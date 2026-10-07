@@ -2,6 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { createCollabPost } from "@/app/actions/collab";
 import { CollabCountriesField } from "@/components/collab-countries-field";
+import { CollabScheduleField } from "@/components/collab-schedule-field";
 import { CollabSubmitButton } from "@/components/collab-submit-button";
 import { CollabVisibilityField } from "@/components/collab-visibility-field";
 import { MultiSelect } from "@/components/multi-select";
@@ -72,6 +73,7 @@ export default async function NewCollabPostPage({
         </div>
         <CollabCountriesField />
         <CollabVisibilityField candidates={inviteeCandidates} />
+        <CollabScheduleField />
         <div>
           <label htmlFor="collab-description" className="block text-sm font-medium">
             What is this collaboration?

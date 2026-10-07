@@ -11,6 +11,7 @@ import { isCollabAdmin, getCollabMembership } from "@/lib/collab-permissions";
 import { updateCollabEmbedding } from "@/lib/embeddings";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { nextOccurrence } from "@/lib/collab-schedule";
 
 /** Accepted Connections of `userId`, as a flat set of the *other* user's id — same rule used by messages/[id]/page.tsx's group-add candidates and post-visibility.ts. */
 async function getAcceptedConnectionIds(userId: string): Promise<Set<string>> {
@@ -36,11 +37,15 @@ export async function createCollabPost(formData: FormData) {
     countries: formData.getAll("countries"),
     visibility: formData.get("visibility"),
     inviteeIds: formData.getAll("inviteeIds"),
+    scheduleDays: formData.getAll("scheduleDays"),
+    scheduleTime: formData.get("scheduleTime") || undefined,
   });
   if (!parsed.success) {
     redirect("/collab/new?error=invalid");
   }
-  const { title, description, type, worldwide, countries, visibility, inviteeIds } = parsed.data;
+  const { title, description, type, worldwide, countries, visibility, inviteeIds, scheduleDays, scheduleTime } =
+    parsed.data;
+  const nextSessionAt = scheduleTime ? nextOccurrence(scheduleDays, scheduleTime, new Date()) : null;
 
   // Invitees must be one of the organizer's accepted connections — same
   // trust boundary addGroupMembers enforces for group-chat invites. Anything
@@ -85,6 +90,9 @@ export async function createCollabPost(formData: FormData) {
       // always wins and the stored data stays unambiguous.
       countries: worldwide ? [] : countries,
       visibility,
+      scheduleDays,
+      scheduleTime: scheduleTime ?? null,
+      nextSessionAt,
       authorId: user.id,
       conversationId: conversation.id,
       // The author is automatically the collab's OWNER participant, same as
@@ -160,11 +168,14 @@ export async function updateCollabPost(id: string, formData: FormData) {
     type: formData.get("type"),
     worldwide: formData.get("worldwide") === "on",
     countries: formData.getAll("countries"),
+    scheduleDays: formData.getAll("scheduleDays"),
+    scheduleTime: formData.get("scheduleTime") || undefined,
   });
   if (!parsed.success) {
     redirect(`/collab/${id}/edit?error=invalid`);
   }
-  const { title, description, type, worldwide, countries } = parsed.data;
+  const { title, description, type, worldwide, countries, scheduleDays, scheduleTime } = parsed.data;
+  const nextSessionAt = scheduleTime ? nextOccurrence(scheduleDays, scheduleTime, new Date()) : null;
 
   const modResult = await moderateText(`${title}\n${description}`);
   if (!modResult.allowed) {
@@ -179,6 +190,14 @@ export async function updateCollabPost(id: string, formData: FormData) {
       type,
       worldwide,
       countries: worldwide ? [] : countries,
+      scheduleDays,
+      scheduleTime: scheduleTime ?? null,
+      nextSessionAt,
+      // Tied to the OLD nextSessionAt's occurrence — must reset whenever
+      // the schedule changes (or is removed), or the reminder cron's own
+      // null-check would wrongly treat the new occurrence as already
+      // reminded and skip it forever.
+      sessionReminderSentAt: null,
     },
   });
 
