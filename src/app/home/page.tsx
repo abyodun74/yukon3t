@@ -5,6 +5,7 @@ import { PostFeedSection } from "@/components/post-feed-section";
 import { StreakBanner } from "@/components/streak-banner";
 import { StoryTray } from "@/components/story-tray";
 import { LiveStreamStrip } from "@/components/live-stream-strip";
+import { LiveStreamFeedSection } from "@/components/live-stream-feed-section";
 import { CategoryTabs } from "@/components/category-tabs";
 import { AdSlot } from "@/components/ad-slot";
 import { HomeQuickActions } from "@/components/home-quick-actions";
@@ -109,6 +110,8 @@ export default async function HomePage({
       <div className="mt-6">
         <AdSlot />
       </div>
+
+      <LiveStreamFeedSection />
 
       <PostFeedSection
         // Forces a remount (and fresh client state from the new

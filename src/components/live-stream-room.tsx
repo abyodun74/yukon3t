@@ -114,14 +114,17 @@ export function LiveStreamRoom({
   isHost,
   title,
   initiallyEnded,
+  initialRole,
 }: {
   liveStreamId: string;
   isHost: boolean;
   title: string;
   initiallyEnded: boolean;
+  /** Set only from a `?role=` deep link (see src/app/live/[id]/page.tsx) — e.g. LiveStreamFeedCard's Watch/Guest/Co-host buttons on Home. Skips the "choosing" screen entirely and auto-joins with this role instead, the same way isHost already auto-joins the host. Ignored for the host (isHost's own auto-join always wins — they're never shown a role choice regardless). Omitted for every other entry point (the existing "Live now" strip, a notification link, ...), which still get the normal choosing screen exactly as before. */
+  initialRole?: Role;
 }) {
   const [phase, setPhase] = useState<"choosing" | "joining" | "active" | "error">(
-    initiallyEnded ? "error" : isHost ? "joining" : "choosing",
+    initiallyEnded ? "error" : isHost || initialRole ? "joining" : "choosing",
   );
   const [active, setActive] = useState<ActiveRoom | null>(null);
   const [role, setRole] = useState<Role>("VIEWER");
@@ -224,10 +227,17 @@ export function LiveStreamRoom({
   }
 
   useEffect(() => {
-    if (initiallyEnded || !isHost) return;
-    requestJoin();
+    if (initiallyEnded) return;
+    if (isHost) {
+      requestJoin();
+    } else if (initialRole) {
+      // VIEWER has no stage role to pass through — requestJoin's own
+      // `selectedRole` param is StageRole | undefined, exactly matching
+      // doJoin()'s plain "Watch" call below.
+      requestJoin(initialRole === "VIEWER" ? undefined : initialRole);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveStreamId, initiallyEnded, isHost]);
+  }, [liveStreamId, initiallyEnded, isHost, initialRole]);
 
   function doCancelRequest() {
     if (cancellingRequest) return;
@@ -614,9 +624,10 @@ export function LiveStreamRoom({
             // Most of what lands here (a dropped connection, the transient
             // DB hiccup live-streams.ts now guards against) is worth a
             // plain retry, not a trip back to Home — host retries the same
-            // auto-join; a viewer/requester goes back to "choosing" since
-            // their exact prior selection (watch/guest/co-host) isn't
-            // tracked in state.
+            // auto-join; a viewer/requester who arrived via a `?role=` deep
+            // link (see initialRole) retries that same role, same as the
+            // host; anyone else goes back to "choosing" since their exact
+            // prior selection isn't tracked in state in that case.
             <button
               type="button"
               onClick={() => {
@@ -624,6 +635,9 @@ export function LiveStreamRoom({
                 if (isHost) {
                   setPhase("joining");
                   requestJoin();
+                } else if (initialRole) {
+                  setPhase("joining");
+                  requestJoin(initialRole === "VIEWER" ? undefined : initialRole);
                 } else {
                   setPhase("choosing");
                 }

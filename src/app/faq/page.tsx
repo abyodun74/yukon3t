@@ -492,11 +492,15 @@ const sections: Section[] = [
           <>
             Tap &ldquo;Go Live&rdquo; above the Home feed, give it a title,
             and choose who can watch: <strong>Everyone</strong> or one of
-            your Circles or sub-circles. To join a stream, tap the
-            host&apos;s avatar in the &ldquo;Live now&rdquo; strip on Home
-            and choose to watch, or ask to join the stage. A
-            Circle&apos;s own streams also appear in a &ldquo;Live now&rdquo;
-            section at the top of that Circle&apos;s page.
+            your Circles or sub-circles. A stream for Everyone or a public
+            Circle shows up two ways on Home while it&apos;s going: a quick
+            avatar in the &ldquo;Live now&rdquo; strip, and a full card
+            further down the feed itself with the host, a live viewer count,
+            and Watch / Join as guest / Join as co-host buttons — tapping
+            any of them takes you straight into the stream with that choice
+            already made, no extra screen in between. A Circle&apos;s own
+            streams also appear in a &ldquo;Live now&rdquo; section at the
+            top of that Circle&apos;s page.
           </>
         ),
       },
