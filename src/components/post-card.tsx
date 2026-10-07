@@ -1107,7 +1107,16 @@ export function PostCard({
         <div className="mt-3 border-t border-line pt-3">
           <CommentComposer
             postId={interactionTargetId}
-            onDone={() => handleCommentCountChange(1)}
+            // Closes the whole expanded section after posting, same as
+            // Muse/Story's comment sheet auto-closing — not just
+            // handleCommentCountChange(1) alone (that stays shared with
+            // CommentList's onCommentCountChange below, which also covers
+            // a reply/delete/hide deeper in the tree and must never
+            // collapse the thread for those).
+            onDone={() => {
+              handleCommentCountChange(1);
+              setCommentsOpen(false);
+            }}
           />
           {isCommentsPending && comments === null && (
             <p className="mt-3 animate-loading-pulse text-xs text-foreground-soft">Loading comments...</p>
