@@ -160,6 +160,13 @@ jobs:
             echo "</details>"
           } > pr-body.md
 
+      # REAL BUG fixed here: without add-paths, this action stages every
+      # changed/untracked file in the working directory — which, on the
+      # PR this workflow actually opened, included its own scratch files
+      # (audit-before.txt, audit-after.txt, pr-body.md) alongside the real
+      # dependency bump, committing throwaway CI output straight into repo
+      # history. Scoping to just the two files `npm audit fix` can ever
+      # touch is what this should have been from the start.
       - name: Open pull request
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -167,6 +174,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: automated/npm-audit-fix
           delete-branch: true
+          add-paths: |
+            package.json
+            package-lock.json
           commit-message: "npm audit fix: automated monthly dependency security update"
           title: "npm audit fix — automated monthly security update"
           body-path: pr-body.md
