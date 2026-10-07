@@ -8,7 +8,7 @@ const subs = [
 ];
 
 describe("filterRecipients", () => {
-  it("returns everyone when neither option is given", () => {
+  it("returns everyone when no onlyRecipientIds is given", () => {
     expect(filterRecipients(subs)).toEqual(subs);
   });
 
@@ -16,15 +16,7 @@ describe("filterRecipients", () => {
     expect(filterRecipients(subs, ["a", "c"])).toEqual([{ subscriberId: "a" }, { subscriberId: "c" }]);
   });
 
-  it("drops excludeRecipientIds when given", () => {
-    expect(filterRecipients(subs, undefined, ["b"])).toEqual([{ subscriberId: "a" }, { subscriberId: "c" }]);
-  });
-
-  it("applies onlyRecipientIds and excludeRecipientIds together", () => {
-    expect(filterRecipients(subs, ["a", "b"], ["b"])).toEqual([{ subscriberId: "a" }]);
-  });
-
-  it("ignores an empty excludeRecipientIds list", () => {
-    expect(filterRecipients(subs, undefined, [])).toEqual(subs);
+  it("returns nothing when onlyRecipientIds matches none of the subscribers", () => {
+    expect(filterRecipients(subs, ["z"])).toEqual([]);
   });
 });

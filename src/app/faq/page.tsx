@@ -504,17 +504,20 @@ const sections: Section[] = [
           <>
             It depends on the Circle&apos;s privacy. A stream for a{" "}
             <strong>public</strong> Circle (or for Everyone) shows in the
-            Home &ldquo;Live now&rdquo; strip and is announced to your
-            subscribers, like any public stream. A stream for a{" "}
-            <strong>private</strong> Circle or sub-circle is seen only by that
-            Circle&apos;s members: it never appears on Home or anywhere else
-            in the app, isn&apos;t announced to anyone outside the Circle, and
-            its page, chat, and recordings are closed to non-members — even
-            with the link. Either way, every member of that Circle or
-            sub-circle — not just your own subscribers — gets a notification
-            the moment the stream starts, whether it&apos;s the owner or any
-            other member who starts it. Members also find it in the
-            &ldquo;Live now&rdquo; section on the Circle&apos;s page.
+            Home &ldquo;Live now&rdquo; strip and anyone can watch. A stream
+            for a <strong>private</strong> Circle or sub-circle is seen only
+            by that Circle&apos;s members: it never appears on Home or
+            anywhere else in the app, and its page, chat, and recordings are
+            closed to non-members — even with the link. Either way, picking
+            a Circle or sub-circle as &ldquo;who can watch&rdquo; scopes who
+            gets <em>notified</em> too: every member of that Circle or
+            sub-circle gets a notification the moment the stream starts,
+            whether it&apos;s the owner or any other member who starts it —
+            not your wider subscriber base, even for a public Circle. A
+            stream started for <strong>Everyone</strong> is instead announced
+            to your own subscribers, the same as any other public post.
+            Members also find a Circle&apos;s stream in the &ldquo;Live
+            now&rdquo; section on the Circle&apos;s own page.
           </>
         ),
       },

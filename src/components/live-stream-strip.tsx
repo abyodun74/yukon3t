@@ -9,6 +9,7 @@ import { getMyCircles } from "@/app/actions/circles";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { Sheet } from "@/components/sheet";
+import { captureError } from "@/lib/error-tracking";
 
 type Stream = {
   id: string;
@@ -40,6 +41,7 @@ export function LiveStreamStrip() {
   const [title, setTitle] = useState("");
   const [circleId, setCircleId] = useState("");
   const [circles, setCircles] = useState<Circle[] | null>(null);
+  const [circlesFailed, setCirclesFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -64,11 +66,35 @@ export function LiveStreamStrip() {
   }, []);
   useRealtimeEvent(REALTIME_CHANNELS.liveStreams(), "changed", refetch);
 
+  // No .catch previously — a rejected call (a session hiccup, a transient
+  // DB error) left `circles` null forever with nothing surfaced, which
+  // looked indistinguishable from "you have no Circles": the "Who can
+  // watch" picker silently fell back to just "Everyone". Reported live as
+  // exactly that.
+  const loadCircles = useCallback(() => {
+    getMyCircles()
+      .then((r) => setCircles(r.circles))
+      .catch((err) => {
+        setCirclesFailed(true);
+        captureError(err, { component: "live-stream-strip", flow: "getMyCircles" });
+      });
+  }, []);
+
   useEffect(() => {
-    if (composing && circles === null) {
-      getMyCircles().then((r) => setCircles(r.circles));
+    if (composing && circles === null && !circlesFailed) {
+      loadCircles();
     }
-  }, [composing, circles]);
+  }, [composing, circles, circlesFailed, loadCircles]);
+
+  // The retry button's own click handler, not called from the effect above
+  // — flipping circlesFailed back to false here just lets that effect's own
+  // existing condition fire loadCircles() again on the next render, rather
+  // than this handler calling it directly (same "adjust state, let the
+  // effect react to it" shape every other effect-driven retry in this app
+  // already uses, avoiding a synchronous setState-in-effect).
+  function retryCircles() {
+    setCirclesFailed(false);
+  }
 
   function goLive() {
     if (!title.trim() || isPending) return;
@@ -160,6 +186,16 @@ export function LiveStreamStrip() {
             </option>
           ))}
         </select>
+
+        {circlesFailed && (
+          <p className="mt-1 text-xs text-danger">
+            Couldn&apos;t load your Circles —{" "}
+            <button type="button" onClick={retryCircles} className="underline">
+              retry
+            </button>
+            .
+          </p>
+        )}
 
         <p className="mt-1 text-xs text-foreground-soft">
           {circleId

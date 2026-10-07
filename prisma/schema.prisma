@@ -1026,12 +1026,13 @@ enum NotificationType {
   APP_FEEDBACK_SUBMITTED
   // Sent to every member of a Circle/sub-circle (the stream's own circleId)
   // when another member or the owner starts a live stream scoped to that
-  // Circle — see startLiveStream in actions/live-streams.ts. Distinct from
-  // SUBSCRIPTION_LIVE: that only reaches the host's own subscribers, which
-  // misses any circle member who doesn't happen to subscribe to this
-  // particular host. Whichever members already get SUBSCRIPTION_LIVE (they
-  // subscribe to the host) are excluded from this fan-out instead of
-  // getting both — see notifySubscribers' excludeRecipientIds.
+  // Circle — see startLiveStream in actions/live-streams.ts. The *only*
+  // notification a Circle-scoped stream sends: it replaces SUBSCRIPTION_LIVE
+  // for that stream entirely (rather than also reaching the host's general
+  // subscriber base), since the whole point of scoping a stream to a
+  // specific Circle is that only that Circle's members are the intended
+  // audience. SUBSCRIPTION_LIVE still fires on its own for an unscoped
+  // ("Everyone") stream.
   CIRCLE_LIVE
 }
 
