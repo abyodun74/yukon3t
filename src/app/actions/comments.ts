@@ -442,24 +442,32 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
 export async function getPostComments(postId: string) {
   const user = await requireVerifiedUser();
 
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    select: { authorId: true, circleId: true },
-  });
-  if (!post) {
+  // The slow part of this used to be entirely sequential — the post
+  // lookup, then canViewPost (its own separate post query plus 3 more
+  // queries building the viewer's visibility rules), then loadPostComments
+  // (4 more, already parallelized internally) one after another. None of
+  // these three actually depend on each other's result (canViewPost takes
+  // postId/userId directly, same as loadPostComments; this lookup only
+  // needs the FK fields for the circleId check below), so running them
+  // together cuts this to the slowest single one instead of the sum of all
+  // three — confirmed live as the fix for comments loading noticeably
+  // slower here than Muse's getMuseComments, which never had this chain.
+  const [post, canView, { comments, totalCount }] = await Promise.all([
+    prisma.post.findUnique({ where: { id: postId }, select: { authorId: true, circleId: true } }),
+    canViewPost(postId, user.id),
+    loadPostComments(postId, user.id),
+  ]);
+  if (!post || !canView) {
     return { error: "not_found" as const };
   }
-  if (!(await canViewPost(postId, user.id))) {
-    return { error: "not_found" as const };
-  }
-
-  const { comments, totalCount } = await loadPostComments(postId, user.id);
 
   let canModerate = false;
   if (post.circleId) {
-    const circle = await prisma.circle.findUnique({ where: { id: post.circleId } });
+    const [circle, membership] = await Promise.all([
+      prisma.circle.findUnique({ where: { id: post.circleId }, select: { createdById: true } }),
+      getCircleMembership(post.circleId, user.id),
+    ]);
     if (circle) {
-      const membership = await getCircleMembership(post.circleId, user.id);
       canModerate = isCircleAdmin(circle, membership, user);
     }
   }

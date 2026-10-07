@@ -76,7 +76,7 @@ export default async function PostDetailPage({
     // Independent of each other — membership doesn't need circle, only
     // isCircleAdmin below does — so fetched together instead of in sequence.
     const [circle, membership] = await Promise.all([
-      prisma.circle.findUnique({ where: { id: post.circleId } }),
+      prisma.circle.findUnique({ where: { id: post.circleId }, select: { createdById: true } }),
       getCircleMembership(post.circleId, me.id),
     ]);
     if (circle) {
