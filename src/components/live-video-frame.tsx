@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff } from "lucide-react";
-import type { DailyCall, DailyParticipant } from "@daily-co/daily-js";
+import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } from "@daily-co/daily-js";
+
+// Module scope (not inside LiveVideoFrame) so both it and the separate
+// ParticipantTile component below can call it — ParticipantTile needs its
+// own read of a tile's current audio state to render the host's mute
+// button correctly (on/off icon + aria-label), not just to compute the
+// toggle direction (which LiveVideoFrame's own onToggleMute closure does).
+function trackIsOn(state: DailyParticipant["tracks"]["audio"]["state"]) {
+  return state !== "off" && state !== "blocked";
+}
 
 /**
  * Renders live streams' video with an in-app CSS grid instead of Daily's
@@ -31,15 +40,19 @@ import type { DailyCall, DailyParticipant } from "@daily-co/daily-js";
 export function LiveVideoFrame({
   roomUrl,
   token,
+  isHost,
   onLeave,
   onCallObject,
   onRecordingChange,
 }: {
   roomUrl: string;
   token: string;
+  /** Only the actual stream host gets a mute/unmute control over each other broadcaster's tile (see ParticipantTile) — an approved guest/co-host also holds an owner-level Daily token (daily.ts's createMeetingToken) but isn't the host this is scoped to. */
+  isHost?: boolean;
   onLeave: () => void;
   onCallObject?: (call: DailyCall | null) => void;
-  onRecordingChange?: (recording: boolean) => void;
+  /** `recordingId` is Daily's own id for the recording that just started (DailyEventObjectRecordingStarted.recordingId) — what the "Record & Post" flow needs to tell the server which recording to auto-post. Undefined on stop: that event carries no such field. */
+  onRecordingChange?: (recording: boolean, recordingId?: string) => void;
 }) {
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
@@ -53,7 +66,7 @@ export function LiveVideoFrame({
   useEffect(() => {
     let cancelled = false;
     let call: DailyCall | null = null;
-    let handleRecordingStarted: (() => void) | null = null;
+    let handleRecordingStarted: ((ev?: DailyEventObjectRecordingStarted) => void) | null = null;
     let handleRecordingStopped: (() => void) | null = null;
 
     function refreshParticipants() {
@@ -83,7 +96,7 @@ export function LiveVideoFrame({
       call.on("participant-left", refreshParticipants);
       call.on("left-meeting", onLeave);
 
-      handleRecordingStarted = () => onRecordingChange?.(true);
+      handleRecordingStarted = (ev) => onRecordingChange?.(true, ev?.recordingId);
       handleRecordingStopped = () => onRecordingChange?.(false);
       call.on("recording-started", handleRecordingStarted);
       call.on("recording-stopped", handleRecordingStopped);
@@ -130,9 +143,6 @@ export function LiveVideoFrame({
   // dailyCall.setLocalVideo/setLocalAudio directly (bypassing these toggle
   // handlers entirely), so a separately-tracked boolean here would drift
   // out of sync with reality the moment either of those fired. This can't.
-  function trackIsOn(state: DailyParticipant["tracks"]["audio"]["state"]) {
-    return state !== "off" && state !== "blocked";
-  }
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
   const localScreenSharing = Boolean(local && trackIsOn(local.tracks.screenVideo.state));
@@ -185,7 +195,19 @@ export function LiveVideoFrame({
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}
         >
           {broadcasters.map((p) => (
-            <ParticipantTile key={p.session_id} participant={p} />
+            <ParticipantTile
+              key={p.session_id}
+              participant={p}
+              // Only this stream's actual host gets the control, and never
+              // on your own tile — that's the bottom tray's toggleAudio
+              // above, a normal self-mute, not this force-mute-someone-else
+              // one. Daily's own updateParticipant is the mechanism (see
+              // onToggleMute below) — confirmed against daily-js's own
+              // docs before building this: a meeting owner can force-mute
+              // (setAudio: false) another participant for everyone, not
+              // just hide them locally.
+              onToggleMute={isHost && !p.local ? () => callRef.current?.updateParticipant(p.session_id, { setAudio: !trackIsOn(p.tracks.audio.state) }) : undefined}
+            />
           ))}
         </div>
       )}
@@ -250,7 +272,14 @@ export function LiveVideoFrame({
  * Daily's own custom-UI guides describe, the same shape as Prebuilt would
  * do internally, just written out by hand.
  */
-function ParticipantTile({ participant }: { participant: DailyParticipant }) {
+function ParticipantTile({
+  participant,
+  onToggleMute,
+}: {
+  participant: DailyParticipant;
+  /** Present only for the host, on every tile but their own — see the broadcasters.map call site. */
+  onToggleMute?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoTrack = participant.tracks.video;
@@ -283,6 +312,7 @@ function ParticipantTile({ participant }: { participant: DailyParticipant }) {
 
   const hasVideo = displayTrack.state === "playable";
   const name = participant.local ? "You" : participant.user_name || "Guest";
+  const audioOn = trackIsOn(audioTrack.state);
 
   return (
     <div className="relative flex min-h-[140px] items-center justify-center overflow-hidden rounded-lg bg-white/5">
@@ -298,6 +328,22 @@ function ParticipantTile({ participant }: { participant: DailyParticipant }) {
       <span className="absolute bottom-1.5 left-1.5 rounded hig-material-dark bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[10px] text-white">
         {name}
       </span>
+      {onToggleMute && (
+        // Host-only (see broadcasters.map above) — lets the stream host
+        // force-mute/unmute this broadcaster's audio for everyone via
+        // Daily's updateParticipant, not just hide it locally.
+        <button
+          type="button"
+          onClick={onToggleMute}
+          title={audioOn ? `Mute ${name}` : `Unmute ${name}`}
+          aria-label={audioOn ? `Mute ${name}` : `Unmute ${name}`}
+          className={`absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full text-white hig-material-dark backdrop-blur-md ${
+            audioOn ? "bg-black/50" : "bg-danger"
+          }`}
+        >
+          {audioOn ? <Mic size={12} /> : <MicOff size={12} />}
+        </button>
+      )}
     </div>
   );
 }

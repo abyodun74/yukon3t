@@ -557,6 +557,21 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can the host mute a guest or co-host?",
+        a: (
+          <>
+            Yes — the host can tap the mic icon on any guest or co-host&apos;s
+            own video tile to mute or unmute their microphone for everyone
+            watching, not just locally. This control is host-only (a
+            co-host doesn&apos;t get it, even though they share the host&apos;s
+            broadcasting permissions otherwise) and never appears on your
+            own tile. A muted guest or co-host can still unmute themselves if
+            they want to speak again — this is meant for quickly handling
+            background noise or crosstalk, not a hard lock.
+          </>
+        ),
+      },
+      {
         q: "Can I record a Go Live stream, or take a screenshot?",
         a: (
           <>
@@ -566,6 +581,27 @@ const sections: Section[] = [
             &ldquo;Screenshot&rdquo; to save a frame; your browser will ask
             you to confirm what to capture, since that&apos;s how a
             screenshot of live video works across browsers.
+          </>
+        ),
+      },
+      {
+        q: "Can a recording of my stream be posted automatically?",
+        a: (
+          <>
+            Yes — as the host, tap &ldquo;Record &amp; Post&rdquo; (the record
+            button with the little home icon on it) instead of plain
+            &ldquo;Record&rdquo;, and that recording is posted for you once
+            it finishes processing: to the Home Feed for an
+            &ldquo;Everyone&rdquo; stream, or into the same Circle if you
+            scoped the stream to one. There&apos;s nothing to upload
+            afterwards. It isn&apos;t instant — it goes through exactly the
+            same automated review as any other video you post, so give it a
+            few minutes; if the review flags it, we tell you instead of
+            posting it. Which button you tapped is fixed for that recording,
+            so start a new one if you change your mind. This option
+            isn&apos;t offered for a stream you started with one specific
+            person — that stream is private between the two of you, and a
+            post has no equivalent setting.
           </>
         ),
       },

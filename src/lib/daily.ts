@@ -233,6 +233,35 @@ export async function listRoomRecordings(roomName: string) {
   return (data.data ?? []) as DailyRecording[];
 }
 
+/**
+ * One specific recording's current state, without pulling a whole room's
+ * list down (unlike listRoomRecordings above) — what the
+ * process-live-stream-recordings cron polls while waiting for a "Record &
+ * Post" recording to become downloadable. `status` is Daily's own value and
+ * is `"finished"` once it's ready; `durationSeconds` is only populated by
+ * Daily once it is.
+ *
+ * Fail-soft: null for a non-ok response or a failed fetch, so a transient
+ * Daily blip reads as "try again next tick" rather than throwing out of a
+ * cron tick (same shape as cloudflare-stream.ts's own status getters).
+ */
+export async function getRecording(
+  recordingId: string,
+): Promise<{ status: string; durationSeconds: number | null } | null> {
+  let res: Response;
+  try {
+    res = await fetch(`https://api.daily.co/v1/recordings/${encodeURIComponent(recordingId)}`, {
+      headers: { Authorization: `Bearer ${apiKey()}` },
+    });
+  } catch (err) {
+    console.error(`[daily] failed to fetch recording ${recordingId}`, err);
+    return null;
+  }
+  if (!res.ok) return null;
+  const data = (await res.json()) as DailyRecording;
+  return { status: data.status, durationSeconds: data.duration ?? null };
+}
+
 /** Access links are short-lived (Daily-signed, expiring), so this is fetched fresh on demand rather than cached. */
 export async function getRecordingAccessLink(recordingId: string) {
   const res = await fetch(

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Circle as RecordIcon, Download, Eye, Send, Smile, Users, X } from "lucide-react";
+import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, Users, X } from "lucide-react";
 import { useCallSession } from "@/lib/call-session";
 import {
   joinLiveStream,
@@ -16,6 +16,7 @@ import {
   listLiveStreamRecordings,
   getLiveStreamRecordingLink,
   recordLiveStreamHeartbeat,
+  requestLiveStreamRecordingPost,
   sendLiveStreamComment,
   getLiveStreamComments,
 } from "@/app/actions/live-streams";
@@ -115,11 +116,14 @@ export function LiveStreamRoom({
   title,
   initiallyEnded,
   initialRole,
+  recordingAutoPostAvailable,
 }: {
   liveStreamId: string;
   isHost: boolean;
   title: string;
   initiallyEnded: boolean;
+  /** Computed by the caller as `!liveStream.targetUserId` (see src/app/live/[id]/page.tsx) — a stream started with one specific person can never auto-post its recording (there's no Post visibility tier for "private to exactly one other person"), so the "Record & Post" button isn't offered at all for one. requestLiveStreamRecordingPost re-checks this server-side regardless. */
+  recordingAutoPostAvailable: boolean;
   /** Set only from a `?role=` deep link (see src/app/live/[id]/page.tsx) — e.g. LiveStreamFeedCard's Watch/Guest/Co-host buttons on Home. Skips the "choosing" screen entirely and auto-joins with this role instead, the same way isHost already auto-joins the host. Ignored for the host (isHost's own auto-join always wins — they're never shown a role choice regardless). Omitted for every other entry point (the existing "Live now" strip, a notification link, ...), which still get the normal choosing screen exactly as before. */
   initialRole?: Role;
 }) {
@@ -133,6 +137,11 @@ export function LiveStreamRoom({
   const [stageCount, setStageCount] = useState(0);
   const [stageCapacity, setStageCapacity] = useState(3);
   const [recording, setRecording] = useState(false);
+  // Feedback for the "Record & Post" button specifically — the request to
+  // auto-post happens in a Daily event handler well after the tap, so
+  // without this a failure (or even the success) would be completely
+  // invisible to the host until they noticed a post that never appeared.
+  const [autoPostNotice, setAutoPostNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [showRecordings, setShowRecordings] = useState(false);
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
@@ -174,6 +183,11 @@ export function LiveStreamRoom({
   const router = useRouter();
   const { dailyCall, startSession, reconnectingRef } = useCallSession();
   const lastRequestStatusRef = useRef<"PENDING" | "APPROVED" | "DECLINED" | null>(null);
+  // Which of the two record buttons started the recording that's about to
+  // begin. A ref, not state: it's read from a Daily event handler, and the
+  // choice is deliberately frozen at record-start time — it can't be changed
+  // retroactively for a recording already in progress.
+  const wantsAutoPostRef = useRef(false);
   const lastCommentIdRef = useRef<string | undefined>(undefined);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -487,8 +501,36 @@ export function LiveStreamRoom({
   // subscribes to the same Daily events directly via the shared call object.
   useEffect(() => {
     if (!dailyCall) return;
-    function onStarted() {
+    // Typed structurally (not as DailyEventObjectRecordingStarted) for the
+    // one field used here, same as this file's other Daily event handlers.
+    function onStarted(ev: { recordingId?: string }) {
       setRecording(true);
+      // This is the only point the recording's own Daily id exists — the
+      // "Record & Post" choice can't be registered server-side before this,
+      // since there's nothing to register it against until the recording
+      // actually starts. Cleared either way so a later plain "Record" never
+      // inherits the flag.
+      const wantsAutoPost = wantsAutoPostRef.current;
+      wantsAutoPostRef.current = false;
+      if (!wantsAutoPost) return;
+      if (!ev.recordingId) {
+        console.error("recording-started carried no recordingId — can't auto-post this recording");
+        setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+        return;
+      }
+      requestLiveStreamRecordingPost(liveStreamId, ev.recordingId)
+        .then((result) => {
+          if (result.error) {
+            console.error("requestLiveStreamRecordingPost failed:", result.error);
+            setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+            return;
+          }
+          setAutoPostNotice({ ok: true, text: "This recording will be posted once it finishes processing." });
+        })
+        .catch((err: unknown) => {
+          console.error("requestLiveStreamRecordingPost failed:", err);
+          setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+        });
     }
     function onStopped() {
       setRecording(false);
@@ -499,7 +541,7 @@ export function LiveStreamRoom({
       dailyCall.off("recording-started", onStarted);
       dailyCall.off("recording-stopped", onStopped);
     };
-  }, [dailyCall]);
+  }, [dailyCall, liveStreamId]);
 
   // Other participants' reactions arrive as app-messages (see sendReaction
   // above) — this is what actually shows them float up on everyone else's
@@ -544,16 +586,35 @@ export function LiveStreamRoom({
       renderer: "custom",
       label: title,
       onLeave: handleLeave,
+      isHost,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.roomUrl, active?.token, liveStreamId]);
 
-  async function toggleRecording() {
+  /**
+   * One recording at a time, driven by the single `recording` boolean — the
+   * two record buttons are alternate ways to start/stop that same recording,
+   * not two independent ones. `autoPost` only sets the flag the
+   * recording-started handler above reads; both paths go through the exact
+   * same Daily startRecording()/stopRecording() calls.
+   */
+  function toggleRecording(autoPost = false) {
     if (!dailyCall) return;
     if (recording) {
-      await dailyCall.stopRecording();
-    } else {
-      await dailyCall.startRecording();
+      dailyCall.stopRecording();
+      return;
+    }
+    wantsAutoPostRef.current = autoPost;
+    setAutoPostNotice(null);
+    try {
+      dailyCall.startRecording();
+    } catch (err) {
+      // No recording-started event will fire to clear the flag if the start
+      // itself failed (plan limits, a recording already running) — a later
+      // plain "Record" must not inherit it.
+      wantsAutoPostRef.current = false;
+      console.error("Daily startRecording failed:", err);
+      if (autoPost) setAutoPostNotice({ ok: false, text: "Couldn't start recording — try again." });
     }
   }
 
@@ -754,7 +815,7 @@ export function LiveStreamRoom({
             {canRecord && (
               <button
                 type="button"
-                onClick={toggleRecording}
+                onClick={() => toggleRecording(false)}
                 title={recording ? "Stop recording" : "Record"}
                 aria-label={recording ? "Stop recording" : "Record"}
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${
@@ -762,6 +823,33 @@ export function LiveStreamRoom({
                 }`}
               >
                 <RecordIcon size={14} className={recording ? "fill-white" : "fill-danger text-danger"} />
+              </button>
+            )}
+            {/* "Record & Post": the same single recording as the button
+                above, just flagged at start time to be auto-posted once it
+                finishes processing. Host-only (not co-hosts, who can still
+                use the plain Record button) — the Post is authored by the
+                host, and requestLiveStreamRecordingPost is host-only checked
+                anyway, so showing this to a co-host would just be a button
+                that silently fails. Hidden entirely for a stream started
+                with one specific person (recordingAutoPostAvailable). While
+                a recording is already running the plain Record button above
+                is the stop control, same as before, regardless of which one
+                started it — so this one disappears rather than offering a
+                second, confusable stop. The small home-feed badge on the
+                record dot is the at-a-glance difference between the two. */}
+            {isHost && recordingAutoPostAvailable && !recording && (
+              <button
+                type="button"
+                onClick={() => toggleRecording(true)}
+                title="Record & Post"
+                aria-label="Record and post to the Home Feed"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
+              >
+                <RecordIcon size={14} className="fill-danger text-danger" />
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-accent-ink">
+                  <Home size={9} />
+                </span>
               </button>
             )}
             <button
@@ -789,6 +877,27 @@ export function LiveStreamRoom({
               </button>
             )}
           </div>
+          {autoPostNotice && (
+            // Sits with the record controls it belongs to rather than
+            // centered over the video — this is feedback on a button in this
+            // group, and the center/bottom strips are already taken by the
+            // stage-request, chat and reaction overlays.
+            <div
+              className={`flex w-72 max-w-[calc(100vw-1.5rem)] items-start gap-2 rounded-lg p-2.5 text-xs text-white ${
+                autoPostNotice.ok ? "bg-black/80" : "bg-danger/90"
+              }`}
+            >
+              <span className="min-w-0">{autoPostNotice.text}</span>
+              <button
+                type="button"
+                onClick={() => setAutoPostNotice(null)}
+                aria-label="Dismiss"
+                className="-m-1 shrink-0 p-2 text-white/80"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
           {showRecordings && recordings.length > 0 && (
             <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg bg-black/80 p-3 text-white">
               {renderRecordingsPanel("dark")}

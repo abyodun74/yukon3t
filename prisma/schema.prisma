@@ -1052,6 +1052,18 @@ enum NotificationType {
   // EVENT_REMINDER — actorId is the collab's author themself, no separate
   // real actor exists).
   COLLAB_SESSION_REMINDER
+  // Sent to a live stream's host when a recording they started with "Record
+  // & Post" never made it to the Home Feed — see LiveStreamRecordingPost
+  // and the process-live-stream-recordings cron. Covers every irrecoverable
+  // outcome of that pipeline (the automated video review flagged it, Daily
+  // never finished the recording, the destination Circle channel is gone,
+  // ...), since nothing else would otherwise tell the host their recording
+  // simply never appeared. System-generated — actorId is the host themself,
+  // same reasoning as VIDEO_FLAGGED_FOR_REVIEW, and Notification.message
+  // carries the specific reason. The recording itself is still downloadable
+  // from the stream's own Recordings list either way, which is why
+  // liveStreamId (not a postId — no Post was ever created) is the link.
+  LIVE_RECORDING_POST_FAILED
 }
 
 model Notification {
@@ -1302,13 +1314,14 @@ model LiveStream {
   // all of them (see the auto-end-inactive-streams cron), never per-user.
   lastHostActivityAt DateTime?
 
-  host          User                     @relation("LiveStreamHost", fields: [hostId], references: [id], onDelete: Cascade)
-  targetUser    User?                    @relation("LiveStreamTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
-  circle        Circle?                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  viewers       LiveStreamViewer[]
-  stageRequests LiveStreamStageRequest[]
-  notifications Notification[]
-  comments      LiveStreamComment[]
+  host           User                      @relation("LiveStreamHost", fields: [hostId], references: [id], onDelete: Cascade)
+  targetUser     User?                     @relation("LiveStreamTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  circle         Circle?                   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  viewers        LiveStreamViewer[]
+  stageRequests  LiveStreamStageRequest[]
+  notifications  Notification[]
+  comments       LiveStreamComment[]
+  recordingPosts LiveStreamRecordingPost[]
 
   @@index([status])
   @@index([hostId])
@@ -1386,6 +1399,87 @@ model LiveStreamStageRequest {
 
   @@unique([liveStreamId, userId])
   @@index([liveStreamId, status])
+}
+
+/**
+ * Where a LiveStreamRecordingPost currently stands. Only PENDING rows are
+ * ever claimed by the process-live-stream-recordings cron; DONE/FAILED are
+ * both terminal (nothing retries either), which is why there's no separate
+ * "gave up" state — failReason carries the why.
+ */
+enum LiveStreamRecordingPostStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/**
+ * One host-requested "Record & Post" auto-post job: a Daily cloud recording
+ * the host asked to be turned into a real Post on the Home Feed (or in the
+ * stream's own Circle) once it finishes processing, with no re-upload step.
+ * Unlike the plain "Record" button — whose recordings are still listed live
+ * from Daily's API and mirrored nowhere (see listLiveStreamRecordings) —
+ * this is the one place a recording gets a row of our own, because the
+ * pipeline behind it (Daily finish → copy into R2 → Cloudflare Stream copy
+ * → thumbnail into R2 → the same long-video moderation review every other
+ * video post goes through → Post) spans many cron ticks and has to be
+ * resumable.
+ *
+ * Every field below the ids is pipeline state, re-derived from whichever
+ * external system owns that step (advanceRecordingPost in
+ * lib/live-stream-recording-post.ts keys off which of them are still null
+ * rather than tracking its own stage enum, same philosophy as
+ * video-review.ts). The ids themselves are deliberately *frozen copies*
+ * taken at record-start time, not relations re-read later:
+ * hostId/circleId are the scoping decision the host actually made when they
+ * tapped the button, so a Circle change (or a co-host taking over) can never
+ * retroactively widen or move where a recording already in flight ends up.
+ */
+model LiveStreamRecordingPost {
+  id           String @id @default(cuid())
+  liveStreamId String
+  /** Daily's own recording id — unique so requestLiveStreamRecordingPost is idempotent against a retried call for the same recording. */
+  recordingId  String @unique
+  /** The eventual Post's author, always the stream's host (never a co-host — see requestLiveStreamRecordingPost). */
+  hostId       String
+  /**
+   * Copied from LiveStream.circleId. Null means the stream was unscoped
+   * ("Everyone") and the Post is an ordinary public one. A
+   * targetUserId-scoped (one specific person) stream never gets a row here
+   * at all — there's no Post visibility tier for "private to exactly one
+   * other person," so auto-posting one would be a real content-exposure
+   * bug; both the UI and the server action refuse it outright.
+   */
+  circleId     String?
+
+  status LiveStreamRecordingPostStatus @default(PENDING)
+  /** Our own R2 copy of the finished Daily recording — set once step (a) of the pipeline lands, and what the eventual Post.videoUrl points at. */
+  r2VideoUrl           String?
+  videoDurationSeconds Int?
+  /**
+   * R2-hosted, never a Cloudflare Stream thumbnail URL: the Stream copy is
+   * deleted the moment the moderation review reaches a verdict (see
+   * advanceLongVideoReview), so the frame has to be captured and moved into
+   * our own bucket before that happens or the Post would end up with a
+   * thumbnail that 404s.
+   */
+  thumbnailUrl         String?
+  /** Cloudflare Stream copy id, reused across cron ticks exactly like Post.videoStreamUid. */
+  streamUid            String?
+  /** Staleness-based claim, same window/semantics as Post.videoLongReviewClaimedAt. */
+  claimedAt            DateTime?
+  /** Set alongside status DONE — the Post this recording actually became. Plain id, not a relation: this row outlives the Post if it's later deleted. */
+  postId               String?
+  /** Why this gave up (moderation verdict, no destination channel, Daily never finished, ...) — set alongside status FAILED, and summarized to the host via notifyLiveRecordingPostFailed. */
+  failReason           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+
+  @@index([status, claimedAt])
+  @@index([liveStreamId])
 }
 
 enum StoryMediaType {

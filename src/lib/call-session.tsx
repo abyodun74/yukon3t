@@ -50,6 +50,12 @@ export type StartSessionInput = {
    * (see collab-material.ts), which needs to work regardless of whether
    * CollabSessionRoom's own page is even still mounted underneath. */
   collab?: { collabId: string; conversationId: string };
+  /** Set only for a live stream (renderer: "custom") — lets LiveVideoFrame
+   * show each other broadcaster's own mute/unmute control only to the
+   * actual stream host, never to an approved guest/co-host (who also holds
+   * an owner-level Daily token — see daily.ts's createMeetingToken comment
+   * — but isn't the host this feature is scoped to). */
+  isHost?: boolean;
 };
 
 type CallSessionContextValue = {

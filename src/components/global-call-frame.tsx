@@ -147,6 +147,7 @@ export function GlobalCallFrame() {
           <LiveVideoFrame
             roomUrl={session.roomUrl}
             token={session.token}
+            isHost={session.isHost}
             onCallObject={setDailyCall}
             onLeave={() => {
               // Same reconnect-vs-real-hangup distinction as CallFrame below.

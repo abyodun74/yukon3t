@@ -23,6 +23,7 @@ import { captureError } from "@/lib/error-tracking";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { NOTIFICATION_VERB } from "@/lib/notification-text";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -653,6 +654,67 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
   } catch {
     return { error: "unavailable" as const };
   }
+}
+
+/**
+ * Host-only: marks one in-progress Daily recording to be auto-posted to the
+ * Home Feed (or into the stream's own Circle) once it finishes processing —
+ * the "Record & Post" button's server half (see live-stream-room.tsx). All
+ * this does is create the LiveStreamRecordingPost row; the
+ * process-live-stream-recordings cron and lib/live-stream-recording-post.ts
+ * do the actual work, including the same content-moderation review every
+ * other video post goes through.
+ *
+ * Host-only rather than host-or-co-host (a co-host *can* record — see
+ * canRecord in live-stream-room.tsx): the resulting Post is authored by the
+ * host, so letting a co-host publish to the host's own profile/feed would be
+ * a different, bigger permission than recording. The button isn't shown to
+ * co-hosts either, so this check is a backstop, not the UX.
+ *
+ * Refuses outright for a targetUserId-scoped stream regardless of what the
+ * client asked for: there's no Post visibility tier for "private to exactly
+ * one other person," so auto-posting one would be a real content-exposure
+ * bug. The client gates the button on the same condition
+ * (recordingAutoPostAvailable), but this is the check that actually matters.
+ */
+export async function requestLiveStreamRecordingPost(liveStreamId: string, recordingId: string) {
+  const user = await requireVerifiedUser();
+
+  const liveStream = await prisma.liveStream.findUnique({
+    where: { id: liveStreamId },
+    select: { hostId: true, circleId: true, targetUserId: true },
+  });
+  if (!liveStream || liveStream.hostId !== user.id) {
+    return { error: "not_found" as const };
+  }
+  if (liveStream.targetUserId) {
+    return { error: "not_available" as const };
+  }
+
+  try {
+    await prisma.liveStreamRecordingPost.create({
+      data: {
+        liveStreamId,
+        recordingId,
+        // Frozen here, not re-derived later: the scoping decision belongs to
+        // the moment the host tapped the button (see the model's own doc
+        // comment in schema.prisma).
+        hostId: liveStream.hostId,
+        circleId: liveStream.circleId,
+        status: "PENDING",
+      },
+    });
+  } catch (err) {
+    // recordingId is @unique — a second call for the same recording (a
+    // client-side retry after a network blip, a double-tap) is a harmless
+    // no-op, not an error worth surfacing. Any other failure still is.
+    if (isUniqueConstraintError(err)) {
+      return { error: null };
+    }
+    throw err;
+  }
+
+  return { error: null };
 }
 
 /**

@@ -69,6 +69,11 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   CIRCLE_LIVE: "started a live stream",
   LIVE_STREAM_INVITE: "started a live stream with you",
   COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
+  // Same Notification.message-carries-the-detail convention as
+  // VIDEO_FLAGGED_FOR_REVIEW above (notifyLiveRecordingPostFailed in
+  // live-recording-post-notice.ts always sets it, naming the specific
+  // reason) — this is only the fallback wording.
+  LIVE_RECORDING_POST_FAILED: "A live stream recording you asked to be posted couldn't be posted",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,
@@ -79,6 +84,7 @@ export function notificationHasActor(type: NotificationType) {
     type !== "EVENT_REMINDER" &&
     type !== "VIDEO_MODERATION_FAILED" &&
     type !== "VIDEO_FLAGGED_FOR_REVIEW" &&
-    type !== "COLLAB_SESSION_REMINDER"
+    type !== "COLLAB_SESSION_REMINDER" &&
+    type !== "LIVE_RECORDING_POST_FAILED"
   );
 }

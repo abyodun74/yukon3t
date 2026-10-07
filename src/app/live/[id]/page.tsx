@@ -38,6 +38,12 @@ export default async function LivePage({
       title={liveStream.title}
       initiallyEnded={liveStream.status === "ENDED"}
       initialRole={initialRole}
+      // A stream started with one specific person can never auto-post its
+      // recording — there's no Post visibility tier for "private to exactly
+      // one other person," so the "Record & Post" button isn't offered at
+      // all for one (requestLiveStreamRecordingPost re-checks this
+      // server-side too, regardless of what the client sends).
+      recordingAutoPostAvailable={!liveStream.targetUserId}
     />
   );
 }

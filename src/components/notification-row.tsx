@@ -56,7 +56,8 @@ type NotificationData = {
     | "APP_FEEDBACK_SUBMITTED"
     | "CIRCLE_LIVE"
     | "LIVE_STREAM_INVITE"
-    | "COLLAB_SESSION_REMINDER";
+    | "COLLAB_SESSION_REMINDER"
+    | "LIVE_RECORDING_POST_FAILED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
