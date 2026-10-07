@@ -4,6 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## Agent delegation policy
+
+Never do the work yourself directly — always hand every task off to a sub-agent (the `Agent` tool) rather than using your own tools inline. Route by difficulty:
+
+- **Simple/routine tasks** (small edits, verification runs, straightforward fixes): delegate to a Sonnet or Haiku sub-agent.
+- **Hard/reasoning-heavy tasks** (architecture decisions, tricky bugs, anything needing careful multi-step thinking): delegate to an Opus sub-agent — the `model` option accepts `"opus"`, which resolves to the current flagship Opus build available to the tool (there is no separately-selectable "Opus 5.5"; ignore that specific name if it's ever requested and use `"opus"`).
+
 ## Commands
 
 ```bash
