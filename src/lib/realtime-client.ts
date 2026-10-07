@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { captureError } from "@/lib/error-tracking";
 
 function isRealtimeConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
@@ -53,13 +54,34 @@ export function useRealtimeEvent<T = unknown>(
     const supabase = client();
     if (!supabase || !channel) return undefined;
 
+    // REAL BUG fixed here (confirmed live via Sentry: an unhandled
+    // "TypeError: Load failed" on iOS Safari, /messages): `handler` is
+    // typed as returning void, but almost every real caller passes an
+    // async refetch function, which returns a Promise at runtime
+    // regardless of what the type says. Calling it bare, with no
+    // await/catch, meant a rejection — e.g. a Server Action's own fetch
+    // aborting because the app was just backgrounded/foregrounded, exactly
+    // what the visibility-regain resync below triggers on — became an
+    // unhandled promise rejection that crashed as a reported error instead
+    // of the transient, self-recovering blip it actually is (the next real
+    // broadcast or visibility change just tries again).
+    function invokeHandler(payload: T | null) {
+      try {
+        Promise.resolve(handlerRef.current(payload)).catch((err) => {
+          captureError(err, { hook: "useRealtimeEvent", channel, event });
+        });
+      } catch (err) {
+        captureError(err, { hook: "useRealtimeEvent", channel, event });
+      }
+    }
+
     const sub = supabase
       .channel(channel)
-      .on("broadcast", { event }, ({ payload }) => handlerRef.current(payload as T))
+      .on("broadcast", { event }, ({ payload }) => invokeHandler(payload as T))
       .subscribe();
 
     function handleVisibility() {
-      if (document.visibilityState === "visible") handlerRef.current(null);
+      if (document.visibilityState === "visible") invokeHandler(null);
     }
     document.addEventListener("visibilitychange", handleVisibility);
 
