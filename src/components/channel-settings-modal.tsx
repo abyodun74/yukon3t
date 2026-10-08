@@ -73,6 +73,7 @@ export function ChannelSettingsModal({
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
+              aria-label="Name"
               name="name"
               defaultValue={channel.name}
               required
@@ -84,6 +85,7 @@ export function ChannelSettingsModal({
           <div>
             <label className="text-xs font-medium text-foreground-soft">Topic</label>
             <input
+              aria-label="Topic"
               name="topic"
               defaultValue={channel.topic ?? ""}
               maxLength={200}
@@ -103,7 +105,7 @@ export function ChannelSettingsModal({
               </label>
             </div>
           </div>
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <button
             type="submit"
             disabled={isPending}

@@ -103,12 +103,12 @@ export default async function SignInPage({
         <h2 className="text-sm font-semibold">Username &amp; password</h2>
 
         {reset && !passwordError && (
-          <p className="mt-3 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+          <p role="status" className="mt-3 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
             Password reset — sign in with your new password.
           </p>
         )}
         {passwordError && (
-          <div className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          <div role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
           </div>
         )}
@@ -171,17 +171,17 @@ export default async function SignInPage({
         </p>
 
         {error === "rate_limited" && !passwordError && (
-          <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             Too many attempts. Please wait a few minutes and try again.
           </p>
         )}
         {error === "invalid" && (
-          <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             Enter a valid email address.
           </p>
         )}
         {error === "magic_captcha" && (
-          <p className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             We couldn&apos;t complete the security check. Wait a moment and try again — if it keeps
             happening, turn off any content blocker or try another network.
           </p>

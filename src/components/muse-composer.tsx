@@ -264,6 +264,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                 type="button"
                 onClick={() => setSoundMode("original")}
                 disabled={busy}
+                aria-pressed={soundMode === "original"}
                 className={cn(
                   "flex-1 rounded-md px-2 py-1.5 text-xs font-medium disabled:opacity-60",
                   soundMode === "original" ? "bg-accent text-accent-ink" : "text-foreground-soft hover:text-foreground",
@@ -275,6 +276,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                 type="button"
                 onClick={() => setSoundMode("custom")}
                 disabled={busy}
+                aria-pressed={soundMode === "custom"}
                 className={cn(
                   "flex-1 rounded-md px-2 py-1.5 text-xs font-medium disabled:opacity-60",
                   soundMode === "custom" ? "bg-accent text-accent-ink" : "text-foreground-soft hover:text-foreground",
@@ -335,6 +337,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
         <div className="mt-3">
           <div className="flex items-center gap-1 rounded-lg border border-line px-2">
             <input
+              aria-label="Add a caption (optional)"
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, 200))}
               placeholder="Add a caption (optional)"
@@ -346,7 +349,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
           <EmojiTypeSuggestions text={caption} onSelect={(emoji) => setCaption((c) => (c + emoji).slice(0, 200))} />
         </div>
 
-        {errorText && <p className="mt-2 text-xs text-danger">{errorText}</p>}
+        {errorText && <p role="alert" className="mt-2 text-xs text-danger">{errorText}</p>}
         {status === "done" && <p className="mt-2 text-xs text-accent">Posted!</p>}
 
         <button

@@ -164,10 +164,10 @@ export function CircleVoiceRoom({
         {inviteCounts.pending} pending · {inviteCounts.accepted} accepted · {inviteCounts.declined} declined
       </p>
 
-      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
       <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Invite to voice">
-        {inviteError && <p className="text-xs text-danger">{inviteError}</p>}
+        {inviteError && <p role="alert" className="text-xs text-danger">{inviteError}</p>}
         <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
           {circleMembers.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-2 text-sm">

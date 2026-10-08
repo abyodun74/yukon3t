@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye } from "lucide-react";
+import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye, Pause, Play } from "lucide-react";
 import {
   getMuseFeed,
   getMuseReactionSummary,
@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -133,6 +134,7 @@ export function MuseFeed({
   const [toast, setToast] = useState<string | null>(null);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<MuseCommentData[] | null>(null);
+  const commentsDialogRef = useDialogFocus<HTMLDivElement>(commentsOpenForId !== null, () => setCommentsOpenForId(null));
 
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -368,7 +370,12 @@ export function MuseFeed({
        */}
       {commentsMuse && (
         <div
-          className="fixed inset-0 z-50 flex items-end bg-black/40"
+          ref={commentsDialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Comments"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-end bg-black/40 outline-none"
           onClick={() => setCommentsOpenForId(null)}
         >
           <div className="w-full" onClick={(e) => e.stopPropagation()}>
@@ -589,11 +596,12 @@ function MuseCard({
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
-          title="Embedded video"
+          title={`Embedded video shared by ${item.author.name ?? "someone"}`}
         />
       ) : isNearby ? (
         <video
           ref={videoRef}
+          aria-label={`Muse by ${item.author.name ?? "someone"}`}
           src={item.videoUrl ?? undefined}
           poster={item.videoThumbnailUrl ?? undefined}
           // Always muted when a separate audioUrl is replacing the video's
@@ -623,13 +631,13 @@ function MuseCard({
       {item.audioUrl && isNearby && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
 
       {!isEmbed && soundBlocked && (
-        <div className="pointer-events-none absolute inset-x-0 top-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
-          <p className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">Tap for sound</p>
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
+          <p role="status" className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">Tap for sound</p>
         </div>
       )}
 
       {!isEmbed && paused && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
           <div className="rounded-full bg-black/40 p-4 text-white">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
@@ -645,18 +653,20 @@ function MuseCard({
           // header's own real content height needs clearing too, or an
           // interactive control placed right under it renders hidden
           // behind the opaque header instead (confirmed live: the mute
-          // button sat entirely underneath it). ~4rem is the header's
-          // measured height with no safe-area-inset-top; same
-          // approximation/rounding used for the bottom nav's clearance
-          // below.
-          className="flex items-center justify-end gap-2 bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(4rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
+          // button sat entirely underneath it). --top-bar-height (~4rem at
+          // the default text size, see globals.css) is the header's
+          // measured height with no safe-area-inset-top; --tab-bar-height
+          // is the same idea for the bottom nav's clearance below. Both are
+          // variables rather than a literal 4rem because those two bars stop
+          // growing with the iOS text size setting while rem does not.
+          className="flex items-center justify-end gap-2 bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
           onClick={(e) => e.stopPropagation()}
         >
           {isOwner && (
             <button
               type="button"
               onClick={() => (confirmingDelete ? onDelete() : setConfirmingDelete(true))}
-              aria-label={confirmingDelete ? "Confirm delete" : "Delete Muse"}
+              aria-label={confirmingDelete ? "Delete? Confirm" : "Delete Muse"}
               className={cn(
                 "flex items-center gap-1 rounded-full px-2 py-2 text-white",
                 confirmingDelete ? "bg-danger" : "bg-black/40",
@@ -664,6 +674,22 @@ function MuseCard({
             >
               <Trash2 size={18} />
               {confirmingDelete && <span className="pr-1 text-xs font-medium">Delete?</span>}
+            </button>
+          )}
+          {/* The same toggle as tapping anywhere on the video (the
+              section's own onClick), as a real named button: a tap on bare
+              video isn't something VoiceOver or Voice Control can target. */}
+          {!isEmbed && (
+            <button
+              type="button"
+              onClick={() => {
+                if (soundBlocked || consumeUnblockTap()) return;
+                setPaused((p) => !p);
+              }}
+              aria-label={paused ? "Play" : "Pause"}
+              className="rounded-full bg-black/40 p-2 text-white"
+            >
+              {paused ? <Play size={18} /> : <Pause size={18} />}
             </button>
           )}
           <button
@@ -699,14 +725,14 @@ function MuseCard({
                 )}
               </div>
               {item.caption && <p className="mt-1 break-words text-sm text-white">{item.caption}</p>}
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-white/70">
+              <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-white/70">
                 <Eye size={12} /> {item.viewCount.toLocaleString()} views
               </p>
               {item.sharedPostId && (
                 <Link
                   href={`/post/${item.sharedPostId}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="mt-1 inline-block text-[11px] text-white/70 underline"
+                  className="mt-1 inline-block text-[0.6875rem] text-white/70 underline"
                 >
                   View original post
                 </Link>
@@ -718,28 +744,30 @@ function MuseCard({
                 type="button"
                 onClick={onOpenComments}
                 className="flex flex-col items-center gap-0.5 text-white"
-                aria-label="Comments"
+                aria-label={`Comments, ${item.commentCount}`}
               >
                 <span className="rounded-full bg-black/40 p-2">
                   <MessageCircle size={20} />
                 </span>
-                <span className="text-[11px]">{item.commentCount}</span>
+                <span className="text-[0.6875rem]">{item.commentCount}</span>
               </button>
               <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
                 <EmojiPickerButton onSelect={handleToggleReaction} quickReactions={QUICK_REACTIONS} />
-                <span className="text-[11px]">{item.likeCount}</span>
+                <span className="text-[0.6875rem]" aria-label={`${item.likeCount} ${item.likeCount === 1 ? "reaction" : "reactions"}`} role="img">
+                  {item.likeCount}
+                </span>
               </div>
               <button
                 type="button"
                 onClick={onToggleRepost}
-                aria-label={item.isReposted ? "Undo reshare" : "Reshare to Home"}
+                aria-label={`Reshare to Home, ${item.repostCount}`}
                 aria-pressed={item.isReposted}
                 className="flex flex-col items-center gap-0.5 text-white"
               >
                 <span className={cn("rounded-full p-2", item.isReposted ? "bg-accent text-accent-ink" : "bg-black/40")}>
                   <Repeat2 size={20} />
                 </span>
-                <span className="text-[11px]">{item.repostCount}</span>
+                <span className="text-[0.6875rem]">{item.repostCount}</span>
               </button>
               {/* "Share via device" brands/downloads the actual video file
                   (see resolveBrandedVideoUrl) — nothing to brand or
@@ -749,13 +777,13 @@ function MuseCard({
                 <button
                   type="button"
                   onClick={onShare}
-                  aria-label="Share"
+                  aria-label={`Share, ${item.shareCount}`}
                   className="flex flex-col items-center gap-0.5 text-white"
                 >
                   <span className="rounded-full bg-black/40 p-2">
                     <Share2 size={20} />
                   </span>
-                  <span className="text-[11px]">{item.shareCount}</span>
+                  <span className="text-[0.6875rem]">{item.shareCount}</span>
                 </button>
               )}
             </div>
@@ -768,12 +796,12 @@ function MuseCard({
           )}
 
           {/* Same bottom-nav clearance layout.tsx's <body> reserves in
-              normal flow (pb-[calc(4rem+safe-area)] md:pb-0) — this card
+              normal flow (pb-[calc(var(--tab-bar-height)+safe-area)] md:pb-0) — this card
               sits inside a `fixed` ancestor, so it doesn't inherit that
               padding and would otherwise render behind the (higher
               z-index) nav bar. */}
           <div className="h-4" />
-          <div className="h-[calc(4rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:h-0" />
+          <div className="h-[calc(var(--tab-bar-height)+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:h-0" />
         </div>
       </div>
     </section>
@@ -840,7 +868,7 @@ function MuseCommentsPanel({
               <p className="break-words text-sm">
                 <span className="font-medium">{c.author.name ?? "Someone"}</span> {c.content}
               </p>
-              <p className="text-[11px] text-foreground-soft">{timeAgo(c.createdAt)}</p>
+              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt)}</p>
             </div>
             {(c.author.id === currentUserId || isMuseOwner) && (
               <button
@@ -857,6 +885,7 @@ function MuseCommentsPanel({
       </ul>
       <div className="mt-3 flex shrink-0 items-center gap-2">
         <input
+          aria-label="Add a comment"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -880,7 +909,7 @@ function MuseCommentsPanel({
           Post
         </button>
       </div>
-      {error && <p className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
       <SafeAreaBottomSpacer />
     </div>
   );

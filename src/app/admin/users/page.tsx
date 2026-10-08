@@ -63,6 +63,7 @@ export default async function AdminUsersPage({
 
       <form className="mt-6 flex items-center gap-2">
         <input
+          aria-label="Email, username, or name"
           type="text"
           name="q"
           defaultValue={query}

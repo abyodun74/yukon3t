@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Forward, X } from "lucide-react";
 import { getShareableConversations, shareStoryToConversation } from "@/app/actions/stories";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { announce } from "@/lib/announce";
 
 /**
  * "Share" for a story — forwards it into one of the caller's own
@@ -23,6 +25,22 @@ export function StoryShareButton({
   const [conversations, setConversations] = useState<{ value: string; label: string }[] | null>(null);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const titleId = useId();
+  // Unmounting with the sheet open (the viewer swapping panels or closing)
+  // skips close(), which would leave the viewer paused — report it here,
+  // only if it was actually open.
+  const openRef = useRef(open);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    openRef.current = open;
+    onOpenChangeRef.current = onOpenChange;
+  });
+  useEffect(
+    () => () => {
+      if (openRef.current) onOpenChangeRef.current?.(false);
+    },
+    [],
+  );
 
   function close() {
     setOpen(false);
@@ -47,7 +65,10 @@ export function StoryShareButton({
       return;
     }
     setSentTo((prev) => new Set(prev).add(conversationId));
+    announce("Sent");
   }
+
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
 
   return (
     <>
@@ -61,13 +82,21 @@ export function StoryShareButton({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60" onClick={close}>
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 outline-none"
+          onClick={close}
+        >
           <div
             className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-t-2xl bg-surface p-4 text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Share to</p>
+              <p id={titleId} className="text-sm font-semibold">Share to</p>
               <button
                 type="button"
                 onClick={close}
@@ -77,7 +106,7 @@ export function StoryShareButton({
                 <X size={16} />
               </button>
             </div>
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <ul className="mt-3 max-h-[50vh] space-y-1 overflow-y-auto">
               {conversations === null && <li className="text-sm text-foreground-soft">Loading…</li>}
               {conversations?.length === 0 && (

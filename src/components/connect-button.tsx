@@ -40,7 +40,7 @@ function MessageRequestButton({ targetId }: { targetId: string }) {
       >
         Message
       </button>
-      {error && <span className="text-xs text-danger">Couldn&apos;t start that chat</span>}
+      {error && <span role="alert" className="text-xs text-danger">Couldn&apos;t start that chat</span>}
     </div>
   );
 }
@@ -138,7 +138,7 @@ export function ConnectButton({
       >
         Connect
       </button>
-      {localStatus === "error" && <span className="text-xs text-danger">Failed</span>}
+      {localStatus === "error" && <span role="alert" className="text-xs text-danger">Failed</span>}
       <MessageRequestButton targetId={targetId} />
     </div>
   );

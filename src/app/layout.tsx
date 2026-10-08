@@ -19,6 +19,7 @@ import { ShareTargetGate } from "@/components/share-target-gate";
 import { ReviewPromptGate } from "@/components/review-prompt-gate";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { PostHogProvider } from "@/components/posthog-provider";
+import { TextScaleScript } from "@/components/text-scale-script";
 import { auth } from "@/lib/auth";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
@@ -172,6 +173,12 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme === "system" ? undefined : theme}
+      // TextScaleScript (first thing in <body>) sets an inline font-size on
+      // this element before React hydrates, on iOS only — the server never
+      // renders that style, so without this React would flag the attribute
+      // as a hydration mismatch. Only this element's own attributes are
+      // affected (it is not inherited), and the DOM value is kept.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body
@@ -186,9 +193,17 @@ export default async function RootLayout({
         // bit more of the last on-screen content than this padding leaves
         // room for. max(env(...), var(--safe-area-inset-bottom)) — see
         // nav.tsx's own comment on why the plain env() alone isn't enough.
-        className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-[calc(4rem_+_max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:pb-0" : ""}`}
+        //
+        // --tab-bar-height (globals.css) rather than a literal 4rem: the tab
+        // bar stops growing with the iOS text size setting (Dynamic Type)
+        // while 4rem would not, so the literal reserved far more room than
+        // the bar occupies at large text sizes. Same 64px at a 16px root.
+        className={`min-h-full flex flex-col bg-background text-foreground isolate ${session?.user ? "pb-[calc(var(--tab-bar-height)_+_max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:pb-0" : ""}`}
       >
         <GtmNoScript />
+        {/* Before anything that paints: makes the root font size follow the
+            iPhone's text size setting — see src/lib/text-scale.ts. */}
+        <TextScaleScript />
         <AnalyticsScripts />
         <PostHogProvider userId={session?.user?.id} />
         <div className="aurora-bg" aria-hidden>

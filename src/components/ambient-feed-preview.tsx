@@ -33,7 +33,7 @@ export function AmbientFeedPreview({ moments }: { moments: FeedMoment[] }) {
           <div className="flex items-center gap-1.5 p-2">
             <UserAvatar avatarUrl={moment.author.avatarUrl} name={moment.author.name} size={16} />
             <span className="truncate text-xs text-foreground-soft">{moment.author.name ?? "Unnamed"}</span>
-            <span className="ml-auto shrink-0 text-[10px] text-foreground-soft">
+            <span className="ml-auto shrink-0 text-[0.625rem] text-foreground-soft">
               {formatDistanceToNow(moment.createdAt, { addSuffix: true })}
             </span>
           </div>

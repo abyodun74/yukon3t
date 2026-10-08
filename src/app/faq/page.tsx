@@ -45,9 +45,10 @@ const sections: Section[] = [
             On desktop, the top bar has links to Home, Discover, Circles,
             Collab Boards, Muse, Connections, Messages, and your Profile. On a
             phone, the six most-used sections (Home, Circles, Collab, Muse,
-            Connections, Profile) sit in a bottom tab bar — tap the ☰ menu in
-            the top-right for Messages, Discover, Settings, and (for admins)
-            Moderation tools.
+            Messages, Profile) sit in a bottom tab bar, and Connections is the
+            person icon in the top bar — tap the ☰ menu in the top-right for
+            Discover, Invite friends, Settings, and (for admins) Moderation
+            tools.
           </>
         ),
       },
@@ -56,7 +57,7 @@ const sections: Section[] = [
         a: (
           <>
             Yes, on a phone: swipe right anywhere on the screen to move
-            forward through Home → Circles → Collab → Muse → Connections →
+            forward through Home → Circles → Collab → Muse → Messages →
             Profile, wrapping back around to Home. Swipe left to move
             backward through the same tabs, wrapping the other way.
           </>
@@ -84,6 +85,21 @@ const sections: Section[] = [
             Use the theme toggle next to Settings in the top bar (or in the
             ☰ menu on mobile). It follows your device by default, but you can
             pin it to light or dark.
+          </>
+        ),
+      },
+      {
+        q: "Does YuKon3t work with my iPhone's accessibility settings?",
+        a: (
+          <>
+            Yes. The iPhone app works with VoiceOver and Voice Control, and
+            it follows your iPhone&apos;s text size: turn it up under
+            Settings → Accessibility → Display &amp; Text Size → Larger Text
+            and the text in YuKon3t grows with it, up to a little over twice
+            its normal size. The top bar and the bottom tab bar only grow
+            slightly, so every icon and tab still fits on screen. The app
+            also respects Reduce Motion, and dark mode follows your device
+            unless you pin it yourself.
           </>
         ),
       },

@@ -89,7 +89,7 @@ export function CollabInviteManager({
               className="mt-2"
             >
               <MultiSelect name="inviteeIds" options={candidates} placeholder="Search connections..." />
-              {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+              {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
               <button
                 type="submit"
                 disabled={isPending}

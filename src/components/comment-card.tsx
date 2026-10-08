@@ -138,6 +138,7 @@ export function CommentCard({
       ) : editing ? (
         <div className="mt-1">
           <textarea
+            aria-label="Edit comment"
             value={editDraft}
             onChange={(e) => setEditDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -155,7 +156,7 @@ export function CommentCard({
           />
           <EmojiTypeSuggestions text={editDraft} onSelect={insertEditEmoji} />
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-            {editError && <span className="mr-auto text-danger">{editError}</span>}
+            {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
             <EmojiPickerButton onSelect={insertEditEmoji} />
             <button
               type="button"
@@ -187,12 +188,13 @@ export function CommentCard({
             <img src={comment.gifUrl} alt="GIF" loading="lazy" decoding="async" className="mt-1 max-h-52 rounded-lg object-contain" />
           )}
           {comment.audioUrl && (
-            <audio controls preload="metadata" src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />
+            <audio controls preload="metadata" aria-label="Voice comment" src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />
           )}
           {comment.videoUrl && (
             <video
               controls
               preload="metadata"
+              aria-label="Video comment"
               src={comment.videoUrl}
               poster={comment.videoThumbnailUrl ?? undefined}
               className="mt-1 max-h-72 w-full max-w-xs rounded-lg bg-black object-contain"

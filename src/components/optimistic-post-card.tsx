@@ -30,12 +30,12 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
             <p className="text-sm font-semibold">{post.authorName}</p>
             <p className="text-xs text-foreground-soft">
               {post.status === "sending" ? (
-                <span className="inline-flex items-center gap-1">
+                <span role="status" className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
                   Posting…
                 </span>
               ) : (
-                <span className="text-danger">{post.errorMessage ?? "Couldn't post"}</span>
+                <span role="alert" className="text-danger">{post.errorMessage ?? "Couldn't post"}</span>
               )}
             </p>
           </div>

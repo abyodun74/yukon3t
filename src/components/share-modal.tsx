@@ -11,6 +11,7 @@ import { canShareNatively, shareNative } from "@/lib/native-share";
 import { watermarkImageFile } from "@/lib/watermark";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
+import { announce } from "@/lib/announce";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
@@ -247,6 +248,7 @@ export function ShareModal({
       const result = await sendMessage(fd);
       if (!result.error) {
         setSentToId(conversationId);
+        announce("Sent");
         bumpShareCount();
       }
     });
@@ -286,6 +288,7 @@ export function ShareModal({
       const result = await shareToCircle(fd);
       if (!result.error && result.shareCount !== undefined) {
         setSentToId(circleId);
+        announce("Shared");
         onShareCountChange(result.shareCount);
       }
     });
@@ -298,7 +301,7 @@ export function ShareModal({
       title={view === "root" ? "Share post" : view === "friends" ? "Send to a friend" : "Share to a Circle"}
     >
         {shareWarning && (
-          <p className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
+          <p role="alert" className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
         )}
 
         {view === "root" && (

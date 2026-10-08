@@ -39,6 +39,7 @@ export function SubscribeButton({
         type="button"
         disabled={isPending}
         onClick={toggle}
+        aria-pressed={subscribed}
         className={cn(
           "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50",
           subscribed ? "bg-line text-foreground" : "bg-accent text-accent-ink",
@@ -55,7 +56,8 @@ export function SubscribeButton({
       type="button"
       disabled={isPending}
       onClick={toggle}
-      aria-label={subscribed ? "Unsubscribe" : "Subscribe"}
+      aria-label="Subscribe"
+      aria-pressed={subscribed}
       title={subscribed ? "Unsubscribe" : "Subscribe"}
       className={cn("flex items-center hover:text-accent", subscribed && "text-accent")}
     >

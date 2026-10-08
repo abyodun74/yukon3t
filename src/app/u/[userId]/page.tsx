@@ -137,12 +137,12 @@ export default async function PublicProfilePage({
       <BackButton />
 
       {saved && (
-        <p className="mb-4 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+        <p role="status" className="mb-4 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
           Profile updated.
         </p>
       )}
       {error && (
-        <p className="mb-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mb-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "moderation"
             ? "Your bio didn't pass our content guidelines."
             : "Please check your inputs."}
@@ -177,7 +177,7 @@ export default async function PublicProfilePage({
                 )}
               </p>
             )}
-            <div className="mt-1 flex items-center gap-3 text-xs">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <Link href={`/u/${user.id}/subscribers`} className="hover:text-accent hover:underline">
                 <span className="font-semibold">{subscriberCount}</span>{" "}
                 <span className="text-foreground-soft">Subscribers</span>
@@ -189,7 +189,7 @@ export default async function PublicProfilePage({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isOwnProfile && user.currentStreak > 0 && (
             <span className="text-xs text-foreground-soft">
               🔥 {user.currentStreak}-day streak
@@ -221,7 +221,7 @@ export default async function PublicProfilePage({
           <EditProfileForm user={user} />
         </div>
       ) : iBlockedThem ? (
-        <div className="mt-6 flex items-center gap-4">
+        <div className="mt-6 flex flex-wrap items-center gap-4">
           <p className="text-sm text-foreground-soft">You&apos;ve blocked this account.</p>
           <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked />
         </div>

@@ -13,6 +13,7 @@ import { createMuse } from "@/app/actions/muse";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { UserAvatar } from "@/components/user-link";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
 const EMBED_PROVIDER_LABEL: Record<string, string> = {
   YOUTUBE: "YouTube",
@@ -228,6 +229,23 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     };
   }, [share]);
 
+  // Declared up here, ahead of the early return below, because the Escape
+  // handler passed to useDialogFocus needs it and hooks can't come after
+  // that return.
+  function close() {
+    setShare(null);
+    setView("root");
+    setConversations(null);
+    setStatus("idle");
+    setErrorText(null);
+    setVideoDurationSeconds(null);
+    uploadCacheRef.current = null;
+  }
+
+  const dialogRef = useDialogFocus<HTMLDivElement>(share !== null, () => {
+    if (status !== "busy") close();
+  });
+
   if (!share) return null;
   const hasMedia = share.images.length > 0 || Boolean(share.video);
   // Only attempted when there's no real file — a share that already has one
@@ -248,15 +266,6 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     Boolean(embed) ||
     (Boolean(share.video) && videoDurationSeconds !== null && videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS);
 
-  function close() {
-    setShare(null);
-    setView("root");
-    setConversations(null);
-    setStatus("idle");
-    setErrorText(null);
-    setVideoDurationSeconds(null);
-    uploadCacheRef.current = null;
-  }
 
   // Uploads whatever media this share carries, once — "Post to Feed",
   // "Add to your story", and each friend in the list all need the same
@@ -476,10 +485,13 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
   return (
     <div
-      className="animate-modal-backdrop-in fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
+      ref={dialogRef}
+      className="animate-modal-backdrop-in fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 outline-none"
       onClick={busy ? undefined : close}
       role="dialog"
       aria-modal="true"
+      aria-label={view === "root" ? "Share to YuKon3t" : "Send to a friend"}
+      tabIndex={-1}
     >
       <div
         className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4"
@@ -522,15 +534,15 @@ export function ShareTargetGate({ userId }: { userId: string }) {
           </p>
         )}
         {share.skipped > 0 && (
-          <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
             {share.skipped === 1 ? "One item" : `${share.skipped} items`} couldn&apos;t be
             included (too large, or not a supported photo/video type).
           </p>
         )}
 
-        {errorText && <p className="mt-3 text-xs text-danger">{errorText}</p>}
+        {errorText && <p role="alert" className="mt-3 text-xs text-danger">{errorText}</p>}
         {status === "busy" && <p className="mt-3 text-xs text-foreground-soft">Posting…</p>}
-        {status === "done" && <p className="mt-3 text-xs text-success">Posted!</p>}
+        {status === "done" && <p role="status" className="mt-3 text-xs text-success">Posted!</p>}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">

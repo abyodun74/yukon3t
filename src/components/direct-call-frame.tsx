@@ -346,7 +346,13 @@ export function DirectCallFrame({
         <RemoteVideo participant={remote} className="h-full w-full object-contain" />
       ) : (
         <div className="flex flex-col items-center gap-1 px-4 text-center text-sm text-white/60">
-          {joinError ? <span className="text-danger">{joinError}</span> : "Connecting…"}
+          {joinError ? (
+            <span role="alert" className="text-danger">
+              {joinError}
+            </span>
+          ) : (
+            <span role="status">Connecting…</span>
+          )}
         </div>
       )}
 
@@ -355,8 +361,20 @@ export function DirectCallFrame({
           ref={selfViewRef}
           {...selfViewHandlers}
           onClick={() => setSelfViewIsMain((v) => !v)}
+          // A div rather than a real <button> because it's also the drag
+          // target (selfViewHandlers) and wraps a <video> — so the button
+          // semantics are added by hand instead.
+          role="button"
+          tabIndex={0}
+          aria-label="Swap your video with the main view"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setSelfViewIsMain((v) => !v);
+            }
+          }}
           title="Drag to move, tap to swap with the main view"
-          className="fixed z-10 h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
+          className="chrome-scale fixed z-10 h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
           style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "1rem", left: "1rem" }}
         >
           {selfViewIsMain ? (
@@ -377,7 +395,8 @@ export function DirectCallFrame({
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-3"
         style={{ paddingBottom: "calc(0.75rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
-        <div className="hig-material-dark pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-md px-3 py-2">
+        {/* chrome-scale: an icon-only row that can't wrap — see globals.css. */}
+        <div className="hig-material-dark chrome-scale pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-md px-3 py-2">
           <button
             type="button"
             onClick={toggleAudio}

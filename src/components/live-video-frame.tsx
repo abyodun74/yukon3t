@@ -224,7 +224,8 @@ export function LiveVideoFrame({
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-3"
           style={{ paddingBottom: "calc(0.75rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
         >
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-2">
+          {/* chrome-scale: an icon-only row that can't wrap — see globals.css. */}
+          <div className="chrome-scale pointer-events-auto flex items-center gap-2 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-2">
             <button
               type="button"
               onClick={toggleAudio}
@@ -335,7 +336,7 @@ function ParticipantTile({
       />
       {!participant.local && <audio ref={audioRef} autoPlay playsInline />}
       {!hasVideo && <span className="text-xs text-white/50">{name}</span>}
-      <span className="absolute bottom-1.5 left-1.5 rounded hig-material-dark bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[10px] text-white">
+      <span className="absolute bottom-1.5 left-1.5 rounded hig-material-dark bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[0.625rem] text-white">
         {name}
       </span>
       {onToggleMute && (

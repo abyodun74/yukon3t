@@ -85,6 +85,21 @@ export function EmojiPickerButton({
     onOpenChange?.(open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  // Unmounting while open never reaches the effect above, which would leave
+  // a caller like the story viewer paused for good — report the close here,
+  // but only if it was open, so no caller gets a close it never opened.
+  const openRef = useRef(open);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    openRef.current = open;
+    onOpenChangeRef.current = onOpenChange;
+  });
+  useEffect(
+    () => () => {
+      if (openRef.current) onOpenChangeRef.current?.(false);
+    },
+    [],
+  );
   const [showFullPicker, setShowFullPicker] = useState(!quickReactions);
   const [emojiStyle] = useEmojiStyle();
   const [position, setPosition] = useState<Position | null>(null);
@@ -181,6 +196,35 @@ export function EmojiPickerButton({
     };
   }, [open, showFullPicker, quickReactions]);
 
+  // The popup is portaled to <body>, so in DOM order it sits after
+  // everything else on the page — nowhere near the button that opened it.
+  // For a keyboard or screen-reader user that means it opens "somewhere
+  // else" entirely. When (and only when) the trigger itself holds focus,
+  // move focus into the popup. A touch tap doesn't focus a button in iOS's
+  // WKWebView, so there a composer's text field keeps focus and its
+  // keyboard stays up, exactly as before; Chromium (desktop, Android
+  // WebView) does focus the tapped button, so this runs there.
+  //
+  // On close, focus goes back to the trigger only if it's still ours to
+  // return — sitting in the popup, or dropped to <body> because the popup's
+  // DOM is gone. Every composer refocuses its own text field after an emoji
+  // is picked (chat-thread/comment-composer/post-composer's insertEmoji);
+  // pulling focus back onto this button after that left the cursor here,
+  // where the next Enter reopened the picker instead of sending.
+  const hasPosition = position !== null;
+  useEffect(() => {
+    if (!open || !hasPosition) return;
+    const trigger = buttonRef.current;
+    const popup = popupRef.current;
+    if (!trigger || !popup || document.activeElement !== trigger) return;
+    popup.focus({ preventScroll: true });
+    return () => {
+      const active = document.activeElement;
+      const focusIsOurs = !active || active === document.body || popup.contains(active);
+      if (focusIsOurs && trigger.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [open, hasPosition]);
+
   function toggleOpen() {
     if (!open && buttonRef.current) {
       const startsWithQuickBar = Boolean(quickReactions);
@@ -217,6 +261,7 @@ export function EmojiPickerButton({
         className={triggerClassName ?? "rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"}
         title={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
         aria-label={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
+        aria-expanded={open}
       >
         {triggerVariant === "plus" ? <Plus size={16} /> : <Smile size={16} />}
       </button>
@@ -225,7 +270,12 @@ export function EmojiPickerButton({
         createPortal(
           <div
             ref={popupRef}
-            className={`fixed ${popupZClass} flex flex-col overflow-hidden rounded-lg shadow-lg`}
+            // Not aria-modal: this is a popover, the page behind stays
+            // usable (and nav.tsx's tab-swipe exclusion must not apply).
+            role="dialog"
+            aria-label="Emoji picker"
+            tabIndex={-1}
+            className={`fixed ${popupZClass} flex flex-col overflow-hidden rounded-lg shadow-lg outline-none`}
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             {!showFullPicker && quickReactions ? (
@@ -266,7 +316,7 @@ export function EmojiPickerButton({
                     className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface px-2"
                     style={{ height: SUGGESTIONS_BAR_HEIGHT }}
                   >
-                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-foreground-soft">
+                    <span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-foreground-soft">
                       Suggested
                     </span>
                     {suggestions.map((emoji) => (

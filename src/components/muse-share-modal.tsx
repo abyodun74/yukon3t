@@ -9,6 +9,7 @@ import { getMyConversationsForShare, shareMuseToConversation } from "@/app/actio
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
+import { announce } from "@/lib/announce";
 
 // A Story only takes a clip up to this long (storage.ts MAX_STORY_VIDEO_SECONDS — duplicated because that file is
 // server-only); a longer Muse can still go to Home, a friend, or anywhere via the device share sheet.
@@ -181,6 +182,7 @@ export function MuseShareModal({
         return;
       }
       setSentToId(conversationId);
+      announce("Sent");
       if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
     });
   }
@@ -193,7 +195,7 @@ export function MuseShareModal({
     // needs a non-default layer without Sheet itself needing a z-index prop.
     <div className="relative z-[60]">
       <Sheet open={open} onClose={onClose} title={view === "root" ? "Share Muse" : "Send to a friend"}>
-        {notice && <p className="break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
+        {notice && <p role="alert" className="break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">

@@ -13,6 +13,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { announce } from "@/lib/announce";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS — duplicated locally
 // since storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't
@@ -194,6 +195,7 @@ export function CommentComposer({
           setPendingVideo(null);
           setVideoDurationSeconds(null);
           setErrorText(null);
+          announce(parentId ? "Reply posted" : "Comment posted");
           router.refresh();
           onDone?.();
         });
@@ -206,6 +208,7 @@ export function CommentComposer({
         maxLength={1000}
         rows={2}
         placeholder={parentId ? "Write a reply..." : "Write a comment..."}
+        aria-label={parentId ? "Write a reply" : "Write a comment"}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
       <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
@@ -214,7 +217,7 @@ export function CommentComposer({
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
           <span className="flex-1 truncate">GIF attached</span>
-          <button type="button" onClick={() => setPendingGif(null)} className="text-danger">
+          <button type="button" onClick={() => setPendingGif(null)} aria-label="Remove GIF" className="text-danger">
             <X size={14} />
           </button>
         </div>
@@ -316,7 +319,7 @@ export function CommentComposer({
           </button>
         )}
       </div>
-      {errorText && <p className="mt-1 text-xs text-danger">{errorText}</p>}
+      {errorText && <p role="alert" className="mt-1 text-xs text-danger">{errorText}</p>}
       {showDictation && (
         <DictationRecorder
           onTranscribed={appendDictatedText}

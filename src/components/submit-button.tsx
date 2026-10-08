@@ -50,7 +50,7 @@ export function SubmitButton({
         {pending ? pendingLabel : label}
       </button>
       {offline && !pending && (
-        <p className="mt-2 text-center text-xs text-danger">
+        <p role="alert" className="mt-2 text-center text-xs text-danger">
           You&apos;re offline — check your connection and try again.
         </p>
       )}

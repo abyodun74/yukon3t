@@ -254,6 +254,7 @@ export function InvitePanel() {
             </button>
           )}
           <input
+            aria-label="Phone number"
             type="tel"
             value={manualNumber}
             onChange={(e) => setManualNumber(e.target.value)}
@@ -275,7 +276,7 @@ export function InvitePanel() {
             Add
           </button>
         </div>
-        {pickError && <p className="mt-2 text-xs text-danger">{pickError}</p>}
+        {pickError && <p role="alert" className="mt-2 text-xs text-danger">{pickError}</p>}
 
         {contacts.length > 0 && (
           <div className="mt-3 flex flex-col gap-1.5">
@@ -318,6 +319,7 @@ export function InvitePanel() {
             <div className="relative shrink-0">
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-soft" />
               <input
+                aria-label="Search contacts"
                 type="search"
                 value={nativeSearch}
                 onChange={(e) => setNativeSearch(e.target.value)}

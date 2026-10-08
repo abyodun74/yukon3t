@@ -59,11 +59,13 @@ export function ConnectionsTabs({
 
   return (
     <div>
-      <div className="flex gap-1.5 border-b border-line pb-3">
+      <div role="tablist" aria-label="Connections" className="flex gap-1.5 border-b border-line pb-3">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",

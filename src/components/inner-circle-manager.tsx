@@ -84,7 +84,7 @@ export function InnerCircleManager({
         </ul>
       )}
 
-      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
       {candidates.length > 0 && members.length < MAX_INNER_CIRCLE_SIZE && (
         <div className="mt-4">

@@ -52,12 +52,12 @@ export default async function SettingsPage({
       </div>
 
       {saved && (
-        <p className="rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+        <p role="status" className="rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
           Settings updated.
         </p>
       )}
       {error && (
-        <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "username_taken"
             ? "That username is taken — try another."
             : error === "current_password_invalid"

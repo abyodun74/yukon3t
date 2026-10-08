@@ -80,6 +80,7 @@ export default async function DiscoverGroupsPage({
 
       <form className="mt-6 flex items-center gap-2">
         <input
+          aria-label="Search groups by name"
           type="text"
           name="q"
           defaultValue={q ?? ""}

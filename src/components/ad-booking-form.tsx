@@ -480,6 +480,7 @@ export function AdBookingForm() {
               key={days}
               type="button"
               onClick={() => setDurationDays(days)}
+              aria-pressed={durationDays === days}
               className={`rounded-lg border px-3 py-1.5 text-sm ${
                 durationDays === days ? "border-accent bg-accent-soft text-accent" : "border-line hover:border-accent"
               }`}
@@ -495,7 +496,7 @@ export function AdBookingForm() {
         <span className="text-lg font-semibold text-accent">{formatCents(price)}</span>
       </div>
 
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
 
       <TurnstileWidget
         className="mt-4"

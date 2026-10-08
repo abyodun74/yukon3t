@@ -47,16 +47,18 @@ export function AdminDeleteUserButton({ userId, handle }: { userId: string; hand
         value={confirmHandle}
         onChange={(e) => setConfirmHandle(e.target.value)}
         placeholder={handle}
+        aria-label={`Type ${handle} to confirm`}
         className="w-full rounded-lg border border-line bg-background px-3 py-1.5 text-xs outline-none focus:border-accent"
       />
       <textarea
+        aria-label="Reason (min 5 characters)"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (min 5 characters)"
         rows={2}
         className="w-full rounded-lg border border-line bg-background px-3 py-1.5 text-xs outline-none focus:border-accent"
       />
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           type="button"

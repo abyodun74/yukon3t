@@ -42,6 +42,7 @@ export function TruncatedText({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
         className="font-medium text-accent hover:underline"
       >
         {expanded ? "Show less" : "Show more"}

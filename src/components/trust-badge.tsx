@@ -34,6 +34,7 @@ export function TrustBadge({ band }: { band: string }) {
     <span
       className={cn("inline-flex shrink-0 items-center", styles[band] ?? styles.NEW)}
       title={label}
+      role="img"
       aria-label={label}
     >
       <Icon size={15} strokeWidth={2.25} aria-hidden="true" />

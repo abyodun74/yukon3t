@@ -42,6 +42,7 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { getDraft, setDraft } from "@/lib/message-draft-storage";
+import { announce } from "@/lib/announce";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -157,15 +158,15 @@ function isSendingMessage(message: MessageData): boolean {
 
 function ReceiptIcon({ message }: { message: MessageData }) {
   if (isSendingMessage(message)) {
-    return <Clock size={12} className="text-accent-ink/70" />;
+    return <Clock size={12} role="img" aria-label="Sending" className="text-accent-ink/70" />;
   }
   if (message.readAt) {
-    return <CheckCheck size={13} className="text-sky-400" />;
+    return <CheckCheck size={13} role="img" aria-label="Read" className="text-sky-400" />;
   }
   if (message.deliveredAt) {
-    return <CheckCheck size={13} className="text-accent-ink/70" />;
+    return <CheckCheck size={13} role="img" aria-label="Delivered" className="text-accent-ink/70" />;
   }
-  return <Check size={13} className="text-accent-ink/70" />;
+  return <Check size={13} role="img" aria-label="Sent" className="text-accent-ink/70" />;
 }
 
 function formatTime(date: Date) {
@@ -193,9 +194,15 @@ const SWIPE_REPLY_THRESHOLD_PX = 56;
 // Drag is clamped past the threshold so the bubble can't be flung
 // arbitrarily far off its row while the finger/pointer is still down.
 const SWIPE_MAX_DRAG_PX = 80;
-// Matches the menu's own w-40 — used to check available viewport space
-// before deciding which side it should open on.
-const MESSAGE_MENU_WIDTH_PX = 160;
+// Matches the menu's own w-40 (10rem) — used to check available viewport
+// space before deciding which side it should open on. Read from the real
+// root font size rather than assuming 16px: the root follows the iOS text
+// size setting (src/lib/text-scale.ts), and the menu grows with it.
+const MESSAGE_MENU_WIDTH_REM = 10;
+function messageMenuWidthPx(): number {
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return MESSAGE_MENU_WIDTH_REM * (Number.isFinite(rootPx) && rootPx > 0 ? rootPx : 16);
+}
 
 function CorrectionList({
   corrections,
@@ -422,7 +429,7 @@ function MessageBubble({
         // Open toward whichever side actually has room; fall back to the
         // side with more (rather than less) space if neither fully fits,
         // so an extremely narrow viewport still clips the smaller amount.
-        setMenuAlign(spaceRight >= MESSAGE_MENU_WIDTH_PX || spaceRight >= spaceLeft ? "left" : "right");
+        setMenuAlign(spaceRight >= messageMenuWidthPx() || spaceRight >= spaceLeft ? "left" : "right");
       }
     }
     setMenuOpen((v) => !v);
@@ -591,13 +598,14 @@ function MessageBubble({
                 maxLength={4000}
                 rows={2}
                 autoFocus
+                aria-label="Edit message"
                 className={cn(
                   "w-full resize-none rounded-lg bg-black/10 px-2 py-1 text-sm outline-none",
                   mine ? "text-accent-ink" : "text-foreground",
                 )}
               />
-              <div className="flex items-center justify-end gap-2 text-[11px]">
-                {editError && <span className="mr-auto text-danger">{editError}</span>}
+              <div className="flex items-center justify-end gap-2 text-[0.6875rem]">
+                {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
                 <button
                   type="button"
                   disabled={isPending}
@@ -674,13 +682,14 @@ function MessageBubble({
                 />
               )}
               {message.mediaType === "AUDIO" && message.mediaUrl && (
-                <audio controls preload="metadata" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
+                <audio controls preload="metadata" aria-label="Voice note" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
               )}
               {message.mediaType === "VIDEO" && message.mediaUrl && (
                 <video
                   controls
                   preload="metadata"
                   poster={message.mediaThumbnailUrl ?? undefined}
+                  aria-label="Video message"
                   className="max-h-72 w-full rounded-lg bg-black"
                 >
                   <source src={message.mediaUrl} />
@@ -744,7 +753,7 @@ function MessageBubble({
           )}
           <div
             className={cn(
-              "mt-1 flex items-center justify-end gap-1 text-[10px]",
+              "mt-1 flex items-center justify-end gap-1 text-[0.625rem]",
               mine ? "text-accent-ink/70" : "text-foreground-soft",
             )}
           >
@@ -760,7 +769,7 @@ function MessageBubble({
             {mine && seenByNames === undefined && <ReceiptIcon message={message} />}
           </div>
           {mine && seenByNames !== undefined && (
-            <p className="mt-0.5 text-right text-[10px] text-accent-ink/70">
+            <p className="mt-0.5 text-right text-[0.625rem] text-accent-ink/70">
               {seenByLabel(seenByNames)}
             </p>
           )}
@@ -789,10 +798,11 @@ function MessageBubble({
               maxLength={4000}
               rows={2}
               autoFocus
+              aria-label="Suggested correction"
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1 text-xs outline-none focus:border-accent"
             />
-            <div className="mt-1 flex items-center justify-end gap-2 text-[11px]">
-              {correctionError && <span className="mr-auto text-danger">{correctionError}</span>}
+            <div className="mt-1 flex items-center justify-end gap-2 text-[0.6875rem]">
+              {correctionError && <span role="alert" className="mr-auto text-danger">{correctionError}</span>}
               <button
                 type="button"
                 disabled={isPending}
@@ -827,6 +837,7 @@ function MessageBubble({
             type="button"
             onClick={toggleMenu}
             aria-label="Message options"
+            aria-expanded={menuOpen}
             className="rounded-full p-1 text-foreground-soft hover:bg-line"
           >
             <MoreHorizontal size={14} />
@@ -1461,6 +1472,7 @@ export function ChatThread({
         return;
       }
       settleOptimistic(result.message ? (result.message as MessageData) : null);
+      announce("Message sent");
     });
   }
 
@@ -1554,9 +1566,67 @@ export function ChatThread({
   const visibleMessages = messages.filter((m) => !m.deletedForEveryoneAt);
   const lastMineIndex = isGroup ? visibleMessages.findLastIndex((m) => m.senderId === currentUserId) : -1;
 
+  // Screen-reader announcement for a message that arrives while this thread
+  // is open — the list itself is deliberately NOT a live region (every
+  // reaction, edit, receipt tick and optimistic-send swap inside it would
+  // be read out too). Only a message that genuinely ARRIVED while the
+  // thread was open is spoken: its createdAt has to be later than both the
+  // newest message present when this thread mounted and the last message
+  // already announced.
+  // "The newest incoming message's id changed" alone isn't that — it also
+  // changes when the newest one is deleted for everyone (an older message
+  // becomes "newest" again) and when a thread that mounted empty finishes
+  // loading its history, and both used to be read out as if new.
+  //
+  // Written straight to the node from an effect rather than through state:
+  // the mount-time floor needs the clock, which render can't read.
+  const lastIncoming = visibleMessages.findLast((m) => m.senderId !== currentUserId);
+  const lastIncomingId = lastIncoming?.id;
+  const lastIncomingAt = lastIncoming ? new Date(lastIncoming.createdAt).getTime() : 0;
+  const lastIncomingText = lastIncoming
+    ? `${memberById.get(lastIncoming.senderId)?.name ?? conversationLabel}: ${
+        lastIncoming.moderationStatus === "PUBLISHED" ? replyPreviewText(viewOf(lastIncoming)) : "New message"
+      }`
+    : "";
+  const newestAt = messages.reduce((max, m) => Math.max(max, new Date(m.createdAt).getTime()), 0);
+  const incomingAnnouncerRef = useRef<HTMLParagraphElement>(null);
+  const incomingAnnouncedRef = useRef<{ floor: number; id: string | undefined } | null>(null);
+  useEffect(() => {
+    const node = incomingAnnouncerRef.current;
+    if (!incomingAnnouncedRef.current) {
+      // First run is the mount itself — whatever is already here is history.
+      // The floor is the newest message's own (server) timestamp, not this
+      // device's clock: a phone running ahead of the server would otherwise
+      // silence every arrival for as long as it's ahead. Only an empty
+      // thread falls back to the clock, so history loaded later stays quiet.
+      incomingAnnouncedRef.current = { floor: newestAt || Date.now(), id: undefined };
+      return;
+    }
+    const announced = incomingAnnouncedRef.current;
+    if (!node || !lastIncomingId) return;
+    if (lastIncomingId === announced.id) {
+      // Same message, different text: a secret-chat message whose
+      // decryption finished after it was first announced.
+      if (node.textContent !== lastIncomingText) node.textContent = lastIncomingText;
+      return;
+    }
+    if (lastIncomingAt <= announced.floor) return;
+    announced.floor = lastIncomingAt;
+    announced.id = lastIncomingId;
+    node.textContent = lastIncomingText;
+  }, [lastIncomingId, lastIncomingAt, lastIncomingText, newestAt]);
+
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col">
+    // Viewport minus the top bar and the bottom tab bar — their shared
+    // height variables (globals.css) rather than a literal 8rem, because
+    // those bars stop growing with the iOS text size while rem does not.
+    // Identical (128px) at a 16px root.
+    <div className="flex h-[calc(100dvh-var(--top-bar-height)-var(--tab-bar-height))] flex-col">
       {!isGroup && <SecretChatBar secret={secret} peerName={conversationLabel} />}
+      {/* ph-no-capture: this is message text too, and session replay
+          records the DOM, not just what's visible — see the bubble's own
+          ph-no-capture comment. */}
+      <p ref={incomingAnnouncerRef} role="status" className="ph-no-capture sr-only" />
       <div ref={messagesContainerRef} className="flex-1 space-y-0.5 overflow-y-auto rounded-xl border border-line bg-background p-4">
         {visibleMessages.map((m, i) => {
           const mine = m.senderId === currentUserId;
@@ -1575,7 +1645,7 @@ export function ChatThread({
             <div key={m.id}>
               {showDateSeparator && (
                 <div className="my-4 flex items-center justify-center">
-                  <span className="rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-medium text-foreground-soft">
+                  <span className="rounded-full border border-line bg-surface px-3 py-1 text-[0.6875rem] font-medium text-foreground-soft">
                     {formatDaySeparator(m.createdAt)}
                   </span>
                 </div>
@@ -1779,11 +1849,18 @@ export function ChatThread({
               ? "Add a caption (optional)..."
               : `Message ${conversationLabel}...`
           }
+          aria-label={
+            pendingAudio || pendingVideo || pendingImage || pendingGif ? "Add a caption" : `Message ${conversationLabel}`
+          }
           className="max-h-32 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
+        {/* The tool group wraps (min-w-0 + flex-wrap) so that at a large
+            iOS text size, where these rem-sized buttons no longer fit on
+            one line, they take a second line instead of pushing the Send
+            button off the right edge of the screen. */}
         <div className="mt-2 flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
             <MediaPickerButton
               icon={<ImagePlus size={16} />}
               title="Add a photo"
@@ -1875,7 +1952,7 @@ export function ChatThread({
           )}
         </div>
       </div>
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
 
       {showDictation && (
         <DictationRecorder

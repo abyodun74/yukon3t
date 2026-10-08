@@ -72,7 +72,7 @@ export default async function CirclesPage() {
                       </span>
                     )}
                     {(isOwner || isCoAdmin) && (
-                      <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                      <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-accent">
                         {isOwner ? "Owner" : "Co-admin"}
                       </span>
                     )}

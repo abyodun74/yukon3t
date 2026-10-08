@@ -52,6 +52,7 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
+              aria-label="Name"
               name="name"
               required
               minLength={2}
@@ -75,6 +76,7 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
               Topic — what&apos;s this channel for?
             </label>
             <input
+              aria-label="Topic — what's this channel for?"
               name="topic"
               maxLength={200}
               placeholder="e.g. Weekly study check-ins"
@@ -92,7 +94,7 @@ export function CreateChannelModal({ circleId }: { circleId: string }) {
               </label>
             </div>
           </div>
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <button
             type="submit"
             disabled={isPending}

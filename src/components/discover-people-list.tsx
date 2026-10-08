@@ -74,7 +74,7 @@ export function DiscoverPeopleList({
           )}
           <div className="mt-3 flex flex-wrap gap-1">
             {person.openToIntents.map((tag) => (
-              <span key={tag} className="rounded-full bg-teal/10 px-2 py-0.5 text-[11px] text-teal">
+              <span key={tag} className="rounded-full bg-teal/10 px-2 py-0.5 text-[0.6875rem] text-teal">
                 {intentLabels[tag]}
               </span>
             ))}

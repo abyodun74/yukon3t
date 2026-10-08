@@ -107,7 +107,7 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className={cn("truncate text-[15px]", c.unread ? "font-semibold" : "font-medium")}>
+                <p className={cn("truncate text-[0.9375rem]", c.unread ? "font-semibold" : "font-medium")}>
                   {c.label}
                 </p>
                 {c.last && (
@@ -135,7 +135,10 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
                   )}
                 </div>
                 {c.unread && (
-                  <span aria-hidden className="unread-dot h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
+                  <>
+                    <span aria-hidden className="unread-dot h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
+                    <span className="sr-only">Unread</span>
+                  </>
                 )}
               </div>
             </div>

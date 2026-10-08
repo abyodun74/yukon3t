@@ -752,7 +752,7 @@ export function LiveStreamRoom({
             Ask to join as co-host
           </button>
         </div>
-        <p className="mt-3 text-[11px] text-foreground-soft">
+        <p className="mt-3 text-[0.6875rem] text-foreground-soft">
           {stageFull
             ? "The stage is full right now, but you can still ask — a spot may open up."
             : "The host approves guest/co-host requests before you go live on stage."}
@@ -871,7 +871,7 @@ export function LiveStreamRoom({
                 className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
               >
                 <Download size={14} />
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-ink">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[0.5625rem] font-bold text-accent-ink">
                   {recordings.length}
                 </span>
               </button>
@@ -1091,7 +1091,7 @@ export function LiveStreamRoom({
         </div>
         <div className="pointer-events-auto relative">
           {reactionPickerOpen && (
-            <div className="absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-2 py-1.5 left-1/2">
+            <div className="chrome-scale absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-2 py-1.5 left-1/2">
               {QUICK_REACTIONS.map((emoji) => (
                 <button
                   key={emoji}

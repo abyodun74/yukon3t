@@ -8,7 +8,7 @@ export function WhatsNewBell({ unread }: { unread: boolean }) {
   return (
     <Link
       href="/whats-new"
-      aria-label={unread ? "What's new — unread updates" : "What's new"}
+      aria-label={unread ? "What's new, unread updates" : "What's new"}
       className="relative rounded-lg p-1.5 text-foreground-soft hover:bg-line"
     >
       <Megaphone size={20} />

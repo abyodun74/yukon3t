@@ -60,7 +60,20 @@ function getViewportSize() {
 // the nav bar. Confirmed live on a real device. Matches layout.tsx's exact
 // clearance expression rather than inventing a new one.
 const MOBILE_BREAKPOINT_PX = 768; // Tailwind's default `md` breakpoint.
-const BOTTOM_NAV_HEIGHT_PX = 64; // 4rem.
+
+// Mirrors globals.css's --tab-bar-height (and the --chrome-rem it is built
+// from) in pixels — a JS number is needed here, and a custom property
+// holding a calc()/min() expression can't be read back as a resolved
+// length. Was a flat 64 (4rem at a 16px root); the root now follows the iOS
+// text size setting (src/lib/text-scale.ts) and the bar is capped, so both
+// have to be computed. Still exactly 64 at a 16px root. Keep the two
+// formulas in step if either changes.
+function getBottomNavHeightPx(viewportWidth: number): number {
+  const parsed = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const rootPx = Number.isFinite(parsed) && parsed > 0 ? parsed : 16;
+  const chromeRem = Math.min(rootPx, Math.max(16, viewportWidth * 0.044));
+  return Math.min(rootPx * 4, chromeRem * 2.25 + 29);
+}
 
 function getBottomNavClearance(viewportWidth: number): number {
   if (viewportWidth >= MOBILE_BREAKPOINT_PX) return 0;
@@ -73,7 +86,7 @@ function getBottomNavClearance(viewportWidth: number): number {
   const safeAreaBottom = parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue("--safe-area-inset-bottom"),
   );
-  return BOTTOM_NAV_HEIGHT_PX + (Number.isFinite(safeAreaBottom) ? safeAreaBottom : 0);
+  return getBottomNavHeightPx(viewportWidth) + (Number.isFinite(safeAreaBottom) ? safeAreaBottom : 0);
 }
 
 export function computePopoverPosition(rect: DOMRect, desiredWidth: number, desiredHeight: number): PopoverPosition {

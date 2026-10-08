@@ -277,10 +277,15 @@ export function CallButton({
         </button>
       </div>
 
-      <Sheet open={state.phase === "ringing"} onClose={cancel} panelClassName="max-w-xs text-center">
+      <Sheet
+        open={state.phase === "ringing"}
+        onClose={cancel}
+        panelClassName="max-w-xs text-center"
+        ariaLabel={`Calling ${calleeName}`}
+      >
         {displayState.phase === "ringing" && (
           <>
-            <p className="text-sm text-foreground-soft">{displayState.calleeRinging ? "Ringing" : "Calling"}</p>
+            <p role="status" className="text-sm text-foreground-soft">{displayState.calleeRinging ? "Ringing" : "Calling"}</p>
             <p className="mt-1 break-words text-lg font-semibold">{calleeName}</p>
             <button
               type="button"
@@ -297,6 +302,7 @@ export function CallButton({
         open={state.phase === "duplicate"}
         onClose={() => setState({ phase: "idle" })}
         panelClassName="max-w-xs text-center"
+        ariaLabel="Call already in progress"
       >
         {displayState.phase === "duplicate" && (
           <>

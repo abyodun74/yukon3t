@@ -23,6 +23,7 @@ import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
+import { announce } from "@/lib/announce";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -732,6 +733,7 @@ export function PostComposer({
       }
     } else {
       if (optimisticId) removeOptimisticPost(optimisticId);
+      announce("Posted");
       setStatus("idle");
       setImages([]);
       setUrlImages([]);
@@ -897,6 +899,7 @@ export function PostComposer({
         maxLength={50000}
         rows={3}
         placeholder={placeholder}
+        aria-label={placeholder || "Write a post"}
         onChange={(e) => setSuggestionText(e.target.value)}
         onPaste={handlePaste}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
@@ -944,6 +947,7 @@ export function PostComposer({
       {showImageUrlInput && (
         <div className="mt-2 flex items-center gap-2">
           <input
+            aria-label="Image URL"
             type="url"
             value={imageUrlValue}
             onChange={(e) => setImageUrlValue(e.target.value)}
@@ -971,7 +975,7 @@ export function PostComposer({
           </button>
         </div>
       )}
-      {imageUrlError && <p className="mt-1 text-xs text-danger">{imageUrlError}</p>}
+      {imageUrlError && <p role="alert" className="mt-1 text-xs text-danger">{imageUrlError}</p>}
 
       {video && (
         <div className="mt-2 rounded-lg border border-line px-3 py-2 text-xs">
@@ -1060,6 +1064,7 @@ export function PostComposer({
       {showEmbedInput && (
         <div className="mt-2 flex items-center gap-2">
           <input
+            aria-label="Link or video URL"
             type="url"
             value={embedUrlValue}
             onChange={(e) => setEmbedUrlValue(e.target.value)}
@@ -1080,19 +1085,21 @@ export function PostComposer({
               setShowEmbedInput(false);
               setEmbedError(null);
             }}
+            aria-label="Cancel"
             className="text-foreground-soft"
           >
             <X size={16} />
           </button>
         </div>
       )}
-      {embedError && <p className="mt-1 text-xs text-danger">{embedError}</p>}
+      {embedError && <p role="alert" className="mt-1 text-xs text-danger">{embedError}</p>}
 
       {isEvent && (
         <div className="mt-2 space-y-2 rounded-lg border border-line p-3">
           <div>
             <label className="block text-xs font-medium text-foreground-soft">When</label>
             <input
+              aria-label="When"
               type="datetime-local"
               name="eventAt"
               value={eventAt}
@@ -1104,6 +1111,7 @@ export function PostComposer({
           <div>
             <label className="block text-xs font-medium text-foreground-soft">Where</label>
             <input
+              aria-label="Where"
               type="text"
               name="eventLocation"
               value={eventLocation}
@@ -1117,7 +1125,10 @@ export function PostComposer({
       )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+        {/* Both groups can wrap within themselves too (not just onto
+            separate lines from each other) — at a large iOS text size
+            either one alone can be wider than the composer. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           <input
             ref={imageInputRef}
             type="file"
@@ -1254,6 +1265,7 @@ export function PostComposer({
             )}
             title="Add a link"
             aria-label="Add a link"
+            aria-expanded={showEmbedInput}
           >
             <LinkIcon size={16} />
           </button>
@@ -1266,6 +1278,7 @@ export function PostComposer({
             )}
             title={isEvent ? "Remove event details" : "Add event details"}
             aria-label={isEvent ? "Remove event details" : "Add event details"}
+            aria-expanded={isEvent}
           >
             <Calendar size={16} />
           </button>
@@ -1285,7 +1298,7 @@ export function PostComposer({
             Posts are prescreened for safety before they appear.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
           {/* Meaningless inside a Circle — membership there is already the
               access boundary, and createPost always stores those PUBLIC
               server-side regardless of what this would send. */}
@@ -1334,7 +1347,7 @@ export function PostComposer({
       )}
 
       {status === "error" && errorText && (
-        <p className="mt-1 text-xs text-danger">
+        <p role="alert" className="mt-1 text-xs text-danger">
           {errorText}
           {errorText === STALE_DEPLOYMENT_MESSAGE && (
             <button
@@ -1364,9 +1377,10 @@ export function PostComposer({
             For your security, enter the 6-digit code we just emailed you to publish this post. Your draft is
             still here — it&apos;ll go out the moment you confirm.
           </p>
-          {deviceChallengeError && <p className="mt-2 text-danger">{deviceChallengeError}</p>}
+          {deviceChallengeError && <p role="alert" className="mt-2 text-danger">{deviceChallengeError}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
+              aria-label="6-digit code"
               value={deviceCode}
               onChange={(e) => setDeviceCode(e.target.value)}
               inputMode="numeric"

@@ -15,6 +15,7 @@ export function AdReviewActions({ id, status }: { id: string; status: string }) 
       return (
         <div className="mt-2 space-y-2">
           <textarea
+            aria-label="Rejection reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             maxLength={1000}

@@ -48,7 +48,7 @@ export function AccountDangerZone() {
         >
           Export my data
         </button>
-        {exportError && <p className="mt-2 text-xs text-danger">{exportError}</p>}
+        {exportError && <p role="alert" className="mt-2 text-xs text-danger">{exportError}</p>}
       </div>
 
       <div className="border-t border-line pt-4">

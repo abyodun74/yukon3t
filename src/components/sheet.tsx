@@ -2,8 +2,9 @@
 
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
 import { X } from "lucide-react";
-import { type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { hapticImpact } from "@/lib/haptics";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
 type SheetVariant = "dialog" | "bottom-sheet";
 
@@ -31,7 +32,15 @@ type SheetVariant = "dialog" | "bottom-sheet";
  * `dragElastic` below are motion's own built-in rubber-banding and
  * velocity tracking, not hand-rolled physics; `dragMomentum` (on by
  * default) is what gives a fast downward flick its own inertia instead of
- * stopping the instant the pointer lifts.
+ * stopping the instant the pointer lifts. Dragging is never the only way
+ * out, though (Voice Control and VoiceOver users can't perform it): a
+ * titled sheet has its own Close button, Escape closes any sheet, and an
+ * untitled one is expected to render its own cancel/dismiss button.
+ *
+ * Accessibility lives here too, so all ~20 callers get it at once: the
+ * dialog is named after its title (or `ariaLabel`, for a sheet that renders
+ * its own heading), focus moves into it on open and back to whatever opened
+ * it on close — see useDialogFocus.
  */
 export function Sheet({
   open,
@@ -39,6 +48,7 @@ export function Sheet({
   variant = "dialog",
   responsive = false,
   title,
+  ariaLabel,
   children,
   panelClassName,
 }: {
@@ -49,18 +59,30 @@ export function Sheet({
   responsive?: boolean;
   /** Omit for a panel that renders its own heading — not every migrated modal used a plain string title. */
   title?: ReactNode;
+  /** Accessible name for a sheet with no `title` (one that renders its own heading, or none at all) — ignored when `title` is set, since the visible title already names the dialog. */
+  ariaLabel?: string;
   children: ReactNode;
   /** Extra width/sizing classes for the panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). */
   panelClassName?: string;
 }) {
+  const titleId = useId();
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, onClose);
   return (
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={dialogRef}
           className={
             variant === "bottom-sheet"
-              ? `fixed inset-0 z-50 flex items-end justify-center bg-black/60 ${responsive ? "sm:items-center sm:p-4" : ""}`
-              : "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              ? `fixed inset-0 z-50 flex items-end justify-center bg-black/60 outline-none ${responsive ? "sm:items-center sm:p-4" : ""}`
+              : // items-start + the panel's own my-auto (see DialogPanel), not
+                // items-center: both center a panel that fits, but when the
+                // panel is taller than the screen (a long form at a large
+                // iOS text size) items-center pushes its top — the title and
+                // Close button — above the viewport where no scroll can
+                // reach it. Auto margins collapse to 0 instead, so the panel
+                // starts at the top and this backdrop scrolls to the rest.
+                "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
           }
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -69,13 +91,16 @@ export function Sheet({
           onClick={onClose}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={title !== undefined ? titleId : undefined}
+          aria-label={title !== undefined ? undefined : ariaLabel}
+          tabIndex={-1}
         >
           {variant === "bottom-sheet" ? (
-            <BottomSheetPanel onClose={onClose} title={title} responsive={responsive} panelClassName={panelClassName}>
+            <BottomSheetPanel onClose={onClose} title={title} titleId={titleId} responsive={responsive} panelClassName={panelClassName}>
               {children}
             </BottomSheetPanel>
           ) : (
-            <DialogPanel onClose={onClose} title={title} panelClassName={panelClassName}>
+            <DialogPanel onClose={onClose} title={title} titleId={titleId} panelClassName={panelClassName}>
               {children}
             </DialogPanel>
           )}
@@ -95,11 +120,13 @@ const DIALOG_SPRING = { type: "spring" as const, damping: 1, duration: 0.35 };
 function DialogPanel({
   onClose,
   title,
+  titleId,
   panelClassName,
   children,
 }: {
   onClose: () => void;
   title?: ReactNode;
+  titleId: string;
   panelClassName?: string;
   children: ReactNode;
 }) {
@@ -112,7 +139,7 @@ function DialogPanel({
   const widthOverride = panelClassName?.includes("max-w-");
   return (
     <motion.div
-      className={`hig-material w-full ${widthOverride ? "" : "max-w-sm"} rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
+      className={`hig-material my-auto w-full ${widthOverride ? "" : "max-w-sm"} rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -120,10 +147,10 @@ function DialogPanel({
       onClick={(e) => e.stopPropagation()}
     >
       {title !== undefined && (
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
-            <X size={18} />
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 id={titleId} className="min-w-0 text-sm font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-foreground-soft hover:text-danger">
+            <X size={18} aria-hidden />
           </button>
         </div>
       )}
@@ -147,12 +174,14 @@ const DISMISS_VELOCITY_PX_PER_S = 800;
 function BottomSheetPanel({
   onClose,
   title,
+  titleId,
   responsive,
   panelClassName,
   children,
 }: {
   onClose: () => void;
   title?: ReactNode;
+  titleId: string;
   responsive?: boolean;
   panelClassName?: string;
   children: ReactNode;
@@ -192,14 +221,14 @@ function BottomSheetPanel({
           the whole panel is the drag target (motion's `drag` prop above
           applies to this entire motion.div), matching how a real iOS
           sheet can be dragged from its header, not just a tiny grabber. */}
-      <div className="flex justify-center pb-1 pt-2">
+      <div className="flex justify-center pb-1 pt-2" aria-hidden>
         <div className="h-1 w-9 rounded-full bg-foreground-soft/30" />
       </div>
       {title !== undefined && (
-        <div className="flex items-center justify-between px-4 pb-2">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-foreground-soft hover:text-danger">
-            <X size={18} />
+        <div className="flex items-center justify-between gap-2 px-4 pb-2">
+          <h2 id={titleId} className="min-w-0 text-sm font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-foreground-soft hover:text-danger">
+            <X size={18} aria-hidden />
           </button>
         </div>
       )}

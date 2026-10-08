@@ -186,7 +186,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
         {strip}
       </div>
 
-      {error && !dialog && <p className="text-danger">{error}</p>}
+      {error && !dialog && <p role="alert" className="text-danger">{error}</p>}
 
       {secret.peerKeyChanged && state.active && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-danger bg-danger/10 px-3 py-2 text-danger">
@@ -224,11 +224,11 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
               Type it again
             </label>
             <input id="sc-pass2" type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} className={input} />
-            <p className="mt-1 text-[11px] text-foreground-soft">
+            <p className="mt-1 text-[0.6875rem] text-foreground-soft">
               At least {E2EE_MIN_PASSPHRASE_LENGTH} characters — a few random words works well. This is the only thing
               protecting your backup, so make it long.
             </p>
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <button type="button" onClick={submitSetup} disabled={busy} className={`${primary} mt-3 w-full`}>
               {busy ? "Creating your keys… this takes a few seconds" : "Create keys and turn on"}
             </button>
@@ -244,7 +244,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
               Recovery passphrase
             </label>
             <input id="sc-restore" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} className={input} />
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <button type="button" onClick={submitRestore} disabled={busy || !pass} className={`${primary} mt-3 w-full`}>
               {busy ? "Unlocking… this takes a few seconds" : "Unlock"}
             </button>
@@ -269,7 +269,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
               </li>
               <li>Every secret chat you have will switch off until you both turn it back on.</li>
             </ul>
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -296,7 +296,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
             >
               {secret.securityCode ?? "…"}
             </p>
-            <p className="mt-2 text-[11px] text-foreground-soft">
+            <p className="mt-2 text-[0.6875rem] text-foreground-soft">
               Why it matters: we deliver each person&apos;s public key to the other. Comparing this code is how you
               know we didn&apos;t swap one for another.
             </p>

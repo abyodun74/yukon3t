@@ -111,7 +111,7 @@ export function CircleCoverUpload({
           markNativePickerActive();
           galleryInputRef.current?.click();
         }}
-        aria-label="Change Circle picture"
+        aria-label={preview ? "Change Circle picture" : "No photo, change Circle picture"}
         className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-line bg-surface disabled:opacity-50"
       >
         {preview ? (
@@ -185,6 +185,7 @@ export function CircleCoverUpload({
         </p>
         {message && (
           <p
+            role={status === "success" ? "status" : "alert"}
             className={`mt-1 text-xs ${status === "success" ? "text-success" : "text-danger"}`}
           >
             {message}

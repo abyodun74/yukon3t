@@ -147,6 +147,8 @@ export function NotificationRow({
           <UserAvatar avatarUrl={notification.actor.avatarUrl} name={notification.actor.name} size={20} />
         )}
         <span>
+          {/* The unread state is otherwise only the row's accent border/tint. */}
+          {unread && <span className="sr-only">Unread: </span>}
           {hasActor && <span className="break-words font-semibold">{notification.actor.name}</span>}
           {hasActor && " "}
           {notification.message ?? NOTIFICATION_VERB[notification.type]}

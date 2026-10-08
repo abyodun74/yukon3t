@@ -58,6 +58,7 @@ export function GroupedNotificationRow({
       <span className="flex items-start gap-2">
         <UserAvatar avatarUrl={actor.avatarUrl} name={actor.name} size={20} />
         <span>
+          {unread && <span className="sr-only">Unread: </span>}
           {count} {noun}
           {count === 1 ? "" : "s"} from <span className="break-words font-semibold">{actor.name}</span>
           <span

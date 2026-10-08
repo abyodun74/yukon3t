@@ -11,6 +11,7 @@ export function RingtonePicker({ defaultValue }: { defaultValue: RingtoneId }) {
     <div className="flex items-center gap-2">
       <select
         name="ringtone"
+        aria-label="Ringtone"
         value={selected}
         onChange={(e) => setSelected(e.target.value as RingtoneId)}
         className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"

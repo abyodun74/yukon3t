@@ -175,7 +175,7 @@ export default async function CollabPage({
                   <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
                     {post.type}
                   </span>
-                  <span className="rounded-full bg-line px-2 py-0.5 text-[11px] text-foreground-soft">
+                  <span className="rounded-full bg-line px-2 py-0.5 text-[0.6875rem] text-foreground-soft">
                     Private
                   </span>
                 </div>

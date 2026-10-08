@@ -22,13 +22,15 @@ export function ReactionBar({
           key={emoji}
           type="button"
           onClick={() => onToggle(emoji)}
+          aria-label={`${emoji} ${count} ${count === 1 ? "reaction" : "reactions"}`}
+          aria-pressed={reactedByMe}
           className={cn(
             "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs",
             reactedByMe ? "border-accent bg-accent/10" : "border-line bg-surface hover:bg-line",
           )}
         >
           <span>{emoji}</span>
-          {count > 1 && <span className="text-[10px] text-foreground-soft">{count}</span>}
+          {count > 1 && <span className="text-[0.625rem] text-foreground-soft">{count}</span>}
         </button>
       ))}
     </div>

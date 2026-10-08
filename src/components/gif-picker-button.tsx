@@ -139,6 +139,7 @@ export function GifPickerButton({
         className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
         title="Add a GIF"
         aria-label="Add a GIF"
+        aria-expanded={open}
       >
         <Sticker size={16} />
       </button>
@@ -153,6 +154,7 @@ export function GifPickerButton({
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
               <Search size={14} className="shrink-0 text-foreground-soft" />
               <input
+                aria-label="Search GIFs"
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -189,7 +191,7 @@ export function GifPickerButton({
             {/* Required by Giphy's API terms whenever their search/content
                 is used — see the "Powered by GIPHY" attribution requirement
                 on the production-access application form. */}
-            <div className="shrink-0 border-t border-line px-2 py-1 text-center text-[10px] text-foreground-soft">
+            <div className="shrink-0 border-t border-line px-2 py-1 text-center text-[0.625rem] text-foreground-soft">
               Powered by GIPHY
             </div>
           </div>,

@@ -39,7 +39,7 @@ export function FixAppReviewDemoButton() {
         {isPending ? "Fixing…" : "Fix demo account"}
       </button>
       {result && (
-        <div className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-xs text-success">
+        <div role="status" className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-xs text-success">
           <p>
             {result.action === "created"
               ? "Account did not exist — created fresh, ready to sign in."

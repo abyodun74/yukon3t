@@ -502,6 +502,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
             <button
               type="button"
               onClick={() => setMode("media")}
+              aria-pressed={mode === "media"}
               className={cn(
                 "rounded-md py-1.5 text-xs font-medium",
                 mode === "media" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
@@ -512,6 +513,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
             <button
               type="button"
               onClick={() => setMode("text")}
+              aria-pressed={mode === "text"}
               className={cn(
                 "rounded-md py-1.5 text-xs font-medium",
                 mode === "text" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
@@ -529,6 +531,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               style={{ backgroundColor: TEXT_STORY_BACKGROUNDS[textBgIndex].bg }}
             >
               <textarea
+                aria-label="Type or paste something"
                 value={textValue}
                 onChange={(e) => setTextValue(e.target.value.slice(0, TEXT_STORY_MAX_CHARS))}
                 placeholder="Type or paste something..."
@@ -556,7 +559,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               ))}
             </div>
 
-            {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
             <button
               type="button"
@@ -566,7 +569,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
             >
               {textPosting ? "Posting..." : "Share to your story"}
             </button>
-            <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
+            <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">Disappears after 24 hours.</p>
           </div>
         ) : (
           <>
@@ -646,7 +649,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                     className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-white"
                   >
                     <AlertCircle size={18} />
-                    <span className="text-[10px] font-medium">Tap to retry</span>
+                    <span className="text-[0.625rem] font-medium">Tap to retry</span>
                   </button>
                 )}
 
@@ -654,6 +657,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   type="button"
                   onClick={() => removeItem(item.id)}
                   disabled={isPending}
+                  aria-label="Remove"
                   className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
                 >
                   <X size={12} />
@@ -733,7 +737,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
 
         {items.length > 0 && (
           <>
-            <p className="mt-2 text-center text-[11px] text-foreground-soft">
+            <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">
               {items.length} added — tap the × to remove, or a failed item to retry it.
             </p>
             <input
@@ -742,12 +746,13 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               onChange={(e) => setCaption(e.target.value)}
               maxLength={200}
               placeholder={items.length > 1 ? "Add a caption to all (optional)" : "Add a caption (optional)"}
+              aria-label={items.length > 1 ? "Add a caption to all (optional)" : "Add a caption (optional)"}
               className="mt-2 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
           </>
         )}
 
-        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
         <button
           type="button"
@@ -765,7 +770,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                 ? `Share ${readyCount} to your story`
                 : "Share to your story"}
         </button>
-        <p className="mt-2 text-center text-[11px] text-foreground-soft">Disappears after 24 hours.</p>
+        <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">Disappears after 24 hours.</p>
           </>
         )}
       </Sheet>

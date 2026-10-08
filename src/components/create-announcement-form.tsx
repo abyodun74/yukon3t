@@ -309,7 +309,7 @@ export function CreateAnnouncementForm() {
         )}
       </div>
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <button
         type="submit"
         disabled={isPending}

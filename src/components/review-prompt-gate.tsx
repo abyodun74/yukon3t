@@ -114,7 +114,14 @@ export function ReviewPromptGate() {
   }
 
   return (
-    <Sheet open={step !== "closed"} onClose={close} variant="bottom-sheet" responsive panelClassName="p-5">
+    <Sheet
+      open={step !== "closed"}
+      onClose={close}
+      variant="bottom-sheet"
+      responsive
+      panelClassName="p-5"
+      ariaLabel="App feedback"
+    >
         {displayedStep === "ask" && (
           <>
             <h2 className="text-base font-semibold">How&apos;s the yukon3t app?</h2>
@@ -157,6 +164,7 @@ export function ReviewPromptGate() {
               This goes straight to our team, not a public review — tell us what&apos;s not working.
             </p>
             <textarea
+              aria-label="What's on your mind?"
               value={feedback}
               onChange={(e) => setFeedback(e.target.value.slice(0, 2000))}
               rows={4}
@@ -164,7 +172,7 @@ export function ReviewPromptGate() {
               placeholder="What's on your mind?"
               className="mt-3 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
-            {feedbackError && <p className="mt-1.5 text-xs text-danger">{feedbackError}</p>}
+            {feedbackError && <p role="alert" className="mt-1.5 text-xs text-danger">{feedbackError}</p>}
             <div className="mt-3 flex items-center justify-end gap-2">
               <button
                 type="button"

@@ -73,12 +73,12 @@ export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boo
 
       {status === "checking" && <p className="mt-2 text-xs text-foreground-soft">Checking link safety…</p>}
       {status === "flagged" && (
-        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+        <p role="alert" className="mt-2 flex items-start gap-1.5 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           This link was flagged as potentially unsafe by an automated scan. Continue only if you trust it.
         </p>
       )}
-      {status === "safe" && <p className="mt-2 text-xs text-success">No known threats found.</p>}
+      {status === "safe" && <p role="status" className="mt-2 text-xs text-success">No known threats found.</p>}
 
       <div className="mt-4 flex items-center gap-2">
         <button

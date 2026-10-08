@@ -20,25 +20,25 @@ export default async function ForgotPasswordPage({
       </p>
 
       {sent && (
-        <p className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
+        <p role="status" className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
           If that email is registered, a reset link is on its way — check
           your inbox.
         </p>
       )}
       {error === "invalid" && (
-        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           Enter a valid email address.
         </p>
       )}
       {error === "captcha" && (
-        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           We couldn&apos;t complete the security check. Wait a moment and try
           again — if it keeps happening, turn off any content blocker or try
           another network.
         </p>
       )}
       {error === "expired" && (
-        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           That reset link expired or was already used — request a new one below.
         </p>
       )}

@@ -60,6 +60,7 @@ export function ModerationActionForm({
     >
       <select
         name="action"
+        aria-label="Moderation action"
         required
         value={action}
         onChange={(e) => {
@@ -76,6 +77,7 @@ export function ModerationActionForm({
         <option value="REPORT_RESOLVED">Mark resolved</option>
       </select>
       <input
+        aria-label="Reason (shown to the user)"
         name="note"
         required
         minLength={5}

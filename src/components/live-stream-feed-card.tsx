@@ -100,7 +100,7 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
   return (
     <div ref={containerRef} className="rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 text-[0.6875rem] font-semibold text-white">
           <Radio size={11} />
           LIVE
         </span>

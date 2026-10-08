@@ -118,7 +118,10 @@ export function GlobalCallFrame() {
         ref={widgetRef}
         className={
           minimized
-            ? `fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${minimizedDrag.position ? "" : " right-4"}`
+            ? // chrome-scale: this floating widget is video, not text — sized in
+              // rem it would be wider than the screen at a large iOS text size
+              // (see globals.css).
+              `chrome-scale fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${minimizedDrag.position ? "" : " right-4"}`
             : "fixed inset-0 z-[60] bg-black"
         }
         // bottom offset as an inline style, not a `bottom-*` Tailwind

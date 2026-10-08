@@ -255,7 +255,7 @@ export default async function CollabDetailPage({
             · {collab._count.participants} participant{collab._count.participants === 1 ? "" : "s"}
           </span>
           {collab.status === "CLOSED" && (
-            <span className="rounded-full bg-line px-2 py-0.5 text-[11px] text-foreground-soft">
+            <span className="rounded-full bg-line px-2 py-0.5 text-[0.6875rem] text-foreground-soft">
               Closed
             </span>
           )}

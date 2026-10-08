@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition, type UIEvent } from "react";
 import Link from "next/link";
-import { Calendar, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
+import { Calendar, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
@@ -137,14 +137,14 @@ export type PostCardData = EmbeddedPost & {
 function PostVisibilityBadge({ visibility }: { visibility: PostCardData["visibility"] }) {
   if (visibility === "CONNECTIONS_ONLY") {
     return (
-      <span title="Friends only" aria-label="Friends only" className="text-foreground-soft">
+      <span title="Friends only" role="img" aria-label="Friends only" className="text-foreground-soft">
         <Users size={13} />
       </span>
     );
   }
   if (visibility === "PRIVATE") {
     return (
-      <span title="Private" aria-label="Private" className="text-foreground-soft">
+      <span title="Private" role="img" aria-label="Private" className="text-foreground-soft">
         <Lock size={13} />
       </span>
     );
@@ -197,6 +197,7 @@ function EventBlock({
         type="button"
         disabled={isPending}
         onClick={onToggle}
+        aria-pressed={going}
         className={cn(
           "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
           going ? "bg-success text-white" : "bg-accent text-accent-ink",
@@ -361,7 +362,15 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
         style={{ aspectRatio: ratios[index] ?? ALBUM_FALLBACK_RATIO }}
       >
         {photos.map((photo, i) => (
-          <Link key={photo.id} href={`/post/${photo.id}`} className="block h-full w-full shrink-0 snap-center cursor-pointer">
+          <Link
+            key={photo.id}
+            href={`/post/${photo.id}`}
+            // Without this the link's name is the photo's alt — the whole
+            // post caption, repeated once per photo — and nothing says which
+            // photo of the set it is.
+            aria-label={`Open photo ${i + 1} of ${photos.length}`}
+            className="block h-full w-full shrink-0 snap-center cursor-pointer"
+          >
             {/* Not a plain <img> here — ZoomableAlbumPhoto layers pinch/pan
                 zoom on top while still avoiding next/image (see
                 SECURITY.md's reasoning against routing user-uploaded
@@ -376,7 +385,7 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
         ))}
       </div>
       {photos.length > 1 && (
-        <div className="mt-1.5 flex items-center justify-center gap-1.5">
+        <div className="mt-1.5 flex items-center justify-center gap-1.5" aria-hidden>
           {photos.map((photo, i) => (
             <span
               key={photo.id}
@@ -418,6 +427,9 @@ function MediaBlock({
       : "";
   const embedRef = useStopEmbedOnScrollOut<HTMLIFrameElement>(embedIframeSrc);
   const [muted, setMuted] = useFeedVideoMuted();
+  // Mirrors the element's real state (onPlay/onPause below) rather than
+  // tracking taps, since autoplay-on-view starts/stops it too.
+  const [playing, setPlaying] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   // The `muted` JSX prop only reliably applies at mount — once a WebView
   // video is already playing, toggling it doesn't flip the element's live
@@ -444,6 +456,7 @@ function MediaBlock({
             maxLength={50000}
             rows={3}
             autoFocus
+            aria-label="Edit post"
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
           <EmojiTypeSuggestions
@@ -451,7 +464,7 @@ function MediaBlock({
             onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)}
           />
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-            {editing.error && <span className="mr-auto text-danger">{editing.error}</span>}
+            {editing.error && <span role="alert" className="mr-auto text-danger">{editing.error}</span>}
             <EmojiPickerButton onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)} />
             <button
               type="button"
@@ -564,6 +577,9 @@ function MediaBlock({
             playsInline
             preload="metadata"
             poster={post.videoThumbnailUrl ?? undefined}
+            aria-label={`Video posted by ${post.author.name ?? "someone"}`}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
             // Edge-to-edge and tall (Instagram feed video convention), not
             // capped/boxed — native browser `controls` (a scrubber/volume
             // slider) are deliberately omitted in favor of just the sound
@@ -590,10 +606,31 @@ function MediaBlock({
           >
             {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
+          {/* Tapping the video itself is still what most people use, but a
+              bare <video> with no native controls isn't an operable element
+              to VoiceOver or Voice Control — this is the same toggle as a
+              real, named button. Seeking lives in the full-screen viewer,
+              which does use native controls. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const el = videoRef.current;
+              if (!el) return;
+              if (el.paused) el.play().catch(() => {});
+              else el.pause();
+            }}
+            title={playing ? "Pause" : "Play"}
+            aria-label={playing ? "Pause video" : "Play video"}
+            className="absolute bottom-2 left-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+          >
+            {playing ? <Pause size={16} /> : <Play size={16} />}
+          </button>
           <button
             type="button"
             onClick={onOpenVideo}
             title="Watch in full screen"
+            aria-label="Watch in full screen"
             className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
           >
             <Maximize2 size={14} />
@@ -611,7 +648,7 @@ function MediaBlock({
           <iframe
             ref={embedRef}
             src={embedIframeSrc}
-            title="Embedded video"
+            title={`Embedded ${post.embedProvider.charAt(0)}${post.embedProvider.slice(1).toLowerCase()} video posted by ${post.author.name ?? "someone"}`}
             // Lets video-playback-guard.ts find and freeze exactly this
             // kind of iframe (clearing/restoring src) during a call,
             // without ever touching an unrelated iframe elsewhere on the
@@ -909,7 +946,7 @@ export function PostCard({
           />
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
           {/* toLocaleString depends on the runtime's timezone, which
               differs between the server (render) and the browser
               (hydration) — suppressHydrationWarning tells React that's
@@ -948,11 +985,12 @@ export function PostCard({
               maxLength={50000}
               rows={2}
               autoFocus
+              aria-label="Edit caption"
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm italic outline-none focus:border-accent"
             />
             <EmojiTypeSuggestions text={editDraft} onSelect={insertEditEmoji} />
             <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-              {editError && <span className="mr-auto text-danger">{editError}</span>}
+              {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
               <EmojiPickerButton onSelect={insertEditEmoji} />
               <button
                 type="button"
@@ -1008,7 +1046,10 @@ export function PostCard({
 
       <div
         className={cn(
-          "flex items-center gap-5 text-xs text-foreground-soft",
+          // flex-wrap: at a large text size the rem-based gaps alone no
+          // longer fit one line, and the last actions (share, subscribe)
+          // would otherwise be clipped off the card's right edge.
+          "flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-foreground-soft",
           isCompact ? "mt-2 pt-1" : "mt-3 border-t border-line pt-2",
         )}
       >
@@ -1017,7 +1058,12 @@ export function PostCard({
             type="button"
             disabled={isLikePending}
             onClick={handleLike}
-            aria-label={liked ? "Unlike" : "Like"}
+            // One stable name plus pressed state ("Like, 12 likes,
+            // selected") rather than flipping between Like/Unlike — the
+            // name is what Voice Control users say, so it shouldn't change
+            // under them.
+            aria-label={likeCount > 0 ? `Like, ${likeCount} ${likeCount === 1 ? "like" : "likes"}` : "Like"}
+            aria-pressed={liked}
             className="flex items-center p-2 -m-2 hover:text-danger"
           >
             <Heart size={16} fill={liked ? "currentColor" : "none"} />
@@ -1026,6 +1072,7 @@ export function PostCard({
             <button
               type="button"
               onClick={() => setLikersOpen(true)}
+              aria-label={`${likeCount} ${likeCount === 1 ? "like" : "likes"}, see who liked`}
               className="hover:text-danger hover:underline"
             >
               {likeCount}
@@ -1039,7 +1086,7 @@ export function PostCard({
           type="button"
           onClick={toggleComments}
           aria-expanded={commentsOpen}
-          aria-label={commentsOpen ? "Hide comments" : "Comment"}
+          aria-label={commentCount > 0 ? `Comments, ${commentCount}` : "Comments"}
           className={cn("flex items-center gap-1.5 p-2 -m-2 hover:text-accent", commentsOpen && "text-accent")}
         >
           <MessageSquare size={16} />
@@ -1060,7 +1107,8 @@ export function PostCard({
             type="button"
             disabled={isRepostPending}
             onClick={handleRepost}
-            aria-label={reposted ? "Undo repost" : "Repost"}
+            aria-label={repostCount > 0 ? `Repost, ${repostCount}` : "Repost"}
+            aria-pressed={reposted}
             className={cn(
               "flex items-center gap-1.5 p-2 -m-2 hover:text-success",
               reposted && "text-success",
@@ -1075,7 +1123,7 @@ export function PostCard({
           <button
             type="button"
             onClick={() => setShareModalOpen(true)}
-            aria-label="Share"
+            aria-label={shareCount > 0 ? `Share, ${shareCount}` : "Share"}
             className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
           >
             <Share2 size={16} />
@@ -1119,10 +1167,10 @@ export function PostCard({
             }}
           />
           {isCommentsPending && comments === null && (
-            <p className="mt-3 animate-loading-pulse text-xs text-foreground-soft">Loading comments...</p>
+            <p role="status" className="mt-3 animate-loading-pulse text-xs text-foreground-soft">Loading comments...</p>
           )}
           {commentsError && (
-            <p className="mt-3 text-xs text-danger">Couldn&apos;t load comments — try again.</p>
+            <p role="alert" className="mt-3 text-xs text-danger">Couldn&apos;t load comments — try again.</p>
           )}
           {comments && (
             <CommentList
@@ -1148,7 +1196,11 @@ export function PostCard({
         />
       )}
       {lightboxVideo && displayPost.videoUrl && (
-        <Lightbox video={displayPost.videoUrl} onClose={() => setLightboxVideo(false)} />
+        <Lightbox
+          video={displayPost.videoUrl}
+          onClose={() => setLightboxVideo(false)}
+          alt={`Video posted by ${displayPost.author.name ?? "someone"}`}
+        />
       )}
       {/* Rendered once likersOpen has ever been true, not gated on it
           directly — Sheet's AnimatePresence needs this mounted through its

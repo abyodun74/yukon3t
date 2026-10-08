@@ -34,7 +34,7 @@ export default async function NewGroupChatPage({
       </p>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "rate_limited"
             ? "You're creating groups too fast — try again in an hour."
             : error === "moderation"
@@ -52,6 +52,7 @@ export default async function NewGroupChatPage({
           <div>
             <label className="block text-sm font-medium">Group name</label>
             <input
+              aria-label="Group name"
               name="name"
               required
               minLength={2}

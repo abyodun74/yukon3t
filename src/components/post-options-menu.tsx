@@ -55,13 +55,14 @@ export function PostOptionsMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Post options"
+        aria-expanded={open}
         className="rounded-lg p-1 text-foreground-soft hover:bg-line"
       >
         <MoreHorizontal size={16} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-52 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
           {canEdit && (
             <button
               type="button"

@@ -75,6 +75,7 @@ export function PhoneVerificationForm({
           <div>
             <label className="block text-sm font-medium">Enter the code we sent you</label>
             <input
+              aria-label="Enter the code we sent you"
               name="code"
               required
               inputMode="numeric"
@@ -83,7 +84,7 @@ export function PhoneVerificationForm({
               className={INPUT_CLASS}
             />
           </div>
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <button
               type="submit"
@@ -149,6 +150,7 @@ export function PhoneVerificationForm({
         <div>
           <label className="block text-sm font-medium">Phone number</label>
           <input
+            aria-label="Phone number"
             name="phone"
             type="tel"
             required
@@ -156,7 +158,7 @@ export function PhoneVerificationForm({
             className={INPUT_CLASS}
           />
         </div>
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         <button
           type="submit"
           disabled={isPending}

@@ -192,7 +192,7 @@ export function LiveStreamStrip() {
             >
               <div className="relative">
                 <UserAvatar avatarUrl={s.host.avatarUrl} name={s.host.name} size={48} className="border-2 border-danger" />
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-danger px-1 text-[9px] font-semibold text-white">
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-danger px-1 text-[0.5625rem] font-semibold text-white">
                   LIVE
                 </span>
               </div>
@@ -213,6 +213,7 @@ export function LiveStreamStrip() {
 
       <Sheet open={composing} onClose={() => setComposing(false)} title="Go live">
         <input
+          aria-label="What's happening?"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What's happening?"
@@ -223,6 +224,7 @@ export function LiveStreamStrip() {
 
         <label className="mt-3 block text-xs font-medium text-foreground-soft">Who can watch</label>
         <select
+          aria-label="Who can watch"
           value={audience}
           onChange={(e) => setAudience(e.target.value)}
           className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
@@ -276,7 +278,7 @@ export function LiveStreamStrip() {
               : "Visible to everyone on Home."}
         </p>
 
-        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
         <button
           type="button"

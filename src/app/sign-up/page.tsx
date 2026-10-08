@@ -79,7 +79,7 @@ export default async function SignUpPage({
       </p>
 
       {message && (
-        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           {message}
         </p>
       )}

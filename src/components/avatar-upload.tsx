@@ -104,7 +104,9 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           markNativePickerActive();
           galleryInputRef.current?.click();
         }}
-        aria-label="Change profile picture"
+        // Leads with the visible "No photo" text when that's what's showing,
+        // so the name still matches what a Voice Control user reads.
+        aria-label={preview ? "Change profile picture" : "No photo, change profile picture"}
         className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface disabled:opacity-50"
       >
         {preview ? (
@@ -190,6 +192,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         </p>
         {message && (
           <p
+            role={status === "success" ? "status" : "alert"}
             className={`mt-1 text-xs ${status === "success" ? "text-success" : "text-danger"}`}
           >
             {message}

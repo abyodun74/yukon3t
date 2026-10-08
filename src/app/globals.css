@@ -126,6 +126,78 @@ html {
   overscroll-behavior-y: contain;
 }
 
+/* Dynamic Type (iOS "Larger Text") — the root font size follows the
+   iPhone's text size setting, but NOT from a rule in this file: it is set
+   as an inline percentage on <html> by a small script that runs before
+   first paint (src/lib/text-scale.ts, inlined by TextScaleScript in
+   layout.tsx — read that file's comment for the full reasoning). In
+   short: the script measures the system body text style, divides by its
+   17px default, and scales the root from the usual 16px by that ratio,
+   clamped to 87.5%-235% (a 14px to 37.6px root). So at the DEFAULT iOS
+   text size the root is exactly 16px, the same as Android and desktop,
+   where the script does nothing at all.
+
+   What that means for CSS in this app: Tailwind's type AND spacing scales
+   are rem-based, so everything sized in rem follows the setting, and
+   anything sized in px does not. That is why text sizes here are written
+   in rem (`text-[0.6875rem]` rather than its 11px equivalent) — keep it
+   that way for any new text — and why the few pieces of chrome that must
+   not grow are sized from --chrome-rem below instead. */
+
+/* App chrome that deliberately does NOT grow all the way with Dynamic
+   Type: the top bar's icon row and the bottom tab bar (both nav.tsx),
+   plus a few icon-only/video pieces with the same problem — the call
+   control trays (direct-call-frame.tsx, live-video-frame.tsx), the
+   self-view tile and minimized call widget (direct-call-frame.tsx,
+   global-call-frame.tsx) and the live-stream quick-reaction popover
+   (live-stream-room.tsx). Everything else in the
+   app scales with the root font size; these can't, because their items
+   share one fixed-width row that cannot wrap — the top bar's logo + five
+   icon buttons already use ~350 of a 390px phone's width at the default
+   size (uncapped, the ☰ menu button is pushed off the right edge from
+   about 120% text size, taking Settings and Sign out with it), and the
+   six tab-bar columns are 65px each with "Messages" already filling most
+   of one. UIKit makes the same trade-off for its own navigation and tab
+   bars. The tab labels and badges stay real text, so VoiceOver and Voice
+   Control read them at any size.
+
+   --chrome-rem is "1rem, but no bigger than a phone-width row can hold":
+   it tracks the root size up to 4.4vw (17.2px on a 390px iPhone, about 7%
+   above the default) and stops there. The 16px floor inside that cap
+   means it is exactly 1rem — no change at all — whenever the root is 16px
+   (Android, desktop, and an iPhone at the default text size), whatever
+   the width; below 16px (an iPhone set to a smaller text size) it simply
+   follows the root down. On tablet/desktop widths 4.4vw is far above any
+   normal root size, so the cap only binds there at the largest settings.
+
+   .chrome-scale applies it by re-pointing Tailwind's own --spacing (every
+   p-/gap-/h-/w- utility is `calc(var(--spacing) * n)`) and the one text
+   size the top bar's logo uses, so the markup inside keeps its ordinary
+   utility classes. Text inside sized with an arbitrary value has to use
+   `calc(var(--chrome-rem) * n)` itself — see the tab labels and badges.
+
+   --tab-bar-height / --top-bar-height are the two bars' real heights
+   (excluding safe-area insets, which each consumer adds itself), shared
+   by everything that has to clear them — body's bottom padding
+   (layout.tsx), the Muse feed's spacers (muse-feed.tsx), the chat
+   thread's height (chat-thread.tsx) — so they can't drift apart. Tab bar:
+   0.5rem top/bottom padding + 0.125rem gap + one 0.6875rem label line at
+   line-height 1.5 (≈2.16 chrome-rem in all) + the 20px icon + 1px border,
+   plus ~9px slack, and never more than the 4rem this app always reserved
+   — so both are exactly the old 4rem (64px) at a 16px root. Reserving
+   plain `4rem` instead would outgrow the (capped) bars and waste up to
+   ~80px of screen height per bar at the largest text size. */
+:root {
+  --chrome-rem: min(1rem, max(16px, 4.4vw));
+  --tab-bar-height: min(4rem, calc(var(--chrome-rem) * 2.25 + 29px));
+  --top-bar-height: calc(var(--chrome-rem) * 4);
+}
+
+.chrome-scale {
+  --spacing: calc(var(--chrome-rem) / 4);
+  --text-xl: calc(var(--chrome-rem) * 1.25);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -308,7 +380,9 @@ button:not(:disabled):active {
   position: relative;
   isolation: isolate;
   display: inline-flex;
-  padding: 0.2rem 0.6rem;
+  /* chrome-rem, not rem — part of the top bar's capped row, see
+     .chrome-scale above. */
+  padding: calc(var(--chrome-rem) * 0.2) calc(var(--chrome-rem) * 0.6);
   border-radius: 9999px;
 }
 

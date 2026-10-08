@@ -77,7 +77,7 @@ export function NewCircleWizard({
             <li key={label} className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]",
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.625rem]",
                   step === stepNumber
                     ? "border-accent bg-accent-soft text-accent"
                     : step > stepNumber
@@ -97,6 +97,7 @@ export function NewCircleWizard({
       <div className={step === 1 ? "" : "hidden"}>
         <label className="block text-sm font-medium">Name</label>
         <input
+          aria-label="Name"
           name="name"
           required
           minLength={3}
@@ -128,6 +129,7 @@ export function NewCircleWizard({
           expect before they join.
         </p>
         <textarea
+          aria-label="Theme"
           name="description"
           required
           minLength={10}
@@ -163,7 +165,7 @@ export function NewCircleWizard({
       </div>
 
       {error && (
-        <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">{error}</p>
+        <p role="alert" className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">{error}</p>
       )}
 
       <div className="flex items-center gap-2 pt-2">

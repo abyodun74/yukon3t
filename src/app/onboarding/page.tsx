@@ -33,17 +33,17 @@ export default async function OnboardingPage({
       </p>
 
       {error === "invalid" && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           Please fill in all required fields.
         </p>
       )}
       {error === "moderation" && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           Your bio didn&apos;t pass our content guidelines. Please revise it.
         </p>
       )}
       {error === "underage" && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           You must be at least 13 years old to use YuKon3t.
         </p>
       )}

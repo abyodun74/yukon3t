@@ -34,6 +34,9 @@ export function CircleSwitcher({
             key={circle.id}
             href={`/circles/${circle.slug}`}
             title={circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}
+            // The avatar's own alt would read as "<Circle>'s profile photo".
+            aria-label={circle.parentName ? `${circle.parentName}, ${circle.name}` : circle.name}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "flex shrink-0 items-center justify-center rounded-full p-0.5 transition",
               active

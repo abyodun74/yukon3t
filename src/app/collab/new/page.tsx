@@ -39,7 +39,7 @@ export default async function NewCollabPostPage({
       </p>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "rate_limited"
             ? "You're posting too fast — try again shortly."
             : error === "moderation"

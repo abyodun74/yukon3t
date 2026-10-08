@@ -22,7 +22,7 @@ export function BackButton({ fallbackHref = "/home", href }: { fallbackHref?: st
     return (
       // w-fit: unlike a <button>, an <a> set to display:flex stretches to the
       // full row, which would make the whole line a click target/hover area.
-      <Link href={href} aria-label="Go back" className={`${CLASS_NAME} w-fit`}>
+      <Link href={href} className={`${CLASS_NAME} w-fit`}>
         <ArrowLeft size={18} />
         Back
       </Link>
@@ -39,7 +39,6 @@ export function BackButton({ fallbackHref = "/home", href }: { fallbackHref?: st
           router.push(fallbackHref);
         }
       }}
-      aria-label="Go back"
       className={CLASS_NAME}
     >
       <ArrowLeft size={18} />

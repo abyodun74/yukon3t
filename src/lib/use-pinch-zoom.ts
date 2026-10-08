@@ -92,6 +92,26 @@ export function usePinchZoom({
     }
   }
 
+  /**
+   * Button-driven zoom (see ZoomableImage's Zoom in/Zoom out controls) — the
+   * tap alternative to pinch/double-tap for anyone who can't perform those
+   * gestures (Voice Control, Switch Control, VoiceOver). Doubles or halves
+   * around the container's center, since a button press has no pointer
+   * position of its own to zoom toward.
+   */
+  function zoomStep(direction: 1 | -1) {
+    const container = containerRef.current;
+    if (!container) return;
+    const nextScale = clamp(direction > 0 ? scale * 2 : scale / 2, minScale, maxScale);
+    if (nextScale <= minScale) {
+      setScale(minScale);
+      setTranslate({ x: 0, y: 0 });
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    zoomAround(rect.left + rect.width / 2, rect.top + rect.height / 2, nextScale);
+  }
+
   function resetIfZoomed() {
     if (scale <= minScale) return;
     setScale(minScale);
@@ -218,6 +238,9 @@ export function usePinchZoom({
     isGesturing,
     resetIfZoomed,
     toggleZoom,
+    zoomStep,
+    minScale,
+    maxScale,
     wasZoomGesture,
     movedPastTapThreshold,
     // Deliberately no `touchAction` in here — ZoomableImage always wants

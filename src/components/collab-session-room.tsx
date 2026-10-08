@@ -265,7 +265,7 @@ export function CollabSessionRoom({
           </div>
         )}
       </div>
-      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
       {recordings.length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
@@ -289,7 +289,12 @@ export function CollabSessionRoom({
         </div>
       )}
 
-      <Sheet open={confirmingJoin} onClose={() => setConfirmingJoin(false)} panelClassName="max-w-xs text-center">
+      <Sheet
+        open={confirmingJoin}
+        onClose={() => setConfirmingJoin(false)}
+        panelClassName="max-w-xs text-center"
+        ariaLabel="A session is already in progress"
+      >
         <p className="text-sm font-medium">A session is already in progress</p>
         <p className="mt-1 text-sm text-foreground-soft">
           {participants.map((p) => p.name).join(", ")} {participants.length === 1 ? "is" : "are"} already in this

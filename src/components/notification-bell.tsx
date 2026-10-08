@@ -10,12 +10,15 @@ export function NotificationBell({ count }: { count: number }) {
   return (
     <Link
       href="/notifications"
-      aria-label={count > 0 ? `${count} unread notifications` : "Notifications"}
+      aria-label={count > 0 ? `Notifications, ${count} unread` : "Notifications"}
       className="relative rounded-lg p-1.5 text-foreground-soft hover:bg-line"
     >
       <Icon size={20} />
       {count > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
+        // chrome-rem, not rem: this badge sits in nav.tsx's capped top bar,
+        // where its box (h-4/min-w-4) stops growing with the iOS text size —
+        // the number has to stop with it or it outgrows the badge.
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.625)] font-semibold text-white">
           {count > 9 ? "9+" : count}
         </span>
       )}

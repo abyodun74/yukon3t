@@ -24,7 +24,7 @@ export function AdminResendVerificationButton({ userId }: { userId: string }) {
         {status === "sent" ? "Confirmation email sent" : "Resend confirmation email"}
       </button>
       {status === "error" && (
-        <p className="mt-1 text-xs text-danger">Couldn&apos;t send — try again.</p>
+        <p role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t send — try again.</p>
       )}
     </div>
   );

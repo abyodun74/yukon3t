@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
 // Hand-rolled rather than a library (react-easy-crop, cropperjs, etc.) —
 // deliberate: this app avoids pulling in native/JS deps it doesn't need
@@ -42,6 +43,10 @@ export function ImageCropModal({
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isBusy, setIsBusy] = useState(false);
+  const titleId = useId();
+  const dialogRef = useDialogFocus<HTMLDivElement>(true, () => {
+    if (!isBusy) onCancel();
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -210,9 +215,20 @@ export function ImageCropModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-surface p-4 shadow-xl">
-        <p className="mb-3 text-sm font-medium">{title}</p>
+    // items-start + my-auto rather than items-center, and scrollable: same
+    // centering when the panel fits, but a panel taller than the screen (large
+    // iOS text size) stays scrollable from its top instead of having its
+    // title and buttons pushed out of reach — see sheet.tsx.
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 p-4 outline-none"
+    >
+      <div className="my-auto w-full max-w-sm rounded-xl bg-surface p-4 shadow-xl">
+        <p id={titleId} className="mb-3 text-sm font-medium">{title}</p>
         <div
           ref={containerRef}
           className="relative mx-auto touch-none select-none overflow-hidden rounded-lg bg-black"

@@ -44,7 +44,7 @@ export default async function NewCirclePage({
       </p>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {error === "rate_limited"
             ? parent
               ? "You're creating sub-circles too fast — try again in an hour."

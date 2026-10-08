@@ -251,7 +251,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         className="hig-material sticky top-0 z-40 border-b border-line bg-surface/95 shadow-[var(--shadow-sm)] backdrop-blur supports-[backdrop-filter]:bg-surface/80"
         style={{ paddingTop: "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))" }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        {/* chrome-scale: this one row cannot wrap, so its spacing and the
+            logo stop growing with Dynamic Type once a phone-width row is
+            full — see .chrome-scale in globals.css. Without it the ☰
+            button (and Settings/Sign out behind it) is pushed off-screen
+            at larger text sizes. */}
+        <div className="chrome-scale mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link
             href="/"
             onClick={() => setOpen(false)}
@@ -263,11 +268,22 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
           </Link>
 
           {links.length > 0 && (
-            <nav className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
+            <nav aria-label="Main" className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
               {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={pathname === link.href ? "page" : undefined}
+                  // Only when there's a badge: the visible label stays the
+                  // start of the name (so "tap Messages" still works in
+                  // Voice Control) and the bare "3" becomes a real phrase.
+                  aria-label={
+                    link.href === "/messages" && unreadMessages > 0
+                      ? `${link.label}, ${unreadMessages} unread`
+                      : link.href === "/connections" && pendingConnections > 0
+                        ? `${link.label}, ${pendingConnections} pending`
+                        : undefined
+                  }
                   className={cn(
                     "relative rounded-full px-3 py-1.5 hover:bg-accent-soft hover:text-accent",
                     pathname === link.href && "bg-accent-soft text-accent",
@@ -275,12 +291,12 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 >
                   {link.label}
                   {link.href === "/messages" && unreadMessages > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}
                   {link.href === "/connections" && pendingConnections > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {pendingConnections > 9 ? "9+" : pendingConnections}
                     </span>
                   )}
@@ -296,7 +312,8 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             {session?.user && (
               <Link
                 href="/connections"
-                aria-label="Connections"
+                aria-label={pendingConnections > 0 ? `Connections, ${pendingConnections} pending` : "Connections"}
+                aria-current={pathname === "/connections" ? "page" : undefined}
                 title="Connections"
                 className={cn(
                   "relative rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
@@ -305,7 +322,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               >
                 <UserCheck size={20} />
                 {pendingConnections > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                     {pendingConnections > 9 ? "9+" : pendingConnections}
                   </span>
                 )}
@@ -315,6 +332,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               <Link
                 href="/search"
                 aria-label="Search"
+                aria-current={pathname === "/search" ? "page" : undefined}
                 className={cn(
                   "rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
                   pathname === "/search" && "bg-accent-soft text-accent",
@@ -417,6 +435,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                   type="button"
                   aria-label={open ? "Close menu" : "Open menu"}
                   aria-expanded={open}
+                  aria-controls="nav-more-menu"
                   onClick={() => setOpen((v) => !v)}
                   className="rounded-lg p-1.5 text-foreground-soft hover:bg-line md:hidden"
                 >
@@ -435,11 +454,21 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         </div>
 
         {open && session?.user && (
-          <div ref={menuRef} className="border-t border-line px-4 py-3 md:hidden">
-            <nav className="flex flex-col gap-1 text-sm font-medium">
+          <div
+            ref={menuRef}
+            id="nav-more-menu"
+            // Scrolls within itself: this menu lives inside the sticky
+            // header, so anything taller than the screen below the top bar
+            // (the admin list, or any list at a large Dynamic Type size) had
+            // no way to be scrolled into view — Sign out sits last.
+            className="max-h-[calc(100dvh_-_var(--top-bar-height)_-_max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] overflow-y-auto overscroll-contain border-t border-line px-4 py-3 md:hidden"
+          >
+            <nav aria-label="More" className="flex flex-col gap-1 text-sm font-medium">
               <Link
                 href="/messages"
                 onClick={() => setOpen(false)}
+                aria-current={pathname === "/messages" ? "page" : undefined}
+                aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : undefined}
                 className={cn(
                   "relative rounded-lg px-3 py-2 hover:bg-line",
                   pathname === "/messages" ? "text-accent" : "text-foreground-soft",
@@ -447,7 +476,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               >
                 Messages
                 {unreadMessages > 0 && (
-                  <span className="ml-2 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                  <span className="ml-2 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[0.5625rem] font-semibold text-white">
                     {unreadMessages > 9 ? "9+" : unreadMessages}
                   </span>
                 )}
@@ -455,6 +484,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               <Link
                 href="/discover"
                 onClick={() => setOpen(false)}
+                aria-current={pathname === "/discover" ? "page" : undefined}
                 className={cn(
                   "rounded-lg px-3 py-2 hover:bg-line",
                   pathname === "/discover" ? "text-accent" : "text-foreground-soft",
@@ -465,6 +495,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               <Link
                 href="/invite"
                 onClick={() => setOpen(false)}
+                aria-current={pathname === "/invite" ? "page" : undefined}
                 className={cn(
                   "rounded-lg px-3 py-2 hover:bg-line",
                   pathname === "/invite" ? "text-accent" : "text-foreground-soft",
@@ -598,7 +629,8 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
         // just already provided for us instead of needing our own native
         // plugin call. No-op (0px) anywhere it isn't set, including iOS/web.
         <nav
-          className="hig-material fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/90 backdrop-blur-xl supports-[backdrop-filter]:bg-surface/75 md:hidden"
+          aria-label="Tabs"
+          className="hig-material chrome-scale fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/90 backdrop-blur-xl supports-[backdrop-filter]:bg-surface/75 md:hidden"
           style={{
             paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
             width: footerWidth,
@@ -612,15 +644,22 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               <Link
                 key={tab.href}
                 href={tab.href}
+                aria-current={active ? "page" : undefined}
+                aria-label={tab.href === "/messages" && unreadMessages > 0 ? `${tab.label}, ${unreadMessages} unread` : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2 text-[11px]",
+                  // Label size is chrome-rem based, not rem: six columns share the
+                  // screen width, so the labels stop growing with Dynamic Type
+                  // at the size one column can hold (see .chrome-scale in
+                  // globals.css). min-w-0 + text-center keep a label inside its
+                  // own column either way.
+                  "flex min-w-0 flex-col items-center gap-0.5 py-2 text-center text-[length:calc(var(--chrome-rem)*0.6875)]",
                   active ? "text-accent" : "text-foreground-soft",
                 )}
               >
                 <span className="relative">
                   <Icon size={20} strokeWidth={active ? 2.5 : 2} />
                   {tab.href === "/messages" && unreadMessages > 0 && (
-                    <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold text-white">
+                    <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}

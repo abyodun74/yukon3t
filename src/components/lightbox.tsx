@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { saveMediaToGallery } from "@/lib/save-to-gallery";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { cn } from "@/lib/utils";
 
 function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
@@ -19,6 +20,14 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
   }
 
   return (
+    <>
+    {/* The button's own label changing isn't reliably re-announced by a
+        screen reader that's already sitting on it — this is. */}
+    <span role="status" className="sr-only">
+      {state === "saving" && "Saving…"}
+      {state === "saved" && "Saved to device"}
+      {state === "error" && "Couldn't save"}
+    </span>
     <button
       type="button"
       onClick={(e) => {
@@ -26,19 +35,22 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
         handleSave();
       }}
       disabled={state === "saving"}
-      aria-label="Save to device"
+      // Only while idle — in every other state the visible text ("Saving…",
+      // "Saved", "Couldn't save") is the name, so the label never hides it.
+      aria-label={state === "idle" ? "Save to device" : undefined}
       title="Save to device"
       className={cn(
         "absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white disabled:opacity-60",
         state === "error" && "text-danger",
       )}
     >
-      {state === "saved" ? <Check size={16} /> : <Download size={16} />}
+      {state === "saved" ? <Check size={16} aria-hidden /> : <Download size={16} aria-hidden />}
       {state === "saving" && "Saving…"}
       {state === "saved" && "Saved"}
       {state === "error" && "Couldn't save"}
       {state === "idle" && "Save"}
     </button>
+    </>
   );
 }
 
@@ -63,7 +75,6 @@ export function Lightbox({
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
       if (isGallery && images && onIndexChange && index !== undefined) {
         if (e.key === "ArrowLeft") onIndexChange((index - 1 + images.length) % images.length);
         if (e.key === "ArrowRight") onIndexChange((index + 1) % images.length);
@@ -82,12 +93,26 @@ export function Lightbox({
     return () => resumePausedVideos();
   }, []);
 
+  // Escape goes through the hook rather than the arrow-key listener above:
+  // the hook only lets the topmost open dialog answer it, so a sheet opened
+  // over this lightbox closes alone instead of taking the lightbox with it.
+  const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+
   return (
     <div
-      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+      ref={dialogRef}
+      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-label={
+        video
+          ? "Video viewer"
+          : isGallery && images && index !== undefined && images.length > 1
+            ? `Photo ${index + 1} of ${images.length}`
+            : "Photo viewer"
+      }
+      tabIndex={-1}
     >
       <button
         type="button"
@@ -95,7 +120,7 @@ export function Lightbox({
         aria-label="Close"
         className="absolute right-4 top-4 z-10 text-white/80 hover:text-white"
       >
-        <X size={24} />
+        <X size={24} aria-hidden />
       </button>
 
       {/* Keyed on the URL so a stale "Saved"/error state from a previous
@@ -116,7 +141,7 @@ export function Lightbox({
               }}
               className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white/80 hover:text-white sm:left-4"
             >
-              <ChevronLeft size={28} />
+              <ChevronLeft size={28} aria-hidden />
             </button>
           )}
           {/* Keyed on index so pinch/pan/zoom state resets on every
@@ -134,7 +159,7 @@ export function Lightbox({
               }}
               className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white/80 hover:text-white sm:right-4"
             >
-              <ChevronRight size={28} />
+              <ChevronRight size={28} aria-hidden />
             </button>
           )}
         </>
@@ -146,6 +171,7 @@ export function Lightbox({
           controls
           autoPlay
           onClick={(e) => e.stopPropagation()}
+          aria-label={alt || "Video"}
           className="max-h-[90vh] max-w-full rounded-lg bg-black"
         />
       )}

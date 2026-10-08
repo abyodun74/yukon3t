@@ -82,6 +82,7 @@ export function CircleDetailsEditModal({
           <div>
             <label className="text-xs font-medium text-foreground-soft">Name</label>
             <input
+              aria-label="Name"
               name="name"
               defaultValue={name}
               required
@@ -95,7 +96,7 @@ export function CircleDetailsEditModal({
             <label htmlFor="circle-edit-theme" className="text-xs font-medium text-foreground-soft">
               Theme
             </label>
-            <p className="mt-0.5 text-[11px] text-foreground-soft">
+            <p className="mt-0.5 text-[0.6875rem] text-foreground-soft">
               What this Circle is about, so people know what to expect before they join.
             </p>
             <textarea
@@ -126,7 +127,7 @@ export function CircleDetailsEditModal({
             {visibilityLocked ? (
               <>
                 <input type="hidden" name="visibility" value="PRIVATE" />
-                <p className="mt-1 text-[11px] text-foreground-soft">
+                <p className="mt-1 text-[0.6875rem] text-foreground-soft">
                   Private — a sub-circle under a private Circle stays private.
                 </p>
               </>
@@ -147,20 +148,20 @@ export function CircleDetailsEditModal({
                     />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">{label}</span>
-                      <span className="block text-[11px] text-foreground-soft">{help}</span>
+                      <span className="block text-[0.6875rem] text-foreground-soft">{help}</span>
                     </span>
                   </label>
                 ))}
               </div>
             )}
             {privacy === "PRIVATE" && visibility === "PUBLIC" && !visibilityLocked && (
-              <p className="mt-1.5 text-[11px] text-danger">
+              <p className="mt-1.5 text-[0.6875rem] text-danger">
                 Making this Circle private hides its existing posts and live streams from non-members right away
                 {hasSubCircles ? ", and makes its sub-circles private too" : ""}. Anyone who is already a member stays a member.
               </p>
             )}
           </fieldset>
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <button
             type="submit"
             disabled={isPending}

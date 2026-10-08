@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Eye, Trash2, Send, MessageCircle } from "lucide-react";
+import { X, Eye, Trash2, Send, MessageCircle, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserLink, UserAvatar } from "@/components/user-link";
 import {
@@ -24,6 +24,7 @@ import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
 type StoryComment = {
   id: string;
@@ -44,6 +45,15 @@ const TAP_MAX_HOLD_MS = 250;
 // this person's own stories) — checked before the hold-duration tap check
 // below, so a slow drag doesn't get misread as a hold-to-pause release.
 const SWIPE_THRESHOLD_PX = 60;
+// When a tap zone last saw a real pointerup — module-level, not a ref,
+// because the click that trails that pointerup can land on a DIFFERENT
+// StoryViewer instance: the tray remounts the viewer per person (keyed by
+// authorId, see story-tray-viewer.tsx), so a tap that crosses to the next or
+// previous person has already swapped instances by the time the browser
+// dispatches its click, onto the new instance's zone button under the same
+// finger. A per-instance guard starts at 0 there and let that click advance
+// a second time (skipping the new person's first story, or the person).
+let lastZonePointerUpAt = 0;
 
 export type StoryData = {
   id: string;
@@ -125,7 +135,23 @@ export function StoryViewer({
 }) {
   const [index, setIndex] = useState(startIndex);
   const [progress, setProgress] = useState(0);
+  // One flag per reason the story can be paused, with the real paused state
+  // derived from all of them (isPaused below) — not one shared boolean each
+  // source sets and clears. They overlap: with the reply field focused,
+  // opening the Share sheet moves focus into the sheet, which blurs the
+  // field; on a shared boolean that blur cleared the pause the sheet had
+  // just set, and the story ran on (and could auto-advance or close) behind
+  // the open sheet.
+  //
+  // `paused` itself is the pointer hold: set on pointerdown, cleared by
+  // every pointer release — including the release of a tap on "Next story".
+  // (loadViewers/loadComments also set it, as they always have: the story
+  // stays held after one of those panels closes until the next tap.)
   const [paused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false); // the explicit Pause button
+  const [replyFocused, setReplyFocused] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   // Keyed by story id rather than plain booleans — switching stories then
   // naturally "resets" these (the id no longer matches) without needing an
   // effect to synchronously reset state on every story change.
@@ -146,12 +172,14 @@ export function StoryViewer({
   const pointerDownAtRef = useRef(0);
   const pointerStartXRef = useRef(0);
   const router = useRouter();
+  const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
 
   const story = stories[index];
   useScreenshotContext(story ? { type: "story", id: story.id } : null);
   const showViewers = story ? viewersOpenForId === story.id : false;
   const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
+  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen;
 
   // Checks the boundary against `index` directly and calls onClose as a
   // plain function call, rather than from inside setIndex's updater — the
@@ -218,7 +246,7 @@ export function StoryViewer({
   // via onTimeUpdate/onEnded below; an embed can't (see EMBED_DURATION_MS's
   // own comment), so it times out the same way an image does, just longer.
   useEffect(() => {
-    if (!story || (story.mediaType !== "IMAGE" && story.mediaType !== "EMBED") || paused || showViewers || showComments) return undefined;
+    if (!story || (story.mediaType !== "IMAGE" && story.mediaType !== "EMBED") || isPaused || showViewers || showComments) return undefined;
     const durationMs = story.mediaType === "EMBED" ? EMBED_DURATION_MS : IMAGE_DURATION_MS;
 
     let raf: number;
@@ -236,14 +264,14 @@ export function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [story, paused, showViewers, showComments, next]);
+  }, [story, isPaused, showViewers, showComments, next]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || story?.mediaType !== "VIDEO") return;
-    if (paused || showViewers || showComments) video.pause();
+    if (isPaused || showViewers || showComments) video.pause();
     else video.play().catch(() => {});
-  }, [paused, showViewers, showComments, story]);
+  }, [isPaused, showViewers, showComments, story]);
 
   function handlePointerDown(e: PointerEvent<HTMLButtonElement>) {
     pointerDownAtRef.current = Date.now();
@@ -254,6 +282,7 @@ export function StoryViewer({
   function handlePointerUp(e: PointerEvent<HTMLButtonElement>, tapDirection: "prev" | "next") {
     const held = Date.now() - pointerDownAtRef.current;
     const deltaX = e.clientX - pointerStartXRef.current;
+    lastZonePointerUpAt = Date.now();
     setPaused(false);
 
     // A real horizontal swipe always means "move between people", regardless
@@ -268,9 +297,36 @@ export function StoryViewer({
     }
 
     if (held < TAP_MAX_HOLD_MS) {
-      if (tapDirection === "prev") prev();
+      // On the first story, "previous" steps back to the previous
+      // person's stack (a no-op for the first person in the tray) rather
+      // than doing nothing — same as handleZoneClick below, so a tap, a
+      // Voice Control "tap Previous story" and a VoiceOver activation all
+      // behave alike, and swiping isn't the only way back.
+      if (tapDirection === "prev") {
+        if (index === 0) onPrevAuthor?.();
+        else prev();
+      }
       else next();
     }
+  }
+
+  // The tap zones navigate from pointerdown/pointerup (that's what lets a
+  // hold pause and a drag swipe), but an activation that arrives as a bare
+  // click — VoiceOver's double-tap, a keyboard's Enter/Space, Switch
+  // Control — never produces that pointer pair at all, so without this the
+  // zones were announced as buttons that then did nothing. A click that
+  // directly follows a real pointerup is the tail of a touch/mouse tap
+  // handlePointerUp already dealt with, and is ignored here.
+  //
+  // Stepping back from the first story moves to the previous person's
+  // stack, same as handlePointerUp's own tap path — otherwise swiping would
+  // be the only way back, and a swipe is exactly what these users can't
+  // perform. (Forward already rolls over into the next person via next().)
+  function handleZoneClick(tapDirection: "prev" | "next") {
+    if (Date.now() - lastZonePointerUpAt < 700) return;
+    if (tapDirection === "next") next();
+    else if (index === 0) onPrevAuthor?.();
+    else prev();
   }
 
   async function handleReact(emoji: string) {
@@ -334,8 +390,13 @@ export function StoryViewer({
 
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Story ${index + 1} of ${stories.length} by ${authorName}`}
+      tabIndex={-1}
       className={cn(
-        "fixed inset-0 z-[70] overflow-hidden bg-black",
+        "fixed inset-0 z-[70] overflow-hidden bg-black outline-none",
         direction === "next" && "story-glide-next",
         direction === "prev" && "story-glide-prev",
       )}
@@ -343,7 +404,7 @@ export function StoryViewer({
       <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={story.mediaUrl ?? undefined} alt={`Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
+          <img src={story.mediaUrl ?? undefined} alt={story.caption ? `Story by ${authorName}: ${story.caption}` : `Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
         ) : story.mediaType === "EMBED" && story.embedProvider && story.embedId ? (
           // Instagram/TikTok/etc.'s own player — see StoryMediaType's own
           // doc comment for the trust boundary this implies (not moderated
@@ -363,6 +424,7 @@ export function StoryViewer({
             poster={story.mediaThumbnailUrl ?? undefined}
             autoPlay
             playsInline
+            aria-label={`Video story by ${authorName}`}
             className="max-h-full max-w-full object-contain"
             onTimeUpdate={(e) => {
               const el = e.currentTarget;
@@ -382,6 +444,7 @@ export function StoryViewer({
           onPointerDown={handlePointerDown}
           onPointerUp={(e) => handlePointerUp(e, "prev")}
           onPointerLeave={() => setPaused(false)}
+          onClick={() => handleZoneClick("prev")}
         />
         <button
           type="button"
@@ -390,11 +453,13 @@ export function StoryViewer({
           onPointerDown={handlePointerDown}
           onPointerUp={(e) => handlePointerUp(e, "next")}
           onPointerLeave={() => setPaused(false)}
+          onClick={() => handleZoneClick("next")}
         />
       </div>
 
       <div className="absolute inset-x-0 top-0 z-20 p-3">
-        <div className="flex gap-1">
+        {/* Decorative — the dialog's own name already says "Story 2 of 5". */}
+        <div className="flex gap-1" aria-hidden>
           {stories.map((s, i) => (
             <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
               <div
@@ -404,8 +469,10 @@ export function StoryViewer({
             </div>
           ))}
         </div>
-        <div className="mt-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        {/* gap + min-w-0/shrink-0: the name truncates before it can push
+            Pause/Close off the right edge at a large text size. */}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <UserLink
               userId={authorId}
               name={authorName}
@@ -414,14 +481,27 @@ export function StoryViewer({
               showUsername={false}
               className="text-sm font-medium text-white hover:text-white/80"
             />
-            <span className="text-xs text-white/70" title={formatDateTime(story.createdAt)}>
+            <span className="shrink-0 text-xs text-white/70" title={formatDateTime(story.createdAt)}>
               {timeAgo(story.createdAt)}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Tap alternative to hold-to-pause, which Voice Control and
+                VoiceOver users can't perform — and without which a 5s
+                auto-advancing image is gone before a screen reader has
+                finished reading its caption. */}
+            <button
+              type="button"
+              onClick={() => setUserPaused((p) => !p)}
+              aria-label={userPaused ? "Play story" : "Pause story"}
+              className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
+            >
+              {userPaused ? <Play size={18} /> : <Pause size={18} />}
+            </button>
             {isOwner && (
               <button
                 type="button"
+                aria-expanded={confirmingDelete}
                 onClick={() => setDeleteConfirmForId((id) => (id === story.id ? null : story.id))}
                 aria-label="Delete story"
                 className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
@@ -442,7 +522,7 @@ export function StoryViewer({
       </div>
 
       {confirmingDelete && (
-        <div className="absolute inset-x-0 top-16 z-30 mx-3 flex items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-xs">
+        <div role="group" aria-label="Delete this story?" className="absolute inset-x-0 top-16 z-30 mx-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-xs">
           <span>Delete this story?</span>
           <div className="flex gap-2">
             <button
@@ -480,7 +560,7 @@ export function StoryViewer({
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
                   Seen by {viewers?.length ?? 0}
                 </p>
-                <button type="button" onClick={() => setViewersOpenForId(null)} className="text-foreground-soft">
+                <button type="button" onClick={() => setViewersOpenForId(null)} aria-label="Close viewers" className="text-foreground-soft">
                   <X size={16} />
                 </button>
               </div>
@@ -529,10 +609,11 @@ export function StoryViewer({
                   ))}
                 </div>
               )}
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={loadViewers}
+                  aria-label={`${story.viewCount} ${story.viewCount === 1 ? "view" : "views"}, see who viewed`}
                   className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
                 >
                   <Eye size={14} />
@@ -546,7 +627,7 @@ export function StoryViewer({
                   <MessageCircle size={14} />
                   Comments
                 </button>
-                <StoryShareButton storyId={story.id} onOpenChange={setPaused} />
+                <StoryShareButton storyId={story.id} onOpenChange={setShareOpen} />
               </div>
               <SafeAreaBottomSpacer />
             </div>
@@ -586,12 +667,16 @@ export function StoryViewer({
               ))}
             </div>
           )}
-          <div className="flex items-center gap-1.5">
+          {/* flex-wrap: six reactions plus three buttons stop fitting on one
+              line a little above the default text size; wrapping keeps
+              Comments and Share on screen. */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {QUICK_REACTIONS.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => handleReact(emoji)}
+                aria-pressed={myReaction === emoji}
                 className={`rounded-full px-2 py-1 text-lg ${
                   myReaction === emoji ? "bg-white/30" : "bg-black/30 hover:bg-white/20"
                 }`}
@@ -604,7 +689,7 @@ export function StoryViewer({
               triggerVariant="plus"
               triggerClassName="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
               popupZClass="z-[80]"
-              onOpenChange={setPaused}
+              onOpenChange={setEmojiOpen}
               onSelect={handleReact}
             />
             <button
@@ -615,14 +700,14 @@ export function StoryViewer({
             >
               <MessageCircle size={16} />
             </button>
-            <StoryShareButton storyId={story.id} onOpenChange={setPaused} />
+            <StoryShareButton storyId={story.id} onOpenChange={setShareOpen} />
           </div>
           <div className="mt-2">
             <StoryReplyBar
               key={story.id}
               storyId={story.id}
               authorName={authorName}
-              onFocusChange={setPaused}
+              onFocusChange={setReplyFocused}
             />
           </div>
           <SafeAreaBottomSpacer />
@@ -697,7 +782,7 @@ function StoryCommentsPanel({
                 <span className="font-medium">{c.author.name ?? "Someone"}</span>{" "}
                 {c.content}
               </p>
-              <p className="text-[11px] text-foreground-soft">{timeAgo(c.createdAt)}</p>
+              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt)}</p>
             </div>
             {(c.author.id === currentUserId || isStoryOwner) && (
               <button
@@ -725,6 +810,7 @@ function StoryCommentsPanel({
           }}
           maxLength={1000}
           placeholder="Add a comment..."
+          aria-label="Add a comment"
           className="flex-1 rounded-full border border-line bg-background px-4 py-2 text-sm outline-none focus:border-accent"
         />
         <button
@@ -737,7 +823,7 @@ function StoryCommentsPanel({
           <Send size={16} />
         </button>
       </div>
-      {error && <p className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
       <SafeAreaBottomSpacer />
     </div>
   );
@@ -778,6 +864,14 @@ function StoryReplyBar({
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // The parent keys this bar by story id, so a story change destroys the
+  // focused input without React ever delivering its blur — clearing on
+  // unmount is what keeps the viewer from staying paused on every later story.
+  const onFocusChangeRef = useRef(onFocusChange);
+  useEffect(() => {
+    onFocusChangeRef.current = onFocusChange;
+  });
+  useEffect(() => () => onFocusChangeRef.current(false), []);
 
   async function send() {
     const trimmed = text.trim();
@@ -813,6 +907,7 @@ function StoryReplyBar({
           }}
           maxLength={1000}
           placeholder={`Reply to ${authorName}...`}
+          aria-label={`Reply to ${authorName}`}
           className="flex-1 rounded-full border border-white/30 bg-black/30 px-4 py-2 text-sm text-white placeholder-white/60 outline-none focus:border-white"
         />
         <button
@@ -825,8 +920,8 @@ function StoryReplyBar({
           <Send size={16} />
         </button>
       </div>
-      {status === "sent" && <p className="mt-1 text-xs text-white/80">Reply sent.</p>}
-      {errorMsg && <p className="mt-1 text-xs text-danger">{errorMsg}</p>}
+      {status === "sent" && <p role="status" className="mt-1 text-xs text-white/80">Reply sent.</p>}
+      {errorMsg && <p role="alert" className="mt-1 text-xs text-danger">{errorMsg}</p>}
     </div>
   );
 }

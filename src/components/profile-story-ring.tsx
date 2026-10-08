@@ -52,9 +52,20 @@ export function ProfileStoryRing({
   return (
     <>
       <div className="relative h-16 w-16 shrink-0">
+        {!hasStories && !avatarUrl ? (
+          // Nothing to open (no story, no photo to enlarge) — so not a
+          // button at all, rather than a permanently disabled one that
+          // VoiceOver still announces and Voice Control still numbers.
+          <div
+            role="img"
+            aria-label={`${name} has no profile photo`}
+            className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-line bg-surface text-xs text-foreground-soft"
+          >
+            No photo
+          </div>
+        ) : (
         <button
           type="button"
-          disabled={!hasStories && !avatarUrl}
           // Stories take priority when present (they're the time-sensitive
           // content); otherwise tapping the photo just enlarges it for a
           // clearer look, rather than being a dead tap like before. Always
@@ -68,7 +79,7 @@ export function ProfileStoryRing({
               setPhotoOpen(true);
             }
           }}
-          aria-label={hasStories ? "View story" : avatarUrl ? "Enlarge profile photo" : undefined}
+          aria-label={hasStories ? `View ${name}'s story` : `Enlarge ${name}'s profile photo`}
           className={cn(
             "h-16 w-16 overflow-hidden rounded-full border bg-surface",
             hasStories ? "border-2 border-accent" : "border border-line",
@@ -83,6 +94,7 @@ export function ProfileStoryRing({
             </div>
           )}
         </button>
+        )}
         {isOwner && (
           <button
             type="button"

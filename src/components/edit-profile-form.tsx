@@ -63,6 +63,7 @@ export function EditProfileForm({
         <div>
           <label className="block text-sm font-medium">Display name</label>
           <input
+            aria-label="Display name"
             name="name"
             required
             minLength={2}
@@ -74,6 +75,7 @@ export function EditProfileForm({
         <div>
           <label className="block text-sm font-medium">Bio</label>
           <textarea
+            aria-label="Bio"
             name="bio"
             maxLength={500}
             rows={3}
@@ -84,6 +86,7 @@ export function EditProfileForm({
         <div>
           <label className="block text-sm font-medium">Country</label>
           <select
+            aria-label="Country"
             name="country"
             required
             defaultValue={user.country ?? ""}

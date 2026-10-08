@@ -22,7 +22,7 @@ export function AppleSignInButton({
     <form action={startAppleSignIn} className="mt-4 w-full">
       <input type="hidden" name="returnPath" value={returnPath} />
       {showCaptchaError && (
-        <p className="mb-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mb-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           We couldn&apos;t complete the security check. Wait a moment and try again — if it keeps
           happening, turn off any content blocker or try another network.
         </p>

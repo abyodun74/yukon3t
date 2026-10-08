@@ -88,11 +88,13 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
           ref={inputRef}
           type="file"
           accept="image/*"
+          aria-label="Choose a photo"
           disabled={isPending}
           onChange={(e) => handleFile(e.target.files?.[0])}
           className="block w-full text-sm text-foreground-soft file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent-ink"
         />
         <input
+          aria-label="Add a caption (optional)"
           type="text"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
@@ -102,7 +104,7 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
           className="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
         />
         {status === "uploading" && <p className="mt-2 text-xs text-foreground-soft">Sharing…</p>}
-        {message && <p className="mt-2 text-xs text-danger">{message}</p>}
+        {message && <p role="alert" className="mt-2 text-xs text-danger">{message}</p>}
       </div>
 
       {moments.length > 0 && (
@@ -118,11 +120,11 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
                 <button
                   type="button"
                   onClick={() => handleDelete(moment.id)}
-                  className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[0.625rem] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
                 >
                   Delete
                 </button>
-                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white">
                   {formatDistanceToNow(moment.createdAt, { addSuffix: true })}
                 </span>
               </li>

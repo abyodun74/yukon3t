@@ -69,6 +69,7 @@ export function ReportModal({
         <>
           <label className="mt-3 block text-xs font-medium text-foreground-soft">Reason</label>
           <select
+            aria-label="Reason"
             value={category}
             onChange={(e) => setCategory(e.target.value as typeof category)}
             className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
@@ -80,6 +81,7 @@ export function ReportModal({
             ))}
           </select>
           <textarea
+            aria-label="A few details (min 10 characters)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="A few details (min 10 characters)"
@@ -118,7 +120,7 @@ export function ReportModal({
               Cancel
             </button>
           </div>
-          {status === "error" && <p className="mt-2 text-xs text-danger">Couldn&apos;t submit — try again shortly.</p>}
+          {status === "error" && <p role="alert" className="mt-2 text-xs text-danger">Couldn&apos;t submit — try again shortly.</p>}
         </>
       )}
     </Sheet>

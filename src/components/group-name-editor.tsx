@@ -51,7 +51,12 @@ export function GroupNameEditor({
 
   if (!editing) {
     return (
-      <button type="button" onClick={() => setEditing(true)} className="flex min-w-0 items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={`${name}, rename group`}
+        className="flex min-w-0 items-center gap-1.5"
+      >
         <h1 className="truncate text-lg font-semibold">{name}</h1>
         <Pencil size={13} className="shrink-0 text-foreground-soft" />
       </button>
@@ -74,6 +79,7 @@ export function GroupNameEditor({
           }}
           maxLength={60}
           autoFocus
+          aria-label="Group name"
           className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-base font-semibold outline-none focus:border-accent"
         />
         <button
@@ -93,7 +99,7 @@ export function GroupNameEditor({
           Cancel
         </button>
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </div>
   );
 }

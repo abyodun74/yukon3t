@@ -49,12 +49,12 @@ export default async function VerifyDeviceSettingsPage({
       </p>
 
       {error && (
-        <p className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
           {ERROR_MESSAGES[error] ?? "Something went wrong — try again."}
         </p>
       )}
       {sent === "1" && !error && (
-        <p className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
+        <p role="status" className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
           A new code is on its way.
         </p>
       )}

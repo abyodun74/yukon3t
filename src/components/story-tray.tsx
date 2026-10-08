@@ -28,7 +28,14 @@ function Ring({
 }) {
   return (
     <div className="relative flex w-16 min-w-0 shrink-0 flex-col items-center gap-1">
-      <button type="button" onClick={onClick} className="flex flex-col items-center gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        // Starts with the visible label so "tap <name>" works in Voice
+        // Control; the rest is what the ring's color tells a sighted user.
+        aria-label={hasStories ? `${label}, ${hasUnseen ? "new story" : "view story"}` : `${label}, add a story`}
+        className="flex flex-col items-center gap-1"
+      >
         {/*
           Two-layer ring, same technique Instagram uses: an outer circle
           painted with the ring color/gradient, a background-colored gap
@@ -68,7 +75,7 @@ function Ring({
             forces the 64px tile wider (see the Ring wrapper's own min-w-0
             for the same reasoning), line-clamp-2 is just a backstop for a
             name that's still too long even wrapped. */}
-        <span className="line-clamp-2 min-w-0 w-full break-words text-center text-[11px] leading-tight text-foreground-soft">
+        <span className="line-clamp-2 min-w-0 w-full break-words text-center text-[0.6875rem] leading-tight text-foreground-soft">
           {label}
         </span>
       </button>

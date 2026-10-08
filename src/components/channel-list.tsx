@@ -24,6 +24,7 @@ function ChannelLink({
   return (
     <Link
       href={`/circles/${circleSlug}?channel=${channel.slug}`}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm",
         active ? "bg-accent-soft text-accent" : "text-foreground-soft hover:bg-line hover:text-foreground",
@@ -31,7 +32,7 @@ function ChannelLink({
     >
       <Icon size={14} className="shrink-0" />
       <span className="truncate">{channel.name}</span>
-      {channel.visibility === "PRIVATE" && <Lock size={11} className="ml-auto shrink-0" />}
+      {channel.visibility === "PRIVATE" && <Lock size={11} role="img" aria-label="Private" className="ml-auto shrink-0" />}
     </Link>
   );
 }
@@ -61,7 +62,7 @@ export function ChannelList({
     <div className="space-y-4">
       {textChannels.length > 0 && (
         <div>
-          <p className="px-2 text-[10px] font-semibold uppercase tracking-wide text-foreground-soft">
+          <p className="px-2 text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft">
             Text Channels
           </p>
           <div className="mt-1 space-y-0.5">
@@ -73,7 +74,7 @@ export function ChannelList({
       )}
       {voiceChannels.length > 0 && (
         <div>
-          <p className="px-2 text-[10px] font-semibold uppercase tracking-wide text-foreground-soft">
+          <p className="px-2 text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft">
             Voice Channels
           </p>
           <div className="mt-1 space-y-0.5">

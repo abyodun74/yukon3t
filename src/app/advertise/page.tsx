@@ -49,7 +49,7 @@ export default async function AdvertisePage({
       </p>
 
       {canceled && (
-        <p className="mt-6 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
+        <p role="alert" className="mt-6 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           Checkout was canceled — no charge was made. You can submit again whenever you&apos;re
           ready.
         </p>
