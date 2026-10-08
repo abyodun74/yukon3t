@@ -316,12 +316,22 @@ function ParticipantTile({
 
   return (
     <div className="relative flex min-h-[140px] items-center justify-center overflow-hidden rounded-lg bg-white/5">
+      {/* Mirrored for the local participant only — standard self-view
+          convention, same as direct-call-frame.tsx's SelfVideo ("Local
+          self-view: camera only, muted..., mirrored like any other
+          self-view"). Every other tile (every other broadcaster, from this
+          client's point of view) renders unmirrored, true-to-life, exactly
+          as before — this is a pure CSS/rendering-only flip with zero effect
+          on the actual transmitted video track, so every other viewer (and
+          this file's own frame capture in live-stream-room.tsx, which reads
+          the raw decoded video/MediaStreamTrack via drawImage, never
+          anything CSS-transformed) continues to see the host true-to-life. */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={participant.local}
-        className={`h-full w-full object-cover ${hasVideo ? "" : "hidden"}`}
+        className={`h-full w-full object-cover ${participant.local ? "[transform:scaleX(-1)]" : ""} ${hasVideo ? "" : "hidden"}`}
       />
       {!participant.local && <audio ref={audioRef} autoPlay playsInline />}
       {!hasVideo && <span className="text-xs text-white/50">{name}</span>}

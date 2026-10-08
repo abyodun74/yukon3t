@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, Radio } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
+import { LiveStreamPreviewEmbed } from "@/components/live-stream-preview-embed";
 import { getLiveStreamViewerCount } from "@/app/actions/live-streams";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -15,6 +16,16 @@ export type FeedLiveStream = {
   viewerCount: number;
 };
 
+// Most of the card has to actually be on screen before it counts as "being
+// looked at" — same feed convention as use-autoplay-on-view.ts's own
+// threshold, just a little higher since joining costs more than play().
+const VISIBILITY_THRESHOLD = 0.5;
+// Asymmetric on purpose: slow to start (a fast scroll-by must never join
+// anything), slower still to stop (a user nudging the card's edge back and
+// forth shouldn't thrash join/leave on the same room).
+const ENTER_GRACE_MS = 500;
+const LEAVE_GRACE_MS = 1500;
+
 /**
  * One public live stream, rendered as a real card in the Home feed itself
  * (see LiveStreamFeedSection) — not just an avatar in the existing "Live
@@ -22,20 +33,53 @@ export type FeedLiveStream = {
  * job is quick-glance + the "Go Live" button, this card's is "here's an
  * ongoing stream, with enough to decide how you want to join it").
  *
- * Deliberately NOT a live video preview — autoplaying the actual WebRTC feed
- * for every viewer who merely scrolls past in Home would mean silently
- * joining each of them as a real Daily.co participant in the background,
- * inflating the host's viewer count with people who never chose to watch
- * and multiplying real per-participant cost by "everyone who scrolled past"
- * instead of "everyone who actually tapped in." Watch/Guest/Co-host below
- * each navigate into the real room (src/app/live/[id]/page.tsx) via a
- * `role` query param LiveStreamRoom reads once on mount to skip straight
- * past its own "choosing" screen — nobody is joined to anything just by
- * this card being on screen.
+ * The card plays the actual ongoing stream (LiveStreamPreviewEmbed): a
+ * genuine Daily.co WebRTC viewer connection to the same room /live/[id]
+ * joins, not a thumbnail or a polled image. That means a card someone
+ * actually looks at IS a real, counted viewer of that stream, with real
+ * per-participant cost — deliberate, per an explicit product decision, and
+ * the entire point of the feature rather than a bug to design around.
+ *
+ * What keeps that bounded is the IntersectionObserver below, not the list:
+ * being in Home's stream list joins nothing. Only a card that stays at least
+ * VISIBILITY_THRESHOLD on screen continuously for ENTER_GRACE_MS joins, and
+ * it leaves again LEAVE_GRACE_MS after scrolling back out — so a normal
+ * scroll past never joins, while a pause on a card does. Unmounting (the
+ * stream ends, or Watch/Guest/Co-host navigates away) always tears the embed
+ * down regardless of visibility.
+ *
+ * Watch/Guest/Co-host each navigate into the real room
+ * (src/app/live/[id]/page.tsx) via a `role` query param LiveStreamRoom reads
+ * once on mount to skip straight past its own "choosing" screen.
  */
 export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
   const [viewerCount, setViewerCount] = useState(stream.viewerCount);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [embedActive, setEmbedActive] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        // Restarting the timer on every crossing is what makes this a
+        // debounce rather than a delay: a card that scrolls in and straight
+        // back out never reaches its own grace period.
+        if (timer) clearTimeout(timer);
+        const visible = entry.isIntersecting;
+        timer = setTimeout(() => setEmbedActive(visible), visible ? ENTER_GRACE_MS : LEAVE_GRACE_MS);
+      },
+      { threshold: VISIBILITY_THRESHOLD },
+    );
+    observer.observe(el);
+    return () => {
+      if (timer) clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, []);
 
   const refetchCount = async () => {
     const result = await getLiveStreamViewerCount(stream.id);
@@ -54,7 +98,7 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
   }
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div ref={containerRef} className="rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 text-[11px] font-semibold text-white">
           <Radio size={11} />
@@ -64,6 +108,10 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
           <Eye size={13} />
           {viewerCount} watching
         </span>
+      </div>
+
+      <div className="mt-2.5 aspect-video overflow-hidden rounded-lg bg-black">
+        <LiveStreamPreviewEmbed liveStreamId={stream.id} hostId={stream.host.id} active={embedActive} />
       </div>
 
       <div className="mt-2.5 flex items-center gap-2.5">

@@ -495,12 +495,15 @@ const sections: Section[] = [
             your Circles or sub-circles. A stream for Everyone or a public
             Circle shows up two ways on Home while it&apos;s going: a quick
             avatar in the &ldquo;Live now&rdquo; strip, and a full card
-            further down the feed itself with the host, a live viewer count,
-            and Watch / Join as guest / Join as co-host buttons — tapping
-            any of them takes you straight into the stream with that choice
-            already made, no extra screen in between. A Circle&apos;s own
-            streams also appear in a &ldquo;Live now&rdquo; section at the
-            top of that Circle&apos;s page.
+            further down the feed itself playing the stream live, with the
+            host, a live viewer count, and Watch / Join as guest / Join as
+            co-host buttons — tapping any of them takes you straight into the
+            stream with that choice already made, no extra screen in
+            between. The video in that card only starts once you&apos;ve
+            actually scrolled to it, so simply passing it on your way down
+            the feed doesn&apos;t count you as a viewer — pausing on it does.
+            A Circle&apos;s own streams also appear in a &ldquo;Live
+            now&rdquo; section at the top of that Circle&apos;s page.
           </>
         ),
       },
