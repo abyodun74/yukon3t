@@ -26,7 +26,24 @@ const securityHeaders = [
   // can carry a fresh nonce instead of falling back to 'unsafe-inline'.
 ];
 
+// Identifies this build to components/stale-build-reload.tsx, inlined into
+// both the server (/api/build-id) and client bundles via `env` below. The
+// per-deploy id comes first: a redeploy of the same commit (e.g. after a
+// NEXT_PUBLIC_* change) still produces new chunk hashes. Written back to
+// process.env because next.config can be evaluated more than once per build
+// (worker processes inherit the env), and the timestamp fallback must not
+// differ between those evaluations.
+const appBuildId = (process.env.APP_BUILD_ID ||=
+  process.env.DEPLOY_ID ||
+  process.env.VERCEL_DEPLOYMENT_ID ||
+  process.env.COMMIT_REF ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  `local-${Date.now().toString(36)}`);
+
 const nextConfig: NextConfig = {
+  env: {
+    APP_BUILD_ID: appBuildId,
+  },
   // Already the default, but pinned explicitly: gzip/brotli response
   // compression for anything Next itself serves. Vercel's and Netlify's
   // edges also compress in front of this (see CLAUDE.md's dual-deployment

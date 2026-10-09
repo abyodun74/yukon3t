@@ -6,6 +6,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { AppSplash } from "@/components/app-splash";
 import { RegisterServiceWorker } from "@/components/register-sw";
+import { StaleBuildReload } from "@/components/stale-build-reload";
 import { OfflineBanner } from "@/components/offline-banner";
 import { IncomingCallListener } from "@/components/incoming-call-listener";
 import { GlobalCallFrame } from "@/components/global-call-frame";
@@ -224,6 +225,7 @@ export default async function RootLayout({
             <AppSplash />
             <CapacitorBridge />
             <RegisterServiceWorker />
+            <StaleBuildReload />
             <OfflineBanner />
             <Nav session={session} theme={theme} />
             {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
