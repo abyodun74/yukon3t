@@ -6,7 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { VOIP_TOKEN_STORAGE_KEY } from "@/lib/voip-token-storage";
-import { markAllAsRead } from "@/app/actions/notifications";
+import { markReadByTarget } from "@/app/actions/notifications";
 import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
@@ -202,15 +202,12 @@ export function CapacitorBridge() {
           const url = (event.notification.data as Record<string, unknown> | undefined)?.url;
           if (typeof url === "string" && url.startsWith("/")) {
             router.push(url);
+            // Tapping a push opens that one thing, so only the
+            // notifications leading there are marked read — the rest stay
+            // unread until they're opened too. Best-effort/fire-and-forget:
+            // a failure here shouldn't block navigating to the tapped target.
+            markReadByTarget(url).catch(() => {});
           }
-          // Tapping any push notification counts as "opened the
-          // notifications" the same way visiting /notifications itself
-          // does (see that page's own auto-mark-all-as-read) — the tap
-          // already acknowledges this one, so the rest of the tray
-          // shouldn't stay stuck unread just because its target wasn't
-          // /notifications specifically. Best-effort/fire-and-forget: a
-          // failure here shouldn't block navigating to the tapped target.
-          markAllAsRead().catch(() => {});
         },
       );
     }

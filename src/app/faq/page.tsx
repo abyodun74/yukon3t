@@ -214,11 +214,12 @@ const sections: Section[] = [
             launcher icon, or switching back from another app) automatically
             clears every notification of this kind from your notification
             shade — a ringing or missed call is the one exception, since
-            those stay until you actually deal with the call. Separately,
-            opening the in-app notification bell (or tapping any push
-            notification) also marks your whole in-app notification list as
-            read, so the red badge on the bell clears without needing to tap
-            &ldquo;Mark all as read&rdquo; yourself.
+            those stay until you actually deal with the call. The in-app
+            notification list works differently: a notification there is
+            marked as read only when you open it, by tapping it in the list
+            or tapping its push notification. The rest stay unread, and the
+            red badge on the bell keeps counting them, until you open them
+            too or tap &ldquo;Mark all as read&rdquo;.
           </>
         ),
       },

@@ -8,114 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { UserAvatar } from "@/components/user-link";
 import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
-
-type NotificationData = {
-  id: string;
-  type:
-    | "CONNECTION_REQUEST"
-    | "CONNECTION_ACCEPTED"
-    | "CONNECTION_POST"
-    | "POST_LIKE"
-    | "POST_COMMENT"
-    | "STORY_COMMENT"
-    | "MUSE_LIKE"
-    | "MUSE_COMMENT"
-    | "COMMENT_REPLY"
-    | "POST_REPOST"
-    | "POST_SHARE"
-    | "MUSE_REPOST"
-    | "MUSE_SHARE"
-    | "EVENT_RSVP"
-    | "CIRCLE_JOINED"
-    | "CIRCLE_CREATED"
-    | "EVENT_REMINDER"
-    | "CIRCLE_JOIN_REQUEST"
-    | "CIRCLE_JOIN_APPROVED"
-    | "MESSAGE"
-    | "GROUP_ADDED"
-    | "COLLAB_JOINED"
-    | "COLLAB_JOIN_REQUEST"
-    | "COLLAB_JOIN_APPROVED"
-    | "COLLAB_INVITE"
-    | "COLLAB_INVITE_ACCEPTED"
-    | "SUBSCRIPTION_POST"
-    | "SUBSCRIPTION_STORY"
-    | "SUBSCRIPTION_REPOST"
-    | "SUBSCRIPTION_LIVE"
-    | "SUBSCRIPTION_RSVP"
-    | "SUBSCRIPTION_CIRCLE_JOINED"
-    | "SUBSCRIPTION_CIRCLE_CREATED"
-    | "SUBSCRIPTION_MUSE"
-    | "SUBSCRIPTION_COLLAB"
-    | "VOICE_CHANNEL_INVITE"
-    | "VOICE_CHANNEL_INVITE_ACCEPTED"
-    | "MISSED_CALL"
-    | "SCREENSHOT_TAKEN"
-    | "VIDEO_MODERATION_FAILED"
-    | "VIDEO_FLAGGED_FOR_REVIEW"
-    | "APP_FEEDBACK_SUBMITTED"
-    | "CIRCLE_LIVE"
-    | "LIVE_STREAM_INVITE"
-    | "COLLAB_SESSION_REMINDER"
-    | "LIVE_RECORDING_POST_FAILED";
-  readAt: Date | null;
-  createdAt: Date;
-  actor: { id: string; name: string | null; avatarUrl?: string | null };
-  message: string | null;
-  postId: string | null;
-  circle: { slug: string } | null;
-  conversationId: string | null;
-  collab: { id: string } | null;
-  liveStreamId: string | null;
-  channel: { slug: string } | null;
-  museId: string | null;
-  storyId: string | null;
-};
-
-function hrefFor(notification: NotificationData) {
-  if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
-  if (notification.postId) return `/post/${notification.postId}`;
-  if (notification.channel && notification.circle) {
-    return `/circles/${notification.circle.slug}?channel=${notification.channel.slug}`;
-  }
-  if (notification.circle) return `/circles/${notification.circle.slug}`;
-  if (notification.collab) return `/collab/${notification.collab.id}`;
-  if (notification.conversationId) return `/messages/${notification.conversationId}`;
-  if (notification.type === "CONNECTION_REQUEST" || notification.type === "CONNECTION_ACCEPTED") {
-    return "/connections";
-  }
-  // /muse/[id] is a permalink to one Muse (added alongside the Share/
-  // Reshare feature — see muse-feed.tsx's shareMuse) that also continues
-  // into the normal feed on further scroll; falls back to the plain /muse
-  // feed on the off chance museId is somehow missing.
-  if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
-      notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
-      notification.type === "SUBSCRIPTION_MUSE" || notification.type === "VIDEO_FLAGGED_FOR_REVIEW") {
-    return notification.museId ? `/muse/${notification.museId}` : "/muse";
-  }
-  // Stories have no permalink route of their own — they only ever live
-  // inside the story ring on the author's profile. ?story=<id> tells
-  // ProfileStoryRing (see that component) to open the viewer straight to
-  // this one instead of just landing on the profile and making the reader
-  // find it themself. Falls back to a plain profile link if the story has
-  // since expired/been deleted (ProfileStoryRing won't find it in the
-  // list it fetches and just won't auto-open — same graceful "the thing
-  // this linked to is gone" fallback every other stale notification target
-  // in this app already gets).
-  if (notification.type === "STORY_COMMENT" || notification.type === "SUBSCRIPTION_STORY") {
-    return notification.storyId
-      ? `/u/${notification.actor.id}?story=${notification.storyId}`
-      : `/u/${notification.actor.id}`;
-  }
-  // The post it'd otherwise link to no longer exists (removed by the
-  // moderation review that triggered this) — nothing more specific to
-  // send the reader to than their own profile/feed.
-  if (notification.type === "VIDEO_MODERATION_FAILED") return "/home";
-  // Admin-only queue — see /admin/feedback and submitAppFeedback in
-  // actions/review-prompt.ts.
-  if (notification.type === "APP_FEEDBACK_SUBMITTED") return "/admin/feedback";
-  return `/u/${notification.actor.id}`;
-}
+import { notificationHref, type NotificationData } from "@/lib/notification-href";
 
 export function NotificationRow({
   notification,
@@ -132,7 +25,7 @@ export function NotificationRow({
 
   return (
     <Link
-      href={hrefFor(notification)}
+      href={notificationHref(notification)}
       onClick={() => {
         if (unread) markAsRead(notification.id);
       }}
