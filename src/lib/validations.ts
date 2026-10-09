@@ -456,6 +456,22 @@ export const museSchema = z.object({
   audioUrl: z.string().url().optional(),
 });
 
+export const screenshotTargetSchema = z.object({
+  type: z.enum(["post", "story", "conversation", "profile"]),
+  id: z.string().min(1).max(64),
+});
+
+export const notificationIdSchema = z.string().min(1).max(64);
+
+export const notificationIdsSchema = z.array(notificationIdSchema).min(1).max(200);
+
+// A same-origin path only: one leading "/" (not "//", which a browser reads
+// as another host) and no backslash (which some treat as a "/").
+export const notificationTargetSchema = z
+  .string()
+  .max(500)
+  .refine((url) => url.startsWith("/") && !url.startsWith("//") && !url.includes("\\"));
+
 export const connectionRequestSchema = z.object({
   targetId: z.string().cuid(),
   intentTag: z.enum(intentTagValues),

@@ -216,10 +216,11 @@ const sections: Section[] = [
             shade — a ringing or missed call is the one exception, since
             those stay until you actually deal with the call. The in-app
             notification list works differently: a notification there is
-            marked as read only when you open it, by tapping it in the list
-            or tapping its push notification. The rest stay unread, and the
-            red badge on the bell keeps counting them, until you open them
-            too or tap &ldquo;Mark all as read&rdquo;.
+            marked as read when you open it from the list, tap its push
+            notification, or open the thing it&apos;s about (the
+            conversation, post, Muse, Circle, and so on). The rest stay
+            unread, and the red badge on the bell keeps counting them, until
+            then or until you tap &ldquo;Mark all as read&rdquo;.
           </>
         ),
       },

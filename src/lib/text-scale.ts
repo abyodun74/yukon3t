@@ -50,11 +50,11 @@
  */
 
 /** Dynamic Type body size, in px, at the default ("Large") setting. */
-export const TEXT_SCALE_BASE_PX = 17;
+const TEXT_SCALE_BASE_PX = 17;
 /** Smallest root scale: 87.5%, a 14px root. Only the xSmall setting (14px measured, 82%) is clamped by it. */
-export const TEXT_SCALE_MIN = 0.875;
+const TEXT_SCALE_MIN = 0.875;
 /** Largest root scale: the third accessibility step, 40px measured — 235.29%, a 37.6px root. */
-export const TEXT_SCALE_MAX = 40 / TEXT_SCALE_BASE_PX;
+const TEXT_SCALE_MAX = 40 / TEXT_SCALE_BASE_PX;
 
 export const TEXT_SCALE_SCRIPT = `(function(){try{
 var d=document,r=d.documentElement,w=window;

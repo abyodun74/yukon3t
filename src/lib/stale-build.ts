@@ -13,6 +13,15 @@
 export const STALE_BUILD_RELOAD_KEY = "yukon3t:stale-build-reload";
 export const STALE_BUILD_RELOAD_COOLDOWN_MS = 30_000;
 export const BUILD_CHECK_MIN_INTERVAL_MS = 60_000;
+export const ERROR_BUILD_CHECK_MIN_INTERVAL_MS = 10_000;
+
+const STALE_SERVER_ACTION_MESSAGE_PATTERNS = [
+  // Next's client router (UnrecognizedActionError), when the server answers
+  // an action call with its "action not found" header.
+  /Server Action "[^"]*" was not found on the server/i,
+  // The server-side wording of the same thing, for a form posted without JS.
+  /Failed to find Server Action/i,
+];
 
 const STALE_BUILD_MESSAGE_PATTERNS = [
   /Loading chunk \S+ failed/i,
@@ -24,23 +33,37 @@ const STALE_BUILD_MESSAGE_PATTERNS = [
   // Turbopack's runtime, when a chunk references a module the page's
   // already-loaded runtime has never heard of.
   /module factory is not available/i,
-  // Next's client router (UnrecognizedActionError), when the server answers
-  // an action call with its "action not found" header.
-  /Server Action "[^"]*" was not found on the server/i,
-  // The server-side wording of the same thing, for a form posted without JS.
-  /Failed to find Server Action/i,
 ];
 
-export function looksLikeStaleBuildError(error: unknown): boolean {
-  if (error == null) return false;
+function errorParts(error: unknown) {
   const { name, message, stack } =
     typeof error === "string"
       ? { name: "", message: error, stack: "" }
       : (error as { name?: unknown; message?: unknown; stack?: unknown });
-  const msg = typeof message === "string" ? message : "";
-  const trace = typeof stack === "string" ? stack : "";
+  return {
+    name,
+    msg: typeof message === "string" ? message : "",
+    trace: typeof stack === "string" ? stack : "",
+  };
+}
 
-  if (name === "ChunkLoadError" || name === "UnrecognizedActionError") return true;
+/**
+ * A Server Action id the serving build no longer has. Retrying the call is
+ * pointless — the old id will never be found — so callers that retry on
+ * ordinary network flakiness check this first (see lib/stale-deployment.ts).
+ */
+export function looksLikeStaleServerActionError(error: unknown): boolean {
+  if (error == null) return false;
+  const { name, msg } = errorParts(error);
+  return name === "UnrecognizedActionError" || STALE_SERVER_ACTION_MESSAGE_PATTERNS.some((re) => re.test(msg));
+}
+
+export function looksLikeStaleBuildError(error: unknown): boolean {
+  if (error == null) return false;
+  if (looksLikeStaleServerActionError(error)) return true;
+  const { name, msg, trace } = errorParts(error);
+
+  if (name === "ChunkLoadError") return true;
   if (STALE_BUILD_MESSAGE_PATTERNS.some((re) => re.test(msg))) return true;
   // The webpack runtime's missing-module-factory case ("i[e] is not a
   // function") — far too generic on its own, so only when it's thrown from
@@ -85,9 +108,15 @@ export function shouldReloadForBuild({
   return true;
 }
 
-/** Foreground checks only: at most one build-id request per interval. */
-export function isBuildCheckThrottled(lastCheckAt: number | null, now: number): boolean {
-  return lastCheckAt !== null && now - lastCheckAt < BUILD_CHECK_MIN_INTERVAL_MS;
+/**
+ * At most one build-id request per interval: a minute for foreground checks,
+ * and a shorter one for errors, so an error that keeps repeating can't make a
+ * device hammer the route. An error boundary always gets its answer.
+ */
+export function isBuildCheckThrottled(trigger: ReloadTrigger, lastCheckAt: number | null, now: number): boolean {
+  if (trigger !== "foreground" && trigger !== "error") return false;
+  const minInterval = trigger === "foreground" ? BUILD_CHECK_MIN_INTERVAL_MS : ERROR_BUILD_CHECK_MIN_INTERVAL_MS;
+  return lastCheckAt !== null && now - lastCheckAt < minInterval;
 }
 
 /**
@@ -99,15 +128,17 @@ export type ReloadTrigger = "foreground" | "error" | "boundary" | "hidden";
 
 export function isReloadSafe(
   trigger: ReloadTrigger,
-  busy: { call: boolean; work: boolean; typing: boolean },
+  busy: { call: boolean; work: boolean; unsentText: boolean },
 ): boolean {
   // The call UI lives in the root layout and outlives a page-level error
   // boundary, so a reload would hang up even then.
   if (busy.call) return false;
   if (trigger === "boundary") return true;
-  if (busy.work) return false;
-  // A half-typed message waits for blur, or for the page to be put away.
-  return trigger === "hidden" || !busy.typing;
+  // Text someone has typed but not sent is gone after a reload — most
+  // composers keep no draft — so it blocks every trigger but a crashed page,
+  // focused or not, foreground or background. The reload is retried on a
+  // later trigger, once the text has been sent or cleared.
+  return !busy.work && !busy.unsentText;
 }
 
 // Things in flight that a reload would destroy, registered by whoever owns

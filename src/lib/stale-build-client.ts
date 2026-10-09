@@ -34,15 +34,24 @@ const clientBuildId = process.env.APP_BUILD_ID;
 let lastCheckAt: number | null = null;
 let inFlight: Promise<string | null> | null = null;
 // A newer server build we know about but couldn't reload for yet (a call, an
-// upload, a half-typed message). Later triggers retry it without refetching.
+// upload, unsent text). Later triggers retry it without refetching.
 let staleTarget: string | null = null;
-let blurWatched: HTMLElement | null = null;
 
-function focusedFieldWithText(): HTMLElement | null {
-  const el = document.activeElement;
-  if (el instanceof HTMLTextAreaElement) return el.value !== "" ? el : null;
-  if (el instanceof HTMLInputElement) return !NON_TEXT_INPUT_TYPES.has(el.type) && el.value !== "" ? el : null;
-  return el instanceof HTMLElement && el.isContentEditable && (el.textContent ?? "") !== "" ? el : null;
+// Any editable text field on the page with something in it — focused or not,
+// shown or not (a wizard's earlier step is still on the page, hidden). It
+// can't tell typed text from a prefilled value (React keeps a controlled
+// field's defaultValue equal to its value), so a prefilled edit form or a
+// search box also counts; that only postpones the reload to a later trigger,
+// which is the safe way to be wrong.
+function hasUnsentText(): boolean {
+  for (const el of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")) {
+    if (el.disabled || el.readOnly || el.value === "") continue;
+    if (el instanceof HTMLTextAreaElement || !NON_TEXT_INPUT_TYPES.has(el.type)) return true;
+  }
+  for (const el of document.querySelectorAll<HTMLElement>('[contenteditable=""], [contenteditable="true"]')) {
+    if ((el.textContent ?? "") !== "") return true;
+  }
+  return false;
 }
 
 function hasWorkInProgress(): boolean {
@@ -87,22 +96,8 @@ function tryReload(trigger: ReloadTrigger): boolean {
     return false;
   }
 
-  const typingIn = focusedFieldWithText();
-  const busy = { call: isReloadHeld("call"), work: hasWorkInProgress(), typing: typingIn !== null };
-  if (!isReloadSafe(trigger, busy)) {
-    if (typingIn && blurWatched !== typingIn) {
-      blurWatched = typingIn;
-      typingIn.addEventListener(
-        "blur",
-        () => {
-          blurWatched = null;
-          tryReload("error");
-        },
-        { once: true },
-      );
-    }
-    return false;
-  }
+  const busy = { call: isReloadHeld("call"), work: hasWorkInProgress(), unsentText: hasUnsentText() };
+  if (!isReloadSafe(trigger, busy)) return false;
 
   // No record means no loop guard across the reload, so don't reload at all
   // if sessionStorage is unavailable (private mode, blocked storage).
@@ -125,7 +120,8 @@ function tryReload(trigger: ReloadTrigger): boolean {
 export async function reloadIfStale(trigger: ReloadTrigger): Promise<boolean> {
   if (!staleTarget) {
     if (trigger === "hidden" || navigator.onLine === false) return false;
-    if (trigger === "foreground" && (inFlight || isBuildCheckThrottled(lastCheckAt, Date.now()))) return false;
+    if (trigger === "foreground" && inFlight) return false;
+    if (isBuildCheckThrottled(trigger, lastCheckAt, Date.now())) return false;
     lastCheckAt = Date.now();
     inFlight ??= fetchServerBuildId().finally(() => {
       inFlight = null;

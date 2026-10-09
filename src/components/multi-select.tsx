@@ -16,15 +16,12 @@ export function MultiSelect({
   defaultValues = [],
   placeholder = "Search and select...",
   max,
-  ariaLabel,
 }: {
   name: string;
   options: readonly (string | Option)[];
   defaultValues?: string[];
   placeholder?: string;
   max?: number;
-  /** Accessible name for the search field — the placeholder disappears once anything is selected, so it can't be the label. Falls back to the placeholder text. */
-  ariaLabel?: string;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultValues);
   const [query, setQuery] = useState("");
@@ -103,7 +100,7 @@ export function MultiSelect({
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}
           placeholder={selected.length === 0 ? placeholder : ""}
-          aria-label={ariaLabel ?? placeholder}
+          aria-label={placeholder}
           disabled={atMax}
           className="min-w-[8ch] flex-1 bg-transparent text-sm outline-none disabled:cursor-not-allowed"
         />

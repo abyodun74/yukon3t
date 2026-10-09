@@ -145,8 +145,8 @@ export function StoryViewer({
   //
   // `paused` itself is the pointer hold: set on pointerdown, cleared by
   // every pointer release — including the release of a tap on "Next story".
-  // (loadViewers/loadComments also set it, as they always have: the story
-  // stays held after one of those panels closes until the next tap.)
+  // The viewers/comments panels don't touch it: showViewers/showComments
+  // hold the story themselves while one is open, and it plays on at close.
   const [paused, setPaused] = useState(false);
   // The explicit Pause button — keyed by story id like the state below, so
   // the pause belongs to the story it was pressed on and tapping on to the
@@ -346,7 +346,6 @@ export function StoryViewer({
 
   async function loadViewers() {
     if (!story) return;
-    setPaused(true);
     setCommentsOpenForId(null);
     setViewersOpenForId(story.id);
     const result = await getStoryViewers(story.id);
@@ -355,7 +354,6 @@ export function StoryViewer({
 
   async function loadComments() {
     if (!story) return;
-    setPaused(true);
     setViewersOpenForId(null);
     setCommentsOpenForId(story.id);
     const result = await getStoryComments(story.id);

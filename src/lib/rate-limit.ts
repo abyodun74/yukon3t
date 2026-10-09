@@ -197,6 +197,9 @@ export const rateLimiters = {
   // Token generation/revocation — rare by nature (done once when setting up
   // a future widget), tight on purpose.
   ambientWidgetToken: makeLimiter(10, "1 h", "ambientWidgetToken"),
+  // Each one notifies and pushes someone else's phone — nobody takes
+  // screenshots at anything like this rate by hand.
+  screenshotNotice: makeLimiter(10, "10 m", "screenshotNotice"),
 };
 
 export async function checkRateLimit(

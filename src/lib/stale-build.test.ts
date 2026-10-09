@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILD_CHECK_MIN_INTERVAL_MS,
+  ERROR_BUILD_CHECK_MIN_INTERVAL_MS,
   STALE_BUILD_RELOAD_COOLDOWN_MS,
   holdReload,
   isBuildCheckThrottled,
   isReloadHeld,
   isReloadSafe,
   looksLikeStaleBuildError,
+  looksLikeStaleServerActionError,
   parseReloadRecord,
   shouldReloadForBuild,
 } from "./stale-build";
@@ -67,6 +69,31 @@ describe("looksLikeStaleBuildError", () => {
   });
 });
 
+describe("looksLikeStaleServerActionError", () => {
+  it("matches a Server Action the new deploy no longer has, by name or message", () => {
+    expect(
+      looksLikeStaleServerActionError(
+        errorWith('Server Action "40a1b2c3d4e5f6" was not found on the server. \nRead more:https://nextjs.org/docs/messages/failed-to-find-server-action'),
+      ),
+    ).toBe(true);
+    expect(looksLikeStaleServerActionError(errorWith("minified away", "", "UnrecognizedActionError"))).toBe(true);
+    expect(
+      looksLikeStaleServerActionError(errorWith("Failed to find Server Action. This request might be from an older or newer deployment.")),
+    ).toBe(true);
+  });
+
+  it("leaves chunk-load failures and ordinary network errors to their own handling", () => {
+    expect(looksLikeStaleServerActionError(errorWith("whatever", "", "ChunkLoadError"))).toBe(false);
+    expect(looksLikeStaleServerActionError(errorWith("Loading chunk 4821 failed."))).toBe(false);
+    expect(looksLikeStaleServerActionError(errorWith("i[e] is not a function", NEXT_STACK, "TypeError"))).toBe(false);
+    expect(looksLikeStaleServerActionError(errorWith("Failed to fetch"))).toBe(false);
+    expect(looksLikeStaleServerActionError(errorWith("An unexpected response was received from the server."))).toBe(false);
+    expect(looksLikeStaleServerActionError(null)).toBe(false);
+    expect(looksLikeStaleServerActionError(undefined)).toBe(false);
+    expect(looksLikeStaleServerActionError({})).toBe(false);
+  });
+});
+
 describe("parseReloadRecord", () => {
   it("round-trips a valid record and rejects garbage", () => {
     expect(parseReloadRecord(JSON.stringify({ target: "abc", at: 5 }))).toEqual({ target: "abc", at: 5 });
@@ -109,14 +136,24 @@ describe("shouldReloadForBuild", () => {
 
 describe("isBuildCheckThrottled", () => {
   it("allows the first check and then one per interval", () => {
-    expect(isBuildCheckThrottled(null, 5)).toBe(false);
-    expect(isBuildCheckThrottled(1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS - 1)).toBe(true);
-    expect(isBuildCheckThrottled(1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS)).toBe(false);
+    expect(isBuildCheckThrottled("foreground", null, 5)).toBe(false);
+    expect(isBuildCheckThrottled("foreground", 1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS - 1)).toBe(true);
+    expect(isBuildCheckThrottled("foreground", 1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS)).toBe(false);
+  });
+
+  it("gives errors a shorter interval of their own", () => {
+    expect(isBuildCheckThrottled("error", null, 5)).toBe(false);
+    expect(isBuildCheckThrottled("error", 1_000, 1_000 + ERROR_BUILD_CHECK_MIN_INTERVAL_MS - 1)).toBe(true);
+    expect(isBuildCheckThrottled("error", 1_000, 1_000 + ERROR_BUILD_CHECK_MIN_INTERVAL_MS)).toBe(false);
+  });
+
+  it("never throttles an error boundary", () => {
+    expect(isBuildCheckThrottled("boundary", 1_000, 1_001)).toBe(false);
   });
 });
 
 describe("isReloadSafe", () => {
-  const idle = { call: false, work: false, typing: false };
+  const idle = { call: false, work: false, unsentText: false };
 
   it("reloads from any trigger when nothing is in progress", () => {
     for (const trigger of ["foreground", "error", "boundary", "hidden"] as const) {
@@ -137,11 +174,11 @@ describe("isReloadSafe", () => {
     expect(isReloadSafe("boundary", { ...idle, work: true })).toBe(true);
   });
 
-  it("waits out a half-typed message until blur or the page being hidden", () => {
-    expect(isReloadSafe("foreground", { ...idle, typing: true })).toBe(false);
-    expect(isReloadSafe("error", { ...idle, typing: true })).toBe(false);
-    expect(isReloadSafe("hidden", { ...idle, typing: true })).toBe(true);
-    expect(isReloadSafe("boundary", { ...idle, typing: true })).toBe(true);
+  it("never discards unsent text unless the page has already crashed", () => {
+    expect(isReloadSafe("foreground", { ...idle, unsentText: true })).toBe(false);
+    expect(isReloadSafe("error", { ...idle, unsentText: true })).toBe(false);
+    expect(isReloadSafe("hidden", { ...idle, unsentText: true })).toBe(false);
+    expect(isReloadSafe("boundary", { ...idle, unsentText: true })).toBe(true);
   });
 });
 

@@ -5,19 +5,22 @@ import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import { notificationHref } from "@/lib/notification-href";
+import { notificationIdSchema, notificationIdsSchema, notificationTargetSchema } from "@/lib/validations";
 
 export async function markAsRead(notificationId: string) {
   const user = await requireUser();
+  const parsed = notificationIdSchema.safeParse(notificationId);
+  if (!parsed.success) return { error: "invalid" };
 
   const notification = await prisma.notification.findUnique({
-    where: { id: notificationId },
+    where: { id: parsed.data },
   });
   if (!notification || notification.recipientId !== user.id) {
     return { error: "not_found" };
   }
 
   await prisma.notification.update({
-    where: { id: notificationId },
+    where: { id: parsed.data },
     data: { readAt: new Date() },
   });
   await notifyBadgeChange(user.id);
@@ -29,9 +32,11 @@ export async function markAsRead(notificationId: string) {
 /** Bulk counterpart to markAsRead — used by GroupedNotificationRow, whose one tally row represents several underlying Notification rows at once. */
 export async function markManyAsRead(notificationIds: string[]) {
   const user = await requireUser();
+  const parsed = notificationIdsSchema.safeParse(notificationIds);
+  if (!parsed.success) return { error: "invalid" };
 
   await prisma.notification.updateMany({
-    where: { id: { in: notificationIds }, recipientId: user.id },
+    where: { id: { in: parsed.data }, recipientId: user.id },
     data: { readAt: new Date() },
   });
   await notifyBadgeChange(user.id);
@@ -55,18 +60,19 @@ export async function markAllAsRead() {
 
 /**
  * Marks read the unread notifications that lead to `url` — what tapping a
- * push notification means. The push payload only carries its target URL
- * (see sendFcmActivityToUser), so this matches on where each notification
+ * push notification, or arriving at that page any other way
+ * (components/notification-read-on-visit.tsx), means. The push payload only
+ * carries its target URL (see sendFcmActivityToUser), and a visit has no
+ * notification in hand at all, so this matches on where each notification
  * would open rather than on an id; several notifications about the same
  * post or conversation clear together, which is right: that one thing has
  * now been opened. Everything pointing elsewhere stays unread.
  */
 export async function markReadByTarget(url: string) {
   const user = await requireUser();
-  if (typeof url !== "string" || !url.startsWith("/") || url.length > 500) {
-    return { error: "invalid" };
-  }
-  const target = url.split("#")[0];
+  const parsed = notificationTargetSchema.safeParse(url);
+  if (!parsed.success) return { error: "invalid" };
+  const target = parsed.data.split("#")[0];
 
   const unread = await prisma.notification.findMany({
     where: { recipientId: user.id, readAt: null },

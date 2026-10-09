@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
@@ -26,19 +27,26 @@ const securityHeaders = [
   // can carry a fresh nonce instead of falling back to 'unsafe-inline'.
 ];
 
-// Identifies this build to components/stale-build-reload.tsx, inlined into
-// both the server (/api/build-id) and client bundles via `env` below. The
-// per-deploy id comes first: a redeploy of the same commit (e.g. after a
-// NEXT_PUBLIC_* change) still produces new chunk hashes. Written back to
-// process.env because next.config can be evaluated more than once per build
-// (worker processes inherit the env), and the timestamp fallback must not
-// differ between those evaluations.
-const appBuildId = (process.env.APP_BUILD_ID ||=
-  process.env.DEPLOY_ID ||
-  process.env.VERCEL_DEPLOYMENT_ID ||
-  process.env.COMMIT_REF ||
-  process.env.VERCEL_GIT_COMMIT_SHA ||
-  `local-${Date.now().toString(36)}`);
+// Identifies this build to the stale-build check, inlined into both the
+// server (src/app/api/build-id/route.ts) and client
+// (src/lib/stale-build-client.ts) bundles via `env` below. The per-deploy id
+// comes first: a redeploy of the same commit (e.g. after a NEXT_PUBLIC_*
+// change) still produces new chunk hashes. Only a hash of it is published —
+// Netlify's DEPLOY_ID is also the public permalink hostname of that build.
+// Written back to process.env because next.config can be evaluated more than
+// once per build (worker processes inherit the env), and the timestamp
+// fallback must not differ between those evaluations; a later evaluation
+// finds the already-derived value there and uses it as is, never a hash of it.
+const appBuildId = (process.env.APP_BUILD_ID ||= createHash("sha256")
+  .update(
+    process.env.DEPLOY_ID ||
+      process.env.VERCEL_DEPLOYMENT_ID ||
+      process.env.COMMIT_REF ||
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      `local-${Date.now().toString(36)}`,
+  )
+  .digest("hex")
+  .slice(0, 16));
 
 const nextConfig: NextConfig = {
   env: {

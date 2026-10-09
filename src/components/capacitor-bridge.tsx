@@ -200,7 +200,7 @@ export function CapacitorBridge() {
         "notificationActionPerformed",
         (event) => {
           const url = (event.notification.data as Record<string, unknown> | undefined)?.url;
-          if (typeof url === "string" && url.startsWith("/")) {
+          if (typeof url === "string" && url.startsWith("/") && !url.startsWith("//") && !url.includes("\\")) {
             router.push(url);
             // Tapping a push opens that one thing, so only the
             // notifications leading there are marked read — the rest stay

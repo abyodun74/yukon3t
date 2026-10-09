@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard, MessageCircle } from "lucide-react";
@@ -14,6 +14,7 @@ import { clearDraftsForUser } from "@/lib/message-draft-storage";
 import { resetPostHog } from "@/lib/posthog-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { NotificationReadOnVisit } from "@/components/notification-read-on-visit";
 import { WhatsNewBell } from "@/components/whats-new-bell";
 import { useNavBadges } from "@/lib/use-nav-badges";
 import type { Theme } from "@/lib/theme";
@@ -230,6 +231,11 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
 
   return (
     <>
+      {session?.user && (
+        <Suspense fallback={null}>
+          <NotificationReadOnVisit unreadCount={unreadNotifications} />
+        </Suspense>
+      )}
       {/* paddingTop extends this header's own background up into the status
           bar/notch instead of leaving its content sitting right at y:0 —
           both native shells render edge-to-edge under it (see layout.tsx's
