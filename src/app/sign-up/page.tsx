@@ -74,8 +74,9 @@ export default async function SignUpPage({
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">Create an account</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">
-        Choose a username and password, then confirm your account with a
-        code we send by email or text before you can sign in.
+        Choose a username, enter your email and your desired password, then
+        confirm your account with a code we send by email or text before
+        you can sign in.
       </p>
 
       {message && (
