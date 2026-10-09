@@ -148,7 +148,10 @@ export function StoryViewer({
   // (loadViewers/loadComments also set it, as they always have: the story
   // stays held after one of those panels closes until the next tap.)
   const [paused, setPaused] = useState(false);
-  const [userPaused, setUserPaused] = useState(false); // the explicit Pause button
+  // The explicit Pause button — keyed by story id like the state below, so
+  // the pause belongs to the story it was pressed on and tapping on to the
+  // next story always plays it.
+  const [userPausedForId, setUserPausedForId] = useState<string | null>(null);
   const [replyFocused, setReplyFocused] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -179,6 +182,7 @@ export function StoryViewer({
   const showViewers = story ? viewersOpenForId === story.id : false;
   const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
+  const userPaused = story ? userPausedForId === story.id : false;
   const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen;
 
   // Checks the boundary against `index` directly and calls onClose as a
@@ -194,10 +198,12 @@ export function StoryViewer({
       else onClose();
       return;
     }
+    setUserPausedForId(null);
     setIndex(index + 1);
   }, [index, stories.length, onClose, onNextAuthor]);
 
   const prev = useCallback(() => {
+    setUserPausedForId(null);
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
@@ -492,7 +498,7 @@ export function StoryViewer({
                 finished reading its caption. */}
             <button
               type="button"
-              onClick={() => setUserPaused((p) => !p)}
+              onClick={() => setUserPausedForId(userPaused ? null : story.id)}
               aria-label={userPaused ? "Play story" : "Pause story"}
               className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
             >
