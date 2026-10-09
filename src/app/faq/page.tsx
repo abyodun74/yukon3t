@@ -92,8 +92,8 @@ const sections: Section[] = [
         q: "Does YuKon3t work with my iPhone's accessibility settings?",
         a: (
           <>
-            Yes. The iPhone app works with VoiceOver and Voice Control, and
-            it follows your iPhone&apos;s text size: turn it up under
+            Yes. The iPhone app works with Voice Control, and it follows
+            your iPhone&apos;s text size: turn it up under
             Settings → Accessibility → Display &amp; Text Size → Larger Text
             and the text in YuKon3t grows with it, up to a little over twice
             its normal size. The top bar and the bottom tab bar only grow
