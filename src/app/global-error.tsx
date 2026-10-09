@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { captureError } from "@/lib/error-tracking";
+import { useStaleBuildRecovery } from "@/lib/stale-build-client";
 import "./globals.css";
 
 /**
@@ -36,6 +37,16 @@ export default function GlobalError({
     captureError(error, { digest: error.digest, boundary: "global-error" });
   }, [error]);
 
+  // Same as error.tsx: a client a build behind reloads itself instead.
+  const { checking, retry } = useStaleBuildRecovery(reset);
+  if (checking) {
+    return (
+      <html lang="en">
+        <body style={{ margin: 0, minHeight: "100vh", background: "var(--color-background, #14181a)" }} aria-busy="true" />
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <body
@@ -61,7 +72,7 @@ export default function GlobalError({
         <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
           <button
             type="button"
-            onClick={reset}
+            onClick={retry}
             style={{
               borderRadius: "0.5rem",
               padding: "0.5rem 1rem",

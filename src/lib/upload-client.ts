@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/media";
 import type { UploadKind } from "@/lib/storage";
 import { isStaleDeploymentError } from "@/lib/stale-deployment";
+import { holdReload } from "@/lib/stale-build";
 
 export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -375,7 +376,18 @@ async function uploadMultipart(file: File, kind: UploadKind, contentType: string
   return { ok: true, publicUrl, key };
 }
 
-async function uploadNow(
+// Every upload in this module goes through here, so this is also where a
+// stale-build reload is held off until the transfer has finished.
+async function uploadNow(file: File, kind: UploadKind, requestUrlFn?: RequestUploadUrlFn): Promise<ClientUploadResult> {
+  const release = holdReload("work");
+  try {
+    return await uploadToStorage(file, kind, requestUrlFn);
+  } finally {
+    release();
+  }
+}
+
+async function uploadToStorage(
   file: File,
   kind: UploadKind,
   // Defaults to the authenticated requestUploadUrl action; the public

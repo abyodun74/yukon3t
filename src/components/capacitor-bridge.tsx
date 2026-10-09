@@ -11,6 +11,7 @@ import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
+import { reloadIfStale } from "@/lib/stale-build-client";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -238,6 +239,10 @@ export function CapacitorBridge() {
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
       App.addListener("resume", () => {
+        // The WebView outlives many deploys in the background. Shares its
+        // throttle with the visibilitychange check in stale-build-reload.tsx,
+        // so whichever of the two fires first on a resume is the only request.
+        void reloadIfStale("foreground");
         if (isNativePickerActive()) {
           // The picker/camera Activity closing is exactly what just fired
           // this resume — confirmed reliable either way a pick ends,

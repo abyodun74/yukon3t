@@ -21,6 +21,7 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { useReloadHold } from "@/lib/stale-build-client";
 import { DictationRecorder } from "@/components/dictation-recorder";
 import { cn } from "@/lib/utils";
 import { announce } from "@/lib/announce";
@@ -244,6 +245,9 @@ export function PostComposer({
   const hasOtherMedia =
     Boolean(video) || Boolean(nativeVideoUpload) || nativeVideoUploading || Boolean(embedUrl) || Boolean(pendingGif);
   const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
+  // Attached media lives only in this component's state — a stale-build
+  // reload (lib/stale-build-client.ts) would silently empty the composer.
+  useReloadHold("work", imageCount > 0 || hasOtherMedia || isPending || status === "uploading");
 
   function insertEmoji(emoji: string) {
     const el = contentRef.current;

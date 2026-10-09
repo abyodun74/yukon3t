@@ -6,10 +6,17 @@
 // back-to-back deploys). Retrying is pointless here — the old action id
 // will never be found — so this is checked separately from ordinary
 // network flakiness, which retrying does help with.
-const MARKER = "Failed to find Server Action";
+//
+// "Failed to find Server Action" is the server's wording; what the client
+// actually throws in this Next version is UnrecognizedActionError, 'Server
+// Action "<id>" was not found on the server.' Both are matched.
+const MARKERS = ["Failed to find Server Action", "was not found on the server"];
 
 export function isStaleDeploymentError(err: unknown): boolean {
-  return err instanceof Error && err.message.includes(MARKER);
+  return (
+    err instanceof Error &&
+    (err.name === "UnrecognizedActionError" || MARKERS.some((m) => err.message.includes(m)))
+  );
 }
 
 export const STALE_DEPLOYMENT_MESSAGE =

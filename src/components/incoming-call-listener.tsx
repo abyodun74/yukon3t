@@ -5,6 +5,7 @@ import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
+import { useReloadHold } from "@/lib/stale-build-client";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -34,6 +35,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const { startSession, endSession } = useCallSession();
+  // Ringing counts as a call for stale-build reloads: the banner would come
+  // back after one, but seconds late, on a call that only rings for so long.
+  useReloadHold("call", incoming !== null);
 
   const activeCallRef = useRef(activeCall);
   useEffect(() => {

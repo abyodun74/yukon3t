@@ -55,6 +55,11 @@ export function markOptimisticPostError(localId: string, message: string) {
   emit();
 }
 
+/** A post still on its way to the server — a reload now would lose it (see lib/stale-build-client.ts). */
+export function hasSendingOptimisticPost(): boolean {
+  return posts.some((p) => p.status === "sending");
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.push(listener);
   return () => {

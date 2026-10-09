@@ -18,6 +18,7 @@ import {
 } from "@/lib/call-foreground-native";
 import { startScreenCaptureWatch, stopScreenCaptureWatch } from "@/lib/screen-capture-guard";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { useReloadHold } from "@/lib/stale-build-client";
 
 export type StartSessionInput = {
   /** Dedupe key — e.g. `call:${callId}` or `live:${liveStreamId}`. Starting a
@@ -101,6 +102,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     sessionRef.current = session;
   });
   const reconnectingRef = useRef(false);
+  // A stale-build reload would hang up the call or drop the live stream.
+  useReloadHold("call", session !== null);
 
   const startSession = useCallback((next: StartSessionInput) => {
     if (sessionRef.current?.key === next.key) {

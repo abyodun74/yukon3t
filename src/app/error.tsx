@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { captureError } from "@/lib/error-tracking";
+import { useStaleBuildRecovery } from "@/lib/stale-build-client";
 
 export default function ErrorBoundary({
   error,
@@ -14,6 +15,11 @@ export default function ErrorBoundary({
     captureError(error, { digest: error.digest });
   }, [error]);
 
+  // A client left behind by a deploy lands here on its first stale chunk or
+  // Server Action; that case reloads itself onto the new build.
+  const { checking, retry } = useStaleBuildRecovery(reset);
+  if (checking) return <div className="py-20" aria-busy="true" />;
+
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-20 text-center">
       <h1 className="text-xl font-semibold">Something went wrong</h1>
@@ -23,7 +29,7 @@ export default function ErrorBoundary({
       <div className="mt-6 flex gap-3">
         <button
           type="button"
-          onClick={reset}
+          onClick={retry}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
         >
           Try again

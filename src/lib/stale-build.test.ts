@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUILD_CHECK_MIN_INTERVAL_MS,
   STALE_BUILD_RELOAD_COOLDOWN_MS,
+  holdReload,
+  isBuildCheckThrottled,
+  isReloadHeld,
+  isReloadSafe,
   looksLikeStaleBuildError,
   parseReloadRecord,
   shouldReloadForBuild,
@@ -27,6 +32,20 @@ describe("looksLikeStaleBuildError", () => {
     expect(looksLikeStaleBuildError(errorWith("Importing a module script failed."))).toBe(true);
     expect(looksLikeStaleBuildError(errorWith("Module 123 was instantiated because it was required from module 456, but the module factory is not available."))).toBe(true);
     expect(looksLikeStaleBuildError("Loading chunk 7 failed.")).toBe(true);
+  });
+
+  it("matches a Server Action the new deploy no longer has", () => {
+    // Next's client router: UnrecognizedActionError, server-action-reducer.js.
+    expect(
+      looksLikeStaleBuildError(
+        errorWith('Server Action "40a1b2c3d4e5f6" was not found on the server. \nRead more:https://nextjs.org/docs/messages/failed-to-find-server-action'),
+      ),
+    ).toBe(true);
+    expect(looksLikeStaleBuildError(errorWith("minified away", "", "UnrecognizedActionError"))).toBe(true);
+    expect(
+      looksLikeStaleBuildError(errorWith("Failed to find Server Action. This request might be from an older or newer deployment.")),
+    ).toBe(true);
+    expect(looksLikeStaleBuildError(errorWith("An unexpected response was received from the server."))).toBe(false);
   });
 
   it("matches a module-factory 'is not a function' only from Next's own bundles", () => {
@@ -85,5 +104,58 @@ describe("shouldReloadForBuild", () => {
     expect(shouldReloadForBuild({ clientBuildId: "new", serverBuildId: "newer", lastReload: recent, now })).toBe(false);
     const stale = { target: "new", at: now - STALE_BUILD_RELOAD_COOLDOWN_MS };
     expect(shouldReloadForBuild({ clientBuildId: "new", serverBuildId: "newer", lastReload: stale, now })).toBe(true);
+  });
+});
+
+describe("isBuildCheckThrottled", () => {
+  it("allows the first check and then one per interval", () => {
+    expect(isBuildCheckThrottled(null, 5)).toBe(false);
+    expect(isBuildCheckThrottled(1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS - 1)).toBe(true);
+    expect(isBuildCheckThrottled(1_000, 1_000 + BUILD_CHECK_MIN_INTERVAL_MS)).toBe(false);
+  });
+});
+
+describe("isReloadSafe", () => {
+  const idle = { call: false, work: false, typing: false };
+
+  it("reloads from any trigger when nothing is in progress", () => {
+    for (const trigger of ["foreground", "error", "boundary", "hidden"] as const) {
+      expect(isReloadSafe(trigger, idle)).toBe(true);
+    }
+  });
+
+  it("never reloads during a call, even from an error boundary", () => {
+    for (const trigger of ["foreground", "error", "boundary", "hidden"] as const) {
+      expect(isReloadSafe(trigger, { ...idle, call: true })).toBe(false);
+    }
+  });
+
+  it("holds off for an upload or recording unless the page has already crashed", () => {
+    expect(isReloadSafe("foreground", { ...idle, work: true })).toBe(false);
+    expect(isReloadSafe("error", { ...idle, work: true })).toBe(false);
+    expect(isReloadSafe("hidden", { ...idle, work: true })).toBe(false);
+    expect(isReloadSafe("boundary", { ...idle, work: true })).toBe(true);
+  });
+
+  it("waits out a half-typed message until blur or the page being hidden", () => {
+    expect(isReloadSafe("foreground", { ...idle, typing: true })).toBe(false);
+    expect(isReloadSafe("error", { ...idle, typing: true })).toBe(false);
+    expect(isReloadSafe("hidden", { ...idle, typing: true })).toBe(true);
+    expect(isReloadSafe("boundary", { ...idle, typing: true })).toBe(true);
+  });
+});
+
+describe("holdReload", () => {
+  it("counts overlapping holds per kind and ignores a double release", () => {
+    expect(isReloadHeld("work")).toBe(false);
+    const first = holdReload("work");
+    const second = holdReload("work");
+    expect(isReloadHeld("work")).toBe(true);
+    expect(isReloadHeld("call")).toBe(false);
+    first();
+    first();
+    expect(isReloadHeld("work")).toBe(true);
+    second();
+    expect(isReloadHeld("work")).toBe(false);
   });
 });

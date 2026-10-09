@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useReloadHold } from "@/lib/stale-build-client";
 
 /**
  * Shared getUserMedia/MediaRecorder lifecycle — extracted from
@@ -49,6 +50,7 @@ export function useAudioRecorder({
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  useReloadHold("work", recording);
 
   useEffect(() => {
     onRecordedRef.current = onRecorded;
