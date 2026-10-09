@@ -144,16 +144,10 @@ export default async function SignInPage({
             className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink shadow-[var(--shadow-sm)] hover:-translate-y-0.5"
           />
         </form>
-        <p className="mt-3 flex items-center justify-between text-xs text-foreground-soft">
+        <p className="mt-3 text-xs">
           <Link href="/forgot-password" className="font-medium text-accent hover:underline">
             Forgot password?
           </Link>
-          <span>
-            No account?{" "}
-            <Link href="/sign-up" className="font-medium text-accent hover:underline">
-              Create one
-            </Link>
-          </span>
         </p>
       </div>
 
