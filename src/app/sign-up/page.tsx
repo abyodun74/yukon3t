@@ -98,51 +98,61 @@ export default async function SignUpPage({
 
       <form action={signUpWithPassword} className="mt-6 w-full space-y-3">
         <BotProtectionFields />
-        <label htmlFor="signup-username" className="sr-only">
-          Username
-        </label>
-        <input
-          id="signup-username"
-          type="text"
-          name="username"
-          required
-          minLength={3}
-          maxLength={20}
-          pattern="[A-Za-z0-9_]+"
-          title="Letters, numbers and underscores only"
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          defaultValue={username ?? ""}
-          placeholder="Username (3–20 letters, numbers, _)"
-          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
-        />
-        <label htmlFor="signup-email" className="sr-only">
-          Email address
-        </label>
-        <input
-          id="signup-email"
-          type="email"
-          name="email"
-          required
-          autoComplete="email"
-          defaultValue={email ?? ""}
-          placeholder="you@example.com"
-          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
-        />
-        <label htmlFor="signup-password" className="sr-only">
-          Password
-        </label>
-        <PasswordInput
-          id="signup-password"
-          name="password"
-          required
-          minLength={8}
-          maxLength={72}
-          autoComplete="new-password"
-          placeholder="Password (min. 8 characters)"
-          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
-        />
+        <div>
+          <label htmlFor="signup-username" className="block text-xs font-medium text-foreground-soft">
+            Username
+          </label>
+          <input
+            id="signup-username"
+            type="text"
+            name="username"
+            required
+            minLength={3}
+            maxLength={20}
+            pattern="[A-Za-z0-9_]+"
+            title="Letters, numbers and underscores only"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            defaultValue={username ?? ""}
+            placeholder="3–20 letters, numbers, _"
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+          />
+        </div>
+        <div>
+          <label htmlFor="signup-email" className="block text-xs font-medium text-foreground-soft">
+            Email
+          </label>
+          <input
+            id="signup-email"
+            type="email"
+            name="email"
+            required
+            autoComplete="email"
+            defaultValue={email ?? ""}
+            placeholder="you@example.com"
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+          />
+        </div>
+        <div>
+          <label htmlFor="signup-password" className="block text-xs font-medium text-foreground-soft">
+            Password
+          </label>
+          {/* Margin on a wrapper, not the input: PasswordInput centres its
+              show/hide button against its own box. */}
+          <div className="mt-1">
+            <PasswordInput
+              id="signup-password"
+              name="password"
+              required
+              minLength={8}
+              maxLength={72}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+            />
+          </div>
+        </div>
         <div>
           <label className="block text-xs font-medium text-foreground-soft">
             Date of birth
