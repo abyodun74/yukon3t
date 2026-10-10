@@ -64,3 +64,16 @@ describe("subCircleCreate (its own counter)", () => {
     expect(await checkRateLimit("subCircleCreate", b)).toBe(true);
   });
 });
+
+describe("limiters with the same window and identifier (own counters)", () => {
+  it("exhausting rsvp (30 per 1m) does not consume like (60 per 1m)", async () => {
+    const user = `test-own-counter-${Math.random()}`;
+    for (let i = 0; i < 30; i++) {
+      await checkRateLimit("rsvp", user);
+    }
+    expect(await checkRateLimit("rsvp", user)).toBe(false);
+    for (let i = 0; i < 60; i++) {
+      expect(await checkRateLimit("like", user)).toBe(true);
+    }
+  });
+});

@@ -57,6 +57,8 @@ export async function publishEvent(
         Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
       },
       body: JSON.stringify({ messages: [{ topic: channel, event, payload }] }),
+      // Awaited inside nearly every mutation — a hung Supabase call must not hang the write.
+      signal: AbortSignal.timeout(2000),
     });
     if (!res.ok) {
       console.error(`[realtime] broadcast ${event} on ${channel} failed: ${res.status} ${await res.text()}`);

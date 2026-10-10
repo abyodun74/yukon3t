@@ -1,3 +1,5 @@
+import { captureError } from "@/lib/error-tracking";
+
 type ModerationResult = { allowed: boolean; flaggedCategories: string[] };
 
 // A stalled/slow OpenAI response would otherwise hold the calling write
@@ -7,6 +9,16 @@ type ModerationResult = { allowed: boolean; flaggedCategories: string[] };
 // caps that worst case; a timeout is treated the same as any other API
 // error below (fail open, flag for human review).
 const MODERATION_TIMEOUT_MS = 8000;
+
+// Content that fails open here publishes unscanned, so make it visible.
+// Fire-and-forget: captureError never throws, and the caller shouldn't wait on it.
+function reportModerationFailOpen(reason: string, error?: unknown) {
+  console.error(`[moderation] callModerationApi failed open: ${reason}`);
+  void captureError(error ?? new Error(`Moderation API failed open: ${reason}`), {
+    where: "callModerationApi",
+    reason,
+  });
+}
 
 async function callModerationApi(
   input: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>,
@@ -33,6 +45,7 @@ async function callModerationApi(
     if (!res.ok) {
       // Fail closed on API errors for safety-critical paths would block
       // legitimate users during outages; instead flag for human review.
+      reportModerationFailOpen(`HTTP ${res.status}`);
       return { allowed: true, flaggedCategories: ["moderation_api_error"] };
     }
 
@@ -45,8 +58,9 @@ async function callModerationApi(
       .filter(([, value]) => value)
       .map(([key]) => key);
     return { allowed: false, flaggedCategories };
-  } catch {
+  } catch (err) {
     // Covers both a real network/API error and the timeout abort above.
+    reportModerationFailOpen(timeoutController.signal.aborted ? "timeout" : "network error", err);
     return { allowed: true, flaggedCategories: ["moderation_api_error"] };
   } finally {
     clearTimeout(timeout);

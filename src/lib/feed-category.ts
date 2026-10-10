@@ -41,7 +41,8 @@ const CATEGORY_ANCHORS: Partial<Record<FeedCategory, string>> = {
 
 // A category's anchor text never changes at runtime, so its embedding is
 // computed once per server process and reused — no reason to pay an OpenAI
-// call on every page load/poll tick for a fixed string.
+// call on every page load/poll tick for a fixed string. Only successful
+// results stay cached (see below).
 const anchorEmbeddingCache = new Map<FeedCategory, Promise<number[] | null>>();
 
 function getCategoryAnchorEmbedding(category: FeedCategory): Promise<number[] | null> {
@@ -49,8 +50,16 @@ function getCategoryAnchorEmbedding(category: FeedCategory): Promise<number[] | 
   if (!anchor) return Promise.resolve(null);
   let cached = anchorEmbeddingCache.get(category);
   if (!cached) {
-    cached = getEmbedding(anchor);
-    anchorEmbeddingCache.set(category, cached);
+    const pending = getEmbedding(anchor);
+    cached = pending;
+    anchorEmbeddingCache.set(category, pending);
+    // A null/rejected result must not stay cached, or one OpenAI failure
+    // would mis-classify posts until this instance recycles — drop it so the
+    // next call retries.
+    const forget = () => {
+      if (anchorEmbeddingCache.get(category) === pending) anchorEmbeddingCache.delete(category);
+    };
+    pending.then((result) => { if (!result) forget(); }, forget);
   }
   return cached;
 }

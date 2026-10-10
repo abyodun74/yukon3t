@@ -372,6 +372,7 @@ model User {
   // Same reasoning, for Discover's "Online now" sort (status + discoverable
   // equality filters, lastSeenAt range + order).
   @@index([status, discoverable, lastSeenAt])
+  @@index([status, discoverable, createdAt])
 }
 
 enum CircleVisibility {
@@ -760,6 +761,10 @@ model Post {
   // batched sibling lookup for the feed carousel (WHERE albumId IN (...)
   // ORDER BY albumIndex).
   @@index([albumId, albumIndex])
+  @@index([moderationStatus, createdAt(sort: Desc)])
+  @@index([videoUrl])
+  @@index([videoThumbnailUrl])
+  @@index([mediaUrls], type: Gin)
 }
 
 model Comment {
@@ -817,6 +822,10 @@ model Comment {
   // videos still awaiting (or stale-claimed and due for retry) the OpenAI
   // review pipeline — mirrors Post's own composite index, minus mediaType.
   @@index([moderationStatus, videoLongReviewClaimedAt])
+  @@index([authorId])
+  @@index([videoUrl])
+  @@index([videoThumbnailUrl])
+  @@index([audioUrl])
 }
 
 /**
@@ -836,6 +845,7 @@ model CommentReaction {
 
   @@unique([commentId, userId])
   @@index([commentId])
+  @@index([userId])
 }
 
 model Like {
@@ -868,6 +878,7 @@ model PostReaction {
 
   @@unique([postId, userId])
   @@index([postId])
+  @@index([userId])
 }
 
 /**
@@ -896,6 +907,7 @@ model Share {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+  @@index([userId])
 }
 
 enum NotificationType {
@@ -1107,6 +1119,13 @@ model Notification {
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
+  @@index([postId])
+  @@index([commentId])
+  @@index([storyId])
+  @@index([subscriptionId])
+  @@index([connectionId])
+  @@index([actorId])
+  @@index([museId])
 }
 
 enum CollabStatus {
@@ -1191,6 +1210,7 @@ model CollabBoardPost {
   @@index([status])
   @@index([visibility])
   @@index([nextSessionAt])
+  @@index([authorId])
 }
 
 /**
@@ -1539,6 +1559,8 @@ model Story {
   @@index([authorId, expiresAt])
   @@index([expiresAt])
   @@index([sharedPostId])
+  @@index([mediaUrl])
+  @@index([mediaThumbnailUrl])
 }
 
 /**
@@ -1560,6 +1582,7 @@ model StoryReaction {
 
   @@unique([storyId, userId])
   @@index([storyId])
+  @@index([userId])
 }
 
 /**
@@ -1604,6 +1627,7 @@ model StoryView {
 
   @@unique([storyId, viewerId])
   @@index([storyId])
+  @@index([viewerId])
 }
 
 /**
@@ -1705,6 +1729,9 @@ model Muse {
   // Backs the moderate-long-videos cron's scan for in-progress long reviews.
   @@index([moderationStatus, videoLongReviewClaimedAt])
   @@index([sharedPostId])
+  @@index([videoUrl])
+  @@index([videoThumbnailUrl])
+  @@index([audioUrl])
 }
 
 // Logs one "share" event (native share sheet, share-to-story, etc.) —
@@ -1760,6 +1787,7 @@ model MuseReaction {
 
   @@unique([museId, userId])
   @@index([museId])
+  @@index([userId])
 }
 
 // Flat, text-only comments (no threading/replies, no GIF/audio/video
@@ -1872,6 +1900,7 @@ model Connection {
 
   @@unique([requesterId, targetId])
   @@index([targetId])
+  @@index([targetId, status])
 }
 
 /**
@@ -2052,6 +2081,7 @@ model ConversationMember {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
+  @@index([userId])
 }
 
 /**
@@ -2133,6 +2163,10 @@ model Message {
   // plus an in-memory sort.
   @@index([conversationId, createdAt])
   @@index([replyToMessageId])
+  @@index([senderId])
+  @@index([storyId])
+  @@index([mediaUrl])
+  @@index([mediaThumbnailUrl])
 }
 
 /**
@@ -2167,6 +2201,7 @@ model MessageReaction {
 
   @@unique([messageId, userId])
   @@index([messageId])
+  @@index([userId])
 }
 
 enum ReportTargetType {
@@ -2218,6 +2253,7 @@ model Report {
   reportedUser User? @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([reportedUserId, status])
 }
 
 enum AuditAction {

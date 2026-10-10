@@ -1,5 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { captureError } from "@/lib/error-tracking";
 
 // In-memory fallback so local dev works without Upstash credentials.
 // Production MUST set UPSTASH_REDIS_REST_URL/TOKEN — the in-memory limiter
@@ -45,27 +46,44 @@ const redis = hasUpstash
     })
   : null;
 
-// `prefix` gives a limiter its OWN counter. Without one, every limiter shares
-// the library's default prefix — so two limiters with the same identifier (a
-// user id) and the same window length count against ONE shared counter (in the
-// in-memory fallback, any two limiters with the same identifier do). That's
-// how most limiters here work today; a new one that must stay independent of
-// the rest (see subCircleCreate) passes a prefix.
+// Every limiter gets its OWN counter, keyed by its name in `rateLimiters`
+// below (`rl:<name>`), unless a limiter passes an explicit `prefix` (kept
+// as-is so existing counters don't reset). Without one, Upstash's default
+// prefix is shared by every limiter, so two limiters with the same
+// identifier (a user id) and the same window length would count against ONE
+// counter — e.g. viewing Muse videos used up the message-send budget. (The
+// in-memory fallback keyed on the bare identifier, so there any two
+// limiters with the same identifier shared one.) makeLimiter only records
+// the definition; buildLimiter below constructs it once the name is known.
 function makeLimiter(limit: number, window: `${number} ${"s" | "m" | "h"}`, prefix?: string) {
+  return { limit, window, prefix };
+}
+
+// 1s instead of the library's 5s default: on timeout Ratelimit does NOT throw,
+// it resolves { success: true, reason: "timeout" } (fail open), so a slow
+// Redis can stall a request by at most this long.
+const RATE_LIMIT_TIMEOUT_MS = 1000;
+
+function buildLimiter(
+  { limit, window, prefix }: ReturnType<typeof makeLimiter>,
+  name: string,
+) {
+  const key = prefix ?? `rl:${name}`;
   if (redis) {
     return new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(limit, window),
       analytics: false,
-      ...(prefix ? { prefix } : {}),
+      prefix: key,
+      timeout: RATE_LIMIT_TIMEOUT_MS,
     });
   }
   const [amount, unit] = window.split(" ");
   const multiplier = unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : 1_000;
-  return memoryLimiter(limit, Number(amount) * multiplier, prefix);
+  return memoryLimiter(limit, Number(amount) * multiplier, key);
 }
 
-export const rateLimiters = {
+const limiterDefinitions = {
   signIn: makeLimiter(5, "10 m"),
   passwordSignUp: makeLimiter(5, "1 h"),
   passwordLogin: makeLimiter(10, "10 m"),
@@ -173,14 +191,7 @@ export const rateLimiters = {
   // The review-prompt gate's own free-text feedback form (submitAppFeedback
   // in actions/review-prompt.ts) — generous since a real user only ever
   // submits this once (DECLINED is terminal), just a backstop against a
-  // scripted flood of the admin notification it fires. Needs its own
-  // prefix — called with the bare user id like circleCreate/groupChatCreate/
-  // dataExport/phoneVerifyRequest/transcribeAudio above, all also on a "1 h"
-  // window with no prefix of their own, which means they already silently
-  // share one counter per user per rolling hour (confirmed live: 3 Circles
-  // created in an hour left only 2 of "appFeedback"'s own 5 before this fix).
-  // Not fixing those other five here — out of scope for this change — but
-  // not repeating the same mistake in new code either.
+  // scripted flood of the admin notification it fires.
   appFeedback: makeLimiter(5, "1 h", "appFeedback"),
   // Each call can trigger a real Cloudflare Stream encode (see
   // branded-video-service.ts) — generous enough for the client's own poll
@@ -200,17 +211,27 @@ export const rateLimiters = {
   // Each one notifies and pushes someone else's phone — nobody takes
   // screenshots at anything like this rate by hand.
   screenshotNotice: makeLimiter(10, "10 m", "screenshotNotice"),
-};
+} satisfies Record<string, ReturnType<typeof makeLimiter>>;
+
+export const rateLimiters = Object.fromEntries(
+  Object.entries(limiterDefinitions).map(([name, def]) => [name, buildLimiter(def, name)]),
+) as { [K in keyof typeof limiterDefinitions]: ReturnType<typeof buildLimiter> };
 
 export async function checkRateLimit(
   limiter: keyof typeof rateLimiters,
   identifier: string,
 ) {
   try {
-    const { success } = await rateLimiters[limiter].limit(identifier);
-    return success;
-  } catch {
-    // An Upstash outage should degrade to unlimited, not take the app down.
+    const result = await rateLimiters[limiter].limit(identifier);
+    if ("reason" in result && result.reason === "timeout") {
+      console.error(`[rate-limit] ${limiter} timed out after ${RATE_LIMIT_TIMEOUT_MS}ms; failing open`);
+    }
+    return result.success;
+  } catch (err) {
+    // An Upstash outage should degrade to unlimited, not take the app down —
+    // but not silently: this is the only trace that limits stopped enforcing.
+    console.error(`[rate-limit] ${limiter} check failed; failing open`, err);
+    await captureError(err, { where: "checkRateLimit", limiter });
     return true;
   }
 }

@@ -11,12 +11,14 @@ import {
 
 /** Cheap existence check, not a count — the gate only needs "have they done anything at all," not how much. */
 async function hasMeaningfulActivity(userId: string): Promise<boolean> {
-  const [post, message, membership] = await Promise.all([
+  // Cheaper indexed lookups first; the Message lookup only runs if both are empty.
+  const [post, membership] = await Promise.all([
     prisma.post.findFirst({ where: { authorId: userId }, select: { id: true } }),
-    prisma.message.findFirst({ where: { senderId: userId }, select: { id: true } }),
     prisma.circleMembership.findFirst({ where: { userId }, select: { id: true } }),
   ]);
-  return Boolean(post || message || membership);
+  if (post || membership) return true;
+  const message = await prisma.message.findFirst({ where: { senderId: userId }, select: { id: true } });
+  return Boolean(message);
 }
 
 /**
