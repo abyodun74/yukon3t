@@ -217,6 +217,32 @@ export const rateLimiters = Object.fromEntries(
   Object.entries(limiterDefinitions).map(([name, def]) => [name, buildLimiter(def, name)]),
 ) as { [K in keyof typeof limiterDefinitions]: ReturnType<typeof buildLimiter> };
 
+// An Upstash outage (or an exhausted plan) fails every check, and src/proxy.ts
+// runs one on nearly every request — so the fail-open trace is reported at
+// most once per window per server instance per kind of failure, not once per
+// request. Not keyed by limiter: an outage hits all of them, so the first
+// failure's limiter name is enough.
+const FAIL_OPEN_REPORT_INTERVAL_MS = 10 * 60 * 1000;
+const failOpenReports = {
+  error: { lastAt: null as number | null, suppressed: 0 },
+  timeout: { lastAt: null as number | null, suppressed: 0 },
+};
+
+// Returns how many failures were suppressed since the last report if this one
+// should be reported, or null if it should be suppressed.
+function claimFailOpenReport(kind: keyof typeof failOpenReports): number | null {
+  const state = failOpenReports[kind];
+  const now = Date.now();
+  if (state.lastAt !== null && now - state.lastAt < FAIL_OPEN_REPORT_INTERVAL_MS) {
+    state.suppressed += 1;
+    return null;
+  }
+  const suppressed = state.suppressed;
+  state.lastAt = now;
+  state.suppressed = 0;
+  return suppressed;
+}
+
 export async function checkRateLimit(
   limiter: keyof typeof rateLimiters,
   identifier: string,
@@ -224,14 +250,25 @@ export async function checkRateLimit(
   try {
     const result = await rateLimiters[limiter].limit(identifier);
     if ("reason" in result && result.reason === "timeout") {
-      console.error(`[rate-limit] ${limiter} timed out after ${RATE_LIMIT_TIMEOUT_MS}ms; failing open`);
+      const suppressed = claimFailOpenReport("timeout");
+      if (suppressed !== null) {
+        console.error(
+          `[rate-limit] ${limiter} timed out after ${RATE_LIMIT_TIMEOUT_MS}ms; failing open` +
+            (suppressed > 0 ? ` (${suppressed} similar suppressed since last report)` : ""),
+        );
+      }
     }
     return result.success;
   } catch (err) {
     // An Upstash outage should degrade to unlimited, not take the app down —
     // but not silently: this is the only trace that limits stopped enforcing.
-    console.error(`[rate-limit] ${limiter} check failed; failing open`, err);
-    await captureError(err, { where: "checkRateLimit", limiter });
+    const suppressed = claimFailOpenReport("error");
+    if (suppressed !== null) {
+      console.error(`[rate-limit] ${limiter} check failed; failing open`, err);
+      // captureError never rejects (it swallows its own errors), and the
+      // request must not wait on Sentry.
+      void captureError(err, { where: "checkRateLimit", limiter, suppressedSinceLastReport: suppressed });
+    }
     return true;
   }
 }

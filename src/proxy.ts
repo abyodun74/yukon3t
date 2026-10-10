@@ -3,6 +3,29 @@ import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER, DEVICE_ID_MAX_AGE_SECONDS } from "@
 import { checkRateLimit } from "@/lib/rate-limit";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 
+// Every proxy rate-limit check costs one Upstash command, so requests that
+// are machine-driven or static skip the per-IP pageRequest limiter. They still
+// run through the rest of the proxy (CSP, device id) unchanged. Cron routes
+// are authenticated by a bearer secret (isCronAuthorized in every
+// /api/cron/*/route.ts); the others are public but cheap and non-mutating.
+const PAGE_LIMIT_EXEMPT_EXACT_PATHS = new Set([
+  "/api/health", // uptime monitor, every few minutes
+  "/api/build-id", // stale-build check, polled by clients
+  "/sw.js",
+  "/offline.html",
+  "/manifest.webmanifest",
+  "/robots.txt",
+  "/sitemap.xml",
+]);
+const PAGE_LIMIT_EXEMPT_PREFIXES = ["/api/cron/"]; // ~8,000 scheduled calls a day
+
+function skipsPageRateLimit(pathname: string): boolean {
+  return (
+    PAGE_LIMIT_EXEMPT_EXACT_PATHS.has(pathname) ||
+    PAGE_LIMIT_EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  );
+}
+
 // Best-effort client IP, matching src/lib/client-ip.ts's own first-hop
 // convention — duplicated rather than shared since that file's getClientIp
 // is async-headers()-based (Server Action context), while this runs at the
@@ -23,7 +46,9 @@ export async function proxy(request: NextRequest) {
   // against (see config.matcher below), not just the individual Server
   // Action limiters already applied per-mutation. See rateLimiters.pageRequest
   // in src/lib/rate-limit.ts for the actual bucket size and reasoning.
-  const allowed = await checkRateLimit("pageRequest", clientIp(request));
+  const allowed =
+    skipsPageRateLimit(request.nextUrl.pathname) ||
+    (await checkRateLimit("pageRequest", clientIp(request)));
   if (!allowed) {
     return new NextResponse("Too many requests — slow down and try again shortly.", { status: 429 });
   }

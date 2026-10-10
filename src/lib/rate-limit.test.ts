@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { checkRateLimit, rateLimiters } from "@/lib/rate-limit";
+import { captureError } from "@/lib/error-tracking";
+
+vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn(async () => {}) }));
 
 // These exercise the in-memory fallback limiter (no UPSTASH_* env vars are
 // set in the test environment) — the exact code path flagged as not being
@@ -75,5 +78,85 @@ describe("limiters with the same window and identifier (own counters)", () => {
     for (let i = 0; i < 60; i++) {
       expect(await checkRateLimit("like", user)).toBe(true);
     }
+  });
+});
+
+describe("fail-open reporting is throttled", () => {
+  const TEN_MINUTES = 10 * 60 * 1000;
+  // The throttle state is module-level, so every test starts well past the
+  // previous test's window.
+  let clock = new Date("2030-01-01T00:00:00Z").getTime();
+
+  beforeEach(() => {
+    clock += 60 * 60 * 1000;
+    vi.useFakeTimers();
+    vi.setSystemTime(clock);
+    vi.mocked(captureError).mockClear();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("still fails open on every thrown error but reports only once per window", async () => {
+    vi.spyOn(rateLimiters.pageRequest, "limit").mockRejectedValue(new Error("max requests limit exceeded"));
+
+    for (let i = 0; i < 5; i++) {
+      expect(await checkRateLimit("pageRequest", "ip")).toBe(true);
+    }
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
+      where: "checkRateLimit",
+      limiter: "pageRequest",
+      suppressedSinceLastReport: 0,
+    });
+    expect(console.error).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(clock + TEN_MINUTES - 1);
+    await checkRateLimit("pageRequest", "ip");
+    expect(captureError).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(clock + TEN_MINUTES);
+    expect(await checkRateLimit("pageRequest", "ip")).toBe(true);
+    expect(captureError).toHaveBeenCalledTimes(2);
+    expect(captureError).toHaveBeenLastCalledWith(expect.any(Error), {
+      where: "checkRateLimit",
+      limiter: "pageRequest",
+      suppressedSinceLastReport: 5,
+    });
+  });
+
+  it("does not key the throttle by limiter", async () => {
+    vi.spyOn(rateLimiters.pageRequest, "limit").mockRejectedValue(new Error("down"));
+    vi.spyOn(rateLimiters.like, "limit").mockRejectedValue(new Error("down"));
+
+    await checkRateLimit("pageRequest", "ip");
+    await checkRateLimit("like", "user");
+    expect(captureError).toHaveBeenCalledTimes(1);
+  });
+
+  it("throttles timeouts separately from thrown errors", async () => {
+    vi.spyOn(rateLimiters.pageRequest, "limit").mockResolvedValue({
+      success: true,
+      remaining: 0,
+      reason: "timeout",
+    } as never);
+
+    expect(await checkRateLimit("pageRequest", "ip")).toBe(true);
+    expect(await checkRateLimit("pageRequest", "ip")).toBe(true);
+    expect(console.error).toHaveBeenCalledTimes(1);
+
+    vi.spyOn(rateLimiters.pageRequest, "limit").mockRejectedValue(new Error("down"));
+    await checkRateLimit("pageRequest", "ip");
+    expect(captureError).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not wait on captureError", async () => {
+    vi.spyOn(rateLimiters.pageRequest, "limit").mockRejectedValue(new Error("down"));
+    vi.mocked(captureError).mockReturnValue(new Promise(() => {}));
+
+    await expect(checkRateLimit("pageRequest", "ip")).resolves.toBe(true);
   });
 });
