@@ -3,6 +3,7 @@ import {
   createChannelRegistry,
   createResyncScheduler,
   createSignalThrottle,
+  isTransientRealtimeDisconnect,
   type RealtimeTransport,
 } from "./realtime-client";
 
@@ -177,6 +178,40 @@ describe("createChannelRegistry", () => {
       ["a", "CHANNEL_ERROR", err],
       ["b", "TIMED_OUT", undefined],
     ]);
+  });
+
+  it("does not use up a topic's report when the failure handler declines it", () => {
+    const { transport, opened } = fakeTransport();
+    const onFailure = vi.fn((_topic: string, _status: string, err?: Error) =>
+      isTransientRealtimeDisconnect(err) ? false : undefined,
+    );
+    const registry = createChannelRegistry(transport, onFailure);
+    const real = new Error("join refused");
+
+    registry.subscribe("a", "changed", vi.fn());
+    opened[0]!.status("CHANNEL_ERROR", new Error("socket closed: 1000"));
+    opened[0]!.status("CHANNEL_ERROR", real);
+    opened[0]!.status("CHANNEL_ERROR", new Error("other"));
+
+    expect(onFailure).toHaveBeenCalledTimes(2);
+    expect(onFailure.mock.calls[1]).toEqual(["a", "CHANNEL_ERROR", real]);
+  });
+});
+
+describe("isTransientRealtimeDisconnect", () => {
+  it("matches plain socket closes and transport losses", () => {
+    expect(isTransientRealtimeDisconnect(new Error("socket closed: 1000"))).toBe(true);
+    expect(isTransientRealtimeDisconnect(new Error("socket closed: 1006 (abnormal)"))).toBe(true);
+    expect(isTransientRealtimeDisconnect(new Error("channel error: transport failure"))).toBe(true);
+    expect(isTransientRealtimeDisconnect(new Error("channel error: connection lost"))).toBe(true);
+    expect(isTransientRealtimeDisconnect(new Error("heartbeat timeout"))).toBe(true);
+  });
+
+  it("does not match anything else", () => {
+    expect(isTransientRealtimeDisconnect(new Error("boom"))).toBe(false);
+    expect(isTransientRealtimeDisconnect(new Error("join refused: socket closed: 1000"))).toBe(false);
+    expect(isTransientRealtimeDisconnect("socket closed: 1000")).toBe(false);
+    expect(isTransientRealtimeDisconnect(undefined)).toBe(false);
   });
 });
 

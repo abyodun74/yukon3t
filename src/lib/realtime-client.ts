@@ -61,7 +61,9 @@ type ChannelEntry = { listeners: Set<ChannelListener>; close: (() => unknown) | 
  */
 export function createChannelRegistry(
   transport: RealtimeTransport,
-  onChannelFailure: (topic: string, status: string, err?: Error) => void,
+  // Returning false means "not worth reporting" and leaves the topic's
+  // once-only report slot free for a later, genuine failure.
+  onChannelFailure: (topic: string, status: string, err?: Error) => boolean | void,
 ) {
   const entries = new Map<string, ChannelEntry>();
   const closing = new Map<string, Promise<void>>();
@@ -80,8 +82,7 @@ export function createChannelRegistry(
       },
       (status, err) => {
         if ((status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") || reportedTopics.has(topic)) return;
-        reportedTopics.add(topic);
-        onChannelFailure(topic, status, err);
+        if (onChannelFailure(topic, status, err) !== false) reportedTopics.add(topic);
       },
     );
   }
@@ -280,8 +281,26 @@ function supabaseTransport(supabase: SupabaseClient): RealtimeTransport {
 
 let cachedRegistry: ReturnType<typeof createChannelRegistry> | null = null;
 
+/**
+ * A plain WebSocket close (app backgrounded, network switch) surfaces as a
+ * CHANNEL_ERROR with one of these messages (see realtime-js's
+ * normalizeChannelError). The client reconnects and rejoins by itself.
+ */
+export function isTransientRealtimeDisconnect(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err.message.startsWith("socket closed:") ||
+      err.message === "heartbeat timeout" ||
+      err.message === "channel error: transport failure" ||
+      err.message === "channel error: connection lost")
+  );
+}
+
 function registry(supabase: SupabaseClient) {
   cachedRegistry ??= createChannelRegistry(supabaseTransport(supabase), (topic, status, err) => {
+    // Mobile WebViews drop their socket routinely and the Supabase client
+    // recovers on its own, so these are noise in Sentry, not defects.
+    if (status === "CHANNEL_ERROR" && isTransientRealtimeDisconnect(err)) return false;
     captureError(err ?? new Error(`Realtime channel ${status}`), {
       hook: "useRealtimeEvent",
       channel: topic,
