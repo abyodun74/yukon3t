@@ -105,6 +105,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     !activeCall && readyToCheckIncoming ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
     "changed",
     checkIncoming,
+    { resync: "immediate" },
   );
 
   // Fallback for the caller hanging up mid-call: normally that ejects us
@@ -128,6 +129,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
     "changed",
     checkActiveCallStatus,
+    { resync: "immediate" },
   );
 
   // Hands the fullscreen/minimizable UI off to the root-mounted

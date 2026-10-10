@@ -25,9 +25,10 @@ const EMPTY: NavBadgeCounts = {
  * on a realtime signal instead of polling: subscribes to this user's own
  * `nav-badges:{userId}` channel (published to by sendMessage,
  * requestConnection/respondToConnection, and the notifications
- * mark-as-read actions) plus the global `announcements` channel, and once
- * more on tab-focus-regain as a safety net (see useRealtimeEvent's own doc
- * comment). `userId` is null/undefined while signed out, which skips both
+ * mark-as-read actions), and once more on tab-focus-regain as a safety net
+ * (see useRealtimeEvent's own doc comment). The global `announcements`
+ * channel only lights the what's-new badge — see markNewAnnouncement
+ * below. `userId` is null/undefined while signed out, which skips both
  * subscriptions entirely.
  */
 export function useNavBadges(userId: string | null | undefined): NavBadgeCounts {
@@ -64,8 +65,22 @@ export function useNavBadges(userId: string | null | undefined): NavBadgeCounts 
     if (userId) refetchRef.current();
   }, [userId]);
 
+  // The announcements channel reaches every signed-in user at once, and its
+  // only publisher is createAnnouncement, right after the new row exists —
+  // at which point /api/badge-counts would answer hasNewAnnouncement: true
+  // for anyone (the newest announcement is newer than any
+  // lastSeenAnnouncementAt). So the signal sets that locally instead of
+  // sending every client to refetch all four counts in the same instant.
+  // Its tab-focus resync (null payload) is a no-op: the nav-badges
+  // subscription below is live under the same condition and its resync
+  // already refetches everything, announcement flag included.
+  const markNewAnnouncement = useCallback((payload: unknown) => {
+    if (payload === null) return;
+    setCounts((prev) => ({ ...prev, hasNewAnnouncement: true }));
+  }, []);
+
   useRealtimeEvent(userId ? REALTIME_CHANNELS.navBadges(userId) : null, "changed", refetch);
-  useRealtimeEvent(userId ? REALTIME_CHANNELS.announcements() : null, "changed", refetch);
+  useRealtimeEvent(userId ? REALTIME_CHANNELS.announcements() : null, "changed", markNewAnnouncement);
 
   // Presented rather than reset via an effect+setState (which would also be
   // a "setState in effect" antipattern for a plain derived value): once

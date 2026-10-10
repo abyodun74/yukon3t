@@ -20,13 +20,14 @@ import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend, textForModeration, pushPreview } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
-import { sendPushToUser } from "@/lib/push";
-import { sendFcmActivityToUser } from "@/lib/fcm";
+import { sendPushToUsers } from "@/lib/push";
+import { sendFcmActivityToUsers } from "@/lib/fcm";
+import { captureError } from "@/lib/error-tracking";
 import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
-import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
+import { publishEvent, publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
@@ -396,21 +397,35 @@ async function afterMessageSent({
   content: string;
   mediaType: "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 }) {
-  await recordActivity(user.id);
+  // The message row is already committed by the time this runs, so nothing
+  // below may throw out of the action — the sender would see an error and
+  // resend a duplicate. Each step fails on its own, so one of them breaking
+  // (e.g. a pool timeout) doesn't also cost the recipient the steps after it.
+  async function bestEffort(step: string, run: () => Promise<unknown>) {
+    try {
+      await run();
+    } catch (err) {
+      console.error(`[messages] ${step} failed after message was stored`, err);
+      await captureError(err, { step, conversationId });
+    }
+  }
+
+  await bestEffort("recordActivity", () => recordActivity(user.id));
   await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
 
   const recipientIds =
     memberIds.filter((id) => id !== user.id);
   // Never the message text in a secret chat, and never ciphertext anywhere.
   const preview = pushPreview({ secret, content, mediaType });
-  await Promise.all(
-    recipientIds.map((recipientId) =>
-      sendPushToUser(recipientId, {
-        title: user.name ?? "New message",
-        body: preview.slice(0, 120),
-        url: `/messages/${conversationId}`,
-      }),
-    ),
+  // One query + bounded sends for every recipient together (not a query and
+  // an unbounded Promise.all per recipient) — a group has no member cap, and
+  // the Prisma pool is only a handful of connections (src/lib/prisma.ts).
+  await bestEffort("webPush", () =>
+    sendPushToUsers(recipientIds, {
+      title: user.name ?? "New message",
+      body: preview.slice(0, 120),
+      url: `/messages/${conversationId}`,
+    }),
   );
   // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
   // WebView doesn't support the Push API at all, and Android's own native
@@ -419,32 +434,41 @@ async function afterMessageSent({
   // message had no FCM path whatsoever). Confirmed live: a real message
   // showed the in-app bell/badge update instantly (Realtime, unaffected)
   // but never surfaced as a native push on iOS.
-  await Promise.all(
-    recipientIds.map((recipientId) =>
-      sendFcmActivityToUser(recipientId, {
-        title: user.name ?? "New message",
-        body: preview.slice(0, 120),
-        type: "MESSAGE",
-        url: `/messages/${conversationId}`,
-      }),
-    ),
+  await bestEffort("fcm", () =>
+    sendFcmActivityToUsers(recipientIds, {
+      title: user.name ?? "New message",
+      body: preview.slice(0, 120),
+      type: "MESSAGE",
+      url: `/messages/${conversationId}`,
+    }),
   );
   // In-app only (no email) — see MESSAGE in the NotificationType enum. One
   // row per recipient per message, same as every other notification type
   // here (no dedup/throttling), so it shows up in the bell alongside likes,
   // comments, etc. instead of only in the Messages tab's own unread badge.
   if (recipientIds.length > 0) {
-    await prisma.notification.createMany({
-      data: recipientIds.map((recipientId) => ({
-        recipientId,
-        actorId: user.id,
-        type: "MESSAGE" as const,
-        conversationId,
-      })),
-    });
+    await bestEffort("notifications", () =>
+      prisma.notification.createMany({
+        data: recipientIds.map((recipientId) => ({
+          recipientId,
+          actorId: user.id,
+          type: "MESSAGE" as const,
+          conversationId,
+        })),
+      }),
+    );
   }
-  await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
-  await publishEvent(REALTIME_CHANNELS.conversation(conversationId), "changed");
+  // Every recipient's badge nudge plus the thread's own "changed" signal in
+  // one batched request, rather than one HTTP call per recipient.
+  await bestEffort("realtime", () =>
+    publishEvents([
+      ...recipientIds.map((recipientId) => ({
+        channel: REALTIME_CHANNELS.navBadges(recipientId),
+        event: "changed",
+      })),
+      { channel: REALTIME_CHANNELS.conversation(conversationId), event: "changed" },
+    ]),
+  );
 
   revalidatePath(`/messages/${conversationId}`);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, Radio } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
@@ -8,6 +8,7 @@ import { LiveStreamPreviewEmbed } from "@/components/live-stream-preview-embed";
 import { getLiveStreamViewerCount } from "@/app/actions/live-streams";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
 
 export type FeedLiveStream = {
   id: string;
@@ -25,6 +26,9 @@ const VISIBILITY_THRESHOLD = 0.5;
 // forth shouldn't thrash join/leave on the same room).
 const ENTER_GRACE_MS = 500;
 const LEAVE_GRACE_MS = 1500;
+// Same cap as the room's own presence-driven count (live-stream-room.tsx):
+// a busy stream's join/leave churn re-reads the count at most this often.
+const COUNT_REFETCH_INTERVAL_MS = 5000;
 
 /**
  * One public live stream, rendered as a real card in the Home feed itself
@@ -81,17 +85,31 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
     };
   }, []);
 
-  const refetchCount = async () => {
-    const result = await getLiveStreamViewerCount(stream.id);
-    setViewerCount(result.count);
-  };
+  const streamId = stream.id;
+  const countThrottle = useMemo(
+    () =>
+      createTrailingThrottle(() => {
+        getLiveStreamViewerCount(streamId)
+          .then((result) => setViewerCount(result.count))
+          // Fired from a timer — a transient blip just waits for the next signal.
+          .catch(() => {});
+      }, COUNT_REFETCH_INTERVAL_MS),
+    [streamId],
+  );
+  useEffect(() => () => countThrottle.cancel(), [countThrottle]);
 
   // joinLiveStream/leaveLiveStream both publish onto this stream's own
   // channel (see actions/live-streams.ts) — same per-stream realtime
   // signal live-stream-room.tsx itself reacts to, so this card's count
   // stays live without polling, independent of whether anyone has this
-  // specific stream's own room page open right now.
-  useRealtimeEvent(REALTIME_CHANNELS.liveStream(stream.id), "changed", refetchCount);
+  // specific stream's own room page open right now. A "comment" signal
+  // can't move the count, so it's skipped outright; everything else
+  // (including a signal with no recognizable kind) goes through the
+  // throttle.
+  useRealtimeEvent(REALTIME_CHANNELS.liveStream(streamId), "changed", (payload) => {
+    if (liveStreamSignalKind(payload) === "comment") return;
+    countThrottle.trigger();
+  });
 
   function join(role: "VIEWER" | "GUEST" | "COHOST") {
     router.push(`/live/${stream.id}?role=${role}`);

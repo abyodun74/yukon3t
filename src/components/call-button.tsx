@@ -187,6 +187,7 @@ export function CallButton({
     state.phase === "ringing" || state.phase === "in-call" ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
     "changed",
     checkStatus,
+    { resync: "immediate" },
   );
 
   useEffect(() => {

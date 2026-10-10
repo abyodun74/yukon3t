@@ -19,6 +19,7 @@ import { notifySubscribers } from "@/lib/notify-subscribers";
 import { moderateText } from "@/lib/moderation";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import type { LiveStreamSignalKind } from "@/lib/live-stream-signal";
 import { captureError } from "@/lib/error-tracking";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
@@ -27,6 +28,16 @@ import { isUniqueConstraintError } from "@/lib/prisma-errors";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
+
+/**
+ * Every publish onto a stream's own channel says what changed, so listeners
+ * refetch only that (see live-stream-signal.ts). The kind is the whole
+ * payload — never comment text, a user id or anything else: the channel is
+ * public and Circle-/person-private streams publish on it too.
+ */
+function publishLiveStreamSignal(liveStreamId: string, kind: LiveStreamSignalKind) {
+  return publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed", { kind });
+}
 
 /** Starts a new live stream — rejects if the host already has one running (see LiveStream.status). */
 export async function startLiveStream(formData: FormData) {
@@ -353,7 +364,12 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
       create: { liveStreamId, userId: user.id, role: isHost ? "COHOST" : role },
       update: { joinedAt: new Date(), role: isHost ? "COHOST" : role },
     });
-    await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
+    // A plain watch-only join — a real viewer's or a Home feed card's
+    // preview (live-stream-preview-embed.tsx), which are the same call —
+    // only moves the counts, so it's "presence", which listeners throttle.
+    // Asking for a stage role is "stage": it may have just filed a request
+    // the host needs to see straight away.
+    await publishLiveStreamSignal(liveStreamId, !isHost && parsedRole.data ? "stage" : "presence");
 
     return { error: null, roomUrl: liveStream.roomUrl, token, role, pendingStageRequest };
   } catch (err) {
@@ -447,7 +463,7 @@ export async function respondToStageRequest(requestId: string, approve: boolean)
     where: { id: requestId },
     data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
   });
-  await publishEvent(REALTIME_CHANNELS.liveStream(request.liveStreamId), "changed");
+  await publishLiveStreamSignal(request.liveStreamId, "stage");
 
   return { error: null };
 }
@@ -458,7 +474,7 @@ export async function cancelStageRequest(liveStreamId: string) {
   await prisma.liveStreamStageRequest.deleteMany({
     where: { liveStreamId, userId: user.id, status: "PENDING" },
   });
-  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
+  await publishLiveStreamSignal(liveStreamId, "stage");
   return { error: null };
 }
 
@@ -492,7 +508,7 @@ export async function leaveLiveStream(liveStreamId: string) {
   const user = await requireVerifiedUser();
 
   await prisma.liveStreamViewer.deleteMany({ where: { liveStreamId, userId: user.id } });
-  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
+  await publishLiveStreamSignal(liveStreamId, "presence");
   return { error: null };
 }
 
@@ -754,7 +770,7 @@ export async function sendLiveStreamComment(liveStreamId: string, formData: Form
   await prisma.liveStreamComment.create({
     data: { liveStreamId, authorId: user.id, content: parsed.data.content },
   });
-  await publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed");
+  await publishLiveStreamSignal(liveStreamId, "comment");
 
   return { error: null };
 }

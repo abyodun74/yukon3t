@@ -67,3 +67,51 @@ export async function publishEvent(
     console.error(`[realtime] broadcast ${event} on ${channel} failed`, err);
   }
 }
+
+export type RealtimeEvent = { channel: string; event: string; payload?: Record<string, unknown> };
+
+// No documented per-request cap on the broadcast endpoint's `messages`
+// array was found, so this is a deliberately conservative guess rather than
+// a known limit — every payload here is a tiny "go refetch" signal, so 100
+// of them stay far below any request-size limit.
+export const PUBLISH_EVENTS_CHUNK_SIZE = 100;
+
+/**
+ * Batched publishEvent — one POST per PUBLISH_EVENTS_CHUNK_SIZE events
+ * instead of one per event, for a fan-out whose size grows with a group's
+ * member count (see afterMessageSent in actions/messages.ts). Same contract
+ * as publishEvent: best-effort, never throws, no-op until configured; one
+ * failed chunk doesn't stop the others.
+ */
+export async function publishEvents(events: RealtimeEvent[]): Promise<void> {
+  if (!isRealtimeConfigured() || events.length === 0) return;
+
+  const chunks: RealtimeEvent[][] = [];
+  for (let i = 0; i < events.length; i += PUBLISH_EVENTS_CHUNK_SIZE) {
+    chunks.push(events.slice(i, i + PUBLISH_EVENTS_CHUNK_SIZE));
+  }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: process.env.SUPABASE_SECRET_KEY!,
+            Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+          },
+          body: JSON.stringify({
+            messages: chunk.map((e) => ({ topic: e.channel, event: e.event, payload: e.payload ?? {} })),
+          }),
+          signal: AbortSignal.timeout(2000),
+        });
+        if (!res.ok) {
+          console.error(`[realtime] batched broadcast of ${chunk.length} events failed: ${res.status} ${await res.text()}`);
+        }
+      } catch (err) {
+        console.error(`[realtime] batched broadcast of ${chunk.length} events failed`, err);
+      }
+    }),
+  );
+}

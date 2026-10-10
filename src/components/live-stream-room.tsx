@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, Users, X } from "lucide-react";
 import { useCallSession } from "@/lib/call-session";
@@ -23,6 +23,7 @@ import {
 import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { createCoalescer, createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 
 // Not migrated to realtime — this is a periodic "I'm still here" keepalive
@@ -30,6 +31,18 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 // changed" concern, so a timer is the actually-correct mechanism regardless
 // of everything else in this file moving to realtime events.
 const HEARTBEAT_INTERVAL_MS = 5000;
+// Most often a client re-reads the viewer/stage counts for join/leave churn.
+const PRESENCE_REFETCH_INTERVAL_MS = 5000;
+// Nothing server-side publishes when a recording finishes — it's started and
+// stopped straight against Daily from the browser, and Daily processes it
+// for a while after the stop before listing it as finished. The recordings
+// list used to catch up only as a side effect of whatever unrelated signal
+// came next (a Daily REST call per viewer per comment). Instead, Daily's own
+// "recording-stopped" event schedules these few re-checks, each with up to
+// RECORDINGS_REFETCH_JITTER_MS added so a whole room doesn't hit Daily's API
+// in the same instant.
+const RECORDINGS_REFETCH_DELAYS_MS = [5000, 20000, 60000];
+const RECORDINGS_REFETCH_JITTER_MS = 5000;
 // Same set as StoryViewer's QUICK_REACTIONS (src/components/story-viewer.tsx) for consistency.
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "👏", "🔥", "😢"];
 
@@ -290,22 +303,45 @@ export function LiveStreamRoom({
       .catch(() => setRespondingRequestId(null));
   }
 
-  const refetch = useCallback(async () => {
-    const [{ count, stageCount: sc, stageCapacity: cap }, { recordings: recs }, { comments: fresh }] =
-      await Promise.all([
-        getLiveStreamViewerCount(liveStreamId),
-        listLiveStreamRecordings(liveStreamId),
-        getLiveStreamComments(liveStreamId, lastCommentIdRef.current),
-      ]);
+  // The full refetch, split into the four independent fetches it's made of so
+  // a realtime signal can re-run only the one its `kind` is about (see
+  // handleSignal below) instead of all four for every viewer on every event.
+  const fetchViewerCount = useCallback(async () => {
+    const { count, stageCount: sc, stageCapacity: cap } = await getLiveStreamViewerCount(liveStreamId);
     setViewerCount(count);
     setStageCount(sc);
     setStageCapacity(cap);
-    setRecordings(recs);
-    if (fresh.length > 0) {
-      lastCommentIdRef.current = fresh[fresh.length - 1]!.id;
-      setComments((prev) => [...prev, ...fresh].slice(-100));
-    }
+  }, [liveStreamId]);
 
+  // The only one of the four that leaves our own infrastructure — a Daily
+  // REST call per caller — so it's deliberately never tied to comment/
+  // presence/stage signals. See RECORDINGS_REFETCH_DELAYS_MS for what
+  // refreshes it mid-stream instead.
+  const fetchRecordings = useCallback(async () => {
+    const { recordings: recs } = await listLiveStreamRecordings(liveStreamId);
+    setRecordings(recs);
+  }, [liveStreamId]);
+
+  // Coalesced: at most one comments fetch in flight, plus exactly one more
+  // afterwards if any signals landed meanwhile — a burst of N comments costs
+  // this client two fetches, not N. Every caller goes through this (the full
+  // refetch included), which is also what stops two overlapping fetches
+  // reading the same lastCommentIdRef cursor and appending the same comments
+  // twice.
+  const [coalesceComments] = useState(createCoalescer);
+  const fetchComments = useCallback(
+    () =>
+      coalesceComments(async () => {
+        const { comments: fresh } = await getLiveStreamComments(liveStreamId, lastCommentIdRef.current);
+        if (fresh.length > 0) {
+          lastCommentIdRef.current = fresh[fresh.length - 1]!.id;
+          setComments((prev) => [...prev, ...fresh].slice(-100));
+        }
+      }),
+    [liveStreamId, coalesceComments],
+  );
+
+  const fetchStage = useCallback(async () => {
     if (isHost) {
       const { requests } = await getLiveStreamStageRequests(liveStreamId);
       setStageRequests(requests);
@@ -325,15 +361,60 @@ export function LiveStreamRoom({
     }
   }, [liveStreamId, isHost]);
 
+  const refetch = useCallback(async () => {
+    await Promise.all([fetchViewerCount(), fetchRecordings(), fetchComments(), fetchStage()]);
+  }, [fetchViewerCount, fetchRecordings, fetchComments, fetchStage]);
+
+  // Joins/leaves are the one signal that scales with audience size rather
+  // than with what anyone in the room did (a Home feed card's preview is a
+  // join too — see live-stream-preview-embed.tsx), so the count they drive
+  // is throttled per client; the trailing run is what keeps the number shown
+  // correct once the churn settles, just up to PRESENCE_REFETCH_INTERVAL_MS
+  // late.
+  const viewerCountThrottle = useMemo(
+    () =>
+      createTrailingThrottle(() => {
+        // Fired from a timer, so nothing upstream catches a rejection — a
+        // transient blip here just waits for the next presence signal.
+        fetchViewerCount().catch(() => {});
+      }, PRESENCE_REFETCH_INTERVAL_MS),
+    [fetchViewerCount],
+  );
+  useEffect(() => () => viewerCountThrottle.cancel(), [viewerCountThrottle]);
+
+  // Every publish onto this liveStreamId's channel carries a `kind` (see
+  // actions/live-streams.ts + live-stream-signal.ts). No recognizable kind —
+  // the focus-regain resync's null payload, a server still on the old code
+  // mid-deploy, a kind newer than this tab's cached JS — is always the full
+  // refetch, exactly what every signal used to do.
+  const handleSignal = useCallback(
+    async (payload: unknown) => {
+      switch (liveStreamSignalKind(payload)) {
+        case "comment":
+          await fetchComments();
+          return;
+        case "presence":
+          viewerCountThrottle.trigger();
+          return;
+        case "stage":
+          // Not throttled: stage changes are rare, host-driven, and an
+          // approval moves someone between the two counts shown.
+          await Promise.all([fetchViewerCount(), fetchStage()]);
+          return;
+        default:
+          await refetch();
+      }
+    },
+    [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch],
+  );
+
   // Fires immediately once joined (this used to be usePolling's own
   // "immediate fire on mount" — still needed since a realtime subscription
   // alone only reports *new* signals, not current state) and on every
-  // realtime "changed" event from here on — join/leave, a new comment, a
-  // stage request filed/approved/declined/cancelled, and a recording
-  // finishing all publish onto this liveStreamId's channel (see
-  // actions/live-streams.ts). Ref indirection avoids a "setState
-  // synchronously within an effect" lint false-positive, same pattern as
-  // every other realtime migration in this app.
+  // realtime "changed" event from here on, narrowed by handleSignal above.
+  // Ref indirection avoids a "setState synchronously within an effect" lint
+  // false-positive, same pattern as every other realtime migration in this
+  // app.
   const refetchRef = useRef(refetch);
   useEffect(() => {
     refetchRef.current = refetch;
@@ -341,7 +422,7 @@ export function LiveStreamRoom({
   useEffect(() => {
     if (phase !== "joining") refetchRef.current();
   }, [phase]);
-  useRealtimeEvent(phase !== "joining" ? REALTIME_CHANNELS.liveStream(liveStreamId) : null, "changed", refetch);
+  useRealtimeEvent(phase !== "joining" ? REALTIME_CHANNELS.liveStream(liveStreamId) : null, "changed", handleSignal);
 
   // Independent of the above — a plain "I'm still here" keepalive for the
   // end-inactive-streams cron, not something a realtime event can stand in
@@ -532,16 +613,30 @@ export function LiveStreamRoom({
           setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
         });
     }
+    const recordingsTimers: ReturnType<typeof setTimeout>[] = [];
     function onStopped() {
       setRecording(false);
+      // See RECORDINGS_REFETCH_DELAYS_MS — this is what picks up the
+      // just-stopped recording once Daily has finished processing it.
+      for (const delay of RECORDINGS_REFETCH_DELAYS_MS) {
+        recordingsTimers.push(
+          setTimeout(
+            () => {
+              fetchRecordings().catch(() => {});
+            },
+            delay + Math.random() * RECORDINGS_REFETCH_JITTER_MS,
+          ),
+        );
+      }
     }
     dailyCall.on("recording-started", onStarted);
     dailyCall.on("recording-stopped", onStopped);
     return () => {
       dailyCall.off("recording-started", onStarted);
       dailyCall.off("recording-stopped", onStopped);
+      recordingsTimers.forEach(clearTimeout);
     };
-  }, [dailyCall, liveStreamId]);
+  }, [dailyCall, liveStreamId, fetchRecordings]);
 
   // Other participants' reactions arrive as app-messages (see sendReaction
   // above) — this is what actually shows them float up on everyone else's

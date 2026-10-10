@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { PostCard, type PostCardData } from "@/components/post-card";
-import { useRealtimeEvent } from "@/lib/realtime-client";
+import { createSignalThrottle, useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { useOptimisticPosts } from "@/lib/optimistic-posts-store";
+import { hasSendingOptimisticPost, useOptimisticPosts } from "@/lib/optimistic-posts-store";
 import { OptimisticPostCard } from "@/components/optimistic-post-card";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
@@ -57,6 +57,18 @@ const ITEM_GAP = 16;
 // (which would sit outside the render window most of the time once
 // virtualized, and never actually intersect).
 const LOAD_MORE_THRESHOLD = 3;
+// A home-feed:* signal fires for every public post by anyone and reaches
+// every open Home tab in the same instant — fetching on arrival means one
+// post triggers as many simultaneous /latest requests as there are tabs.
+// Each tab instead waits a random time up to this long before fetching, so
+// that load arrives spread over the window rather than as one spike...
+const FEED_SIGNAL_MAX_DELAY_MS = 5_000;
+// ...and fetches at most once per this long no matter how many posts land
+// in between (one fetch returns all of them anyway), which caps a tab at 3
+// signal-driven requests a minute however busy the feed gets. Roughly the
+// cadence of the 25s poll this channel replaced, but only while there is
+// actually something new.
+const FEED_SIGNAL_COOLDOWN_MS = 20_000;
 
 export function PostFeedSection({
   category,
@@ -105,16 +117,44 @@ export function PostFeedSection({
     }
   }, [category, posts]);
 
+  // Always points at the latest refetchNewer (which changes identity every
+  // time `posts` does) so the throttle and effects below can call it
+  // without being torn down and recreated on every fetch.
+  const refetchNewerRef = useRef(refetchNewer);
+  useEffect(() => {
+    refetchNewerRef.current = refetchNewer;
+  });
+
+  const signalThrottleRef = useRef<ReturnType<typeof createSignalThrottle> | null>(null);
+  useEffect(() => {
+    const throttle = createSignalThrottle(() => refetchNewerRef.current(), {
+      maxDelayMs: FEED_SIGNAL_MAX_DELAY_MS,
+      cooldownMs: FEED_SIGNAL_COOLDOWN_MS,
+    });
+    signalThrottleRef.current = throttle;
+    return () => {
+      throttle.cancel();
+      signalThrottleRef.current = null;
+    };
+  }, [category]);
+
   // Replaces the old 25s poll — createPost/repost publish onto this
   // category's home-feed:{category} channel and the global home-feed:all
   // channel (see REALTIME_CHANNELS.homeFeed in actions/circles.ts and
-  // actions/reposts.ts), so a new post shows up as soon as it's published
-  // instead of waiting on the next tick. useRealtimeEvent's own tab-focus
-  // resync covers a missed signal.
+  // actions/reposts.ts). Those signals go through the throttle above rather
+  // than straight to a fetch, with two exceptions that fetch right away:
+  // useRealtimeEvent's own tab-focus resync (null payload — already
+  // rate-limited and spread out by the hook itself), and any signal that
+  // lands while this viewer has a post of their own on its way up, which is
+  // most likely the one announcing it.
+  const handleFeedSignal = useCallback((payload: unknown) => {
+    if (payload === null || hasSendingOptimisticPost()) return refetchNewerRef.current();
+    signalThrottleRef.current?.signal();
+  }, []);
   useRealtimeEvent(
     liveUpdatesEnabled ? REALTIME_CHANNELS.homeFeed(category) : null,
     "changed",
-    refetchNewer,
+    handleFeedSignal,
   );
 
   // Fetches the next page and appends it in place — no navigation, so
@@ -162,6 +202,32 @@ export function PostFeedSection({
   // it — there's realistically 0-1 of these at a time and they're gone
   // within seconds, not worth folding into the index math.
   const optimisticPosts = useOptimisticPosts();
+
+  // The viewer's own new post reaches this list through the same refetch as
+  // everyone else's — there's no separate insertion path — so it must not
+  // sit behind the signal throttle above. Two things mean "this viewer just
+  // did something here", and each fetches immediately instead:
+  // a placeholder leaving the optimistic store (PostComposer removes it the
+  // moment createPost resolves, so the real post is already there to fetch),
+  // and a fresh `initialPosts` arriving from the server (this tab's own
+  // router.refresh()/revalidatePath("/home") after a share-target post or a
+  // repost — `posts` state deliberately ignores the new prop itself, see the
+  // `key` comment in src/app/home/page.tsx). Both are driven by this tab's
+  // own actions, never by a broadcast, so neither can stampede.
+  const optimisticCount = optimisticPosts.length;
+  const lastOptimisticCountRef = useRef(optimisticCount);
+  useEffect(() => {
+    const settled = optimisticCount < lastOptimisticCountRef.current;
+    lastOptimisticCountRef.current = optimisticCount;
+    if (settled && liveUpdatesEnabled) refetchNewerRef.current();
+  }, [optimisticCount, liveUpdatesEnabled]);
+
+  const lastInitialPostsRef = useRef(initialPosts);
+  useEffect(() => {
+    if (lastInitialPostsRef.current === initialPosts) return;
+    lastInitialPostsRef.current = initialPosts;
+    if (liveUpdatesEnabled) refetchNewerRef.current();
+  }, [initialPosts, liveUpdatesEnabled]);
 
   // Distance from the top of the document to the top of the virtualized
   // list itself (the story tray, streak banner, category tabs, and any

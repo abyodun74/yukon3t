@@ -202,13 +202,55 @@ export async function broadcastFcmAnnouncement(payload: { title: string; body: s
   const tokens = await prisma.fcmToken.findMany({ select: { id: true, token: true } });
   if (tokens.length === 0) return;
 
+  await sendFcmNotificationToTokens(app, tokens, {
+    notification: { title: payload.title, body: payload.body },
+    data: { type: "ANNOUNCEMENT", url: "/whats-new" },
+  });
+}
+
+/**
+ * sendFcmActivityToUser for many recipients at once (a group message's
+ * fan-out — see afterMessageSent in actions/messages.ts): one token query
+ * for all of them instead of one per recipient, sent with the same payload
+ * shape through the announcement broadcast's chunked multicast. Best-effort
+ * and never throws, including when the query itself fails.
+ */
+export async function sendFcmActivityToUsers(
+  userIds: string[],
+  payload: { title: string; body: string; type: string; url?: string },
+) {
+  if (!isFcmConfigured || !app || userIds.length === 0) return;
+
+  let tokens;
+  try {
+    tokens = await prisma.fcmToken.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true, token: true },
+    });
+  } catch (err) {
+    console.error("[fcm] token lookup failed", err);
+    return;
+  }
+  if (tokens.length === 0) return;
+
+  await sendFcmNotificationToTokens(app, tokens, {
+    notification: { title: payload.title, body: payload.body },
+    data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
+  });
+}
+
+async function sendFcmNotificationToTokens(
+  app: App,
+  tokens: { id: string; token: string }[],
+  message: { notification: { title: string; body: string }; data: Record<string, string> },
+) {
   for (let i = 0; i < tokens.length; i += FCM_MULTICAST_CHUNK_SIZE) {
     const chunk = tokens.slice(i, i + FCM_MULTICAST_CHUNK_SIZE);
     try {
       const response = await getMessaging(app).sendEachForMulticast({
         tokens: chunk.map((t) => t.token),
-        notification: { title: payload.title, body: payload.body },
-        data: { type: "ANNOUNCEMENT", url: "/whats-new" },
+        notification: message.notification,
+        data: message.data,
         android: { priority: "high" },
       });
       const staleTokenIds: string[] = [];

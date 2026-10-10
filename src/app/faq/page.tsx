@@ -157,9 +157,10 @@ const sections: Section[] = [
           <>
             Posts are grouped by the feed section the author picked in the
             composer (defaulting to General) so it&apos;s easier to browse
-            what you care about. Each section checks for new posts every
-            20&ndash;30 seconds while you&apos;re on the page and adds them
-            to the top automatically — no need to refresh.
+            what you care about. While you&apos;re on the page, each section
+            adds new posts to the top automatically — usually within a few
+            seconds, and within about half a minute when a lot is being
+            posted at once — no need to refresh.
           </>
         ),
       },
@@ -493,9 +494,9 @@ const sections: Section[] = [
             you scroll, whether that&apos;s <strong>Home</strong>, a
             profile&apos;s posts, a Circle&apos;s channel feed, search
             results, Connections, or the subscribers/subscribing lists.
-            Nothing to tap. (Home separately checks for brand-new posts every
-            20&ndash;30 seconds and adds those to the top automatically —
-            that&apos;s different from loading further back in the feed.)
+            Nothing to tap. (Home separately adds brand-new posts to the top
+            automatically, usually within a few seconds of them being posted
+            — that&apos;s different from loading further back in the feed.)
           </>
         ),
       },

@@ -40,6 +40,36 @@ export async function broadcastPushAnnouncement(payload: { title: string; body: 
   if (!isPushConfigured) return;
 
   const subscriptions = await prisma.pushSubscription.findMany();
+  await sendPushToSubscriptions(subscriptions, payload);
+}
+
+/**
+ * sendPushToUser for many recipients at once (a group message's fan-out —
+ * see afterMessageSent in actions/messages.ts): one subscription query for
+ * all of them instead of one per recipient, and the same bounded batches as
+ * the announcement broadcast instead of an unbounded Promise.all. Best-
+ * effort and never throws, including when the query itself fails.
+ */
+export async function sendPushToUsers(
+  userIds: string[],
+  payload: { title: string; body: string; url?: string },
+) {
+  if (!isPushConfigured || userIds.length === 0) return;
+
+  let subscriptions;
+  try {
+    subscriptions = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+  } catch (err) {
+    console.error("[push] subscription lookup failed", err);
+    return;
+  }
+  await sendPushToSubscriptions(subscriptions, payload);
+}
+
+async function sendPushToSubscriptions(
+  subscriptions: { id: string; endpoint: string; p256dh: string; auth: string }[],
+  payload: { title: string; body: string; url?: string },
+) {
   for (let i = 0; i < subscriptions.length; i += BROADCAST_BATCH_SIZE) {
     const batch = subscriptions.slice(i, i + BROADCAST_BATCH_SIZE);
     await Promise.all(
@@ -66,7 +96,16 @@ export async function sendPushToUser(
 ) {
   if (!isPushConfigured) return;
 
-  const subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+  // Inside its own try/catch, like the sends below: a pool timeout here
+  // used to throw out of the calling action after its real write had
+  // already been committed.
+  let subscriptions;
+  try {
+    subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+  } catch (err) {
+    console.error("[push] subscription lookup failed", err);
+    return;
+  }
   if (subscriptions.length === 0) return;
 
   await Promise.all(

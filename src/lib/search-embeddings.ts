@@ -41,14 +41,78 @@ const TABLES = {
   post: Prisma.sql`"Post"`,
 } as const;
 
-async function nearestIds(table: keyof typeof TABLES, vector: string): Promise<Candidate[]> {
-  const rows = await prisma.$queryRaw<Candidate[]>`
-    SELECT "id", "embedding" <=> ${vector}::vector AS distance
-    FROM ${TABLES[table]}
-    WHERE "embedding" IS NOT NULL
-    ORDER BY distance ASC
-    LIMIT ${CANDIDATE_LIMIT}
+const CONVERSATION_TABLE = Prisma.sql`"Conversation"`;
+
+// Circle/CollabBoardPost/Post/Conversation.embedding carry a pgvector HNSW
+// index (prisma/migrations/20261010180000_restore_embedding_hnsw_indexes).
+// An HNSW index scan is approximate and yields at most `hnsw.ef_search` rows
+// (default 40, max 1000) no matter what the query's LIMIT says, so every
+// query here picks one of two shapes on purpose:
+//
+//   - approximateNearest: lets the index be used, with hnsw.ef_search raised
+//     well past the LIMIT so the top-N matches an exact scan's in practice.
+//   - exactNearest: guaranteed exact, identical to a table with no index.
+//
+// Never add a plain `ORDER BY "embedding" <=> ... LIMIT n` outside these two.
+const HNSW_EF_SEARCH_MIN = 100;
+const HNSW_EF_SEARCH_MAX = 1000;
+
+/**
+ * hnsw.ef_search to use for an index-backed top-`limit` query, or null when
+ * the limit is too large for HNSW to return it reliably (the candidate list
+ * can't be at least twice the limit) and the query must run exact instead.
+ */
+export function hnswEfSearch(limit: number): number | null {
+  if (limit * 2 > HNSW_EF_SEARCH_MAX) return null;
+  return Math.min(HNSW_EF_SEARCH_MAX, Math.max(HNSW_EF_SEARCH_MIN, limit * 8));
+}
+
+// `+ 0` makes the sort key something other than the bare `"embedding" <=> x`
+// expression an HNSW index can serve, so Postgres has to rank every row —
+// same plan and same rows as before the index existed, on any pgvector
+// version, in one statement (no session setting to leak through a pooler).
+function exactNearest(table: Prisma.Sql, vector: string, limit: number): Promise<Candidate[]> {
+  return prisma.$queryRaw<Candidate[]>`
+    SELECT "id", distance
+    FROM (
+      SELECT "id", "embedding" <=> ${vector}::vector AS distance
+      FROM ${table}
+      WHERE "embedding" IS NOT NULL
+    ) AS candidates
+    ORDER BY distance + 0 ASC
+    LIMIT ${limit}
   `;
+}
+
+// SET LOCAL only lasts until COMMIT and the array form of $transaction runs
+// both statements on one connection inside one BEGIN/COMMIT, so the setting
+// reaches this SELECT and nothing else — also true behind a transaction-mode
+// pooler (Neon's "-pooler" endpoint), which pins a server connection for the
+// length of a transaction. SET can't take a bind parameter; efSearch is a
+// number computed by hnswEfSearch, never caller input.
+async function approximateNearest(table: Prisma.Sql, vector: string, limit: number): Promise<Candidate[]> {
+  const efSearch = hnswEfSearch(limit);
+  if (efSearch === null) return exactNearest(table, vector, limit);
+  const [, rows] = await prisma.$transaction([
+    prisma.$executeRawUnsafe(`SET LOCAL hnsw.ef_search = ${efSearch}`),
+    prisma.$queryRaw<Candidate[]>`
+      SELECT "id", "embedding" <=> ${vector}::vector AS distance
+      FROM ${table}
+      WHERE "embedding" IS NOT NULL
+      ORDER BY distance ASC
+      LIMIT ${limit}
+    `,
+  ]);
+  return rows;
+}
+
+async function nearestIds(table: keyof typeof TABLES, vector: string): Promise<Candidate[]> {
+  // User.embedding has no HNSW index (see the migration above for why), and
+  // stays exact even if one is ever added.
+  const rows =
+    table === "user"
+      ? await exactNearest(TABLES[table], vector, CANDIDATE_LIMIT)
+      : await approximateNearest(TABLES[table], vector, CANDIDATE_LIMIT);
   return rows.filter((r) => r.distance <= MAX_DISTANCE);
 }
 
@@ -58,18 +122,16 @@ async function nearestIds(table: keyof typeof TABLES, vector: string): Promise<C
  * used by src/lib/feed-category.ts for the Home feed's smart category
  * filter, which wants a much larger candidate pool than a search fallback
  * does (it's filtering the primary feed, not suggesting extra results).
+ *
+ * Always an exact scan: the result is used as a membership set for a feed
+ * tab, so an approximate index scan dropping a few of the 500 would make
+ * posts vanish from the tab.
  */
 export async function nearestPostIds(
   vector: string,
   { limit = 500, maxDistance = MAX_DISTANCE }: { limit?: number; maxDistance?: number } = {},
 ): Promise<string[]> {
-  const rows = await prisma.$queryRaw<Candidate[]>`
-    SELECT "id", "embedding" <=> ${vector}::vector AS distance
-    FROM "Post"
-    WHERE "embedding" IS NOT NULL
-    ORDER BY distance ASC
-    LIMIT ${limit}
-  `;
+  const rows = await exactNearest(TABLES.post, vector, limit);
   return rows.filter((r) => r.distance <= maxDistance).map((r) => r.id);
 }
 
@@ -85,13 +147,7 @@ export async function nearestGroupIds(
   vector: string,
   { limit = CANDIDATE_LIMIT, maxDistance = MAX_DISTANCE }: { limit?: number; maxDistance?: number } = {},
 ): Promise<string[]> {
-  const rows = await prisma.$queryRaw<Candidate[]>`
-    SELECT "id", "embedding" <=> ${vector}::vector AS distance
-    FROM "Conversation"
-    WHERE "embedding" IS NOT NULL
-    ORDER BY distance ASC
-    LIMIT ${limit}
-  `;
+  const rows = await approximateNearest(CONVERSATION_TABLE, vector, limit);
   return rows.filter((r) => r.distance <= maxDistance).map((r) => r.id);
 }
 

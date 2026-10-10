@@ -205,11 +205,22 @@ export async function respondToCall(callId: string, accept: boolean) {
     return { error: "invalid" as const };
   }
 
+  // Both transitions below are guarded on the call still being RINGING, not
+  // just on the read above: the caller cancelling (endCall) or the
+  // timeout-missed-calls cron can resolve it in between, and an unguarded
+  // write would then put an already-MISSED call (Daily room deleted) back
+  // to ACCEPTED/DECLINED — an ACCEPTED one stays that way for good, and
+  // startCall reports "already_calling" for the pair from then on. A
+  // 0-count result means that happened, so this answers the same as if the
+  // read above had seen it.
   if (!accept) {
-    await prisma.call.update({
-      where: { id: callId },
+    const { count } = await prisma.call.updateMany({
+      where: { id: callId, status: "RINGING" },
       data: { status: "DECLINED", respondedAt: new Date() },
     });
+    if (count === 0) {
+      return { error: "invalid" as const };
+    }
     await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
     return { error: null, accepted: false as const };
   }
@@ -227,10 +238,13 @@ export async function respondToCall(callId: string, accept: boolean) {
         userName: user.name ?? "Guest",
         isOwner: false,
       }));
-    await prisma.call.update({
-      where: { id: callId },
+    const { count } = await prisma.call.updateMany({
+      where: { id: callId, status: "RINGING" },
       data: { status: "ACCEPTED", respondedAt: new Date() },
     });
+    if (count === 0) {
+      return { error: "invalid" as const };
+    }
     await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
   } catch {
@@ -249,14 +263,35 @@ export async function endCall(callId: string) {
     return { error: null };
   }
 
-  const wasRinging = call.status === "RINGING";
-  await prisma.call.update({
-    where: { id: callId },
-    data: {
-      status: wasRinging && call.callerId === user.id ? "MISSED" : "ENDED",
-      endedAt: new Date(),
-    },
-  });
+  let wasRinging = call.status === "RINGING";
+  if (wasRinging) {
+    // Guarded on the call still being RINGING: the timeout-missed-calls
+    // cron (or the callee responding) can resolve it between the read above
+    // and this write. A 0-count result means one of them did — whoever won
+    // has already done its own room deletion/signal/missed-call
+    // notification, so repeating them here is what used to notify the
+    // callee of the same missed call twice.
+    const { count } = await prisma.call.updateMany({
+      where: { id: callId, status: "RINGING" },
+      data: { status: call.callerId === user.id ? "MISSED" : "ENDED", endedAt: new Date() },
+    });
+    if (count === 0) {
+      const current = await prisma.call.findUnique({ where: { id: callId }, select: { status: true } });
+      // The one outcome that still needs ending: the callee accepted in
+      // that window, so this is now a hang-up of a connected call (below),
+      // not a missed one. Anything else is already over.
+      if (current?.status !== "ACCEPTED") {
+        return { error: null };
+      }
+      wasRinging = false;
+    }
+  }
+  if (!wasRinging) {
+    await prisma.call.update({
+      where: { id: callId },
+      data: { status: "ENDED", endedAt: new Date() },
+    });
+  }
   await deleteCallRoom(call.roomName);
 
   // Tells whichever side didn't call this to tear down immediately, rather
