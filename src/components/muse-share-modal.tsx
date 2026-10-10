@@ -121,6 +121,7 @@ export function MuseShareModal({
           text: caption ?? undefined,
           sources: [{ src: brandedVideoUrl, fileName: `muse-${museId}.mp4`, watermark: false }],
         });
+        if (result.canceled) return;
         if (result.warning) setNotice(result.warning);
         countShare();
         return;

@@ -109,7 +109,7 @@ export function canShareNatively(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("Share");
 }
 
-export type ShareNativeResult = { attachedFiles: boolean; warning?: string };
+export type ShareNativeResult = { attachedFiles: boolean; warning?: string; canceled?: boolean };
 
 /**
  * Shares a post via the OS-native share sheet (Android Intent.ACTION_SEND /
@@ -121,11 +121,13 @@ export type ShareNativeResult = { attachedFiles: boolean; warning?: string };
  * out as a plain link/text instead of a partial attachment — `warning`
  * carries why, so the caller can surface it instead of it just silently
  * being a worse share than intended). Always "succeeds" from the caller's
- * perspective — the user simply cancelling the share sheet rejects the
- * same promise as a real invocation failure, and there's no reliable way
- * to tell them apart, so both just surface as a `warning` here rather than
- * a rejection (matching the existing Web Share `.catch(() => {})` behavior
- * elsewhere in this app). Call `canShareNatively()` first; this assumes
+ * perspective — a real invocation failure surfaces as a `warning` rather
+ * than a rejection (matching the existing Web Share `.catch(() => {})`
+ * behavior elsewhere in this app). The user dismissing the share sheet
+ * rejects the same promise with a "canceled" message; that's detected and
+ * returned as `canceled: true` (no warning, not reported), so callers must
+ * skip any "shared" side effects (share counts, success state) when set.
+ * Call `canShareNatively()` first; this assumes
  * the plugin is actually present.
  */
 export async function shareNative(options: {
@@ -169,6 +171,12 @@ export async function shareNative(options: {
         attachedFiles: false,
         warning: "A previous share didn't finish — fully close and reopen the app, then try again.",
       };
+    }
+    // Dismissing the share sheet without picking a target rejects with
+    // "Share canceled" (Android) / similar wording on iOS. That's a user
+    // choice, not a failure — nothing to report or warn about.
+    if (/cancel/i.test(message)) {
+      return { attachedFiles: false, canceled: true };
     }
     // Any other failure — used to surface the plugin's own raw message
     // here; that's gone to Sentry via captureError below instead now (see

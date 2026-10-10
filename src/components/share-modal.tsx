@@ -195,6 +195,7 @@ export function ShareModal({
             watermark: mediaType === "IMAGE",
           })),
         });
+        if (result.canceled) return;
         if (result.warning) setShareWarning(result.warning);
         bumpShareCount();
       } finally {
