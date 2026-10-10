@@ -5,14 +5,23 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
-import { isBlockedEitherWay } from "@/lib/blocks";
+import { isBlockedEitherWay, isBlockedWithAny } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallToUser } from "@/lib/fcm";
 import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
+import { maskHiddenCallerName } from "@/lib/hidden-chats";
 import { track } from "@/lib/analytics";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { CALL_MAX_PARTICIPANTS, CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
+import {
+  isLiveParticipantStatus,
+  lockConnectedCall,
+  settleCall,
+  signalCallUsers,
+  wasRungForCall,
+} from "@/lib/call-participants";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
   return prisma.connection.findFirst({
@@ -63,7 +72,11 @@ export async function startCall(formData: FormData) {
   // direction — otherwise a double-click (or B calling A back while A's
   // call to B is still ringing) would spawn a second Daily room and a
   // second ring.
-  const existing = await prisma.call.findFirst({
+  //
+  // A call between them that other people were added to only counts while
+  // both are still in it: once either has left, it carries on (or not)
+  // without them, and endCall on it would be a no-op for the one who left.
+  const candidates = await prisma.call.findMany({
     where: {
       status: { in: ["RINGING", "ACCEPTED"] },
       OR: [
@@ -71,7 +84,11 @@ export async function startCall(formData: FormData) {
         { callerId: calleeId, calleeId: user.id },
       ],
     },
+    include: {
+      participants: { where: { userId: { in: [user.id, calleeId] } }, select: { status: true } },
+    },
   });
+  const existing = candidates.find((c) => c.participants.every((p) => isLiveParticipantStatus(p.status)));
   if (existing) {
     return { error: "already_calling" as const, existingCallId: existing.id };
   }
@@ -89,10 +106,25 @@ export async function startCall(formData: FormData) {
     // Both tokens minted now, up front, rather than the callee's being
     // minted later when they accept — see the Call.calleeToken comment in
     // schema.prisma for why that round trip used to add latency to the
-    // moment the callee actually taps Accept.
+    // moment the callee actually taps Accept. Both live as long as the room
+    // does: each side rejoins with this same token after a dropped
+    // connection, however far into the call that is (see
+    // call-resilience.ts).
     [token, calleeToken] = await Promise.all([
-      createMeetingToken({ roomName: room.name, userId: user.id, userName: user.name ?? "Caller", isOwner: true }),
-      createMeetingToken({ roomName: room.name, userId: calleeId, userName: callee.name ?? "Guest", isOwner: false }),
+      createMeetingToken({
+        roomName: room.name,
+        userId: user.id,
+        userName: user.name ?? "Caller",
+        isOwner: true,
+        expiresInSeconds: CALL_ROOM_LIFETIME_SECONDS,
+      }),
+      createMeetingToken({
+        roomName: room.name,
+        userId: calleeId,
+        userName: callee.name ?? "Guest",
+        isOwner: false,
+        expiresInSeconds: CALL_ROOM_LIFETIME_SECONDS,
+      }),
     ]);
   } catch {
     await deleteCallRoom(room.name);
@@ -104,9 +136,11 @@ export async function startCall(formData: FormData) {
   });
 
   try {
+    // "Private call" if the callee has hidden their chat with this caller (src/lib/hidden-chats.ts).
+    const callerName = (await maskHiddenCallerName(calleeId, user.id, user.name)) ?? "Someone";
     await sendPushToUser(calleeId, {
       title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
-      body: `${user.name ?? "Someone"} is calling you`,
+      body: `${callerName} is calling you`,
       url: "/",
     });
     // Separate from the Web Push above: this is a data-only message the
@@ -115,7 +149,7 @@ export async function startCall(formData: FormData) {
     // browser notification. See src/lib/fcm.ts.
     await sendFcmCallToUser(calleeId, {
       callId: call.id,
-      callerName: user.name ?? "Someone",
+      callerName,
       callType: call.type,
     });
     // iOS-only: wakes a fully terminated/backgrounded app via PushKit and
@@ -130,7 +164,7 @@ export async function startCall(formData: FormData) {
     // this is strictly additive on top of it).
     await sendVoipCallToUser(calleeId, {
       callId: call.id,
-      callerName: user.name ?? "Someone",
+      callerName,
       callType: call.type,
     }).catch(() => {});
     await track("CALL_STARTED", user.id, { type: call.type });
@@ -147,12 +181,31 @@ export async function startCall(formData: FormData) {
 export async function getCallStatus(callId: string) {
   const user = await requireVerifiedUser();
 
-  const call = await prisma.call.findUnique({ where: { id: callId } });
-  if (!call || (call.callerId !== user.id && call.calleeId !== user.id)) {
+  const call = await prisma.call.findUnique({
+    where: { id: callId },
+    include: { participants: { where: { userId: user.id }, select: { status: true } } },
+  });
+  const mine = call?.participants[0];
+  if (!call || (call.callerId !== user.id && call.calleeId !== user.id && !mine)) {
     return { error: "not_found" as const };
   }
 
-  return { error: null, status: call.status, type: call.type, ringing: call.ringingAt !== null };
+  return { error: null, status: statusForMember(call.status, mine?.status), type: call.type, ringing: call.ringingAt !== null };
+}
+
+/**
+ * The call's status as one person in it sees it. Unchanged for a plain 1:1
+ * call. Once people have been added, each person's own CallParticipant row
+ * decides: someone who left, declined or rang out sees ENDED while the call
+ * carries on for the rest, and someone being added sees RINGING.
+ */
+function statusForMember(
+  callStatus: "RINGING" | "ACCEPTED" | "DECLINED" | "ENDED" | "MISSED",
+  mine: "RINGING" | "JOINED" | "DECLINED" | "MISSED" | "LEFT" | undefined,
+) {
+  if (!mine || callStatus !== "ACCEPTED") return callStatus;
+  if (mine === "JOINED") return "ACCEPTED" as const;
+  return mine === "RINGING" ? ("RINGING" as const) : ("ENDED" as const);
 }
 
 /**
@@ -188,16 +241,71 @@ export async function getIncomingCall() {
     }
     // requireVerifiedUser() already fetched the full row, so this is free —
     // the callee's own ringtone preference, for the UI to actually play it.
-    return { call, ringtone: user.ringtone };
+    if (call) {
+      return {
+        call: {
+          id: call.id,
+          type: call.type,
+          roomUrl: call.roomUrl,
+          calleeToken: call.calleeToken,
+          caller: { id: call.caller.id, name: await maskHiddenCallerName(user.id, call.caller.id, call.caller.name) },
+          othersInCall: 0,
+        },
+        ringtone: user.ringtone,
+      };
+    }
+    return { call: await getIncomingInvite(user.id), ringtone: user.ringtone };
   } catch {
     return { call: null, ringtone: null };
   }
 }
 
+/**
+ * Someone ringing this user to join a call already in progress, in the same
+ * shape as a 1:1 ring: `caller` is whoever added them, and `othersInCall`
+ * counts the people in the call besides that inviter.
+ */
+async function getIncomingInvite(userId: string) {
+  const invite = await prisma.callParticipant.findFirst({
+    where: { userId, status: "RINGING", call: { status: "ACCEPTED" } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      call: {
+        select: {
+          id: true,
+          type: true,
+          roomUrl: true,
+          callerId: true,
+          participants: { where: { status: "JOINED" }, select: { userId: true } },
+        },
+      },
+    },
+  });
+  if (!invite) return null;
+  const inviterId = invite.invitedById ?? invite.call.callerId;
+  const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { id: true, name: true } });
+  return {
+    id: invite.call.id,
+    type: invite.call.type,
+    roomUrl: invite.call.roomUrl,
+    // Withheld until they accept (respondToCall hands it over), unlike a 1:1
+    // ring: the client joins the room muted with this while still ringing
+    // (call-prewarm.ts), and here the room has people in it who would see
+    // that as someone arriving before they've answered.
+    calleeToken: null,
+    caller: { id: inviterId, name: await maskHiddenCallerName(userId, inviterId, inviter?.name ?? null) },
+    othersInCall: invite.call.participants.filter((p) => p.userId !== inviterId).length,
+  };
+}
+
 export async function respondToCall(callId: string, accept: boolean) {
   const user = await requireVerifiedUser();
 
-  const call = await prisma.call.findUnique({ where: { id: callId } });
+  const call = await findCallWithParticipants(callId);
+  const mine = call?.participants.find((p) => p.userId === user.id);
+  if (call && mine && call.status !== "RINGING") {
+    return respondToInvite(user, call, mine, accept);
+  }
   if (!call || call.calleeId !== user.id) {
     return { error: "not_found" as const };
   }
@@ -237,6 +345,7 @@ export async function respondToCall(callId: string, accept: boolean) {
         userId: user.id,
         userName: user.name ?? "Guest",
         isOwner: false,
+        expiresInSeconds: CALL_ROOM_LIFETIME_SECONDS,
       }));
     const { count } = await prisma.call.updateMany({
       where: { id: callId, status: "RINGING" },
@@ -252,15 +361,350 @@ export async function respondToCall(callId: string, accept: boolean) {
   }
 }
 
+type CallWithParticipants = NonNullable<Awaited<ReturnType<typeof findCallWithParticipants>>>;
+type ParticipantRow = CallWithParticipants["participants"][number];
+
+function findCallWithParticipants(callId: string) {
+  return prisma.call.findUnique({ where: { id: callId }, include: { participants: true } });
+}
+
+function liveUserIds(call: CallWithParticipants) {
+  if (call.participants.length === 0) return [call.callerId, call.calleeId];
+  return call.participants.filter((p) => isLiveParticipantStatus(p.status)).map((p) => p.userId);
+}
+
+/**
+ * Answering a ring to join a call already in progress. Same discipline as
+ * the 1:1 path in respondToCall: the write is guarded on the row still being
+ * RINGING, since the cron's ring timeout and the call ending can both
+ * resolve it first, and a 0-count result answers as if the read had seen
+ * that.
+ */
+async function respondToInvite(
+  user: { id: string; name: string | null },
+  call: CallWithParticipants,
+  mine: ParticipantRow,
+  accept: boolean,
+) {
+  if (call.status !== "ACCEPTED" || mine.status !== "RINGING") {
+    return { error: "invalid" as const };
+  }
+  const others = liveUserIds(call).filter((id) => id !== user.id);
+
+  if (!accept) {
+    const { count } = await prisma.callParticipant.updateMany({
+      where: { id: mine.id, status: "RINGING" },
+      data: { status: "DECLINED", respondedAt: new Date() },
+    });
+    if (count === 0) {
+      return { error: "invalid" as const };
+    }
+    // Declining can leave one person alone in the call with nobody else on
+    // the way — that ends it.
+    await settleCall(call.id);
+    await signalCallUsers(others);
+    return { error: null, accepted: false as const };
+  }
+
+  try {
+    const token =
+      mine.token ??
+      (await createMeetingToken({
+        roomName: call.roomName,
+        userId: user.id,
+        userName: user.name ?? "Guest",
+        isOwner: false,
+        expiresInSeconds: CALL_ROOM_LIFETIME_SECONDS,
+      }));
+    const joined = await prisma.$transaction(async (tx) => {
+      if (!(await lockConnectedCall(tx, call.id))) return false;
+      const { count } = await tx.callParticipant.updateMany({
+        where: { id: mine.id, status: "RINGING" },
+        data: { status: "JOINED", respondedAt: new Date() },
+      });
+      return count > 0;
+    });
+    if (!joined) {
+      return { error: "invalid" as const };
+    }
+    await signalCallUsers(others);
+    return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
+  } catch {
+    return { error: "call_service_unavailable" as const };
+  }
+}
+
+/**
+ * Rings one of the caller's own connections to join a connected call. Anyone
+ * in the call can do it, up to CALL_MAX_PARTICIPANTS people counting those
+ * still being rung. The first invite on a call also writes JOINED rows for
+ * its original caller and callee; from then on endCall means "I leave" and
+ * the call lasts until shouldEndAfterLeave says otherwise.
+ */
+export async function inviteToCall(callId: string, inviteeId: string) {
+  const user = await requireVerifiedUser();
+
+  if (!isCallingConfigured()) {
+    return { error: "not_configured" as const };
+  }
+  const allowed = await checkRateLimit("call", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+  if (typeof callId !== "string" || typeof inviteeId !== "string" || !callId || !inviteeId || inviteeId === user.id) {
+    return { error: "invalid" as const };
+  }
+
+  const call = await findCallWithParticipants(callId);
+  if (!call || !liveUserIds(call).includes(user.id) || isRingingIn(call, user.id)) {
+    return { error: "not_found" as const };
+  }
+  if (call.status !== "ACCEPTED") {
+    return { error: "invalid" as const };
+  }
+  const currentIds = liveUserIds(call);
+  if (currentIds.includes(inviteeId)) {
+    return { error: "already_in_call" as const };
+  }
+  if (currentIds.length >= CALL_MAX_PARTICIPANTS) {
+    return { error: "full" as const };
+  }
+
+  const [connection, invitee, blocked, busy] = await Promise.all([
+    requireAcceptedConnection(user.id, inviteeId),
+    prisma.user.findUnique({ where: { id: inviteeId }, select: { id: true, name: true, status: true } }),
+    isBlockedWithAny(inviteeId, currentIds),
+    isInAnotherLiveCall(inviteeId, callId),
+  ]);
+  if (!connection) {
+    return { error: "not_connected" as const };
+  }
+  // One answer for a missing or inactive account and for a block between
+  // the invitee and anyone in the call, so it can't be used to learn who
+  // has blocked whom.
+  if (!invitee || invitee.status !== "ACTIVE" || blocked) {
+    return { error: "unavailable" as const };
+  }
+  if (busy) {
+    return { error: "busy" as const };
+  }
+
+  let token: string;
+  try {
+    token = await createMeetingToken({
+      roomName: call.roomName,
+      userId: inviteeId,
+      userName: invitee.name ?? "Guest",
+      isOwner: false,
+      expiresInSeconds: CALL_ROOM_LIFETIME_SECONDS,
+    });
+  } catch {
+    return { error: "call_service_unavailable" as const };
+  }
+
+  // Everything above was read before taking the call's lock, so the parts
+  // that another invite, a hang-up or the call ending could have changed
+  // are checked again inside it.
+  const outcome = await prisma.$transaction(async (tx) => {
+    if (!(await lockConnectedCall(tx, callId))) return { error: "invalid" as const };
+    const now = new Date();
+    await tx.callParticipant.createMany({
+      data: [call.callerId, call.calleeId].map((userId) => ({
+        callId,
+        userId,
+        status: "JOINED" as const,
+        respondedAt: now,
+      })),
+      skipDuplicates: true,
+    });
+    const rows = await tx.callParticipant.findMany({ where: { callId } });
+    if (rows.find((p) => p.userId === user.id)?.status !== "JOINED") return { error: "not_found" as const };
+    const live = rows.filter((p) => isLiveParticipantStatus(p.status));
+    if (live.some((p) => p.userId === inviteeId)) return { error: "already_in_call" as const };
+    if (live.length >= CALL_MAX_PARTICIPANTS) return { error: "full" as const };
+    // Someone who declined, rang out or left is rung again on their old
+    // row. createdAt restarts with it: that is what the cron's ring timeout
+    // counts from.
+    await tx.callParticipant.upsert({
+      where: { callId_userId: { callId, userId: inviteeId } },
+      create: { callId, userId: inviteeId, invitedById: user.id, status: "RINGING", token },
+      update: {
+        invitedById: user.id,
+        status: "RINGING",
+        token,
+        createdAt: now,
+        respondedAt: null,
+        leftAt: null,
+      },
+    });
+    return { error: null, liveIds: live.map((p) => p.userId) };
+  });
+  if (outcome.error !== null) {
+    return { error: outcome.error };
+  }
+
+  try {
+    // The same three rings startCall sends, with this call's id and the
+    // inviter as the caller — see the comments there.
+    const callerName = (await maskHiddenCallerName(inviteeId, user.id, user.name)) ?? "Someone";
+    await sendPushToUser(inviteeId, {
+      title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
+      body: `${callerName} is calling you`,
+      url: "/",
+    });
+    await sendFcmCallToUser(inviteeId, {
+      callId,
+      callerName,
+      callType: call.type,
+    });
+    await sendVoipCallToUser(inviteeId, {
+      callId,
+      callerName,
+      callType: call.type,
+    }).catch(() => {});
+    await signalCallUsers([...outcome.liveIds, inviteeId]);
+    return { error: null };
+  } catch {
+    await prisma.callParticipant.updateMany({
+      where: { callId, userId: inviteeId, status: "RINGING" },
+      data: { status: "MISSED", respondedAt: new Date() },
+    });
+    await settleCall(callId);
+    return { error: "call_service_unavailable" as const };
+  }
+}
+
+function isRingingIn(call: CallWithParticipants, userId: string) {
+  return call.participants.some((p) => p.userId === userId && p.status === "RINGING");
+}
+
+/**
+ * Whether this person is ringing or connected on some other call. For a
+ * call people were added to, their own participant row decides (they may
+ * have left it while it carries on); for a plain 1:1 call, being its caller
+ * or callee does.
+ */
+async function isInAnotherLiveCall(userId: string, exceptCallId: string) {
+  const calls = await prisma.call.findMany({
+    where: {
+      id: { not: exceptCallId },
+      status: { in: ["RINGING", "ACCEPTED"] },
+      OR: [
+        { callerId: userId },
+        { calleeId: userId },
+        { participants: { some: { userId, status: { in: ["RINGING", "JOINED"] } } } },
+      ],
+    },
+    select: { participants: { where: { userId }, select: { status: true } } },
+  });
+  return calls.some((c) => c.participants.length === 0 || isLiveParticipantStatus(c.participants[0].status));
+}
+
+/**
+ * Who is in a call: names, avatars and where each person stands. For the
+ * people in it (or being rung for it) only. A plain 1:1 call answers with
+ * its caller and callee and `group: false`. `over` is true once the call has
+ * ended or the person asking is no longer part of it, and then nobody is
+ * listed.
+ */
+export async function getCallRoster(callId: string) {
+  const user = await requireVerifiedUser();
+  if (typeof callId !== "string" || !callId) {
+    return { error: "not_found" as const };
+  }
+
+  const call = await prisma.call.findUnique({
+    where: { id: callId },
+    include: {
+      participants: {
+        orderBy: { createdAt: "asc" },
+        select: { userId: true, status: true, user: { select: { name: true, avatarUrl: true } } },
+      },
+    },
+  });
+  const mine = call?.participants.find((p) => p.userId === user.id);
+  if (!call || (call.callerId !== user.id && call.calleeId !== user.id && !mine)) {
+    return { error: "not_found" as const };
+  }
+
+  const group = call.participants.length > 0;
+  const callOver = call.status === "ENDED" || call.status === "DECLINED" || call.status === "MISSED";
+  if (callOver || (mine && !isLiveParticipantStatus(mine.status))) {
+    return { error: null, group, over: true, participants: [] };
+  }
+  if (group) {
+    return {
+      error: null,
+      group,
+      over: false,
+      participants: call.participants.map((p) => ({
+        userId: p.userId,
+        name: p.user.name,
+        avatarUrl: p.user.avatarUrl,
+        status: p.status,
+      })),
+    };
+  }
+  const pair = await prisma.user.findMany({
+    where: { id: { in: [call.callerId, call.calleeId] } },
+    select: { id: true, name: true, avatarUrl: true },
+  });
+  return {
+    error: null,
+    group,
+    over: false,
+    participants: pair.map((u) => ({
+      userId: u.id,
+      name: u.name,
+      avatarUrl: u.avatarUrl,
+      status: (call.status === "RINGING" && u.id === call.calleeId ? "RINGING" : "JOINED") as ParticipantRow["status"],
+    })),
+  };
+}
+
+/**
+ * Leaving a call that has had people added to it. Only this person goes:
+ * the call carries on for the rest and ends by shouldEndAfterLeave (see
+ * settleCall). Guarded like every other transition here — both of the last
+ * two people can leave at once, and the cron can be closing the same rows.
+ */
+async function leaveGroupCall(userId: string, call: CallWithParticipants, mine: ParticipantRow | undefined) {
+  if (!mine || !isLiveParticipantStatus(mine.status)) {
+    return { error: null };
+  }
+  const now = new Date();
+  const { count } = await prisma.callParticipant.updateMany({
+    where: { id: mine.id, status: mine.status },
+    data: mine.status === "RINGING" ? { status: "DECLINED", respondedAt: now } : { status: "LEFT", leftAt: now },
+  });
+  if (count === 0) {
+    return { error: null };
+  }
+  // Same as the answered-call branch of endCall: nothing else tells this
+  // person's own CallKit that the call it reported is over.
+  if (wasRungForCall(call, mine)) {
+    await sendVoipCallCancelToUser(userId, call.id).catch(() => {});
+  }
+  await settleCall(call.id);
+  // Self included: this can be reached from somewhere other than the call
+  // UI (CallButton's "cancel it & call again"), which then has to find out.
+  await signalCallUsers([...liveUserIds(call), userId]);
+  return { error: null };
+}
+
 export async function endCall(callId: string) {
   const user = await requireVerifiedUser();
 
-  const call = await prisma.call.findUnique({ where: { id: callId } });
-  if (!call || (call.callerId !== user.id && call.calleeId !== user.id)) {
+  const call = await findCallWithParticipants(callId);
+  const mine = call?.participants.find((p) => p.userId === user.id);
+  if (!call || (call.callerId !== user.id && call.calleeId !== user.id && !mine)) {
     return { error: "not_found" as const };
   }
   if (call.status === "ENDED" || call.status === "DECLINED" || call.status === "MISSED") {
     return { error: null };
+  }
+  if (call.participants.length > 0) {
+    return leaveGroupCall(user.id, call, mine);
   }
 
   let wasRinging = call.status === "RINGING";
@@ -287,10 +731,19 @@ export async function endCall(callId: string) {
     }
   }
   if (!wasRinging) {
-    await prisma.call.update({
-      where: { id: callId },
+    // Guarded on ACCEPTED for the same reason as the RINGING write above:
+    // both sides can now end the same connected call at once (one giving up
+    // on a reconnect just as the other's wait for them runs out), and the
+    // timeout-missed-calls cron sweeps stale ACCEPTED rows too. Whoever
+    // loses has nothing left to do — the winner deleted the room, signalled
+    // and told CallKit.
+    const { count } = await prisma.call.updateMany({
+      where: { id: callId, status: "ACCEPTED" },
       data: { status: "ENDED", endedAt: new Date() },
     });
+    if (count === 0) {
+      return { error: null };
+    }
   }
   await deleteCallRoom(call.roomName);
 

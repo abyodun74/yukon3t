@@ -158,7 +158,7 @@ export function useSecretChat({
       if (!convKey || !active) throw new Error("secret_chat_unavailable");
       const wire = await encryptText(convKey, text, conversationId, currentUserId);
       // We already know what this says - remember it so the server's copy of our own message
-      // shows instantly instead of flashing "Decrypting...".
+      // shows instantly instead of flashing the loading placeholder.
       cache.current.set(wire, text);
       return wire;
     },
@@ -186,14 +186,18 @@ export function useSecretChat({
     [convKey, conversationId],
   );
 
-  /** What to show for a stored message body: plaintext as-is, ciphertext decrypted (or a clear placeholder). */
+  /**
+   * What to show for a stored message body: plaintext as-is, ciphertext
+   * decrypted. The two placeholders deliberately carry no lock and no
+   * "decrypt" wording - nothing on screen may mark the chat as secret.
+   */
   const display = useCallback(
     (content: string): string => {
       void version; // re-created when the cache changes, so memoised consumers re-render
       if (!isEncryptedContent(content)) return content;
       const hit = cache.current.get(content);
-      if (hit === undefined) return "🔒 Decrypting…";
-      if (hit === null) return "🔒 Couldn't decrypt this message";
+      if (hit === undefined) return "…";
+      if (hit === null) return "Message unavailable on this device";
       return hit;
     },
     [version],

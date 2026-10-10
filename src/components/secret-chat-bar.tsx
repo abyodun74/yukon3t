@@ -1,39 +1,53 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { Lock, ShieldAlert } from "lucide-react";
+import { Info, ShieldAlert } from "lucide-react";
 import type { SecretChat } from "@/lib/e2ee/use-secret-chat";
 import { E2EE_MIN_PASSPHRASE_LENGTH } from "@/lib/e2ee/constants";
 import { Sheet } from "@/components/sheet";
+import { PasswordInput } from "@/components/password-input";
+import { useChatOptions } from "@/components/chat-options-menu";
 
-type Dialog = null | "setup" | "restore" | "reset" | "verify" | "turn-off";
+type Dialog = null | "privacy" | "setup" | "restore" | "reset" | "verify" | "turn-off";
 
 const DIALOG_TITLES: Record<Exclude<Dialog, null>, string> = {
-  setup: "Set up secret chats",
-  restore: "Unlock your secret chats",
+  privacy: "Chat privacy",
+  setup: "Set up chat privacy",
+  restore: "Unlock your messages",
   reset: "Start over with new keys?",
   verify: "Verify security code",
-  "turn-off": "Turn off secret chat?",
+  "turn-off": "Turn off chat privacy?",
 };
 
 const input =
-  "mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+  "w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent";
 const primary = "rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50";
 const secondary = "rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50";
 
 /**
- * The secret-chat strip above a 1:1 conversation: the opt-in, the "waiting for
- * them" state, the "on" state and its honest description, plus the dialogs for
- * setting up / restoring keys, verifying the security code, and turning off.
- * Renders nothing for group chats (secret chats are 1:1 only).
+ * Secret-chat controls for a 1:1 conversation. A secret chat that is on and
+ * working must look like any other chat to someone glancing at the screen, so
+ * this renders NOTHING for it - and nothing for an ordinary chat either
+ * (an opt-in strip on ordinary chats would make its absence the tell).
+ * Everything is reached from "Chat privacy" in the header's menu
+ * (chat-options-menu.tsx), which is identical on every 1:1 chat.
+ *
+ * A strip appears above the thread only when the user has to act or is at
+ * risk: the other person asked to turn it on, my own request is still pending
+ * (messages are NOT encrypted yet - also what shows the moment the other
+ * person turns it off), this device can't read the messages yet, or the other
+ * person's key changed. Keep any new strip to that rule, and keep its wording
+ * free of "secret", locks and accent colour.
  */
 export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerName: string }) {
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const { privacyOpen, setPrivacyOpen } = useChatOptions();
+  const [ownDialog, setDialog] = useState<Dialog>(null);
+  const dialog: Dialog = ownDialog ?? (privacyOpen ? "privacy" : null);
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
-  // The 5 dialogs below now share one Sheet instance (see that file), but
+  // The 6 dialogs below now share one Sheet instance (see that file), but
   // `dialog` itself goes null the instant it's dismissed — which would
   // otherwise blank the dialog's content/title mid-close-animation.
   // Remembers the last real dialog type for content purposes while
@@ -43,12 +57,12 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
   const [displayedDialog, setDisplayedDialog] = useState<Dialog>(null);
   if (dialog !== null && dialog !== displayedDialog) setDisplayedDialog(dialog);
 
-  const state = secret.state;
-  if (secret.phase === "unavailable" || secret.phase === "loading" || !state) return null;
+  const state = secret.phase === "unavailable" || secret.phase === "loading" ? null : secret.state;
 
-  const name = peerName || state.peer.name || "They";
+  const name = peerName || state?.peer.name || "They";
   const close = () => {
     setDialog(null);
+    setPrivacyOpen(false);
     setPass("");
     setPass2("");
     setError(null);
@@ -61,7 +75,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
     if (secret.phase === "needs-restore") return setDialog("restore");
     startTransition(async () => {
       const result = await secret.enable();
-      if (result.error) setError("Couldn't turn on secret chat — try again.");
+      if (result.error) setError("Couldn't turn that on — try again.");
     });
   }
 
@@ -76,7 +90,7 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
         return;
       }
       const turned = await secret.enable();
-      if (turned.error) setError("Keys are ready, but turning on secret chat failed — try again.");
+      if (turned.error) setError("Keys are ready, but turning it on failed — try again.");
       else close();
     });
   }
@@ -110,6 +124,13 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
     });
   }
 
+  /** From the "Chat privacy" sheet into one of its own dialogs: the two share one Sheet, so swap rather than stack. */
+  function openFromPrivacy(next: Exclude<Dialog, null | "privacy">) {
+    setError(null);
+    setPrivacyOpen(false);
+    setDialog(next);
+  }
+
   function submitTurnOff() {
     startTransition(async () => {
       await secret.disable();
@@ -117,36 +138,27 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
     });
   }
 
-  // ---------- the strip ----------
-  let strip: ReactNode;
-  if (state.active && secret.phase === "needs-restore") {
+  // ---------- the strip (only for states that need the user) ----------
+  let strip: ReactNode = null;
+  if (!state) {
+    strip = null;
+  } else if (state.active && secret.phase === "needs-restore") {
     strip = (
       <>
         <p className="min-w-0 flex-1">
-          <b>Secret chat is on</b>, but this device can&apos;t read it yet. Enter your recovery passphrase to unlock it.
+          This device can&apos;t read some messages in this chat yet. Enter your recovery passphrase to unlock them.
         </p>
-        <button type="button" onClick={() => setDialog("restore")} className={secondary}>Unlock</button>
+        <button type="button" onClick={() => setDialog("restore")} className={secondary}>Unlock messages</button>
       </>
     );
   } else if (state.active) {
-    strip = (
-      <>
-        <p className="min-w-0 flex-1">
-          <b>Secret chat is on.</b> Messages you send here are end-to-end encrypted — text only; photos, videos and voice
-          notes aren&apos;t. Anything sent before this was turned on wasn&apos;t encrypted.
-        </p>
-        <div className="flex shrink-0 gap-2">
-          <button type="button" onClick={() => setDialog("verify")} className={secondary}>Verify code</button>
-          <button type="button" onClick={() => setDialog("turn-off")} className={secondary}>Turn off</button>
-        </div>
-      </>
-    );
+    strip = null;
   } else if (state.meEnabled) {
     strip = (
       <>
         <p className="min-w-0 flex-1">
-          <b>Secret chat requested.</b>{" "}
-          {state.peerHasKeys ? `Waiting for ${name} to turn it on.` : `${name} hasn't set up secret chats yet.`} Until then,
+          <b>Chat privacy requested.</b>{" "}
+          {state.peerHasKeys ? `Waiting for ${name} to turn it on.` : `${name} hasn't set it up yet.`} Until then,
           messages are <b>not</b> encrypted.
         </p>
         <button type="button" onClick={() => secret.disable()} className={secondary}>Cancel</button>
@@ -156,39 +168,91 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
     strip = (
       <>
         <p className="min-w-0 flex-1">
-          <b>{name} wants to make this a secret chat</b> — end-to-end encrypted, so not even we can read the messages.
+          <b>{name} wants to turn on chat privacy</b> — end-to-end encryption, so not even we can read the messages.
         </p>
         <button type="button" onClick={turnOn} disabled={busy} className={primary}>Turn on</button>
       </>
     );
-  } else {
-    strip = (
+  }
+
+  // ---------- what "Chat privacy" in the header menu opens ----------
+  let privacy: ReactNode;
+  if (secret.phase === "loading") {
+    privacy = <p className="text-foreground-soft">Loading…</p>;
+  } else if (!state) {
+    privacy = <p className="text-foreground-soft">Privacy options aren&apos;t available for this chat right now.</p>;
+  } else if (state.active && secret.phase === "needs-restore") {
+    privacy = (
       <>
-        <p className="min-w-0 flex-1 text-foreground-soft">Want this conversation private, even from us?</p>
-        <button type="button" onClick={turnOn} disabled={busy} className={secondary}>
-          <span className="inline-flex items-center gap-1.5">
-            <Lock size={13} />
-            Turn on secret chat
-          </span>
+        <p className="text-foreground-soft">
+          Messages in this chat are end-to-end encrypted, but this device can&apos;t read them yet. Enter your recovery
+          passphrase to unlock them.
+        </p>
+        <button type="button" onClick={() => openFromPrivacy("restore")} className={`${primary} mt-3 w-full`}>
+          Unlock messages
         </button>
+      </>
+    );
+  } else if (state.active) {
+    privacy = (
+      <>
+        <p className="text-foreground-soft">
+          <b>End-to-end encryption is on.</b> Messages you send here are encrypted — text only; photos, videos and
+          voice notes aren&apos;t. Anything sent before this was turned on wasn&apos;t encrypted.
+        </p>
+        <p className="mt-2 text-xs text-foreground-soft">
+          Nothing in this chat, your inbox or your notifications marks it as encrypted. This menu is the only place
+          that says so.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={() => openFromPrivacy("verify")} className={secondary}>Verify code</button>
+          <button type="button" onClick={() => openFromPrivacy("turn-off")} className={secondary}>Turn off</button>
+        </div>
+      </>
+    );
+  } else if (state.meEnabled) {
+    privacy = (
+      <>
+        <p className="text-foreground-soft">
+          You asked to turn on end-to-end encryption.{" "}
+          {state.peerHasKeys ? `Waiting for ${name} to turn it on.` : `${name} hasn't set it up yet.`} Until then,
+          messages are <b>not</b> encrypted.
+        </p>
+        <button type="button" onClick={() => secret.disable()} className={`${secondary} mt-3`}>Cancel request</button>
+      </>
+    );
+  } else {
+    privacy = (
+      <>
+        <p className="text-foreground-soft">
+          {state.peerEnabled
+            ? `${name} wants to turn on end-to-end encryption for this chat, so not even we can read the text of your messages.`
+            : `Turn on end-to-end encryption for this chat, so not even we can read the text of your messages. ${name} has to turn it on too.`}
+        </p>
+        <p className="mt-2 text-xs text-foreground-soft">
+          Once it&apos;s on, nothing in this chat, your inbox or your notifications marks it as encrypted. You&apos;ll
+          find the controls here.
+        </p>
+        <button type="button" onClick={turnOn} disabled={busy} className={`${primary} mt-3 w-full`}>Turn on</button>
       </>
     );
   }
 
+  const keyChanged = secret.peerKeyChanged && Boolean(state?.active);
+  const inlineError = error && !dialog ? error : null;
+
   return (
-    <div className="mb-2 space-y-2 text-xs">
-      <div
-        className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 ${
-          state.active ? "border-accent bg-accent-soft" : "border-line bg-surface"
-        }`}
-      >
-        <Lock size={14} className={state.active ? "shrink-0 text-accent" : "shrink-0 text-foreground-soft"} />
-        {strip}
-      </div>
+    <div className={strip || inlineError || keyChanged ? "mb-2 space-y-2 text-xs" : "text-xs"}>
+      {strip && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+          <Info size={14} className="shrink-0 text-foreground-soft" />
+          {strip}
+        </div>
+      )}
 
-      {error && !dialog && <p role="alert" className="text-danger">{error}</p>}
+      {inlineError && <p role="alert" className="text-danger">{inlineError}</p>}
 
-      {secret.peerKeyChanged && state.active && (
+      {keyChanged && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-danger bg-danger/10 px-3 py-2 text-danger">
           <ShieldAlert size={14} className="shrink-0" />
           <p className="min-w-0 flex-1">
@@ -206,6 +270,13 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
         title={displayedDialog ? DIALOG_TITLES[displayedDialog] : undefined}
         panelClassName="max-h-[90vh] overflow-y-auto"
       >
+        {displayedDialog === "privacy" && (
+          <>
+            {privacy}
+            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
+          </>
+        )}
+
         {displayedDialog === "setup" && (
           <>
             <p className="text-foreground-soft">
@@ -213,17 +284,39 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
               you can get that key back on a new phone.
             </p>
             <p className="mt-2 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-              We can&apos;t see or reset this passphrase. If you forget it and lose your phone, your old secret
+              We can&apos;t see or reset this passphrase. If you forget it and lose your phone, your old encrypted
               messages are gone for good.
             </p>
             <label className="mt-3 block text-xs font-medium text-foreground-soft" htmlFor="sc-pass">
               Recovery passphrase
             </label>
-            <input id="sc-pass" type="password" autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} className={input} />
+            <PasswordInput
+              id="sc-pass"
+              defaultVisible
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              className={input}
+              wrapperClassName="ph-no-capture mt-1"
+            />
             <label className="mt-2 block text-xs font-medium text-foreground-soft" htmlFor="sc-pass2">
               Type it again
             </label>
-            <input id="sc-pass2" type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} className={input} />
+            <PasswordInput
+              id="sc-pass2"
+              defaultVisible
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={pass2}
+              onChange={(e) => setPass2(e.target.value)}
+              className={input}
+              wrapperClassName="ph-no-capture mt-1"
+            />
             <p className="mt-1 text-[0.6875rem] text-foreground-soft">
               At least {E2EE_MIN_PASSPHRASE_LENGTH} characters — a few random words works well. This is the only thing
               protecting your backup, so make it long.
@@ -243,7 +336,18 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
             <label className="mt-3 block text-xs font-medium text-foreground-soft" htmlFor="sc-restore">
               Recovery passphrase
             </label>
-            <input id="sc-restore" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} className={input} />
+            <PasswordInput
+              id="sc-restore"
+              defaultVisible
+              autoComplete="current-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              className={input}
+              wrapperClassName="ph-no-capture mt-1"
+            />
             {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <button type="button" onClick={submitRestore} disabled={busy || !pass} className={`${primary} mt-3 w-full`}>
               {busy ? "Unlocking… this takes a few seconds" : "Unlock"}
@@ -265,9 +369,9 @@ export function SecretChatBar({ secret, peerName }: { secret: SecretChat; peerNa
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
               <li>
-                Secret messages sent under the old key <b>can&apos;t be read again — by you or the other person</b>.
+                Encrypted messages sent under the old key <b>can&apos;t be read again — by you or the other person</b>.
               </li>
-              <li>Every secret chat you have will switch off until you both turn it back on.</li>
+              <li>Every encrypted chat you have will switch off until you both turn it back on.</li>
             </ul>
             {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <div className="mt-4 flex gap-2">

@@ -13,22 +13,20 @@ import {
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
-import { recordActivity } from "@/lib/trust";
 import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { isSecretChat, checkSecretSend, textForModeration, pushPreview } from "@/lib/e2ee/secret-chat";
+import { isSecretChat, checkSecretSend, textForModeration } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
-import { sendPushToUsers } from "@/lib/push";
-import { sendFcmActivityToUsers } from "@/lib/fcm";
-import { captureError } from "@/lib/error-tracking";
-import { track } from "@/lib/analytics";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
-import { publishEvent, publishEvents } from "@/lib/realtime-server";
+import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { afterMessageSent } from "@/lib/after-message-sent";
+import { destroyViewOnceMedia } from "@/lib/view-once-media";
+import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -378,102 +376,6 @@ export async function respondToJoinRequest(requestId: string, approve: boolean) 
 }
 
 /**
- * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
- * rows, badge counts and the realtime nudge. Shared by sendMessage and shareMuseToConversation so a message sent either
- * way reaches the recipient identically.
- */
-async function afterMessageSent({
-  user,
-  conversationId,
-  memberIds,
-  secret,
-  content,
-  mediaType,
-}: {
-  user: { id: string; name: string | null };
-  conversationId: string;
-  memberIds: string[];
-  secret: boolean;
-  content: string;
-  mediaType: "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
-}) {
-  // The message row is already committed by the time this runs, so nothing
-  // below may throw out of the action — the sender would see an error and
-  // resend a duplicate. Each step fails on its own, so one of them breaking
-  // (e.g. a pool timeout) doesn't also cost the recipient the steps after it.
-  async function bestEffort(step: string, run: () => Promise<unknown>) {
-    try {
-      await run();
-    } catch (err) {
-      console.error(`[messages] ${step} failed after message was stored`, err);
-      await captureError(err, { step, conversationId });
-    }
-  }
-
-  await bestEffort("recordActivity", () => recordActivity(user.id));
-  await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
-
-  const recipientIds =
-    memberIds.filter((id) => id !== user.id);
-  // Never the message text in a secret chat, and never ciphertext anywhere.
-  const preview = pushPreview({ secret, content, mediaType });
-  // One query + bounded sends for every recipient together (not a query and
-  // an unbounded Promise.all per recipient) — a group has no member cap, and
-  // the Prisma pool is only a handful of connections (src/lib/prisma.ts).
-  await bestEffort("webPush", () =>
-    sendPushToUsers(recipientIds, {
-      title: user.name ?? "New message",
-      body: preview.slice(0, 120),
-      url: `/messages/${conversationId}`,
-    }),
-  );
-  // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
-  // WebView doesn't support the Push API at all, and Android's own native
-  // notification path for messages was this same gap (only comments/likes/
-  // connections/muse activity went through sendFcmActivityToUser; sending a
-  // message had no FCM path whatsoever). Confirmed live: a real message
-  // showed the in-app bell/badge update instantly (Realtime, unaffected)
-  // but never surfaced as a native push on iOS.
-  await bestEffort("fcm", () =>
-    sendFcmActivityToUsers(recipientIds, {
-      title: user.name ?? "New message",
-      body: preview.slice(0, 120),
-      type: "MESSAGE",
-      url: `/messages/${conversationId}`,
-    }),
-  );
-  // In-app only (no email) — see MESSAGE in the NotificationType enum. One
-  // row per recipient per message, same as every other notification type
-  // here (no dedup/throttling), so it shows up in the bell alongside likes,
-  // comments, etc. instead of only in the Messages tab's own unread badge.
-  if (recipientIds.length > 0) {
-    await bestEffort("notifications", () =>
-      prisma.notification.createMany({
-        data: recipientIds.map((recipientId) => ({
-          recipientId,
-          actorId: user.id,
-          type: "MESSAGE" as const,
-          conversationId,
-        })),
-      }),
-    );
-  }
-  // Every recipient's badge nudge plus the thread's own "changed" signal in
-  // one batched request, rather than one HTTP call per recipient.
-  await bestEffort("realtime", () =>
-    publishEvents([
-      ...recipientIds.map((recipientId) => ({
-        channel: REALTIME_CHANNELS.navBadges(recipientId),
-        event: "changed",
-      })),
-      { channel: REALTIME_CHANNELS.conversation(conversationId), event: "changed" },
-    ]),
-  );
-
-  revalidatePath(`/messages/${conversationId}`);
-}
-
-/**
  * Admin-only: deletes a conversation outright, cascading to its members and
  * messages (see onDelete: Cascade on ConversationMember/Message in schema.prisma).
  * Used by the admin moderation "Duplicates" tool to clean up a redundant DM
@@ -526,6 +428,11 @@ export async function sendMessage(formData: FormData) {
   });
   if (!membership) {
     return { error: "not_a_member" as const };
+  }
+  // A chat the sender has hidden takes messages only while their PIN unlock is live. When it runs out mid-thread the
+  // client sends them to the PIN prompt and back (chat-thread.tsx), keeping what they typed.
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const };
   }
 
   // Blocking only applies to direct (1:1) conversations — a block silently
@@ -681,6 +588,10 @@ export async function getConversationMessages(conversationId: string) {
   if (!membership) {
     return { error: "not_a_member" as const, messages: [], conversation: null };
   }
+  // Before anything is marked read or returned: a hidden chat that isn't unlocked gives up nothing.
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const, messages: [], conversation: null };
+  }
 
   const now = new Date();
   const [deliveredResult, readResult] = await Promise.all([
@@ -762,6 +673,9 @@ export async function deleteMessageForMe(messageId: string) {
   if (!membership) {
     return { error: "not_a_member" as const };
   }
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const };
+  }
 
   await prisma.message.update({
     where: { id: messageId },
@@ -791,6 +705,13 @@ export async function editMessage(messageId: string, formData: FormData) {
   }
   if (message.deletedForEveryoneAt) {
     return { error: "deleted" as const };
+  }
+  // A view-once message is its media and nothing else: it is sent without text and stays that way.
+  if (message.viewOnce) {
+    return { error: "invalid" as const };
+  }
+  if (await isConversationLocked(user.id, message.conversationId)) {
+    return { error: "hidden_locked" as const };
   }
 
   // Same rule as sendMessage: an edit in a secret chat must be ciphertext, and
@@ -846,6 +767,9 @@ export async function toggleMessageReaction(messageId: string, emoji: string) {
   if (!membership) {
     return { error: "not_a_member" as const };
   }
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const };
+  }
 
   const existing = await prisma.messageReaction.findUnique({
     where: { messageId_userId: { messageId, userId: user.id } },
@@ -891,6 +815,9 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
   });
   if (!membership) {
     return { error: "not_a_member" as const };
+  }
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const };
   }
   // Corrections are stored, scanned and shown by the server as plain text, which
   // can't happen for an encrypted message — and a correction typed into a secret
@@ -943,6 +870,9 @@ export async function removeCorrection(correctionId: string) {
   }
 
   const message = await prisma.message.findUnique({ where: { id: correction.messageId } });
+  if (message && (await isConversationLocked(user.id, message.conversationId))) {
+    return { error: "hidden_locked" as const };
+  }
   await prisma.messageCorrection.delete({ where: { id: correctionId } });
 
   const corrections = await prisma.messageCorrection.findMany({
@@ -968,6 +898,9 @@ export async function deleteMessageForEveryone(messageId: string) {
   if (message.senderId !== user.id) {
     return { error: "forbidden" as const };
   }
+  if (await isConversationLocked(user.id, message.conversationId)) {
+    return { error: "hidden_locked" as const };
+  }
 
   await prisma.$transaction([
     prisma.message.update({
@@ -990,6 +923,11 @@ export async function deleteMessageForEveryone(messageId: string) {
   // A voice/video note's actual file otherwise keeps sitting in R2 forever,
   // unreferenced — same cleanup discipline as deletePost's media handling.
   await deleteMediaIfUnreferenced([message.mediaUrl, message.mediaThumbnailUrl]);
+  // A view-once file is in the private bucket, with its key in ViewOnceMedia rather than on the row. If this delete
+  // fails the sweep-view-once cron picks it up (it takes anything whose message was deleted for everyone).
+  if (message.viewOnce) {
+    await destroyViewOnceMedia(messageId);
+  }
 
   await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
@@ -1026,7 +964,8 @@ export async function getMyConversationsForShare() {
   const user = await requireVerifiedUser();
 
   const conversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId: user.id } } },
+    // A hidden chat is never offered as a share target, unlocked or not: this picker opens on top of public pages.
+    where: { members: { some: { userId: user.id, hiddenAt: null } } },
     select: {
       id: true,
       isGroup: true,
@@ -1082,6 +1021,9 @@ export async function shareMuseToConversation(museId: string, conversationId: st
   });
   if (!membership) {
     return { error: "not_a_member" as const };
+  }
+  if (await isMembershipLocked(membership, user.id)) {
+    return { error: "hidden_locked" as const };
   }
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },

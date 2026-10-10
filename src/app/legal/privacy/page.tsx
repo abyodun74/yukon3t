@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isViewOnceConfigured } from "@/lib/storage";
 
 const title = "Privacy Policy | YuKon3t";
 const description =
@@ -27,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 29, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 10, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -169,6 +170,35 @@ export default function PrivacyPage() {
         campaign ends for our accounting and audit purposes. Recordings of
         Collab live sessions are retained by Daily.co until the host or an
         admin deletes them.
+      </p>
+      {isViewOnceConfigured() && (
+        <p className="mt-2 text-foreground-soft">
+          <b>View-once photos and videos.</b> A photo or video sent as
+          &quot;view once&quot; in a one-to-one chat is stored in private
+          storage with no public link. When it is sent, the photo (or, for a
+          video, one still frame) is screened automatically like any other
+          upload. When the recipient opens it, the file is deleted from our
+          storage: normally immediately, and within a few minutes at most if
+          their app could not confirm it. If it is never opened, the file is
+          deleted 14 days after it was sent, or sooner if the sender deletes
+          the message for everyone; if the chat or the sender&apos;s account
+          is deleted first, the file can no longer be opened by anyone and is
+          removed from storage within 15 days. We do not keep a copy for
+          moderation or any other purpose, and the file itself is never
+          included in our database backups. We do keep the message record:
+          that a view-once photo or video was sent, by whom, when, and whether
+          and when it was opened. We cannot prevent the recipient from
+          capturing what is on their screen.
+        </p>
+      )}
+      <p className="mt-2 text-foreground-soft">
+        <b>Hidden chats.</b> If you hide a chat, we store which chats you
+        have hidden and when, and a one-way hash of the PIN you chose (never
+        the PIN itself), together with a count of recent wrong PIN attempts.
+        This is visible only to your own account; the other people in the
+        chat are not told. Hiding changes where a chat is shown to you and
+        what its notifications say. It does not change how the messages are
+        stored, scanned or retained.
       </p>
 
       <h2 className="mt-8 font-semibold">8. Your rights</h2>

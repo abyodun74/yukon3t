@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { getMembersHidingConversation, hiddenPushPayload, isMembershipLocked } from "@/lib/hidden-chats";
 import { storySchema, messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
@@ -457,11 +458,18 @@ export async function replyToStory(storyId: string, formData: FormData) {
     },
   });
 
-  await sendPushToUser(story.authorId, {
-    title: user.name ?? "Story reply",
-    body: `Replied to your story: ${parsed.data.content.slice(0, 120)}`,
-    url: `/messages/${conversation.id}`,
-  });
+  // The author may have this DM hidden: then the push names nobody and quotes nothing.
+  const authorHidesChat = (await getMembersHidingConversation(conversation.id, [story.authorId])).length > 0;
+  await sendPushToUser(
+    story.authorId,
+    authorHidesChat
+      ? hiddenPushPayload()
+      : {
+          title: user.name ?? "Story reply",
+          body: `Replied to your story: ${parsed.data.content.slice(0, 120)}`,
+          url: `/messages/${conversation.id}`,
+        },
+  );
 
   revalidatePath(`/messages/${conversation.id}`);
   return { error: null, conversationId: conversation.id };
@@ -478,7 +486,8 @@ export async function getShareableConversations() {
   const user = await requireVerifiedUser();
 
   const conversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId: user.id } } },
+    // Hidden chats are never offered as a share target (same as getMyConversationsForShare).
+    where: { members: { some: { userId: user.id, hiddenAt: null } } },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -572,7 +581,8 @@ export async function shareStoryToConversation(storyId: string, conversationId: 
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId, userId: user.id } },
   });
-  if (!membership) {
+  // "not_found" for a hidden chat that isn't unlocked too: it isn't in the picker this is called from.
+  if (!membership || (await isMembershipLocked(membership, user.id))) {
     return { error: "not_found" as const };
   }
 

@@ -4,6 +4,7 @@ import {
   HeadObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   UploadPartCommand,
   ListPartsCommand,
@@ -554,6 +555,125 @@ export async function uploadStream({
   signal?.addEventListener("abort", () => void upload.abort(), { once: true });
   await upload.done();
   return `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
+}
+
+// --- Private bucket ("for your eyes only" view-once media) --------------------
+// A second bucket with NO public domain: nothing in it has a URL, and the only way to its bytes is a short-lived
+// presigned GET minted here. Same account and credentials as the public bucket. See app/actions/view-once.ts.
+
+export function isViewOnceConfigured() {
+  return Boolean(
+    process.env.R2_ACCOUNT_ID &&
+      process.env.R2_ACCESS_KEY_ID &&
+      process.env.R2_SECRET_ACCESS_KEY &&
+      process.env.R2_PRIVATE_BUCKET_NAME,
+  );
+}
+
+/** The namespaces a browser uploads into. Deliberately not the one a sent file is kept in (viewOnceFinalKey). */
+export type PrivateObjectPurpose = "view-once" | "view-once-frame";
+
+/** `${purpose}/${uploaderId}/${uuid}.${ext}` — server-generated and unguessable, with the uploader in the path like every public key. */
+export function privateObjectKey(purpose: PrivateObjectPurpose, userId: string, ext: string) {
+  return `${purpose}/${userId}/${randomUUID()}.${ext}`;
+}
+
+/**
+ * `view-once-final/${conversationId}/${uuid}.${ext}` — where a view-once file lives once it has been sent. Chosen by
+ * the server at send time and never given to a browser, and no upload URL is ever minted for this namespace, so the
+ * sender's still-valid presigned PUT (which is for their own `view-once/…` key) cannot overwrite it.
+ */
+export function viewOnceFinalKey(conversationId: string, ext: string) {
+  return `view-once-final/${conversationId}/${randomUUID()}.${ext}`;
+}
+
+/**
+ * A client-supplied private key must be checked with this before any R2 call is made for it. Only an upload
+ * namespace can pass: a `view-once-final/…` key is never accepted from a client.
+ */
+export function isPrivateKeyOwnedBy(key: string, purpose: PrivateObjectPurpose, ownerId: string) {
+  const parts = key.split("/");
+  return parts.length === 3 && parts[0] === purpose && parts[1] === ownerId && /^[0-9a-f-]{36}\.[a-z0-9]+$/.test(parts[2]);
+}
+
+export async function createPrivateUploadUrl({
+  purpose,
+  userId,
+  contentType,
+  ext,
+  expiresIn,
+}: {
+  purpose: PrivateObjectPurpose;
+  userId: string;
+  contentType: string;
+  ext: string;
+  expiresIn: number;
+}) {
+  if (!isViewOnceConfigured()) throw new Error("not_configured");
+  const key = privateObjectKey(purpose, userId, ext);
+  const uploadUrl = await getSignedUrl(
+    client(),
+    new PutObjectCommand({ Bucket: process.env.R2_PRIVATE_BUCKET_NAME!, Key: key, ContentType: contentType }),
+    { expiresIn },
+  );
+  return { uploadUrl, key };
+}
+
+/** A GET link to one private object, valid for `ttlSeconds`. Whoever holds it can read the object until then. */
+export async function createPrivateDownloadUrl(key: string, ttlSeconds: number) {
+  if (!isViewOnceConfigured()) throw new Error("not_configured");
+  return getSignedUrl(
+    client(),
+    new GetObjectCommand({
+      Bucket: process.env.R2_PRIVATE_BUCKET_NAME!,
+      Key: key,
+      ResponseCacheControl: "no-store",
+    }),
+    { expiresIn: ttlSeconds },
+  );
+}
+
+/**
+ * Size and content type of a private object. `null` means it does not exist; any other failure throws, so a caller
+ * deciding "is the file gone?" never mistakes an R2 outage for a yes.
+ */
+export async function headPrivateObject(
+  key: string,
+): Promise<{ size: number; contentType: string; etag: string } | null> {
+  if (!isViewOnceConfigured()) throw new Error("not_configured");
+  try {
+    const head = await client().send(new HeadObjectCommand({ Bucket: process.env.R2_PRIVATE_BUCKET_NAME!, Key: key }));
+    return { size: head.ContentLength ?? 0, contentType: head.ContentType ?? "", etag: head.ETag ?? "" };
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (status === 404) return null;
+    throw err;
+  }
+}
+
+/** Server-side copy inside the private bucket; the content type comes along with the bytes. Throws on failure. */
+export async function copyPrivateObject(sourceKey: string, destinationKey: string) {
+  if (!isViewOnceConfigured()) throw new Error("not_configured");
+  const bucket = process.env.R2_PRIVATE_BUCKET_NAME!;
+  await client().send(
+    new CopyObjectCommand({ Bucket: bucket, Key: destinationKey, CopySource: `${bucket}/${sourceKey}` }),
+  );
+}
+
+/**
+ * Deletes a private object and says whether R2 confirmed it (deleting a key that is already gone counts). Unlike
+ * deleteObject this reports failure: the caller keeps its record of the key until the delete has really happened,
+ * so the sweep can try again.
+ */
+export async function deletePrivateObject(key: string): Promise<boolean> {
+  if (!isViewOnceConfigured()) return false;
+  try {
+    await client().send(new DeleteObjectCommand({ Bucket: process.env.R2_PRIVATE_BUCKET_NAME!, Key: key }));
+    return true;
+  } catch (err) {
+    console.error(`[storage] failed to delete private object ${key}`, err);
+    return false;
+  }
 }
 
 export function keyFromPublicUrl(url: string) {

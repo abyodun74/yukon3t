@@ -244,6 +244,16 @@ model User {
   // start time and updatedAt is bumped by unrelated profile writes too.
   failedLoginAt       DateTime?
 
+  // Hidden chats (src/lib/hidden-chats.ts): a bcrypt hash of the 4-8 digit PIN
+  // that opens this user's hidden-chats area (null = no PIN set yet), and its
+  // own brute-force lockout, separate from the password-login one above.
+  // hiddenPinFailedAttempts counts wrong PINs since the last correct one and
+  // every 5th locks for longer (hiddenPinLockoutUntil in hidden-chats-rules.ts).
+  // None of the three may ever reach a browser or exportMyData.
+  hiddenChatsPinHash      String?
+  hiddenPinFailedAttempts Int       @default(0)
+  hiddenPinLockedUntil    DateTime?
+
   // Set when a genuine login-issue resolution happens — a completed password
   // reset that cleared a lockout/failed-attempt streak, a successful login
   // that did the same, or a confirmation-email click that unstuck a
@@ -342,6 +352,7 @@ model User {
 
   callsMade     Call[] @relation("CallCaller")
   callsReceived Call[] @relation("CallCallee")
+  callParticipations CallParticipant[] @relation("CallParticipantUser")
 
   blocksMade        Block[]            @relation("Blocker")
   blocksReceived    Block[]            @relation("Blocked")
@@ -2077,11 +2088,18 @@ model ConversationMember {
   // Null = this member hasn't opted in (or turned it back off).
   e2eeEnabledAt DateTime?
 
+  // Hidden chats: set = THIS member has moved the conversation into their
+  // PIN-locked hidden area. One-sided; the other member(s) see no difference.
+  // Every surface that lists conversations, peers or message notifications
+  // filters on it through src/lib/hidden-chats.ts.
+  hiddenAt DateTime?
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
   @@index([userId])
+  @@index([userId, hiddenAt])
 }
 
 /**
@@ -2148,6 +2166,15 @@ model Message {
   // renders "Original message deleted" rather than losing its own history.
   replyToMessageId String?
 
+  // "For your eyes only" photo/video (1:1 chats). mediaUrl/mediaThumbnailUrl
+  // stay NULL for these: the file is in the private bucket and its key is only
+  // in ViewOnceMedia, so no message query, export or quote can carry it.
+  // viewOnceOpenedAt is the recipient's one claim (see openViewOnceMessage);
+  // unopened media is deleted once viewOnceExpiresAt passes.
+  viewOnce          Boolean   @default(false)
+  viewOnceOpenedAt  DateTime?
+  viewOnceExpiresAt DateTime?
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
@@ -2155,6 +2182,7 @@ model Message {
   replies      Message[]           @relation("MessageReplyTo")
   reactions    MessageReaction[]
   corrections  MessageCorrection[]
+  viewOnceMedia ViewOnceMedia?
 
   // Every message query filters on conversationId and sorts/paginates on
   // createdAt together (getConversationMessages, the collab board, the
@@ -2167,6 +2195,20 @@ model Message {
   @@index([storyId])
   @@index([mediaUrl])
   @@index([mediaThumbnailUrl])
+  @@index([viewOnce, viewOnceOpenedAt])
+}
+
+/**
+ * Where a view-once message's file is in the private R2 bucket (R2_PRIVATE_BUCKET_NAME). The row and the object are
+ * deleted together once the recipient has viewed it, or by the sweep-view-once cron. Never include this in a query
+ * whose result goes to a browser.
+ */
+model ViewOnceMedia {
+  messageId   String   @id
+  objectKey   String
+  contentType String
+  createdAt   DateTime @default(now())
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
 
 /**
@@ -2382,8 +2424,51 @@ model Call {
   caller User @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
   callee User @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
 
+  // Empty for a plain 1:1 call. Rows appear the first time someone is added
+  // to a connected call (inviteToCall), which also backfills JOINED rows for
+  // the caller and callee — from then on these rows, not callerId/calleeId,
+  // say who is in the call (see CallParticipant).
+  participants CallParticipant[]
+
   @@index([calleeId, status])
   @@index([callerId, status])
+  @@index([status, createdAt])
+}
+
+enum CallParticipantStatus {
+  RINGING
+  JOINED
+  DECLINED
+  MISSED
+  LEFT
+}
+
+/**
+ * One person's place in a call that has had someone added to it (up to
+ * CALL_MAX_PARTICIPANTS, see src/lib/call-resilience.ts). `createdAt` is when
+ * this person was last rung: re-inviting someone who declined, missed or left
+ * reuses their row and resets it, which is what the timeout-missed-calls
+ * cron's ring timeout counts from. `invitedById` is null for the backfilled
+ * caller/callee rows. `token` is the Daily meeting token minted at invite
+ * time, same idea as Call.calleeToken.
+ */
+model CallParticipant {
+  id          String                @id @default(cuid())
+  callId      String
+  userId      String
+  invitedById String?
+  status      CallParticipantStatus @default(RINGING)
+  token       String?
+  createdAt   DateTime              @default(now())
+  respondedAt DateTime?
+  leftAt      DateTime?
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user User @relation("CallParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, userId])
+  @@index([userId, status])
+  @@index([status, createdAt])
 }
 
 /**
@@ -2483,6 +2568,9 @@ enum SecurityChallengePurpose {
   LOGIN
   PASSWORD_CHANGE
   POST
+  // Resetting the hidden-chats PIN on an account with no password to re-prove
+  // (magic-link / OAuth only): resetHiddenPinWithCode in actions/hidden-chats.ts.
+  HIDDEN_PIN_RESET
 }
 
 // A device this user has already proven ownership of — either the very

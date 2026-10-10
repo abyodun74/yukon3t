@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
+import { getHiddenState } from "@/lib/hidden-chats";
+import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 
 /**
  * Combines what used to be 4 separately-polled endpoints (messages/
@@ -27,6 +29,10 @@ export async function GET() {
     throw err;
   }
 
+  // Hidden chats count for nothing here: no unread dot, no bell count, no connection-request count for a hidden peer.
+  // An unread message in a hidden chat must leave every badge exactly as it was.
+  const hidden = await getHiddenState(user.id);
+
   const [conversations, pendingConnections, unreadNotifications, latestAnnouncement] = await Promise.all([
     // Count conversations with an unread message, not total unread messages —
     // matches the per-conversation dot already shown on /messages. Based on
@@ -35,7 +41,7 @@ export async function GET() {
     // which can't represent "read by some but not all" once a conversation
     // has more than one other member (group chats).
     prisma.conversation.findMany({
-      where: { members: { some: { userId: user.id } } },
+      where: { members: { some: { userId: user.id, hiddenAt: null } } },
       select: {
         members: { where: { userId: user.id }, select: { lastReadAt: true } },
         messages: {
@@ -46,8 +52,12 @@ export async function GET() {
         },
       },
     }),
-    prisma.connection.count({ where: { targetId: user.id, status: "PENDING" } }),
-    prisma.notification.count({ where: { recipientId: user.id, readAt: null } }),
+    prisma.connection.count({
+      where: { targetId: user.id, status: "PENDING", requesterId: { notIn: hidden.peerIds } },
+    }),
+    prisma.notification.count({
+      where: { recipientId: user.id, readAt: null, AND: visibleNotificationWhere(hidden) },
+    }),
     prisma.announcement.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
   ]);
 

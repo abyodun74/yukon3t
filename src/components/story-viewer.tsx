@@ -840,7 +840,7 @@ function replyErrorMessage(code: string) {
     case "blocked":
       return "This reply couldn't be sent.";
     case "secret_chat":
-      return "You have a secret chat with them — send your reply from that chat so it stays encrypted.";
+      return "Replies to their story aren't available here — message them from your chat instead.";
     case "rate_limited":
       return "Slow down a little.";
     case "not_found":

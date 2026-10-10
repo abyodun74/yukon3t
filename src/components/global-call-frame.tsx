@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, X } from "lucide-react";
+import { Maximize2, Minimize2, PhoneOff, ShieldAlert, Upload, UserPlus, X } from "lucide-react";
 import { CallFrame } from "@/components/call-frame";
 import { LiveVideoFrame } from "@/components/live-video-frame";
 import { DirectCallFrame } from "@/components/direct-call-frame";
+import { AddCallParticipantSheet } from "@/components/add-call-participant-sheet";
+import { groupCallLabel, useCallRoster } from "@/lib/use-call-roster";
 import { useCallSession } from "@/lib/call-session";
 import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial } from "@/lib/collab-material";
 import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
@@ -34,11 +36,14 @@ function captureAlertText(alert: CaptureAlert) {
  * unmounts, so the call itself is never interrupted.
  */
 export function GlobalCallFrame() {
-  const { session, minimized, dailyCall, setDailyCall, endSession, minimize, expand, reconnectingRef } = useCallSession();
+  const { session, minimized, dailyCall, setDailyCall, endSession, hangUp, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [captureAlert, setCaptureAlert] = useState<CaptureAlert | null>(null);
+  const [addingPerson, setAddingPerson] = useState(false);
+  const callInfo = session?.renderer === "direct" ? session.call : undefined;
+  const { roster, refresh: refreshRoster } = useCallRoster(callInfo);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -54,6 +59,7 @@ export function GlobalCallFrame() {
     setSharedMaterial(null);
     setUploadError(null);
     setCaptureAlert(null);
+    setAddingPerson(false);
     minimizedDrag.reset();
   }
 
@@ -112,6 +118,17 @@ export function GlobalCallFrame() {
 
   if (!session) return null;
 
+  // Once people have been added, the session's own label (whoever the call
+  // started with) is no longer who it's with.
+  const label = groupCallLabel(roster, callInfo?.currentUserId) ?? session.label;
+  const ringingInvitees =
+    roster?.group && !roster.over
+      ? roster.participants.filter((p) => p.status === "RINGING" && p.userId !== callInfo?.currentUserId)
+      : [];
+  const inCallIds = new Set(
+    roster?.participants.filter((p) => p.status === "RINGING" || p.status === "JOINED").map((p) => p.userId),
+  );
+
   return (
     <>
       <div
@@ -166,10 +183,18 @@ export function GlobalCallFrame() {
             type={session.type}
             peerName={session.label}
             prewarmKey={session.key}
+            roster={roster}
+            selfUserId={callInfo?.currentUserId}
             onCallObject={setDailyCall}
+            isCallOver={session.isOver}
             onLeave={() => {
-              // Same reconnect-vs-real-hangup distinction as CallFrame below.
-              if (reconnectingRef.current) return;
+              // Not wired to Daily's "left-meeting" the way the other two
+              // renderers are: DirectCallFrame reconnects from an
+              // involuntary drop by itself and only calls this once the
+              // call is really over (retries exhausted, the room gone, or
+              // the peer never came back) — see call-resilience.ts. The
+              // user's own hang-up doesn't come through here at all (see
+              // hangUp on CallSessionContext).
               session.onLeave();
               endSession();
             }}
@@ -211,7 +236,7 @@ export function GlobalCallFrame() {
           // stacking-context concerns like the fullscreen button below.
           <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
             <span className="hig-material-dark max-w-[7rem] truncate rounded-md bg-black/60 backdrop-blur-md px-2 py-1 text-xs text-white">
-              {session.label}
+              {label}
             </span>
             <button
               type="button"
@@ -225,18 +250,35 @@ export function GlobalCallFrame() {
             <button
               type="button"
               // Daily's own leave button becomes impractically small at this
-              // size — call .leave() directly and let the resulting
-              // "left-meeting" event drive CallFrame's onLeave above, same
-              // cleanup path as a normal in-app hangup. Extra ms-1 keeps this
+              // size — hangUp() calls .leave() directly and lets the
+              // resulting "left-meeting" event drive CallFrame's onLeave
+              // above, same cleanup path as a normal in-app hangup (a 1:1
+              // call is ended directly instead — see hangUp on
+              // CallSessionContext). Extra ms-1 keeps this
               // separated from Expand — the highest-consequence control in
               // the widget shouldn't sit flush against a low-stakes one.
-              onClick={() => dailyCall?.leave()}
+              onClick={hangUp}
               title="Hang up"
               aria-label="Hang up"
               className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
             >
               <PhoneOff size={14} />
             </button>
+          </div>
+        )}
+
+        {!minimized && ringingInvitees.length > 0 && (
+          // Top centre: the self-view tile starts in the top-left corner and
+          // the control tray and Leave/Minimize bar hold the bottom.
+          <div className="pointer-events-none absolute inset-x-0 top-4 z-10 flex flex-wrap justify-center gap-1 px-32" role="status">
+            {ringingInvitees.map((p) => (
+              <span
+                key={p.userId}
+                className="hig-material-dark max-w-full truncate rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur-md"
+              >
+                Calling {p.name ?? "someone"}…
+              </span>
+            ))}
           </div>
         )}
 
@@ -373,17 +415,31 @@ export function GlobalCallFrame() {
               </button>
             </>
           )}
+          {callInfo && (
+            <button
+              type="button"
+              // Needs the roster to know who is already in the call, and
+              // there is nobody to add to a call this side is leaving.
+              disabled={!roster || roster.over}
+              onClick={() => setAddingPerson(true)}
+              title="Add someone to this call"
+              aria-label="Add someone to this call"
+              className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
+            >
+              <UserPlus size={14} />
+            </button>
+          )}
           <button
             type="button"
             // App-level leave control alongside Minimize, not just Daily's
-            // own in-iframe leave button — same .leave() call as the
-            // minimized widget's hang-up button below, kept reachable even
+            // own in-iframe leave button — same hangUp() call as the
+            // minimized widget's hang-up button above, kept reachable even
             // fullscreen so leaving never depends on finding Daily's own
             // control inside the call UI (e.g. tucked under its "..." menu
             // on a narrow viewport). Extra ms-1 keeps it separated from
             // Upload — the highest-consequence control here shouldn't sit
             // flush against a low-stakes one.
-            onClick={() => dailyCall?.leave()}
+            onClick={hangUp}
             title="Leave session"
             aria-label="Leave session"
             className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
@@ -400,6 +456,16 @@ export function GlobalCallFrame() {
             <Minimize2 size={14} />
           </button>
         </div>
+      )}
+
+      {callInfo && (
+        <AddCallParticipantSheet
+          open={addingPerson && !minimized}
+          onClose={() => setAddingPerson(false)}
+          callId={callInfo.callId}
+          excludeIds={inCallIds}
+          onInvited={refreshRoster}
+        />
       )}
     </>
   );

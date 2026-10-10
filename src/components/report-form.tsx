@@ -90,7 +90,7 @@ export function ReportModal({
           />
           {evidenceText !== undefined && (
             <p className="mt-2 rounded-md bg-accent-soft px-2 py-1.5 text-xs text-foreground-soft">
-              This message is from a secret chat, so we can&apos;t read it. Submitting this report shares its text with
+              We can&apos;t read this message ourselves. Submitting this report shares its text with
               our moderators so they can review it.
             </p>
           )}

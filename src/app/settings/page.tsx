@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
+import { getPasswordHash } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
@@ -29,6 +30,7 @@ export default async function SettingsPage({
   const user = await getSessionUserOrRedirect();
   const { error, saved } = await searchParams;
   const blocked = await listBlockedUsers();
+  const hasPassword = Boolean(await getPasswordHash(user.id));
 
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
@@ -105,6 +107,16 @@ export default async function SettingsPage({
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           />
         </form>
+        {/* Always here and always worded the same, whether or not this account has a PIN or any hidden chat. */}
+        <Link
+          href="/messages/hidden"
+          className="mt-4 flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm hover:border-accent hover:text-accent"
+        >
+          <span>Hidden chats</span>
+          <span aria-hidden className="text-foreground-soft">
+            &rsaquo;
+          </span>
+        </Link>
       </div>
 
       <div>
@@ -202,7 +214,7 @@ export default async function SettingsPage({
       <div>
         <h2 className="text-lg font-semibold">Sign-in method</h2>
         <p className="mt-1 text-sm text-foreground-soft">
-          {user.passwordHash
+          {hasPassword
             ? "You can sign in with your username and password, or the email link."
             : "Add a username and password as an alternative to the email sign-in link."}
         </p>
@@ -229,7 +241,7 @@ export default async function SettingsPage({
               Username: <span className="font-medium">{user.username}</span>
             </p>
           )}
-          {user.passwordHash && (
+          {hasPassword && (
             <div>
               <label htmlFor="settings-current-password" className="block text-sm font-medium">
                 Current password
@@ -246,7 +258,7 @@ export default async function SettingsPage({
           )}
           <div>
             <label htmlFor="settings-new-password" className="block text-sm font-medium">
-              {user.passwordHash ? "New password" : "Password"}
+              {hasPassword ? "New password" : "Password"}
             </label>
             <PasswordInput
               id="settings-new-password"
@@ -258,14 +270,14 @@ export default async function SettingsPage({
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
             />
           </div>
-          {user.passwordHash && (
+          {hasPassword && (
             <p className="text-xs text-foreground-soft">
               Changing your password signs you out everywhere else.
             </p>
           )}
           <SubmitButton
-            label={user.passwordHash ? "Update password" : "Set password"}
-            pendingLabel={user.passwordHash ? "Updating..." : "Setting..."}
+            label={hasPassword ? "Update password" : "Set password"}
+            pendingLabel={hasPassword ? "Updating..." : "Setting..."}
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           />
         </form>

@@ -218,7 +218,17 @@ export default async function PublicProfilePage({
 
       {isOwnProfile ? (
         <div className="mt-6">
-          <EditProfileForm user={user} />
+          <EditProfileForm
+            user={{
+              name: user.name,
+              bio: user.bio,
+              country: user.country,
+              languages: user.languages,
+              interests: user.interests,
+              openToIntents: user.openToIntents,
+              avatarUrl: user.avatarUrl,
+            }}
+          />
         </div>
       ) : iBlockedThem ? (
         <div className="mt-6 flex flex-wrap items-center gap-4">

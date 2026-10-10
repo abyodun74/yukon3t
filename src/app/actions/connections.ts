@@ -9,6 +9,7 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { track } from "@/lib/analytics";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { notifyBadgeChange } from "@/lib/realtime-server";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
 const CONNECTIONS_PAGE_SIZE = 20;
@@ -296,7 +297,7 @@ export async function startDirectMessage(targetId: string) {
 export async function loadMoreIncomingConnections(cursor: string) {
   const user = await requireUser();
   const rows = await prisma.connection.findMany({
-    where: { targetId: user.id, status: "PENDING" },
+    where: { targetId: user.id, status: "PENDING", requesterId: { notIn: await getHiddenPeerIds(user.id) } },
     include: { requester: { select: connectionUserSelect } },
     orderBy: { createdAt: "desc" },
     take: CONNECTIONS_PAGE_SIZE,
@@ -313,7 +314,7 @@ export async function loadMoreIncomingConnections(cursor: string) {
 export async function loadMoreSentConnections(cursor: string) {
   const user = await requireUser();
   const rows = await prisma.connection.findMany({
-    where: { requesterId: user.id, status: "PENDING" },
+    where: { requesterId: user.id, status: "PENDING", targetId: { notIn: await getHiddenPeerIds(user.id) } },
     include: { target: { select: connectionUserSelect } },
     orderBy: { createdAt: "desc" },
     take: CONNECTIONS_PAGE_SIZE,
@@ -342,10 +343,15 @@ export async function loadMoreSentConnections(cursor: string) {
  * lastMessageAt column that every message send would need to keep in sync.
  */
 async function getAcceptedConnectionIdsByActivity(userId: string): Promise<string[]> {
-  const rows = await prisma.connection.findMany({
-    where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { targetId: userId }] },
-    select: { id: true, requesterId: true, targetId: true, respondedAt: true, createdAt: true },
-  });
+  // Someone whose 1:1 chat the caller has hidden is left out of the caller's own Connected list altogether (the
+  // connection itself is untouched, and the other person's list still shows the caller).
+  const hiddenPeerIds = new Set(await getHiddenPeerIds(userId));
+  const rows = (
+    await prisma.connection.findMany({
+      where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { targetId: userId }] },
+      select: { id: true, requesterId: true, targetId: true, respondedAt: true, createdAt: true },
+    })
+  ).filter((c) => !hiddenPeerIds.has(c.requesterId === userId ? c.targetId : c.requesterId));
   if (rows.length === 0) return [];
 
   const otherIds = rows.map((c) => (c.requesterId === userId ? c.targetId : c.requesterId));
@@ -479,7 +485,10 @@ export async function getMyConnectionsForPicker() {
     },
     orderBy: { respondedAt: "desc" },
   });
+  const hiddenPeerIds = new Set(await getHiddenPeerIds(user.id));
   return {
-    connections: accepted.map((c) => (c.requesterId === user.id ? c.target : c.requester)),
+    connections: accepted
+      .map((c) => (c.requesterId === user.id ? c.target : c.requester))
+      .filter((u) => !hiddenPeerIds.has(u.id)),
   };
 }

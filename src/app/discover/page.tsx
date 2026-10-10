@@ -117,6 +117,19 @@ export default async function DiscoverPage({
             ? { createdAt: "asc" }
             : { trustScore: "desc" },
     take: PAGE_SIZE,
+    // Exactly what a Discover card renders: these rows are serialised to the browser (DiscoverPeopleList is a
+    // Client Component). Same fields as discoverPersonSelect in actions/discover.ts.
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      avatarUrl: true,
+      country: true,
+      bio: true,
+      trustBand: true,
+      lastSeenAt: true,
+      openToIntents: true,
+    },
   });
   const hasMore = people.length === PAGE_SIZE;
 

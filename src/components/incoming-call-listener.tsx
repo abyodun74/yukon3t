@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
-import { getIncomingCall, getCallStatus, respondToCall, endCall } from "@/app/actions/calls";
+import { getIncomingCall, getCallStatus, respondToCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { isCallOverStatus } from "@/lib/call-resilience";
+import { endCallDurably } from "@/lib/end-call-durably";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { hapticNotification, hapticImpact } from "@/lib/haptics";
@@ -25,7 +27,17 @@ type IncomingCall = {
   // accept the same way it always has, with no early prewarm to offer.
   roomUrl: string | null;
   calleeToken: string | null;
+  // Not a fresh 1:1 call but a ring to join one already going (see
+  // inviteToCall): `caller` is whoever added this user, and this is how
+  // many other people are in it. 0 for an ordinary call.
+  othersInCall: number;
 };
+
+/** "<inviter> + N" for a ring into a call with other people already in it. */
+function incomingCallLabel(call: IncomingCall) {
+  const name = call.caller.name ?? "Someone";
+  return call.othersInCall > 0 ? `${name} + ${call.othersInCall}` : name;
+}
 
 type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO" | "VIDEO"; callerName: string };
 
@@ -144,9 +156,20 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       renderer: "direct",
       label: activeCall.callerName,
       onLeave: () => {
-        endCall(activeCall.callId);
+        // Can now be reached with the network still down (a reconnect that
+        // ran out of retries), so this keeps retrying after the call UI is
+        // gone — see endCallDurably. If it never gets through, the other
+        // side's own grace period, or failing that the stale-ACCEPTED sweep,
+        // closes the row. For someone who was added to a call, the server
+        // takes the same endCall as "I leave" and the call carries on.
+        endCallDurably(activeCall.callId);
         setActiveCall(null);
       },
+      isOver: async () => {
+        const result = await getCallStatus(activeCall.callId);
+        return result.error ? true : isCallOverStatus(result.status);
+      },
+      call: { callId: activeCall.callId, currentUserId },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.callId]);
@@ -225,8 +248,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
-    const callerName =
-      incomingRef.current?.id === callId ? incomingRef.current.caller.name ?? "Someone" : "Someone";
+    const callerName = incomingRef.current?.id === callId ? incomingCallLabel(incomingRef.current) : "Someone";
     // Ownership of any prewarmed join for this exact call transfers to
     // DirectCallFrame now (it looks itself up by this same `call:${callId}`
     // key, via the `key` passed to startSession below) — only clear the
@@ -335,6 +357,15 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         acceptCall(event.callId);
       });
       declinedListener = await NativeCallKit.addListener("callDeclined", (event) => {
+        // Deliberately the decline path only, even when this is the call
+        // already in progress (where respondToCall no-ops — it only acts on
+        // a RINGING call). CallKit reports a mid-call system End the same
+        // way, but mapping that to hangUp isn't safe until it's been
+        // verified on a real iPhone: the side/lock button ends a CallKit
+        // call that's on the earpiece, and answering with the in-app Accept
+        // leaves the CallKit banner still ringing, where a later Decline
+        // would hang up the call just answered — both would end a call the
+        // user means to keep.
         declineCall(event.callId);
       });
       // The actual delivery path for a call answered/declined via CallKit
@@ -371,7 +402,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
           interrupting a screen reader for — without it the banner appears
           silently and the call rings out unanswered. */}
       <p role="alert" className="text-sm">
-        <span className="font-semibold">{incoming.caller.name ?? "Someone"}</span> is calling
+        <span className="font-semibold">{incomingCallLabel(incoming)}</span>{" "}
+        {incoming.othersInCall > 0 ? "are" : "is"} calling
         {incoming.type === "VIDEO" ? " (video)" : ""}...
       </p>
       <div className="mt-3 flex items-center justify-center gap-4">

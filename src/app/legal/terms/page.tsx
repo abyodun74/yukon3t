@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isViewOnceConfigured } from "@/lib/storage";
 
 const title = "Terms of Service | YuKon3t";
 const description =
@@ -27,7 +28,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 29, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 10, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company
@@ -114,6 +115,21 @@ export default function TermsPage() {
         voice notes in a secret chat are not encrypted and are screened like
         any other content.
       </p>
+      {isViewOnceConfigured() && (
+        <p className="mt-2 text-foreground-soft">
+          <b>View-once photos and videos.</b> A photo or video sent as
+          &quot;view once&quot; can be opened by its recipient a single time
+          and is then deleted from our storage; one that is never opened is
+          deleted after 14 days. These Terms and our Guidelines apply to it
+          like any other content, and it is screened automatically when sent.
+          Because we keep no copy, we cannot review a view-once photo or video
+          after it has been viewed, so a report about one is assessed on the
+          report itself and the record that it was sent and opened. View once
+          limits what we store; it does not stop the recipient from taking a
+          screenshot, recording their screen, or photographing it with another
+          device, and we are not responsible for copies made that way.
+        </p>
+      )}
 
       <h2 className="mt-8 font-semibold">6. Intellectual property &amp; copyright (DMCA)</h2>
       <p className="mt-2 text-foreground-soft">

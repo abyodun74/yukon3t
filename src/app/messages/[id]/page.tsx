@@ -1,9 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ChatThread } from "@/components/chat-thread";
 import { BackButton } from "@/components/back-button";
 import { CallButton } from "@/components/call-button";
+import { ChatOptionsMenu, ChatOptionsProvider } from "@/components/chat-options-menu";
 import { CopyInviteLinkButton } from "@/components/copy-invite-link-button";
 import { GroupNameEditor } from "@/components/group-name-editor";
 import { GroupDiscoverableToggle } from "@/components/group-discoverable-toggle";
@@ -16,6 +17,10 @@ import { JoinRequestList } from "@/components/join-request-list";
 import { UserLink } from "@/components/user-link";
 import { ConnectionRequestBanner } from "@/components/connection-request-banner";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
+import { isViewOnceConfigured } from "@/lib/storage";
+import { HiddenRelock } from "@/components/hidden-relock";
+import { getHiddenPeerIds, isMembershipLocked } from "@/lib/hidden-chats";
+import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 
 export default async function ConversationPage({
   params,
@@ -69,6 +74,13 @@ export default async function ConversationPage({
     );
   }
 
+  // Hidden for me and the PIN hasn't been entered: nothing about this chat is rendered, from any entry point (a
+  // profile's Message button, an old notification, a typed URL). Unlocking sends the user straight back here.
+  if (await isMembershipLocked(membership, me.id)) {
+    redirect(hiddenUnlockPath(id));
+  }
+  const hidden = membership.hiddenAt !== null;
+
   const other = conversation.members.find((m) => m.user.id !== me.id)?.user;
   const conversationLabel = conversation.isGroup
     ? (conversation.name ?? "Group")
@@ -117,6 +129,7 @@ export default async function ConversationPage({
     conversation.isGroup && conversation.createdById === me.id
       ? (async () => {
           const memberIds = new Set(members.map((m) => m.userId));
+          const hiddenPeerIds = new Set(await getHiddenPeerIds(me.id));
           const accepted = await prisma.connection.findMany({
             where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
             include: {
@@ -126,7 +139,7 @@ export default async function ConversationPage({
           });
           return accepted
             .map((c) => (c.requesterId === me.id ? c.target : c.requester))
-            .filter((u) => !memberIds.has(u.id))
+            .filter((u) => !memberIds.has(u.id) && !hiddenPeerIds.has(u.id))
             .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
         })()
       : Promise.resolve([]),
@@ -177,8 +190,10 @@ export default async function ConversationPage({
   const messages = recentMessages.reverse();
 
   return (
+    <ChatOptionsProvider>
     <div className="mx-auto max-w-2xl px-4 py-6">
       <ScreenshotContextTracker context={{ type: "conversation", id }} />
+      {hidden && <HiddenRelock />}
       <BackButton fallbackHref="/messages" />
       <div className="flex items-center justify-between gap-2">
         {conversation.isGroup ? (
@@ -203,6 +218,7 @@ export default async function ConversationPage({
           {!conversation.isGroup && other && (
             <CallButton calleeId={other.id} calleeName={other.name ?? "them"} currentUserId={me.id} />
           )}
+          <ChatOptionsMenu conversationId={id} isGroup={conversation.isGroup} hidden={hidden} />
           {conversation.isGroup && (
             <>
               {conversation.createdById === me.id && (
@@ -252,8 +268,10 @@ export default async function ConversationPage({
           isGroup={conversation.isGroup}
           conversationLabel={conversationLabel}
           members={members}
+          viewOnceAvailable={!conversation.isGroup && isViewOnceConfigured()}
         />
       </div>
     </div>
+    </ChatOptionsProvider>
   );
 }

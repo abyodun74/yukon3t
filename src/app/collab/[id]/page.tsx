@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { BackButton } from "@/components/back-button";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
@@ -99,6 +100,7 @@ export default async function CollabDetailPage({
           const excludeIds = new Set([
             ...allParticipants.map((p) => p.userId),
             ...collabInvites.map((i) => i.inviteeId),
+            ...(await getHiddenPeerIds(me.id)),
           ]);
           const accepted = await prisma.connection.findMany({
             where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },

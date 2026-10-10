@@ -17,6 +17,20 @@ const PAGE_SIZE = 30;
 
 const PEOPLE_YOU_MAY_KNOW_LIMIT = 12;
 
+// Exactly what a Discover card renders (DiscoverPeopleList). These rows are sent to the browser, so nothing else of
+// the User row may be fetched here. /discover/page.tsx selects the same fields for the first page.
+const discoverPersonSelect = {
+  id: true,
+  name: true,
+  username: true,
+  avatarUrl: true,
+  country: true,
+  bio: true,
+  trustBand: true,
+  lastSeenAt: true,
+  openToIntents: true,
+} as const;
+
 /**
  * "People you may know" — ranks candidates by mutual-connection count
  * (friend-of-a-friend), the standard social-network suggestion shape.
@@ -157,6 +171,7 @@ export async function loadMoreDiscoverPeople(
             : { trustScore: "desc" },
     take: PAGE_SIZE,
     skip: (page - 1) * PAGE_SIZE,
+    select: discoverPersonSelect,
   });
 
   const peopleIds = people.map((p) => p.id);

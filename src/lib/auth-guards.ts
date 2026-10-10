@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 
 export class AuthError extends Error {}
 
-/** Throws unless there's a signed-in, active, email-verified user. Returns the full user row. */
+/**
+ * Throws unless there's a signed-in, active, email-verified user. Returns the user row minus the secret columns the
+ * Prisma client omits from every query (src/lib/prisma.ts). It is still a whole row: never hand it to a browser.
+ */
 export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -33,6 +36,15 @@ export async function requireVerifiedUser() {
     throw new AuthError("Verify your email to use this feature.");
   }
   return user;
+}
+
+/**
+ * The account's password hash, or null when it has no password (magic-link / OAuth only). It is omitted from every
+ * other User query, so this is how a re-authentication check reads it. Server-side only; never return it.
+ */
+export async function getPasswordHash(userId: string) {
+  const row = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+  return row?.passwordHash ?? null;
 }
 
 export async function requireAdmin() {

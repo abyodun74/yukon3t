@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth-guards";
+import { getPasswordHash, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import {
   onboardingSchema,
@@ -23,6 +23,8 @@ import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trus
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 import { getClientIp } from "@/lib/client-ip";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
+import type { HiddenState } from "@/lib/hidden-chats-rules";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -180,13 +182,14 @@ export async function setPassword(formData: FormData) {
   // silently install a password-login backdoor that outlives the cookie
   // itself. Only enforced once a password already exists; the very first
   // "set a password" from a magic-link-only account has nothing to re-prove.
-  if (user.passwordHash) {
+  const currentPasswordHash = await getPasswordHash(user.id);
+  if (currentPasswordHash) {
     const allowed = await checkRateLimit("passwordLogin", user.id);
     if (!allowed) {
       redirect("/settings?error=rate_limited");
     }
     const currentValid =
-      parsed.data.currentPassword && (await verifyPassword(parsed.data.currentPassword, user.passwordHash));
+      parsed.data.currentPassword && (await verifyPassword(parsed.data.currentPassword, currentPasswordHash));
     if (!currentValid) {
       redirect("/settings?error=current_password_invalid");
     }
@@ -334,6 +337,12 @@ export async function exportMyData() {
     return { error: "rate_limited" as const, data: null };
   }
 
+  // Hidden chats stay out of the file unless the PIN unlock is live: otherwise this download would hand over, to
+  // anyone holding the signed-in phone, exactly what the PIN is there to keep back.
+  const hidden: HiddenState = (await isHiddenUnlocked(user.id))
+    ? { conversationIds: [], peerIds: [] }
+    : await getHiddenState(user.id);
+
   const data = await prisma.user.findUnique({
     where: { id: user.id },
     // Internal security fields — a bcrypt hash, lockout/session-revocation
@@ -347,18 +356,48 @@ export async function exportMyData() {
       failedLoginAt: true,
       lockedUntil: true,
       loginIssueResolvedAt: true,
+      hiddenChatsPinHash: true,
+      hiddenPinFailedAttempts: true,
+      hiddenPinLockedUntil: true,
+      emailOtpCodeHash: true,
+      emailOtpExpires: true,
+      emailOtpAttempts: true,
     },
     include: {
       posts: true,
       collabPosts: true,
       circleMemberships: { include: { circle: true } },
-      sentConnections: true,
-      receivedConnections: true,
-      sentMessages: true,
+      sentConnections: { where: { targetId: { notIn: hidden.peerIds } } },
+      receivedConnections: { where: { requesterId: { notIn: hidden.peerIds } } },
+      sentMessages: { where: { conversationId: { notIn: hidden.conversationIds } } },
       reportsFiled: true,
     },
   });
-  return { error: null, data: JSON.stringify(data, null, 2) };
+  if (!data || (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0)) {
+    return { error: null, data: JSON.stringify(data, null, 2) };
+  }
+
+  // A report names who it is about and, for a message, which one (plus its text, from a secret chat): one about a
+  // hidden peer, or about a message in a hidden chat, is left out as well. Filtered here rather than in the query
+  // because reportedUserId is nullable, and SQL's NOT IN would drop every report that has none.
+  const reportedMessageIds = data.reportsFiled.filter((r) => r.targetType === "MESSAGE").map((r) => r.targetId);
+  const hiddenMessageIds = new Set(
+    reportedMessageIds.length > 0 && hidden.conversationIds.length > 0
+      ? (
+          await prisma.message.findMany({
+            where: { id: { in: reportedMessageIds }, conversationId: { in: hidden.conversationIds } },
+            select: { id: true },
+          })
+        ).map((m) => m.id)
+      : [],
+  );
+  const reportsFiled = data.reportsFiled.filter(
+    (r) =>
+      !(r.reportedUserId && hidden.peerIds.includes(r.reportedUserId)) &&
+      !(r.targetType === "USER" && hidden.peerIds.includes(r.targetId)) &&
+      !(r.targetType === "MESSAGE" && hiddenMessageIds.has(r.targetId)),
+  );
+  return { error: null, data: JSON.stringify({ ...data, reportsFiled }, null, 2) };
 }
 
 /**

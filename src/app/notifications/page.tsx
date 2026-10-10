@@ -4,12 +4,17 @@ import { BackButton } from "@/components/back-button";
 import { NotificationRow } from "@/components/notification-row";
 import { GroupedNotificationRow } from "@/components/grouped-notification-row";
 import { MarkAllReadButton } from "@/components/mark-all-read-button";
+import { getHiddenState } from "@/lib/hidden-chats";
+import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 
 export default async function NotificationsPage() {
   const me = await getSessionUserOrRedirect();
 
+  // Rows from a hidden chat, or private ones (message, missed call, screenshot) from a hidden 1:1 peer, are never
+  // listed here, including rows created before the chat was hidden. They reappear if the chat is unhidden.
+  const hidden = await getHiddenState(me.id);
   const notifications = await prisma.notification.findMany({
-    where: { recipientId: me.id },
+    where: { recipientId: me.id, AND: visibleNotificationWhere(hidden) },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: {

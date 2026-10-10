@@ -14,6 +14,21 @@ export async function isBlockedEitherWay(userAId: string, userBId: string) {
   return !!block;
 }
 
+/** True if `userId` has blocked, or been blocked by, anyone in `otherIds`. */
+export async function isBlockedWithAny(userId: string, otherIds: string[]) {
+  if (otherIds.length === 0) return false;
+  const block = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: userId, blockedId: { in: otherIds } },
+        { blockerId: { in: otherIds }, blockedId: userId },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!block;
+}
+
 /** Everyone `userId` has blocked or been blocked by — used to filter list views like Discover. */
 export async function getBlockedEitherWayIds(userId: string) {
   const rows = await prisma.block.findMany({

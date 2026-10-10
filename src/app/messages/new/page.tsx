@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createGroupChat } from "@/app/actions/messages";
 import { MultiSelect } from "@/components/multi-select";
 import { BackButton } from "@/components/back-button";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 
 export default async function NewGroupChatPage({
   searchParams,
@@ -23,7 +24,10 @@ export default async function NewGroupChatPage({
     },
     orderBy: { respondedAt: "desc" },
   });
-  const connections = accepted.map((c) => (c.requesterId === me.id ? c.target : c.requester));
+  const hiddenPeerIds = new Set(await getHiddenPeerIds(me.id));
+  const connections = accepted
+    .map((c) => (c.requesterId === me.id ? c.target : c.requester))
+    .filter((u) => !hiddenPeerIds.has(u.id));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">

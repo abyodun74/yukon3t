@@ -46,6 +46,7 @@ async function main() {
 
   const user = await prisma.user.findFirst({
     where: { OR: [{ username: { equals: identifier, mode: "insensitive" } }, { email: identifier.toLowerCase() }] },
+    omit: { passwordHash: false },
   });
 
   if (!user) {

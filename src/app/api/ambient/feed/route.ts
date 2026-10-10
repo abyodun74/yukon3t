@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 
 /**
  * The actual surface a future native widget/watch app would poll — see
@@ -51,8 +52,9 @@ export async function GET(request: Request) {
     .update({ where: { id: widgetToken.id }, data: { lastUsedAt: new Date() } })
     .catch(() => {});
 
+  // This feed is meant for a lock-screen widget: someone whose chat the owner has hidden is never shown on it.
   const members = await prisma.innerCircleMember.findMany({
-    where: { ownerId: widgetToken.userId },
+    where: { ownerId: widgetToken.userId, memberId: { notIn: await getHiddenPeerIds(widgetToken.userId) } },
     select: { memberId: true },
   });
   const memberIds = members.map((m) => m.memberId);

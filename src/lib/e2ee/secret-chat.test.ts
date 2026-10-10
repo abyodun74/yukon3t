@@ -62,8 +62,13 @@ describe("textForModeration — nothing from a secret chat reaches the scanner",
 
 describe("pushPreview — notifications never leak message text", () => {
   it("shows a generic line for secret text", () => {
-    expect(pushPreview({ secret: true, content: CIPHERTEXT, mediaType: "NONE" })).toBe("New secret message");
-    expect(pushPreview({ secret: true, content: "should never appear", mediaType: "NONE" })).toBe("New secret message");
+    expect(pushPreview({ secret: true, content: CIPHERTEXT, mediaType: "NONE" })).toBe("New message");
+    expect(pushPreview({ secret: true, content: "should never appear", mediaType: "NONE" })).toBe("New message");
+  });
+  it("never says the chat is secret", () => {
+    for (const mediaType of ["NONE", "IMAGE", "VIDEO", "GIF", "AUDIO"] as const) {
+      expect(pushPreview({ secret: true, content: CIPHERTEXT, mediaType })).not.toMatch(/secret|encrypt|🔒/i);
+    }
   });
   it("never shows ciphertext in a non-secret chat either", () => {
     expect(pushPreview({ secret: false, content: CIPHERTEXT, mediaType: "NONE" })).toBe("New message");
@@ -82,8 +87,8 @@ describe("pushPreview — notifications never leak message text", () => {
 });
 
 describe("inboxPreview", () => {
-  it("replaces ciphertext with a readable label", () => {
-    expect(inboxPreview(CIPHERTEXT)).toBe("🔒 Secret message");
+  it("replaces ciphertext with a plain label that doesn't mark the chat as secret", () => {
+    expect(inboxPreview(CIPHERTEXT)).toBe("Message");
   });
   it("leaves ordinary text alone", () => {
     expect(inboxPreview("hi")).toBe("hi");

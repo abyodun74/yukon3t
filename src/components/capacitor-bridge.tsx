@@ -12,6 +12,7 @@ import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
+import { useCallSession } from "@/lib/call-session";
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -68,6 +69,13 @@ export function CapacitorBridge() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+  // Same ref-mirror reasoning, for whether a call/live session is up right
+  // now — also read by the resume listener below.
+  const { session: callSession, outgoingRingRef } = useCallSession();
+  const callSessionActiveRef = useRef(callSession !== null);
+  useEffect(() => {
+    callSessionActiveRef.current = callSession !== null;
+  }, [callSession]);
 
   // Not native-gated, unlike the rest of this component — this app-wide
   // "only one video plays at a time" rule applies equally to the plain web
@@ -233,6 +241,9 @@ export function CapacitorBridge() {
     // other than Home — breaking photo AND video attach everywhere except
     // Home, with no error, just a vanished composer. See
     // native-picker-activity.ts.
+    //
+    // And skipped for the whole of a call or live session, and while an
+    // outgoing call is ringing — see the guard inside the listener.
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
       App.addListener("resume", () => {
@@ -255,6 +266,12 @@ export function CapacitorBridge() {
           setTimeout(resolveStuckImperativePicker, 1000);
           return;
         }
+        // Coming back to the app mid-call (or while your own outgoing call
+        // is still ringing) is exactly when being moved somewhere else is
+        // least wanted — and for the ringing case it was actively harmful:
+        // the navigation unmounted the CallButton that owned the ring (see
+        // outgoingRingRef on CallSessionContext).
+        if (callSessionActiveRef.current || outgoingRingRef.current) return;
         const current = pathnameRef.current;
         if (current === "/home") return;
         if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
@@ -320,7 +337,9 @@ export function CapacitorBridge() {
       actionListener?.remove();
       resumeListener?.remove();
     };
-  }, [router]);
+    // outgoingRingRef is a ref object owned by CallSessionProvider — the
+    // same identity for the life of the app, so listing it changes nothing.
+  }, [router, outgoingRingRef]);
 
   // Reacts to the in-session client-side navigation that lands on /home —
   // /home?onboarded=1 specifically is completeOnboarding's redirect (see

@@ -6,6 +6,9 @@ import { pushActivityNotification } from "@/lib/notify-push";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { screenshotTargetSchema } from "@/lib/validations";
+import { sendFcmActivityToUser } from "@/lib/fcm";
+import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-chats";
+import { HIDDEN_PUSH_TYPE, hiddenPushPayload } from "@/lib/hidden-chats-rules";
 
 type ScreenshotTarget =
   | { type: "post"; id: string }
@@ -23,6 +26,9 @@ async function notifyOne(
   actorName: string,
   fk: { postId?: string; storyId?: string; conversationId?: string },
   url: string,
+  // The recipient has this conversation hidden: the row is still written (the bell and its count leave out rows of
+  // a hidden chat, and it is there if they unhide it), but the push names nobody and doesn't link to the thread.
+  hiddenForRecipient = false,
 ) {
   if (recipientId === actorId) return;
   if (await isBlockedEitherWay(recipientId, actorId)) return;
@@ -42,6 +48,12 @@ async function notifyOne(
   await prisma.notification.create({
     data: { recipientId, actorId, type: "SCREENSHOT_TAKEN", ...fk },
   });
+  // Also when the recipient has hidden their 1:1 chat with this person and the screenshot was of something else (a
+  // post, a story, their profile): that bell row is left out too (HIDDEN_PEER_NOTIFICATION_TYPES).
+  if (hiddenForRecipient || (await getHiddenPeerIds(recipientId)).includes(actorId)) {
+    await sendFcmActivityToUser(recipientId, { ...hiddenPushPayload(), type: HIDDEN_PUSH_TYPE });
+    return;
+  }
   await pushActivityNotification(recipientId, "SCREENSHOT_TAKEN", actorName, url);
 }
 
@@ -86,9 +98,18 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
       });
       // Only someone in the conversation can have screenshotted it.
       if (!members.some((m) => m.userId === user.id)) return { error: "not_found" };
+      const others = members.filter((m) => m.userId !== user.id).map((m) => m.userId);
+      const hiding = new Set(await getMembersHidingConversation(target.id, others));
       await Promise.all(
-        members.filter((m) => m.userId !== user.id).map((m) =>
-          notifyOne(m.userId, user.id, user.name ?? "Someone", { conversationId: target.id }, `/messages/${target.id}`),
+        others.map((recipientId) =>
+          notifyOne(
+            recipientId,
+            user.id,
+            user.name ?? "Someone",
+            { conversationId: target.id },
+            `/messages/${target.id}`,
+            hiding.has(recipientId),
+          ),
         ),
       );
       return { error: null };

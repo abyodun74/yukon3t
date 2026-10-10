@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEventHandler } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,21 +12,37 @@ export function PasswordInput({
   maxLength,
   placeholder,
   className,
+  wrapperClassName,
   autoComplete,
+  autoCapitalize,
+  autoCorrect,
+  spellCheck,
+  value,
+  onChange,
+  defaultVisible = false,
 }: {
   id?: string;
-  name: string;
+  name?: string;
   required?: boolean;
   minLength?: number;
   maxLength?: number;
   placeholder?: string;
   className?: string;
+  wrapperClassName?: string;
   autoComplete?: string;
+  autoCapitalize?: string;
+  autoCorrect?: string;
+  spellCheck?: boolean;
+  /** Pass with `onChange` to control the field; omit both to leave it uncontrolled (a plain form field read by `name`). */
+  value?: string;
+  onChange?: ChangeEventHandler<HTMLInputElement>;
+  /** Start with the characters showing; the eye button still hides them. */
+  defaultVisible?: boolean;
 }) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(defaultVisible);
 
   return (
-    <div className="relative">
+    <div className={cn("relative", wrapperClassName)}>
       <input
         id={id}
         type={visible ? "text" : "password"}
@@ -36,6 +52,11 @@ export function PasswordInput({
         maxLength={maxLength}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        spellCheck={spellCheck}
+        value={value}
+        onChange={onChange}
         className={cn(className, "pr-10")}
       />
       <button

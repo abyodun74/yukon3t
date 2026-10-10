@@ -201,7 +201,7 @@ export async function confirmEmailOtp(formData: FormData) {
   }
 
   const code = String(formData.get("code") ?? "").trim();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, omit: { emailOtpCodeHash: false } });
   if (!user || !user.emailOtpCodeHash || !user.emailOtpExpires) {
     redirect("/verify-email?error=expired");
   }
@@ -347,6 +347,7 @@ export async function loginWithPassword(formData: FormData) {
     where: {
       OR: [{ email: identifier.toLowerCase() }, { username: identifier }],
     },
+    omit: { passwordHash: false },
   });
   if (!user) {
     // Usernames are unique case-insensitively for new sign-ups, so "Bola" and "bola" are the same person — but only
@@ -354,6 +355,7 @@ export async function loginWithPassword(formData: FormData) {
     const loose = await prisma.user.findMany({
       where: { username: { equals: identifier, mode: "insensitive" } },
       take: 2,
+      omit: { passwordHash: false },
     });
     if (loose.length === 1) user = loose[0];
   }
@@ -598,9 +600,12 @@ export async function resetPassword(formData: FormData) {
   const parsed = resetPasswordSchema.safeParse({
     token: formData.get("token"),
     password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword") ?? "",
   });
   if (!parsed.success) {
-    redirect(`/reset-password?token=${formData.get("token") ?? ""}&error=invalid`);
+    const rawToken = encodeURIComponent(String(formData.get("token") ?? ""));
+    const mismatch = parsed.error.issues.some((i) => i.path[0] === "confirmPassword");
+    redirect(`/reset-password?token=${rawToken}&error=${mismatch ? "mismatch" : "invalid"}`);
   }
   const { token, password } = parsed.data;
 

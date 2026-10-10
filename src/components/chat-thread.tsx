@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
-import { Camera, Check, CheckCheck, Circle, Clock, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Camera, Check, CheckCheck, Circle, Clock, Eye, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -26,7 +27,10 @@ import { Lightbox } from "@/components/lightbox";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { getStory } from "@/app/actions/stories";
 import type { EmbedProvider } from "@/lib/video-embed";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { uploadFileDirect, uploadViewOnceMedia, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { sendViewOnceMessage } from "@/app/actions/view-once";
+import { ViewOnceViewer } from "@/components/view-once-viewer";
+import { VIEW_ONCE_MAX_VIDEO_BYTES, viewOnceLabel, viewOnceState } from "@/lib/view-once";
 import { hapticSelection } from "@/lib/haptics";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
 import { isEmojiOnly, QUICK_REACTIONS } from "@/lib/emoji";
@@ -43,6 +47,7 @@ import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { getDraft, setDraft } from "@/lib/message-draft-storage";
 import { announce } from "@/lib/announce";
+import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -57,6 +62,39 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+
+// A hidden chat's PIN unlock ran out while the thread was open.
+const HIDDEN_LOCKED_MESSAGE = "Enter your PIN to keep chatting.";
+
+function viewOnceErrorMessage(code: string) {
+  switch (code) {
+    case "unavailable":
+      return "View once isn't available right now.";
+    case "not_supported":
+      return "View once only works in one-to-one chats.";
+    case "too_large":
+      return "That's too large to send as view once.";
+    case "invalid_type":
+      return "That file type can't be sent as view once.";
+    case "frame_required":
+      return "Couldn't prepare that video for view once on this device.";
+    case "moderation":
+      return "That violates our Community Guidelines and wasn't sent.";
+    case "moderation_unavailable":
+      return "Couldn't check that right now, so it wasn't sent — try again in a moment.";
+    case "blocked":
+      return "This message couldn't be delivered.";
+    case "hidden_locked":
+      return HIDDEN_LOCKED_MESSAGE;
+    case "rate_limited":
+      return "Slow down a little.";
+    case "network":
+    case "stale_deployment":
+      return "Couldn't reach the server — check your connection and try again.";
+    default:
+      return "Couldn't send that.";
+  }
+}
 
 function dictationErrorMessage(code: string) {
   switch (code) {
@@ -107,6 +145,11 @@ type MessageData = {
     caption: string | null;
   } | null;
   isForwardedStory: boolean;
+  // A "for your eyes only" photo/video: mediaUrl is always null (the file is in the private bucket and is fetched
+  // once, through ViewOnceViewer), mediaType says which it is, and these say what the chip shows.
+  viewOnce: boolean;
+  viewOnceOpenedAt: Date | null;
+  viewOnceExpiresAt: Date | null;
   // View-only (never from the server): set by ChatThread's viewOf() on a message whose stored body was
   // ciphertext, so the bubble can hide corrections and attach the decrypted text to a report.
   wasEncrypted?: boolean;
@@ -249,6 +292,49 @@ function CorrectionList({
   );
 }
 
+/** Stands in for the media of a view-once message — the bubble never has the photo or video itself. */
+function ViewOnceChip({
+  message,
+  mine,
+  sending,
+  onOpen,
+}: {
+  message: MessageData;
+  mine: boolean;
+  sending: boolean;
+  onOpen: () => void;
+}) {
+  // Read once per mount: the only thing the clock decides here is "expired", 14 days out.
+  const [now] = useState(() => Date.now());
+  const mediaType = message.mediaType === "VIDEO" ? "VIDEO" : "IMAGE";
+  const state = viewOnceState({ ...message, mine, sending }, now);
+  const label = viewOnceLabel(state, mediaType);
+
+  if (state === "available") {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1.5 text-sm font-medium hover:bg-black/10"
+      >
+        <Eye size={15} aria-hidden className="shrink-0 text-accent" />
+        {label}
+      </button>
+    );
+  }
+  return (
+    <p className={cn("flex items-center gap-1.5 italic", mine ? "text-accent-ink/80" : "text-foreground-soft")}>
+      <Eye size={15} aria-hidden className="shrink-0" />
+      <span>
+        {label}
+        {mine && state === "opened" && message.viewOnceOpenedAt && (
+          <span suppressHydrationWarning> · {formatTime(message.viewOnceOpenedAt)}</span>
+        )}
+      </span>
+    </p>
+  );
+}
+
 function MessageBubble({
   message,
   mine,
@@ -260,6 +346,7 @@ function MessageBubble({
   onReacted,
   onCorrected,
   onReply,
+  onViewOnceOpened,
   secretActive,
   encryptForEdit,
 }: {
@@ -275,6 +362,8 @@ function MessageBubble({
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
   onCorrected: (messageId: string, corrections: CorrectionData[]) => void;
   onReply: (message: MessageData) => void;
+  /** The recipient's one open of a view-once message was claimed on the server. */
+  onViewOnceOpened: (messageId: string) => void;
   /** This is a secret (end-to-end encrypted) chat: edits must be encrypted, and corrections aren't offered. */
   secretActive: boolean;
   encryptForEdit: (text: string) => Promise<string>;
@@ -300,6 +389,7 @@ function MessageBubble({
   const [correctionDraft, setCorrectionDraft] = useState("");
   const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [imageOpen, setImageOpen] = useState(false);
+  const [viewOnceOpen, setViewOnceOpen] = useState(false);
   const [storyViewer, setStoryViewer] = useState<{
     stories: StoryData[];
     authorId: string;
@@ -477,7 +567,7 @@ function MessageBubble({
     if (!text || isPending) return;
     setEditError(null);
     if (secretActive && utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
-      setEditError("That's too long for a secret chat - please shorten it.");
+      setEditError("That's too long to send - please shorten it.");
       return;
     }
     startTransition(async () => {
@@ -488,7 +578,7 @@ function MessageBubble({
         try {
           wire = await encryptForEdit(text);
         } catch {
-          setEditError("Couldn't encrypt that edit.");
+          setEditError("Couldn't save that edit.");
           return;
         }
       }
@@ -681,6 +771,9 @@ function MessageBubble({
                   onClose={() => setStoryViewer(null)}
                 />
               )}
+              {message.viewOnce && (
+                <ViewOnceChip message={message} mine={mine} sending={sending} onOpen={() => setViewOnceOpen(true)} />
+              )}
               {message.mediaType === "AUDIO" && message.mediaUrl && (
                 <audio controls preload="metadata" aria-label="Voice note" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
               )}
@@ -859,7 +952,7 @@ function MessageBubble({
               >
                 Reply
               </button>
-              {!mine && !secretActive && !message.wasEncrypted && (
+              {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -885,7 +978,7 @@ function MessageBubble({
                   Report
                 </button>
               )}
-              {mine && (
+              {mine && !message.viewOnce && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -934,6 +1027,15 @@ function MessageBubble({
           )}
         </div>
       )}
+      {/* Out here, not inside the bubble: that div owns the swipe-to-reply pointer handlers and a transform. */}
+      {viewOnceOpen && (
+        <ViewOnceViewer
+          messageId={message.id}
+          mediaType={message.mediaType === "VIDEO" ? "VIDEO" : "IMAGE"}
+          onOpened={() => onViewOnceOpened(message.id)}
+          onClose={() => setViewOnceOpen(false)}
+        />
+      )}
       {reportEverOpened && (
         <ReportModal
           targetType="MESSAGE"
@@ -956,6 +1058,7 @@ export function ChatThread({
   isGroup,
   conversationLabel,
   members: initialMembers,
+  viewOnceAvailable = false,
 }: {
   conversationId: string;
   initialMessages: MessageData[];
@@ -963,6 +1066,8 @@ export function ChatThread({
   isGroup: boolean;
   conversationLabel: string;
   members: MemberData[];
+  /** A 1:1 chat on a deployment whose private bucket is set up: the composer offers "View once" on a photo or video. */
+  viewOnceAvailable?: boolean;
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
@@ -979,11 +1084,20 @@ export function ChatThread({
   // A picked Giphy GIF URL, not a File — never uploaded, so it skips
   // uploadPendingMedia's File-handling branches entirely.
   const [pendingGif, setPendingGif] = useState<string | null>(null);
+  // The "View once" switch on a pending photo/video. Only counts while there is one (viewOnceOn).
+  const [viewOnce, setViewOnce] = useState(false);
+  const viewOnceOn = viewOnce && viewOnceAvailable && Boolean(pendingImage || pendingVideo);
   const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [showDictation, setShowDictation] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  // The server answers "hidden_locked" once this (hidden) chat's PIN unlock has expired or been cleared. Go to the PIN
+  // prompt, which returns here; the composer's text is already kept as a draft.
+  const promptHiddenUnlock = useCallback(() => {
+    router.replace(hiddenUnlockPath(conversationId));
+  }, [router, conversationId]);
   const [isPending, startTransition] = useTransition();
 
   // Secret chats (end-to-end encrypted text) - 1:1 only; inert for groups. See src/lib/e2ee/.
@@ -1084,7 +1198,10 @@ export function ChatThread({
     const forId = conversationIdRef.current;
     const result = await getConversationMessages(forId);
     // Ignore a response that arrives after the user has switched threads.
-    if (conversationIdRef.current !== forId || result.error !== null) return;
+    if (conversationIdRef.current !== forId) return;
+    // This (hidden) chat's PIN unlock has run out: back to the PIN prompt, which returns here.
+    if (result.error === "hidden_locked") return router.replace(hiddenUnlockPath(forId));
+    if (result.error !== null) return;
 
     const signature = JSON.stringify(result);
     if (signature === lastSignatureRef.current) return;
@@ -1100,7 +1217,7 @@ export function ChatThread({
         })),
       );
     }
-  }, []);
+  }, [router]);
 
   // Ref indirection so the mount/conversation-switch effect below reads as
   // a plain property access to React's own static analysis — same pattern
@@ -1183,6 +1300,7 @@ export function ChatThread({
     setPendingVideo(null);
     setPendingImage(null);
     setPendingGif(null);
+    setViewOnce(false);
     setReplyTarget(null);
     setError(null);
     knownMessageIdsRef.current = new Set(initialMessages.map((m) => m.id));
@@ -1318,6 +1436,9 @@ export function ChatThread({
       corrections: [],
       story: null,
       isForwardedStory: false,
+      viewOnce: false,
+      viewOnceOpenedAt: null,
+      viewOnceExpiresAt: null,
       replyTo: params.replyTo
         ? {
             id: params.replyTo.id,
@@ -1333,19 +1454,108 @@ export function ChatThread({
     };
   }
 
+  function toggleViewOnce() {
+    if (!viewOnce && pendingVideo && pendingVideo.size > VIEW_ONCE_MAX_VIDEO_BYTES) {
+      setError("View-once videos must be 64MB or smaller.");
+      return;
+    }
+    setError(null);
+    setViewOnce((v) => !v);
+  }
+
+  /**
+   * Sends the pending photo/video as a view-once message: private upload, then sendViewOnceMessage. The bubble shown
+   * meanwhile (and afterwards) is only the chip — the sender's thread never holds a preview of it. Whatever is typed
+   * in the composer stays there: a view-once message carries no text.
+   */
+  function handleSendViewOnce() {
+    const image = pendingImage;
+    const video = image ? null : pendingVideo;
+    const file = image ?? video;
+    if (!file) return;
+    if (video && video.size > VIEW_ONCE_MAX_VIDEO_BYTES) {
+      setError("View-once videos must be 64MB or smaller.");
+      return;
+    }
+    const replyTo = replyTarget;
+    setPendingImage(null);
+    setPendingVideo(null);
+    setViewOnce(false);
+    setReplyTarget(null);
+    setError(null);
+
+    const optimisticId = `${OPTIMISTIC_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...buildOptimisticMessage({
+          id: optimisticId,
+          content: "",
+          mediaType: video ? "VIDEO" : "IMAGE",
+          mediaUrl: null,
+          replyTo,
+        }),
+        viewOnce: true,
+      },
+    ]);
+    const dropOptimistic = () => setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+    function restore(message: string) {
+      setError(message);
+      setPendingImage(image);
+      setPendingVideo(video);
+      setViewOnce(true);
+      setReplyTarget(replyTo);
+      dropOptimistic();
+    }
+
+    startTransition(async () => {
+      const uploaded = await uploadViewOnceMedia(file, conversationId);
+      if (!uploaded.ok) {
+        restore(viewOnceErrorMessage(uploaded.error));
+        if (uploaded.error === "hidden_locked") promptHiddenUnlock();
+        return;
+      }
+      let result;
+      try {
+        result = await sendViewOnceMessage({
+          conversationId,
+          objectKey: uploaded.objectKey,
+          frameKey: uploaded.frameKey ?? undefined,
+          mediaType: uploaded.mediaType,
+          replyToMessageId: replyTo?.id,
+        });
+      } catch {
+        restore(viewOnceErrorMessage("network"));
+        return;
+      }
+      if (result.error) {
+        restore(viewOnceErrorMessage(result.error));
+        if (result.error === "hidden_locked") promptHiddenUnlock();
+        return;
+      }
+      await refetch();
+      dropOptimistic();
+      announce("Message sent");
+    });
+  }
+
   function handleSend() {
+    if (isPending) return;
+    if (viewOnceOn) {
+      handleSendViewOnce();
+      return;
+    }
     const text = content.trim();
     if (!text && !pendingAudio && !pendingVideo && !pendingImage && !pendingGif) return;
-    if (isPending) return;
     // In a secret chat the text is encrypted before it leaves this device. If that can't happen, say so and stop -
     // never send it as readable text.
     if (text && secret.active) {
       if (utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
-        setError("That message is too long for a secret chat - please shorten it.");
+        setError("That message is too long - please shorten it.");
         return;
       }
       if (!secret.canEncrypt) {
-        setError("This device can't encrypt yet - unlock your secret chat keys first.");
+        setError("This device can't send messages here yet - unlock your messages first.");
         return;
       }
     }
@@ -1400,7 +1610,7 @@ export function ChatThread({
         try {
           wireContent = await secret.encrypt(text);
         } catch {
-          setError("Couldn't encrypt that message - it was NOT sent.");
+          setError("Couldn't send that message - it was NOT sent.");
           setContent(text);
           setPendingAudio(audio);
           setPendingVideo(video);
@@ -1458,8 +1668,10 @@ export function ChatThread({
             ? "Slow down a little."
             : result.error === "blocked"
               ? "This message couldn't be delivered."
+              : result.error === "hidden_locked"
+                ? HIDDEN_LOCKED_MESSAGE
               : modeChanged
-                ? "This chat's secret setting just changed - tap send again."
+                ? "This chat's settings just changed - tap send again."
                 : "Couldn't send that.",
         );
         setContent(text);
@@ -1469,6 +1681,7 @@ export function ChatThread({
         setPendingGif(gif);
         setReplyTarget(replyTo);
         settleOptimistic(null);
+        if (result.error === "hidden_locked") promptHiddenUnlock();
         return;
       }
       settleOptimistic(result.message ? (result.message as MessageData) : null);
@@ -1553,6 +1766,12 @@ export function ChatThread({
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
   }
 
+  function handleViewOnceOpened(messageId: string) {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId && !m.viewOnceOpenedAt ? { ...m, viewOnceOpenedAt: new Date() } : m)),
+    );
+  }
+
   function handleCorrected(messageId: string, corrections: CorrectionData[]) {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, corrections } : m)));
   }
@@ -1616,6 +1835,23 @@ export function ChatThread({
     node.textContent = lastIncomingText;
   }, [lastIncomingId, lastIncomingAt, lastIncomingText, newestAt]);
 
+  const viewOnceToggle = viewOnceAvailable ? (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={viewOnceOn}
+      onClick={toggleViewOnce}
+      title="The other person can open it once, then it's deleted"
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium",
+        viewOnceOn ? "border-accent bg-accent text-accent-ink" : "border-line text-foreground-soft hover:bg-line",
+      )}
+    >
+      <Eye size={13} aria-hidden />
+      View once
+    </button>
+  ) : null;
+
   return (
     // Viewport minus the top bar and the bottom tab bar — their shared
     // height variables (globals.css) rather than a literal 8rem, because
@@ -1671,6 +1907,7 @@ export function ChatThread({
                   onReacted={handleReacted}
                   onCorrected={handleCorrected}
                   onReply={setReplyTarget}
+                  onViewOnceOpened={handleViewOnceOpened}
                 />
               </div>
             </div>
@@ -1728,10 +1965,14 @@ export function ChatThread({
       {pendingVideo && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">Video ready to send</span>
+          <span className="flex-1 truncate">{viewOnceOn ? "View-once video · sent without a caption" : "Video ready to send"}</span>
+          {viewOnceToggle}
           <button
             type="button"
-            onClick={() => setPendingVideo(null)}
+            onClick={() => {
+              setPendingVideo(null);
+              setViewOnce(false);
+            }}
             aria-label="Remove video"
             className="p-2 -m-2 text-danger"
           >
@@ -1743,10 +1984,14 @@ export function ChatThread({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview, not an optimizable remote image */}
           <img src={pendingImagePreviewUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="flex-1 truncate">Photo ready to send</span>
+          <span className="flex-1 truncate">{viewOnceOn ? "View-once photo · sent without a caption" : "Photo ready to send"}</span>
+          {viewOnceToggle}
           <button
             type="button"
-            onClick={() => setPendingImage(null)}
+            onClick={() => {
+              setPendingImage(null);
+              setViewOnce(false);
+            }}
             aria-label="Remove photo"
             className="p-2 -m-2 text-danger"
           >
@@ -1845,7 +2090,9 @@ export function ChatThread({
           maxLength={4000}
           rows={1}
           placeholder={
-            pendingAudio || pendingVideo || pendingImage || pendingGif
+            viewOnceOn
+              ? "View-once media is sent without a caption"
+              : pendingAudio || pendingVideo || pendingImage || pendingGif
               ? "Add a caption (optional)..."
               : `Message ${conversationLabel}...`
           }

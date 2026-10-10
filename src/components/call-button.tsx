@@ -9,6 +9,8 @@ import { startRingback, stopRingback } from "@/lib/ringback";
 import { Sheet } from "@/components/sheet";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { isCallOverStatus } from "@/lib/call-resilience";
+import { endCallDurably } from "@/lib/end-call-durably";
 
 type CallType = "AUDIO" | "VIDEO";
 
@@ -43,7 +45,7 @@ export function CallButton({
   currentUserId: string;
 }) {
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
-  const { startSession, endSession } = useCallSession();
+  const { startSession, endSession, outgoingRingRef } = useCallSession();
 
   // The "ringing"/"duplicate" dialogs below now stay mounted through their
   // own close animation (Sheet's AnimatePresence — see that file), but
@@ -67,11 +69,46 @@ export function CallButton({
   // on the call first (cancel()/checkStatus()'s DECLINED/ENDED branches, or
   // this component unmounting mid-ring).
   const pendingPrewarmKeyRef = useRef<string | null>(null);
+
+  // Ref mirror so checkStatus (below) always reads the current phase/callId
+  // without needing to be recreated every time state changes — it's used
+  // both as a realtime handler (which only takes a payload argument) and
+  // called directly on phase-entry. Also what the unmount cleanup below
+  // reads, for the same reason.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+
+  // This component owns an outgoing ring outright — the "Calling" sheet, the
+  // status subscription and the hand-off to the call session all live here —
+  // so one that's still ringing when it unmounts (navigating away mid-ring)
+  // has nobody left to connect it: the callee's phone would keep ringing,
+  // and accepting would leave them alone in a call stuck at ACCEPTED.
+  // Unmounting therefore cancels the call, exactly like tapping Cancel.
+  // endCall's own RINGING guard covers the callee answering at that same
+  // moment (it becomes a normal hang-up instead). Nothing is left to notice
+  // a failed request once this has unmounted, hence endCallDurably.
   useEffect(() => {
     return () => {
       if (pendingPrewarmKeyRef.current) cancelPrewarm(pendingPrewarmKeyRef.current);
+      const last = stateRef.current;
+      if (last.phase === "ringing") endCallDurably(last.callId);
     };
   }, []);
+
+  // Tells the native app's reset-to-Home on resume (capacitor-bridge.tsx)
+  // to stand down while this is ringing — that navigation is the most
+  // common way this component would get unmounted mid-ring in the first
+  // place (switching apps for a moment while waiting for an answer).
+  const isRinging = state.phase === "ringing";
+  useEffect(() => {
+    if (!isRinging) return undefined;
+    outgoingRingRef.current = true;
+    return () => {
+      outgoingRingRef.current = false;
+    };
+  }, [isRinging, outgoingRingRef]);
 
   // Hands the fullscreen/minimizable UI off to the root-mounted
   // GlobalCallFrame the moment the call connects, so navigating away doesn't
@@ -90,9 +127,19 @@ export function CallButton({
       renderer: "direct",
       label: calleeName,
       onLeave: () => {
-        endCall(state.callId);
+        // Can now be reached with the network still down (a reconnect that
+        // ran out of retries), so this keeps retrying after the call UI is
+        // gone — see endCallDurably. If it never gets through, the other
+        // side's own grace period, or failing that the stale-ACCEPTED sweep,
+        // closes the row.
+        endCallDurably(state.callId);
         setState({ phase: "idle" });
       },
+      isOver: async () => {
+        const result = await getCallStatus(state.callId);
+        return result.error ? true : isCallOverStatus(result.status);
+      },
+      call: { callId: state.callId, currentUserId },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
@@ -106,15 +153,6 @@ export function CallButton({
     startRingback();
     return stopRingback;
   }, [state.phase]);
-
-  // Ref mirror so checkStatus (below) always reads the current phase/callId
-  // without needing to be recreated every time state changes — it's used
-  // both as a realtime handler (which only takes a payload argument) and
-  // called directly on phase-entry.
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  });
 
   // Replaces the old 400ms/5s polling interval — this is the ONLY thing
   // that tells the caller's side the callee has accepted (the callee's own

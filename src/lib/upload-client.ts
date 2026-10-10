@@ -7,9 +7,11 @@ import {
   abortMultipartUpload,
   discardUploads,
 } from "@/app/actions/media";
+import { requestViewOnceUpload } from "@/app/actions/view-once";
 import type { UploadKind } from "@/lib/storage";
 import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { holdReload } from "@/lib/stale-build";
+import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
 
 export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -723,4 +725,70 @@ export function probeVideoDuration(file: File): Promise<number | null> {
     };
     probe.onerror = () => finish(null);
   });
+}
+
+export type ViewOnceUploadResult =
+  | { ok: true; objectKey: string; frameKey: string | null; mediaType: ViewOnceMediaType }
+  | { ok: false; error: string };
+
+/**
+ * Uploads one photo or video for a view-once message. A separate path from everything above on purpose: the file
+ * goes to the PRIVATE bucket through its own presigned PUT (actions/view-once.ts), so no public URL for it ever
+ * exists, and it is never prefetched, batched or recorded with the ordinary uploads. A video's still frame goes up
+ * alongside it — it is what the video is moderated by, and the server deletes it as soon as it has been checked.
+ * Same retry/timeout treatment as uploadToStorage. Never throws. The caller passes an already-resized image.
+ */
+export async function uploadViewOnceMedia(file: File, conversationId: string): Promise<ViewOnceUploadResult> {
+  const release = holdReload("work");
+  try {
+    const isVideo = file.type.startsWith("video/");
+    // Before asking for anything: a video whose frame can't be captured on this device would be refused at send.
+    const frame = isVideo ? await captureVideoFrameFromFile(file) : null;
+    if (isVideo && !frame) return { ok: false, error: "frame_required" };
+
+    let presigned;
+    try {
+      presigned = await withRetry(
+        () =>
+          withTimeout(
+            requestViewOnceUpload({ conversationId, contentType: file.type, size: file.size }),
+            MIN_ATTEMPT_TIMEOUT_MS,
+          ),
+        2,
+        800,
+        false,
+        (err) => !isStaleDeploymentError(err),
+      );
+    } catch (err) {
+      return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
+    }
+    if (presigned.error !== null) return { ok: false, error: presigned.error };
+    const { uploadUrl, objectKey, frameUploadUrl, frameKey, mediaType } = presigned;
+
+    const put = (url: string, body: BodyInit, contentType: string, size: number, attempts: number) =>
+      withRetry(
+        () => fetchWithTimeout(url, { method: "PUT", headers: { "Content-Type": contentType }, body }, attemptTimeoutMs(size)),
+        attempts,
+        800,
+        isVideo,
+      );
+
+    try {
+      // See uploadToStorage: an image is sent from memory (Android's stale-temp-file bug), a video streams from the File.
+      const body: BodyInit = isVideo ? file : await file.arrayBuffer();
+      const [mediaRes, frameRes] = await Promise.all([
+        put(uploadUrl, body, file.type, file.size, isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT),
+        frame && frameUploadUrl
+          ? frame.arrayBuffer().then((buf) => put(frameUploadUrl, buf, VIEW_ONCE_FRAME_CONTENT_TYPE, frame.size, PUT_ATTEMPTS_DEFAULT))
+          : null,
+      ]);
+      if (!mediaRes.ok || (frameRes && !frameRes.ok)) return { ok: false, error: "upload_failed" };
+    } catch {
+      return { ok: false, error: "network" };
+    }
+
+    return { ok: true, objectKey, frameKey: frame ? frameKey : null, mediaType };
+  } finally {
+    release();
+  }
 }

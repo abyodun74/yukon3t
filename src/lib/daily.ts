@@ -1,6 +1,8 @@
 // Server-side calls to Daily.co's REST API — same raw-fetch pattern as
 // email.ts and moderation.ts, rather than pulling in a server SDK for two
 // endpoints. The client only ever gets @daily-co/daily-js, for joining.
+import { CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
+
 export function isCallingConfigured() {
   return Boolean(process.env.DAILY_API_KEY);
 }
@@ -16,10 +18,17 @@ function apiKey() {
  * requires a meeting token minted per-participant by createMeetingToken(),
  * not just knowledge of the room URL, since a call's room name/URL is
  * otherwise guessable by anyone who saw the Call row's id.
+ *
+ * The default lifetime is a 1:1 call's (CALL_ROOM_LIFETIME_SECONDS): with
+ * `eject_at_room_exp` below, that is the hard cap on how long one call can
+ * run — it used to be an hour, which cut every long call off mid-sentence.
+ * A meeting token for one of these rooms has to be minted with the same
+ * lifetime (see createMeetingToken's `expiresInSeconds`), or reconnecting
+ * late in a long call would be refused.
  */
 export async function createCallRoom({
   name,
-  expiresInSeconds = 60 * 60,
+  expiresInSeconds = CALL_ROOM_LIFETIME_SECONDS,
 }: {
   name: string;
   expiresInSeconds?: number;
@@ -60,6 +69,7 @@ export async function createMeetingToken({
   userId,
   userName,
   isOwner,
+  expiresInSeconds = 60 * 60,
 }: {
   roomName: string;
   userId: string;
@@ -75,6 +85,15 @@ export async function createMeetingToken({
    * broadcast for a participant, and that's what testing bore out.
    */
   isOwner: boolean;
+  /**
+   * How long the token can be used to (re)join — it doesn't eject anyone
+   * already in the room when it lapses. An hour suits everything that mints
+   * a fresh token on every join (live streams, Collab, Circle voice); a 1:1
+   * call mints both tokens once, at startCall, and rejoins with that same
+   * one after a dropped connection, so calls.ts passes
+   * CALL_ROOM_LIFETIME_SECONDS instead.
+   */
+  expiresInSeconds?: number;
 }) {
   const res = await fetch("https://api.daily.co/v1/meeting-tokens", {
     method: "POST",
@@ -88,7 +107,7 @@ export async function createMeetingToken({
         user_id: userId,
         user_name: userName,
         is_owner: isOwner,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60,
+        exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
       },
     }),
   });

@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { isOldEnough, MIN_AGE, usernameSchema, signUpSchema, phoneSchema } from "@/lib/validations";
+import { isOldEnough, MIN_AGE, usernameSchema, signUpSchema, phoneSchema, resetPasswordSchema } from "@/lib/validations";
+
+describe("resetPasswordSchema", () => {
+  const base = { token: "abc", password: "hunter22!", confirmPassword: "hunter22!" };
+
+  it("accepts matching passwords", () => {
+    expect(resetPasswordSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("rejects a mismatch, flagged on confirmPassword", () => {
+    const r = resetPasswordSchema.safeParse({ ...base, confirmPassword: "hunter23!" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.some((i) => i.path[0] === "confirmPassword")).toBe(true);
+  });
+
+  it("rejects a missing confirmation", () => {
+    expect(resetPasswordSchema.safeParse({ ...base, confirmPassword: "" }).success).toBe(false);
+  });
+
+  it("a too-short password is not reported as a mismatch", () => {
+    const r = resetPasswordSchema.safeParse({ ...base, password: "short", confirmPassword: "short" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.some((i) => i.path[0] === "confirmPassword")).toBe(false);
+  });
+});
 
 describe("isOldEnough", () => {
   it("accepts someone whose birthday already passed this year at the minimum age", () => {

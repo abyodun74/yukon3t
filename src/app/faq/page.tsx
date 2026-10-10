@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { BackButton } from "@/components/back-button";
 import { auth } from "@/lib/auth";
+import { isViewOnceConfigured } from "@/lib/storage";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
@@ -30,7 +31,8 @@ export const metadata: Metadata = {
   },
 };
 
-type Faq = { q: string; a: ReactNode };
+// requiresViewOnce: only shown where view-once messages are actually switched on (isViewOnceConfigured).
+type Faq = { q: string; a: ReactNode; requiresViewOnce?: boolean };
 // hideInIosApp: the ad-booking Q&A points at a web/Stripe purchase flow, which the native iOS app doesn't surface (see HideInIosApp).
 type Section = { title: string; items: Faq[]; hideInIosApp?: boolean };
 
@@ -945,6 +947,40 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I send a photo or video that disappears after it's viewed?",
+        requiresViewOnce: true,
+        a: (
+          <>
+            Yes, in one-to-one chats (not group chats). Attach a photo or
+            video, switch on &ldquo;View once&rdquo; next to it, and send;
+            it goes without a caption, and videos are limited to 64MB. The
+            other person sees &ldquo;tap to view once&rdquo; and can open it
+            a single time. When they do, the file is deleted from our
+            storage: normally the moment it appears on their screen, and
+            within a few minutes at most if their app closes or loses its
+            connection first. After that nobody can open it again: not them,
+            not you, not YuKon3t. If it&apos;s never opened it expires
+            after 14 days, and deleting the message for everyone before
+            it&apos;s opened removes it too. What stays is the record that a
+            view-once message was sent and whether (and when) it was opened;
+            you&apos;ll see &ldquo;Opened&rdquo; on your side.
+            <br />
+            <br />
+            What it can&apos;t do: stop someone keeping a copy. Screenshots
+            and screen recording can&apos;t be prevented. On the mobile apps
+            you&apos;re notified when a screenshot is detected in the chat,
+            but a photo of the screen taken with another device can&apos;t
+            be detected at all. Only send what you&apos;d be comfortable
+            with the other person keeping. And because nothing is kept, a
+            view-once message that has been viewed can&apos;t be reviewed by
+            our moderators if it&apos;s reported. Photos (and one still
+            frame of each video) are checked automatically when sent, the
+            same as any other upload, and you can still report and block the
+            sender.
+          </>
+        ),
+      },
+      {
         q: "Can I see a photo in a chat full-screen?",
         a: (
           <>
@@ -981,15 +1017,78 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I add more people to a call?",
+        a: (
+          <>
+            Yes — once a call is connected, tap the add-person icon next to
+            the hang-up button and pick one of your connections. They get a
+            normal incoming call and join the same call when they accept;
+            while they haven&apos;t answered you&apos;ll see &ldquo;Calling
+            …&rdquo; at the top of the call. Anyone in the call can add one
+            of their own connections, up to 8 people in total. Someone who
+            is already on another call, or who has a block in place with
+            anyone in the call, can&apos;t be added. When a person hangs up
+            they leave on their own and the call carries on for everyone
+            else — it ends once only one person is left. If your phone shows
+            the system call screen for it, that screen names only the person
+            who added you.
+          </>
+        ),
+      },
+      {
         q: "Can I put a call on hold?",
         a: (
           <>
-            Yes — tap the pause icon in the call controls to put a 1:1 voice
+            Yes — tap the pause icon in the call controls to put a voice
             or video call on hold. This pauses your microphone and camera and
             stops you from hearing the other person, and they&apos;ll see
             that you&apos;ve put the call on hold. Tap the same button (now a
             play icon) to resume — your mic and camera pick back up exactly
             how they were before you held the call.
+          </>
+        ),
+      },
+      {
+        q: "What happens to a call if I switch apps or lock my phone?",
+        a: (
+          <>
+            In the YuKon3t app for Android or iPhone, the call carries on:
+            you and the other person can keep talking while the app is in
+            the background or your screen is locked. Your camera pauses
+            while you&apos;re away — phones don&apos;t let a backgrounded
+            app keep filming — so on a video call the other person sees a
+            note that your camera is paused, and your video picks back up
+            when you return to the app. In a phone&apos;s web browser
+            it&apos;s different: the browser suspends the page once you
+            leave it, so a call there can&apos;t be kept going in the
+            background — the other person will see that your connection
+            was lost, and the call ends if you&apos;re not back within
+            about a minute and a half. For calls you need to step away
+            from, use the app.
+          </>
+        ),
+      },
+      {
+        q: "What happens if my connection drops during a call?",
+        a: (
+          <>
+            The call isn&apos;t ended straight away. You&apos;ll see
+            &ldquo;Reconnecting…&rdquo; while YuKon3t tries to get you back
+            in, for up to about a minute — handy for a lift, a tunnel, or
+            switching between Wi-Fi and mobile data. Meanwhile the other
+            person sees that your connection was lost and is asked to
+            wait. If you can&apos;t be reconnected in that time the call
+            ends for both of you, and either of you can simply call again.
+          </>
+        ),
+      },
+      {
+        q: "Is there a limit on how long a call can last?",
+        a: (
+          <>
+            A single voice or video call can run for up to 12 hours. After
+            that it ends automatically, and you can start a new one right
+            away.
           </>
         ),
       },
@@ -1056,17 +1155,25 @@ const sections: Section[] = [
             messages is end-to-end encrypted: it&apos;s locked on your phone
             and only unlocked on the other person&apos;s, so not even
             YuKon3t&apos;s servers can read it. You both have to turn it on —
-            open the chat and tap &ldquo;Turn on secret chat&rdquo; — and the
-            first time you&apos;ll choose a recovery passphrase. It works in
+            open the chat, tap the ⋯ at the top and choose &ldquo;Chat
+            privacy&rdquo; — and the first time you&apos;ll choose a recovery
+            passphrase. It works in
             one-to-one chats only, not group chats. Good to know: only
             message <em>text</em> is encrypted — photos, videos, voice notes
             and GIFs are still uploaded and checked like everywhere else, and
             messages sent before you both turned it on weren&apos;t encrypted.
-            Notifications just say &ldquo;New secret message.&rdquo; Secret
+            Once it&apos;s on, nothing on screen marks the chat as secret:
+            there&apos;s no label or lock in the chat or your inbox, and
+            notifications just say &ldquo;New message&rdquo; — the same
+            &ldquo;Chat privacy&rdquo; menu is on every one-to-one chat, and
+            it&apos;s where you check that it&apos;s on, verify the code or
+            turn it off. (Your inbox shows &ldquo;Message&rdquo; in place of
+            the text, because we can&apos;t read it to preview it.) Secret
             chats do not have forward secrecy: your key stays the same, so
             someone who got into your unlocked phone could read that
             chat&apos;s saved history. And because we hand each of you the
-            other&apos;s public key, tap &ldquo;Verify code&rdquo; and compare
+            other&apos;s public key, open &ldquo;Chat privacy,&rdquo; tap
+            &ldquo;Verify code&rdquo; and compare
             the security code with them in person or on a call — if it
             matches on both phones, nobody swapped a key in between and the
             chat is private even from us.
@@ -1101,7 +1208,90 @@ const sections: Section[] = [
             can review it. We can&apos;t independently verify it, so a report
             only contains what you choose to send. Photos and videos in
             secret chats are still checked. You can turn secret chat off at
-            any time, after which new messages are scanned again.
+            any time under &ldquo;Chat privacy,&rdquo; after which new
+            messages are scanned again.
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Hidden chats",
+    items: [
+      {
+        q: "What does hiding a chat do?",
+        a: (
+          <>
+            Open a chat, tap the ⋯ at the top and choose &ldquo;Hide
+            chat.&rdquo; The first time, you choose a PIN of 4 to 8 digits.
+            The chat then leaves your Messages list, stops counting toward
+            your unread badges and the notification bell, and is no longer
+            offered when you share something. For a one-to-one chat, the
+            other person also disappears from your Connections list and from
+            the pickers for starting a group, a call or an invite. Group
+            chats can be hidden too. A new message in a hidden chat still
+            reaches you, but the notification only says &ldquo;You have a new
+            notification,&rdquo; with no name and no preview, and opens the
+            Home screen. An incoming call from someone whose chat you&apos;ve
+            hidden shows as &ldquo;Private call.&rdquo;
+          </>
+        ),
+      },
+      {
+        q: "How do I open a hidden chat, and how do I unhide one?",
+        a: (
+          <>
+            Press and hold the word &ldquo;Messages&rdquo; at the top of your
+            Messages screen, or go to Settings, Privacy, &ldquo;Hidden
+            chats.&rdquo; Enter your PIN and your hidden chats are listed.
+            Both of those entry points are always there for everyone, so they
+            don&apos;t show whether you&apos;ve hidden anything. The area
+            locks again by itself after about 10 minutes, as soon as you
+            leave the app or switch tabs with a hidden chat on screen, when
+            you tap &ldquo;Lock now,&rdquo; and when you sign out. To unhide, open the chat, tap ⋯ and choose
+            &ldquo;Unhide chat.&rdquo;
+          </>
+        ),
+      },
+      {
+        q: "Does the other person know I hid our chat?",
+        a: (
+          <>
+            No. Hiding is one-sided. They aren&apos;t told, nothing changes on
+            their side, and their messages and calls are delivered as usual.
+            They still see you in their own lists.
+          </>
+        ),
+      },
+      {
+        q: "I forgot my PIN. What happens to my hidden chats?",
+        a: (
+          <>
+            On the PIN screen, tap &ldquo;Forgot PIN?&rdquo; and confirm
+            it&apos;s you with your account password. If your account has no
+            password (you sign in with an email link, Google or Apple), we
+            email you a code instead. Then choose a new PIN. Your chats stay
+            hidden and nothing in them is lost. After 5 wrong PINs in a row
+            you have to wait 15 minutes, and longer each time it happens
+            again.
+          </>
+        ),
+      },
+      {
+        q: "What doesn't hiding a chat do?",
+        a: (
+          <>
+            It hides the chat on your account; it doesn&apos;t encrypt it.
+            The messages are stored like any other chat&apos;s, and our
+            moderation still applies. If you want text that even we
+            can&apos;t read, that&apos;s what &ldquo;Chat privacy&rdquo;
+            (secret chats) is for, and you can use both on the same chat.
+            Notifications that were already on your phone before you hid the
+            chat aren&apos;t recalled, so clear them yourself. The person
+            still appears in public places: search, Discover, their profile,
+            and their posts, comments and likes. Tapping &ldquo;Message&rdquo;
+            on their profile asks for your PIN. And anyone who knows your PIN
+            and has your unlocked phone can open the hidden area.
           </>
         ),
       },
@@ -1444,7 +1634,8 @@ const sections: Section[] = [
         q: "I forgot my password.",
         a: (
           <>
-            Use &ldquo;Forgot password&rdquo; on the sign-in page. You can
+            Use &ldquo;Forgot password&rdquo; on the sign-in page, then enter
+            your new password twice to confirm it. You can
             also sign in with just your email link if you&apos;d rather not
             use a password at all.
           </>
@@ -1566,6 +1757,7 @@ const sections: Section[] = [
 export default async function FaqPage() {
   // The FAQ is public: someone signed in goes Back to Home, a visitor to the landing page.
   const session = await auth();
+  const viewOnceAvailable = isViewOnceConfigured();
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
       <BackButton href={session?.user ? "/home" : "/"} />
@@ -1582,7 +1774,9 @@ export default async function FaqPage() {
             <section key={section.hideInIosApp ? undefined : section.title}>
               <h2 className="font-display text-xl font-semibold text-teal">{section.title}</h2>
               <div className="mt-3 space-y-2">
-                {section.items.map((item) => (
+                {section.items
+                  .filter((item) => viewOnceAvailable || !item.requiresViewOnce)
+                  .map((item) => (
                   <details
                     key={item.q}
                     className="group rounded-xl border border-line bg-surface p-4 open:shadow-sm"

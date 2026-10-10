@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { prisma, type TransactionClient } from "@/lib/prisma";
 import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
 
 export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
@@ -24,7 +23,7 @@ export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "CO
 export async function removeModeratedContent(
   targetType: ModeratableTargetType,
   targetId: string,
-  tx: Prisma.TransactionClient = prisma,
+  tx: TransactionClient = prisma,
 ): Promise<{ authorId: string; mediaKeysToDelete: string[] } | null> {
   switch (targetType) {
     case "POST": {

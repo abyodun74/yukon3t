@@ -1,5 +1,6 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { createCollabPost } from "@/app/actions/collab";
 import { CollabCountriesField } from "@/components/collab-countries-field";
 import { CollabScheduleField } from "@/components/collab-schedule-field";
@@ -25,10 +26,11 @@ export default async function NewCollabPostPage({
       target: { select: { id: true, name: true } },
     },
   });
-  const inviteeCandidates = accepted.map((c) => {
-    const other = c.requesterId === me.id ? c.target : c.requester;
-    return { value: other.id, label: other.name ?? "Unknown" };
-  });
+  const hiddenPeerIds = new Set(await getHiddenPeerIds(me.id));
+  const inviteeCandidates = accepted
+    .map((c) => (c.requesterId === me.id ? c.target : c.requester))
+    .filter((other) => !hiddenPeerIds.has(other.id))
+    .map((other) => ({ value: other.id, label: other.name ?? "Unknown" }));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">

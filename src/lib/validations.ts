@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
+import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -126,10 +127,16 @@ export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });
 
-export const resetPasswordSchema = z.object({
-  token: z.string().trim().min(1),
-  password: passwordSchema,
-});
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Those passwords don't match.",
+  });
 
 // HIDDEN is admin-only — enforced server-side in updatePrivacy (src/app/actions/profile.ts),
 // not just by hiding the option in the Settings UI for non-admins.
@@ -633,3 +640,46 @@ export const flaggedContentActionSchema = z.object({
   contentId: z.string().cuid(),
   decision: z.enum(["APPROVE", "REMOVE"]),
 });
+
+// View-once photo/video messages (actions/view-once.ts). Sizes are re-checked against the real object after upload.
+export const viewOnceUploadSchema = z.object({
+  conversationId: z.string().cuid(),
+  contentType: z.string().trim().min(1).max(100),
+  size: z.number().int().positive(),
+});
+
+export const viewOnceSendSchema = z.object({
+  conversationId: z.string().cuid(),
+  objectKey: z.string().trim().min(1).max(500),
+  frameKey: z.string().trim().min(1).max(500).optional(),
+  mediaType: z.enum(["IMAGE", "VIDEO"]),
+  replyToMessageId: z.string().cuid().optional(),
+});
+
+export const viewOnceMessageIdSchema = z.string().cuid();
+
+// Hidden chats (actions/hidden-chats.ts). The PIN is 4-8 digits; the pattern lives with the other rules.
+export const hiddenPinSchema = z.string().regex(HIDDEN_PIN_PATTERN);
+
+const newHiddenPin = { newPin: hiddenPinSchema, confirmPin: z.string().max(8) };
+const pinsMatch = (d: { newPin: string; confirmPin: string }) => d.newPin === d.confirmPin;
+
+export const setHiddenPinSchema = z.object(newHiddenPin).refine(pinsMatch, { path: ["confirmPin"] });
+
+export const changeHiddenPinSchema = z
+  .object({ currentPin: hiddenPinSchema, ...newHiddenPin })
+  .refine(pinsMatch, { path: ["confirmPin"] });
+
+export const resetHiddenPinSchema = z
+  .object({ accountPassword: z.string().min(1).max(72), ...newHiddenPin })
+  .refine(pinsMatch, { path: ["confirmPin"] });
+
+export const resetHiddenPinWithCodeSchema = z
+  .object({
+    challengeId: z.string().min(1).max(64),
+    code: z.string().trim().regex(/^\d{4,10}$/),
+    ...newHiddenPin,
+  })
+  .refine(pinsMatch, { path: ["confirmPin"] });
+
+export const hiddenConversationIdSchema = z.string().cuid();

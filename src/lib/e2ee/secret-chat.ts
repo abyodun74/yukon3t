@@ -50,7 +50,12 @@ export function textForModeration(params: { secret: boolean; content: string }):
   return params.secret || isEncryptedContent(params.content) ? "" : params.content;
 }
 
-/** The one-line summary used for push notifications. Never contains ciphertext, and never text from a secret chat. */
+/**
+ * The one-line summary used for push notifications. Never contains ciphertext,
+ * and never text from a secret chat. What a secret chat gets instead must not
+ * say it is one: a notification is read on a lock screen, by whoever is near
+ * the phone.
+ */
 export function pushPreview(params: { secret: boolean; content: string; mediaType: MediaType }): string {
   switch (params.mediaType) {
     case "IMAGE":
@@ -62,14 +67,13 @@ export function pushPreview(params: { secret: boolean; content: string; mediaTyp
     case "AUDIO":
       return "Sent a voice note";
     default:
-      if (params.secret) return "New secret message";
-      // Encrypted-looking text in a chat that isn't (or is no longer) secret:
-      // still never show ciphertext in a notification.
-      return isEncryptedContent(params.content) ? "New message" : params.content;
+      // Encrypted-looking text in a chat that isn't (or is no longer) secret
+      // gets the same line: never show ciphertext in a notification.
+      return params.secret || isEncryptedContent(params.content) ? "New message" : params.content;
   }
 }
 
-/** The inbox's last-message line: ciphertext is unreadable noise, so show what it is instead. */
+/** The inbox's last-message line: ciphertext is unreadable noise, so show a plain stand-in that doesn't mark the chat as secret. */
 export function inboxPreview(content: string): string {
-  return isEncryptedContent(content) ? "🔒 Secret message" : content;
+  return isEncryptedContent(content) ? "Message" : content;
 }

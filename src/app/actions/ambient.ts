@@ -3,6 +3,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ambientMomentSchema } from "@/lib/validations";
@@ -39,7 +40,7 @@ export async function getInnerCircleCandidates() {
     prisma.innerCircleMember.findMany({ where: { ownerId: user.id }, select: { memberId: true } }),
   ]);
 
-  const memberIds = new Set(currentMembers.map((m) => m.memberId));
+  const memberIds = new Set([...currentMembers.map((m) => m.memberId), ...(await getHiddenPeerIds(user.id))]);
   const candidateIds = connections
     .map((c) => (c.requesterId === user.id ? c.targetId : c.requesterId))
     .filter((id) => !memberIds.has(id));
@@ -61,7 +62,7 @@ export async function getInnerCircleCandidates() {
 export async function getInnerCircle() {
   const user = await requireVerifiedUser();
   const members = await prisma.innerCircleMember.findMany({
-    where: { ownerId: user.id },
+    where: { ownerId: user.id, memberId: { notIn: await getHiddenPeerIds(user.id) } },
     orderBy: { createdAt: "asc" },
     include: { member: { select: { id: true, name: true, username: true, avatarUrl: true } } },
   });
@@ -113,7 +114,10 @@ export async function removeFromInnerCircle(memberId: string) {
 /** The in-app preview of what an eventual widget would show: active moments from everyone in the caller's inner circle, newest first. */
 export async function getAmbientFeed() {
   const user = await requireVerifiedUser();
-  const members = await prisma.innerCircleMember.findMany({ where: { ownerId: user.id }, select: { memberId: true } });
+  const members = await prisma.innerCircleMember.findMany({
+    where: { ownerId: user.id, memberId: { notIn: await getHiddenPeerIds(user.id) } },
+    select: { memberId: true },
+  });
   const memberIds = members.map((m) => m.memberId);
   if (memberIds.length === 0) return [];
 

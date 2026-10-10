@@ -1,6 +1,7 @@
 "use client";
 
 import type { DailyCall } from "@daily-co/daily-js";
+import { CALL_STATUS_CHECK_TIMEOUT_MS, settledWithin } from "@/lib/call-resilience";
 
 /**
  * Lets either side of a 1:1 call join the Daily room early — the caller the
@@ -53,7 +54,21 @@ export function prewarmCall(
     const call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
     return call
       .join({ url: roomUrl, token, startVideoOff: muted || type === "AUDIO", startAudioOff: muted })
-      .then(() => call);
+      .then(
+        () => call,
+        async (err: unknown) => {
+          // Nobody ever gets hold of a call object whose join failed — the
+          // promise rejects, so neither takePrewarmedCall's caller nor
+          // cancelPrewarm has anything to destroy — and daily-js refuses to
+          // create another while this one exists. Destroyed here, and
+          // waited on (it only deregisters at the very end of destroy())
+          // before rejecting, so whoever falls back to a fresh call object
+          // can create one straight away. The wait is bounded so a destroy
+          // that hangs can't hold the fallback up indefinitely.
+          await settledWithin(call.destroy(), CALL_STATUS_CHECK_TIMEOUT_MS);
+          throw err;
+        },
+      );
   });
 
   prewarmed.set(key, { promise });

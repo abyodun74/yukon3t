@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallCancelToUser, sendFcmMissedCallToUser } from "@/lib/fcm";
 import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 
 /**
  * Tells the callee a call went unanswered — shared by endCall (the caller
@@ -27,6 +28,9 @@ export async function notifyMissedCall(params: {
   // registered a VoipPushToken. Explicitly caught for the same reason as
   // its startCall call site — see apns-voip.ts's own timeout comment.
   await sendVoipCallCancelToUser(calleeId, callId).catch(() => {});
+  // The callee has hidden their chat with this caller: the ring is still cleared (above, by call id alone), but
+  // nothing that names the caller is left behind: no "Missed call from X" push and no bell row.
+  if ((await getHiddenPeerIds(calleeId)).includes(callerId)) return;
   // Leaves a proper "Missed call from X" notification behind on Android —
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
   await sendFcmMissedCallToUser(calleeId, callId, callerName);

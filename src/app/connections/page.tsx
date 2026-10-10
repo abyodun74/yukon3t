@@ -4,6 +4,7 @@ import { ConnectionsTabs } from "@/components/connections-tabs";
 import { getInitialAcceptedConnections } from "@/app/actions/connections";
 import { ConnectionsFindPeopleFab } from "@/components/connections-find-people-fab";
 import { BackButton } from "@/components/back-button";
+import { getHiddenPeerIds } from "@/lib/hidden-chats";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -16,15 +17,20 @@ const PAGE_SIZE = 20;
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
 
+  // People whose 1:1 chat I've hidden don't appear in any of my three lists or their counts.
+  const hiddenPeerIds = await getHiddenPeerIds(me.id);
+  const incomingWhere = { targetId: me.id, status: "PENDING" as const, requesterId: { notIn: hiddenPeerIds } };
+  const outgoingWhere = { requesterId: me.id, status: "PENDING" as const, targetId: { notIn: hiddenPeerIds } };
+
   const [incoming, outgoing, connected, incomingCount, outgoingCount] = await Promise.all([
     prisma.connection.findMany({
-      where: { targetId: me.id, status: "PENDING" },
+      where: incomingWhere,
       include: { requester: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
     }),
     prisma.connection.findMany({
-      where: { requesterId: me.id, status: "PENDING" },
+      where: outgoingWhere,
       include: { target: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, lastSeenAt: true } } },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
@@ -35,8 +41,8 @@ export default async function ConnectionsPage() {
     getInitialAcceptedConnections(),
     // Exact counts for the tab pills — initialItems.length is capped at
     // PAGE_SIZE and would silently undercount past the first page.
-    prisma.connection.count({ where: { targetId: me.id, status: "PENDING" } }),
-    prisma.connection.count({ where: { requesterId: me.id, status: "PENDING" } }),
+    prisma.connection.count({ where: incomingWhere }),
+    prisma.connection.count({ where: outgoingWhere }),
   ]);
 
   const incomingHasMore = incoming.length === PAGE_SIZE;

@@ -211,6 +211,9 @@ const limiterDefinitions = {
   // Each one notifies and pushes someone else's phone — nobody takes
   // screenshots at anything like this rate by hand.
   screenshotNotice: makeLimiter(10, "10 m", "screenshotNotice"),
+  // Hidden-chats PIN entry, change and reset (actions/hidden-chats.ts). A second layer only: this limiter fails open,
+  // so the lockout that actually bounds guessing is the database one in src/lib/hidden-chats.ts.
+  hiddenPin: makeLimiter(20, "10 m", "hiddenPin"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

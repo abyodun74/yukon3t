@@ -34,6 +34,12 @@ export default async function ResetPasswordPage({
         </p>
       )}
 
+      {error === "mismatch" && (
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+          Those passwords don&apos;t match.
+        </p>
+      )}
+
       <form action={resetPassword} className="mt-6 w-full space-y-3">
         <input type="hidden" name="token" value={token} />
         <label htmlFor="reset-password-new" className="sr-only">
@@ -47,6 +53,19 @@ export default async function ResetPasswordPage({
           maxLength={72}
           autoComplete="new-password"
           placeholder="New password (min. 8 characters)"
+          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+        />
+        <label htmlFor="reset-password-confirm" className="sr-only">
+          Re-enter new password
+        </label>
+        <PasswordInput
+          id="reset-password-confirm"
+          name="confirmPassword"
+          required
+          minLength={8}
+          maxLength={72}
+          autoComplete="new-password"
+          placeholder="Re-enter new password"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
         <SubmitButton

@@ -20,10 +20,18 @@ function subjectLine(purpose: SecurityChallengePurpose) {
       return "Confirm it's you — password change on YuKon3t";
     case "POST":
       return "Confirm it's you — new device posting to YuKon3t";
+    case "HIDDEN_PIN_RESET":
+      return "Your YuKon3t security code";
   }
 }
 
 function bodyHtml(purpose: SecurityChallengePurpose, code: string, deviceLabel: string) {
+  // Says nothing about what the code is for: this email can show up as a lock-screen preview.
+  if (purpose === "HIDDEN_PIN_RESET") {
+    return `<p>Enter this code in YuKon3t to continue:</p>
+    <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
+    <p>This code expires in 10 minutes. If you didn't ask for it, don't share it with anyone.</p>`;
+  }
   const action =
     purpose === "LOGIN" ? "sign in to" : purpose === "PASSWORD_CHANGE" ? "change the password on" : "post from";
   return `<p>Someone just tried to ${action} your YuKon3t account from a device we don't recognize (${deviceLabel}).</p>
@@ -94,8 +102,16 @@ export async function verifyDeviceChallenge(
   if (challenge.attempts >= DEVICE_CHALLENGE_MAX_ATTEMPTS) {
     return { ok: false, error: "too_many_attempts" };
   }
+  // The attempt is counted BEFORE the code is compared, in an update that only succeeds while the budget isn't used
+  // up, so a burst of parallel guesses gets no more tries than a patient one (same idea as checkHiddenSecret).
+  const reserved = await prisma.securityChallenge.updateMany({
+    where: { id: challenge.id, attempts: { lt: DEVICE_CHALLENGE_MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (reserved.count === 0) {
+    return { ok: false, error: "too_many_attempts" };
+  }
   if (hashOtpCode(code) !== challenge.codeHash) {
-    await prisma.securityChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
     await track("DEVICE_CHALLENGE_FAILED", userId, { purpose: challenge.purpose });
     return { ok: false, error: "invalid_code" };
   }
