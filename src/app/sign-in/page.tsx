@@ -78,9 +78,9 @@ function passwordErrorMessage(error: string | undefined) {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; reset?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string; notice?: string }>;
 }) {
-  const { error, reset } = await searchParams;
+  const { error, reset, notice } = await searchParams;
   const passwordError = passwordErrorMessage(error);
   const userAgent = (await headers()).get("user-agent");
 
@@ -105,6 +105,12 @@ export default async function SignInPage({
         {reset && !passwordError && (
           <p role="status" className="mt-3 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
             Password reset — sign in with your new password.
+          </p>
+        )}
+        {notice === "reset_required" && !passwordError && (
+          <p role="status" className="mt-3 rounded-lg bg-accent-soft px-4 py-2 text-sm">
+            For your security, you need to set a new password. We&apos;ve emailed a reset link to the address on your
+            account.
           </p>
         )}
         {passwordError && (

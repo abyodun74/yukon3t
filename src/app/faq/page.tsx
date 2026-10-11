@@ -1653,6 +1653,20 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Why was I asked to reset my password?",
+        a: (
+          <>
+            As a security precaution, we asked everyone who signs in with a
+            password to choose a new one. Your old password no longer signs
+            you in: the first time you try it, we email a reset link to the
+            address on your account. Open that link and pick a new password
+            (it can&apos;t be the same as the old one), or request a fresh
+            link with &ldquo;Forgot password&rdquo; on the sign-in page.
+            Signing in with an email link, Google or Apple is not affected.
+          </>
+        ),
+      },
+      {
         q: "How do I set my interests, or find a specific job or profession?",
         a: (
           <>

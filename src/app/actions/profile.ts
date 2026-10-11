@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getPasswordHash, requireUser } from "@/lib/auth-guards";
+import { getPasswordHash, isPasswordResetRequired, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import {
   onboardingSchema,
@@ -193,6 +193,13 @@ export async function setPassword(formData: FormData) {
     if (!currentValid) {
       redirect("/settings?error=current_password_invalid");
     }
+    // A forced reset exists to retire the old password, so it can't be chosen again.
+    if (
+      (await isPasswordResetRequired(user.id)) &&
+      (await verifyPassword(parsed.data.password, currentPasswordHash))
+    ) {
+      redirect("/settings?error=same_password");
+    }
 
     // New/unrecognized-device step-up — the current password proves account
     // ownership, but SECURITY.md's own threat model for this exact action is
@@ -251,7 +258,7 @@ export async function setPassword(formData: FormData) {
     // sessionInvalidatedAt check) — the same mechanism the forgot-password
     // reset flow already relies on, closing off a hijacked cookie the
     // instant the real owner changes their password.
-    data: { username, passwordHash, sessionInvalidatedAt: new Date() },
+    data: { username, passwordHash, passwordResetRequiredAt: null, sessionInvalidatedAt: new Date() },
   });
 
   revalidatePath("/settings");
@@ -282,7 +289,11 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash: result.challenge.newPasswordHash, sessionInvalidatedAt: new Date() },
+    data: {
+      passwordHash: result.challenge.newPasswordHash,
+      passwordResetRequiredAt: null,
+      sessionInvalidatedAt: new Date(),
+    },
   });
   await trustDevice(user.id, result.challenge.deviceId, await getDeviceLabel());
 

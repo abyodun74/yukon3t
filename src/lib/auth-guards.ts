@@ -47,6 +47,15 @@ export async function getPasswordHash(userId: string) {
   return row?.passwordHash ?? null;
 }
 
+/**
+ * Whether the account's password is one that must be replaced (User.passwordResetRequiredAt, see SECURITY.md). Like
+ * the hash, that column is omitted from every other User query. For the signed-in user's own account only.
+ */
+export async function isPasswordResetRequired(userId: string) {
+  const row = await prisma.user.findUnique({ where: { id: userId }, select: { passwordResetRequiredAt: true } });
+  return Boolean(row?.passwordResetRequiredAt);
+}
+
 export async function requireAdmin() {
   const user = await requireUser();
   if (!user.isAdmin) {

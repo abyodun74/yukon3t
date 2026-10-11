@@ -97,7 +97,7 @@ async function main() {
       lockedUntil: null,
       failedLoginAt: null,
       emailVerified: user.emailVerified ?? new Date(),
-      ...(newPassword ? { passwordHash: await hashPassword(newPassword) } : {}),
+      ...(newPassword ? { passwordHash: await hashPassword(newPassword), passwordResetRequiredAt: null } : {}),
     },
   });
 

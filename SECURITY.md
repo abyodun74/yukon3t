@@ -163,6 +163,24 @@ ordinary (scanned) chat and the UI says so. Groups are never secret.
   app's own frontend could still remove the class and record it, same trust boundary as everything else client-side
   in this threat model.
 
+## Password hash exposure and forced password reset (2026-10-11)
+
+**What was exposed.** Until 2026-10-10 the Discover page sent other users' whole `User` rows to the browser, so any signed-in user's browser received those accounts' `passwordHash` (bcrypt, 12 rounds), email and phone along with the fields the page actually showed. Fixed in commit `3410c03` (2026-10-10): Discover selects only what it renders, and the Prisma client omits `passwordHash` / `emailOtpCodeHash` from every query (`src/lib/prisma.ts`). Nothing shows whether anyone collected the hashes, so every password hash that existed up to that fix is treated as exposed.
+
+**Forced reset.** Migration `20261011150000_force_password_reset` adds `User.passwordResetRequiredAt` and sets it on every account that had a password, except the App Store review demo account (`isAppReviewDemo`; reviewers can't read its mailbox, and its password is a fixed value reset from `/admin`).
+
+- `loginWithPassword` (`src/app/actions/password-auth.ts`) decides through `passwordSignInOutcome` (`src/lib/password-sign-in.ts`, unit-tested). A correct password on a flagged account does not sign in: no session, no device challenge, no pending-verification cookie, no change to the failed-attempt/lockout columns. It sends the ordinary reset email (same token, 1-hour expiry and `passwordResetRequest` limiter key as "Forgot password", 5 per hour per IP + address; over the limit no new mail is sent and the last link stays valid) and redirects to `/sign-in?notice=reset_required`. A wrong password behaves exactly as before, flag or no flag, so the notice is only reachable with the correct old password.
+- The flag is cleared by every writer of `passwordHash`: `resetPassword`, `setPassword`, `confirmPasswordChangeDeviceChallenge`, `fixAppReviewDemoAccount` and `scripts/fix-app-review-demo-account.ts`. While it is set, `resetPassword` and `setPassword` refuse a new password equal to the current one. Any new code that writes `passwordHash` must clear it too.
+- `passwordResetRequiredAt` is in the Prisma client's global `omit`, so it never rides along on a `User` row; `loginWithPassword`, `resetPassword` and `isPasswordResetRequired` (`src/lib/auth-guards.ts`) ask for it by name.
+
+**Deliberately not done / accepted.**
+- Sessions that already existed are not invalidated: a flagged user who is signed in stays signed in and only sees a "For your security, please choose a new password" row at the top of Settings. A session an attacker opened with a cracked password before this shipped therefore also survives until it expires or the owner changes the password (which sets `sessionInvalidatedAt`).
+- Magic link, Google and Apple sign-in are untouched and work for flagged accounts.
+- The reset-required notice confirms to whoever typed it that the old password was correct for that account. Unavoidable if the owner is to be told why they can't sign in; it gives no access here, but a cracked password stays useful against other sites where the owner reused it.
+- Email addresses and phone numbers were exposed too and can't be rotated.
+- Every account has an email address (`User.email` is required), but one that can't receive mail (mistyped at sign-up, abandoned mailbox) cannot complete the reset and needs support. `adminSendPasswordReset` emails the same address, so it doesn't help there.
+- Vercel and Netlify deploy separately. Between the migration running and the new code being live on a platform, that platform's old code still accepts the old password and its password writers don't clear the flag (the owner is then asked once more after the new code lands).
+
 ## Known gaps / accepted risk
 
 - **Phone/ID verification was descoped** from the MVP to stay under the $200 budget (SMS OTP costs money per verification). Trust score is computed from free signals only (email verified, account age, profile completeness, report history). See the plan's budget-reconciliation note.

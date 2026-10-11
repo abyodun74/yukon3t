@@ -33,6 +33,7 @@ const createPrismaClient = () =>
     //
     // passwordHash and emailOtpCodeHash are left out the same way: no UI needs either, so the few server-side checks
     // that do (getPasswordHash in src/lib/auth-guards.ts, loginWithPassword, confirmEmailOtp) ask for them by name.
+    // passwordResetRequiredAt is not a secret, but nobody else may learn whose password is still the pre-reset one.
     omit: {
       user: {
         hiddenChatsPinHash: true,
@@ -40,6 +41,7 @@ const createPrismaClient = () =>
         hiddenPinLockedUntil: true,
         passwordHash: true,
         emailOtpCodeHash: true,
+        passwordResetRequiredAt: true,
       },
     },
   });

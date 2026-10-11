@@ -229,6 +229,12 @@ model User {
   // (e.g. password reset) even though the JWT itself hasn't expired yet.
   sessionInvalidatedAt DateTime?
 
+  // Set (by migration 20261011150000_force_password_reset) on every account whose password existed while other
+  // users' password hashes could reach a browser (see SECURITY.md). While set, loginWithPassword refuses the
+  // password and emails a reset link instead. Every writer of passwordHash must set this back to null. Omitted
+  // from every query by the client-level omit in src/lib/prisma.ts.
+  passwordResetRequiredAt DateTime?
+
   // Password-login brute-force lockout: 4 wrong passwords locks the account
   // for 24h. failedLoginAttempts resets to 0 the moment lockedUntil is set,
   // so it only ever counts attempts within the current (unlocked) window.

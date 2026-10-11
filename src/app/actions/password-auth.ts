@@ -13,6 +13,7 @@ import {
   adminDeleteUserSchema,
 } from "@/lib/validations";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
+import { passwordSignInOutcome } from "@/lib/password-sign-in";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBotSubmission } from "@/lib/bot-protection";
 import { verifyTurnstile } from "@/lib/turnstile";
@@ -42,6 +43,32 @@ import {
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 4;
 const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Replaces any outstanding reset link for the account with a fresh one and emails it. "required" is the forced reset
+ * (User.passwordResetRequiredAt), sent from loginWithPassword to someone who just typed the account's correct password.
+ */
+async function sendPasswordResetEmail(userId: string, email: string, reason: "requested" | "required") {
+  const token = randomUUID();
+  await prisma.passwordResetToken.deleteMany({ where: { userId } });
+  await prisma.passwordResetToken.create({
+    data: { userId, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+  });
+
+  const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  await sendEmail({
+    to: email,
+    subject: "Reset your YuKon3t password",
+    html:
+      reason === "required"
+        ? `<p>For your security, you need to set a new password for this YuKon3t account. We're asking everyone to choose a new password as a security precaution.</p>
+        <p><a href="${url}">Choose a new password</a></p>
+        <p>This link expires in 1 hour. Your old password no longer signs you in.</p>`
+        : `<p>Someone requested a password reset for this YuKon3t account.</p>
+        <p><a href="${url}">Reset your password</a></p>
+        <p>This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>`,
+  });
+}
 
 async function sendEmailOtp(userId: string, email: string) {
   const code = generateOtpCode();
@@ -347,7 +374,7 @@ export async function loginWithPassword(formData: FormData) {
     where: {
       OR: [{ email: identifier.toLowerCase() }, { username: identifier }],
     },
-    omit: { passwordHash: false },
+    omit: { passwordHash: false, passwordResetRequiredAt: false },
   });
   if (!user) {
     // Usernames are unique case-insensitively for new sign-ups, so "Bola" and "bola" are the same person — but only
@@ -355,7 +382,7 @@ export async function loginWithPassword(formData: FormData) {
     const loose = await prisma.user.findMany({
       where: { username: { equals: identifier, mode: "insensitive" } },
       take: 2,
-      omit: { passwordHash: false },
+      omit: { passwordHash: false, passwordResetRequiredAt: false },
     });
     if (loose.length === 1) user = loose[0];
   }
@@ -378,8 +405,12 @@ export async function loginWithPassword(formData: FormData) {
     redirect("/sign-in?error=locked");
   }
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
+  const outcome = passwordSignInOutcome({
+    passwordOk: await verifyPassword(password, user.passwordHash),
+    resetRequiredAt: user.passwordResetRequiredAt,
+    isAppReviewDemo: user.isAppReviewDemo,
+  });
+  if (outcome === "wrong_password") {
     const attempts = user.failedLoginAttempts + 1;
     const lockingNow = attempts >= LOCKOUT_THRESHOLD;
     // failedLoginAt anchors "how long has this been unresolved" for the
@@ -395,6 +426,15 @@ export async function loginWithPassword(formData: FormData) {
       });
     }
     redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
+  }
+  // Forced reset: the password is right but may no longer be used. Nothing is signed in and no account state changes
+  // (the failed-attempt count and any lockout bookkeeping stay as they were); the owner gets the ordinary reset email,
+  // under the same per-IP-and-address limit as "Forgot password", and resetPassword clears the flag.
+  if (outcome === "reset_required") {
+    if (await checkRateLimit("passwordResetRequest", `resetreq:${ip}:${user.email}`)) {
+      await sendPasswordResetEmail(user.id, user.email, "required");
+    }
+    redirect("/sign-in?notice=reset_required");
   }
   if (!user.isAppReviewDemo && !user.emailVerified && !user.phoneVerifiedAt) {
     // The password was just proven, so this browser may finish verifying the account: pick up where signup left off on
@@ -577,20 +617,7 @@ export async function requestPasswordReset(formData: FormData) {
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true } });
   if (user && user.status === "ACTIVE") {
-    const token = randomUUID();
-    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-    await prisma.passwordResetToken.create({
-      data: { userId: user.id, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
-    });
-
-    const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-    await sendEmail({
-      to: email,
-      subject: "Reset your YuKon3t password",
-      html: `<p>Someone requested a password reset for this YuKon3t account.</p>
-        <p><a href="${url}">Reset your password</a></p>
-        <p>This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>`,
-    });
+    await sendPasswordResetEmail(user.id, email, "requested");
   }
 
   redirect("/forgot-password?sent=1");
@@ -616,9 +643,14 @@ export async function resetPassword(formData: FormData) {
 
   const target = await prisma.user.findUnique({
     where: { id: resetToken.userId },
-    select: { failedLoginAttempts: true, lockedUntil: true },
+    select: { failedLoginAttempts: true, lockedUntil: true, passwordHash: true, passwordResetRequiredAt: true },
   });
   const hadLoginIssue = !!target && (target.failedLoginAttempts > 0 || !!target.lockedUntil);
+
+  // A forced reset exists to retire the old password, so it can't be chosen again.
+  if (target?.passwordResetRequiredAt && target.passwordHash && (await verifyPassword(password, target.passwordHash))) {
+    redirect(`/reset-password?token=${encodeURIComponent(token)}&error=same_password`);
+  }
 
   const passwordHash = await hashPassword(password);
   await prisma.user.update({
@@ -633,6 +665,7 @@ export async function resetPassword(formData: FormData) {
     // wait out the 24h — this is the intended early-unlock path.
     data: {
       passwordHash,
+      passwordResetRequiredAt: null,
       sessionInvalidatedAt: new Date(),
       failedLoginAttempts: 0,
       lockedUntil: null,
@@ -874,6 +907,7 @@ export async function fixAppReviewDemoAccount() {
       username: APP_REVIEW_DEMO_USERNAME,
       email: APP_REVIEW_DEMO_EMAIL,
       passwordHash,
+      passwordResetRequiredAt: null,
       isAppReviewDemo: true,
       status: "ACTIVE",
       deactivatedAt: null,

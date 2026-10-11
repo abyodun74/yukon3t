@@ -40,6 +40,12 @@ export default async function ResetPasswordPage({
         </p>
       )}
 
+      {error === "same_password" && (
+        <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
+          That&apos;s your old password. For your security, choose a different one.
+        </p>
+      )}
+
       <form action={resetPassword} className="mt-6 w-full space-y-3">
         <input type="hidden" name="token" value={token} />
         <label htmlFor="reset-password-new" className="sr-only">

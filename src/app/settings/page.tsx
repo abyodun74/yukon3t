@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
-import { getPasswordHash } from "@/lib/auth-guards";
+import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
@@ -31,6 +31,7 @@ export default async function SettingsPage({
   const { error, saved } = await searchParams;
   const blocked = await listBlockedUsers();
   const hasPassword = Boolean(await getPasswordHash(user.id));
+  const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
 
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
@@ -53,6 +54,15 @@ export default async function SettingsPage({
         </p>
       </div>
 
+      {passwordResetRequired && (
+        <Link
+          href="#sign-in-method"
+          className="block rounded-lg border border-accent bg-accent-soft px-4 py-3 text-sm font-medium hover:underline"
+        >
+          For your security, please choose a new password
+        </Link>
+      )}
+
       {saved && (
         <p role="status" className="rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
           Settings updated.
@@ -64,6 +74,8 @@ export default async function SettingsPage({
             ? "That username is taken — try another."
             : error === "current_password_invalid"
               ? "Current password is incorrect."
+              : error === "same_password"
+                ? "That's your current password. For your security, choose a different one."
               : error === "rate_limited"
                 ? "Too many attempts — try again in a few minutes."
                 : "Please check your inputs."}
@@ -211,7 +223,7 @@ export default async function SettingsPage({
         </form>
       </div>
 
-      <div>
+      <div id="sign-in-method" className="scroll-mt-24">
         <h2 className="text-lg font-semibold">Sign-in method</h2>
         <p className="mt-1 text-sm text-foreground-soft">
           {hasPassword
