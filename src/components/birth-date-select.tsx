@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { MIN_AGE } from "@/lib/validations";
 
 const MONTHS = [
   "January",
@@ -47,7 +48,7 @@ export function BirthDateSelect({
   name = "birthDate",
   defaultValue,
   required = true,
-  minAge = 13,
+  minAge = MIN_AGE,
   maxAge = 120,
 }: {
   name?: string;

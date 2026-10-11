@@ -28,7 +28,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 10, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 11, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company
@@ -46,7 +46,7 @@ export default function TermsPage() {
 
       <h2 className="mt-8 font-semibold">1. Eligibility</h2>
       <p className="mt-2 text-foreground-soft">
-        You must be at least 13 years old to use YuKon3t; if you are under
+        You must be at least 16 years old to use YuKon3t; if you are under
         18, you may only use YuKon3t with the involvement and consent of a
         parent or legal guardian. By creating an account, you represent that
         you meet this requirement, that your date of birth and all other

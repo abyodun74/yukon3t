@@ -18,7 +18,7 @@ export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
   TRAVEL_TIPS: "Travel Tips",
 };
 
-export const MIN_AGE = 13;
+export const MIN_AGE = 16;
 
 /** True when someone born on `birthDate` is at least `minAge` years old today. */
 export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {

@@ -217,12 +217,12 @@ list), not the unused `Session` table.
 
 **Age verification**: `User.birthDate`, required at password sign-up and
 at onboarding (for magic-link users), enforced via `isOldEnough()` in
-`src/lib/validations.ts` — minimum age 13, self-declared, no paid ID-check
+`src/lib/validations.ts` — minimum age 16 (raised from 13 on 2026-10-11), self-declared, no paid ID-check
 service (consistent with the project's existing budget-driven trust-score
 design — see "phone/ID verification descoped" above). **Not retroactive**:
 existing users who onboarded before this shipped are not forced to
-re-verify. `legal/terms` eligibility section updated to 13+
-(with a parent/guardian clause for under-18s) — it previously said 18+,
+re-verify. `legal/terms` eligibility section updated to 16+
+(with a parent/guardian clause for under-18s; was 13+ until 2026-10-11) — it originally said 18+,
 left over from the original boilerplate; reconciled to match the actual
 enforced age, per an explicit choice made when this was built, not an
 oversight.

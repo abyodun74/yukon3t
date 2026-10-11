@@ -150,7 +150,7 @@ describe("signUpSchema — username and phone", () => {
     }
   });
 
-  it("rejects an under-13 birth date", () => {
+  it("rejects a birth date under the minimum age", () => {
     const year = new Date().getFullYear() - 10;
     expect(signUpSchema.safeParse({ ...base, birthDate: `${year}-01-01` }).success).toBe(false);
   });

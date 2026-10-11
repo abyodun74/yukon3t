@@ -41,6 +41,17 @@ const sections: Section[] = [
     title: "Getting around",
     items: [
       {
+        q: "Who can join YuKon3t?",
+        a: (
+          <>
+            Anyone aged 16 or older. You&apos;ll be asked for your date of
+            birth when you sign up. If you&apos;re 16 or 17, you can only use
+            YuKon3t with the involvement and consent of a parent or legal
+            guardian.
+          </>
+        ),
+      },
+      {
         q: "Where do I find everything?",
         a: (
           <>

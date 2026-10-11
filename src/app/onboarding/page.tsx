@@ -44,7 +44,7 @@ export default async function OnboardingPage({
       )}
       {error === "underage" && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          You must be at least 13 years old to use YuKon3t.
+          You must be at least {MIN_AGE} years old to use YuKon3t.
         </p>
       )}
 
@@ -90,7 +90,7 @@ export default async function OnboardingPage({
             />
           </div>
           <p className="mt-1 text-xs text-foreground-soft">
-            You must be at least 13 to use YuKon3t.
+            You must be at least {MIN_AGE} to use YuKon3t.
           </p>
         </div>
 

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 10, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 11, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -222,9 +222,9 @@ export default function PrivacyPage() {
       <h2 className="mt-8 font-semibold">9. Children&apos;s privacy</h2>
       <p className="mt-2 text-foreground-soft">
         YuKon3t is not directed to, and is not intended for use by, anyone
-        under 18 years old. We do not knowingly collect personal information
-        from children. If we learn that we have collected information from
-        someone under 18, we will delete it and terminate the associated
+        under 16 years old. We do not knowingly collect personal information
+        from anyone under 16. If we learn that we have collected information
+        from someone under 16, we will delete it and close the associated
         account promptly.
       </p>
 

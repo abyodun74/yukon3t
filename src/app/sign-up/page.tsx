@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 function errorMessage(error: string | undefined) {
   switch (error) {
     case "underage":
-      return "You must be at least 13 years old to use YuKon3t.";
+      return `You must be at least ${MIN_AGE} years old to use YuKon3t.`;
     case "email_taken":
       return "An account with that email already exists.";
     case "username_taken":
@@ -161,7 +161,7 @@ export default async function SignUpPage({
             <BirthDateSelect minAge={MIN_AGE} />
           </div>
           <p className="mt-1 text-xs text-foreground-soft">
-            You must be at least 13 to use YuKon3t.
+            You must be at least {MIN_AGE} to use YuKon3t.
           </p>
         </div>
         <VerifyMethodFields defaultMethod={method === "PHONE" ? "PHONE" : "EMAIL"} defaultPhone={phone ?? ""} />
