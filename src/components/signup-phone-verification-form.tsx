@@ -7,12 +7,14 @@ import {
   confirmSignupPhoneVerification,
 } from "@/app/actions/signup-phone-verification";
 import { useTurnstileGate, TURNSTILE_WAIT_MESSAGE } from "@/components/use-turnstile-gate";
+import { PhoneNumberField } from "@/components/phone-number-field";
+import { PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
 
 const INPUT_CLASS =
   "mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid: "Enter a valid phone number with country code (e.g. +14155551234).",
+  invalid: PHONE_INVALID_MESSAGE,
   invalid_code: "That code didn't match — check it and try again.",
   rate_limited: "Too many attempts — try again in a bit.",
   not_configured: "Phone verification isn't set up yet.",
@@ -36,7 +38,14 @@ const ERROR_MESSAGES: Record<string, string> = {
  * Turnstile token — an SMS costs real money per message. Confirming a code
  * doesn't send one and isn't gated.
  */
-export function SignupPhoneVerificationForm({ initialPhone }: { initialPhone: string | null }) {
+export function SignupPhoneVerificationForm({
+  initialPhone,
+  defaultCountry,
+}: {
+  initialPhone: string | null;
+  /** The request's geo country, for the country selector's starting choice. */
+  defaultCountry: string | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState<"phone" | "code">(initialPhone ? "code" : "phone");
@@ -93,7 +102,11 @@ export function SignupPhoneVerificationForm({ initialPhone }: { initialPhone: st
             startTransition(async () => {
               const result = await confirmSignupPhoneVerification(formData);
               if (result.error) {
-                setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+                // "invalid" on this step can only be the code's format: the number was accepted when the code was sent.
+                setError(
+                  ERROR_MESSAGES[result.error === "invalid" ? "invalid_code" : result.error] ??
+                    "Something went wrong — try again.",
+                );
                 return;
               }
               setVerified(true);
@@ -181,15 +194,9 @@ export function SignupPhoneVerificationForm({ initialPhone }: { initialPhone: st
           <label htmlFor="signup-phone-number" className="block text-sm font-medium">
             Phone number
           </label>
-          <input
-            id="signup-phone-number"
-            name="phone"
-            type="tel"
-            required
-            autoComplete="tel"
-            placeholder="+14155551234"
-            className={INPUT_CLASS}
-          />
+          <div className="mt-1">
+            <PhoneNumberField id="signup-phone-number" defaultCountry={defaultCountry} />
+          </div>
         </div>
         {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         <button

@@ -12,6 +12,7 @@ import { RingtonePicker } from "@/components/ringtone-picker";
 import { InvitePanel } from "@/components/invite-panel";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 import { PhoneVerificationForm } from "@/components/phone-verification-form";
+import { getRequestCountry } from "@/lib/request-country";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
@@ -301,7 +302,11 @@ export default async function SettingsPage({
           Optional — verifying a phone number raises your trust score.
         </p>
         <div className="mt-4">
-          <PhoneVerificationForm phone={user.phone} phoneVerifiedAt={user.phoneVerifiedAt} />
+          <PhoneVerificationForm
+            phone={user.phone}
+            phoneVerifiedAt={user.phoneVerifiedAt}
+            defaultCountry={await getRequestCountry()}
+          />
         </div>
       </div>
 

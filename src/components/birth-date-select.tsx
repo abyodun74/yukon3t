@@ -50,6 +50,9 @@ export function BirthDateSelect({
   required = true,
   minAge = MIN_AGE,
   maxAge = 120,
+  id,
+  invalid = false,
+  describedBy,
 }: {
   name?: string;
   /** ISO `YYYY-MM-DD`, e.g. an existing user.birthDate for onboarding's pre-fill case. */
@@ -57,6 +60,10 @@ export function BirthDateSelect({
   required?: boolean;
   minAge?: number;
   maxAge?: number;
+  /** Goes on the month select, the first of the three (where focus should land). */
+  id?: string;
+  invalid?: boolean;
+  describedBy?: string;
 }) {
   const initial = useMemo(() => {
     const [y, m, d] = (defaultValue ?? "").split("-");
@@ -94,7 +101,10 @@ export function BirthDateSelect({
   return (
     <div className="flex gap-2">
       <select
+        id={id}
         aria-label="Birth month"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         required={required}
         value={month}
         onChange={(e) => handleMonthChange(e.target.value)}
@@ -109,6 +119,8 @@ export function BirthDateSelect({
       </select>
       <select
         aria-label="Birth day"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         required={required}
         value={day}
         onChange={(e) => setDay(e.target.value)}
@@ -123,6 +135,8 @@ export function BirthDateSelect({
       </select>
       <select
         aria-label="Birth year"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         required={required}
         value={year}
         onChange={(e) => setYear(e.target.value)}

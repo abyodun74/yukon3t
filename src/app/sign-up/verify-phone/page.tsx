@@ -3,6 +3,7 @@ import { readPendingVerification } from "@/lib/pending-verification";
 import { prisma } from "@/lib/prisma";
 import { SignupPhoneVerificationForm } from "@/components/signup-phone-verification-form";
 import { SubmitButton } from "@/components/submit-button";
+import { getRequestCountry } from "@/lib/request-country";
 import { switchToEmailVerification } from "@/app/actions/password-auth";
 
 export default async function VerifyPhonePage() {
@@ -44,7 +45,7 @@ export default async function VerifyPhonePage() {
         your account.
       </p>
       <div className="mt-6 w-full">
-        <SignupPhoneVerificationForm initialPhone={pending.phone ?? null} />
+        <SignupPhoneVerificationForm initialPhone={pending.phone ?? null} defaultCountry={await getRequestCountry()} />
       </div>
 
       {/* A text can be slow or blocked too — always offer the other way in. */}

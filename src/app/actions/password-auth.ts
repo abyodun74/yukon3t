@@ -5,13 +5,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
-  signUpSchema,
-  phoneSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   adminDeleteUserSchema,
 } from "@/lib/validations";
+import { validPhoneSchema } from "@/lib/phone-number";
+import { validateSignUp, withTakenErrors, type SignUpState } from "@/lib/sign-up-form";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { passwordSignInOutcome } from "@/lib/password-sign-in";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -125,68 +125,62 @@ export async function ensureFreshEmailOtp() {
   await sendEmailOtp(pending.userId, user.email);
 }
 
-export async function signUpWithPassword(formData: FormData) {
+/**
+ * The sign-up form's action (useActionState in src/components/sign-up-form.tsx). Anything that stops the account from
+ * being created comes back as a SignUpState — every failing field with its own reason, or a form-level error — instead
+ * of a redirect, so the form keeps what was typed (nothing the person entered ever goes into a URL). Success redirects.
+ */
+export async function signUpWithPassword(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
   // Reuses the existing rate_limited copy rather than a distinct "bot
   // detected" message — no reason to tell a script which defense caught it.
   if (isBotSubmission(formData)) {
-    redirect("/sign-up?error=rate_limited");
+    return { fieldErrors: {}, formError: "rate_limited" };
   }
 
   const ip = await clientIp();
   // A real user can hit this (widget blocked or still loading), so unlike the
   // honeypot above it gets its own message telling them what to do.
   if (!(await verifyTurnstile(formData, ip))) {
-    redirect("/sign-up?error=captcha");
+    return { fieldErrors: {}, formError: "captcha" };
   }
   const allowed = await checkRateLimit("passwordSignUp", `signup:${ip}`);
   if (!allowed) {
-    redirect("/sign-up?error=rate_limited");
+    return { fieldErrors: {}, formError: "rate_limited" };
   }
 
-  const raw = {
+  const checked = validateSignUp({
     username: formData.get("username"),
     email: formData.get("email"),
     password: formData.get("password"),
     birthDate: formData.get("birthDate"),
     verificationMethod: formData.get("verificationMethod"),
     phone: formData.get("phone") ?? undefined,
-  };
-  const parsed = signUpSchema.safeParse(raw);
-
-  // Sent back with the error so the form keeps what was typed (never the password or birth date).
-  const keep = new URLSearchParams();
-  for (const key of ["username", "email", "phone"] as const) {
-    const v = String(raw[key] ?? "").trim();
-    if (v) keep.set(key, v.slice(0, 254));
-  }
-  if (raw.verificationMethod === "PHONE") keep.set("method", "PHONE");
-  const back = (error: string) => redirect(`/sign-up?error=${error}&${keep.toString()}`);
-
-  if (!parsed.success) {
-    const failed = new Set(parsed.error.issues.map((i) => i.path[0]));
-    back(failed.has("birthDate") ? "underage" : failed.has("username") ? "invalid_username" : failed.has("phone") ? "invalid_phone" : "invalid");
-  }
-
-  const { username, email, password, birthDate, verificationMethod, phone } = parsed.data!;
-
-  const existingEmail = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-  if (existingEmail) {
-    back("email_taken");
-  }
-  // Case-insensitive so "Bola" can't be registered next to "bola".
-  const existingUsername = await prisma.user.findFirst({
-    where: { username: { equals: username, mode: "insensitive" } },
-    select: { id: true },
   });
-  if (existingUsername) {
-    back("username_taken");
+
+  // Looked up for every field that passed validation, even when another one failed, so one round trip reports
+  // everything that needs fixing.
+  const { checkable } = checked;
+  const [existingEmail, existingUsername, phoneOwner] = await Promise.all([
+    checkable.email ? prisma.user.findUnique({ where: { email: checkable.email }, select: { id: true } }) : null,
+    // Case-insensitive so "Bola" can't be registered next to "bola".
+    checkable.username
+      ? prisma.user.findFirst({
+          where: { username: { equals: checkable.username, mode: "insensitive" } },
+          select: { id: true },
+        })
+      : null,
+    checkable.phone ? prisma.user.findUnique({ where: { phone: checkable.phone }, select: { id: true } }) : null,
+  ]);
+  const fieldErrors = withTakenErrors(checked.fieldErrors, {
+    email: Boolean(existingEmail),
+    username: Boolean(existingUsername),
+    phone: Boolean(phoneOwner),
+  });
+  if (!checked.data || checked.formError || Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors, formError: checked.formError };
   }
-  if (verificationMethod === "PHONE") {
-    const phoneOwner = await prisma.user.findUnique({ where: { phone: phone! }, select: { id: true } });
-    if (phoneOwner) {
-      back("phone_taken");
-    }
-  }
+
+  const { username, email, password, birthDate, verificationMethod, phone } = checked.data;
 
   const passwordHash = await hashPassword(password);
   let created;
@@ -196,7 +190,7 @@ export async function signUpWithPassword(formData: FormData) {
     });
   } catch (err) {
     // Two people racing for the same email/username: the loser gets the same message as the pre-check.
-    if (isUniqueConstraintError(err)) back("username_taken");
+    if (isUniqueConstraintError(err)) return { fieldErrors: { username: "username_taken" }, formError: null };
     throw err;
   }
   await track("SIGN_UP", created.id, { method: "password" });
@@ -311,7 +305,7 @@ export async function switchToPhoneVerification(formData: FormData) {
     redirect("/verify-email?error=rate_limited");
   }
 
-  const parsed = phoneSchema.safeParse(formData.get("phone"));
+  const parsed = validPhoneSchema.safeParse(formData.get("phone"));
   if (!parsed.success) {
     redirect("/verify-email?error=invalid_phone");
   }

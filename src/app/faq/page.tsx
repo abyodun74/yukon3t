@@ -1685,9 +1685,26 @@ const sections: Section[] = [
             From the home page tap Get started, then Create account. Enter a
             username (3–20 letters, numbers, or underscores), your email, a
             password, and your date of birth, then choose how to verify:
-            an email code, or a phone number (enter it right there). Tap
+            an email code, or a phone number (enter it right there: pick
+            your country from the list and type your number the way you
+            normally would — the country code is added for you). Tap
             Create account and we send the code. You can change your username
             later from Settings.
+          </>
+        ),
+      },
+      {
+        q: "Sign-up says something needs fixing — did I lose what I typed?",
+        a: (
+          <>
+            No. If something can&apos;t be accepted (a username that&apos;s
+            taken, an email that already has an account, a phone number
+            that doesn&apos;t match the country you picked), the form
+            shows just the parts that need fixing, each with the reason
+            underneath. Everything else you entered, including your
+            password and date of birth, is kept. Fix what&apos;s shown and
+            tap Create account again, or tap &ldquo;Edit all details&rdquo;
+            to see the whole form.
           </>
         ),
       },

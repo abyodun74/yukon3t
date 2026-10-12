@@ -93,7 +93,7 @@ export const signUpSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.verificationMethod === "PHONE" && !phoneSchema.safeParse(data.phone).success) {
-      ctx.addIssue({ code: "custom", path: ["phone"], message: "Enter a valid phone number with country code." });
+      ctx.addIssue({ code: "custom", path: ["phone"], message: "Enter a valid phone number." });
     }
   });
 
@@ -111,12 +111,16 @@ export const setPasswordSchema = z.object({
   currentPassword: z.string().max(72).optional(),
 });
 
-// E.164: "+" then 8-15 digits — normalized client-side before submit,
-// re-validated here since this is what actually gets sent to Twilio.
+// E.164: "+" then 8-15 digits — assembled client-side from the country
+// selector and national number (PhoneNumberField), re-validated here since
+// this is what actually gets sent to Twilio. Shape only: the actions that
+// text a code use validPhoneSchema (src/lib/phone-number.ts), which also
+// checks the number is a real one. That check isn't here because this file is
+// bundled client-side and would drag libphonenumber's metadata into every page.
 export const phoneSchema = z
   .string()
   .trim()
-  .regex(/^\+[1-9]\d{7,14}$/, "Enter a valid phone number with country code.");
+  .regex(/^\+[1-9]\d{7,14}$/, "Enter a valid phone number.");
 
 export const verifyPhoneCodeSchema = z.object({
   phone: phoneSchema,

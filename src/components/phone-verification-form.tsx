@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { requestPhoneVerification, confirmPhoneVerification } from "@/app/actions/phone-verification";
 import { useTurnstileGate, TURNSTILE_WAIT_MESSAGE } from "@/components/use-turnstile-gate";
+import { PhoneNumberField } from "@/components/phone-number-field";
+import { PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
 
 const INPUT_CLASS =
   "mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid: "Enter a valid phone number with country code (e.g. +14155551234).",
+  invalid: PHONE_INVALID_MESSAGE,
   invalid_code: "That code didn't match — check it and try again.",
   rate_limited: "Too many attempts — try again in a bit.",
   not_configured: "Phone verification isn't set up yet.",
@@ -31,9 +33,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 export function PhoneVerificationForm({
   phone,
   phoneVerifiedAt,
+  defaultCountry,
 }: {
   phone: string | null;
   phoneVerifiedAt: Date | null;
+  /** The request's geo country, for the country selector's starting choice. */
+  defaultCountry: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -63,7 +68,11 @@ export function PhoneVerificationForm({
             startTransition(async () => {
               const result = await confirmPhoneVerification(formData);
               if (result.error) {
-                setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+                // "invalid" on this step can only be the code's format: the number was accepted when the code was sent.
+                setError(
+                  ERROR_MESSAGES[result.error === "invalid" ? "invalid_code" : result.error] ??
+                    "Something went wrong — try again.",
+                );
                 return;
               }
               // Verified — re-render will pick up the new phoneVerifiedAt
@@ -148,15 +157,12 @@ export function PhoneVerificationForm({
         }}
       >
         <div>
-          <label className="block text-sm font-medium">Phone number</label>
-          <input
-            aria-label="Phone number"
-            name="phone"
-            type="tel"
-            required
-            placeholder="+14155551234"
-            className={INPUT_CLASS}
-          />
+          <label htmlFor="settings-phone-number" className="block text-sm font-medium">
+            Phone number
+          </label>
+          <div className="mt-1">
+            <PhoneNumberField id="settings-phone-number" defaultCountry={defaultCountry} />
+          </div>
         </div>
         {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         <button

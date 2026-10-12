@@ -18,12 +18,16 @@ export function SubmitButton({
   label,
   pendingLabel,
   className,
+  pending: pendingOverride,
 }: {
   label: ReactNode;
   pendingLabel: ReactNode;
   className?: string;
+  /** For a form that calls its action from onSubmit rather than through `action`, where useFormStatus never reports pending. */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingOverride ?? status.pending;
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {

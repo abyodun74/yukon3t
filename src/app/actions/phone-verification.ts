@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { phoneSchema, verifyPhoneCodeSchema } from "@/lib/validations";
+import { verifyPhoneCodeSchema } from "@/lib/validations";
+import { validPhoneSchema } from "@/lib/phone-number";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getClientIp } from "@/lib/client-ip";
@@ -28,7 +29,7 @@ export async function requestPhoneVerification(formData: FormData) {
   // before the rate limit so a failed challenge doesn't burn the person's own quota.
   if (!(await verifyTurnstile(formData, await getClientIp()))) return { error: "captcha" as const };
 
-  const parsed = phoneSchema.safeParse(formData.get("phone"));
+  const parsed = validPhoneSchema.safeParse(formData.get("phone"));
   if (!parsed.success) return { error: "invalid" as const };
   const phone = parsed.data;
 

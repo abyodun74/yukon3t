@@ -20,6 +20,8 @@ export function PasswordInput({
   value,
   onChange,
   defaultVisible = false,
+  invalid = false,
+  describedBy,
 }: {
   id?: string;
   name?: string;
@@ -38,6 +40,8 @@ export function PasswordInput({
   onChange?: ChangeEventHandler<HTMLInputElement>;
   /** Start with the characters showing; the eye button still hides them. */
   defaultVisible?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
 }) {
   const [visible, setVisible] = useState(defaultVisible);
 
@@ -57,6 +61,8 @@ export function PasswordInput({
         spellCheck={spellCheck}
         value={value}
         onChange={onChange}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         className={cn(className, "pr-10")}
       />
       <button
