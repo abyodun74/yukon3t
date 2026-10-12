@@ -21,6 +21,9 @@ async function sendEmailOnce({
       subject,
       html,
     }),
+    // Without this a Resend call that never answers holds the calling
+    // request (a Server Action, usually) open until the platform kills it.
+    signal: AbortSignal.timeout(8000),
   });
   return res;
 }

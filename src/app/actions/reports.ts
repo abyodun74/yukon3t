@@ -231,12 +231,24 @@ export async function approveFlaggedContent(formData: FormData) {
     // createComment only increments commentCount when it publishes immediately;
     // a comment approved late needs that increment applied now instead —
     // transactional so the two writes can't drift apart on a crash/race.
+    // The publish is its own write guarded on "not PUBLISHED yet", and the
+    // increment follows only if it matched: a second click, a second admin,
+    // or the long-video cron having published the comment in the meantime
+    // must not count it twice. Ending the reviews (see above) happens either
+    // way.
     const approved = await prisma.$transaction(async (tx) => {
-      const before = await tx.comment.findUnique({ where: { id: contentId }, select: { videoStreamUid: true } });
-      const comment = await tx.comment.update({
+      const before = await tx.comment.findUnique({
+        where: { id: contentId },
+        select: { postId: true, videoStreamUid: true },
+      });
+      if (!before) return null;
+      const published = await tx.comment.updateMany({
+        where: { id: contentId, moderationStatus: { not: "PUBLISHED" } },
+        data: { moderationStatus: "PUBLISHED" },
+      });
+      await tx.comment.updateMany({
         where: { id: contentId },
         data: {
-          moderationStatus: "PUBLISHED",
           videoLongReviewNeeded: false,
           videoLongReviewClaimedAt: null,
           videoStreamUid: null,
@@ -246,12 +258,19 @@ export async function approveFlaggedContent(formData: FormData) {
         where: { id: contentId, videoUrl: { not: null } },
         data: { videoModeratedAt: new Date() },
       });
-      await tx.post.update({
-        where: { id: comment.postId },
-        data: { commentCount: { increment: 1 } },
-      });
-      return { postId: comment.postId, videoStreamUid: before?.videoStreamUid ?? null };
+      if (published.count > 0) {
+        await tx.post.update({
+          where: { id: before.postId },
+          data: { commentCount: { increment: 1 } },
+        });
+      }
+      return before;
     });
+    if (!approved) {
+      // Gone already (removed by another admin): refresh the queue too.
+      revalidatePath("/admin/moderation");
+      return { error: "not_found" };
+    }
     reviewCopyUid = approved.videoStreamUid;
     revalidatePath(`/post/${approved.postId}`);
   } else if (contentType === "MUSE") {

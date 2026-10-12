@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type TransactionClient } from "@/lib/prisma";
 import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { countPublishedInThread } from "@/lib/comment-count";
 
 export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
 
@@ -48,15 +49,10 @@ export async function removeModeratedContent(
       return { authorId: post.authorId, mediaKeysToDelete };
     }
     case "COMMENT": {
-      const comment = await tx.comment.findUnique({
-        where: { id: targetId },
-        include: { replies: true },
-      });
+      const comment = await tx.comment.findUnique({ where: { id: targetId } });
       if (!comment) return null;
 
-      const removedPublishedCount =
-        (comment.moderationStatus === "PUBLISHED" ? 1 : 0) +
-        comment.replies.filter((r) => r.moderationStatus === "PUBLISHED").length;
+      const removedPublishedCount = await countPublishedInThread(tx, targetId);
 
       await tx.comment.delete({ where: { id: targetId } });
       if (removedPublishedCount > 0) {

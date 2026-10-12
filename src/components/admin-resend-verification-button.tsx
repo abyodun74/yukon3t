@@ -15,8 +15,12 @@ export function AdminResendVerificationButton({ userId }: { userId: string }) {
         disabled={isPending || status === "sent"}
         onClick={() =>
           startTransition(async () => {
-            const result = await adminResendVerificationEmail(userId);
-            setStatus(result.error ? "error" : "sent");
+            try {
+              const result = await adminResendVerificationEmail(userId);
+              setStatus(result.error ? "error" : "sent");
+            } catch {
+              setStatus("error");
+            }
           })
         }
         className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"

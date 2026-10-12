@@ -22,6 +22,7 @@ import {
 } from "@/lib/storage";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { loadPostComments } from "@/lib/comments-data";
+import { countPublishedInThread } from "@/lib/comment-count";
 
 export async function createComment(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -253,13 +254,30 @@ export async function editComment(commentId: string, formData: FormData) {
   // the client (comment-card.tsx's saveEdit) only reads content/editedAt
   // off this result, so re-fetching reactions here would just be wasted
   // work (see getPostComments for where reactions actually get loaded).
-  // select, not the default full row, for that same reason — moderationStatus/
+  // Only content/editedAt go back, for that same reason — moderationStatus/
   // authorId/postId/parentId etc. have no reason to reach the client.
-  const updated = await prisma.comment.update({
-    where: { id: commentId },
-    data: { content, moderationStatus, editedAt: new Date() },
-    select: { content: true, editedAt: true },
+  //
+  // An edit that fails the text screen takes a PUBLISHED comment out of
+  // view, so it comes off the post's commentCount in the same transaction
+  // (approveFlaggedContent adds it back if an admin publishes it). The write
+  // is guarded on PUBLISHED so that only happens for a comment that was
+  // still counted.
+  const editedAt = new Date();
+  const saved = await prisma.$transaction(async (tx) => {
+    const written = await tx.comment.updateMany({
+      where: { id: commentId, moderationStatus: "PUBLISHED" },
+      data: { content, moderationStatus, editedAt },
+    });
+    if (written.count === 0) return false;
+    if (moderationStatus === "FLAGGED") {
+      await tx.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } });
+    }
+    return true;
   });
+  if (!saved) {
+    return { error: "not_found" as const };
+  }
+  const updated = { content, editedAt };
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null, comment: updated };
@@ -301,28 +319,25 @@ export async function deleteComment(commentId: string) {
     return { error: "forbidden" };
   }
 
-  const removedPublishedCount =
-    (comment.moderationStatus === "PUBLISHED" ? 1 : 0) +
-    comment.replies.filter((r) => r.moderationStatus === "PUBLISHED").length;
-
-  await prisma.$transaction([
-    prisma.comment.delete({ where: { id: commentId } }),
-    ...(removedPublishedCount > 0
-      ? [
-          prisma.post.update({
-            where: { id: comment.postId },
-            data: { commentCount: { decrement: removedPublishedCount } },
-          }),
-        ]
-      : []),
-  ]);
+  // Counted inside the transaction and over the whole reply chain, not just
+  // direct replies: the delete cascades to every depth, and each of those
+  // replies was counted when it was published.
+  await prisma.$transaction(async (tx) => {
+    const removedPublishedCount = await countPublishedInThread(tx, commentId);
+    await tx.comment.delete({ where: { id: commentId } });
+    if (removedPublishedCount > 0) {
+      await tx.post.update({
+        where: { id: comment.postId },
+        data: { commentCount: { decrement: removedPublishedCount } },
+      });
+    }
+  });
 
   // A voice/video comment's actual file(s) otherwise keep sitting in R2
   // forever, unreferenced — same cleanup discipline as
   // deleteMessageForEveryone's media handling. Only this comment + its
-  // direct replies (matching removedPublishedCount's own one-level scope
-  // above) — a reply chain deeper than that is a pre-existing gap in this
-  // scope, not one this feature introduces.
+  // direct replies — a reply chain deeper than that is a pre-existing gap
+  // in this scope, not one this feature introduces.
   const repliesMedia = comment.replies.flatMap((r) => [r.audioUrl, r.videoUrl, r.videoThumbnailUrl]);
   await deleteMediaIfUnreferenced([comment.audioUrl, comment.videoUrl, comment.videoThumbnailUrl, ...repliesMedia]);
 
@@ -368,18 +383,29 @@ export async function hideComment(commentId: string) {
   // action leaves (see reports.ts): a moderator hiding a comment isn't an
   // admin action, but it should be just as explainable/appealable and just
   // as visible to a site admin reviewing moderation activity.
-  await prisma.$transaction([
-    prisma.comment.update({ where: { id: commentId }, data: { moderationStatus: "REMOVED" } }),
-    prisma.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } }),
-    prisma.auditLog.create({
+  // The hide itself is guarded on PUBLISHED, so two moderators hiding the
+  // same comment at once (or a hide racing a moderation flag) take it off
+  // the count only once.
+  const hidden = await prisma.$transaction(async (tx) => {
+    const written = await tx.comment.updateMany({
+      where: { id: commentId, moderationStatus: "PUBLISHED" },
+      data: { moderationStatus: "REMOVED" },
+    });
+    if (written.count === 0) return false;
+    await tx.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } });
+    await tx.auditLog.create({
       data: {
         targetId: comment.authorId,
         action: "CONTENT_REMOVED",
         reason: "Comment hidden by a post author, Circle co-admin, or site admin.",
         performedBy: user.id,
       },
-    }),
-  ]);
+    });
+    return true;
+  });
+  if (!hidden) {
+    return { error: "not_found" as const };
+  }
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null };

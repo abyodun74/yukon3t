@@ -81,7 +81,7 @@ async function sendEmailOtp(userId: string, email: string) {
     },
   });
 
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: "Your YuKon3t verification code",
     html: `<p>Your YuKon3t verification code is:</p>
@@ -703,13 +703,16 @@ export async function adminSendPasswordReset(userId: string) {
   });
 
   const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-  await sendEmail({
+  const sent = await sendEmail({
     to: user.email,
     subject: "Reset your YuKon3t password",
     html: `<p>A YuKon3t admin sent you this link after you contacted support about signing in.</p>
       <p><a href="${url}">Reset your password</a></p>
       <p>This link expires in 1 hour. If you didn't contact support about this, ignore this email — your password won't change.</p>`,
   });
+  if (!sent.ok) {
+    return { error: "email_failed" as const };
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -720,8 +723,10 @@ export async function adminSendPasswordReset(userId: string) {
     },
   });
 
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/moderation");
+  // No revalidatePath: neither /admin/moderation nor /admin/users shows
+  // anything this changes (no token, OTP or audit-log column is rendered
+  // there), and a revalidation would re-render the whole page inside this
+  // request just to return the same rows.
   return { error: null, email: user.email };
 }
 
@@ -745,7 +750,10 @@ export async function adminResendVerificationEmail(userId: string) {
     return { error: "already_verified" as const };
   }
 
-  await sendEmailOtp(user.id, user.email);
+  const sent = await sendEmailOtp(user.id, user.email);
+  if (!sent.ok) {
+    return { error: "email_failed" as const };
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -756,8 +764,10 @@ export async function adminResendVerificationEmail(userId: string) {
     },
   });
 
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/moderation");
+  // No revalidatePath: neither /admin/moderation nor /admin/users shows
+  // anything this changes (no token, OTP or audit-log column is rendered
+  // there), and a revalidation would re-render the whole page inside this
+  // request just to return the same rows.
   return { error: null, email: user.email };
 }
 

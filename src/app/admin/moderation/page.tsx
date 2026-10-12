@@ -1,7 +1,12 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { captureError } from "@/lib/error-tracking";
+import { createConcurrencyLimit, type ConcurrencyLimit } from "@/lib/concurrency-limit";
+import { loadModerationDuplicates } from "@/lib/moderation-duplicates-data";
+import { Skeleton } from "@/components/skeleton";
 import { ModerationActionForm } from "@/components/moderation-action-form";
 import { FlaggedContentActions } from "@/components/flagged-content-actions";
 import { AdminSendResetButton } from "@/components/admin-send-reset-button";
@@ -10,9 +15,50 @@ import { AdminDeletePostButton } from "@/components/admin-delete-post-button";
 import { AdminDeleteConversationButton } from "@/components/admin-delete-conversation-button";
 import { STUCK_UNVERIFIED_AFTER_MS, RESOLVED_LOGIN_ISSUE_VISIBLE_MS } from "@/lib/login-issues";
 
-// How far back to look for duplicate posts/DM threads — bounds the scan to a
-// recent, actionable window rather than the whole table's history.
-const DUPLICATE_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// How many of this page's queries may be in flight at once, across all of
+// its sections. One below the Prisma pool's default of 5 connections per
+// instance (src/lib/prisma.ts), so the page never queues behind itself for a
+// connection — a wait there fails after 5s.
+const MAX_CONCURRENT_QUERIES = 4;
+
+const SECTION_HEADING = "mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft";
+
+type SectionProps = { limit: ConcurrencyLimit };
+
+/**
+ * A section's queries, with a failure contained to that section: it renders
+ * SectionUnavailable instead of taking the whole page (and every other
+ * queue on it) down with it.
+ */
+async function loadSection<T>(section: string, load: () => Promise<T>): Promise<T | null> {
+  try {
+    return await load();
+  } catch (err) {
+    console.error(`[admin/moderation] failed to load ${section}`, err);
+    await captureError(err, { route: "admin/moderation", section });
+    return null;
+  }
+}
+
+function SectionUnavailable() {
+  return (
+    <p role="alert" className="mt-3 text-sm text-danger">
+      Couldn&apos;t load this section. Reload the page to try again.
+    </p>
+  );
+}
+
+function SectionFallback({ title }: { title?: string }) {
+  return (
+    <>
+      {title && <h2 className={SECTION_HEADING}>{title}</h2>}
+      <div className={title ? "mt-3 space-y-3" : "mt-8 space-y-4"}>
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    </>
+  );
+}
 
 /**
  * What Moderation in the Admin profile can do:
@@ -30,6 +76,10 @@ const DUPLICATE_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  *    stuck unverified — surfaced proactively (not just reachable by
  *    searching /admin/users) so support doesn't depend on the member
  *    knowing to ask.
+ * Each queue below is its own async component behind its own Suspense
+ * boundary, so they stream in independently and a slow one holds up only
+ * itself; all of them draw on one shared query limit (see
+ * MAX_CONCURRENT_QUERIES).
  * Every action writes an AuditLog entry against the content's author/the
  * reported user, so it's always explainable and appealable.
  */
@@ -37,246 +87,7 @@ export default async function ModerationQueuePage() {
   const user = await getSessionUserOrRedirect();
   if (!user.isAdmin) redirect("/discover");
 
-  const now = new Date();
-
-  const [
-    open,
-    resolved,
-    flaggedPosts,
-    flaggedComments,
-    flaggedMessages,
-    flaggedMuses,
-    hiddenComments,
-    lockedUsers,
-    failedAttemptUsers,
-    unverifiedStuckUsers,
-    resolvedLoginIssueUsers,
-  ] = await Promise.all([
-    prisma.report.findMany({
-      where: { status: { in: ["OPEN", "REVIEWING"] } },
-      orderBy: { createdAt: "asc" },
-      // Oldest-first plus a generous cap — this is the actionable backlog
-      // admins are expected to fully work through, not a "recent" preview
-      // like the queues below, so this exists as a blowup circuit-breaker
-      // (e.g. a spam wave), not a normal-operation pagination limit.
-      take: 200,
-      include: {
-        reporter: { select: { name: true } },
-        reportedUser: { select: { id: true, name: true, status: true } },
-      },
-    }),
-    prisma.report.findMany({
-      where: { status: { in: ["RESOLVED", "DISMISSED"] } },
-      orderBy: { resolvedAt: "desc" },
-      take: 15,
-      include: {
-        reporter: { select: { name: true } },
-        reportedUser: { select: { name: true } },
-      },
-    }),
-    prisma.post.findMany({
-      where: { moderationStatus: "FLAGGED" },
-      orderBy: { createdAt: "asc" },
-      take: 20,
-      include: { author: { select: { name: true } } },
-    }),
-    prisma.comment.findMany({
-      where: { moderationStatus: "FLAGGED" },
-      orderBy: { createdAt: "asc" },
-      take: 20,
-      include: { author: { select: { name: true } } },
-    }),
-    prisma.message.findMany({
-      where: { moderationStatus: "FLAGGED" },
-      orderBy: { createdAt: "asc" },
-      take: 20,
-      include: { sender: { select: { name: true } } },
-    }),
-    // A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS (60s) publishes FLAGGED
-    // pending the moderate-long-videos cron's Cloudflare Stream + OpenAI
-    // pipeline (see createMuse, actions/muse.ts) — that cron runs every
-    // minute and normally clears this within a few, so most rows here are
-    // just in-flight, not stuck. Still worth a real queue (this used to have
-    // none at all, unlike Post/Comment/Message above): a review whose
-    // automated verdict never lands — a crashed tick, a Cloudflare/OpenAI
-    // outage — had no way for an admin to see or rescue it, and its author
-    // had no way to see it either; "Posted!" would show client-side, then
-    // the Muse would just never appear, with nothing telling anyone why.
-    prisma.muse.findMany({
-      where: { moderationStatus: "FLAGGED" },
-      orderBy: { createdAt: "asc" },
-      take: 20,
-      include: { author: { select: { name: true } } },
-    }),
-    // Hidden by a post author/Circle co-admin, not an admin — see hideComment
-    // in comments.ts. Unlike a report or a flagged-at-creation item, these
-    // never otherwise surface anywhere an admin would see them.
-    prisma.comment.findMany({
-      where: { moderationStatus: "REMOVED" },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      include: { author: { select: { name: true } } },
-    }),
-    // Non-ACTIVE/DEACTIVATED accounts (banned, suspended) are deliberately
-    // excluded from all three login-issue queries below — that's an
-    // intentional moderation block handled via the reports queue above, not
-    // an access problem to fix here.
-    prisma.user.findMany({
-      where: { status: { in: ["ACTIVE", "DEACTIVATED"] }, lockedUntil: { gt: now } },
-      orderBy: { lockedUntil: "desc" },
-      take: 30,
-      select: { id: true, name: true, username: true, email: true, lockedUntil: true },
-    }),
-    prisma.user.findMany({
-      where: {
-        status: { in: ["ACTIVE", "DEACTIVATED"] },
-        failedLoginAttempts: { gt: 0 },
-        OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
-      },
-      orderBy: { failedLoginAttempts: "desc" },
-      take: 30,
-      select: { id: true, name: true, username: true, email: true, failedLoginAttempts: true },
-    }),
-    prisma.user.findMany({
-      where: {
-        status: "ACTIVE",
-        emailVerified: null,
-        createdAt: { lt: new Date(now.getTime() - STUCK_UNVERIFIED_AFTER_MS) },
-        // Excludes accounts the resolve-login-issues cron already auto-dismissed
-        // after 48h unresolved (src/app/api/cron/resolve-login-issues) — without
-        // this, still-unverified-but-dismissed accounts would keep showing here
-        // forever, since verifying is what would otherwise naturally clear this
-        // bucket (emailVerified stays null either way).
-        loginIssueResolvedAt: null,
-      },
-      orderBy: { createdAt: "asc" },
-      take: 30,
-      select: { id: true, name: true, username: true, email: true, createdAt: true },
-    }),
-    prisma.user.findMany({
-      where: {
-        loginIssueResolvedAt: { gt: new Date(now.getTime() - RESOLVED_LOGIN_ISSUE_VISIBLE_MS) },
-      },
-      orderBy: { loginIssueResolvedAt: "desc" },
-      take: 30,
-      select: { id: true, name: true, username: true, email: true, loginIssueResolvedAt: true },
-    }),
-  ]);
-
-  // A user can rack up a fresh issue after a past one resolved (e.g.
-  // resolved a lockout, then got locked out again) — the active queries
-  // above are the source of truth for "currently a problem", so drop
-  // anyone from "recently resolved" who's still showing up there too.
-  const activeIds = new Set([...lockedUsers, ...failedAttemptUsers, ...unverifiedStuckUsers].map((u) => u.id));
-  const recentlyResolvedLoginIssueUsers = resolvedLoginIssueUsers.filter((u) => !activeIds.has(u.id));
-
-  const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length + flaggedMuses.length;
-
-  // Duplicate posts: same author + identical content within the scan
-  // window — grouped in memory rather than a raw GROUP BY so the "keep the
-  // earliest, offer to delete the rest" logic stays plain TS.
-  const duplicateScanCutoff = new Date(now.getTime() - DUPLICATE_SCAN_WINDOW_MS);
-  // Independent of each other (both only need duplicateScanCutoff/now,
-  // computed above) — run together rather than as two sequential scans.
-  const [recentPosts, dmConversations, groupConversations] = await Promise.all([
-    prisma.post.findMany({
-      where: { createdAt: { gt: duplicateScanCutoff }, content: { not: "" } },
-      orderBy: { createdAt: "asc" },
-      take: 1000,
-      select: { id: true, authorId: true, content: true, createdAt: true, author: { select: { name: true } } },
-    }),
-    prisma.conversation.findMany({
-      where: { isGroup: false },
-      orderBy: { createdAt: "asc" },
-      take: 1000,
-      select: {
-        id: true,
-        createdAt: true,
-        members: { select: { userId: true, user: { select: { name: true } } } },
-        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-      },
-    }),
-    // Same "same author/creator + same content, no time window" shape as
-    // the DM scan above, keyed on createdById+name instead of a member
-    // pair — the actual real-world case this catches is a double-tap
-    // submit on /messages/new creating the same-named group twice in a row.
-    prisma.conversation.findMany({
-      where: { isGroup: true },
-      orderBy: { createdAt: "asc" },
-      take: 1000,
-      select: {
-        id: true,
-        createdAt: true,
-        name: true,
-        createdById: true,
-        createdBy: { select: { name: true } },
-        _count: { select: { members: true } },
-        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-      },
-    }),
-  ]);
-  const postGroupsByKey = new Map<string, typeof recentPosts>();
-  for (const post of recentPosts) {
-    const key = `${post.authorId}::${post.content}`;
-    const group = postGroupsByKey.get(key) ?? [];
-    group.push(post);
-    postGroupsByKey.set(key, group);
-  }
-  const duplicatePostGroups = [...postGroupsByKey.values()].filter((g) => g.length > 1);
-
-  // Duplicate DM threads: two non-group conversations sharing the exact
-  // same pair of members. Keeps whichever has the most recent message (or
-  // was created most recently, if neither has messages yet) and offers the
-  // rest for deletion — see deleteConversation in actions/messages.ts and
-  // the find-before-create fix in respondToConnection that stops new ones
-  // from forming going forward.
-  const conversationGroupsByKey = new Map<string, typeof dmConversations>();
-  for (const conv of dmConversations) {
-    if (conv.members.length !== 2) continue;
-    const key = conv.members
-      .map((m) => m.userId)
-      .sort()
-      .join(":");
-    const group = conversationGroupsByKey.get(key) ?? [];
-    group.push(conv);
-    conversationGroupsByKey.set(key, group);
-  }
-  const duplicateConversationGroups = [...conversationGroupsByKey.values()]
-    .filter((g) => g.length > 1)
-    .map((g) => {
-      const sorted = [...g].sort((a, b) => {
-        const aLast = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
-        const bLast = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
-        return bLast - aLast;
-      });
-      return { keeper: sorted[0], duplicates: sorted.slice(1) };
-    });
-  // Duplicate groups: same creator + same exact name — the real-world case
-  // is a double-tap submit on /messages/new. Same keep-most-recently-active
-  // and offer-the-rest shape as the DM scan above.
-  const groupConversationGroupsByKey = new Map<string, typeof groupConversations>();
-  for (const conv of groupConversations) {
-    if (!conv.createdById || !conv.name) continue;
-    const key = `${conv.createdById}:${conv.name}`;
-    const group = groupConversationGroupsByKey.get(key) ?? [];
-    group.push(conv);
-    groupConversationGroupsByKey.set(key, group);
-  }
-  const duplicateGroupConversationGroups = [...groupConversationGroupsByKey.values()]
-    .filter((g) => g.length > 1)
-    .map((g) => {
-      const sorted = [...g].sort((a, b) => {
-        const aLast = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
-        const bLast = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
-        return bLast - aLast;
-      });
-      return { keeper: sorted[0], duplicates: sorted.slice(1) };
-    });
-
-  const duplicateCount =
-    duplicatePostGroups.reduce((sum, g) => sum + g.length - 1, 0) +
-    duplicateConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0) +
-    duplicateGroupConversationGroups.reduce((sum, g) => sum + g.duplicates.length, 0);
+  const limit = createConcurrencyLimit(MAX_CONCURRENT_QUERIES);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -286,39 +97,172 @@ export default async function ModerationQueuePage() {
         trail. Target: 95% triaged within 24 hours.
       </p>
 
-      <div className="mt-8 space-y-4">
-        {open.map((report) => (
-          <div key={report.id} className="rounded-xl border border-line p-4">
-            <div className="flex items-center justify-between text-xs text-foreground-soft">
-              <span>
-                {report.targetType} · reported by {report.reporter.name}
-              </span>
-              <span>{report.createdAt.toLocaleString()}</span>
-            </div>
-            <p className="mt-2 break-words text-sm">{report.reason}</p>
-            {report.evidenceText && (
-              <div className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs">
-                <p className="font-medium text-foreground-soft">
-                  Message text supplied by the reporter — from a secret (end-to-end encrypted) chat, so we can&apos;t
-                  read it or verify it:
-                </p>
-                <p className="mt-1 whitespace-pre-wrap break-words">{report.evidenceText}</p>
-              </div>
-            )}
-            {report.reportedUser && (
-              <p className="mt-1 text-xs text-foreground-soft">
-                Against: {report.reportedUser.name} ({report.reportedUser.status})
-              </p>
-            )}
-            <ModerationActionForm reportId={report.id} targetType={report.targetType} />
-          </div>
-        ))}
-        {open.length === 0 && (
-          <p className="text-sm text-foreground-soft">Queue is clear.</p>
-        )}
-      </div>
+      <Suspense fallback={<SectionFallback />}>
+        <ReportsQueueSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Login issues" />}>
+        <LoginIssuesSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Flagged content" />}>
+        <FlaggedContentSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Hidden comments" />}>
+        <HiddenCommentsSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Duplicates" />}>
+        <DuplicatesSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Recently resolved" />}>
+        <RecentlyResolvedSection limit={limit} />
+      </Suspense>
+    </div>
+  );
+}
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+async function ReportsQueueSection({ limit }: SectionProps) {
+  const open = await loadSection("reports queue", () =>
+    limit(() =>
+      prisma.report.findMany({
+        where: { status: { in: ["OPEN", "REVIEWING"] } },
+        orderBy: { createdAt: "asc" },
+        // Oldest-first plus a generous cap — this is the actionable backlog
+        // admins are expected to fully work through, not a "recent" preview
+        // like the queues below, so this exists as a blowup circuit-breaker
+        // (e.g. a spam wave), not a normal-operation pagination limit.
+        take: 200,
+        select: {
+          id: true,
+          targetType: true,
+          createdAt: true,
+          reason: true,
+          evidenceText: true,
+          reporter: { select: { name: true } },
+          reportedUser: { select: { name: true, status: true } },
+        },
+      }),
+    ),
+  );
+  if (!open) {
+    return (
+      <div className="mt-8">
+        <SectionUnavailable />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-4">
+      {open.map((report) => (
+        <div key={report.id} className="rounded-xl border border-line p-4">
+          <div className="flex items-center justify-between text-xs text-foreground-soft">
+            <span>
+              {report.targetType} · reported by {report.reporter.name}
+            </span>
+            <span>{report.createdAt.toLocaleString()}</span>
+          </div>
+          <p className="mt-2 break-words text-sm">{report.reason}</p>
+          {report.evidenceText && (
+            <div className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs">
+              <p className="font-medium text-foreground-soft">
+                Message text supplied by the reporter — from a secret (end-to-end encrypted) chat, so we can&apos;t
+                read it or verify it:
+              </p>
+              <p className="mt-1 whitespace-pre-wrap break-words">{report.evidenceText}</p>
+            </div>
+          )}
+          {report.reportedUser && (
+            <p className="mt-1 text-xs text-foreground-soft">
+              Against: {report.reportedUser.name} ({report.reportedUser.status})
+            </p>
+          )}
+          <ModerationActionForm reportId={report.id} targetType={report.targetType} />
+        </div>
+      ))}
+      {open.length === 0 && (
+        <p className="text-sm text-foreground-soft">Queue is clear.</p>
+      )}
+    </div>
+  );
+}
+
+async function LoginIssuesSection({ limit }: SectionProps) {
+  const now = new Date();
+  const data = await loadSection("login issues", () =>
+    Promise.all([
+      // Non-ACTIVE/DEACTIVATED accounts (banned, suspended) are deliberately
+      // excluded from all three login-issue queries below — that's an
+      // intentional moderation block handled via the reports queue above, not
+      // an access problem to fix here.
+      limit(() =>
+        prisma.user.findMany({
+          where: { status: { in: ["ACTIVE", "DEACTIVATED"] }, lockedUntil: { gt: now } },
+          orderBy: { lockedUntil: "desc" },
+          take: 30,
+          select: { id: true, name: true, username: true, email: true, lockedUntil: true },
+        }),
+      ),
+      limit(() =>
+        prisma.user.findMany({
+          where: {
+            status: { in: ["ACTIVE", "DEACTIVATED"] },
+            failedLoginAttempts: { gt: 0 },
+            OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+          },
+          orderBy: { failedLoginAttempts: "desc" },
+          take: 30,
+          select: { id: true, name: true, username: true, email: true, failedLoginAttempts: true },
+        }),
+      ),
+      limit(() =>
+        prisma.user.findMany({
+          where: {
+            status: "ACTIVE",
+            emailVerified: null,
+            createdAt: { lt: new Date(now.getTime() - STUCK_UNVERIFIED_AFTER_MS) },
+            // Excludes accounts the resolve-login-issues cron already auto-dismissed
+            // after 48h unresolved (src/app/api/cron/resolve-login-issues) — without
+            // this, still-unverified-but-dismissed accounts would keep showing here
+            // forever, since verifying is what would otherwise naturally clear this
+            // bucket (emailVerified stays null either way).
+            loginIssueResolvedAt: null,
+          },
+          orderBy: { createdAt: "asc" },
+          take: 30,
+          select: { id: true, name: true, username: true, email: true, createdAt: true },
+        }),
+      ),
+      limit(() =>
+        prisma.user.findMany({
+          where: {
+            loginIssueResolvedAt: { gt: new Date(now.getTime() - RESOLVED_LOGIN_ISSUE_VISIBLE_MS) },
+          },
+          orderBy: { loginIssueResolvedAt: "desc" },
+          take: 30,
+          select: { id: true, name: true, username: true, email: true, loginIssueResolvedAt: true },
+        }),
+      ),
+    ]),
+  );
+  if (!data) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Login issues</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+  const [lockedUsers, failedAttemptUsers, unverifiedStuckUsers, resolvedLoginIssueUsers] = data;
+
+  // A user can rack up a fresh issue after a past one resolved (e.g.
+  // resolved a lockout, then got locked out again) — the active queries
+  // above are the source of truth for "currently a problem", so drop
+  // anyone from "recently resolved" who's still showing up there too.
+  const activeIds = new Set([...lockedUsers, ...failedAttemptUsers, ...unverifiedStuckUsers].map((u) => u.id));
+  const recentlyResolvedLoginIssueUsers = resolvedLoginIssueUsers.filter((u) => !activeIds.has(u.id));
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>
         Login issues ({lockedUsers.length + failedAttemptUsers.length + unverifiedStuckUsers.length})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
@@ -449,8 +393,78 @@ export default async function ModerationQueuePage() {
           </div>
         </div>
       </div>
+    </>
+  );
+}
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+async function FlaggedContentSection({ limit }: SectionProps) {
+  const data = await loadSection("flagged content", () =>
+    Promise.all([
+      limit(() =>
+        prisma.post.findMany({
+          where: { moderationStatus: "FLAGGED" },
+          orderBy: { createdAt: "asc" },
+          take: 20,
+          select: { id: true, content: true, author: { select: { name: true } } },
+        }),
+      ),
+      limit(() =>
+        prisma.comment.findMany({
+          where: { moderationStatus: "FLAGGED" },
+          orderBy: { createdAt: "asc" },
+          take: 20,
+          select: { id: true, content: true, author: { select: { name: true } } },
+        }),
+      ),
+      limit(() =>
+        prisma.message.findMany({
+          where: { moderationStatus: "FLAGGED" },
+          orderBy: { createdAt: "asc" },
+          take: 20,
+          select: { id: true, content: true, sender: { select: { name: true } } },
+        }),
+      ),
+      // A Muse over HIVE_VIDEO_MODERATION_MAX_SECONDS (60s) publishes FLAGGED
+      // pending the moderate-long-videos cron's Cloudflare Stream + OpenAI
+      // pipeline (see createMuse, actions/muse.ts) — that cron runs every
+      // minute and normally clears this within a few, so most rows here are
+      // just in-flight, not stuck. Still worth a real queue (this used to have
+      // none at all, unlike Post/Comment/Message above): a review whose
+      // automated verdict never lands — a crashed tick, a Cloudflare/OpenAI
+      // outage — had no way for an admin to see or rescue it, and its author
+      // had no way to see it either; "Posted!" would show client-side, then
+      // the Muse would just never appear, with nothing telling anyone why.
+      limit(() =>
+        prisma.muse.findMany({
+          where: { moderationStatus: "FLAGGED" },
+          orderBy: { createdAt: "asc" },
+          take: 20,
+          select: {
+            id: true,
+            caption: true,
+            videoDurationSeconds: true,
+            createdAt: true,
+            videoLongReviewClaimedAt: true,
+            author: { select: { name: true } },
+          },
+        }),
+      ),
+    ]),
+  );
+  if (!data) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Flagged content</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+  const [flaggedPosts, flaggedComments, flaggedMessages, flaggedMuses] = data;
+  const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length + flaggedMuses.length;
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>
         Flagged content ({flaggedCount})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
@@ -497,8 +511,36 @@ export default async function ModerationQueuePage() {
           <p className="text-sm text-foreground-soft">Nothing flagged right now.</p>
         )}
       </div>
+    </>
+  );
+}
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+async function HiddenCommentsSection({ limit }: SectionProps) {
+  // Hidden by a post author/Circle co-admin, not an admin — see hideComment
+  // in comments.ts. Unlike a report or a flagged-at-creation item, these
+  // never otherwise surface anywhere an admin would see them.
+  const hiddenComments = await loadSection("hidden comments", () =>
+    limit(() =>
+      prisma.comment.findMany({
+        where: { moderationStatus: "REMOVED" },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: { id: true, content: true, author: { select: { name: true } } },
+      }),
+    ),
+  );
+  if (!hiddenComments) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Hidden comments</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>
         Hidden comments ({hiddenComments.length})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
@@ -516,8 +558,25 @@ export default async function ModerationQueuePage() {
           <p className="text-sm text-foreground-soft">No hidden comments right now.</p>
         )}
       </div>
+    </>
+  );
+}
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+async function DuplicatesSection({ limit }: SectionProps) {
+  const data = await loadSection("duplicates", () => loadModerationDuplicates(new Date(), limit));
+  if (!data) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Duplicates</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+  const { postGroups, dmGroups, groupGroups, duplicateCount } = data;
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>
         Duplicates ({duplicateCount})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
@@ -529,7 +588,7 @@ export default async function ModerationQueuePage() {
         deletion.
       </p>
       <div className="mt-3 space-y-3">
-        {duplicatePostGroups.map((group) => (
+        {postGroups.map((group) => (
           <div key={group[0].id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">
               {group.length} copies by {group[0].author.name ?? "Unknown"}
@@ -547,7 +606,7 @@ export default async function ModerationQueuePage() {
             </div>
           </div>
         ))}
-        {duplicateConversationGroups.map(({ keeper, duplicates }) => (
+        {dmGroups.map(({ keeper, duplicates }) => (
           <div key={keeper.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">
               {duplicates.length + 1} DM threads between{" "}
@@ -565,7 +624,7 @@ export default async function ModerationQueuePage() {
             </div>
           </div>
         ))}
-        {duplicateGroupConversationGroups.map(({ keeper, duplicates }) => (
+        {groupGroups.map(({ keeper, duplicates }) => (
           <div key={keeper.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">
               {duplicates.length + 1} groups named &ldquo;{keeper.name}&rdquo; created by{" "}
@@ -587,8 +646,38 @@ export default async function ModerationQueuePage() {
           <p className="text-sm text-foreground-soft">No duplicates found.</p>
         )}
       </div>
+    </>
+  );
+}
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-foreground-soft">
+async function RecentlyResolvedSection({ limit }: SectionProps) {
+  const resolved = await loadSection("recently resolved", () =>
+    limit(() =>
+      prisma.report.findMany({
+        where: { status: { in: ["RESOLVED", "DISMISSED"] } },
+        orderBy: { resolvedAt: "desc" },
+        take: 15,
+        select: {
+          id: true,
+          targetType: true,
+          resolutionNote: true,
+          reportedUser: { select: { name: true } },
+        },
+      }),
+    ),
+  );
+  if (!resolved) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Recently resolved</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>
         Recently resolved
       </h2>
       <div className="mt-3 space-y-2">
@@ -598,6 +687,6 @@ export default async function ModerationQueuePage() {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }

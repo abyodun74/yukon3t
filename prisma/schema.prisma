@@ -779,6 +779,10 @@ model Post {
   // ORDER BY albumIndex).
   @@index([albumId, albumIndex])
   @@index([moderationStatus, createdAt(sort: Desc)])
+  // Backs /admin/moderation's duplicate-post scan (createdAt within the last
+  // 7 days, any moderationStatus) — the index above can't serve a createdAt
+  // range on its own.
+  @@index([createdAt])
   @@index([videoUrl])
   @@index([videoThumbnailUrl])
   @@index([mediaUrls], type: Gin)
@@ -849,6 +853,9 @@ model Comment {
   // FLAGGED long comment videos; that scan keys on videoLongReviewNeeded
   // now (see that field), and this index was left as it was.
   @@index([moderationStatus, videoLongReviewClaimedAt])
+  // Backs /admin/moderation's FLAGGED (oldest first) and REMOVED (newest
+  // first) comment lists.
+  @@index([moderationStatus, createdAt])
   @@index([authorId])
   @@index([videoUrl])
   @@index([videoThumbnailUrl])
@@ -2215,6 +2222,10 @@ model Message {
   // pattern directly instead of falling back to the single-column index
   // plus an in-memory sort.
   @@index([conversationId, createdAt])
+  // Backs /admin/moderation's flagged-message list (moderationStatus FLAGGED,
+  // oldest first), which had no index at all and scanned the whole table on
+  // every render of that page.
+  @@index([moderationStatus, createdAt])
   @@index([replyToMessageId])
   @@index([senderId])
   @@index([storyId])

@@ -226,16 +226,28 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
     if (result.kind === "clean") {
       // Guarded on videoLongReviewNeeded — see reviewOnePost's "clean"
       // branch for why a 0-count result means "already decided, do nothing".
-      const written = await prisma.comment.updateMany({
-        where: { id: candidate.id, videoLongReviewNeeded: true },
-        data: {
-          moderationStatus: "PUBLISHED",
-          videoLongReviewClaimedAt: null,
-          videoStreamUid: null,
-          videoLongReviewNeeded: false,
-        },
+      // A long-video comment is held FLAGGED from creation and was never
+      // counted (createComment only increments commentCount when it
+      // publishes immediately), so the write that publishes it adds it to
+      // the post's count, in the same transaction.
+      const published = await prisma.$transaction(async (tx) => {
+        const written = await tx.comment.updateMany({
+          where: { id: candidate.id, videoLongReviewNeeded: true },
+          data: {
+            moderationStatus: "PUBLISHED",
+            videoLongReviewClaimedAt: null,
+            videoStreamUid: null,
+            videoLongReviewNeeded: false,
+          },
+        });
+        if (written.count === 0) return false;
+        await tx.post.update({
+          where: { id: candidate.postId },
+          data: { commentCount: { increment: 1 } },
+        });
+        return true;
       });
-      if (written.count === 0) return "clean";
+      if (!published) return "clean";
       revalidatePath(`/post/${candidate.postId}`);
       return "clean";
     }

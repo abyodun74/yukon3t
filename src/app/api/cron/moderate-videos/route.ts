@@ -81,7 +81,7 @@ async function moderatePostVideos() {
 async function moderateCommentVideos() {
   const pending = await prisma.comment.findMany({
     where: { videoModeratedAt: null, videoUrl: { not: null } },
-    select: { id: true, videoUrl: true },
+    select: { id: true, videoUrl: true, postId: true },
     take: BATCH_SIZE,
   });
 
@@ -105,11 +105,31 @@ async function moderateCommentVideos() {
         continue;
       }
       if (result.flagged) {
-        const written = await prisma.comment.updateMany({
-          where: { id: comment.id, videoModeratedAt: claimedAt },
-          data: { moderationStatus: "FLAGGED" },
+        // Flagging a comment that is live takes it out of the post's
+        // commentCount (PUBLISHED comments only) in the same transaction.
+        // The first write only matches a PUBLISHED row, so its count says
+        // whether there is anything to decrement; the second covers a row
+        // that wasn't PUBLISHED (hidden by a moderator meanwhile), which is
+        // flagged as before.
+        const written = await prisma.$transaction(async (tx) => {
+          const unpublished = await tx.comment.updateMany({
+            where: { id: comment.id, videoModeratedAt: claimedAt, moderationStatus: "PUBLISHED" },
+            data: { moderationStatus: "FLAGGED" },
+          });
+          if (unpublished.count > 0) {
+            await tx.post.update({
+              where: { id: comment.postId },
+              data: { commentCount: { decrement: 1 } },
+            });
+            return unpublished.count;
+          }
+          const other = await tx.comment.updateMany({
+            where: { id: comment.id, videoModeratedAt: claimedAt },
+            data: { moderationStatus: "FLAGGED" },
+          });
+          return other.count;
         });
-        if (written.count > 0) flagged += 1;
+        if (written > 0) flagged += 1;
       } else {
         cleared += 1;
       }

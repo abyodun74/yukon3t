@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { resolveReport } from "@/app/actions/reports";
 
 const CONTENT_LABELS: Record<string, string> = {
@@ -30,8 +29,8 @@ export function ModerationActionForm({
   const [isPending, startTransition] = useTransition();
   const [action, setAction] = useState("REPORT_DISMISSED");
   const [confirming, setConfirming] = useState(false);
+  const [failed, setFailed] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter();
   const contentLabel = CONTENT_LABELS[targetType];
   const needsConfirmation = ACTIONS_REQUIRING_CONFIRMATION.has(action);
 
@@ -39,9 +38,16 @@ export function ModerationActionForm({
     if (!formRef.current) return;
     const fd = new FormData(formRef.current);
     fd.set("reportId", reportId);
+    // No router.refresh(): resolveReport calls revalidatePath, so its
+    // response already carries this page re-rendered (see FlaggedContentActions).
     startTransition(async () => {
-      await resolveReport(fd);
-      router.refresh();
+      setFailed(false);
+      try {
+        const result = await resolveReport(fd);
+        if (result.error) setFailed(true);
+      } catch {
+        setFailed(true);
+      }
     });
   }
 
@@ -112,6 +118,11 @@ export function ModerationActionForm({
         >
           {isPending ? "Applying..." : "Apply"}
         </button>
+      )}
+      {failed && (
+        <p role="alert" className="w-full text-xs text-danger">
+          Couldn&apos;t apply that. Reload the page to check, then try again.
+        </p>
       )}
     </form>
   );
