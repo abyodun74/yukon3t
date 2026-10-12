@@ -40,7 +40,7 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
       aria-label={state === "idle" ? "Save to device" : undefined}
       title="Save to device"
       className={cn(
-        "absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white disabled:opacity-60",
+        "absolute left-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white disabled:opacity-60",
         state === "error" && "text-danger",
       )}
     >
@@ -118,7 +118,7 @@ export function Lightbox({
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-4 top-4 z-10 text-white/80 hover:text-white"
+        className="absolute right-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 text-white/80 hover:text-white"
       >
         <X size={24} aria-hidden />
       </button>

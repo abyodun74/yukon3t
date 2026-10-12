@@ -201,7 +201,7 @@ export function ViewOnceViewer({
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-4 top-4 z-10 rounded-full bg-black/40 p-2 text-white/80 hover:text-white"
+        className="absolute right-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 rounded-full bg-black/40 p-2 text-white/80 hover:text-white"
       >
         <X size={24} aria-hidden />
       </button>
