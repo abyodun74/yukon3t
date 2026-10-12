@@ -820,6 +820,16 @@ model Comment {
   videoDurationSeconds     Int?
   videoLongReviewClaimedAt DateTime?
   videoStreamUid           String?
+  // Whether this comment still needs the moderate-long-videos pipeline's
+  // verdict — same field and meaning as Post.videoLongReviewNeeded. Set true
+  // at creation for a video over HIVE_VIDEO_MODERATION_MAX_SECONDS (see
+  // createComment), flipped false by whichever comes first: the pipeline's
+  // own verdict (clean or flagged) or an admin's decision in
+  // /admin/moderation. The cron used to key on moderationStatus FLAGGED
+  // instead, which a "flagged" verdict leaves unchanged — so the same
+  // comment was claimed and re-reviewed on every tick, forever, and each
+  // pass overwrote an admin's approval.
+  videoLongReviewNeeded    Boolean   @default(false)
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -835,9 +845,9 @@ model Comment {
   // a Hive verdict — mirrors Post's own [mediaType, videoModeratedAt] index,
   // minus mediaType since Comment has none.
   @@index([videoModeratedAt])
-  // Backs the moderate-long-videos cron's scan for FLAGGED long comment
-  // videos still awaiting (or stale-claimed and due for retry) the OpenAI
-  // review pipeline — mirrors Post's own composite index, minus mediaType.
+  // Added for the moderate-long-videos cron's scan back when it selected
+  // FLAGGED long comment videos; that scan keys on videoLongReviewNeeded
+  // now (see that field), and this index was left as it was.
   @@index([moderationStatus, videoLongReviewClaimedAt])
   @@index([authorId])
   @@index([videoUrl])
@@ -1707,6 +1717,13 @@ model Muse {
   // of the same name — see this model's own doc comment above.
   videoLongReviewClaimedAt DateTime?
   videoStreamUid           String?
+  // Whether this Muse still needs the moderate-long-videos pipeline's
+  // verdict — same field and meaning as Post.videoLongReviewNeeded, see
+  // Comment.videoLongReviewNeeded for why the cron keys on this rather than
+  // on moderationStatus FLAGGED. Set true at creation for a video over
+  // HIVE_VIDEO_MODERATION_MAX_SECONDS (createMuse, shareToMuse), flipped
+  // false by the pipeline's verdict or an admin's decision.
+  videoLongReviewNeeded    Boolean   @default(false)
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
   likeCount        Int              @default(0)
@@ -1743,7 +1760,9 @@ model Muse {
   @@index([moderationStatus, createdAt])
   // Backs the moderate-videos cron's scan for un-scanned Muse videos.
   @@index([videoModeratedAt])
-  // Backs the moderate-long-videos cron's scan for in-progress long reviews.
+  // Added for the moderate-long-videos cron's scan back when it selected
+  // FLAGGED long Muses; that scan keys on videoLongReviewNeeded now (see
+  // that field), and this index was left as it was.
   @@index([moderationStatus, videoLongReviewClaimedAt])
   @@index([sharedPostId])
   @@index([videoUrl])

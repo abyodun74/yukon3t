@@ -177,6 +177,11 @@ export async function createComment(formData: FormData) {
         // picking this up and wasting/failing a Hive call on it.
         videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
         videoStreamUid: streamUid ?? undefined,
+        // What moderate-long-videos' candidate query keys on (see
+        // schema.prisma) — true exactly when this comment was just held
+        // FLAGGED above for that review, and cleared by its verdict or by
+        // an admin's decision, whichever lands first.
+        videoLongReviewNeeded: videoNeedsManualReview,
       },
     });
     if (moderationStatus === "PUBLISHED") {

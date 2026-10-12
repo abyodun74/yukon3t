@@ -8,6 +8,7 @@ import { reportSchema, moderationActionSchema, flaggedContentActionSchema } from
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recomputeTrustScore } from "@/lib/trust";
 import { removeModeratedContent, cleanUpModeratedMedia } from "@/lib/content-moderation";
+import { deleteStreamVideo } from "@/lib/cloudflare-stream";
 
 export async function fileReport(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -183,22 +184,76 @@ export async function approveFlaggedContent(formData: FormData) {
   }
   const { contentType, contentId } = parsed.data;
 
+  // An admin's "publish" has to be the last word on a video, and two crons
+  // can each still be holding one: moderate-long-videos (a review in flight
+  // or still owed) and moderate-videos (the Hive scan). So for POST, COMMENT
+  // and MUSE the approval also ends both, in the same transaction as the
+  // publish:
+  //  - videoLongReviewNeeded: false is what moderate-long-videos' claim
+  //    query and every one of its verdict writes are guarded on, so a
+  //    review already running finds nothing to write and no later tick
+  //    claims the row. Before this an approved video was simply flagged
+  //    again by the next pass.
+  //  - videoModeratedAt is stamped on anything with a video, even when
+  //    already set: null would leave it for moderate-videos to scan (and
+  //    flag) later, and a fresh value is how a Hive scan running right now
+  //    learns its claim was superseded (that cron guards its writes on the
+  //    timestamp it claimed with).
+  // The Cloudflare Stream review copy, if there was one, is deleted once
+  // the write has committed — nothing else is going to (video-review.ts
+  // only deletes it when a review reaches a verdict).
+  let reviewCopyUid: string | null = null;
+
   if (contentType === "POST") {
-    await prisma.post.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
+    reviewCopyUid = await prisma.$transaction(async (tx) => {
+      const before = await tx.post.findUnique({ where: { id: contentId }, select: { videoStreamUid: true } });
+      await tx.post.update({
+        where: { id: contentId },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewNeeded: false,
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+        },
+      });
+      await tx.post.updateMany({
+        where: { id: contentId, videoUrl: { not: null } },
+        data: { videoModeratedAt: new Date() },
+      });
+      return before?.videoStreamUid ?? null;
+    });
+    // Same set the moderate-long-videos cron's own "clean" verdict
+    // revalidates (see reviewOnePost) — the post just became visible.
+    revalidatePath("/circles", "layout");
+    revalidatePath("/home");
+    revalidatePath(`/post/${contentId}`);
   } else if (contentType === "COMMENT") {
     // createComment only increments commentCount when it publishes immediately;
     // a comment approved late needs that increment applied now instead —
     // transactional so the two writes can't drift apart on a crash/race.
-    await prisma.$transaction(async (tx) => {
+    const approved = await prisma.$transaction(async (tx) => {
+      const before = await tx.comment.findUnique({ where: { id: contentId }, select: { videoStreamUid: true } });
       const comment = await tx.comment.update({
         where: { id: contentId },
-        data: { moderationStatus: "PUBLISHED" },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewNeeded: false,
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+        },
+      });
+      await tx.comment.updateMany({
+        where: { id: contentId, videoUrl: { not: null } },
+        data: { videoModeratedAt: new Date() },
       });
       await tx.post.update({
         where: { id: comment.postId },
         data: { commentCount: { increment: 1 } },
       });
+      return { postId: comment.postId, videoStreamUid: before?.videoStreamUid ?? null };
     });
+    reviewCopyUid = approved.videoStreamUid;
+    revalidatePath(`/post/${approved.postId}`);
   } else if (contentType === "MUSE") {
     // Same terminal update the moderate-long-videos cron's own "clean"
     // verdict makes (see reviewOneMuse) — this is the manual equivalent for
@@ -206,13 +261,32 @@ export async function approveFlaggedContent(formData: FormData) {
     // pipeline (or rescuing one whose automated review never reached a
     // verdict). Matches that path exactly: no notifySubscribers fan-out
     // here either, same as the automated "clean" case.
-    await prisma.muse.update({
-      where: { id: contentId },
-      data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+    reviewCopyUid = await prisma.$transaction(async (tx) => {
+      const before = await tx.muse.findUnique({ where: { id: contentId }, select: { videoStreamUid: true } });
+      await tx.muse.update({
+        where: { id: contentId },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewNeeded: false,
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+        },
+      });
+      await tx.muse.updateMany({
+        where: { id: contentId, videoUrl: { not: null } },
+        data: { videoModeratedAt: new Date() },
+      });
+      return before?.videoStreamUid ?? null;
     });
     revalidatePath("/muse");
   } else {
     await prisma.message.update({ where: { id: contentId }, data: { moderationStatus: "PUBLISHED" } });
+  }
+
+  // Best-effort, like deleteStreamVideo itself (it logs and never throws):
+  // the approval above has already committed and must not fail over this.
+  if (reviewCopyUid) {
+    await deleteStreamVideo(reviewCopyUid);
   }
 
   revalidatePath("/admin/moderation");

@@ -98,8 +98,14 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
     }
 
     if (result.kind === "clean") {
-      await prisma.post.update({
-        where: { id: candidate.id },
+      // Guarded on videoLongReviewNeeded, like every verdict write in this
+      // file: a review runs for minutes, and an admin can publish or remove
+      // this post from /admin/moderation (approveFlaggedContent clears the
+      // flag) while it does. A 0-count result means that decision — or
+      // another tick's verdict — already landed, and this one must not
+      // overwrite it or repeat its side effects.
+      const written = await prisma.post.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
         data: {
           moderationStatus: "PUBLISHED",
           videoLongReviewClaimedAt: null,
@@ -107,6 +113,7 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
           videoLongReviewNeeded: false,
         },
       });
+      if (written.count === 0) return "clean";
       revalidatePath("/circles", "layout");
       revalidatePath("/home");
       revalidatePath(`/post/${candidate.id}`);
@@ -121,10 +128,14 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
     // in this app (createPost/createComment's own synchronous text-flag,
     // same as this), which holds for /admin/moderation instead of
     // discarding. videoLongReviewNeeded: false stops claimPostCandidates
-    // from claiming this again now that a verdict has landed.
+    // from claiming this again now that a verdict has landed. Same
+    // videoLongReviewNeeded guard as the "clean" write above — without it
+    // this is the write that put a post back in the queue after an admin
+    // had published it. The audit row shares the transaction so a flag is
+    // never recorded for a write that didn't happen.
     const post = await prisma.$transaction(async (tx) => {
-      const updated = await tx.post.update({
-        where: { id: candidate.id },
+      const written = await tx.post.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
         data: {
           moderationStatus: "FLAGGED",
           videoLongReviewClaimedAt: null,
@@ -132,6 +143,12 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
           videoLongReviewNeeded: false,
         },
       });
+      if (written.count === 0) return null;
+      const updated = await tx.post.findUnique({
+        where: { id: candidate.id },
+        select: { id: true, authorId: true },
+      });
+      if (!updated) return null;
       await tx.auditLog.create({
         data: {
           targetId: updated.authorId,
@@ -145,6 +162,9 @@ async function reviewOnePost(candidate: Candidate): Promise<VideoReviewResult["k
       });
       return updated;
     });
+    // Already decided by an admin or another tick — no notification, no
+    // revalidation; that decision did its own.
+    if (!post) return "flagged";
     // A post in the instant-publish window (HIVE_VIDEO_MODERATION_MAX_SECONDS
     // up to VIDEO_INSTANT_PUBLISH_MAX_SECONDS) was already live — this just
     // took it back down, so the same caches that would show it need
@@ -204,25 +224,46 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
     }
 
     if (result.kind === "clean") {
-      await prisma.comment.update({
-        where: { id: candidate.id },
-        data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      // Guarded on videoLongReviewNeeded — see reviewOnePost's "clean"
+      // branch for why a 0-count result means "already decided, do nothing".
+      const written = await prisma.comment.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
       });
+      if (written.count === 0) return "clean";
       revalidatePath(`/post/${candidate.postId}`);
       return "clean";
     }
 
     // result.kind === "flagged" — held for review, same reasoning as
     // reviewOnePost's own "flagged" branch above (see its comment). A
-    // long-video comment is already stored FLAGGED from creation time (see
-    // claimCommentCandidates' own query), so this is really just "stop
-    // reclaiming it and make sure an admin can see it," not a visibility
-    // change.
+    // long-video comment is stored FLAGGED from creation time (see
+    // createComment), so this is not a visibility change: what ends the
+    // review is videoLongReviewNeeded going false, which is the only thing
+    // that stops claimCommentCandidates from claiming it again. Guarded on
+    // that same flag, so an admin's approval made while this review was
+    // running is left alone.
     const comment = await prisma.$transaction(async (tx) => {
-      const updated = await tx.comment.update({
-        where: { id: candidate.id },
-        data: { moderationStatus: "FLAGGED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      const written = await tx.comment.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
+        data: {
+          moderationStatus: "FLAGGED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
       });
+      if (written.count === 0) return null;
+      const updated = await tx.comment.findUnique({
+        where: { id: candidate.id },
+        select: { id: true, authorId: true, postId: true },
+      });
+      if (!updated) return null;
       await tx.auditLog.create({
         data: {
           targetId: updated.authorId,
@@ -233,6 +274,7 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
       });
       return updated;
     });
+    if (!comment) return "flagged";
     revalidatePath(`/post/${comment.postId}`);
     revalidatePath("/admin/moderation");
     // Links to the parent post, not the comment itself — a FLAGGED comment
@@ -304,10 +346,17 @@ async function claimPostCandidates(claimable: object) {
 // Post — no mediaType filter needed (see moderate-videos's own comment
 // query for why), and postId is carried along so reviewOneComment can
 // revalidate the right post page on a "clean" verdict.
+//
+// Keys on videoLongReviewNeeded, same as Post. This used to select
+// moderationStatus: FLAGGED, which is also the state a "flagged" verdict
+// leaves a comment in — so a flagged comment matched again on the very next
+// tick and was re-reviewed every minute from then on (a fresh Cloudflare
+// copy, OpenAI calls, an AuditLog row and an author notification each
+// time), and whichever pass was in flight overwrote an admin's approval.
 async function claimCommentCandidates(claimable: object) {
   const candidates = await prisma.comment.findMany({
     where: {
-      moderationStatus: "FLAGGED",
+      videoLongReviewNeeded: true,
       videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
       ...claimable,
     },
@@ -340,12 +389,14 @@ async function claimCommentCandidates(claimable: object) {
 // mediaType: "VIDEO" excludes EMBED rows (see Muse's own mediaType doc
 // comment) — they have no video body of ours to review at all, and their
 // null videoDurationSeconds would never satisfy the gt filter below anyway
-// (defensive, not load-bearing on its own).
+// (defensive, not load-bearing on its own). Keys on videoLongReviewNeeded
+// rather than moderationStatus: FLAGGED for the reason given above
+// claimCommentCandidates.
 async function claimMuseCandidates(claimable: object) {
   const candidates = await prisma.muse.findMany({
     where: {
       mediaType: "VIDEO",
-      moderationStatus: "FLAGGED",
+      videoLongReviewNeeded: true,
       videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
       ...claimable,
     },
@@ -414,10 +465,18 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
     }
 
     if (result.kind === "clean") {
-      await prisma.muse.update({
-        where: { id: candidate.id },
-        data: { moderationStatus: "PUBLISHED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      // Guarded on videoLongReviewNeeded — see reviewOnePost's "clean"
+      // branch for why a 0-count result means "already decided, do nothing".
+      const written = await prisma.muse.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
+        data: {
+          moderationStatus: "PUBLISHED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
       });
+      if (written.count === 0) return "clean";
       revalidatePath("/muse");
       return "clean";
     }
@@ -425,15 +484,28 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
     // result.kind === "flagged" — held for review, same reasoning as
     // reviewOnePost's own "flagged" branch above (see its comment); this is
     // the exact scenario that prompted adding Muse to /admin/moderation in
-    // the first place. A long Muse is already stored FLAGGED from creation
-    // time (see claimMuseCandidates' own query), so this is "stop
-    // reclaiming it and make sure an admin can see it," not a visibility
-    // change.
+    // the first place. A long Muse is stored FLAGGED from creation time
+    // (see createMuse), so this is not a visibility change: what ends the
+    // review is videoLongReviewNeeded going false, which is the only thing
+    // that stops claimMuseCandidates from claiming it again. Guarded on
+    // that same flag, so an admin's approval made while this review was
+    // running is left alone.
     const muse = await prisma.$transaction(async (tx) => {
-      const updated = await tx.muse.update({
-        where: { id: candidate.id },
-        data: { moderationStatus: "FLAGGED", videoLongReviewClaimedAt: null, videoStreamUid: null },
+      const written = await tx.muse.updateMany({
+        where: { id: candidate.id, videoLongReviewNeeded: true },
+        data: {
+          moderationStatus: "FLAGGED",
+          videoLongReviewClaimedAt: null,
+          videoStreamUid: null,
+          videoLongReviewNeeded: false,
+        },
       });
+      if (written.count === 0) return null;
+      const updated = await tx.muse.findUnique({
+        where: { id: candidate.id },
+        select: { id: true, authorId: true },
+      });
+      if (!updated) return null;
       await tx.auditLog.create({
         data: {
           targetId: updated.authorId,
@@ -444,6 +516,7 @@ async function reviewOneMuse(candidate: Candidate): Promise<VideoReviewResult["k
       });
       return updated;
     });
+    if (!muse) return "flagged";
     revalidatePath("/admin/moderation");
     // getMuseById now lets the author view their own FLAGGED Muse
     // specifically so this link resolves instead of 404ing for them.

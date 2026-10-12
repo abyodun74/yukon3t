@@ -195,6 +195,10 @@ export async function createMuse(formData: FormData) {
         // going to handle — same reasoning as Post's own videoModeratedAt.
         videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
         videoStreamUid: streamUid ?? undefined,
+        // What moderate-long-videos' candidate query keys on (see
+        // schema.prisma) — cleared by its verdict or by an admin's
+        // decision, whichever lands first.
+        videoLongReviewNeeded: videoNeedsManualReview,
       },
     });
   } catch (err) {

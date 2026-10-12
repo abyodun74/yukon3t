@@ -1,6 +1,13 @@
 import { captureError } from "@/lib/error-tracking";
 
-type ModerationResult = { allowed: boolean; flaggedCategories: string[] };
+type ModerationResult = {
+  allowed: boolean;
+  flaggedCategories: string[];
+  // Set when the check itself didn't run. "rejected": OpenAI refused this
+  // particular input (HTTP 400), so asking again gives the same answer.
+  // "unavailable": outage, rate limit, timeout — worth retrying later.
+  apiError?: "rejected" | "unavailable";
+};
 
 // A stalled/slow OpenAI response would otherwise hold the calling write
 // action (post/comment/message/etc.) open for as long as the API takes —
@@ -12,12 +19,25 @@ const MODERATION_TIMEOUT_MS = 8000;
 
 // Content that fails open here publishes unscanned, so make it visible.
 // Fire-and-forget: captureError never throws, and the caller shouldn't wait on it.
-function reportModerationFailOpen(reason: string, error?: unknown) {
-  console.error(`[moderation] callModerationApi failed open: ${reason}`);
+function reportModerationFailOpen(reason: string, error?: unknown, detail?: string) {
+  console.error(`[moderation] callModerationApi failed open: ${reason}${detail ? ` (${detail})` : ""}`);
   void captureError(error ?? new Error(`Moderation API failed open: ${reason}`), {
     where: "callModerationApi",
     reason,
+    detail,
   });
+}
+
+// OpenAI's own explanation of a non-2xx response (e.g. which part of the
+// input it refused) — without it an "HTTP 400" report can't be acted on.
+async function moderationErrorDetail(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.json();
+    const message = body?.error?.message;
+    return typeof message === "string" ? message.slice(0, 300) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function callModerationApi(
@@ -45,8 +65,12 @@ async function callModerationApi(
     if (!res.ok) {
       // Fail closed on API errors for safety-critical paths would block
       // legitimate users during outages; instead flag for human review.
-      reportModerationFailOpen(`HTTP ${res.status}`);
-      return { allowed: true, flaggedCategories: ["moderation_api_error"] };
+      reportModerationFailOpen(`HTTP ${res.status}`, undefined, await moderationErrorDetail(res));
+      return {
+        allowed: true,
+        flaggedCategories: ["moderation_api_error"],
+        apiError: res.status === 400 ? "rejected" : "unavailable",
+      };
     }
 
     const data = await res.json();
@@ -61,7 +85,7 @@ async function callModerationApi(
   } catch (err) {
     // Covers both a real network/API error and the timeout abort above.
     reportModerationFailOpen(timeoutController.signal.aborted ? "timeout" : "network error", err);
-    return { allowed: true, flaggedCategories: ["moderation_api_error"] };
+    return { allowed: true, flaggedCategories: ["moderation_api_error"], apiError: "unavailable" };
   } finally {
     clearTimeout(timeout);
   }

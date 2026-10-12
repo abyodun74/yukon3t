@@ -50,7 +50,11 @@ const FRAME_INTERVAL_SECONDS = 30;
 const MAX_FRAMES = 120;
 const FRAME_MODERATION_CONCURRENCY = 10;
 
-async function moderateFramesConcurrently(streamUid: string, durationSeconds: number): Promise<string[]> {
+// null: OpenAI couldn't be reached for at least one frame, so there is no
+// verdict yet. A frame OpenAI refused outright (it will refuse it again)
+// comes back as a reason instead, so the video is held for an admin rather
+// than published with that frame never looked at.
+async function moderateFramesConcurrently(streamUid: string, durationSeconds: number): Promise<string[] | null> {
   const frameCount = Math.min(MAX_FRAMES, Math.max(1, Math.ceil(durationSeconds / FRAME_INTERVAL_SECONDS)));
   const timestamps = Array.from({ length: frameCount }, (_, i) => i * FRAME_INTERVAL_SECONDS);
 
@@ -60,8 +64,9 @@ async function moderateFramesConcurrently(streamUid: string, durationSeconds: nu
     const results = await Promise.all(
       batch.map((t) => moderateImage(thumbnailUrl(streamUid, t))),
     );
+    if (results.some((result) => result.apiError === "unavailable")) return null;
     results.forEach((result, idx) => {
-      if (!result.allowed) {
+      if (!result.allowed || result.apiError === "rejected") {
         reasons.push(`frame@${batch[idx]}s: ${result.flaggedCategories.join(",")}`);
       }
     });
@@ -122,19 +127,22 @@ export async function advanceLongVideoReview({
     const vtt = await getCaptionsVtt(uid);
     if (vtt === null) return { kind: "error" };
     const transcript = vttToPlainText(vtt);
-    const [textResult, profanity] = await Promise.all([
-      moderateText(transcript),
-      Promise.resolve(containsProfanity(transcript)),
-    ]);
-    if (!textResult.allowed) {
-      transcriptReasons.push(`audio: ${textResult.flaggedCategories.join(",")}`);
-    }
-    if (profanity.flagged) {
-      transcriptReasons.push(`audio: profanity (${profanity.matches.join(",")})`);
+    // A video with no speech has an empty transcript — nothing to check.
+    if (transcript) {
+      const textResult = await moderateText(transcript);
+      if (textResult.apiError === "unavailable") return { kind: "error" };
+      if (!textResult.allowed || textResult.apiError === "rejected") {
+        transcriptReasons.push(`audio: ${textResult.flaggedCategories.join(",")}`);
+      }
+      const profanity = containsProfanity(transcript);
+      if (profanity.flagged) {
+        transcriptReasons.push(`audio: profanity (${profanity.matches.join(",")})`);
+      }
     }
   }
 
   const frameReasons = await moderateFramesConcurrently(uid, videoDurationSeconds);
+  if (frameReasons === null) return { kind: "error" };
   const reasons = [...transcriptReasons, ...frameReasons];
 
   await deleteStreamVideo(uid);

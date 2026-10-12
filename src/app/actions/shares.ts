@@ -314,6 +314,10 @@ export async function shareToMuse(postId: string) {
         moderationStatus: videoNeedsManualReview ? "FLAGGED" : "PUBLISHED",
         videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
         videoStreamUid: streamUid ?? undefined,
+        // Same as createMuse — this is what moderate-long-videos' candidate
+        // query keys on, so a shared long video left without it would stay
+        // FLAGGED with nothing ever reviewing it.
+        videoLongReviewNeeded: videoNeedsManualReview,
       },
     });
     const count = await applyShareEffect(tx, root, user.id);
