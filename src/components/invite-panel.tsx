@@ -6,6 +6,8 @@ import { Check, Link2, MessageSquareText, Search, Share2, Users, X } from "lucid
 import type { ContactPayload } from "@capacitor-community/contacts";
 import { captureError } from "@/lib/error-tracking";
 import { Sheet } from "@/components/sheet";
+import { PhoneNumberField } from "@/components/phone-number-field";
+import { PHONE_INVALID_MESSAGE, isValidE164 } from "@/lib/phone-number";
 
 const INVITE_MESSAGE = "Join me on YuKon3t — connect across cultures, interests, and borders:";
 
@@ -43,7 +45,7 @@ function flattenNativeContacts(contacts: ContactPayload[]): InviteContact[] {
   return rows.sort((a, b) => (a.name ?? "￿").localeCompare(b.name ?? "￿"));
 }
 
-export function InvitePanel() {
+export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null }) {
   // Read directly during render rather than via useEffect+setState — same
   // convention as ShareModal's canNativeShare/url: these are plain,
   // synchronous browser-API reads with nothing to subscribe to, so an
@@ -55,7 +57,10 @@ export function InvitePanel() {
 
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [contacts, setContacts] = useState<InviteContact[]>([]);
+  // The full international number PhoneNumberField assembles from its country and number parts.
   const [manualNumber, setManualNumber] = useState("");
+  // Bumped after a number is added, to remount the field empty (it keeps its own state).
+  const [manualFieldKey, setManualFieldKey] = useState(0);
   const [pickError, setPickError] = useState<string | null>(null);
 
   // Native-only: the device's full contact list (fetched once per picker
@@ -192,10 +197,17 @@ export function InvitePanel() {
   }
 
   function addManualNumber() {
-    const tel = manualNumber.trim();
+    const tel = manualNumber;
     if (!tel) return;
+    // Nothing checks this number later (it only goes into an sms: link), so a mistyped one is caught here.
+    if (!isValidE164(tel)) {
+      setPickError(PHONE_INVALID_MESSAGE);
+      return;
+    }
+    setPickError(null);
     setContacts((prev) => [...prev, { id: String(contactRowId++), name: null, tel }]);
     setManualNumber("");
+    setManualFieldKey((k) => k + 1);
   }
 
   function removeContact(id: string) {
@@ -253,24 +265,32 @@ export function InvitePanel() {
               {nativeLoading ? "Opening contacts…" : "Choose from contacts"}
             </button>
           )}
-          <input
-            aria-label="Phone number"
-            type="tel"
-            value={manualNumber}
-            onChange={(e) => setManualNumber(e.target.value)}
+          <div
+            className="min-w-56 flex-1"
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
                 e.preventDefault();
                 addManualNumber();
               }
             }}
-            placeholder="Or enter a phone number"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-background px-3 py-2 text-xs outline-none focus:border-accent"
-          />
+          >
+            <label htmlFor="invite-phone" className="sr-only">
+              Phone number
+            </label>
+            <PhoneNumberField
+              key={manualFieldKey}
+              id="invite-phone"
+              name="invitePhone"
+              required={false}
+              defaultCountry={defaultCountry}
+              controlClassName="py-2"
+              onValueChange={setManualNumber}
+            />
+          </div>
           <button
             type="button"
             onClick={addManualNumber}
-            disabled={!manualNumber.trim()}
+            disabled={!manualNumber}
             className="rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
           >
             Add

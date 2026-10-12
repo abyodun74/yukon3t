@@ -1,6 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { BackButton } from "@/components/back-button";
 import { InvitePanel } from "@/components/invite-panel";
+import { getRequestCountry } from "@/lib/request-country";
 
 export default async function InvitePage() {
   await getOnboardedUserOrRedirect();
@@ -13,7 +14,7 @@ export default async function InvitePage() {
         Bring people you know onto YuKon3t.
       </p>
       <div className="mt-6">
-        <InvitePanel />
+        <InvitePanel defaultCountry={await getRequestCountry()} />
       </div>
     </div>
   );

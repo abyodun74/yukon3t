@@ -174,7 +174,7 @@ export default async function SettingsPage({
           who aren&apos;t on YuKon3t yet.
         </p>
         <div className="mt-4">
-          <InvitePanel />
+          <InvitePanel defaultCountry={await getRequestCountry()} />
         </div>
       </div>
 

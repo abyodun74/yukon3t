@@ -47,6 +47,7 @@ export function PhoneNumberField({
   invalid = false,
   describedBy,
   controlClassName = "py-2.5",
+  onValueChange,
 }: {
   /** Goes on the national-number input: point the field's <label htmlFor> at it. */
   id: string;
@@ -58,14 +59,20 @@ export function PhoneNumberField({
   describedBy?: string;
   /** Vertical padding, to match the inputs around it. */
   controlClassName?: string;
+  /** For a caller with no <form> to read the value from (invite-panel.tsx): the E.164 value after every change. */
+  onValueChange?: (e164: string) => void;
 }) {
-  const [{ country, national }, setParts] = useState(
+  const [{ country, national }, setPartsState] = useState(
     () =>
       splitE164(defaultValue, defaultCountry ?? undefined) ?? {
         country: resolvePhoneCountry(defaultCountry),
         national: defaultValue.trim(),
       },
   );
+  function setParts(next: { country: string; national: string }) {
+    setPartsState(next);
+    onValueChange?.(assembleE164(next.country, next.national));
+  }
   const hydrated = useSyncExternalStore(
     subscribeToNothing,
     () => true,
