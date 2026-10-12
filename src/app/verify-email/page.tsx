@@ -11,17 +11,9 @@ import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { PhoneNumberField } from "@/components/phone-number-field";
 import { getRequestCountry } from "@/lib/request-country";
-import { PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid_code: "That code didn't match — check it and try again.",
-  expired: "That code expired — we've sent you a new one.",
-  too_many_attempts: "Too many wrong attempts — we've sent you a new code.",
-  rate_limited: "Too many attempts. Please wait a bit and try again.",
-  invalid_phone: PHONE_INVALID_MESSAGE,
-  phone_taken: "That phone number is already verified on another account.",
-  captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
-};
+import { LanguagePicker } from "@/components/language-picker";
+import { format } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -29,21 +21,25 @@ export default async function VerifyEmailPage({
   searchParams: Promise<{ verified?: string; sent?: string; error?: string }>;
 }) {
   const { verified, sent, error } = await searchParams;
+  const locale = await getLocale();
+  const t = await getDictionary();
+  // The actions redirect back with an error code; this is the sentence for each, in the request's language.
+  const errorMessages: Record<string, string> = { ...t.verifyEmail.errors, captcha: t.common.captchaFailed };
+  const offlineMessage = t.shared.submitButton.offline;
+  const picker = <LanguagePicker locale={locale} label={t.languagePicker.label} />;
 
   if (verified === "1") {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Email confirmed</h1>
-        <p className="mt-3 text-sm text-foreground-soft">
-          Your email is verified. You can now sign in with your username and
-          password.
-        </p>
+      <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+        <h1 className="text-2xl font-semibold">{t.verifyEmail.confirmedTitle}</h1>
+        <p className="mt-3 text-sm text-foreground-soft">{t.verifyEmail.confirmedBody}</p>
         <Link
           href="/sign-in"
           className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
         >
-          Sign in
+          {t.common.signIn}
         </Link>
+        {picker}
       </div>
     );
   }
@@ -51,18 +47,16 @@ export default async function VerifyEmailPage({
   const pending = await readPendingVerification();
   if (!pending) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Nothing to verify here</h1>
-        <p className="mt-3 text-sm text-foreground-soft">
-          This link has expired or was opened on a different device. Sign in
-          and we&apos;ll help you finish verifying your account.
-        </p>
+      <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+        <h1 className="text-2xl font-semibold">{t.common.nothingToVerify}</h1>
+        <p className="mt-3 text-sm text-foreground-soft">{t.verifyEmail.expiredBody}</p>
         <Link
           href="/sign-in"
           className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
         >
-          Sign in
+          {t.common.signIn}
         </Link>
+        {picker}
       </div>
     );
   }
@@ -73,22 +67,24 @@ export default async function VerifyEmailPage({
   });
   if (!user) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Nothing to verify here</h1>
+      <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+        <h1 className="text-2xl font-semibold">{t.common.nothingToVerify}</h1>
         <Link href="/sign-in" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
-          Sign in
+          {t.common.signIn}
         </Link>
+        {picker}
       </div>
     );
   }
 
   if (user.emailVerified) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Already verified</h1>
+      <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+        <h1 className="text-2xl font-semibold">{t.common.alreadyVerified}</h1>
         <Link href="/sign-in" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
-          Sign in
+          {t.common.signIn}
         </Link>
+        {picker}
       </div>
     );
   }
@@ -100,26 +96,24 @@ export default async function VerifyEmailPage({
   const defaultCountry = await getRequestCountry();
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-      <h1 className="text-2xl font-semibold">Confirm your email</h1>
-      <p className="mt-3 text-sm text-foreground-soft">
-        Enter the 6-digit code we sent to {user.email}.
-      </p>
+    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <h1 className="text-2xl font-semibold">{t.verifyEmail.title}</h1>
+      <p className="mt-3 text-sm text-foreground-soft">{format(t.verifyEmail.body, { email: user.email })}</p>
 
       {error && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          {ERROR_MESSAGES[error] ?? "Something went wrong — try again."}
+          {errorMessages[error] ?? t.common.somethingWentWrong}
         </p>
       )}
       {sent === "1" && !error && (
         <p role="status" className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
-          A new code is on its way.
+          {t.common.newCodeSent}
         </p>
       )}
 
       <form action={confirmEmailOtp} className="mt-6 w-full space-y-3">
         <label htmlFor="verify-email-code" className="sr-only">
-          Verification code
+          {t.common.codeLabel}
         </label>
         <input
           id="verify-email-code"
@@ -132,39 +126,47 @@ export default async function VerifyEmailPage({
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
         />
         <SubmitButton
-          label="Confirm email"
-          pendingLabel="Confirming..."
+          label={t.verifyEmail.submit}
+          pendingLabel={t.common.confirming}
+          offlineMessage={offlineMessage}
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
         />
       </form>
 
       <form action={resendEmailOtp} className="mt-4">
-        <TurnstileWidget />
+        <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
         <SubmitButton
-          label="Resend code"
-          pendingLabel="Resending..."
+          label={t.common.resendCode}
+          pendingLabel={t.common.resending}
+          offlineMessage={offlineMessage}
           className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
         />
       </form>
 
       {/* Email delivery can be slow or blocked — never leave someone stuck waiting on it. */}
       <div className="mt-8 w-full border-t border-line pt-5 text-left">
-        <p className="text-sm font-medium">Email taking too long?</p>
-        <p className="mt-1 text-xs text-foreground-soft">
-          Verify with your phone number instead — we&apos;ll text you a code.
-        </p>
+        <p className="text-sm font-medium">{t.verifyEmail.slowTitle}</p>
+        <p className="mt-1 text-xs text-foreground-soft">{t.verifyEmail.slowBody}</p>
         <form action={switchToPhoneVerification} className="mt-3 space-y-2">
           <label htmlFor="switch-phone" className="sr-only">
-            Phone number
+            {t.common.phoneLabel}
           </label>
-          <PhoneNumberField id="switch-phone" defaultCountry={defaultCountry} />
+          <PhoneNumberField
+            id="switch-phone"
+            defaultCountry={defaultCountry}
+            locale={locale}
+            labels={t.shared.phoneField}
+          />
           <SubmitButton
-            label="Use phone"
-            pendingLabel="Switching..."
+            label={t.verifyEmail.usePhone}
+            pendingLabel={t.common.switching}
+            offlineMessage={offlineMessage}
             className="w-full rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
           />
         </form>
       </div>
+
+      {picker}
     </div>
   );
 }

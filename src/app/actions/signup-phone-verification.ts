@@ -18,6 +18,8 @@ import {
   clearPendingVerificationCookie,
 } from "@/lib/pending-verification";
 import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
+import { getLocale } from "@/lib/i18n/server";
 
 /**
  * Signup-time counterpart to src/app/actions/phone-verification.ts —
@@ -48,8 +50,11 @@ export async function requestSignupPhoneVerification(formData: FormData) {
   const taken = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
   if (taken && taken.id !== pending.userId) return { error: "phone_taken" as const };
 
+  // The text goes out in the language this person is signing up in. English is not forced on anyone: for it the
+  // choice stays with Verify (by the number's country), exactly as before there were other languages.
+  const locale = await getLocale();
   try {
-    await startPhoneVerification(phone);
+    await startPhoneVerification(phone, locale === DEFAULT_LOCALE ? null : locale);
   } catch {
     return { error: "send_failed" as const };
   }

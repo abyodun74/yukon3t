@@ -21,6 +21,7 @@ import { signOut } from "@/lib/auth";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import { getClientIp } from "@/lib/client-ip";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
@@ -224,6 +225,7 @@ export async function setPassword(formData: FormData) {
         purpose: "PASSWORD_CHANGE",
         deviceId,
         deviceLabel: label,
+        locale: DEFAULT_LOCALE,
         newPasswordHash,
       });
       redirect(`/settings/verify-device?challengeId=${challenge.id}`);
@@ -331,6 +333,7 @@ export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
     purpose: "PASSWORD_CHANGE",
     deviceId: existing.deviceId,
     deviceLabel: label,
+    locale: DEFAULT_LOCALE,
     newPasswordHash: existing.newPasswordHash,
   });
   redirect(`/settings/verify-device?challengeId=${challenge.id}&sent=1`);

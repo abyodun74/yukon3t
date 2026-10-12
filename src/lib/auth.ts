@@ -13,11 +13,28 @@ import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, issuePendingDeviceChallengeCookie } from "@/lib/device-challenge";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { magicLinkEmail } from "@/lib/account-emails";
+import { localeFromRequest } from "@/lib/i18n/locales";
+import { getLocale } from "@/lib/i18n/server";
 
 const providers: Provider[] = [
   Resend({
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM,
+    // Auth.js's own sendVerificationRequest with one difference: the email is written in the language of the request
+    // that asked for the link (the picker's cookie, else Accept-Language) instead of always English.
+    async sendVerificationRequest({ identifier: to, provider, url, theme, request }) {
+      const { host } = new URL(url);
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${provider.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from: provider.from, to, ...magicLinkEmail(localeFromRequest(request), { url, host, theme }) }),
+      });
+      if (!res.ok) throw new Error("Resend error: " + JSON.stringify(await res.json()));
+    },
   }),
 ];
 
@@ -127,6 +144,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   purpose: "LOGIN",
                   deviceId,
                   deviceLabel: label,
+                  locale: await getLocale(),
                 });
                 await issuePendingDeviceChallengeCookie(existing.id, deviceId, challenge.id);
                 // Returning a URL instead of true aborts this sign-in attempt

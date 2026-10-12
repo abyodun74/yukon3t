@@ -19,6 +19,8 @@ import {
   type SignUpField,
   type SignUpState,
 } from "@/lib/sign-up-form";
+import type { Dictionary } from "@/lib/i18n/en";
+import { format, type Locale } from "@/lib/i18n/locales";
 
 const INPUT_CLASS = "w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent";
 
@@ -53,13 +55,21 @@ function FieldError({ id, children }: { id: string; children: ReactNode }) {
  * - TurnstileWidget fetches a fresh token after every submit and holds a submit back until it has one, so a
  *   resubmit never carries the spent token. It only sees submits because it listens on the <form> itself; this
  *   component must respect its preventDefault (see handleSubmit).
+ * - `locale`, `t` and `shared` are the page's language and its wording, handed down by the server page. Switching
+ *   language re-renders the page around this component, which keeps its state — nothing typed is lost.
  */
 export function SignUpForm({
   defaultCountry,
   botProtection,
+  locale,
+  t,
+  shared,
 }: {
   defaultCountry: string | null;
   botProtection: ReactNode;
+  locale: Locale;
+  t: Dictionary["signUp"]["form"];
+  shared: Dictionary["shared"];
 }) {
   const [state, formAction, isPending] = useActionState(signUpWithPassword, INITIAL_SIGN_UP_STATE);
   const [username, setUsername] = useState("");
@@ -89,7 +99,7 @@ export function SignUpForm({
   const describedBy = (field: SignUpField) => (fieldErrors[field] ? `${FIELD_INPUT_ID[field]}-error` : undefined);
   const errorFor = (field: SignUpField) => {
     const reason = fieldErrors[field];
-    return reason ? <FieldError id={`${FIELD_INPUT_ID[field]}-error`}>{signUpReasonMessage(reason)}</FieldError> : null;
+    return reason ? <FieldError id={`${FIELD_INPUT_ID[field]}-error`}>{signUpReasonMessage(reason, t.reasons)}</FieldError> : null;
   };
 
   return (
@@ -106,19 +116,19 @@ export function SignUpForm({
 
       {(errorCount > 0 || formError) && (
         <div role="alert" className="rounded-lg bg-danger/10 px-4 py-3 text-sm">
-          {formError && <p className="text-danger">{signUpFormErrorMessage(formError)}</p>}
+          {formError && <p className="text-danger">{signUpFormErrorMessage(formError, t.formErrors)}</p>}
           {errorCount > 0 && (
             <p className={cn("font-semibold text-danger", formError && "mt-2")}>
-              {errorCount === 1 ? "Just one thing to fix" : "A few things to fix"}
+              {errorCount === 1 ? t.oneFix : t.fewFixes}
             </p>
           )}
-          {errorCount > 0 && narrowed && <p className="mt-1 text-foreground-soft">Your other details are saved.</p>}
+          {errorCount > 0 && narrowed && <p className="mt-1 text-foreground-soft">{t.othersSaved}</p>}
         </div>
       )}
 
       <div hidden={!shown.has("username")}>
         <label htmlFor="signup-username" className="block text-xs font-medium text-foreground-soft">
-          Username
+          {t.username}
         </label>
         <input
           id="signup-username"
@@ -128,7 +138,7 @@ export function SignUpForm({
           minLength={3}
           maxLength={20}
           pattern="[A-Za-z0-9_]+"
-          title="Letters, numbers and underscores only"
+          title={t.usernameTitle}
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
@@ -136,14 +146,14 @@ export function SignUpForm({
           onChange={(e) => setUsername(e.target.value)}
           aria-invalid={fieldErrors.username ? true : undefined}
           aria-describedby={describedBy("username")}
-          placeholder="3–20 letters, numbers, _"
+          placeholder={t.usernamePlaceholder}
           className={cn(INPUT_CLASS, "mt-1", fieldErrors.username && "border-danger")}
         />
         {errorFor("username")}
       </div>
       <div hidden={!shown.has("email")}>
         <label htmlFor="signup-email" className="block text-xs font-medium text-foreground-soft">
-          Email
+          {t.email}
         </label>
         <input
           id="signup-email"
@@ -155,14 +165,14 @@ export function SignUpForm({
           onChange={(e) => setEmail(e.target.value)}
           aria-invalid={fieldErrors.email ? true : undefined}
           aria-describedby={describedBy("email")}
-          placeholder="you@example.com"
+          placeholder={t.emailPlaceholder}
           className={cn(INPUT_CLASS, "mt-1", fieldErrors.email && "border-danger")}
         />
         {fieldErrors.email === "email_taken" ? (
           <FieldError id="signup-email-error">
-            {signUpReasonMessage("email_taken")}{" "}
+            {signUpReasonMessage("email_taken", t.reasons)}{" "}
             <Link href="/sign-in" className="font-medium underline">
-              Sign in instead
+              {t.signInInstead}
             </Link>
           </FieldError>
         ) : (
@@ -171,7 +181,7 @@ export function SignUpForm({
       </div>
       <div hidden={!shown.has("password")}>
         <label htmlFor="signup-password" className="block text-xs font-medium text-foreground-soft">
-          Password
+          {t.password}
         </label>
         {/* Margin on a wrapper, not the input: PasswordInput centres its
             show/hide button against its own box. */}
@@ -183,19 +193,20 @@ export function SignUpForm({
             minLength={8}
             maxLength={72}
             autoComplete="new-password"
-            placeholder="At least 8 characters"
+            placeholder={t.passwordPlaceholder}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             invalid={Boolean(fieldErrors.password)}
             describedBy={describedBy("password")}
             className={cn(INPUT_CLASS, fieldErrors.password && "border-danger")}
+            labels={shared.passwordInput}
           />
         </div>
         {errorFor("password")}
       </div>
       <div hidden={!shown.has("birthDate")}>
         <label htmlFor="signup-birth-month" className="block text-xs font-medium text-foreground-soft">
-          Date of birth
+          {t.birthDate}
         </label>
         <div className="mt-1">
           <BirthDateSelect
@@ -203,16 +214,20 @@ export function SignUpForm({
             minAge={MIN_AGE}
             invalid={Boolean(fieldErrors.birthDate)}
             describedBy={describedBy("birthDate")}
+            labels={shared.birthDate}
           />
         </div>
         {errorFor("birthDate") ?? (
-          <p className="mt-1 text-xs text-foreground-soft">You must be at least {MIN_AGE} to use YuKon3t.</p>
+          <p className="mt-1 text-xs text-foreground-soft">{format(t.ageHint, { age: MIN_AGE })}</p>
         )}
       </div>
       <div hidden={!shown.has("phone")}>
         <VerifyMethodFields
           defaultCountry={defaultCountry}
-          phoneError={fieldErrors.phone ? signUpReasonMessage(fieldErrors.phone) : null}
+          phoneError={fieldErrors.phone ? signUpReasonMessage(fieldErrors.phone, t.reasons) : null}
+          locale={locale}
+          t={t}
+          phoneLabels={shared.phoneField}
         />
       </div>
 
@@ -222,15 +237,16 @@ export function SignUpForm({
           onClick={() => setEditAllFor(state)}
           className="text-sm font-medium text-accent hover:underline"
         >
-          Edit all details
+          {t.editAll}
         </button>
       )}
 
-      <TurnstileWidget />
+      <TurnstileWidget locale={locale} waitMessage={shared.turnstile.wait} />
       <SubmitButton
-        label="Create account"
-        pendingLabel="Creating account..."
+        label={t.submit}
+        pendingLabel={t.submitting}
         pending={isPending}
+        offlineMessage={shared.submitButton.offline}
         className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
       />
     </form>

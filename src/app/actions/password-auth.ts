@@ -18,6 +18,9 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { isBotSubmission } from "@/lib/bot-protection";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { sendEmail } from "@/lib/email";
+import { passwordResetEmail, verificationCodeEmail } from "@/lib/account-emails";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
+import { getLocale } from "@/lib/i18n/server";
 import { issueSessionCookie } from "@/lib/session-token";
 import { track } from "@/lib/analytics";
 import { requireAdmin } from "@/lib/auth-guards";
@@ -47,8 +50,14 @@ const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
 /**
  * Replaces any outstanding reset link for the account with a fresh one and emails it. "required" is the forced reset
  * (User.passwordResetRequiredAt), sent from loginWithPassword to someone who just typed the account's correct password.
+ * Written in `locale`: the language of whoever is making the request.
  */
-async function sendPasswordResetEmail(userId: string, email: string, reason: "requested" | "required") {
+async function sendPasswordResetEmail(
+  userId: string,
+  email: string,
+  reason: "requested" | "required",
+  locale: Locale,
+) {
   const token = randomUUID();
   await prisma.passwordResetToken.deleteMany({ where: { userId } });
   await prisma.passwordResetToken.create({
@@ -56,21 +65,11 @@ async function sendPasswordResetEmail(userId: string, email: string, reason: "re
   });
 
   const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-  await sendEmail({
-    to: email,
-    subject: "Reset your YuKon3t password",
-    html:
-      reason === "required"
-        ? `<p>For your security, you need to set a new password for this YuKon3t account. We're asking everyone to choose a new password as a security precaution.</p>
-        <p><a href="${url}">Choose a new password</a></p>
-        <p>This link expires in 1 hour. Your old password no longer signs you in.</p>`
-        : `<p>Someone requested a password reset for this YuKon3t account.</p>
-        <p><a href="${url}">Reset your password</a></p>
-        <p>This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>`,
-  });
+  await sendEmail({ to: email, ...passwordResetEmail(locale, reason, url) });
 }
 
-async function sendEmailOtp(userId: string, email: string) {
+/** `locale` is the caller's to choose: the request's language for someone verifying their own account, English for an admin's resend. */
+async function sendEmailOtp(userId: string, email: string, locale: Locale) {
   const code = generateOtpCode();
   await prisma.user.update({
     where: { id: userId },
@@ -81,13 +80,7 @@ async function sendEmailOtp(userId: string, email: string) {
     },
   });
 
-  return sendEmail({
-    to: email,
-    subject: "Your YuKon3t verification code",
-    html: `<p>Your YuKon3t verification code is:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
-      <p>This code expires in 10 minutes. If you didn't request this, ignore this email.</p>`,
-  });
+  return sendEmail({ to: email, ...verificationCodeEmail(locale, code) });
 }
 
 /**
@@ -122,7 +115,7 @@ export async function ensureFreshEmailOtp() {
   if (user.emailOtpExpires && user.emailOtpExpires > new Date()) return;
   const allowed = await checkRateLimit("emailOtpSend", `otpsend:auto:${pending.userId}`);
   if (!allowed) return;
-  await sendEmailOtp(pending.userId, user.email);
+  await sendEmailOtp(pending.userId, user.email, await getLocale());
 }
 
 /**
@@ -203,7 +196,7 @@ export async function signUpWithPassword(_prev: SignUpState, formData: FormData)
     redirect("/sign-up/verify-phone");
   }
 
-  await sendEmailOtp(created.id, email);
+  await sendEmailOtp(created.id, email, await getLocale());
   await issuePendingVerificationCookie(created.id);
   redirect("/verify-email");
 }
@@ -286,7 +279,7 @@ export async function resendEmailOtp(formData: FormData) {
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } });
   if (user && !user.emailVerified) {
-    await sendEmailOtp(userId, user.email);
+    await sendEmailOtp(userId, user.email, await getLocale());
   }
   redirect("/verify-email?sent=1");
 }
@@ -426,7 +419,7 @@ export async function loginWithPassword(formData: FormData) {
   // under the same per-IP-and-address limit as "Forgot password", and resetPassword clears the flag.
   if (outcome === "reset_required") {
     if (await checkRateLimit("passwordResetRequest", `resetreq:${ip}:${user.email}`)) {
-      await sendPasswordResetEmail(user.id, user.email, "required");
+      await sendPasswordResetEmail(user.id, user.email, "required", await getLocale());
     }
     redirect("/sign-in?notice=reset_required");
   }
@@ -485,6 +478,7 @@ export async function loginWithPassword(formData: FormData) {
         purpose: "LOGIN",
         deviceId,
         deviceLabel: label,
+        locale: await getLocale(),
       });
       await issuePendingDeviceChallengeCookie(user.id, deviceId, challenge.id);
       redirect("/sign-in/verify-device");
@@ -576,6 +570,7 @@ export async function resendLoginDeviceChallenge(formData: FormData) {
     purpose: "LOGIN",
     deviceId: pending.deviceId,
     deviceLabel: label,
+    locale: await getLocale(),
   });
   await issuePendingDeviceChallengeCookie(user.id, pending.deviceId, challenge.id);
   redirect("/sign-in/verify-device?sent=1");
@@ -611,7 +606,7 @@ export async function requestPasswordReset(formData: FormData) {
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true } });
   if (user && user.status === "ACTIVE") {
-    await sendPasswordResetEmail(user.id, email, "requested");
+    await sendPasswordResetEmail(user.id, email, "requested", await getLocale());
   }
 
   redirect("/forgot-password?sent=1");
@@ -744,7 +739,7 @@ export async function adminResendVerificationEmail(userId: string) {
     return { error: "already_verified" as const };
   }
 
-  const sent = await sendEmailOtp(user.id, user.email);
+  const sent = await sendEmailOtp(user.id, user.email, DEFAULT_LOCALE);
   if (!sent.ok) {
     return { error: "email_failed" as const };
   }

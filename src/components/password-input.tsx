@@ -3,6 +3,7 @@
 import { useState, type ChangeEventHandler } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sharedEn } from "@/lib/i18n/en";
 
 export function PasswordInput({
   id,
@@ -22,6 +23,7 @@ export function PasswordInput({
   defaultVisible = false,
   invalid = false,
   describedBy,
+  labels = sharedEn.passwordInput,
 }: {
   id?: string;
   name?: string;
@@ -42,6 +44,8 @@ export function PasswordInput({
   defaultVisible?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** The show/hide button's names, for the account screens that aren't in English. */
+  labels?: typeof sharedEn.passwordInput;
 }) {
   const [visible, setVisible] = useState(defaultVisible);
 
@@ -68,7 +72,7 @@ export function PasswordInput({
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Hide password" : "Show password"}
+        aria-label={visible ? labels.hide : labels.show}
         className="absolute inset-y-0 right-0 flex items-center px-3 text-foreground-soft hover:text-accent"
       >
         {visible ? <EyeOff size={16} /> : <Eye size={16} />}

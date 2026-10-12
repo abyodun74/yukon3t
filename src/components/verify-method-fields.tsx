@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { PhoneNumberField } from "@/components/phone-number-field";
+import type { Dictionary } from "@/lib/i18n/en";
+import type { Locale } from "@/lib/i18n/locales";
 
 /**
  * The sign-up form's "Verify with" choice. Email code needs nothing more (the email is already in the form above);
@@ -12,16 +14,22 @@ import { PhoneNumberField } from "@/components/phone-number-field";
 export function VerifyMethodFields({
   defaultCountry,
   phoneError,
+  locale,
+  t,
+  phoneLabels,
 }: {
   defaultCountry?: string | null;
   /** Why the submitted number was refused, shown under the field. */
   phoneError?: string | null;
+  locale: Locale;
+  t: Pick<Dictionary["signUp"]["form"], "verifyWith" | "emailCode" | "emailCodeHint" | "phoneNumber" | "phoneHint">;
+  phoneLabels: Dictionary["shared"]["phoneField"];
 }) {
   const [method, setMethod] = useState<"EMAIL" | "PHONE">("EMAIL");
 
   return (
     <fieldset>
-      <legend className="block text-xs font-medium text-foreground-soft">Verify with</legend>
+      <legend className="block text-xs font-medium text-foreground-soft">{t.verifyWith}</legend>
       <div className="mt-1 flex gap-4 text-sm">
         <label className="flex items-center gap-2">
           <input
@@ -31,7 +39,7 @@ export function VerifyMethodFields({
             checked={method === "EMAIL"}
             onChange={() => setMethod("EMAIL")}
           />
-          Email code
+          {t.emailCode}
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -41,16 +49,16 @@ export function VerifyMethodFields({
             checked={method === "PHONE"}
             onChange={() => setMethod("PHONE")}
           />
-          Phone number
+          {t.phoneNumber}
         </label>
       </div>
 
       {method === "EMAIL" && (
-        <p className="mt-2 text-xs text-foreground-soft">We&apos;ll email a 6-digit code to the address above.</p>
+        <p className="mt-2 text-xs text-foreground-soft">{t.emailCodeHint}</p>
       )}
       <div className="mt-2" hidden={method !== "PHONE"}>
         <label htmlFor="signup-phone" className="sr-only">
-          Phone number
+          {t.phoneNumber}
         </label>
         <PhoneNumberField
           id="signup-phone"
@@ -59,6 +67,8 @@ export function VerifyMethodFields({
           invalid={Boolean(phoneError)}
           describedBy={phoneError ? "signup-phone-error" : "signup-phone-hint"}
           controlClassName="py-3"
+          locale={locale}
+          labels={phoneLabels}
         />
         {phoneError ? (
           <p id="signup-phone-error" className="mt-1 text-xs text-danger">
@@ -66,7 +76,7 @@ export function VerifyMethodFields({
           </p>
         ) : (
           <p id="signup-phone-hint" className="mt-1 text-xs text-foreground-soft">
-            We&apos;ll text a code to this number.
+            {t.phoneHint}
           </p>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MIN_AGE } from "@/lib/validations";
+import { en } from "@/lib/i18n/en";
 import {
   SIGN_UP_FIELDS,
   signUpFieldsToShow,
@@ -156,11 +157,13 @@ describe("signUpFieldsToShow", () => {
 });
 
 describe("messages", () => {
+  const { reasons, formErrors } = en.signUp.form;
+
   it("state the actual limits and MIN_AGE", () => {
-    expect(signUpReasonMessage("username_length")).toBe("Usernames are 3–20 characters long.");
-    expect(signUpReasonMessage("password_too_short")).toBe("Passwords need at least 8 characters.");
-    expect(signUpReasonMessage("password_too_long")).toBe("Passwords can be at most 72 characters.");
-    expect(signUpReasonMessage("birth_date_underage")).toContain(`at least ${MIN_AGE} years old`);
-    expect(signUpFormErrorMessage("captcha")).toContain("security check");
+    expect(signUpReasonMessage("username_length", reasons)).toBe("Usernames are 3–20 characters long.");
+    expect(signUpReasonMessage("password_too_short", reasons)).toBe("Passwords need at least 8 characters.");
+    expect(signUpReasonMessage("password_too_long", reasons)).toBe("Passwords can be at most 72 characters.");
+    expect(signUpReasonMessage("birth_date_underage", reasons)).toContain(`at least ${MIN_AGE} years old`);
+    expect(signUpFormErrorMessage("captcha", formErrors)).toContain("security check");
   });
 });

@@ -3,8 +3,10 @@
 import { useCallback, useRef, useState } from "react";
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { sharedEn } from "@/lib/i18n/en";
+import type { Locale } from "@/lib/i18n/locales";
 
-export const TURNSTILE_WAIT_MESSAGE = "Finishing the security check — try again in a moment.";
+export const TURNSTILE_WAIT_MESSAGE = sharedEn.turnstile.wait;
 
 /**
  * Turnstile for client forms that build their own FormData and call a Server
@@ -20,8 +22,10 @@ export const TURNSTILE_WAIT_MESSAGE = "Finishing the security check — try agai
  * if the widget gives up (script blocked, error, timeout) `attach` lets the call
  * through and the server decides. A token is single-use, so every successful
  * `attach` discards it and fetches a fresh one.
+ *
+ * `locale` is the widget's language on the account screens (see TurnstileWidget); omit it elsewhere.
  */
-export function useTurnstileGate() {
+export function useTurnstileGate(locale?: Locale) {
   const enabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const tokenRef = useRef<string | null>(null);
   const gaveUpRef = useRef(false);
@@ -62,6 +66,6 @@ export function useTurnstileGate() {
     [enabled],
   );
 
-  const widget = <TurnstileWidget className="mt-3" onToken={onToken} onGiveUp={onGiveUp} resetSignal={resetSignal} />;
+  const widget = <TurnstileWidget className="mt-3" onToken={onToken} onGiveUp={onGiveUp} resetSignal={resetSignal} locale={locale} />;
   return { attach, ready, widget };
 }

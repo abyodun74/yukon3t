@@ -2,21 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MIN_AGE } from "@/lib/validations";
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+import { sharedEn } from "@/lib/i18n/en";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
@@ -53,6 +39,7 @@ export function BirthDateSelect({
   id,
   invalid = false,
   describedBy,
+  labels = sharedEn.birthDate,
 }: {
   name?: string;
   /** ISO `YYYY-MM-DD`, e.g. an existing user.birthDate for onboarding's pre-fill case. */
@@ -64,6 +51,8 @@ export function BirthDateSelect({
   id?: string;
   invalid?: boolean;
   describedBy?: string;
+  /** Month names and the selects' own wording, for the account screens that aren't in English. */
+  labels?: typeof sharedEn.birthDate;
 }) {
   const initial = useMemo(() => {
     const [y, m, d] = (defaultValue ?? "").split("-");
@@ -102,7 +91,7 @@ export function BirthDateSelect({
     <div className="flex gap-2">
       <select
         id={id}
-        aria-label="Birth month"
+        aria-label={labels.monthLabel}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         required={required}
@@ -110,15 +99,15 @@ export function BirthDateSelect({
         onChange={(e) => handleMonthChange(e.target.value)}
         className={`${selectClass} flex-[1.6]`}
       >
-        <option value="">Month</option>
-        {MONTHS.map((m, i) => (
+        <option value="">{labels.month}</option>
+        {labels.months.map((m, i) => (
           <option key={m} value={String(i + 1)}>
             {m}
           </option>
         ))}
       </select>
       <select
-        aria-label="Birth day"
+        aria-label={labels.dayLabel}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         required={required}
@@ -126,7 +115,7 @@ export function BirthDateSelect({
         onChange={(e) => setDay(e.target.value)}
         className={selectClass}
       >
-        <option value="">Day</option>
+        <option value="">{labels.day}</option>
         {days.map((d) => (
           <option key={d} value={String(d)}>
             {d}
@@ -134,7 +123,7 @@ export function BirthDateSelect({
         ))}
       </select>
       <select
-        aria-label="Birth year"
+        aria-label={labels.yearLabel}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         required={required}
@@ -142,7 +131,7 @@ export function BirthDateSelect({
         onChange={(e) => setYear(e.target.value)}
         className={selectClass}
       >
-        <option value="">Year</option>
+        <option value="">{labels.year}</option>
         {years.map((y) => (
           <option key={y} value={String(y)}>
             {y}

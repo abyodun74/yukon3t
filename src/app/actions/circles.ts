@@ -37,6 +37,7 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 
@@ -596,6 +597,7 @@ export async function createPost(formData: FormData) {
       purpose: "POST",
       deviceId,
       deviceLabel: label,
+      locale: DEFAULT_LOCALE,
     });
     return { error: "device_verification_required", challengeId: challenge.id };
   }

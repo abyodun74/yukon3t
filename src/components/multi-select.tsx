@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sharedEn } from "@/lib/i18n/en";
+import { format } from "@/lib/i18n/locales";
 
 type Option = { value: string; label: string };
 
@@ -14,14 +16,17 @@ export function MultiSelect({
   name,
   options,
   defaultValues = [],
-  placeholder = "Search and select...",
+  placeholder = sharedEn.multiSelect.placeholder,
   max,
+  labels = sharedEn.multiSelect,
 }: {
   name: string;
   options: readonly (string | Option)[];
   defaultValues?: string[];
   placeholder?: string;
   max?: number;
+  /** The component's own wording, for the account screens that aren't in English. */
+  labels?: Omit<typeof sharedEn.multiSelect, "placeholder">;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultValues);
   const [query, setQuery] = useState("");
@@ -88,7 +93,7 @@ export function MultiSelect({
                 e.stopPropagation();
                 remove(value);
               }}
-              aria-label={`Remove ${labelByValue.get(value) ?? value}`}
+              aria-label={format(labels.remove, { label: labelByValue.get(value) ?? value })}
             >
               <X size={11} />
             </button>
@@ -110,7 +115,7 @@ export function MultiSelect({
       {open && !atMax && (
         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-line bg-surface shadow-lg">
           {filtered.length === 0 ? (
-            <p role="status" className="px-3 py-2 text-sm text-foreground-soft">No matches</p>
+            <p role="status" className="px-3 py-2 text-sm text-foreground-soft">{labels.noMatches}</p>
           ) : (
             filtered.slice(0, 40).map((option) => (
               <button
@@ -129,7 +134,7 @@ export function MultiSelect({
       )}
       {max && (
         <p className="mt-1 text-xs text-foreground-soft">
-          {selected.length}/{max} selected
+          {format(labels.selected, { count: selected.length, max })}
         </p>
       )}
     </div>

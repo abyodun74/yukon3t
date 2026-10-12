@@ -1694,6 +1694,21 @@ const sections: Section[] = [
         ),
       },
       {
+        q: "Can I use YuKon3t in a language other than English?",
+        a: (
+          <>
+            Signing in, creating an account, verifying it, resetting your
+            password and setting up your profile are available in English,
+            Spanish, French and Portuguese, and so are the emails and texts
+            those screens send. They open in your phone or browser&apos;s
+            language when it is one of the four; to switch, use the Language
+            menu at the bottom of any of those screens — the choice is
+            remembered on that device. The rest of the app is currently in
+            English.
+          </>
+        ),
+      },
+      {
         q: "Sign-up says something needs fixing — did I lose what I typed?",
         a: (
           <>

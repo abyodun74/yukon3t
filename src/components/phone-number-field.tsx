@@ -13,13 +13,19 @@ import {
   splitE164,
   type PhoneCountryOption,
 } from "@/lib/phone-number";
+import { sharedEn } from "@/lib/i18n/en";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 
 const CONTROL_CLASS = "rounded-lg border border-line bg-surface text-sm";
 
-let countryOptions: PhoneCountryOption[] | null = null;
-function getCountryOptions() {
-  countryOptions ??= phoneCountryOptions();
-  return countryOptions;
+const countryOptions = new Map<Locale, PhoneCountryOption[]>();
+function getCountryOptions(locale: Locale) {
+  let options = countryOptions.get(locale);
+  if (!options) {
+    options = phoneCountryOptions(locale);
+    countryOptions.set(locale, options);
+  }
+  return options;
 }
 
 const subscribeToNothing = () => () => {};
@@ -37,6 +43,8 @@ const subscribeToNothing = () => () => {};
  *   guess from the request's geo header (src/lib/request-country.ts) and falls back to the US.
  * - The country names come from the browser's own Intl data, which can differ from the server's, so the full list is
  *   only rendered after hydration; until then the select holds just the current country.
+ * - `locale` and `labels` are passed by the account screens only (country names and the field's own wording in the
+ *   person's language); Settings and the invite panel leave them out and stay English.
  */
 export function PhoneNumberField({
   id,
@@ -48,6 +56,8 @@ export function PhoneNumberField({
   describedBy,
   controlClassName = "py-2.5",
   onValueChange,
+  locale = DEFAULT_LOCALE,
+  labels = sharedEn.phoneField,
 }: {
   /** Goes on the national-number input: point the field's <label htmlFor> at it. */
   id: string;
@@ -61,6 +71,8 @@ export function PhoneNumberField({
   controlClassName?: string;
   /** For a caller with no <form> to read the value from (invite-panel.tsx): the E.164 value after every change. */
   onValueChange?: (e164: string) => void;
+  locale?: Locale;
+  labels?: typeof sharedEn.phoneField;
 }) {
   const [{ country, national }, setPartsState] = useState(
     () =>
@@ -78,7 +90,7 @@ export function PhoneNumberField({
     () => true,
     () => false,
   );
-  const options = hydrated ? getCountryOptions() : null;
+  const options = hydrated ? getCountryOptions(locale) : null;
   const dialCode = phoneDialCode(country);
   const countryName = options?.find((o) => o.code === country)?.name;
 
@@ -86,7 +98,7 @@ export function PhoneNumberField({
     <div className="flex gap-2">
       <div className="relative flex shrink-0">
         <select
-          aria-label="Country calling code"
+          aria-label={labels.countryCode}
           value={country}
           onChange={(e) => setParts({ country: e.target.value, national })}
           className="peer absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
@@ -129,7 +141,7 @@ export function PhoneNumberField({
         }
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
-        placeholder="Phone number"
+        placeholder={labels.placeholder}
         className={cn(
           CONTROL_CLASS,
           controlClassName,

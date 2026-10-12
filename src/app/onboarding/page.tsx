@@ -1,13 +1,16 @@
 import { getSessionUserOrRedirect, isProfileComplete } from "@/lib/page-guards";
 import { completeOnboarding } from "@/app/actions/profile";
 import { redirect } from "next/navigation";
-import { intentTagValues, intentLabels, MIN_AGE } from "@/lib/validations";
+import { intentTagValues, MIN_AGE } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { LANGUAGES } from "@/lib/languages";
 import { INTERESTS } from "@/lib/interests";
 import { MultiSelect } from "@/components/multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
+import { LanguagePicker } from "@/components/language-picker";
+import { format } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function OnboardingPage({
   searchParams,
@@ -19,39 +22,36 @@ export default async function OnboardingPage({
     redirect("/discover");
   }
   const { error } = await searchParams;
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.onboarding;
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-16">
-      <h1 className="text-2xl font-semibold">Set up your profile</h1>
-      <p className="mt-2 text-sm text-foreground-soft">
-        This is what other members see. Be honest about your intent — it
-        keeps this community usable for everyone.
-      </p>
-      <p className="mt-2 text-sm font-medium text-foreground">
-        Every field below is required except Bio, which is optional. Your
-        account won&apos;t be created until the rest are filled in.
-      </p>
+    <div lang={locale} className="mx-auto max-w-xl px-4 py-16">
+      <h1 className="text-2xl font-semibold">{t.title}</h1>
+      <p className="mt-2 text-sm text-foreground-soft">{t.intro}</p>
+      <p className="mt-2 text-sm font-medium text-foreground">{t.required}</p>
 
       {error === "invalid" && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          Please fill in all required fields.
+          {t.errors.invalid}
         </p>
       )}
       {error === "moderation" && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          Your bio didn&apos;t pass our content guidelines. Please revise it.
+          {t.errors.moderation}
         </p>
       )}
       {error === "underage" && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          You must be at least {MIN_AGE} years old to use YuKon3t.
+          {format(t.errors.underage, { age: MIN_AGE })}
         </p>
       )}
 
       <form action={completeOnboarding} className="mt-6 space-y-5">
         <div>
           <label htmlFor="onboarding-name" className="block text-sm font-medium">
-            Display name <span className="text-danger">*</span>
+            {t.name} <span className="text-danger">*</span>
           </label>
           <input
             id="onboarding-name"
@@ -67,7 +67,7 @@ export default async function OnboardingPage({
 
         <div>
           <label htmlFor="onboarding-bio" className="block text-sm font-medium">
-            Bio <span className="font-normal text-foreground-soft">(optional)</span>
+            {t.bio} <span className="font-normal text-foreground-soft">{t.optional}</span>
           </label>
           <textarea
             id="onboarding-bio"
@@ -81,22 +81,21 @@ export default async function OnboardingPage({
 
         <div>
           <label className="block text-sm font-medium">
-            Date of birth <span className="text-danger">*</span>
+            {t.birthDate} <span className="text-danger">*</span>
           </label>
           <div className="mt-1">
             <BirthDateSelect
               defaultValue={user.birthDate?.toISOString().slice(0, 10)}
               minAge={MIN_AGE}
+              labels={dictionary.shared.birthDate}
             />
           </div>
-          <p className="mt-1 text-xs text-foreground-soft">
-            You must be at least {MIN_AGE} to use YuKon3t.
-          </p>
+          <p className="mt-1 text-xs text-foreground-soft">{format(t.ageHint, { age: MIN_AGE })}</p>
         </div>
 
         <div>
           <label htmlFor="onboarding-country" className="block text-sm font-medium">
-            Country <span className="text-danger">*</span>
+            {t.country} <span className="text-danger">*</span>
           </label>
           <select
             id="onboarding-country"
@@ -107,7 +106,7 @@ export default async function OnboardingPage({
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           >
             <option value="" disabled>
-              Select your country...
+              {t.countryPlaceholder}
             </option>
             {COUNTRIES.map((c) => (
               <option key={c} value={c}>
@@ -119,48 +118,43 @@ export default async function OnboardingPage({
 
         <div>
           <label className="block text-sm font-medium">
-            Languages <span className="text-danger">*</span>
+            {t.languages} <span className="text-danger">*</span>
           </label>
-          <p className="mt-0.5 text-xs text-foreground-soft">
-            Pick at least one language you speak.
-          </p>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.languagesHint}</p>
           <div className="mt-1">
             <MultiSelect
               name="languages"
               options={LANGUAGES}
               defaultValues={user.languages}
-              placeholder="Search languages..."
+              placeholder={t.languagesPlaceholder}
               max={10}
+              labels={dictionary.shared.multiSelect}
             />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium">
-            Interests <span className="text-danger">*</span>
+            {t.interests} <span className="text-danger">*</span>
           </label>
-          <p className="mt-0.5 text-xs text-foreground-soft">
-            Pick at least one — this is how Circles and connections get
-            matched to you.
-          </p>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.interestsHint}</p>
           <div className="mt-1">
             <MultiSelect
               name="interests"
               options={INTERESTS}
               defaultValues={user.interests}
-              placeholder="Search interests..."
+              placeholder={t.interestsPlaceholder}
               max={15}
+              labels={dictionary.shared.multiSelect}
             />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium">
-            What are you open to here? <span className="text-danger">*</span>
+            {t.intentsLabel} <span className="text-danger">*</span>
           </label>
-          <p className="mt-0.5 text-xs text-foreground-soft">
-            Pick at least one.
-          </p>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.intentsHint}</p>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {intentTagValues.map((tag) => (
               <label
@@ -173,18 +167,21 @@ export default async function OnboardingPage({
                   value={tag}
                   defaultChecked={user.openToIntents.includes(tag)}
                 />
-                {intentLabels[tag]}
+                {t.intents[tag]}
               </label>
             ))}
           </div>
         </div>
 
         <SubmitButton
-          label="Continue"
-          pendingLabel="Saving..."
+          label={t.submit}
+          pendingLabel={t.submitting}
+          offlineMessage={dictionary.shared.submitButton.offline}
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
         />
       </form>
+
+      <LanguagePicker locale={locale} label={dictionary.languagePicker.label} />
     </div>
   );
 }

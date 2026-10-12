@@ -8,6 +8,7 @@ import { verifyPassword } from "@/lib/passwords";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
+import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import {
   hiddenPinSchema,
   setHiddenPinSchema,
@@ -178,6 +179,7 @@ export async function requestHiddenPinResetCode() {
     purpose: "HIDDEN_PIN_RESET",
     deviceId: (await getDeviceId()) ?? "unknown",
     deviceLabel: await getDeviceLabel(),
+    locale: DEFAULT_LOCALE,
   });
   return { error: null, challengeId: challenge.id };
 }

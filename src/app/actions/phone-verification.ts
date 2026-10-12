@@ -42,7 +42,7 @@ export async function requestPhoneVerification(formData: FormData) {
   if (taken && taken.id !== user.id) return { error: "phone_taken" as const };
 
   try {
-    await startPhoneVerification(phone);
+    await startPhoneVerification(phone, null);
   } catch {
     return { error: "send_failed" as const };
   }

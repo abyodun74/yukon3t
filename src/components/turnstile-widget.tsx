@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
+import { sharedEn } from "@/lib/i18n/en";
+import type { Locale } from "@/lib/i18n/locales";
 
 // The subset of Cloudflare's explicit-render API this component uses.
 type TurnstileApi = {
@@ -12,6 +14,7 @@ type TurnstileApi = {
       theme?: "auto" | "light" | "dark";
       size?: "normal" | "flexible" | "compact";
       appearance?: "always" | "execute" | "interaction-only";
+      language?: string;
       callback?: (token: string) => void;
       "error-callback"?: (errorCode?: string) => boolean | void;
       "expired-callback"?: () => void;
@@ -31,6 +34,9 @@ declare global {
 // How long a submit is held back waiting for a token before the widget
 // stops standing in the way — see the "give up" note on TurnstileWidget.
 const GIVE_UP_AFTER_MS = 10_000;
+
+// Cloudflare's own codes for the languages the account screens come in.
+const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br" };
 
 let scriptPromise: Promise<void> | null = null;
 
@@ -93,6 +99,8 @@ export function TurnstileWidget({
   resetSignal = 0,
   className,
   appearance = "interaction-only",
+  locale,
+  waitMessage = sharedEn.turnstile.wait,
 }: {
   onToken?: (token: string | null) => void;
   /** Called when no token arrived in time, or the widget errored — stop waiting for one. */
@@ -111,6 +119,13 @@ export function TurnstileWidget({
    * the invisible default.
    */
   appearance?: "always" | "execute" | "interaction-only";
+  /**
+   * The language of the widget's own text, on the account screens. Left out everywhere else, where Cloudflare goes
+   * by the browser's language as it always has.
+   */
+  locale?: Locale;
+  /** The "still checking" notice shown when a submit is held back, in that same language. */
+  waitMessage?: string;
 }) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +137,7 @@ export function TurnstileWidget({
   const gaveUpRef = useRef(false);
   const onTokenRef = useRef(onToken);
   const onGiveUpRef = useRef(onGiveUp);
+  const waitMessageRef = useRef(waitMessage);
   // Lets the resetSignal effect below reach the mount effect's own helper.
   const discardTokenRef = useRef<(() => void) | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -129,6 +145,7 @@ export function TurnstileWidget({
   useEffect(() => {
     onTokenRef.current = onToken;
     onGiveUpRef.current = onGiveUp;
+    waitMessageRef.current = waitMessage;
   });
 
   useEffect(() => {
@@ -182,6 +199,7 @@ export function TurnstileWidget({
           theme: "auto",
           size: "flexible",
           appearance,
+          ...(locale ? { language: WIDGET_LANGUAGES[locale] } : {}),
           callback: (token) => setToken(token),
           "expired-callback": () => setToken(null),
           "timeout-callback": () => setToken(null),
@@ -199,7 +217,7 @@ export function TurnstileWidget({
       if (!tokenRef.current) {
         if (!gaveUpRef.current) {
           e.preventDefault();
-          setNotice("Finishing the security check — try again in a moment.");
+          setNotice(waitMessageRef.current);
         }
         // else: we've stopped waiting — let the server decide.
         return;
@@ -221,7 +239,7 @@ export function TurnstileWidget({
       }
       tokenRef.current = null;
     };
-  }, [siteKey, appearance]);
+  }, [siteKey, appearance, locale]);
 
   // Non-form consumers ask for a fresh token by bumping resetSignal.
   const firstResetSignal = useRef(resetSignal);

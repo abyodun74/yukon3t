@@ -6,23 +6,19 @@ import {
   requestSignupPhoneVerification,
   confirmSignupPhoneVerification,
 } from "@/app/actions/signup-phone-verification";
-import { useTurnstileGate, TURNSTILE_WAIT_MESSAGE } from "@/components/use-turnstile-gate";
+import { useTurnstileGate } from "@/components/use-turnstile-gate";
 import { PhoneNumberField } from "@/components/phone-number-field";
-import { PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
+import type { Dictionary } from "@/lib/i18n/en";
+import type { Locale } from "@/lib/i18n/locales";
 
 const INPUT_CLASS =
   "mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid: PHONE_INVALID_MESSAGE,
-  invalid_code: "That code didn't match — check it and try again.",
-  rate_limited: "Too many attempts — try again in a bit.",
-  not_configured: "Phone verification isn't set up yet.",
-  phone_taken: "That number is already verified on another account.",
-  send_failed: "Couldn't send the code — try again in a moment.",
-  no_session: "This link expired — please sign up again.",
-  captcha: "We couldn't complete the security check — please try again.",
-};
+type Strings = Dictionary["verifyPhone"]["form"];
+
+function errorText(t: Strings, code: string) {
+  return (t.errors as Record<string, string>)[code] ?? t.somethingWentWrong;
+}
 
 /**
  * Signup counterpart to PhoneVerificationForm (src/components/phone-
@@ -37,14 +33,23 @@ const ERROR_MESSAGES: Record<string, string> = {
  * Every SMS send (first send, "Resend code", and the automatic one) carries a
  * Turnstile token — an SMS costs real money per message. Confirming a code
  * doesn't send one and isn't gated.
+ *
+ * The actions answer with error codes; `t.errors` (the page's language) is
+ * what turns one into a sentence.
  */
 export function SignupPhoneVerificationForm({
   initialPhone,
   defaultCountry,
+  locale,
+  t,
+  shared,
 }: {
   initialPhone: string | null;
   /** The request's geo country, for the country selector's starting choice. */
   defaultCountry: string | null;
+  locale: Locale;
+  t: Strings;
+  shared: Dictionary["shared"];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -53,8 +58,9 @@ export function SignupPhoneVerificationForm({
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const autoResent = useRef(false);
-  const captcha = useTurnstileGate();
+  const captcha = useTurnstileGate(locale);
   const { attach, ready } = captcha;
+  const errorMessage = (code: string) => errorText(t, code);
 
   useEffect(() => {
     if (!initialPhone || autoResent.current || !ready) return;
@@ -65,24 +71,24 @@ export function SignupPhoneVerificationForm({
     startTransition(async () => {
       const result = await requestSignupPhoneVerification(formData);
       if (result.error) {
-        setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+        setError(errorText(t, result.error));
       }
     });
-  }, [initialPhone, ready, attach]);
+  }, [initialPhone, ready, attach, t]);
 
   if (verified) {
     return (
       <div className="text-center">
-        <h1 className="text-2xl font-semibold">Phone confirmed</h1>
+        <h1 className="text-2xl font-semibold">{t.confirmedTitle}</h1>
         <p className="mt-3 text-sm text-foreground-soft">
-          Your account is verified. You can now sign in.
+          {t.confirmedBody}
         </p>
         <button
           type="button"
           onClick={() => router.push("/sign-in")}
           className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
         >
-          Sign in
+          {t.signIn}
         </button>
       </div>
     );
@@ -103,10 +109,7 @@ export function SignupPhoneVerificationForm({
               const result = await confirmSignupPhoneVerification(formData);
               if (result.error) {
                 // "invalid" on this step can only be the code's format: the number was accepted when the code was sent.
-                setError(
-                  ERROR_MESSAGES[result.error === "invalid" ? "invalid_code" : result.error] ??
-                    "Something went wrong — try again.",
-                );
+                setError(errorMessage(result.error === "invalid" ? "invalid_code" : result.error));
                 return;
               }
               setVerified(true);
@@ -115,7 +118,7 @@ export function SignupPhoneVerificationForm({
         >
           <div>
             <label htmlFor="signup-phone-code" className="block text-sm font-medium">
-              Enter the code we sent you
+              {t.codeLabel}
             </label>
             <input
               id="signup-phone-code"
@@ -134,7 +137,7 @@ export function SignupPhoneVerificationForm({
               disabled={isPending}
               className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink disabled:opacity-50"
             >
-              Verify
+              {t.verify}
             </button>
             <button
               type="button"
@@ -144,19 +147,19 @@ export function SignupPhoneVerificationForm({
                 const formData = new FormData();
                 formData.set("phone", pendingPhone);
                 if (!attach(formData)) {
-                  setError(TURNSTILE_WAIT_MESSAGE);
+                  setError(shared.turnstile.wait);
                   return;
                 }
                 startTransition(async () => {
                   const result = await requestSignupPhoneVerification(formData);
                   if (result.error) {
-                    setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+                    setError(errorMessage(result.error));
                   }
                 });
               }}
               className="text-sm text-accent hover:underline disabled:opacity-50"
             >
-              Resend code
+              {t.resendCode}
             </button>
           </div>
         </form>
@@ -176,13 +179,13 @@ export function SignupPhoneVerificationForm({
           const phoneValue = String(formData.get("phone") ?? "").trim();
           setError(null);
           if (!attach(formData)) {
-            setError(TURNSTILE_WAIT_MESSAGE);
+            setError(shared.turnstile.wait);
             return;
           }
           startTransition(async () => {
             const result = await requestSignupPhoneVerification(formData);
             if (result.error) {
-              setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+              setError(errorMessage(result.error));
               return;
             }
             setPendingPhone(result.phone ?? phoneValue);
@@ -192,10 +195,15 @@ export function SignupPhoneVerificationForm({
       >
         <div>
           <label htmlFor="signup-phone-number" className="block text-sm font-medium">
-            Phone number
+            {t.phoneLabel}
           </label>
           <div className="mt-1">
-            <PhoneNumberField id="signup-phone-number" defaultCountry={defaultCountry} />
+            <PhoneNumberField
+              id="signup-phone-number"
+              defaultCountry={defaultCountry}
+              locale={locale}
+              labels={shared.phoneField}
+            />
           </div>
         </div>
         {error && <p role="alert" className="text-xs text-danger">{error}</p>}
@@ -204,7 +212,7 @@ export function SignupPhoneVerificationForm({
           disabled={isPending}
           className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink disabled:opacity-50"
         >
-          Send code
+          {t.sendCode}
         </button>
       </form>
       {captcha.widget}

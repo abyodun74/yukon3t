@@ -19,6 +19,8 @@ import { WhatsNewBell } from "@/components/whats-new-bell";
 import { useNavBadges } from "@/lib/use-nav-badges";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import type { Dictionary } from "@/lib/i18n/en";
+import type { Locale } from "@/lib/i18n/locales";
 
 function navLinks(userId: string) {
   return [
@@ -49,7 +51,18 @@ function bottomTabs(userId: string) {
   ];
 }
 
-export function Nav({ session, theme }: { session: Session | null; theme: Theme }) {
+export function Nav({
+  session,
+  theme,
+  locale,
+  labels,
+}: {
+  session: Session | null;
+  theme: Theme;
+  /** The account screens' language: the only wording here that follows it is signing out and in (`labels`). */
+  locale: Locale;
+  labels: Dictionary["nav"];
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Nav lives in the root layout and survives every navigation, so `open`
@@ -432,9 +445,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
                 <button
                   type="button"
                   onClick={handleSignOut}
+                  lang={locale}
                   className="hidden rounded-full border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent sm:block"
                 >
-                  Sign out
+                  {labels.signOut}
                 </button>
                 <button
                   ref={menuToggleRef}
@@ -451,9 +465,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
             ) : (
               <Link
                 href="/sign-in"
+                lang={locale}
                 className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
               >
-                Sign in
+                {labels.signIn}
               </Link>
             )}
           </div>
@@ -598,9 +613,10 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
               <button
                 type="button"
                 onClick={handleSignOut}
+                lang={locale}
                 className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-left hover:border-accent hover:text-accent"
               >
-                Sign out
+                {labels.signOut}
               </button>
             </nav>
           </div>

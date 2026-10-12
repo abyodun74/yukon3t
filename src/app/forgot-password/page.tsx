@@ -3,6 +3,8 @@ import { requestPasswordReset } from "@/app/actions/password-auth";
 import { SubmitButton } from "@/components/submit-button";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { LanguagePicker } from "@/components/language-picker";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -10,43 +12,39 @@ export default async function ForgotPasswordPage({
   searchParams: Promise<{ error?: string; sent?: string }>;
 }) {
   const { error, sent } = await searchParams;
+  const locale = await getLocale();
+  const t = await getDictionary();
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
-      <h1 className="text-2xl font-semibold">Reset your password</h1>
-      <p className="mt-2 text-center text-sm text-foreground-soft">
-        Enter the email on your account and we&apos;ll send you a link to
-        reset your password.
-      </p>
+    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+      <h1 className="text-2xl font-semibold">{t.forgotPassword.title}</h1>
+      <p className="mt-2 text-center text-sm text-foreground-soft">{t.forgotPassword.intro}</p>
 
       {sent && (
         <p role="status" className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
-          If that email is registered, a reset link is on its way — check
-          your inbox.
+          {t.forgotPassword.sent}
         </p>
       )}
       {error === "invalid" && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          Enter a valid email address.
+          {t.common.invalidEmail}
         </p>
       )}
       {error === "captcha" && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          We couldn&apos;t complete the security check. Wait a moment and try
-          again — if it keeps happening, turn off any content blocker or try
-          another network.
+          {t.common.captchaFailed}
         </p>
       )}
       {error === "expired" && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          That reset link expired or was already used — request a new one below.
+          {t.forgotPassword.expired}
         </p>
       )}
 
       <form action={requestPasswordReset} className="mt-6 w-full space-y-3">
         <BotProtectionFields />
         <label htmlFor="forgot-password-email" className="sr-only">
-          Email address
+          {t.common.emailLabel}
         </label>
         <input
           id="forgot-password-email"
@@ -54,22 +52,25 @@ export default async function ForgotPasswordPage({
           name="email"
           required
           autoComplete="email"
-          placeholder="you@example.com"
+          placeholder={t.common.emailPlaceholder}
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
-        <TurnstileWidget />
+        <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
         <SubmitButton
-          label="Send reset link"
-          pendingLabel="Sending..."
+          label={t.forgotPassword.submit}
+          pendingLabel={t.common.sending}
+          offlineMessage={t.shared.submitButton.offline}
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
         />
       </form>
 
       <p className="mt-6 text-sm text-foreground-soft">
         <Link href="/sign-in" className="font-medium text-accent hover:underline">
-          Back to sign in
+          {t.forgotPassword.back}
         </Link>
       </p>
+
+      <LanguagePicker locale={locale} label={t.languagePicker.label} />
     </div>
   );
 }

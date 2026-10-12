@@ -2,6 +2,8 @@ import { encode, decode } from "next-auth/jwt";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { deviceChallengeEmail } from "@/lib/account-emails";
+import type { Locale } from "@/lib/i18n/locales";
 import { generateOtpCode, hashOtpCode } from "@/lib/otp";
 import { track } from "@/lib/analytics";
 import type { SecurityChallengePurpose } from "@/generated/prisma/enums";
@@ -12,41 +14,18 @@ import type { SecurityChallengePurpose } from "@/generated/prisma/enums";
 const DEVICE_CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const DEVICE_CHALLENGE_MAX_ATTEMPTS = 5;
 
-function subjectLine(purpose: SecurityChallengePurpose) {
-  switch (purpose) {
-    case "LOGIN":
-      return "Confirm it's you — new sign-in to your YuKon3t account";
-    case "PASSWORD_CHANGE":
-      return "Confirm it's you — password change on YuKon3t";
-    case "POST":
-      return "Confirm it's you — new device posting to YuKon3t";
-    case "HIDDEN_PIN_RESET":
-      return "Your YuKon3t security code";
-  }
-}
-
-function bodyHtml(purpose: SecurityChallengePurpose, code: string, deviceLabel: string) {
-  // Says nothing about what the code is for: this email can show up as a lock-screen preview.
-  if (purpose === "HIDDEN_PIN_RESET") {
-    return `<p>Enter this code in YuKon3t to continue:</p>
-    <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
-    <p>This code expires in 10 minutes. If you didn't ask for it, don't share it with anyone.</p>`;
-  }
-  const action =
-    purpose === "LOGIN" ? "sign in to" : purpose === "PASSWORD_CHANGE" ? "change the password on" : "post from";
-  return `<p>Someone just tried to ${action} your YuKon3t account from a device we don't recognize (${deviceLabel}).</p>
-    <p>If this is you, enter this code to continue:</p>
-    <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
-    <p>This code expires in 10 minutes. If this wasn't you, don't share this code with anyone — and change your password from Settings as soon as you can.</p>`;
-}
-
-/** Creates a pending challenge row and emails its code. Returns the row (never the plaintext code — only this function ever sees it). */
+/**
+ * Creates a pending challenge row and emails its code, written in `locale`. Returns the row (never the plaintext
+ * code — only this function ever sees it).
+ */
 export async function createDeviceChallenge(params: {
   userId: string;
   email: string;
   purpose: SecurityChallengePurpose;
   deviceId: string;
   deviceLabel: string;
+  /** The request's language for a sign-in challenge; DEFAULT_LOCALE from the parts of the app that are still English. */
+  locale: Locale;
   // PASSWORD_CHANGE only — see SecurityChallenge.newPasswordHash in schema.prisma.
   newPasswordHash?: string;
 }) {
@@ -62,7 +41,10 @@ export async function createDeviceChallenge(params: {
     },
   });
 
-  await sendEmail({ to: params.email, subject: subjectLine(params.purpose), html: bodyHtml(params.purpose, code, params.deviceLabel) });
+  await sendEmail({
+    to: params.email,
+    ...deviceChallengeEmail(params.locale, params.purpose, code, params.deviceLabel),
+  });
   await track("DEVICE_CHALLENGE_SENT", params.userId, { purpose: params.purpose });
 
   return challenge;

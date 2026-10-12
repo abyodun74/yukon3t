@@ -7,6 +7,8 @@ import { countryFromGeoHeaders } from "@/lib/request-country";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
+import { LanguagePicker } from "@/components/language-picker";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
 const description =
@@ -37,22 +39,20 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   const { error } = await searchParams;
   const requestHeaders = await headers();
   const userAgent = requestHeaders.get("user-agent");
+  const locale = await getLocale();
+  const t = await getDictionary();
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
-      <h1 className="text-2xl font-semibold">Create an account</h1>
-      <p className="mt-2 text-center text-sm text-foreground-soft">
-        Choose a username, enter your email and your desired password, then
-        confirm your account with a code we send by email or text before
-        you can sign in.
-      </p>
+    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+      <h1 className="text-2xl font-semibold">{t.signUp.title}</h1>
+      <p className="mt-2 text-center text-sm text-foreground-soft">{t.signUp.intro}</p>
 
       {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (
         <>
           <AppleSignInButton showCaptchaError={error === "apple_captcha"} returnPath="/sign-up" />
           <div className="my-6 flex w-full items-center gap-3 text-xs text-foreground-soft">
             <div className="h-px flex-1 bg-line" />
-            or create an account with a password
+            {t.signUp.appleDivider}
             <div className="h-px flex-1 bg-line" />
           </div>
         </>
@@ -61,14 +61,19 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
       <SignUpForm
         defaultCountry={countryFromGeoHeaders((name) => requestHeaders.get(name))}
         botProtection={<BotProtectionFields />}
+        locale={locale}
+        t={t.signUp.form}
+        shared={t.shared}
       />
 
       <p className="mt-6 text-sm text-foreground-soft">
-        Already have an account?{" "}
+        {t.signUp.haveAccount}{" "}
         <Link href="/sign-in" className="font-medium text-accent hover:underline">
-          Sign in
+          {t.common.signIn}
         </Link>
       </p>
+
+      <LanguagePicker locale={locale} label={t.languagePicker.label} />
     </div>
   );
 }

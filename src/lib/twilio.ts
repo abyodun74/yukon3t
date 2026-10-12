@@ -4,6 +4,11 @@
 // expiry, resend, its own fraud/rate-limiting) — this app never generates or
 // stores a code itself, only starts a verification and checks a submitted
 // code against Twilio.
+import type { Locale } from "@/lib/i18n/locales";
+
+// Verify's own names for the languages this app has (it writes the text message itself, from its own templates).
+const VERIFY_LOCALES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-BR" };
+
 export function isPhoneVerificationConfigured() {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
@@ -26,12 +31,18 @@ function serviceUrl(path: string) {
 }
 
 /** Starts an SMS OTP verification. Throws "max_attempts" on Twilio's own
- * rate-limit response (error code 60203), "twilio_start_failed" otherwise. */
-export async function startPhoneVerification(e164Phone: string) {
+ * rate-limit response (error code 60203), "twilio_start_failed" otherwise.
+ * `locale` is the language of the text; null leaves it to Verify, which goes by
+ * the number's country. */
+export async function startPhoneVerification(e164Phone: string, locale: Locale | null) {
   const res = await fetch(serviceUrl("Verifications"), {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ To: e164Phone, Channel: "sms" }),
+    body: new URLSearchParams({
+      To: e164Phone,
+      Channel: "sms",
+      ...(locale ? { Locale: VERIFY_LOCALES[locale] } : {}),
+    }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);

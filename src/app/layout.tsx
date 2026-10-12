@@ -25,6 +25,7 @@ import { auth } from "@/lib/auth";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
@@ -169,6 +170,9 @@ export default async function RootLayout({
   const session = await auth();
   const iosApp = isLikelyIosAppUserAgent((await headers()).get("user-agent"));
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  // The page shell is English; only the account screens and the nav's own sign out / sign in follow this.
+  const locale = await getLocale();
+  const navLabels = (await getDictionary()).nav;
 
   return (
     <html
@@ -227,7 +231,7 @@ export default async function RootLayout({
             <RegisterServiceWorker />
             <StaleBuildReload />
             <OfflineBanner />
-            <Nav session={session} theme={theme} />
+            <Nav session={session} theme={theme} locale={locale} labels={navLabels} />
             {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
             {session?.user && <GlobalCallFrame />}
             {session?.user && <FcmTokenBridge />}

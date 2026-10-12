@@ -1,9 +1,12 @@
 import type { z } from "zod";
 import { MIN_AGE, signUpSchema } from "@/lib/validations";
-import { isValidE164, PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
+import { isValidE164 } from "@/lib/phone-number";
+import type { Dictionary } from "@/lib/i18n/en";
+import { format } from "@/lib/i18n/locales";
 
 // What signUpWithPassword hands back to the sign-up form when it can't create the account, and the rules for turning
-// a failed submission into per-field reasons. Pure and client-safe: the action and the form both import it.
+// a failed submission into per-field reasons. Pure and client-safe: the action and the form both import it. The action
+// only ever answers with reason codes; the form turns them into sentences from the dictionary of the page's language.
 
 /** In the order the form shows them, which is also the order focus goes to the first one needing correction. */
 export const SIGN_UP_FIELDS = ["username", "email", "password", "birthDate", "phone"] as const;
@@ -11,48 +14,31 @@ export type SignUpField = (typeof SIGN_UP_FIELDS)[number];
 
 const { username: usernameRule, password: passwordRule } = signUpSchema.shape;
 
-const REASON_MESSAGES = {
-  username_required: "Choose a username.",
-  username_length: `Usernames are ${usernameRule.minLength}–${usernameRule.maxLength} characters long.`,
-  username_characters: `Usernames can only use letters, numbers and underscores (${usernameRule.minLength}–${usernameRule.maxLength} characters).`,
-  username_reserved: "That username is reserved — choose a different one.",
-  username_taken: "That username is taken — try another.",
-  email_required: "Enter your email address.",
-  email_invalid: "That doesn't look like a valid email address — check it for typos.",
-  email_taken: "An account with that email already exists.",
-  password_required: "Choose a password.",
-  password_too_short: `Passwords need at least ${passwordRule.minLength} characters.`,
-  password_too_long: `Passwords can be at most ${passwordRule.maxLength} characters.`,
-  birth_date_required: "Select the month, day and year you were born.",
-  birth_date_underage: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
-  phone_required: "Enter your phone number.",
-  phone_invalid: PHONE_INVALID_MESSAGE,
-  phone_taken: "That phone number is already verified on another account.",
-} as const;
+type SignUpFormStrings = Dictionary["signUp"]["form"];
 
-export type SignUpReason = keyof typeof REASON_MESSAGES;
+export type SignUpReason = keyof SignUpFormStrings["reasons"];
 export type SignUpFieldErrors = Partial<Record<SignUpField, SignUpReason>>;
 
-const FORM_ERROR_MESSAGES = {
-  rate_limited: "Too many attempts. Please wait a bit and try again.",
-  captcha:
-    "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
-  invalid: "Something went wrong — please try again.",
-} as const;
-
 /** Failures that aren't about any one field. */
-export type SignUpFormError = keyof typeof FORM_ERROR_MESSAGES;
+export type SignUpFormError = keyof SignUpFormStrings["formErrors"];
 
 export type SignUpState = { fieldErrors: SignUpFieldErrors; formError: SignUpFormError | null };
 
 export const INITIAL_SIGN_UP_STATE: SignUpState = { fieldErrors: {}, formError: null };
 
-export function signUpReasonMessage(reason: SignUpReason): string {
-  return REASON_MESSAGES[reason];
+/** The sentence for a reason, from `messages` (the `signUp.form.reasons` of whichever language the form is in). */
+export function signUpReasonMessage(reason: SignUpReason, messages: SignUpFormStrings["reasons"]): string {
+  return format(messages[reason], {
+    usernameMin: usernameRule.minLength ?? "",
+    usernameMax: usernameRule.maxLength ?? "",
+    passwordMin: passwordRule.minLength ?? "",
+    passwordMax: passwordRule.maxLength ?? "",
+    age: MIN_AGE,
+  });
 }
 
-export function signUpFormErrorMessage(error: SignUpFormError): string {
-  return FORM_ERROR_MESSAGES[error];
+export function signUpFormErrorMessage(error: SignUpFormError, messages: SignUpFormStrings["formErrors"]): string {
+  return messages[error];
 }
 
 export type SignUpRaw = Record<SignUpField | "verificationMethod", unknown>;

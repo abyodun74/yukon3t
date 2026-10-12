@@ -6,6 +6,7 @@ import {
   type CountryCode,
 } from "libphonenumber-js/min";
 import { phoneSchema } from "@/lib/validations";
+import { sharedEn } from "@/lib/i18n/en";
 
 // Pure helpers behind PhoneNumberField (country selector + national number) and the server-side validity check.
 // Client-safe. libphonenumber is imported here rather than in validations.ts on purpose: that file is bundled into
@@ -13,7 +14,8 @@ import { phoneSchema } from "@/lib/validations";
 
 export const DEFAULT_PHONE_COUNTRY = "US";
 
-export const PHONE_INVALID_MESSAGE = "That number isn't valid for the selected country — check the country and the digits.";
+/** English; the account screens take theirs from the request's dictionary instead. */
+export const PHONE_INVALID_MESSAGE = sharedEn.phoneInvalid;
 
 export type PhoneCountryOption = { code: string; name: string; dialCode: string; flag: string };
 
