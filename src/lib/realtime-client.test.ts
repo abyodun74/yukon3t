@@ -172,12 +172,26 @@ describe("createChannelRegistry", () => {
     opened[0]!.status("CHANNEL_ERROR", err);
     opened[0]!.status("CHANNEL_ERROR", err);
     opened[0]!.status("TIMED_OUT");
-    opened[1]!.status("TIMED_OUT");
 
-    expect(onFailure.mock.calls).toEqual([
-      ["a", "CHANNEL_ERROR", err],
-      ["b", "TIMED_OUT", undefined],
-    ]);
+    expect(onFailure.mock.calls).toEqual([["a", "CHANNEL_ERROR", err]]);
+  });
+
+  it("reports a join timeout only after three in a row with no successful join", () => {
+    const { transport, opened } = fakeTransport();
+    const onFailure = vi.fn();
+    const registry = createChannelRegistry(transport, onFailure);
+
+    registry.subscribe("a", "changed", vi.fn());
+    opened[0]!.status("TIMED_OUT");
+    opened[0]!.status("TIMED_OUT");
+    opened[0]!.status("SUBSCRIBED");
+    opened[0]!.status("TIMED_OUT");
+    opened[0]!.status("TIMED_OUT");
+    expect(onFailure).not.toHaveBeenCalled();
+
+    opened[0]!.status("TIMED_OUT");
+    opened[0]!.status("TIMED_OUT");
+    expect(onFailure.mock.calls).toEqual([["a", "TIMED_OUT", undefined]]);
   });
 
   it("does not use up a topic's report when the failure handler declines it", () => {

@@ -59,6 +59,8 @@ type ChannelEntry = { listeners: Set<ChannelListener>; close: (() => unknown) | 
  *   out — whose subscribe() is then a no-op. A topic re-requested in that
  *   window therefore waits for the leave to finish before opening afresh.
  */
+const REPORT_AFTER_TIMEOUTS_IN_A_ROW = 3;
+
 export function createChannelRegistry(
   transport: RealtimeTransport,
   // Returning false means "not worth reporting" and leaves the topic's
@@ -70,6 +72,11 @@ export function createChannelRegistry(
   // A channel that errors retries on its own and reports the same status
   // again on every attempt — once per topic is enough to know it happened.
   const reportedTopics = new Set<string>();
+  // A join that gets no answer in time (a slow or just-woken mobile
+  // connection) is retried by the client and usually goes through, so one
+  // TIMED_OUT says nothing. Only a run of them with no successful join in
+  // between is a channel that isn't coming up.
+  const timeoutsInARow = new Map<string, number>();
 
   function open(topic: string, entry: ChannelEntry) {
     entry.close = transport.open(
@@ -81,7 +88,13 @@ export function createChannelRegistry(
         }
       },
       (status, err) => {
+        if (status === "SUBSCRIBED") timeoutsInARow.delete(topic);
         if ((status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") || reportedTopics.has(topic)) return;
+        if (status === "TIMED_OUT") {
+          const count = (timeoutsInARow.get(topic) ?? 0) + 1;
+          timeoutsInARow.set(topic, count);
+          if (count < REPORT_AFTER_TIMEOUTS_IN_A_ROW) return;
+        }
         if (onChannelFailure(topic, status, err) !== false) reportedTopics.add(topic);
       },
     );
