@@ -397,7 +397,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   if (!incoming) return null;
 
   return (
-    <div className="fixed inset-x-0 top-4 z-50 mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg" role="group" aria-label="Incoming call">
+    <div className="fixed inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-50 mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg" role="group" aria-label="Incoming call">
       {/* role="alert": an incoming call is the one thing here worth
           interrupting a screen reader for — without it the banner appears
           silently and the call rings out unanswered. */}

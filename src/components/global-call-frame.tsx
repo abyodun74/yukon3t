@@ -270,7 +270,7 @@ export function GlobalCallFrame() {
         {!minimized && ringingInvitees.length > 0 && (
           // Top centre: the self-view tile starts in the top-left corner and
           // the control tray and Leave/Minimize bar hold the bottom.
-          <div className="pointer-events-none absolute inset-x-0 top-4 z-10 flex flex-wrap justify-center gap-1 px-32" role="status">
+          <div className="pointer-events-none absolute inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex flex-wrap justify-center gap-1 px-32" role="status">
             {ringingInvitees.map((p) => (
               <span
                 key={p.userId}
@@ -286,7 +286,7 @@ export function GlobalCallFrame() {
           // Sits above the sharedMaterial panel below (z-[75] > z-[70]) so a
           // capture alert is never hidden behind an open material preview —
           // this is a security-relevant notice, it should always win.
-          <div className="pointer-events-none fixed inset-x-4 top-4 z-[75] flex justify-center">
+          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[75] flex justify-center">
             <div
               role="alert"
               className="pointer-events-auto flex items-center gap-2 rounded-lg border border-danger/40 bg-danger px-3 py-2 text-sm font-medium text-white shadow-lg"
@@ -312,7 +312,7 @@ export function GlobalCallFrame() {
           // didn't render itself can actually appear "in" the session. Sits
           // above the video (z-[60] on the wrapper) but below the Leave/
           // Minimize/Upload controls (z-[80]) so those stay reachable.
-          <div className="pointer-events-none fixed inset-x-4 top-4 z-[70] flex justify-center">
+          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[70] flex justify-center">
             <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
               <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
                 <span className="min-w-0 truncate text-xs font-medium">{sharedMaterial.name}</span>

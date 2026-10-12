@@ -941,7 +941,7 @@ export function DirectCallFrame({
           }}
           title={gridMode ? "Drag to move" : "Drag to move, tap to swap with the main view"}
           className="chrome-scale fixed z-10 h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
-          style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "1rem", left: "1rem" }}
+          style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "calc(1rem + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px)))", left: "1rem" }}
         >
           {swapped ? (
             <RemoteVideo participant={tileParticipant} className="h-full w-full object-cover" pausedLabel={remoteCameraPausedLabel} />
