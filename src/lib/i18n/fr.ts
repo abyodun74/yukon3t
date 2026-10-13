@@ -56,6 +56,7 @@ export const fr: Dictionary = {
     close: "Fermer",
     cancel: "Annuler",
     save: "Enregistrer",
+    online: "En ligne",
     time: { justNow: "À l'instant", today: "Aujourd'hui", yesterday: "Hier" },
     reactions: {
       count: "one: # réaction | other: # réactions",
@@ -114,6 +115,8 @@ export const fr: Dictionary = {
         rate_limited: "Vous dictez trop vite. Ralentissez un peu.",
         unavailable: "Impossible de transcrire cet enregistrement. Réessayez.",
         network: serverUnreachable,
+        upload_failed: "Impossible d'importer cet enregistrement. Réessayez.",
+        stale_deployment: "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.",
       },
     },
     report: {
@@ -590,6 +593,22 @@ export const fr: Dictionary = {
     },
   },
   languagePicker: { label: "Langue" },
+  settings: {
+    language: {
+      heading: "Langue",
+      body: "Les messages, les commentaires, la dictée et les écrans de connexion sont disponibles dans ces langues. Le reste de l'application est en anglais pour le moment.",
+    },
+  },
+  faq: {
+    dictation: {
+      q: "Puis-je dicter une publication au lieu de la saisir ?",
+      a: "Oui. Touchez l'icône du micro dans l'éditeur de publication (ou dans la zone de message d'une discussion) pour enregistrer un court extrait vocal ; il est transcrit et inséré dans la zone de texte pour que vous puissiez le relire et le modifier avant de publier ou d'envoyer. Ce n'est pas le bouton rond micro/envoi d'une discussion, qui envoie l'enregistrement lui-même sous forme de note vocale : le micro de dictée se trouve à côté du bouton des emojis et produit toujours du texte modifiable. Parlez dans votre langue : l'espagnol, le français, le portugais, l'arabe et bien d'autres sont reconnus automatiquement, quelle que soit la langue d'affichage de l'application.",
+    },
+    languages: {
+      q: "Puis-je utiliser YuKon3t dans une autre langue que l'anglais ?",
+      a: "La connexion, la création d'un compte, sa vérification, la réinitialisation du mot de passe et la configuration du profil sont disponibles en anglais, en espagnol, en français, en portugais et en arabe, tout comme les e-mails et les SMS envoyés par ces écrans. Ils s'ouvrent dans la langue de votre téléphone ou de votre navigateur lorsqu'il s'agit de l'une des cinq ; pour en changer, utilisez le menu « Langue » dans le coin supérieur de la page d'accueil (sous « Se connecter ») ou au bas des autres écrans de compte. Votre choix est mémorisé sur cet appareil. La page d'accueil affichée avant la connexion existe aussi dans ces cinq langues ; une fois la connexion effectuée, changez de langue dans « Settings » → « Langue ». C'est également le cas de Messages (votre liste de discussions, les discussions, les discussions de groupe et les discussions masquées), des commentaires sous les publications, des enregistreurs vocal et vidéo et du sélecteur de GIF qui s'ouvrent depuis ces écrans, de la dictée et du formulaire de signalement. En arabe, ces écrans se lisent de droite à gauche. Le reste de l'application (les menus, votre fil, Circles, Settings et les notifications que nous envoyons) est pour l'instant en anglais. Ce que les gens écrivent n'est jamais traduit : un message ou un commentaire apparaît dans la langue dans laquelle il a été écrit.",
+    },
+  },
   nav: { signOut: "Se déconnecter", signIn: "Se connecter" },
   landing: {
     eyebrow: "Des liens sans frontières, en toute honnêteté",

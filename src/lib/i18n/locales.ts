@@ -1,7 +1,8 @@
 // The languages the translated parts of the app are written in, and how a request's language is chosen. Translated:
 // the landing page and the account screens (sign in, sign up, verify, password recovery, onboarding, sign out) and
 // their emails; everything under /messages; and the components src/components/ui-text.tsx serves wherever they are
-// mounted (comments, recorders and pickers, dictation, reactions, the report sheet). The rest of the app, and every
+// mounted (comments, recorders and pickers, dictation, reactions, the report sheet); the Language block of Settings
+// and the two FAQ entries about languages. The rest of the app, and every
 // notification written for someone else (whose language isn't stored), is English.
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 

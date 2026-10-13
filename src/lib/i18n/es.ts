@@ -56,6 +56,7 @@ export const es: Dictionary = {
     close: "Cerrar",
     cancel: "Cancelar",
     save: "Guardar",
+    online: "En línea",
     time: { justNow: "Ahora mismo", today: "Hoy", yesterday: "Ayer" },
     reactions: {
       count: "one: # reacción | other: # reacciones",
@@ -114,6 +115,8 @@ export const es: Dictionary = {
         rate_limited: "Estás dictando demasiado rápido. Ve un poco más despacio.",
         unavailable: "No pudimos transcribir ese audio. Inténtalo de nuevo.",
         network: serverUnreachable,
+        upload_failed: "No pudimos subir ese audio. Inténtalo de nuevo.",
+        stale_deployment: "Hay una nueva versión de la aplicación. Actualiza la página para continuar.",
       },
     },
     report: {
@@ -584,6 +587,22 @@ export const es: Dictionary = {
     },
   },
   languagePicker: { label: "Idioma" },
+  settings: {
+    language: {
+      heading: "Idioma",
+      body: "Los mensajes, los comentarios, el dictado y las pantallas de inicio de sesión están disponibles en estos idiomas. El resto de la aplicación está en inglés por ahora.",
+    },
+  },
+  faq: {
+    dictation: {
+      q: "¿Puedo dictar una publicación en lugar de escribirla?",
+      a: "Sí. Toca el ícono del micrófono en el editor de publicaciones (o en el cuadro de mensaje de un chat) para grabar un audio corto; se transcribe y aparece en el cuadro de texto para que lo revises y lo edites antes de publicar o enviar. No es lo mismo que el botón redondo de micrófono/enviar de un chat, que envía la grabación tal cual como nota de voz: el micrófono de dictado está junto al botón de emojis y siempre produce texto editable. Habla en tu idioma: el español, el francés, el portugués, el árabe y muchos otros se reconocen automáticamente, sin importar en qué idioma veas la aplicación.",
+    },
+    languages: {
+      q: "¿Puedo usar YuKon3t en un idioma que no sea inglés?",
+      a: "Iniciar sesión, crear una cuenta, verificarla, restablecer tu contraseña y configurar tu perfil están disponibles en inglés, español, francés, portugués y árabe, igual que los correos y los mensajes de texto que envían esas pantallas. Se abren en el idioma de tu teléfono o navegador cuando es uno de los cinco; para cambiarlo, usa el menú «Idioma» en la esquina superior de la página de inicio (debajo de «Iniciar sesión») o al final de las demás pantallas de la cuenta. La elección se recuerda en ese dispositivo. La página de inicio que ves antes de iniciar sesión también está en esos cinco idiomas; después de iniciar sesión, cámbialo en «Settings» → «Idioma». También lo están Mensajes (tu lista de conversaciones, los chats, los chats grupales y los chats ocultos), los comentarios de las publicaciones, las grabadoras de voz y video y el buscador de GIF que se abren desde ahí, el dictado y el formulario para reportar. En árabe, esas pantallas se leen de derecha a izquierda. El resto de la aplicación (los menús, tu feed, Circles, Settings y las notificaciones que enviamos) está en inglés por ahora. Lo que escribe la gente nunca se traduce: un mensaje o un comentario aparece en el idioma en que se escribió.",
+    },
+  },
   nav: { signOut: "Cerrar sesión", signIn: "Iniciar sesión" },
   landing: {
     eyebrow: "Conexión global, con honestidad",

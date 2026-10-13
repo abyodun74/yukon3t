@@ -187,7 +187,7 @@ export function GifPickerButton({
                     className="block overflow-hidden rounded-md hover:opacity-80"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview thumbnail, not a local/optimizable asset */}
-                    <img src={gif.previewUrl} alt="GIF" loading="lazy" decoding="async" className="h-24 w-full object-cover" />
+                    <img src={gif.previewUrl} alt={t.comments.gifAlt} loading="lazy" decoding="async" className="h-24 w-full object-cover" />
                   </button>
                 ))}
               </div>

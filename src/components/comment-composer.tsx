@@ -314,7 +314,7 @@ export function CommentComposer({
       {showDictation && (
         <DictationRecorder
           onTranscribed={appendDictatedText}
-          onError={(code) => setErrorText(dictationErrorMessage(ui.dictation.errors, code) ?? errorMessage(t.errors, code))}
+          onError={(code) => setErrorText(dictationErrorMessage(ui.dictation.errors, code))}
           onDone={() => setShowDictation(false)}
         />
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useUiText } from "@/components/ui-text";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
 
 /**
@@ -23,6 +24,7 @@ export function UserAvatar({
   className?: string;
   online?: boolean;
 }) {
+  const { locale, t } = useUiText();
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       <div
@@ -53,8 +55,9 @@ export function UserAvatar({
           className="absolute bottom-0 right-0 rounded-full border-2 border-background bg-success"
           style={{ width: Math.max(8, Math.round(size * 0.32)), height: Math.max(8, Math.round(size * 0.32)) }}
           role="img"
-          aria-label="Online"
-          title="Online"
+          lang={locale}
+          aria-label={t.online}
+          title={t.online}
         />
       )}
     </span>

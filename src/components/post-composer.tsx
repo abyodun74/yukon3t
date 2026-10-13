@@ -1347,7 +1347,7 @@ export function PostComposer({
           onTranscribed={appendDictatedText}
           onError={(code) => {
             setStatus("error");
-            setErrorText(dictationErrorMessage(dictation.errors, code) ?? errorMessage(code));
+            setErrorText(dictationErrorMessage(dictation.errors, code));
           }}
           onDone={() => setShowDictation(false)}
         />

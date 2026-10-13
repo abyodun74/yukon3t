@@ -62,6 +62,7 @@ export const uiEn = {
   close: "Close",
   cancel: "Cancel",
   save: "Save",
+  online: "Online",
   time: { justNow: "Just now", today: "Today", yesterday: "Yesterday" },
   reactions: {
     count: "one: # reaction | other: # reactions",
@@ -120,6 +121,8 @@ export const uiEn = {
       rate_limited: "You're dictating too fast — slow down a little.",
       unavailable: "Couldn't transcribe that clip — try again.",
       network: serverUnreachable,
+      upload_failed: "Couldn't upload that clip — try again.",
+      stale_deployment: "A new version of the app is available — refresh the page to continue.",
     },
   },
   report: {
@@ -610,6 +613,23 @@ export const en = {
   ui: uiEn,
   messages: messagesEn,
   languagePicker: { label: "Language" },
+  settings: {
+    language: {
+      heading: "Language",
+      body: "Messages, comments, dictation and the sign-in screens are available in these languages. The rest of the app is in English for now.",
+    },
+  },
+  // The two FAQ entries about languages (src/app/faq/page.tsx): the only ones shown in the reader's language.
+  faq: {
+    dictation: {
+      q: "Can I dictate a post instead of typing it?",
+      a: "Yes — tap the microphone icon in the post composer (or a chat message box) to record a short voice clip; it's transcribed and dropped into the text box for you to review and edit before posting or sending. This is separate from the round mic/send button in a chat, which instead sends the recording itself as a voice note — the dictation mic sits next to the emoji button and always produces editable text. Speak in your own language: Spanish, French, Portuguese, Arabic and many others are recognised automatically, whatever language the app is shown in.",
+    },
+    languages: {
+      q: "Can I use YuKon3t in a language other than English?",
+      a: "Signing in, creating an account, verifying it, resetting your password and setting up your profile are available in English, Spanish, French, Portuguese and Arabic, and so are the emails and texts those screens send. They open in your phone or browser's language when it is one of the five; to switch, use the Language menu at the top corner of the home page (below Sign in) or at the bottom of the other account screens — the choice is remembered on that device. The home page you see before signing in is in those five languages too; once you're signed in, change it under Settings → Language. So are Messages (your conversation list, chats, group chats and hidden chats), comments on posts, the voice, video and GIF pickers they open, dictation and the report form. In Arabic those screens read right to left. The rest of the app — the menus, your feed, Circles, Settings, and the notifications we send — is currently in English. What people write is never translated: a message or comment appears in the language it was written in.",
+    },
+  },
   nav: { signOut: "Sign out", signIn: "Sign in" },
   landing: {
     eyebrow: "Global connection, done honestly",

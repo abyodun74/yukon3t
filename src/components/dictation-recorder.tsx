@@ -22,20 +22,20 @@ function formatDictationClock(totalSeconds: number) {
 }
 
 /**
- * What one of transcribeAudio's failure codes says, in every composer that offers dictation. Null for any other code
- * (an upload failure, no connection): the composer words those the way it words its own.
+ * What a dictation failure says, in every composer that offers dictation: transcribeAudio's own codes and the ones
+ * the upload before it can end with. Always in the reader's language, even where the composer around it is English.
  */
-export function dictationErrorMessage(errors: typeof uiEn.dictation.errors, code: string): string | null {
+export function dictationErrorMessage(errors: typeof uiEn.dictation.errors, code: string): string {
   switch (code) {
     case "not_configured":
     case "too_large":
     case "rate_limited":
-    case "unavailable":
+    case "network":
+    case "upload_failed":
+    case "stale_deployment":
       return errors[code];
-    case "invalid":
-      return errors.unavailable;
     default:
-      return null;
+      return errors.unavailable;
   }
 }
 

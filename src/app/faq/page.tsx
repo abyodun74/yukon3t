@@ -4,6 +4,9 @@ import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { BackButton } from "@/components/back-button";
 import { auth } from "@/lib/auth";
 import { isViewOnceConfigured } from "@/lib/storage";
+import { en } from "@/lib/i18n/en";
+import { localeDirection } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
@@ -32,7 +35,9 @@ export const metadata: Metadata = {
 };
 
 // requiresViewOnce: only shown where view-once messages are actually switched on (isViewOnceConfigured).
-type Faq = { q: string; a: ReactNode; requiresViewOnce?: boolean };
+// text: the entry is shown in the reader's language, from the dictionary's `faq` section (the two entries about
+// languages, which someone who doesn't read English has to be able to read). `q` and `a` are its English.
+type Faq = { q: string; a: ReactNode; requiresViewOnce?: boolean; text?: keyof typeof en.faq };
 // hideInIosApp: the ad-booking Q&A points at a web/Stripe purchase flow, which the native iOS app doesn't surface (see HideInIosApp).
 type Section = { title: string; items: Faq[]; hideInIosApp?: boolean };
 
@@ -408,22 +413,7 @@ const sections: Section[] = [
           </>
         ),
       },
-      {
-        q: "Can I dictate a post instead of typing it?",
-        a: (
-          <>
-            Yes — tap the microphone icon in the post composer (or a chat
-            message box) to record a short voice clip; it&apos;s transcribed
-            and dropped into the text box for you to review and edit before
-            posting or sending. This is separate from the round mic/send
-            button in a chat, which instead sends the recording itself as a
-            voice note — the dictation mic sits next to the emoji button and
-            always produces editable text. Speak in your own language:
-            Spanish, French, Portuguese, Arabic and many others are recognised
-            automatically, whatever language the app is shown in.
-          </>
-        ),
-      },
+      { q: en.faq.dictation.q, a: en.faq.dictation.a, text: "dictation" },
       {
         q: "What's the difference between Connect and Subscribe?",
         a: (
@@ -1695,30 +1685,7 @@ const sections: Section[] = [
           </>
         ),
       },
-      {
-        q: "Can I use YuKon3t in a language other than English?",
-        a: (
-          <>
-            Signing in, creating an account, verifying it, resetting your
-            password and setting up your profile are available in English,
-            Spanish, French, Portuguese and Arabic, and so are the emails and texts
-            those screens send. They open in your phone or browser&apos;s
-            language when it is one of the five; to switch, use the Language
-            menu at the top corner of the home page (below Sign in) or at the
-            bottom of the other account screens — the choice is
-            remembered on that device. The home page you see before signing
-            in is in those five languages too; once you&apos;re signed in,
-            change it under Settings &rarr; Language. So are Messages (your
-            conversation list, chats, group chats and hidden chats), comments
-            on posts, the voice, video and GIF pickers they open, dictation and
-            the report form. In Arabic those screens read right to left. The
-            rest of the app — the menus, your feed, Circles, Settings,
-            and the notifications we send — is currently in English.
-            What people write is never translated: a message or comment
-            appears in the language it was written in.
-          </>
-        ),
-      },
+      { q: en.faq.languages.q, a: en.faq.languages.a, text: "languages" },
       {
         q: "Sign-up says something needs fixing — did I lose what I typed?",
         a: (
@@ -1826,6 +1793,8 @@ export default async function FaqPage() {
   // The FAQ is public: someone signed in goes Back to Home, a visitor to the landing page.
   const session = await auth();
   const viewOnceAvailable = isViewOnceConfigured();
+  const locale = await getLocale();
+  const translated = (await getDictionary()).faq;
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
       <BackButton href={session?.user ? "/home" : "/"} />
@@ -1847,17 +1816,18 @@ export default async function FaqPage() {
                   .map((item) => (
                   <details
                     key={item.q}
+                    {...(item.text ? { lang: locale, dir: localeDirection(locale) } : {})}
                     className="group rounded-xl border border-line bg-surface p-4 open:shadow-sm"
                   >
                     <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                       <span className="flex items-center justify-between gap-3">
-                        {item.q}
+                        {item.text ? translated[item.text].q : item.q}
                         <span className="shrink-0 text-foreground-soft transition-transform group-open:rotate-45">
                           +
                         </span>
                       </span>
                     </summary>
-                    <div className="mt-2 text-sm leading-relaxed text-foreground-soft">{item.a}</div>
+                    <div className="mt-2 text-sm leading-relaxed text-foreground-soft">{item.text ? translated[item.text].a : item.a}</div>
                   </details>
                 ))}
               </div>

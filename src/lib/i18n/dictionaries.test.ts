@@ -66,6 +66,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,
     "messages.hidden.pin",
+    "ui.online",
     "ui.report.reasons.PHISHING",
   ],
   ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT],

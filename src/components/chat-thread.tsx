@@ -2223,7 +2223,7 @@ export function ChatThread({
       {showDictation && (
         <DictationRecorder
           onTranscribed={appendDictatedText}
-          onError={(code) => setError(dictationErrorMessage(ui.dictation.errors, code) ?? t.errors.network)}
+          onError={(code) => setError(dictationErrorMessage(ui.dictation.errors, code))}
           onDone={() => setShowDictation(false)}
         />
       )}
