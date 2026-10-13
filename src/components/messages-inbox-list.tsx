@@ -6,8 +6,9 @@ import { Image as ImageIcon, Mic, MessageCircle, Search, Sticker, Users, Video }
 import { UserAvatar } from "@/components/user-link";
 import { formatInboxTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
-import { useMessagesText, useUiText } from "@/components/ui-text";
-import type { messagesEn } from "@/lib/i18n/en";
+import { useMessagesText } from "@/components/messages-text";
+import { useUiText } from "@/components/ui-text";
+import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format } from "@/lib/i18n/locales";
 
 type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";

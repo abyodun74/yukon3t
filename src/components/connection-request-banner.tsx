@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { respondToConnection } from "@/app/actions/connections";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 import { format } from "@/lib/i18n/locales";
 
 /**

@@ -12,7 +12,7 @@ import { TurnstileWidget } from "@/components/turnstile-widget";
 import { PhoneNumberField } from "@/components/phone-number-field";
 import { getRequestCountry } from "@/lib/request-country";
 import { LanguagePicker } from "@/components/language-picker";
-import { format, localeDirection } from "@/lib/i18n/locales";
+import { format } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function VerifyEmailPage({
@@ -30,7 +30,7 @@ export default async function VerifyEmailPage({
 
   if (verified === "1") {
     return (
-      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">{t.verifyEmail.confirmedTitle}</h1>
         <p className="mt-3 text-sm text-foreground-soft">{t.verifyEmail.confirmedBody}</p>
         <Link
@@ -47,7 +47,7 @@ export default async function VerifyEmailPage({
   const pending = await readPendingVerification();
   if (!pending) {
     return (
-      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">{t.common.nothingToVerify}</h1>
         <p className="mt-3 text-sm text-foreground-soft">{t.verifyEmail.expiredBody}</p>
         <Link
@@ -67,7 +67,7 @@ export default async function VerifyEmailPage({
   });
   if (!user) {
     return (
-      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">{t.common.nothingToVerify}</h1>
         <Link href="/sign-in" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
           {t.common.signIn}
@@ -79,7 +79,7 @@ export default async function VerifyEmailPage({
 
   if (user.emailVerified) {
     return (
-      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">{t.common.alreadyVerified}</h1>
         <Link href="/sign-in" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
           {t.common.signIn}
@@ -96,7 +96,7 @@ export default async function VerifyEmailPage({
   const defaultCountry = await getRequestCountry();
 
   return (
-    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
       <h1 className="text-2xl font-semibold">{t.verifyEmail.title}</h1>
       <p className="mt-3 text-sm text-foreground-soft">{format(t.verifyEmail.body, { email: user.email })}</p>
 

@@ -2,7 +2,7 @@
 // client use the same constants and decisions. The storage side is in storage.ts (private bucket) and
 // view-once-media.ts; the actions are in app/actions/view-once.ts.
 
-import { messagesEn } from "@/lib/i18n/en";
+import { messagesEn } from "@/lib/i18n/en/messages";
 
 /** An unopened view-once message's file is deleted this long after it was sent. */
 export const VIEW_ONCE_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { deleteGroupChat } from "@/app/actions/messages";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 /**
  * Creator or site admin: deletes the whole group, for every member —

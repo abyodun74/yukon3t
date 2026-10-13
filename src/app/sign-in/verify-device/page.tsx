@@ -4,7 +4,6 @@ import { readPendingDeviceChallengeCookie } from "@/lib/device-challenge";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { LanguagePicker } from "@/components/language-picker";
-import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function VerifyDevicePage({
@@ -24,7 +23,7 @@ export default async function VerifyDevicePage({
   const pending = await readPendingDeviceChallengeCookie();
   if (!pending) {
     return (
-      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">{t.common.nothingToVerify}</h1>
         <p className="mt-3 text-sm text-foreground-soft">{t.verifyDevice.expiredBody}</p>
         <Link href="/sign-in" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
@@ -36,7 +35,7 @@ export default async function VerifyDevicePage({
   }
 
   return (
-    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
       <h1 className="text-2xl font-semibold">{t.verifyDevice.title}</h1>
       <p className="mt-3 text-sm text-foreground-soft">{t.verifyDevice.body}</p>
 

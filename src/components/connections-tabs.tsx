@@ -4,6 +4,8 @@ import { useState } from "react";
 import { IncomingRequestsList, SentRequestsList, ConnectedList } from "@/components/connections-lists";
 import { cn } from "@/lib/utils";
 import type { intentTagValues } from "@/lib/validations";
+import type { pagesEn } from "@/lib/i18n/en/pages";
+import { format } from "@/lib/i18n/locales";
 
 type IntentTag = (typeof intentTagValues)[number];
 
@@ -32,6 +34,7 @@ export function ConnectionsTabs({
   incoming,
   sent,
   currentUserId,
+  labels,
 }: {
   connected: {
     items: { id: string; other: ConnectionUser; intentTag: IntentTag; conversationId: string | null }[];
@@ -48,18 +51,19 @@ export function ConnectionsTabs({
     count: number;
   };
   currentUserId: string;
+  labels: typeof pagesEn.connections;
 }) {
   const [tab, setTab] = useState<Tab>("connected");
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "connected", label: "Connected" },
-    { key: "incoming", label: incoming.count > 0 ? `Incoming (${incoming.count})` : "Incoming" },
-    { key: "sent", label: sent.count > 0 ? `Sent (${sent.count})` : "Sent" },
+    { key: "connected", label: labels.connected },
+    { key: "incoming", label: incoming.count > 0 ? format(labels.incomingCount, { count: incoming.count }) : labels.incoming },
+    { key: "sent", label: sent.count > 0 ? format(labels.sentCount, { count: sent.count }) : labels.sent },
   ];
 
   return (
     <div>
-      <div role="tablist" aria-label="Connections" className="flex gap-1.5 border-b border-line pb-3">
+      <div role="tablist" aria-label={labels.tabsLabel} className="flex gap-1.5 border-b border-line pb-3">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -78,10 +82,15 @@ export function ConnectionsTabs({
       </div>
       <div className="mt-4 space-y-3">
         {tab === "connected" && (
-          <ConnectedList initialItems={connected.items} initialHasMore={connected.hasMore} currentUserId={currentUserId} />
+          <ConnectedList
+            initialItems={connected.items}
+            initialHasMore={connected.hasMore}
+            currentUserId={currentUserId}
+            labels={labels}
+          />
         )}
-        {tab === "incoming" && <IncomingRequestsList initialItems={incoming.items} initialHasMore={incoming.hasMore} />}
-        {tab === "sent" && <SentRequestsList initialItems={sent.items} initialHasMore={sent.hasMore} />}
+        {tab === "incoming" && <IncomingRequestsList initialItems={incoming.items} initialHasMore={incoming.hasMore} labels={labels} />}
+        {tab === "sent" && <SentRequestsList initialItems={sent.items} initialHasMore={sent.hasMore} labels={labels} />}
       </div>
     </div>
   );

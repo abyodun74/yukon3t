@@ -903,3 +903,9 @@ button:not(:disabled):active {
   background: var(--epr-bg-color);
   border-top: 1px solid var(--epr-picker-border-color);
 }
+
+/* Arabic is a joined script: letter-spacing (the tracking-* utilities on small caps headings and labels) pulls its
+   letters apart. Anything written in Arabic ignores it; an English part of the page (lang="en") is unaffected. */
+:lang(ar) {
+  letter-spacing: normal !important;
+}

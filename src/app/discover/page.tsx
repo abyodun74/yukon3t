@@ -4,27 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { PeopleYouMayKnow } from "@/components/people-you-may-know";
 import { getPeopleYouMayKnow } from "@/app/actions/discover";
-import { intentTagValues, intentLabels } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validations";
 import { COUNTRIES } from "@/lib/countries";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getConnectedOrPendingIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { countryName } from "@/lib/i18n/country-names";
 
 const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
 type SortOption = (typeof SORT_OPTIONS)[number];
-
-function sortLabel(sort: SortOption) {
-  switch (sort) {
-    case "relevant":
-      return "Most relevant";
-    case "recent":
-      return "Most recent";
-    case "oldest":
-      return "Oldest";
-    case "online":
-      return "Online now";
-  }
-}
 
 // Offset (not cursor) pagination — "relevant" sorts by trustScore, which
 // isn't unique, so a cursor keyed on it could skip or repeat rows at tie
@@ -38,6 +27,10 @@ export default async function DiscoverPage({
   searchParams: Promise<{ intent?: string; country?: string; sort?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.pages.discover;
+  const sortText = dictionary.pages.sort;
   const { intent, country, sort: sortParam } = await searchParams;
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
     ? (sortParam as SortOption)
@@ -174,10 +167,9 @@ export default async function DiscoverPage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackButton href="/home" />
-      <h1 className="text-2xl font-semibold">Discover people</h1>
+      <h1 className="text-2xl font-semibold">{t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Filter by what you&apos;re both open to — no drifting into
-        conversations neither of you signed up for.
+        {t.intro}
       </p>
 
       <PeopleYouMayKnow items={mayKnowItems} />
@@ -191,39 +183,39 @@ export default async function DiscoverPage({
       <form className="mt-6 grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <select
           name="intent"
-          aria-label="Filter by intent"
+          aria-label={t.intentLabel}
           defaultValue={intent ?? ""}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
-          <option value="">Any intent</option>
+          <option value="">{t.anyIntent}</option>
           {intentTagValues.map((tag) => (
             <option key={tag} value={tag}>
-              {intentLabels[tag]}
+              {dictionary.feed.intents[tag]}
             </option>
           ))}
         </select>
         <select
           name="country"
-          aria-label="Filter by country"
+          aria-label={t.countryLabel}
           defaultValue={country ?? ""}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
-          <option value="">Any country</option>
+          <option value="">{t.anyCountry}</option>
           {COUNTRIES.map((c) => (
             <option key={c} value={c}>
-              {c}
+              {countryName(c, locale)}
             </option>
           ))}
         </select>
         <select
           name="sort"
-          aria-label="Sort by"
+          aria-label={sortText.label}
           defaultValue={sort}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option} value={option}>
-              {sortLabel(option)}
+              {sortText[option]}
             </option>
           ))}
         </select>
@@ -231,7 +223,7 @@ export default async function DiscoverPage({
           type="submit"
           className="w-full rounded-lg bg-accent px-4 py-2 font-medium text-accent-ink sm:w-auto"
         >
-          Filter
+          {t.filter}
         </button>
       </form>
 
@@ -250,6 +242,7 @@ export default async function DiscoverPage({
           intent={intent}
           country={country}
           sort={sort}
+          emptyLabel={sort === "online" ? t.noneOnline : t.none}
         />
       </div>
     </div>

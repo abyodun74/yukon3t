@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { WifiOff } from "lucide-react";
+import { useShellText } from "@/components/ui-text";
 
 function subscribe(callback: () => void) {
   window.addEventListener("offline", callback);
@@ -25,6 +26,7 @@ function getServerSnapshot() {
 // just fail normally while offline, same as before this component
 // existed.
 export function OfflineBanner() {
+  const { t } = useShellText();
   const isOffline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!isOffline) return null;
@@ -35,7 +37,7 @@ export function OfflineBanner() {
       className="animate-offline-banner-in flex items-center justify-center gap-2 bg-danger px-4 py-2 text-center text-sm font-medium text-accent-ink"
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
-      You&rsquo;re offline — some actions won&rsquo;t work until you&rsquo;re back online.
+      {t.offline}
     </div>
   );
 }

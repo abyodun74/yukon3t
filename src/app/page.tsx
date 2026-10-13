@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
 import { LanguagePicker } from "@/components/language-picker";
-import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "YuKon3t — Verified Global Friendships, No Fake Profiles";
@@ -46,7 +45,7 @@ export default async function Home() {
   const t = await getDictionary();
 
   return (
-    <div lang={locale} dir={localeDirection(locale)}>
+    <div>
       <section className="relative overflow-hidden">
         <div
           aria-hidden

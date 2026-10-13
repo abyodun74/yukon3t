@@ -12,6 +12,8 @@ import { watermarkImageFile } from "@/lib/watermark";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
 import { announce } from "@/lib/announce";
+import { useFeedText } from "@/components/feed-text";
+import { format } from "@/lib/i18n/locales";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
@@ -80,6 +82,7 @@ export function ShareModal({
   onClose: () => void;
   onShareCountChange: (count: number) => void;
 }) {
+  const { t, dir } = useFeedText();
   const [view, setView] = useState<View>("root");
   // Sends a reopened modal back to its root screen — adjusted during
   // render (React's documented pattern for this) rather than a useEffect,
@@ -229,9 +232,9 @@ export function ShareModal({
         if (files.length === sources.length && files.length > 0 && navigator.canShare?.({ files })) {
           shareData.files = files;
         } else if (fetchFailures.length > 0) {
-          setShareWarning(`Couldn't attach media, sent link only (fetch failed: ${fetchFailures.join(", ")})`);
+          setShareWarning(format(t.share.linkOnlyFetchFailed, { details: fetchFailures.join(", ") }));
         } else if (files.length > 0 && !navigator.canShare?.({ files })) {
-          setShareWarning("Couldn't attach media, sent link only (this browser can't share files)");
+          setShareWarning(t.share.linkOnlyUnsupported);
         }
       }
     } finally {
@@ -249,7 +252,7 @@ export function ShareModal({
       const result = await sendMessage(fd);
       if (!result.error) {
         setSentToId(conversationId);
-        announce("Sent");
+        announce(t.share.sent);
         bumpShareCount();
       }
     });
@@ -289,7 +292,7 @@ export function ShareModal({
       const result = await shareToCircle(fd);
       if (!result.error && result.shareCount !== undefined) {
         setSentToId(circleId);
-        announce("Shared");
+        announce(t.share.shared);
         onShareCountChange(result.shareCount);
       }
     });
@@ -299,7 +302,7 @@ export function ShareModal({
     <Sheet
       open={open}
       onClose={onClose}
-      title={view === "root" ? "Share post" : view === "friends" ? "Send to a friend" : "Share to a Circle"}
+      title={view === "root" ? t.share.title : view === "friends" ? t.share.sendToFriend : t.share.toCircle}
     >
         {shareWarning && (
           <p role="alert" className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
@@ -313,7 +316,7 @@ export function ShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
             >
               <LinkIcon size={16} />
-              {copied ? "Link copied" : "Copy link"}
+              {copied ? t.share.linkCopied : t.share.copyLink}
             </button>
             {canNativeShare && (
               <button
@@ -323,7 +326,7 @@ export function ShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <ShareIcon size={16} />
-                {sharingViaDevice ? "Preparing…" : "Share via device"}
+                {sharingViaDevice ? t.share.preparing : t.share.viaDevice}
               </button>
             )}
             {canShareToStory && (
@@ -334,7 +337,7 @@ export function ShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <CirclePlus size={16} />
-                {sharedToStory ? "Added to your story" : sharingToStory ? "Adding…" : "Share to your story"}
+                {sharedToStory ? t.share.addedToStory : sharingToStory ? t.share.addingToStory : t.share.toStory}
               </button>
             )}
             {canShareToMuse && (
@@ -345,7 +348,7 @@ export function ShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <Clapperboard size={16} />
-                {sharedToMuse ? "Shared to Muse" : sharingToMuse ? "Sharing…" : "Share to Muse"}
+                {sharedToMuse ? t.share.sharedToMuse : sharingToMuse ? t.share.sharingToMuse : t.share.toMuse}
               </button>
             )}
             <button
@@ -354,7 +357,7 @@ export function ShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
             >
               <Send size={16} />
-              Send to a friend
+              {t.share.sendToFriend}
             </button>
             <button
               type="button"
@@ -362,7 +365,7 @@ export function ShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
             >
               <Users size={16} />
-              Share to a Circle
+              {t.share.toCircle}
             </button>
           </div>
         )}
@@ -371,7 +374,7 @@ export function ShareModal({
           <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
             {conversations === null && <RowSkeletons />}
             {conversations?.length === 0 && (
-              <li className="px-2 py-1 text-sm text-foreground-soft">No conversations yet.</li>
+              <li className="px-2 py-1 text-sm text-foreground-soft">{t.share.noConversations}</li>
             )}
             {conversations?.map((c) => (
               <li key={c.id}>
@@ -385,7 +388,7 @@ export function ShareModal({
                     <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
                     <span className="truncate">{c.label}</span>
                   </span>
-                  {sentToId === c.id && <span className="shrink-0 text-xs text-success">Sent</span>}
+                  {sentToId === c.id && <span className="shrink-0 text-xs text-success">{t.share.sent}</span>}
                 </button>
               </li>
             ))}
@@ -396,7 +399,7 @@ export function ShareModal({
           <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
             {circles === null && <RowSkeletons />}
             {circles?.length === 0 && (
-              <li className="px-2 py-1 text-sm text-foreground-soft">You haven&apos;t joined any Circles yet.</li>
+              <li className="px-2 py-1 text-sm text-foreground-soft">{t.share.noCircles}</li>
             )}
             {circles?.map((circle) => (
               <li key={circle.id}>
@@ -407,7 +410,7 @@ export function ShareModal({
                   className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
                 >
                   <span className="truncate">{circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}</span>
-                  {sentToId === circle.id && <span className="shrink-0 text-xs text-success">Shared</span>}
+                  {sentToId === circle.id && <span className="shrink-0 text-xs text-success">{t.share.shared}</span>}
                 </button>
               </li>
             ))}
@@ -420,7 +423,7 @@ export function ShareModal({
             onClick={() => setView("root")}
             className="mt-3 text-xs text-foreground-soft hover:text-accent"
           >
-            ← Back
+            {`${dir === "rtl" ? "→" : "←"} ${t.share.back}`}
           </button>
         )}
     </Sheet>

@@ -3,6 +3,7 @@
 import { PostCard, type PostCardData } from "@/components/post-card";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreSearchPosts } from "@/app/actions/search";
+import { useShellText } from "@/components/ui-text";
 
 export function SearchPostsList({
   query,
@@ -19,6 +20,7 @@ export function SearchPostsList({
   viewerId: string;
   viewerIsAdmin: boolean;
 }) {
+  const { t: shell } = useShellText();
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems: initialPosts,
     initialHasMore,
@@ -33,7 +35,7 @@ export function SearchPostsList({
       ))}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-4">
-          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{shell.common.loadingMore}</span>}
         </div>
       )}
     </>

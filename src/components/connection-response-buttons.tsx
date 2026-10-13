@@ -3,8 +3,10 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { respondToConnection } from "@/app/actions/connections";
+import { useFeedText } from "@/components/feed-text";
 
 export function ConnectionResponseButtons({ connectionId }: { connectionId: string }) {
+  const { t } = useFeedText();
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -26,7 +28,7 @@ export function ConnectionResponseButtons({ connectionId }: { connectionId: stri
         onClick={() => respond(true)}
         className="rounded-md bg-accent px-3 py-2.5 text-xs font-medium text-accent-ink disabled:opacity-50"
       >
-        Accept
+        {t.people.accept}
       </button>
       <button
         type="button"
@@ -34,7 +36,7 @@ export function ConnectionResponseButtons({ connectionId }: { connectionId: stri
         onClick={() => respond(false)}
         className="rounded-md border border-line px-3 py-2.5 text-xs disabled:opacity-50"
       >
-        Decline
+        {t.people.decline}
       </button>
     </div>
   );

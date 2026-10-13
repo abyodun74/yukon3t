@@ -8,9 +8,11 @@ import { Search } from "lucide-react";
 export function SearchBar({
   initialQuery = "",
   className,
+  labels,
 }: {
   initialQuery?: string;
   className?: string;
+  labels: { placeholder: string; label: string };
 }) {
   const [value, setValue] = useState(initialQuery);
   const router = useRouter();
@@ -26,15 +28,15 @@ export function SearchBar({
     <form onSubmit={handleSubmit} className={className ?? "relative w-full"}>
       <Search
         size={14}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-soft"
+        className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-foreground-soft"
       />
-      <input
+      <input dir="auto"
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search people, Circles, collaborations..."
-        aria-label="Search people, Circles, collaborations"
-        className="w-full rounded-full border border-line bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-accent"
+        placeholder={labels.placeholder}
+        aria-label={labels.label}
+        className="w-full rounded-full border border-line bg-surface py-1.5 ps-8 pe-3 text-sm outline-none focus:border-accent"
       />
     </form>
   );

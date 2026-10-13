@@ -26,7 +26,9 @@ import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
-import { UiTextProvider } from "@/components/ui-text";
+import { EnglishOnly } from "@/components/english-only";
+import { ShellTextProvider, UiTextProvider } from "@/components/ui-text";
+import { localeDirection } from "@/lib/i18n/locales";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
@@ -171,16 +173,17 @@ export default async function RootLayout({
   const session = await auth();
   const iosApp = isLikelyIosAppUserAgent((await headers()).get("user-agent"));
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
-  // The page shell is English. What follows this: the account screens, the nav's own sign out / sign in, everything
-  // under /messages (its own layout), and the components UiTextProvider serves wherever they are mounted (comments,
-  // recorders and pickers, dictation, the report sheet).
+  // The page is in the reader's language (src/lib/i18n), right-to-left in Arabic: <html> carries lang/dir. A part that
+  // is still English says so on its own wrapper (EnglishOnly in src/components/english-only.tsx): the route segments
+  // not translated yet, through their layouts, and the call overlays below.
   const locale = await getLocale();
   const dictionary = await getDictionary();
-  const navLabels = dictionary.nav;
+  const footer = dictionary.shell.footer;
 
   return (
     <html
-      lang="en"
+      lang={locale}
+      dir={localeDirection(locale)}
       data-theme={theme === "system" ? undefined : theme}
       // TextScaleScript (first thing in <body>) sets an inline font-size on
       // this element before React hydrates, on iOS only — the server never
@@ -230,15 +233,21 @@ export default async function RootLayout({
             reasoning as CallSessionProvider just inside it. */}
         <MotionConfig reducedMotion="user">
           <UiTextProvider locale={locale} text={dictionary.ui}>
+          <ShellTextProvider locale={locale} text={dictionary.shell}>
           <CallSessionProvider>
             <AppSplash />
             <CapacitorBridge />
             <RegisterServiceWorker />
             <StaleBuildReload />
             <OfflineBanner />
-            <Nav session={session} theme={theme} locale={locale} labels={navLabels} />
-            {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
-            {session?.user && <GlobalCallFrame />}
+            <Nav session={session} theme={theme} />
+            {session?.user && (
+              // The call screens are not translated yet.
+              <EnglishOnly contents>
+                <IncomingCallListener currentUserId={session.user.id} />
+                <GlobalCallFrame />
+              </EnglishOnly>
+            )}
             {session?.user && <FcmTokenBridge />}
             {session?.user && <PresenceHeartbeat />}
             {session?.user && <ScreenshotGuard />}
@@ -260,30 +269,31 @@ export default async function RootLayout({
             >
               <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-4 px-4">
                 <a href="/faq" className="hover:text-accent">
-                  FAQ
+                  {footer.faq}
                 </a>
                 <a href="/legal/guidelines" className="hover:text-accent">
-                  Community Guidelines
+                  {footer.guidelines}
                 </a>
                 <a href="/legal/privacy" className="hover:text-accent">
-                  Privacy
+                  {footer.privacy}
                 </a>
                 <a href="/legal/terms" className="hover:text-accent">
-                  Terms
+                  {footer.terms}
                 </a>
                 <a href="/legal/disclaimer" className="hover:text-accent">
-                  Disclaimer
+                  {footer.disclaimer}
                 </a>
                 {/* Ad booking is a web/Stripe business purchase — not surfaced inside the iOS app (see HideInIosApp). */}
                 <HideInIosApp hiddenOnServer={iosApp}>
                   <a href="/advertise" className="hover:text-accent">
-                    Advertise
+                    {footer.advertise}
                   </a>
                 </HideInIosApp>
               </div>
               <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
             </footer>
           </CallSessionProvider>
+          </ShellTextProvider>
           </UiTextProvider>
         </MotionConfig>
       </body>

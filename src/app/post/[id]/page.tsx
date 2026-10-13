@@ -10,8 +10,7 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { loadPostComments } from "@/lib/comments-data";
-import { localeDirection } from "@/lib/i18n/locales";
-import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function PostDetailPage({
   params,
@@ -86,8 +85,6 @@ export default async function PostDetailPage({
     }
   }
 
-  // The comment section is in the reader's language; the post above it is not translated.
-  const locale = await getLocale();
   const commentsText = (await getDictionary()).ui.comments;
 
   return (
@@ -99,8 +96,6 @@ export default async function PostDetailPage({
 
       <div className="mt-6">
         <h2
-          lang={locale}
-          dir={localeDirection(locale)}
           className="text-sm font-semibold uppercase tracking-wide text-foreground-soft rtl:tracking-normal"
         >
           {commentsText.heading}

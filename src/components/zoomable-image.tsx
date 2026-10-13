@@ -2,6 +2,7 @@
 
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { usePinchZoom } from "@/lib/use-pinch-zoom";
+import { useShellText } from "@/components/ui-text";
 
 const MAX_SCALE = 8;
 const DOUBLE_TAP_SCALE = 3;
@@ -16,6 +17,7 @@ const DOUBLE_TAP_SCALE = 3;
  * onClick being stopped below.
  */
 export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) {
+  const { t } = useShellText();
   const { containerRef, imgRef, scale, translate, isGesturing, resetIfZoomed, movedPastTapThreshold, zoomStep, minScale, maxScale, bind } = usePinchZoom({
     maxScale: MAX_SCALE,
     doubleTapScale: DOUBLE_TAP_SCALE,
@@ -61,7 +63,7 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
     >
       <button
         type="button"
-        aria-label="Zoom out"
+        aria-label={t.viewer.zoomOut}
         disabled={scale <= minScale}
         onClick={() => zoomStep(-1)}
         className="rounded-full bg-black/40 p-2 text-white/80 hover:text-white disabled:opacity-40"
@@ -70,7 +72,7 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
       </button>
       <button
         type="button"
-        aria-label="Zoom in"
+        aria-label={t.viewer.zoomIn}
         disabled={scale >= maxScale}
         onClick={() => zoomStep(1)}
         className="rounded-full bg-black/40 p-2 text-white/80 hover:text-white disabled:opacity-40"

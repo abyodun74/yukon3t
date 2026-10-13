@@ -3,10 +3,13 @@
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { UserLink } from "@/components/user-link";
-import { intentLabels, intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validations";
+import { countryName } from "@/lib/i18n/country-names";
 import { isOnline } from "@/lib/presence";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreDiscoverPeople } from "@/app/actions/discover";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
 
 // Matches loadMoreDiscoverPeople's own PAGE_SIZE (src/app/actions/discover.ts).
 const PAGE_SIZE = 30;
@@ -38,13 +41,18 @@ export function DiscoverPeopleList({
   intent,
   country,
   sort,
+  emptyLabel,
 }: {
   initialItems: DiscoverItem[];
   initialHasMore: boolean;
   intent?: string;
   country?: string;
   sort: string;
+  /** What to say when nobody matches, already chosen for this sort by the page. */
+  emptyLabel: string;
 }) {
+  const { t, locale } = useFeedText();
+  const { t: shell } = useShellText();
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems,
     initialHasMore,
@@ -68,14 +76,16 @@ export function DiscoverPeopleList({
             />
             <TrustBadge band={person.trustBand} />
           </div>
-          <p className="mt-1 text-xs text-foreground-soft">{person.country ?? "Unknown location"}</p>
+          <p className="mt-1 text-xs text-foreground-soft">{person.country ? countryName(person.country, locale) : t.people.unknownLocation}</p>
           {person.bio && (
-            <p className="mt-2 line-clamp-3 break-words text-sm text-foreground-soft">{person.bio}</p>
+            <p dir="auto" className="mt-2 line-clamp-3 break-words text-sm text-foreground-soft">
+              {person.bio}
+            </p>
           )}
           <div className="mt-3 flex flex-wrap gap-1">
             {person.openToIntents.map((tag) => (
               <span key={tag} className="rounded-full bg-teal/10 px-2 py-0.5 text-[0.6875rem] text-teal">
-                {intentLabels[tag]}
+                {t.intents[tag]}
               </span>
             ))}
           </div>
@@ -92,14 +102,12 @@ export function DiscoverPeopleList({
       ))}
       {items.length === 0 && (
         <p className="text-sm text-foreground-soft">
-          {sort === "online"
-            ? "No one matching those filters is online right now — try again in a bit."
-            : "No one matches those filters yet — try broadening them."}
+          {emptyLabel}
         </p>
       )}
       {hasMore && (
         <div ref={sentinelRef} className="col-span-full flex justify-center py-4">
-          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{shell.common.loadingMore}</span>}
         </div>
       )}
     </>

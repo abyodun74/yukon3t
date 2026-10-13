@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/utils";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 
 /**
  * Submit button for a server-action <form>. useFormStatus flips `pending`

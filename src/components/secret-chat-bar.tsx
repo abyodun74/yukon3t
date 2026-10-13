@@ -7,7 +7,7 @@ import { E2EE_MIN_PASSPHRASE_LENGTH } from "@/lib/e2ee/constants";
 import { Sheet } from "@/components/sheet";
 import { PasswordInput } from "@/components/password-input";
 import { useChatOptions } from "@/components/chat-options-menu";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 import { format } from "@/lib/i18n/locales";
 
 type Dialog = null | "privacy" | "setup" | "restore" | "reset" | "verify" | "turn-off";

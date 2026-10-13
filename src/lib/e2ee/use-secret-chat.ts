@@ -1,6 +1,6 @@
 "use client";
 
-import { messagesEn } from "@/lib/i18n/en";
+import { messagesEn } from "@/lib/i18n/en/messages";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getMyKeyBackup,

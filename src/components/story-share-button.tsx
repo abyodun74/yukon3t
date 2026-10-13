@@ -5,6 +5,8 @@ import { Forward, X } from "lucide-react";
 import { getShareableConversations, shareStoryToConversation } from "@/app/actions/stories";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { announce } from "@/lib/announce";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
 
 /**
  * "Share" for a story — forwards it into one of the caller's own
@@ -21,6 +23,8 @@ export function StoryShareButton({
   /** Lets the viewer pause its auto-advance timer while this sheet is open, same as its own viewers/comments panels do. */
   onOpenChange?: (open: boolean) => void;
 }) {
+  const { t } = useFeedText();
+  const { t: shell } = useShellText();
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState<{ value: string; label: string }[] | null>(null);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
@@ -61,11 +65,11 @@ export function StoryShareButton({
     setError(null);
     const result = await shareStoryToConversation(storyId, conversationId);
     if (result.error) {
-      setError("Couldn't share that — try again.");
+      setError(t.stories.shareSheet.failed);
       return;
     }
     setSentTo((prev) => new Set(prev).add(conversationId));
-    announce("Sent");
+    announce(t.stories.shareSheet.sent);
   }
 
   const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
@@ -75,7 +79,7 @@ export function StoryShareButton({
       <button
         type="button"
         onClick={openSheet}
-        aria-label="Share story"
+        aria-label={t.stories.shareSheet.button}
         className="rounded-full bg-black/40 p-1.5 text-white transition-transform hover:bg-black/60 active:scale-90"
       >
         <Forward size={16} />
@@ -96,11 +100,11 @@ export function StoryShareButton({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p id={titleId} className="text-sm font-semibold">Share to</p>
+              <p id={titleId} className="text-sm font-semibold">{t.stories.shareSheet.title}</p>
               <button
                 type="button"
                 onClick={close}
-                aria-label="Close"
+                aria-label={shell.common.close}
                 className="rounded-lg p-1 text-foreground-soft hover:bg-line"
               >
                 <X size={16} />
@@ -108,10 +112,10 @@ export function StoryShareButton({
             </div>
             {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
             <ul className="mt-3 max-h-[50vh] space-y-1 overflow-y-auto">
-              {conversations === null && <li className="text-sm text-foreground-soft">Loading…</li>}
+              {conversations === null && <li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
               {conversations?.length === 0 && (
                 <li className="text-sm text-foreground-soft">
-                  No conversations to share to yet — connect with someone first.
+                  {t.stories.shareSheet.empty}
                 </li>
               )}
               {conversations?.map((c) => {
@@ -122,10 +126,10 @@ export function StoryShareButton({
                       type="button"
                       disabled={sent}
                       onClick={() => send(c.value)}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-line disabled:opacity-60"
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm hover:bg-line disabled:opacity-60"
                     >
                       <span className="min-w-0 truncate">{c.label}</span>
-                      {sent && <span className="shrink-0 text-xs text-accent">Sent</span>}
+                      {sent && <span className="shrink-0 text-xs text-accent">{t.stories.shareSheet.sent}</span>}
                     </button>
                   </li>
                 );

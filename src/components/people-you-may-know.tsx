@@ -2,6 +2,8 @@ import { UserLink } from "@/components/user-link";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { intentTagValues } from "@/lib/validations";
+import { plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 type IntentTag = (typeof intentTagValues)[number];
 
@@ -21,12 +23,14 @@ type Item = {
 };
 
 /** A horizontal row of mutual-connection-based suggestions — see getPeopleYouMayKnow (actions/discover.ts). Renders nothing if there's nothing to suggest, rather than an empty section header. */
-export function PeopleYouMayKnow({ items }: { items: Item[] }) {
+export async function PeopleYouMayKnow({ items }: { items: Item[] }) {
   if (items.length === 0) return null;
+  const locale = await getLocale();
+  const t = (await getDictionary()).feed.people;
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm font-semibold">People you may know</h2>
+      <h2 className="text-sm font-semibold">{t.youMayKnow}</h2>
       <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
         {items.map(({ person, mutualCount, connectionStatus, isRequester, conversationId }) => (
           <div
@@ -46,7 +50,7 @@ export function PeopleYouMayKnow({ items }: { items: Item[] }) {
               <TrustBadge band={person.trustBand} />
             </div>
             <p className="mt-2 text-xs text-foreground-soft">
-              {mutualCount} mutual connection{mutualCount === 1 ? "" : "s"}
+              {plural(locale, t.mutual, mutualCount)}
             </p>
             <div className="mt-3">
               <ConnectButton

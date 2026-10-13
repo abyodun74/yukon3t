@@ -7,6 +7,7 @@ import { createSignalThrottle, useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { hasSendingOptimisticPost, useOptimisticPosts } from "@/lib/optimistic-posts-store";
 import { OptimisticPostCard } from "@/components/optimistic-post-card";
+import { useShellText } from "@/components/ui-text";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -91,6 +92,7 @@ export function PostFeedSection({
   viewerIsAdmin: boolean;
   liveUpdatesEnabled?: boolean;
 }) {
+  const { t: shell } = useShellText();
   const [posts, setPosts] = useState(initialPosts);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -308,7 +310,7 @@ export function PostFeedSection({
         })}
       </div>
       {loadingMore && (
-        <p className="animate-loading-pulse flex justify-center py-4 text-xs text-foreground-soft">Loading more...</p>
+        <p className="animate-loading-pulse flex justify-center py-4 text-xs text-foreground-soft">{shell.common.loadingMore}</p>
       )}
     </div>
   );

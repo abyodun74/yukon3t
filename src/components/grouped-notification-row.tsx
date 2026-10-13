@@ -2,10 +2,12 @@
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import { markManyAsRead } from "@/app/actions/notifications";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, formatTimeAgo } from "@/lib/format-date";
+import { useUiText } from "@/components/ui-text";
+import type { pagesEn } from "@/lib/i18n/en/pages";
+import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
 import { UserAvatar } from "@/components/user-link";
 
 /**
@@ -28,6 +30,7 @@ export function GroupedNotificationRow({
   actor,
   conversationId,
   index = 0,
+  labels,
 }: {
   type: "MISSED_CALL" | "MESSAGE";
   count: number;
@@ -39,9 +42,15 @@ export function GroupedNotificationRow({
   /** Set for MESSAGE (which conversation these came from); null for MISSED_CALL, which has nowhere more specific to link than the caller's profile. */
   conversationId: string | null;
   index?: number;
+  labels: Pick<typeof pagesEn.notifications, "unread" | "messagesFrom" | "missedCallsFrom">;
 }) {
+  const { locale, t: ui } = useUiText();
   const href = type === "MESSAGE" && conversationId ? `/messages/${conversationId}` : `/u/${actor.id}`;
-  const noun = type === "MESSAGE" ? "message" : "missed call";
+  // "3 messages from Ana", split around where the name goes.
+  const [before, after] = aroundPlaceholder(
+    plural(locale, type === "MESSAGE" ? labels.messagesFrom : labels.missedCallsFrom, count),
+    "name",
+  );
 
   return (
     <Link
@@ -51,21 +60,24 @@ export function GroupedNotificationRow({
       }}
       style={{ "--row-delay": `${Math.min(index, 10) * 30}ms` } as CSSProperties}
       className={cn(
-        "inbox-row block rounded-lg border-l-2 px-3 py-3 text-sm hover:bg-line",
+        "inbox-row block rounded-lg border-s-2 px-3 py-3 text-sm hover:bg-line",
         unread ? "border-accent bg-accent/5" : "border-transparent",
       )}
     >
       <span className="flex items-start gap-2">
         <UserAvatar avatarUrl={actor.avatarUrl} name={actor.name} size={20} />
         <span>
-          {unread && <span className="sr-only">Unread: </span>}
-          {count} {noun}
-          {count === 1 ? "" : "s"} from <span className="break-words font-semibold">{actor.name}</span>
+          {unread && <span className="sr-only">{labels.unread} </span>}
+          {before}
+          <span dir="auto" className="break-words font-semibold">
+            {actor.name ?? ui.unknownName}
+          </span>
+          {after}
           <span
-            className="ml-2 text-xs text-foreground-soft"
-            title={formatDateTime(latestCreatedAt)}
+            className="ms-2 text-xs text-foreground-soft"
+            title={formatDateTime(latestCreatedAt, locale)}
           >
-            {formatDistanceToNow(latestCreatedAt, { addSuffix: true })}
+            {formatTimeAgo(latestCreatedAt, locale, ui.time.justNow)}
           </span>
         </span>
       </span>

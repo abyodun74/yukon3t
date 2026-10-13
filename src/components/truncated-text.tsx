@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { linkifyText } from "@/lib/linkify";
+import { useShellText } from "@/components/ui-text";
 
 const DEFAULT_MAX_LENGTH = 400;
 
@@ -27,17 +28,18 @@ export function TruncatedText({
   maxLength?: number;
   className?: string;
 }) {
+  const { t } = useShellText();
   const [expanded, setExpanded] = useState(false);
 
   if (text.length <= maxLength) {
-    return <p className={cn("break-words", className)}>{linkifyText(text)}</p>;
+    return <p dir="auto" className={cn("break-words", className)}>{linkifyText(text)}</p>;
   }
 
   const cutAt = text.lastIndexOf(" ", maxLength);
   const truncated = text.slice(0, cutAt > 0 ? cutAt : maxLength);
 
   return (
-    <p className={cn("break-words", className)}>
+    <p dir="auto" className={cn("break-words", className)}>
       {linkifyText(expanded ? text : `${truncated}… `)}
       <button
         type="button"
@@ -45,7 +47,7 @@ export function TruncatedText({
         aria-expanded={expanded}
         className="font-medium text-accent hover:underline"
       >
-        {expanded ? "Show less" : "Show more"}
+        {expanded ? t.text.showLess : t.text.showMore}
       </button>
     </p>
   );

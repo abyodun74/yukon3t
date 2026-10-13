@@ -13,7 +13,6 @@ import { verifyTurnstile } from "@/lib/turnstile";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
-import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "Sign In to YuKon3t";
@@ -92,7 +91,7 @@ export default async function SignInPage({
   const offlineMessage = t.shared.submitButton.offline;
 
   return (
-    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="font-display text-3xl font-semibold">{t.signIn.title}</h1>
 
       {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (

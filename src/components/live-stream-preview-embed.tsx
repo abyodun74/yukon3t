@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import { joinLiveStream, leaveLiveStream } from "@/app/actions/live-streams";
+import { useFeedText } from "@/components/feed-text";
 
 /**
  * The actual ongoing stream, playing inside a Home-feed card
@@ -38,6 +39,7 @@ export function LiveStreamPreviewEmbed({
   hostId: string;
   active: boolean;
 }) {
+  const { t } = useFeedText();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hostTrack, setHostTrack] = useState<MediaStreamTrack | null>(null);
 
@@ -157,7 +159,7 @@ export function LiveStreamPreviewEmbed({
         muted
         className={`h-full w-full object-cover ${hostTrack ? "" : "hidden"}`}
       />
-      {!hostTrack && <span className="text-xs text-white/60">Connecting…</span>}
+      {!hostTrack && <span className="text-xs text-white/60">{t.live.connecting}</span>}
     </div>
   );
 }

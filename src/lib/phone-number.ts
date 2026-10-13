@@ -6,7 +6,7 @@ import {
   type CountryCode,
 } from "libphonenumber-js/min";
 import { phoneSchema } from "@/lib/validations";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 
 // Pure helpers behind PhoneNumberField (country selector + national number) and the server-side validity check.
 // Client-safe. libphonenumber is imported here rather than in validations.ts on purpose: that file is bundled into

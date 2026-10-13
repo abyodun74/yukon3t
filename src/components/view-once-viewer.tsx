@@ -6,8 +6,8 @@ import { getViewOnceContentType, openViewOnceMessage, finishViewOnceMessage } fr
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { viewOnceCanPlay, type ViewOnceMediaType } from "@/lib/view-once";
-import { useMessagesText } from "@/components/ui-text";
-import type { messagesEn } from "@/lib/i18n/en";
+import { useMessagesText } from "@/components/messages-text";
+import type { messagesEn } from "@/lib/i18n/en/messages";
 
 type Phase =
   | { step: "confirm" }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus, X } from "lucide-react";
 import { addGroupMembers } from "@/app/actions/messages";
 import { MultiSelect } from "@/components/multi-select";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 export function AddGroupMembersButton({
   conversationId,

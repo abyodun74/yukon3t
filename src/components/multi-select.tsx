@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 import { format } from "@/lib/i18n/locales";
 
 type Option = { value: string; label: string };

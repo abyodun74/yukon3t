@@ -1,9 +1,57 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { captureError } from "@/lib/error-tracking";
 import { useStaleBuildRecovery } from "@/lib/stale-build-client";
+import { LOCALE_COOKIE, localeDirection, resolveLocale, type Locale } from "@/lib/i18n/locales";
 import "./globals.css";
+
+// This screen's own wording, in every language: what normally supplies it (the root layout's providers) is part of
+// what just failed. Four short strings, so they are simply all here.
+const TEXT: Record<Locale, { title: string; body: string; retry: string; home: string }> = {
+  en: {
+    title: "YuKon3t hit a snag",
+    body: "Something broke loading the app itself. Try again — if it keeps happening, reopening the app usually clears it.",
+    retry: "Try again",
+    home: "Go home",
+  },
+  es: {
+    title: "YuKon3t tuvo un problema",
+    body: "Algo falló al cargar la aplicación. Inténtalo de nuevo; si sigue pasando, cerrar la aplicación y volver a abrirla suele resolverlo.",
+    retry: "Reintentar",
+    home: "Ir al inicio",
+  },
+  fr: {
+    title: "YuKon3t a rencontré un problème",
+    body: "Une erreur s'est produite lors du chargement de l'application. Réessayez\u00A0; si le problème persiste, fermer puis rouvrir l'application le résout généralement.",
+    retry: "Réessayer",
+    home: "Revenir à l'accueil",
+  },
+  pt: {
+    title: "O YuKon3t encontrou um problema",
+    body: "Algo deu errado ao carregar o aplicativo. Tente novamente; se continuar acontecendo, fechar e reabrir o aplicativo costuma resolver.",
+    retry: "Tentar novamente",
+    home: "Ir para o início",
+  },
+  ar: {
+    title: "واجه YuKon3t مشكلة",
+    body: "حدث خلل أثناء تحميل التطبيق نفسه. حاول مرة أخرى، وإذا تكرر ذلك فإعادة فتح التطبيق تحل المشكلة غالبًا.",
+    retry: "إعادة المحاولة",
+    home: "العودة إلى الرئيسية",
+  },
+};
+
+const noSubscription = () => () => {};
+
+/** The reader's language, from the same cookie and browser preference the server uses. */
+function readLocale(): Locale {
+  const cookie = document.cookie
+    .split(";")
+    .map((pair) => pair.trim())
+    .find((pair) => pair.startsWith(`${LOCALE_COOKIE}=`));
+  return resolveLocale(cookie?.slice(LOCALE_COOKIE.length + 1), navigator.languages?.join(","));
+}
+const serverLocale = (): Locale => "en";
 
 /**
  * The one error boundary error.tsx CANNOT cover: error.tsx only catches a
@@ -39,16 +87,18 @@ export default function GlobalError({
 
   // Same as error.tsx: a client a build behind reloads itself instead.
   const { checking, retry } = useStaleBuildRecovery(reset);
+  const locale = useSyncExternalStore(noSubscription, readLocale, serverLocale);
+  const t = TEXT[locale];
   if (checking) {
     return (
-      <html lang="en">
+      <html lang={locale} dir={localeDirection(locale)}>
         <body style={{ margin: 0, minHeight: "100vh", background: "var(--color-background, #14181a)" }} aria-busy="true" />
       </html>
     );
   }
 
   return (
-    <html lang="en">
+    <html lang={locale} dir={localeDirection(locale)}>
       <body
         style={{
           margin: 0,
@@ -64,10 +114,9 @@ export default function GlobalError({
           color: "var(--color-foreground, #e9ece7)",
         }}
       >
-        <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>YuKon3t hit a snag</h1>
+        <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>{t.title}</h1>
         <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", opacity: 0.7, maxWidth: "24rem" }}>
-          Something broke loading the app itself. Try again — if it keeps happening, reopening the
-          app usually clears it.
+          {t.body}
         </p>
         <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
           <button
@@ -84,7 +133,7 @@ export default function GlobalError({
               cursor: "pointer",
             }}
           >
-            Try again
+            {t.retry}
           </button>
           {/* Plain anchor, not next/link — same reasoning as error.tsx's own
               "Go home" link: the router itself can't be trusted here, this
@@ -101,7 +150,7 @@ export default function GlobalError({
               textDecoration: "none",
             }}
           >
-            Go home
+            {t.home}
           </a>
         </div>
       </body>

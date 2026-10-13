@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { removeOptimisticPost, type OptimisticPost } from "@/lib/optimistic-posts-store";
+import { useFeedText } from "@/components/feed-text";
 
 /**
  * The "still sending" placeholder PostFeedSection/ProfilePostsList render at
@@ -21,6 +22,7 @@ import { removeOptimisticPost, type OptimisticPost } from "@/lib/optimistic-post
  * "swap in the real data" step needed here.
  */
 export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
+  const { t } = useFeedText();
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
       <div className="flex items-start justify-between gap-2">
@@ -32,10 +34,10 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
               {post.status === "sending" ? (
                 <span role="status" className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
-                  Posting…
+                  {t.post.posting}
                 </span>
               ) : (
-                <span role="alert" className="text-danger">{post.errorMessage ?? "Couldn't post"}</span>
+                <span role="alert" className="text-danger">{post.errorMessage ?? t.post.postFailed}</span>
               )}
             </p>
           </div>
@@ -44,7 +46,7 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
           <button
             type="button"
             onClick={() => removeOptimisticPost(post.localId)}
-            aria-label="Dismiss"
+            aria-label={t.post.dismiss}
             className="text-foreground-soft hover:text-danger"
           >
             <X size={16} />

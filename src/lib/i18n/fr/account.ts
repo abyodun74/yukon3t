@@ -1,0 +1,336 @@
+import type { accountEn } from "@/lib/i18n/en/account";
+import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/fr/common";
+
+export const account: typeof accountEn = {
+  languagePicker: { label: "Langue" },
+  settings: {
+    language: {
+      heading: "Langue",
+      body: "Les menus, votre fil d'accueil, la recherche, Découvrir, Relations, les notifications, Messages, les commentaires, la dictée et les écrans de connexion sont disponibles dans ces langues. Le reste de l'application est en anglais pour le moment.",
+    },
+  },
+  faq: {
+    dictation: {
+      q: "Puis-je dicter une publication au lieu de la saisir ?",
+      a: "Oui. Touchez l'icône du micro dans l'éditeur de publication (ou dans la zone de message d'une discussion) pour enregistrer un court extrait vocal ; il est transcrit et inséré dans la zone de texte pour que vous puissiez le relire et le modifier avant de publier ou d'envoyer. Ce n'est pas le bouton rond micro/envoi d'une discussion, qui envoie l'enregistrement lui-même sous forme de note vocale : le micro de dictée se trouve à côté du bouton des emojis et produit toujours du texte modifiable. Parlez dans votre langue : l'espagnol, le français, le portugais, l'arabe et bien d'autres sont reconnus automatiquement, quelle que soit la langue d'affichage de l'application.",
+    },
+    languages: {
+      q: "Puis-je utiliser YuKon3t dans une autre langue que l'anglais ?",
+      a: "La connexion, la création d'un compte, sa vérification, la réinitialisation du mot de passe et la configuration du profil sont disponibles en anglais, en espagnol, en français, en portugais et en arabe, tout comme les e-mails et les SMS envoyés par ces écrans. Ils s'ouvrent dans la langue de votre téléphone ou de votre navigateur lorsqu'il s'agit de l'une des cinq ; pour en changer, utilisez le menu « Langue » dans le coin supérieur de la page d'accueil (sous « Se connecter ») ou au bas des autres écrans de compte. Votre choix est mémorisé sur cet appareil. La page d'accueil affichée avant la connexion existe aussi dans ces cinq langues ; une fois la connexion effectuée, changez de langue dans « Paramètres » → « Langue ». C'est également le cas des menus, de votre fil d'accueil (publications, stories, partage et éditeur de publication), de la recherche, de Découvrir, de Relations, des notifications et des nouveautés, de Messages (votre liste de discussions, les discussions, les discussions de groupe et les discussions masquées), des commentaires sous les publications, des enregistreurs vocal et vidéo et du sélecteur de GIF qui s'ouvrent depuis ces écrans, de la dictée et du formulaire de signalement. En arabe, ces écrans se lisent de droite à gauche. Le reste de l'application (Circles, Collab Boards, Muse, les directs et les appels, les profils, la page Paramètres elle-même et les notifications que nous envoyons) est pour l'instant en anglais. Ce que les gens écrivent n'est jamais traduit : un message ou un commentaire apparaît dans la langue dans laquelle il a été écrit.",
+    },
+  },
+  landing: {
+    eyebrow: "Des liens sans frontières, en toute honnêteté",
+    title: "Tissez des liens dans le monde entier, selon vos centres d'intérêt, votre culture et vos objectifs.",
+    intro:
+      "YuKon3t repose sur une idée : toutes les grandes applications de mise en relation ont un problème de confiance. Nous avons réglé les problèmes qui reviennent sans cesse dans les avis de vrais utilisateurs : faux profils, modération opaque et sécurité payante.",
+    createAccount: "Première visite ? Créez un compte gratuit",
+    guidelines: "Consultez nos règles",
+    pillars: [
+      {
+        title: "Des comptes vérifiés avant tout message",
+        body: "Chaque compte confirme son adresse e-mail avant que les messages privés ne soient débloqués, et toute mesure prise à l'encontre d'un compte s'accompagne d'un motif explicite et d'une voie de recours : aucun bannissement silencieux.",
+      },
+      {
+        title: "Dites ce que vous recherchez",
+        body: "Indiquez vos intentions (amitié, échange culturel, relations professionnelles, communauté ou conseils de voyage) pour que les conversations ne dérivent jamais vers autre chose que ce que vous recherchez.",
+      },
+      {
+        title: "Circles gratuits, sans faire payer les organisateurs",
+        body: "Créez ou rejoignez gratuitement des communautés réunies par un centre d'intérêt ou une identité. Aucuns frais annuels pour les organisateurs.",
+      },
+      {
+        title: "Vos données restent toujours les vôtres",
+        body: "Exportez votre compte ou supprimez-le définitivement en un clic. C'est gratuit et le restera toujours. Vous n'aurez jamais à payer pour cela.",
+      },
+    ],
+    waysTitle: "Deux façons de tisser des liens",
+    circles: {
+      title: "Circles",
+      body: "Des communautés réunies par un centre d'intérêt ou une identité : loisirs, causes, cultures. Créer un Circle ou en rejoindre un est gratuit.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Échanges de compétences entre pays, bénévolat, groupes d'étude et projets : le type de lien que la plupart des applications internationales laissent de côté.",
+    },
+  },
+  common: {
+    signIn: "Se connecter",
+    captchaFailed,
+    somethingWentWrong: "Une erreur s'est produite. Réessayez.",
+    invalidEmail: "Saisissez une adresse e-mail valide.",
+    emailLabel: "Adresse e-mail",
+    emailPlaceholder,
+    codeLabel: "Code de vérification",
+    phoneLabel: "Numéro de téléphone",
+    newCodeSent: "Un nouveau code vient de vous être envoyé.",
+    resendCode: "Renvoyer le code",
+    resending: "Renvoi en cours...",
+    confirming: "Confirmation...",
+    switching: "Changement...",
+    sending: "Envoi en cours...",
+    nothingToVerify: "Rien à vérifier ici",
+    alreadyVerified: "Déjà vérifié",
+  },
+  apple: { signIn: "Se connecter avec Apple", redirecting: "Redirection..." },
+  signIn: {
+    title: "Connectez-vous à YuKon3t",
+    passwordHeading: "Nom d'utilisateur et mot de passe",
+    resetDone: "Mot de passe réinitialisé. Connectez-vous avec votre nouveau mot de passe.",
+    resetRequired:
+      "Pour votre sécurité, vous devez définir un nouveau mot de passe. Nous avons envoyé un lien de réinitialisation à l'adresse associée à votre compte.",
+    errors: {
+      invalid_credentials: "Nom d'utilisateur/e-mail ou mot de passe incorrect.",
+      rate_limited: "Trop de tentatives. Patientez quelques minutes, puis réessayez.",
+      locked:
+        "Trop de tentatives échouées. Ce compte est verrouillé pendant 24 heures. Réinitialisez votre mot de passe ci-dessous pour le déverrouiller immédiatement.",
+    },
+    identifier: "Nom d'utilisateur ou e-mail",
+    password: "Mot de passe",
+    submit: "Se connecter",
+    submitting: "Connexion...",
+    forgotPassword: "Mot de passe oublié ?",
+    or: "ou",
+    magicHeading: "Lien par e-mail",
+    magicIntro:
+      "Aucun mot de passe à divulguer ou à réutiliser : nous vous envoyons par e-mail un lien de connexion sécurisé.",
+    magicSubmit: "Envoyer le lien de connexion",
+  },
+  checkEmail: {
+    title: "Consultez vos e-mails",
+    verifyBody:
+      "Si un compte associé à cette adresse doit être vérifié, nous lui avons envoyé un code à 6 chiffres. Il expire dans 10 minutes.",
+    linkBody: "Nous vous avons envoyé un lien de connexion sécurisé. Il expire bientôt, utilisez-le sans tarder.",
+    enterCode: "Saisir le code",
+    closeTab: "Vous pouvez fermer cet onglet.",
+  },
+  verifyDevice: {
+    expiredBody: "Ce lien a expiré ou a été ouvert sur un autre appareil. Reconnectez-vous pour continuer.",
+    title: "Nous ne reconnaissons pas cet appareil",
+    body: "Pour votre sécurité, saisissez le code à 6 chiffres que nous venons de vous envoyer par e-mail pour terminer la connexion. Si ce n'était pas vous, ignorez-le : votre compte est en sécurité.",
+    errors: {
+      invalid_code: "Ce code ne correspond pas. Vérifiez-le, puis réessayez.",
+      expired: "Ce code a expiré. Demandez-en un nouveau ci-dessous.",
+      too_many_attempts: "Trop de tentatives incorrectes. Demandez un nouveau code ci-dessous.",
+      not_found: "Ce lien de vérification n'est plus valide. Demandez un nouveau code ci-dessous.",
+      rate_limited: "Trop de tentatives. Patientez un peu, puis réessayez.",
+    },
+    submit: "Confirmer et se connecter",
+    cancel: "Annuler et revenir",
+  },
+  signUp: {
+    title: "Créer un compte",
+    intro:
+      "Choisissez un nom d'utilisateur, saisissez votre e-mail et le mot de passe de votre choix, puis confirmez votre compte avec un code envoyé par e-mail ou par SMS avant de vous connecter.",
+    appleDivider: "ou créez un compte avec un mot de passe",
+    haveAccount: "Vous avez déjà un compte ?",
+    form: {
+      oneFix: "Un seul point à corriger",
+      fewFixes: "Quelques points à corriger",
+      othersSaved: "Vos autres informations sont conservées.",
+      username: "Nom d'utilisateur",
+      usernameTitle: "Lettres, chiffres et tirets bas uniquement",
+      usernamePlaceholder: "3–20 lettres, chiffres, _",
+      email: "E-mail",
+      emailPlaceholder,
+      signInInstead: "Se connecter plutôt",
+      password: "Mot de passe",
+      passwordPlaceholder: "Au moins 8 caractères",
+      birthDate: "Date de naissance",
+      ageHint: "Vous devez avoir au moins {age} ans pour utiliser YuKon3t.",
+      verifyWith: "Vérifier par",
+      emailCode: "Code par e-mail",
+      emailCodeHint: "Nous enverrons un code à 6 chiffres à l'adresse ci-dessus.",
+      phoneNumber: "Numéro de téléphone",
+      phoneHint: "Nous enverrons un code par SMS à ce numéro.",
+      editAll: "Modifier toutes les informations",
+      submit: "Créer un compte",
+      submitting: "Création du compte...",
+      reasons: {
+        username_required: "Choisissez un nom d'utilisateur.",
+        username_length: "Un nom d'utilisateur compte entre {usernameMin} et {usernameMax} caractères.",
+        username_characters:
+          "Un nom d'utilisateur ne peut contenir que des lettres, des chiffres et des tirets bas ({usernameMin}–{usernameMax} caractères).",
+        username_reserved: "Ce nom d'utilisateur est réservé. Choisissez-en un autre.",
+        username_taken: "Ce nom d'utilisateur est déjà pris. Essayez-en un autre.",
+        email_required: "Saisissez votre adresse e-mail.",
+        email_invalid: "Cette adresse e-mail ne semble pas valide. Vérifiez qu'elle ne contient pas de faute de frappe.",
+        email_taken: "Un compte existe déjà avec cette adresse e-mail.",
+        password_required: "Choisissez un mot de passe.",
+        password_too_short: "Le mot de passe doit compter au moins {passwordMin} caractères.",
+        password_too_long: "Le mot de passe peut compter au maximum {passwordMax} caractères.",
+        birth_date_required: "Sélectionnez le mois, le jour et l'année de votre naissance.",
+        birth_date_underage: "Vous devez avoir au moins {age} ans pour utiliser YuKon3t.",
+        phone_required: "Saisissez votre numéro de téléphone.",
+        phone_invalid: phoneInvalid,
+        phone_taken: "Ce numéro de téléphone est déjà vérifié sur un autre compte.",
+      },
+      formErrors: {
+        rate_limited: "Trop de tentatives. Patientez un peu, puis réessayez.",
+        captcha: captchaFailed,
+        invalid: "Une erreur s'est produite. Veuillez réessayer.",
+      },
+    },
+  },
+  verifyPhone: {
+    expiredBody: "Ce lien a expiré ou a été ouvert sur un autre appareil.",
+    title: "Vérifiez votre téléphone",
+    intro: "Saisissez votre numéro de téléphone et nous vous enverrons un code par SMS pour confirmer votre compte.",
+    noText: "Vous ne recevez pas le SMS ?",
+    emailInstead: "Nous pouvons vous envoyer le code par e-mail.",
+    useEmail: "Utiliser un code par e-mail",
+    form: {
+      errors: {
+        invalid: phoneInvalid,
+        invalid_code: "Ce code ne correspond pas. Vérifiez-le, puis réessayez.",
+        rate_limited: "Trop de tentatives. Réessayez dans un moment.",
+        not_configured: "La vérification par téléphone n'est pas encore disponible.",
+        phone_taken: "Ce numéro est déjà vérifié sur un autre compte.",
+        send_failed: "Impossible d'envoyer le code. Réessayez dans un instant.",
+        no_session: "Ce lien a expiré. Veuillez vous inscrire à nouveau.",
+        captcha: "Nous n'avons pas pu terminer la vérification de sécurité. Veuillez réessayer.",
+      },
+      somethingWentWrong: "Une erreur s'est produite. Réessayez.",
+      confirmedTitle: "Téléphone confirmé",
+      confirmedBody: "Votre compte est vérifié. Vous pouvez maintenant vous connecter.",
+      signIn: "Se connecter",
+      codeLabel: "Saisissez le code que nous vous avons envoyé",
+      verify: "Vérifier",
+      resendCode: "Renvoyer le code",
+      phoneLabel: "Numéro de téléphone",
+      sendCode: "Envoyer le code",
+    },
+  },
+  verifyEmail: {
+    confirmedTitle: "E-mail confirmé",
+    confirmedBody:
+      "Votre e-mail est vérifié. Vous pouvez maintenant vous connecter avec votre nom d'utilisateur et votre mot de passe.",
+    expiredBody:
+      "Ce lien a expiré ou a été ouvert sur un autre appareil. Connectez-vous et nous vous aiderons à terminer la vérification de votre compte.",
+    title: "Confirmez votre e-mail",
+    body: "Saisissez le code à 6 chiffres que nous avons envoyé à {email}.",
+    errors: {
+      invalid_code: "Ce code ne correspond pas. Vérifiez-le, puis réessayez.",
+      expired: "Ce code a expiré. Nous vous en avons envoyé un nouveau.",
+      too_many_attempts: "Trop de tentatives incorrectes. Nous vous avons envoyé un nouveau code.",
+      rate_limited: "Trop de tentatives. Patientez un peu, puis réessayez.",
+      invalid_phone: phoneInvalid,
+      phone_taken: "Ce numéro de téléphone est déjà vérifié sur un autre compte.",
+    },
+    submit: "Confirmer l'e-mail",
+    slowTitle: "L'e-mail tarde à arriver ?",
+    slowBody: "Vérifiez plutôt avec votre numéro de téléphone : nous vous enverrons un code par SMS.",
+    usePhone: "Utiliser le téléphone",
+  },
+  forgotPassword: {
+    title: "Réinitialisez votre mot de passe",
+    intro:
+      "Saisissez l'adresse e-mail de votre compte et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+    sent: "Si cette adresse est enregistrée, un lien de réinitialisation est en route. Consultez votre boîte de réception.",
+    expired: "Ce lien de réinitialisation a expiré ou a déjà été utilisé. Demandez-en un nouveau ci-dessous.",
+    submit: "Envoyer le lien",
+    back: "Retour à la connexion",
+  },
+  resetPassword: {
+    invalidTitle: "Lien de réinitialisation non valide",
+    invalidBody: "Il manque le jeton à ce lien de réinitialisation du mot de passe.",
+    requestNew: "Demander un nouveau lien",
+    title: "Choisissez un nouveau mot de passe",
+    errors: {
+      invalid: "Le mot de passe doit compter au moins 8 caractères.",
+      mismatch: "Les mots de passe ne correspondent pas.",
+      same_password: "C'est votre ancien mot de passe. Pour votre sécurité, choisissez-en un autre.",
+    },
+    newLabel: "Nouveau mot de passe",
+    newPlaceholder: "Nouveau mot de passe (8 caractères min.)",
+    confirm: "Confirmez le nouveau mot de passe",
+    submit: "Réinitialiser le mot de passe",
+    submitting: "Réinitialisation...",
+  },
+  onboarding: {
+    title: "Configurez votre profil",
+    intro:
+      "C'est ce que voient les autres membres. Soyez honnête sur vos intentions : c'est ce qui rend cette communauté agréable pour tous.",
+    required:
+      "Tous les champs ci-dessous sont obligatoires sauf Bio, qui est facultatif. Votre compte ne sera créé qu'une fois les autres champs remplis.",
+    errors: {
+      invalid: "Veuillez remplir tous les champs obligatoires.",
+      moderation: "Votre bio ne respecte pas nos règles de contenu. Veuillez la modifier.",
+      underage: "Vous devez avoir au moins {age} ans pour utiliser YuKon3t.",
+    },
+    name: "Nom affiché",
+    bio: "Bio",
+    optional: "(facultatif)",
+    birthDate: "Date de naissance",
+    ageHint: "Vous devez avoir au moins {age} ans pour utiliser YuKon3t.",
+    country: "Pays",
+    countryPlaceholder: "Sélectionnez votre pays...",
+    languages: "Langues",
+    languagesHint: "Choisissez au moins une langue que vous parlez.",
+    languagesPlaceholder: "Rechercher des langues...",
+    interests: "Centres d'intérêt",
+    interestsHint: "Choisissez-en au moins un : c'est ainsi que nous vous proposons des Circles et des connexions.",
+    interestsPlaceholder: "Rechercher des centres d'intérêt...",
+    intentsLabel: "Que recherchez-vous ici ?",
+    intentsHint: "Choisissez au moins une option.",
+    intents: {
+      FRIENDSHIP: "Amitié",
+      CULTURAL_EXCHANGE: "Échange culturel",
+      PROFESSIONAL: "Professionnel",
+      COMMUNITY: "Communauté",
+      TRAVEL_TIPS: "Conseils de voyage",
+    },
+    submit: "Continuer",
+    submitting: "Enregistrement...",
+  },
+  emails: {
+    verificationCode: {
+      subject: "Votre code de vérification YuKon3t",
+      intro: "Votre code de vérification YuKon3t est :",
+      outro: "Ce code expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.",
+    },
+    passwordReset: {
+      subject: "Réinitialisez votre mot de passe YuKon3t",
+      requested: {
+        intro: "Une réinitialisation du mot de passe a été demandée pour ce compte YuKon3t.",
+        link: "Réinitialiser votre mot de passe",
+        outro:
+          "Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail : votre mot de passe ne changera pas.",
+      },
+      required: {
+        intro:
+          "Pour votre sécurité, vous devez définir un nouveau mot de passe pour ce compte YuKon3t. Nous demandons à tout le monde de choisir un nouveau mot de passe par mesure de sécurité.",
+        link: "Choisir un nouveau mot de passe",
+        outro: "Ce lien expire dans 1 heure. Votre ancien mot de passe ne permet plus de vous connecter.",
+      },
+    },
+    magicLink: {
+      subject: "Connectez-vous à {host}",
+      heading: "Connectez-vous à {host}",
+      button: "Se connecter",
+      ignore: "Si vous n'avez pas demandé cet e-mail, vous pouvez l'ignorer en toute sécurité.",
+    },
+    deviceChallenge: {
+      subjects: {
+        LOGIN: "Confirmez qu'il s'agit bien de vous : nouvelle connexion à votre compte YuKon3t",
+        PASSWORD_CHANGE: "Confirmez qu'il s'agit bien de vous : changement de mot de passe sur YuKon3t",
+        POST: "Confirmez qu'il s'agit bien de vous : publication sur YuKon3t depuis un nouvel appareil",
+        HIDDEN_PIN_RESET: "Votre code de sécurité YuKon3t",
+      },
+      intros: {
+        LOGIN:
+          "Quelqu'un vient d'essayer de se connecter à votre compte YuKon3t depuis un appareil que nous ne reconnaissons pas ({device}).",
+        PASSWORD_CHANGE:
+          "Quelqu'un vient d'essayer de changer le mot de passe de votre compte YuKon3t depuis un appareil que nous ne reconnaissons pas ({device}).",
+        POST: "Quelqu'un vient d'essayer de publier avec votre compte YuKon3t depuis un appareil que nous ne reconnaissons pas ({device}).",
+      },
+      ifYou: "Si c'est bien vous, saisissez ce code pour continuer :",
+      outro:
+        "Ce code expire dans 10 minutes. Si ce n'était pas vous, ne communiquez ce code à personne et changez votre mot de passe dans les Paramètres dès que possible.",
+      hiddenPinReset: {
+        intro: "Saisissez ce code dans YuKon3t pour continuer :",
+        outro: "Ce code expire dans 10 minutes. Si vous ne l'avez pas demandé, ne le communiquez à personne.",
+      },
+    },
+  },
+};

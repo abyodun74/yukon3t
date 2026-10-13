@@ -13,7 +13,7 @@ import { ScrollFab } from "@/components/scroll-fab";
  * jumps to /discover ("Discover people" — see src/app/discover/page.tsx),
  * the actual find-new-people flow.
  */
-export function ConnectionsFindPeopleFab() {
+export function ConnectionsFindPeopleFab({ label }: { label: string }) {
   const router = useRouter();
 
   return (
@@ -21,7 +21,7 @@ export function ConnectionsFindPeopleFab() {
       actions={[
         {
           key: "find-people",
-          label: "Find people",
+          label: label,
           icon: <UserPlus size={20} />,
           iconClassName: "bg-accent text-accent-ink",
           onSelect: () => router.push("/discover"),

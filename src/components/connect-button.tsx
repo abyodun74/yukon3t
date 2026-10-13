@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestConnection, startDirectMessage } from "@/app/actions/connections";
-import { intentLabels } from "@/lib/validations";
+import { useFeedText } from "@/components/feed-text";
 
 type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
@@ -16,6 +16,7 @@ type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
  * connect" prompt inside the conversation itself (see ChatThread).
  */
 function MessageRequestButton({ targetId }: { targetId: string }) {
+  const { t } = useFeedText();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState(false);
@@ -38,9 +39,9 @@ function MessageRequestButton({ targetId }: { targetId: string }) {
         }}
         className="rounded-md border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
       >
-        Message
+        {t.people.message}
       </button>
-      {error && <span role="alert" className="text-xs text-danger">Couldn&apos;t start that chat</span>}
+      {error && <span role="alert" className="text-xs text-danger">{t.people.chatFailed}</span>}
     </div>
   );
 }
@@ -58,6 +59,7 @@ export function ConnectButton({
   isRequester?: boolean;
   conversationId?: string | null;
 }) {
+  const { t } = useFeedText();
   const [selected, setSelected] = useState(openToIntents[0] ?? "FRIENDSHIP");
   const [localStatus, setLocalStatus] = useState<"idle" | "sent" | "error">("idle");
   const [isPending, startTransition] = useTransition();
@@ -65,12 +67,12 @@ export function ConnectButton({
   if (status === "ACCEPTED") {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-success">Connected</span>
+        <span className="text-xs font-medium text-success">{t.people.connected}</span>
         <Link
           href={conversationId ? `/messages/${conversationId}` : "/messages"}
           className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink"
         >
-          Message
+          {t.people.message}
         </Link>
       </div>
     );
@@ -79,7 +81,7 @@ export function ConnectButton({
   if (status === "PENDING" && isRequester) {
     return (
       <div className="flex items-center gap-2">
-        <p className="text-xs text-foreground-soft">Request sent</p>
+        <p className="text-xs text-foreground-soft">{t.people.requestSent}</p>
         <MessageRequestButton targetId={targetId} />
       </div>
     );
@@ -89,7 +91,7 @@ export function ConnectButton({
     return (
       <div className="flex items-center gap-2">
         <Link href="/connections" className="text-xs font-medium text-accent hover:underline">
-          Wants to connect — respond in Connections
+          {t.people.wantsToConnect}
         </Link>
         <MessageRequestButton targetId={targetId} />
       </div>
@@ -99,7 +101,7 @@ export function ConnectButton({
   if (localStatus === "sent") {
     return (
       <div className="flex items-center gap-2">
-        <p className="text-xs text-success">Request sent</p>
+        <p className="text-xs text-success">{t.people.requestSent}</p>
         <MessageRequestButton targetId={targetId} />
       </div>
     );
@@ -108,7 +110,7 @@ export function ConnectButton({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <label htmlFor={`connect-intent-${targetId}`} className="sr-only">
-        Connect as
+        {t.people.connectAs}
       </label>
       <select
         id={`connect-intent-${targetId}`}
@@ -118,7 +120,7 @@ export function ConnectButton({
       >
         {openToIntents.map((tag) => (
           <option key={tag} value={tag}>
-            {(intentLabels as Record<string, string>)[tag] ?? tag}
+            {(t.intents as Record<string, string>)[tag] ?? tag}
           </option>
         ))}
       </select>
@@ -136,9 +138,9 @@ export function ConnectButton({
         }}
         className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink disabled:opacity-50"
       >
-        Connect
+        {t.people.connect}
       </button>
-      {localStatus === "error" && <span role="alert" className="text-xs text-danger">Failed</span>}
+      {localStatus === "error" && <span role="alert" className="text-xs text-danger">{t.people.connectFailed}</span>}
       <MessageRequestButton targetId={targetId} />
     </div>
   );

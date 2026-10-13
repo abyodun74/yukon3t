@@ -1,9 +1,11 @@
-// The languages the translated parts of the app are written in, and how a request's language is chosen. Translated:
-// the landing page and the account screens (sign in, sign up, verify, password recovery, onboarding, sign out) and
-// their emails; everything under /messages; and the components src/components/ui-text.tsx serves wherever they are
-// mounted (comments, recorders and pickers, dictation, reactions, the report sheet); the Language block of Settings
-// and the two FAQ entries about languages. The rest of the app, and every
-// notification written for someone else (whose language isn't stored), is English.
+// The languages the app is written in, and how a request's language is chosen. <html> carries the reader's language
+// and direction. Translated: the nav and footer and the overlays any screen opens; the landing page and the account
+// screens and their emails; Home (posts, the composer, sharing, stories, the live strip), a post's page, Search,
+// Discover, Connections, Notifications and What's new; everything under /messages; comments, recorders and pickers,
+// dictation, reactions and the report sheet; the Language block of Settings and the two FAQ entries about languages.
+// Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): Circles, Collab, Muse, the
+// live room, calls, profiles, Settings, invite, advertise, FAQ and legal, and admin (which stays English). So is
+// every notification written for someone else, whose language isn't stored.
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 
 export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;
@@ -23,7 +25,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   ar: "العربية",
 };
 
-/** The `dir` for anything written in `locale`. Goes on the same element as `lang`: the page shell around it is English. */
+/** The `dir` for anything written in `locale`. Goes on the same element as `lang` (<html>, or a block inside an English part). */
 export function localeDirection(locale: Locale): "ltr" | "rtl" {
   return locale === "ar" ? "rtl" : "ltr";
 }
@@ -95,4 +97,21 @@ export function plural(locale: Locale, forms: string, count: number): string {
   );
   const category = new Intl.PluralRules(locale).select(count);
   return (byCategory.get(category) ?? byCategory.get("other") ?? "").replaceAll("#", String(count));
+}
+
+/**
+ * A template's wording before and after its `{name}` placeholder, for when the value is rendered as an element of
+ * its own (a bold name) rather than filled in as text. Each language puts the name where its grammar wants it.
+ */
+export function aroundPlaceholder(template: string, name: string): [string, string] {
+  const token = `{${name}}`;
+  const at = template.indexOf(token);
+  return at === -1 ? [template, ""] : [template.slice(0, at), template.slice(at + token.length)];
+}
+
+/** The message for an error code among `messages`, or its `other` when the code isn't one of them. */
+export function byCode<T extends { other: string }>(messages: T, code: string | null | undefined): string {
+  const known: Record<string, unknown> = messages;
+  const found = code != null && Object.hasOwn(known, code) ? known[code] : undefined;
+  return typeof found === "string" ? found : messages.other;
 }

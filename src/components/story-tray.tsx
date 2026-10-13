@@ -5,6 +5,8 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { StoryTrayViewer, type StoryTrayAuthorGroup } from "@/components/story-tray-viewer";
+import { useFeedText } from "@/components/feed-text";
+import { format } from "@/lib/i18n/locales";
 
 function Ring({
   avatarUrl,
@@ -26,6 +28,7 @@ function Ring({
   // already have a story, is taken over by opening the viewer instead).
   onAdd?: () => void;
 }) {
+  const { t } = useFeedText();
   return (
     <div className="relative flex w-16 min-w-0 shrink-0 flex-col items-center gap-1">
       <button
@@ -33,7 +36,7 @@ function Ring({
         onClick={onClick}
         // Starts with the visible label so "tap <name>" works in Voice
         // Control; the rest is what the ring's color tells a sighted user.
-        aria-label={hasStories ? `${label}, ${hasUnseen ? "new story" : "view story"}` : `${label}, add a story`}
+        aria-label={hasStories ? format(hasUnseen ? t.stories.newStory : t.stories.viewStory, { name: label }) : format(t.stories.addStory, { name: label })}
         className="flex flex-col items-center gap-1"
       >
         {/*
@@ -83,8 +86,8 @@ function Ring({
         <button
           type="button"
           onClick={onAdd}
-          aria-label="Add to your story"
-          className="absolute right-1 top-0 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
+          aria-label={t.stories.addToStory}
+          className="absolute end-1 top-0 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
         >
           <Plus size={12} />
         </button>
@@ -111,6 +114,7 @@ export function StoryTray({
   meName: string;
   currentUserId: string;
 }) {
+  const { t } = useFeedText();
   const [openAuthorIndex, setOpenAuthorIndex] = useState<number | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
 
@@ -123,7 +127,7 @@ export function StoryTray({
       <div className="flex gap-4 overflow-x-auto pb-1">
         <Ring
           avatarUrl={myGroup?.authorAvatarUrl ?? meAvatarUrl}
-          label="Your story"
+          label={t.stories.yourStory}
           fallbackLetter={meName}
           hasUnseen={false}
           hasStories={Boolean(myGroup)}

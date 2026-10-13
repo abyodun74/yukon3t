@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { HIDDEN_CHATS_PATH } from "@/lib/hidden-chats-rules";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 const LONG_PRESS_MS = 600;
 

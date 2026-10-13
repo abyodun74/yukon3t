@@ -5,6 +5,7 @@ import { UserPlus } from "lucide-react";
 import { ConnectButton } from "@/components/connect-button";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
+import { useFeedText } from "@/components/feed-text";
 
 type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
@@ -34,6 +35,7 @@ export function PostConnectPopover({
   isRequester: boolean;
   conversationId: string | null;
 }) {
+  const { t } = useFeedText();
   const [open, setOpen] = useState(false);
 
   return (
@@ -41,8 +43,8 @@ export function PostConnectPopover({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Connect"
-        title="Connect"
+        aria-label={t.post.connect}
+        title={t.post.connect}
         className={cn(
           "flex items-center hover:text-accent",
           (status === "ACCEPTED" || status === "PENDING") && "text-accent",
@@ -51,7 +53,7 @@ export function PostConnectPopover({
         <UserPlus size={16} />
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title="Connect">
+      <Sheet open={open} onClose={() => setOpen(false)} title={t.post.connect}>
         <ConnectButton
           targetId={targetId}
           openToIntents={openToIntents}

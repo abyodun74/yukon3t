@@ -6,6 +6,7 @@ import { GroupedNotificationRow } from "@/components/grouped-notification-row";
 import { MarkAllReadButton } from "@/components/mark-all-read-button";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function NotificationsPage() {
   const me = await getSessionUserOrRedirect();
@@ -13,6 +14,14 @@ export default async function NotificationsPage() {
   // Rows from a hidden chat, or private ones (message, missed call, screenshot) from a hidden 1:1 peer, are never
   // listed here, including rows created before the chat was hidden. They reappear if the chat is unhidden.
   const hidden = await getHiddenState(me.id);
+  const t = (await getDictionary()).pages.notifications;
+  // What the rows (client components) need of it.
+  const rowLabels = {
+    unread: t.unread,
+    types: t.types,
+    messagesFrom: t.messagesFrom,
+    missedCallsFrom: t.missedCallsFrom,
+  };
   const notifications = await prisma.notification.findMany({
     where: { recipientId: me.id, AND: visibleNotificationWhere(hidden) },
     orderBy: { createdAt: "desc" },
@@ -94,8 +103,8 @@ export default async function NotificationsPage() {
       <BackButton />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Notifications</h1>
-        {notifications.some((n) => !n.readAt) && <MarkAllReadButton />}
+        <h1 className="text-2xl font-semibold">{t.title}</h1>
+        {notifications.some((n) => !n.readAt) && <MarkAllReadButton label={t.markAllRead} />}
       </div>
 
       <div className="mt-6 space-y-1">
@@ -111,17 +120,15 @@ export default async function NotificationsPage() {
               actor={item.actor}
               conversationId={item.conversationId}
               index={i}
+              labels={rowLabels}
             />
           ) : (
-            <NotificationRow key={item.notification.id} notification={item.notification} index={i} />
+            <NotificationRow key={item.notification.id} notification={item.notification} index={i} labels={rowLabels} />
           ),
         )}
         {notifications.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            Nothing yet — likes, comments, reposts, shares, messages,
-            connection requests, and new posts, stories, Muses, and
-            collaborations from people you subscribe to (or are connected
-            with) will show up here.
+            {t.empty}
           </p>
         )}
       </div>

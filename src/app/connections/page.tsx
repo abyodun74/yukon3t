@@ -5,6 +5,7 @@ import { getInitialAcceptedConnections } from "@/app/actions/connections";
 import { ConnectionsFindPeopleFab } from "@/components/connections-find-people-fab";
 import { BackButton } from "@/components/back-button";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { getDictionary } from "@/lib/i18n/server";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -16,6 +17,7 @@ const PAGE_SIZE = 20;
 
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
+  const t = (await getDictionary()).pages.connections;
 
   // People whose 1:1 chat I've hidden don't appear in any of my three lists or their counts.
   const hiddenPeerIds = await getHiddenPeerIds(me.id);
@@ -54,7 +56,7 @@ export default async function ConnectionsPage() {
         {/* Always Home, not history-back: Connections is opened from the
             header on any screen, so history could land somewhere unrelated. */}
         <BackButton href="/home" />
-        <h1 className="text-2xl font-semibold">Connections</h1>
+        <h1 className="text-2xl font-semibold">{t.title}</h1>
       </div>
 
       <ConnectionsTabs
@@ -62,8 +64,9 @@ export default async function ConnectionsPage() {
         incoming={{ items: incoming, hasMore: incomingHasMore, count: incomingCount }}
         sent={{ items: outgoing, hasMore: sentHasMore, count: outgoingCount }}
         currentUserId={me.id}
+        labels={t}
       />
-      <ConnectionsFindPeopleFab />
+      <ConnectionsFindPeopleFab label={t.findPeople} />
     </div>
   );
 }

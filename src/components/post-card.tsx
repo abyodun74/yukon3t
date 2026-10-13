@@ -30,11 +30,13 @@ import { LinkSafetyModal } from "@/components/link-safety-modal";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
-import { useUiText } from "@/components/ui-text";
+import { useUiText, useShellText } from "@/components/ui-text";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 import type { FlatComment } from "@/lib/comment-tree";
+import { useFeedText } from "@/components/feed-text";
+import { format, plural, aroundPlaceholder, intlLocale } from "@/lib/i18n/locales";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
 
@@ -136,16 +138,17 @@ export type PostCardData = EmbeddedPost & {
 // Only rendered for a non-default audience — PUBLIC (the common case) shows
 // nothing, same as most apps only badging the restricted options.
 function PostVisibilityBadge({ visibility }: { visibility: PostCardData["visibility"] }) {
+  const { t } = useFeedText();
   if (visibility === "CONNECTIONS_ONLY") {
     return (
-      <span title="Friends only" role="img" aria-label="Friends only" className="text-foreground-soft">
+      <span title={t.post.friendsOnly} role="img" aria-label={t.post.friendsOnly} className="text-foreground-soft">
         <Users size={13} />
       </span>
     );
   }
   if (visibility === "PRIVATE") {
     return (
-      <span title="Private" role="img" aria-label="Private" className="text-foreground-soft">
+      <span title={t.post.private} role="img" aria-label={t.post.private} className="text-foreground-soft">
         <Lock size={13} />
       </span>
     );
@@ -166,6 +169,7 @@ function EventBlock({
   isPending: boolean;
   onToggle: () => void;
 }) {
+  const { t, locale } = useFeedText();
   if (!post.eventAt) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-background px-3 py-2">
@@ -178,7 +182,7 @@ function EventBlock({
               rather than a real mismatch; the viewer's own local time
               (post-hydration) is what should win anyway. */}
           <span suppressHydrationWarning>
-            {post.eventAt.toLocaleString([], {
+            {post.eventAt.toLocaleString(intlLocale(locale) ?? [], {
               weekday: "short",
               month: "short",
               day: "numeric",
@@ -190,7 +194,7 @@ function EventBlock({
         {post.eventLocation && (
           <div className="mt-0.5 flex items-center gap-1.5">
             <MapPin size={13} className="shrink-0" />
-            <span className="break-words">{post.eventLocation}</span>
+            <span dir="auto" className="break-words">{post.eventLocation}</span>
           </div>
         )}
       </div>
@@ -204,7 +208,7 @@ function EventBlock({
           going ? "bg-success text-white" : "bg-accent text-accent-ink",
         )}
       >
-        {going ? "Going ✓" : "I'm going"}
+        {going ? t.post.going : t.post.imGoing}
         {rsvpCount > 0 && <span className="ml-1.5 opacity-80">{rsvpCount}</span>}
       </button>
     </div>
@@ -335,6 +339,7 @@ function ZoomableAlbumPhoto({
 const ALBUM_FALLBACK_RATIO = 4 / 5;
 
 function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[]; alt: string }) {
+  const { t } = useFeedText();
   const [index, setIndex] = useState(0);
   // Each photo in the album can be a completely different shape (a square,
   // a landscape screenshot, a tall portrait) — keyed per index as each
@@ -369,7 +374,7 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
             // Without this the link's name is the photo's alt — the whole
             // post caption, repeated once per photo — and nothing says which
             // photo of the set it is.
-            aria-label={`Open photo ${i + 1} of ${photos.length}`}
+            aria-label={format(t.post.openPhoto, { index: i + 1, total: photos.length })}
             className="block h-full w-full shrink-0 snap-center cursor-pointer"
           >
             {/* Not a plain <img> here — ZoomableAlbumPhoto layers pinch/pan
@@ -417,6 +422,8 @@ function MediaBlock({
     isPending: boolean;
   };
 }) {
+  const { t } = useFeedText();
+  const { t: shell } = useShellText();
   const videoRef = useAutoplayOnView<HTMLVideoElement>();
   // Computed unconditionally (not inside the {mediaType === "EMBED" && ...}
   // JSX branch below) because hooks can't be called conditionally — an
@@ -457,7 +464,7 @@ function MediaBlock({
             maxLength={50000}
             rows={3}
             autoFocus
-            aria-label="Edit post"
+            aria-label={t.post.editPost}
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
           <EmojiTypeSuggestions
@@ -465,7 +472,7 @@ function MediaBlock({
             onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)}
           />
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-            {editing.error && <span role="alert" className="mr-auto text-danger">{editing.error}</span>}
+            {editing.error && <span role="alert" className="me-auto text-danger">{editing.error}</span>}
             <EmojiPickerButton onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)} />
             <button
               type="button"
@@ -473,7 +480,7 @@ function MediaBlock({
               onClick={editing.onCancel}
               className="rounded-md px-2 py-1 text-foreground-soft hover:bg-line"
             >
-              Cancel
+              {shell.common.cancel}
             </button>
             <button
               type="button"
@@ -481,7 +488,7 @@ function MediaBlock({
               onClick={editing.onSave}
               className="rounded-md bg-accent px-2 py-1 font-medium text-accent-ink disabled:opacity-50"
             >
-              Save
+              {shell.common.save}
             </button>
           </div>
         </div>
@@ -497,7 +504,7 @@ function MediaBlock({
       {post.mediaType === "IMAGE" && post.albumPhotos && post.albumPhotos.length > 1 ? (
         <AlbumCarousel
           photos={post.albumPhotos}
-          alt={post.content || `Photo posted by ${post.author.name}`}
+          alt={post.content || format(t.post.photoBy, { name: post.author.name ?? t.post.someone })}
         />
       ) : (
         post.mediaType === "IMAGE" &&
@@ -520,7 +527,7 @@ function MediaBlock({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={url}
-                  alt={post.content || `Photo posted by ${post.author.name}`}
+                  alt={post.content || format(t.post.photoBy, { name: post.author.name ?? t.post.someone })}
                   // Single photo: intrinsic size, not a fixed 4/5 box.
                   // object-contain inside a forced aspect-[4/5] box (the
                   // previous fix for the sides-cropped bug) traded cropping
@@ -562,7 +569,7 @@ function MediaBlock({
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset */}
           <img
             src={post.mediaUrls[0]}
-            alt={post.content || `GIF posted by ${post.author.name}`}
+            alt={post.content || format(t.post.gifBy, { name: post.author.name ?? t.post.someone })}
             className="max-h-96 w-full rounded-lg object-cover"
             loading="lazy"
           />
@@ -578,7 +585,7 @@ function MediaBlock({
             playsInline
             preload="metadata"
             poster={post.videoThumbnailUrl ?? undefined}
-            aria-label={`Video posted by ${post.author.name ?? "someone"}`}
+            aria-label={format(t.post.videoBy, { name: post.author.name ?? t.post.someone })}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             // Edge-to-edge and tall (Instagram feed video convention), not
@@ -601,9 +608,9 @@ function MediaBlock({
               e.stopPropagation();
               setMuted(!muted);
             }}
-            title={muted ? "Unmute" : "Mute"}
-            aria-label={muted ? "Unmute" : "Mute"}
-            className="absolute bottom-2 right-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+            title={muted ? t.post.unmute : t.post.mute}
+            aria-label={muted ? t.post.unmute : t.post.mute}
+            className="absolute bottom-2 end-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
           >
             {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
@@ -621,18 +628,18 @@ function MediaBlock({
               if (el.paused) el.play().catch(() => {});
               else el.pause();
             }}
-            title={playing ? "Pause" : "Play"}
-            aria-label={playing ? "Pause video" : "Play video"}
-            className="absolute bottom-2 left-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+            title={playing ? t.post.pause : t.post.play}
+            aria-label={playing ? t.post.pauseVideo : t.post.playVideo}
+            className="absolute bottom-2 start-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
           >
             {playing ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <button
             type="button"
             onClick={onOpenVideo}
-            title="Watch in full screen"
-            aria-label="Watch in full screen"
-            className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+            title={t.post.fullScreen}
+            aria-label={t.post.fullScreen}
+            className="absolute end-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
           >
             <Maximize2 size={14} />
           </button>
@@ -649,7 +656,7 @@ function MediaBlock({
           <iframe
             ref={embedRef}
             src={embedIframeSrc}
-            title={`Embedded ${post.embedProvider.charAt(0)}${post.embedProvider.slice(1).toLowerCase()} video posted by ${post.author.name ?? "someone"}`}
+            title={format(t.post.embedBy, { provider: `${post.embedProvider.charAt(0)}${post.embedProvider.slice(1).toLowerCase()}`, name: post.author.name ?? t.post.someone })}
             // Lets video-playback-guard.ts find and freeze exactly this
             // kind of iframe (clearing/restoring src) during a call,
             // without ever touching an unrelated iframe elsewhere on the
@@ -703,6 +710,8 @@ export function PostCard({
   viewerId: string;
   viewerIsAdmin?: boolean;
 }) {
+  const { t, locale } = useFeedText();
+  const { t: shell } = useShellText();
   const displayPost = post.sharedPost ?? post.repostOf ?? post;
   const interactionTargetId = post.sharedPost?.id ?? post.repostOf?.id ?? post.id;
 
@@ -812,7 +821,7 @@ export function PostCard({
       fd.set("content", text);
       const result = await editPost(post.id, fd);
       if (result.error || !result.post) {
-        setEditError("Couldn't save that edit.");
+        setEditError(t.post.editFailed);
         return;
       }
       setContent(result.post.content);
@@ -915,8 +924,9 @@ export function PostCard({
           className="mb-2 flex items-center gap-1.5 text-xs text-foreground-soft hover:text-accent"
         >
           {post.repostOf ? <Repeat2 size={14} /> : <Share2 size={14} />}
-          {post.repostOf ? "Reposted by" : "Shared by"}{" "}
+          {aroundPlaceholder(post.repostOf ? t.post.repostedBy : t.post.sharedBy, "name")[0]}
           <span className="font-medium">{post.author.name}</span>
+          {aroundPlaceholder(post.repostOf ? t.post.repostedBy : t.post.sharedBy, "name")[1]}
         </Link>
       )}
 
@@ -949,12 +959,12 @@ export function PostCard({
           />
           <TrustBadge band={displayPost.author.trustBand} />
         </div>
-        <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="ms-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
           {/* toLocaleString depends on the runtime's timezone, which
               differs between the server (render) and the browser
               (hydration) — suppressHydrationWarning tells React that's
               expected here rather than a real mismatch to warn about. */}
-          {editedAt && <span className="text-xs text-foreground-soft">Edited</span>}
+          {editedAt && <span className="text-xs text-foreground-soft">{t.post.edited}</span>}
           <PostVisibilityBadge visibility={post.visibility} />
           <span className="text-xs text-foreground-soft" suppressHydrationWarning>
             {formatDateTime(displayPost.createdAt)}
@@ -988,12 +998,12 @@ export function PostCard({
               maxLength={50000}
               rows={2}
               autoFocus
-              aria-label="Edit caption"
+              aria-label={t.post.editCaption}
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm italic outline-none focus:border-accent"
             />
             <EmojiTypeSuggestions text={editDraft} onSelect={insertEditEmoji} />
             <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-              {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
+              {editError && <span role="alert" className="me-auto text-danger">{editError}</span>}
               <EmojiPickerButton onSelect={insertEditEmoji} />
               <button
                 type="button"
@@ -1001,7 +1011,7 @@ export function PostCard({
                 onClick={cancelEdit}
                 className="rounded-md px-2 py-1 text-foreground-soft hover:bg-line"
               >
-                Cancel
+                {shell.common.cancel}
               </button>
               <button
                 type="button"
@@ -1009,7 +1019,7 @@ export function PostCard({
                 onClick={saveEdit}
                 className="rounded-md bg-accent px-2 py-1 font-medium text-accent-ink disabled:opacity-50"
               >
-                Save
+                {shell.common.save}
               </button>
             </div>
           </div>
@@ -1065,7 +1075,7 @@ export function PostCard({
             // selected") rather than flipping between Like/Unlike — the
             // name is what Voice Control users say, so it shouldn't change
             // under them.
-            aria-label={likeCount > 0 ? `Like, ${likeCount} ${likeCount === 1 ? "like" : "likes"}` : "Like"}
+            aria-label={likeCount > 0 ? format(t.post.likeCount, { likes: plural(locale, t.post.likes, likeCount) }) : t.post.like}
             aria-pressed={liked}
             className="flex items-center p-2 -m-2 hover:text-danger"
           >
@@ -1075,7 +1085,7 @@ export function PostCard({
             <button
               type="button"
               onClick={() => setLikersOpen(true)}
-              aria-label={`${likeCount} ${likeCount === 1 ? "like" : "likes"}, see who liked`}
+              aria-label={format(t.post.seeLikers, { likes: plural(locale, t.post.likes, likeCount) })}
               className="hover:text-danger hover:underline"
             >
               {likeCount}
@@ -1089,7 +1099,7 @@ export function PostCard({
           type="button"
           onClick={toggleComments}
           aria-expanded={commentsOpen}
-          aria-label={commentCount > 0 ? `Comments, ${commentCount}` : "Comments"}
+          aria-label={commentCount > 0 ? format(t.post.commentsCount, { count: commentCount }) : t.post.comments}
           className={cn("flex items-center gap-1.5 p-2 -m-2 hover:text-accent", commentsOpen && "text-accent")}
         >
           <MessageSquare size={16} />
@@ -1110,7 +1120,7 @@ export function PostCard({
             type="button"
             disabled={isRepostPending}
             onClick={handleRepost}
-            aria-label={repostCount > 0 ? `Repost, ${repostCount}` : "Repost"}
+            aria-label={repostCount > 0 ? format(t.post.repostCount, { count: repostCount }) : t.post.repost}
             aria-pressed={reposted}
             className={cn(
               "flex items-center gap-1.5 p-2 -m-2 hover:text-success",
@@ -1126,7 +1136,7 @@ export function PostCard({
           <button
             type="button"
             onClick={() => setShareModalOpen(true)}
-            aria-label={shareCount > 0 ? `Share, ${shareCount}` : "Share"}
+            aria-label={shareCount > 0 ? format(t.post.shareCount, { count: shareCount }) : t.post.share}
             className="flex items-center gap-1.5 p-2 -m-2 hover:text-accent"
           >
             <Share2 size={16} />
@@ -1195,14 +1205,14 @@ export function PostCard({
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          alt={displayPost.content || `Photo posted by ${displayPost.author.name}`}
+          alt={displayPost.content || format(t.post.photoBy, { name: displayPost.author.name ?? t.post.someone })}
         />
       )}
       {lightboxVideo && displayPost.videoUrl && (
         <Lightbox
           video={displayPost.videoUrl}
           onClose={() => setLightboxVideo(false)}
-          alt={`Video posted by ${displayPost.author.name ?? "someone"}`}
+          alt={format(t.post.videoBy, { name: displayPost.author.name ?? t.post.someone })}
         />
       )}
       {/* Rendered once likersOpen has ever been true, not gated on it

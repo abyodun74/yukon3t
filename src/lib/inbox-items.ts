@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isOnline } from "@/lib/presence";
 import { inboxPreview } from "@/lib/e2ee/secret-chat";
 import type { InboxItem } from "@/components/messages-inbox-list";
-import { messagesEn } from "@/lib/i18n/en";
+import { messagesEn } from "@/lib/i18n/en/messages";
 
 /**
  * The rows of a conversation list for one user: "visible" is the Messages inbox, "hidden" is the PIN-locked area

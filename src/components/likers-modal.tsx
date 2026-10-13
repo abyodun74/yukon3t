@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { UserLink } from "@/components/user-link";
 import { getPostLikers } from "@/app/actions/likes";
 import { Sheet } from "@/components/sheet";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
 
 type Liker = { id: string; name: string | null; username: string | null; avatarUrl: string | null };
 
@@ -19,6 +21,8 @@ type Liker = { id: string; name: string | null; username: string | null; avatarU
  * stale list from last time" behavior.
  */
 export function LikersModal({ postId, open, onClose }: { postId: string; open: boolean; onClose: () => void }) {
+  const { t } = useFeedText();
+  const { t: shell } = useShellText();
   const [likers, setLikers] = useState<Liker[] | null>(null);
 
   // Clears stale data from a previous open the moment it reopens, so it
@@ -44,10 +48,10 @@ export function LikersModal({ postId, open, onClose }: { postId: string; open: b
   }, [postId, open]);
 
   return (
-    <Sheet open={open} onClose={onClose} title="Liked by">
+    <Sheet open={open} onClose={onClose} title={t.post.likedBy}>
       <ul className="max-h-80 space-y-2.5 overflow-y-auto">
-        {likers === null && <li className="text-sm text-foreground-soft">Loading…</li>}
-        {likers?.length === 0 && <li className="text-sm text-foreground-soft">No likes yet.</li>}
+        {likers === null && <li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
+        {likers?.length === 0 && <li className="text-sm text-foreground-soft">{t.post.noLikes}</li>}
         {likers?.map((liker) => (
           <li key={liker.id}>
             <UserLink

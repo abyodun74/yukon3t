@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { captureError } from "@/lib/error-tracking";
 import { useStaleBuildRecovery } from "@/lib/stale-build-client";
+import { useShellText } from "@/components/ui-text";
 
 export default function ErrorBoundary({
   error,
@@ -11,6 +12,7 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useShellText();
   useEffect(() => {
     captureError(error, { digest: error.digest });
   }, [error]);
@@ -22,9 +24,9 @@ export default function ErrorBoundary({
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-20 text-center">
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
+      <h1 className="text-xl font-semibold">{t.error.title}</h1>
       <p className="mt-2 text-sm text-foreground-soft">
-        That didn&apos;t load right. Try again, or head back home.
+        {t.error.body}
       </p>
       <div className="mt-6 flex gap-3">
         <button
@@ -32,7 +34,7 @@ export default function ErrorBoundary({
           onClick={retry}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
         >
-          Try again
+          {t.error.retry}
         </button>
         {/* A plain anchor, not next/link — this boundary is rendering because
             something in the client already broke, so its router state can't
@@ -40,7 +42,7 @@ export default function ErrorBoundary({
             <a> forces a full navigation that always recovers, matching
             Next.js's own guidance for error.tsx "go home" links. */}
         <a href="/home" className="rounded-lg border border-line px-4 py-2 text-sm font-medium">
-          Go home
+          {t.error.home}
         </a>
       </div>
     </div>

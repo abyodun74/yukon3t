@@ -25,6 +25,9 @@ import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
+import { format, plural, byCode, intlLocale, type Locale } from "@/lib/i18n/locales";
 
 type StoryComment = {
   id: string;
@@ -73,12 +76,6 @@ export type StoryData = {
   sharedPostId: string | null;
 };
 
-function timeAgo(date: Date) {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const hours = Math.floor(diffMs / 3_600_000);
-  if (hours < 1) return `${Math.max(1, Math.floor(diffMs / 60_000))}m`;
-  return `${hours}h`;
-}
 
 /**
  * Reserves real space below whatever's the bottom-most interactive element
@@ -94,6 +91,16 @@ function timeAgo(date: Date) {
  * core's SystemBars plugin injects straight from Android's real
  * WindowInsets. No-op (0px) anywhere neither is set, including iOS/web.
  */
+/** "5m" / "3h" for a story or its comment, in the reader's own short form ("5 min", "5 د"). */
+function timeAgo(date: Date, locale: Locale) {
+  const diffMs = Date.now() - new Date(date).getTime();
+  const hours = Math.floor(diffMs / 3_600_000);
+  const short = (value: number, unit: "minute" | "hour") =>
+    new Intl.NumberFormat(intlLocale(locale) ?? "en", { style: "unit", unit, unitDisplay: "narrow" }).format(value);
+  if (hours < 1) return short(Math.max(1, Math.floor(diffMs / 60_000)), "minute");
+  return short(hours, "hour");
+}
+
 function SafeAreaBottomSpacer() {
   return <div aria-hidden style={{ height: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))" }} />;
 }
@@ -133,6 +140,8 @@ export function StoryViewer({
   /** A rightward swipe calls this when provided — the tray wrapper uses it to move to the previous person's stack. No-op (not undefined-guarded to onClose) if there's nobody before this one. */
   onPrevAuthor?: () => void;
 }) {
+  const { t, locale, dir } = useFeedText();
+  const { t: shell } = useShellText();
   const [index, setIndex] = useState(startIndex);
   const [progress, setProgress] = useState(0);
   // One flag per reason the story can be paused, with the real paused state
@@ -396,8 +405,11 @@ export function StoryViewer({
     <div
       ref={dialogRef}
       role="dialog"
+      // The media, its tap zones and the progress bars keep one physical layout in every language (left is back,
+      // right is forward); the panels of text over them (caption, viewers, comments, reply) follow the reader.
+      dir="ltr"
       aria-modal="true"
-      aria-label={`Story ${index + 1} of ${stories.length} by ${authorName}`}
+      aria-label={format(t.stories.viewer.label, { index: index + 1, total: stories.length, name: authorName })}
       tabIndex={-1}
       className={cn(
         "fixed inset-0 z-[70] overflow-hidden bg-black outline-none",
@@ -408,7 +420,7 @@ export function StoryViewer({
       <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={story.mediaUrl ?? undefined} alt={story.caption ? `Story by ${authorName}: ${story.caption}` : `Story by ${authorName}`} className="max-h-full max-w-full object-contain" />
+          <img src={story.mediaUrl ?? undefined} alt={story.caption ? format(t.stories.viewer.byWithCaption, { name: authorName, caption: story.caption }) : format(t.stories.viewer.by, { name: authorName })} className="max-h-full max-w-full object-contain" />
         ) : story.mediaType === "EMBED" && story.embedProvider && story.embedId ? (
           // Instagram/TikTok/etc.'s own player — see StoryMediaType's own
           // doc comment for the trust boundary this implies (not moderated
@@ -419,7 +431,7 @@ export function StoryViewer({
             src={embedSrc({ provider: story.embedProvider, id: story.embedId })}
             className="pointer-events-none h-full w-full border-0"
             allow="autoplay; encrypted-media; picture-in-picture"
-            title={`Story by ${authorName}`}
+            title={format(t.stories.viewer.by, { name: authorName })}
           />
         ) : (
           <video
@@ -428,7 +440,7 @@ export function StoryViewer({
             poster={story.mediaThumbnailUrl ?? undefined}
             autoPlay
             playsInline
-            aria-label={`Video story by ${authorName}`}
+            aria-label={format(t.stories.viewer.videoBy, { name: authorName })}
             className="max-h-full max-w-full object-contain"
             onTimeUpdate={(e) => {
               const el = e.currentTarget;
@@ -443,7 +455,7 @@ export function StoryViewer({
       <div className="absolute inset-0 z-10 flex">
         <button
           type="button"
-          aria-label="Previous story"
+          aria-label={t.stories.viewer.previous}
           className="h-full w-1/3"
           onPointerDown={handlePointerDown}
           onPointerUp={(e) => handlePointerUp(e, "prev")}
@@ -452,7 +464,7 @@ export function StoryViewer({
         />
         <button
           type="button"
-          aria-label="Next story"
+          aria-label={t.stories.viewer.next}
           className="h-full w-2/3"
           onPointerDown={handlePointerDown}
           onPointerUp={(e) => handlePointerUp(e, "next")}
@@ -486,7 +498,7 @@ export function StoryViewer({
               className="text-sm font-medium text-white hover:text-white/80"
             />
             <span className="shrink-0 text-xs text-white/70" title={formatDateTime(story.createdAt)}>
-              {timeAgo(story.createdAt)}
+              {timeAgo(story.createdAt, locale)}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -497,7 +509,7 @@ export function StoryViewer({
             <button
               type="button"
               onClick={() => setUserPausedForId(userPaused ? null : story.id)}
-              aria-label={userPaused ? "Play story" : "Pause story"}
+              aria-label={userPaused ? t.stories.viewer.play : t.stories.viewer.pause}
               className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
             >
               {userPaused ? <Play size={18} /> : <Pause size={18} />}
@@ -507,7 +519,7 @@ export function StoryViewer({
                 type="button"
                 aria-expanded={confirmingDelete}
                 onClick={() => setDeleteConfirmForId((id) => (id === story.id ? null : story.id))}
-                aria-label="Delete story"
+                aria-label={t.stories.viewer.delete}
                 className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
               >
                 <Trash2 size={18} />
@@ -516,7 +528,7 @@ export function StoryViewer({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={shell.common.close}
               className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
             >
               <X size={20} />
@@ -526,8 +538,8 @@ export function StoryViewer({
       </div>
 
       {confirmingDelete && (
-        <div role="group" aria-label="Delete this story?" className="absolute inset-x-0 top-16 z-30 mx-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-xs">
-          <span>Delete this story?</span>
+        <div dir={dir} role="group" aria-label={t.stories.viewer.deleteConfirm} className="absolute inset-x-0 top-16 z-30 mx-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-xs">
+          <span>{t.stories.viewer.deleteConfirm}</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -535,7 +547,7 @@ export function StoryViewer({
               onClick={() => setDeleteConfirmForId(null)}
               className="rounded-md border border-line px-2 py-1 disabled:opacity-50"
             >
-              Cancel
+              {shell.common.cancel}
             </button>
             <button
               type="button"
@@ -543,7 +555,7 @@ export function StoryViewer({
               onClick={handleDelete}
               className="rounded-md bg-danger px-2 py-1 font-medium text-white disabled:opacity-50"
             >
-              Delete
+              {shell.common.delete}
             </button>
           </div>
         </div>
@@ -557,14 +569,14 @@ export function StoryViewer({
         instead of pushing one another apart.
       */}
       {isOwner ? (
-        <div className="absolute inset-x-0 bottom-0 z-20">
+        <div dir={dir} className="absolute inset-x-0 bottom-0 z-20">
           {showViewers ? (
             <div className="max-h-64 overflow-y-auto rounded-t-2xl bg-surface p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-                  Seen by {viewers?.length ?? 0}
+                  {format(t.stories.viewer.seenBy, { count: viewers?.length ?? 0 })}
                 </p>
-                <button type="button" onClick={() => setViewersOpenForId(null)} aria-label="Close viewers" className="text-foreground-soft">
+                <button type="button" onClick={() => setViewersOpenForId(null)} aria-label={t.stories.viewer.closeViewers} className="text-foreground-soft">
                   <X size={16} />
                 </button>
               </div>
@@ -576,7 +588,7 @@ export function StoryViewer({
                   </li>
                 ))}
                 {viewers?.length === 0 && (
-                  <li className="text-sm text-foreground-soft">No views yet.</li>
+                  <li className="text-sm text-foreground-soft">{t.stories.viewer.noViews}</li>
                 )}
               </ul>
               <SafeAreaBottomSpacer />
@@ -592,13 +604,13 @@ export function StoryViewer({
             />
           ) : (
             <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
-              {story.caption && <p className="break-words text-sm text-white">{story.caption}</p>}
+              {story.caption && <p dir="auto" className="break-words text-sm text-white">{story.caption}</p>}
               {story.sharedPostId && (
                 <Link
                   href={`/post/${story.sharedPostId}`}
                   className="mt-1 inline-block text-xs font-medium text-white underline underline-offset-2"
                 >
-                  View post
+                  {t.stories.viewer.viewPost}
                 </Link>
               )}
               {reactionCounts.length > 0 && (
@@ -617,7 +629,7 @@ export function StoryViewer({
                 <button
                   type="button"
                   onClick={loadViewers}
-                  aria-label={`${story.viewCount} ${story.viewCount === 1 ? "view" : "views"}, see who viewed`}
+                  aria-label={plural(locale, t.stories.viewer.views, story.viewCount)}
                   className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
                 >
                   <Eye size={14} />
@@ -629,7 +641,7 @@ export function StoryViewer({
                   className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
                 >
                   <MessageCircle size={14} />
-                  Comments
+                  {t.stories.viewer.comments}
                 </button>
                 <StoryShareButton storyId={story.id} onOpenChange={setShareOpen} />
               </div>
@@ -638,7 +650,7 @@ export function StoryViewer({
           )}
         </div>
       ) : showComments ? (
-        <div className="absolute inset-x-0 bottom-0 z-20">
+        <div dir={dir} className="absolute inset-x-0 bottom-0 z-20">
           <StoryCommentsPanel
             comments={comments}
             currentUserId={currentUserId}
@@ -649,14 +661,14 @@ export function StoryViewer({
           />
         </div>
       ) : (
-        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
-          {story.caption && <p className="mb-2 break-words text-sm text-white">{story.caption}</p>}
+        <div dir={dir} className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
+          {story.caption && <p dir="auto" className="mb-2 break-words text-sm text-white">{story.caption}</p>}
           {story.sharedPostId && (
             <Link
               href={`/post/${story.sharedPostId}`}
               className="mb-2 inline-block text-xs font-medium text-white underline underline-offset-2"
             >
-              View post
+              {t.stories.viewer.viewPost}
             </Link>
           )}
           {reactionCounts.length > 0 && (
@@ -699,7 +711,7 @@ export function StoryViewer({
             <button
               type="button"
               onClick={loadComments}
-              aria-label="Comments"
+              aria-label={t.stories.viewer.comments}
               className="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
             >
               <MessageCircle size={16} />
@@ -741,6 +753,8 @@ function StoryCommentsPanel({
   onPost: (content: string) => Promise<boolean>;
   onDelete: (commentId: string) => void;
 }) {
+  const { t, locale } = useFeedText();
+  const { t: shell } = useShellText();
   const [text, setText] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [error, setError] = useState(false);
@@ -769,30 +783,30 @@ function StoryCommentsPanel({
     <div className="flex max-h-[70vh] flex-col rounded-t-2xl bg-surface p-4">
       <div className="flex shrink-0 items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-          Comments{comments ? ` (${comments.length})` : ""}
+          {t.stories.viewer.comments}{comments ? ` (${comments.length})` : ""}
         </p>
-        <button type="button" onClick={onClose} aria-label="Close comments" className="text-foreground-soft">
+        <button type="button" onClick={onClose} aria-label={t.stories.viewer.closeComments} className="text-foreground-soft">
           <X size={16} />
         </button>
       </div>
       <ul className="mt-2 flex-1 space-y-3 overflow-y-auto">
-        {comments === null && <li className="text-sm text-foreground-soft">Loading…</li>}
-        {comments?.length === 0 && <li className="text-sm text-foreground-soft">No comments yet.</li>}
+        {comments === null && <li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
+        {comments?.length === 0 && <li className="text-sm text-foreground-soft">{t.stories.viewer.noComments}</li>}
         {comments?.map((c) => (
           <li key={c.id} className="flex items-start gap-2">
             <UserAvatar avatarUrl={c.author.avatarUrl} name={c.author.name} size={28} />
             <div className="min-w-0 flex-1">
               <p className="break-words text-sm">
-                <span className="font-medium">{c.author.name ?? "Someone"}</span>{" "}
-                {c.content}
+                <span className="font-medium">{c.author.name ?? shell.common.someone}</span>{" "}
+                <span dir="auto">{c.content}</span>
               </p>
-              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt)}</p>
+              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt, locale)}</p>
             </div>
             {(c.author.id === currentUserId || isStoryOwner) && (
               <button
                 type="button"
                 onClick={() => onDelete(c.id)}
-                aria-label="Delete comment"
+                aria-label={t.stories.viewer.deleteComment}
                 className="shrink-0 p-1 text-foreground-soft hover:text-danger"
               >
                 <X size={14} />
@@ -802,7 +816,7 @@ function StoryCommentsPanel({
         ))}
       </ul>
       <div className="mt-3 flex shrink-0 items-center gap-2">
-        <input
+        <input dir="auto"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -813,42 +827,26 @@ function StoryCommentsPanel({
             }
           }}
           maxLength={1000}
-          placeholder="Add a comment..."
-          aria-label="Add a comment"
+          placeholder={t.stories.viewer.commentPlaceholder}
+          aria-label={t.stories.viewer.commentLabel}
           className="flex-1 rounded-full border border-line bg-background px-4 py-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="button"
           disabled={!text.trim() || isPosting}
           onClick={send}
-          aria-label="Post comment"
+          aria-label={t.stories.viewer.postComment}
           className="shrink-0 rounded-full bg-accent p-2 text-accent-ink disabled:opacity-50"
         >
           <Send size={16} />
         </button>
       </div>
-      {error && <p role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-danger">{t.stories.viewer.commentFailed}</p>}
       <SafeAreaBottomSpacer />
     </div>
   );
 }
 
-function replyErrorMessage(code: string) {
-  switch (code) {
-    case "not_connected":
-      return "Connect with them first to reply to their story.";
-    case "blocked":
-      return "This reply couldn't be sent.";
-    case "secret_chat":
-      return "Replies to their story aren't available here — message them from your chat instead.";
-    case "rate_limited":
-      return "Slow down a little.";
-    case "not_found":
-      return "This story is no longer available.";
-    default:
-      return "Couldn't send that reply — try again.";
-  }
-}
 
 /**
  * Owns its own draft/status state, keyed by story id from the parent — so
@@ -865,6 +863,7 @@ function StoryReplyBar({
   authorName: string;
   onFocusChange: (focused: boolean) => void;
 }) {
+  const { t } = useFeedText();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -887,7 +886,7 @@ function StoryReplyBar({
     const result = await replyToStory(storyId, fd);
     if (result.error) {
       setStatus("error");
-      setErrorMsg(replyErrorMessage(result.error));
+      setErrorMsg(byCode(t.stories.viewer.replyErrors, result.error));
       return;
     }
     setText("");
@@ -897,7 +896,7 @@ function StoryReplyBar({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <input
+        <input dir="auto"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -910,21 +909,21 @@ function StoryReplyBar({
             }
           }}
           maxLength={1000}
-          placeholder={`Reply to ${authorName}...`}
-          aria-label={`Reply to ${authorName}`}
+          placeholder={format(t.stories.viewer.replyPlaceholder, { name: authorName })}
+          aria-label={format(t.stories.viewer.replyLabel, { name: authorName })}
           className="flex-1 rounded-full border border-white/30 bg-black/30 px-4 py-2 text-sm text-white placeholder-white/60 outline-none focus:border-white"
         />
         <button
           type="button"
           disabled={!text.trim() || status === "sending"}
           onClick={send}
-          aria-label="Send reply"
+          aria-label={t.stories.viewer.sendReply}
           className="shrink-0 rounded-full bg-accent p-2 text-accent-ink disabled:opacity-50"
         >
           <Send size={16} />
         </button>
       </div>
-      {status === "sent" && <p role="status" className="mt-1 text-xs text-white/80">Reply sent.</p>}
+      {status === "sent" && <p role="status" className="mt-1 text-xs text-white/80">{t.stories.viewer.replySent}</p>}
       {errorMsg && <p role="alert" className="mt-1 text-xs text-danger">{errorMsg}</p>}
     </div>
   );

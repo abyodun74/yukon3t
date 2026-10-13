@@ -318,8 +318,8 @@ export function EmojiPickerButton({
                     className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface px-2"
                     style={{ height: SUGGESTIONS_BAR_HEIGHT }}
                   >
-                    <span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-foreground-soft">
-                      Suggested
+                    <span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-foreground-soft rtl:tracking-normal">
+                      {t.reactions.suggested}
                     </span>
                     {suggestions.map((emoji) => (
                       <button

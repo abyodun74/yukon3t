@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { setGroupDiscoverable } from "@/app/actions/messages";
 import { hapticSelection } from "@/lib/haptics";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 export function GroupDiscoverableToggle({
   conversationId,

@@ -8,9 +8,11 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
-import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
+import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
+import { useFeedText } from "@/components/feed-text";
+import { format, plural, byCode } from "@/lib/i18n/locales";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -61,26 +63,6 @@ function normalizeVideoFile(f: File): File | null {
   return new File([f], f.name, { type: detectedType });
 }
 
-function errorMessage(code: string) {
-  switch (code) {
-    case "too_large":
-      return "That file is too large.";
-    case "moderation":
-      return "That didn't pass our content guidelines.";
-    case "rate_limited":
-      return "You're posting stories too fast — slow down a little.";
-    case "not_configured":
-      return "Story uploads aren't set up yet.";
-    case "network":
-      return "Couldn't reach the server — check your connection and try again.";
-    case "stale_deployment":
-      return STALE_DEPLOYMENT_MESSAGE;
-    case "server_error":
-      return "Your video uploaded, but posting it failed — try again in a moment.";
-    default:
-      return "Couldn't post that story — try again.";
-  }
-}
 
 function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -157,9 +139,9 @@ async function renderTextStoryImage(text: string, colors: { bg: string; fg: stri
 }
 
 async function processImageFile(f: File): Promise<{ item: StoryItem } | { error: string }> {
-  if (!IMAGE_TYPES.includes(f.type)) return { error: "Use a JPEG, PNG, or WebP image." };
+  if (!IMAGE_TYPES.includes(f.type)) return { error: "imageType" };
   const resized = await resizeImageFile(f);
-  if (resized.size > MAX_IMAGE_BYTES) return { error: "Images must be 25MB or smaller." };
+  if (resized.size > MAX_IMAGE_BYTES) return { error: "imageTooLarge" };
   return {
     item: { id: makeId(), file: resized, mediaType: "IMAGE", previewUrl: URL.createObjectURL(resized), upload: { status: "uploading" } },
   };
@@ -174,11 +156,11 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
   return new Promise((resolve) => {
     const f = normalizeVideoFile(rawFile);
     if (!f) {
-      resolve({ error: "Use an MP4, MOV or WebM video." });
+      resolve({ error: "videoType" });
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      resolve({ error: "Video must be 2GB or smaller." });
+      resolve({ error: "videoTooLarge" });
       return;
     }
 
@@ -213,7 +195,7 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
       if (settled) return;
       finish();
       if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
-        resolve({ error: `Videos must be ${MAX_VIDEO_SECONDS} seconds or shorter.` });
+        resolve({ error: "videoTooLong" });
         return;
       }
       resolve(toItem());
@@ -238,6 +220,7 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
  * anymore).
  */
 export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t, locale } = useFeedText();
   const [items, setItems] = useState<StoryItem[]>([]);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -323,7 +306,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     if (item.mediaType === "IMAGE") {
       const result = await uploadFileDirect(item.file, "story-image");
       if (!result.ok) {
-        setItemUpload(item.id, { status: "error", message: errorMessage(result.error) });
+        setItemUpload(item.id, { status: "error", message: byCode(t.stories.upload.errors, result.error) });
         return;
       }
       setItemUpload(item.id, { status: "done", mediaUrl: result.publicUrl });
@@ -335,7 +318,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       captureVideoFrameFromFile(item.file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
     ]);
     if (!videoResult.ok) {
-      setItemUpload(item.id, { status: "error", message: errorMessage(videoResult.error) });
+      setItemUpload(item.id, { status: "error", message: byCode(t.stories.upload.errors, videoResult.error) });
       return;
     }
     setItemUpload(item.id, {
@@ -347,7 +330,18 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
 
   function addResults(results: ({ item: StoryItem } | { error: string })[]) {
     const newItems = results.filter((r): r is { item: StoryItem } => "item" in r).map((r) => r.item);
-    const messages = [...new Set(results.filter((r): r is { error: string } => "error" in r).map((r) => r.error))];
+    // processImageFile / processVideoFile answer with a key of t.stories.upload.errors.
+    const messages = [
+      ...new Set(
+        results
+          .filter((r): r is { error: string } => "error" in r)
+          .map((r) =>
+            r.error === "videoTooLong"
+              ? plural(locale, t.stories.upload.errors.videoTooLong, MAX_VIDEO_SECONDS)
+              : byCode(t.stories.upload.errors, r.error),
+          ),
+      ),
+    ];
     if (newItems.length) {
       setItems((prev) => [...prev, ...newItems]);
       for (const item of newItems) startUpload(item);
@@ -406,10 +400,10 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
 
     try {
       const result = await createStory(fd);
-      if (result.error) return { ok: false as const, message: errorMessage(result.error) };
+      if (result.error) return { ok: false as const, message: byCode(t.stories.upload.errors, result.error) };
       return { ok: true as const };
     } catch (err) {
-      return { ok: false as const, message: isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network") };
+      return { ok: false as const, message: isStaleDeploymentError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network") };
     }
   }
 
@@ -423,7 +417,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       const file = await renderTextStoryImage(trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex]);
       const result = await uploadFileDirect(file, "story-image");
       if (!result.ok) {
-        setError(errorMessage(result.error));
+        setError(byCode(t.stories.upload.errors, result.error));
         return;
       }
       const fd = new FormData();
@@ -431,13 +425,13 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       fd.set("mediaUrl", result.publicUrl);
       const created = await createStory(fd);
       if (created.error) {
-        setError(errorMessage(created.error));
+        setError(byCode(t.stories.upload.errors, created.error));
         return;
       }
       router.refresh();
       onClose();
     } catch (err) {
-      setError(isStaleDeploymentError(err) ? errorMessage("stale_deployment") : errorMessage("network"));
+      setError(isStaleDeploymentError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network"));
     } finally {
       setTextPosting(false);
     }
@@ -472,7 +466,14 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       setItems((prev) => prev.filter((i) => !postedIds.has(i.id)));
 
       if (postedIds.size < total) {
-        setError(`${postedIds.size} of ${total} posted. ${total - postedIds.size} failed: ${firstFailureMessage ?? "try again."}`);
+        setError(
+          format(t.stories.upload.partial, {
+            posted: postedIds.size,
+            total,
+            failed: total - postedIds.size,
+            reason: firstFailureMessage ?? t.stories.upload.partialReason,
+          }),
+        );
         return;
       }
 
@@ -491,7 +492,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     // whatever z-[6x] chrome the triggering surface (profile story ring,
     // the home story tray) already has.
     <div className="relative z-[70]">
-      <Sheet open={open} onClose={onClose} title="Add to your story">
+      <Sheet open={open} onClose={onClose} title={t.stories.addToStory}>
         {/* Switching modes mid-batch would mean juggling two unrelated
             in-progress flows (uploaded media items vs. a typed draft) at
             once, so the toggle itself only shows before either has
@@ -508,7 +509,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                 mode === "media" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
               )}
             >
-              Photo/Video
+              {t.stories.upload.photoVideo}
             </button>
             <button
               type="button"
@@ -519,7 +520,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                 mode === "text" ? "bg-surface shadow-[var(--shadow-sm)]" : "text-foreground-soft",
               )}
             >
-              Text
+              {t.stories.upload.text}
             </button>
           </div>
         )}
@@ -530,11 +531,11 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               className="relative flex aspect-[9/16] w-full items-center justify-center overflow-hidden rounded-lg p-6"
               style={{ backgroundColor: TEXT_STORY_BACKGROUNDS[textBgIndex].bg }}
             >
-              <textarea
-                aria-label="Type or paste something"
+              <textarea dir="auto"
+                aria-label={t.stories.upload.textLabel}
                 value={textValue}
                 onChange={(e) => setTextValue(e.target.value.slice(0, TEXT_STORY_MAX_CHARS))}
-                placeholder="Type or paste something..."
+                placeholder={t.stories.upload.textPlaceholder}
                 maxLength={TEXT_STORY_MAX_CHARS}
                 autoFocus
                 className="h-full w-full resize-none bg-transparent text-center text-lg font-semibold outline-none placeholder:opacity-60"
@@ -548,7 +549,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   key={c.bg}
                   type="button"
                   onClick={() => setTextBgIndex(i)}
-                  aria-label={`Background ${i + 1}`}
+                  aria-label={format(t.stories.upload.background, { index: i + 1 })}
                   aria-pressed={i === textBgIndex}
                   className={cn(
                     "h-7 w-7 rounded-full border-2",
@@ -567,9 +568,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               onClick={submitText}
               className="mt-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
             >
-              {textPosting ? "Posting..." : "Share to your story"}
+              {textPosting ? t.stories.upload.posting : t.stories.upload.share}
             </button>
-            <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">Disappears after 24 hours.</p>
+            <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">{t.stories.upload.disappears}</p>
           </div>
         ) : (
           <>
@@ -632,7 +633,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                 ) : (
                   <>
                     <video src={item.previewUrl} muted className="h-full w-full object-cover" />
-                    <Video size={14} className="absolute bottom-1 left-1 text-white drop-shadow" />
+                    <Video size={14} className="absolute bottom-1 start-1 text-white drop-shadow" />
                   </>
                 )}
 
@@ -645,11 +646,11 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   <button
                     type="button"
                     onClick={() => startUpload(item)}
-                    title={`${item.upload.status === "error" ? item.upload.message : ""} — tap to retry`}
+                    title={format(t.stories.upload.retryTitle, { message: item.upload.status === "error" ? item.upload.message : "" })}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-white"
                   >
                     <AlertCircle size={18} />
-                    <span className="text-[0.625rem] font-medium">Tap to retry</span>
+                    <span className="text-[0.625rem] font-medium">{t.stories.upload.tapToRetry}</span>
                   </button>
                 )}
 
@@ -657,8 +658,8 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   type="button"
                   onClick={() => removeItem(item.id)}
                   disabled={isPending}
-                  aria-label="Remove"
-                  className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                  aria-label={t.stories.upload.remove}
+                  className="absolute end-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
                 >
                   <X size={12} />
                 </button>
@@ -669,11 +670,11 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-line">
                 <MediaPickerButton
                   icon={<Upload size={16} />}
-                  title="Add more"
+                  title={t.stories.upload.addMore}
                   options={[
-                    { label: "Add photos", icon: <Upload size={14} />, onSelect: pickImagesOrFallback },
+                    { label: t.stories.upload.addPhotos, icon: <Upload size={14} />, onSelect: pickImagesOrFallback },
                     {
-                      label: "Take a photo",
+                      label: t.stories.upload.takePhoto,
                       icon: <Camera size={14} />,
                       onSelect: () => {
                         if (isNativePickerActive()) return;
@@ -682,7 +683,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                       },
                     },
                     {
-                      label: "Add videos",
+                      label: t.stories.upload.addVideos,
                       icon: <Video size={14} />,
                       onSelect: () => {
                         if (isNativePickerActive()) return;
@@ -699,15 +700,15 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
           <div className="mt-3 flex items-center justify-center gap-4 rounded-lg border border-dashed border-line py-10">
             <MediaPickerButton
               icon={<Upload size={18} />}
-              title="Add photos"
+              title={t.stories.upload.addPhotos}
               options={[
                 {
-                  label: "Upload from device",
+                  label: t.stories.upload.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: pickImagesOrFallback,
                 },
                 {
-                  label: "Take a photo",
+                  label: t.stories.upload.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -719,10 +720,10 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
             />
             <MediaPickerButton
               icon={<Video size={18} />}
-              title="Add videos"
+              title={t.stories.upload.addVideos}
               options={[
                 {
-                  label: "Upload from device",
+                  label: t.stories.upload.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -738,15 +739,15 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
         {items.length > 0 && (
           <>
             <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">
-              {items.length} added — tap the × to remove, or a failed item to retry it.
+              {plural(locale, t.stories.upload.added, items.length)}
             </p>
-            <input
+            <input dir="auto"
               type="text"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               maxLength={200}
-              placeholder={items.length > 1 ? "Add a caption to all (optional)" : "Add a caption (optional)"}
-              aria-label={items.length > 1 ? "Add a caption to all (optional)" : "Add a caption (optional)"}
+              placeholder={items.length > 1 ? t.stories.upload.captionAll : t.stories.upload.caption}
+              aria-label={items.length > 1 ? t.stories.upload.captionAll : t.stories.upload.caption}
               className="mt-2 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
           </>
@@ -762,15 +763,15 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
         >
           {isPending
             ? progress
-              ? `Posting ${progress.done}/${progress.total}...`
-              : "Posting..."
+              ? format(t.stories.upload.postingProgress, { done: progress.done, total: progress.total })
+              : t.stories.upload.posting
             : anyUploading
-              ? "Uploading..."
+              ? t.stories.upload.uploading
               : readyCount > 1
-                ? `Share ${readyCount} to your story`
-                : "Share to your story"}
+                ? format(t.stories.upload.shareCount, { count: readyCount })
+                : t.stories.upload.share}
         </button>
-        <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">Disappears after 24 hours.</p>
+        <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">{t.stories.upload.disappears}</p>
           </>
         )}
       </Sheet>

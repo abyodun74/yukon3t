@@ -5,7 +5,12 @@ import { ConnectionResponseButtons } from "@/components/connection-response-butt
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { CallButton } from "@/components/call-button";
-import { intentLabels, intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validations";
+import { useFeedText } from "@/components/feed-text";
+import type { pagesEn } from "@/lib/i18n/en/pages";
+import { format } from "@/lib/i18n/locales";
+
+type Labels = typeof pagesEn.connections;
 import { isOnline } from "@/lib/presence";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import {
@@ -25,10 +30,18 @@ type ConnectionUser = {
   lastSeenAt: Date | null;
 };
 
-function LoadingSentinel({ sentinelRef, loading }: { sentinelRef: React.RefObject<HTMLDivElement | null>; loading: boolean }) {
+function LoadingSentinel({
+  sentinelRef,
+  loading,
+  label,
+}: {
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
+  loading: boolean;
+  label: string;
+}) {
   return (
     <div ref={sentinelRef} className="flex justify-center py-2">
-      {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+      {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{label}</span>}
     </div>
   );
 }
@@ -36,10 +49,13 @@ function LoadingSentinel({ sentinelRef, loading }: { sentinelRef: React.RefObjec
 export function IncomingRequestsList({
   initialItems,
   initialHasMore,
+  labels,
 }: {
   initialItems: { id: string; requester: ConnectionUser; intentTag: IntentTag }[];
   initialHasMore: boolean;
+  labels: Labels;
 }) {
+  const intents = useFeedText().t.intents;
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems,
     initialHasMore,
@@ -48,7 +64,7 @@ export function IncomingRequestsList({
   });
 
   if (items.length === 0) {
-    return <p className="text-sm text-foreground-soft">No pending requests.</p>;
+    return <p className="text-sm text-foreground-soft">{labels.noIncoming}</p>;
   }
 
   return (
@@ -66,12 +82,14 @@ export function IncomingRequestsList({
               />
               <TrustBadge band={c.requester.trustBand} />
             </div>
-            <p className="text-xs text-foreground-soft">wants to connect for {intentLabels[c.intentTag]}</p>
+            <p className="text-xs text-foreground-soft">
+              {format(labels.wantsToConnectFor, { intent: intents[c.intentTag] })}
+            </p>
           </div>
           <ConnectionResponseButtons connectionId={c.id} />
         </div>
       ))}
-      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} />}
+      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} label={labels.loadingMore} />}
     </>
   );
 }
@@ -79,10 +97,13 @@ export function IncomingRequestsList({
 export function SentRequestsList({
   initialItems,
   initialHasMore,
+  labels,
 }: {
   initialItems: { id: string; target: ConnectionUser; intentTag: IntentTag }[];
   initialHasMore: boolean;
+  labels: Labels;
 }) {
+  const intents = useFeedText().t.intents;
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems,
     initialHasMore,
@@ -91,7 +112,7 @@ export function SentRequestsList({
   });
 
   if (items.length === 0) {
-    return <p className="text-sm text-foreground-soft">No pending sent requests.</p>;
+    return <p className="text-sm text-foreground-soft">{labels.noSent}</p>;
   }
 
   return (
@@ -108,10 +129,10 @@ export function SentRequestsList({
             />
             <TrustBadge band={c.target.trustBand} />
           </div>
-          <p className="text-xs text-foreground-soft">{intentLabels[c.intentTag]} — awaiting response</p>
+          <p className="text-xs text-foreground-soft">{format(labels.awaiting, { intent: intents[c.intentTag] })}</p>
         </div>
       ))}
-      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} />}
+      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} label={labels.loadingMore} />}
     </>
   );
 }
@@ -120,11 +141,14 @@ export function ConnectedList({
   initialItems,
   initialHasMore,
   currentUserId,
+  labels,
 }: {
   initialItems: { id: string; other: ConnectionUser; intentTag: IntentTag; conversationId: string | null }[];
   initialHasMore: boolean;
   currentUserId: string;
+  labels: Labels;
 }) {
+  const intents = useFeedText().t.intents;
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems,
     initialHasMore,
@@ -133,7 +157,7 @@ export function ConnectedList({
   });
 
   if (items.length === 0) {
-    return <p className="text-sm text-foreground-soft">No connections yet.</p>;
+    return <p className="text-sm text-foreground-soft">{labels.none}</p>;
   }
 
   return (
@@ -151,7 +175,7 @@ export function ConnectedList({
               />
               <TrustBadge band={c.other.trustBand} />
             </div>
-            <span className="text-xs text-foreground-soft">{intentLabels[c.intentTag]}</span>
+            <span className="text-xs text-foreground-soft">{intents[c.intentTag]}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {c.conversationId && (
@@ -159,14 +183,14 @@ export function ConnectedList({
                 href={`/messages/${c.conversationId}`}
                 className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
               >
-                Message
+                {labels.message}
               </Link>
             )}
             <CallButton calleeId={c.other.id} calleeName={c.other.name ?? "them"} currentUserId={currentUserId} />
           </div>
         </div>
       ))}
-      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} />}
+      {hasMore && <LoadingSentinel sentinelRef={sentinelRef} loading={loading} label={labels.loadingMore} />}
     </>
   );
 }

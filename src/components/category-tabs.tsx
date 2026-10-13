@@ -3,8 +3,9 @@
 import { useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { feedCategoryValues, feedCategoryLabels } from "@/lib/validations";
+import { feedCategoryValues } from "@/lib/validations";
 import { cn } from "@/lib/utils";
+import { useFeedText } from "@/components/feed-text";
 
 // Home's tab strip deliberately orders these differently from
 // validations.ts's canonical feedCategoryValues — that array also drives
@@ -43,14 +44,15 @@ export function CategoryTabs({
   category: string | null;
   allPostsScope: boolean;
 }) {
+  const { t } = useFeedText();
   const router = useRouter();
   const scopeQuery = allPostsScope ? "&scope=all" : "";
 
   const tabs = [
-    { key: "all", label: "All", href: `/home${allPostsScope ? "?scope=all" : ""}` },
+    { key: "all", label: t.categories.all, href: `/home${allPostsScope ? "?scope=all" : ""}` },
     ...TAB_ORDER.map((cat) => ({
       key: cat as string,
-      label: feedCategoryLabels[cat],
+      label: t.categories[cat],
       href: `/home?category=${cat}${scopeQuery}`,
     })),
   ];

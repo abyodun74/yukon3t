@@ -16,7 +16,7 @@ import { HiddenPinField, hiddenPinErrorMessage, type HiddenPinError } from "@/co
 import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
 import { PasswordInput } from "@/components/password-input";
 import { HIDDEN_CHATS_PATH } from "@/lib/hidden-chats-rules";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 const PRIMARY_BUTTON =
   "w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50";

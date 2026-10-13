@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/review-prompt";
 import { requestNativeReview } from "@/lib/in-app-review";
 import { Sheet } from "@/components/sheet";
+import { useShellText } from "@/components/ui-text";
 
 // How long after mount to check eligibility — long enough that this never
 // competes with a page's own first paint/data loading, short enough that
@@ -34,6 +35,7 @@ type Step = "closed" | "ask" | "feedback" | "thanks";
  * thresholds (account age, real activity, ask-count cap).
  */
 export function ReviewPromptGate() {
+  const { t } = useShellText();
   const [step, setStep] = useState<Step>("closed");
   const [feedback, setFeedback] = useState("");
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export function ReviewPromptGate() {
       const result = await submitAppFeedback(fd);
       if (result.error) {
         setFeedbackError(
-          result.error === "rate_limited" ? "Slow down a little." : "Couldn't send that — try again.",
+          result.error === "rate_limited" ? t.review.errors.rate_limited : t.review.errors.other,
         );
         return;
       }
@@ -120,13 +122,13 @@ export function ReviewPromptGate() {
       variant="bottom-sheet"
       responsive
       panelClassName="p-5"
-      ariaLabel="App feedback"
+      ariaLabel={t.review.label}
     >
         {displayedStep === "ask" && (
           <>
-            <h2 className="text-base font-semibold">How&apos;s the yukon3t app?</h2>
+            <h2 className="text-base font-semibold">{t.review.title}</h2>
             <p className="mt-1 text-sm text-foreground-soft">
-              Your feedback makes the app better for everyone.
+              {t.review.intro}
             </p>
             <div className="mt-4 flex flex-col gap-2">
               <button
@@ -135,7 +137,7 @@ export function ReviewPromptGate() {
                 disabled={isPending}
                 className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
               >
-                I love it
+                {t.review.love}
               </button>
               <button
                 type="button"
@@ -143,7 +145,7 @@ export function ReviewPromptGate() {
                 disabled={isPending}
                 className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium disabled:opacity-50"
               >
-                Could be better
+                {t.review.couldBeBetter}
               </button>
               <button
                 type="button"
@@ -151,7 +153,7 @@ export function ReviewPromptGate() {
                 disabled={isPending}
                 className="rounded-lg px-4 py-2.5 text-sm font-medium text-foreground-soft disabled:opacity-50"
               >
-                Maybe later
+                {t.review.later}
               </button>
             </div>
           </>
@@ -159,17 +161,17 @@ export function ReviewPromptGate() {
 
         {displayedStep === "feedback" && (
           <>
-            <h2 className="text-base font-semibold">What could be better?</h2>
+            <h2 className="text-base font-semibold">{t.review.feedbackTitle}</h2>
             <p className="mt-1 text-sm text-foreground-soft">
-              This goes straight to our team, not a public review — tell us what&apos;s not working.
+              {t.review.feedbackIntro}
             </p>
             <textarea
-              aria-label="What's on your mind?"
+              aria-label={t.review.feedbackLabel}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value.slice(0, 2000))}
               rows={4}
               autoFocus
-              placeholder="What's on your mind?"
+              placeholder={t.review.feedbackLabel}
               className="mt-3 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
             {feedbackError && <p role="alert" className="mt-1.5 text-xs text-danger">{feedbackError}</p>}
@@ -180,7 +182,7 @@ export function ReviewPromptGate() {
                 disabled={isPending}
                 className="rounded-lg px-3 py-2 text-sm font-medium text-foreground-soft disabled:opacity-50"
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 type="button"
@@ -188,7 +190,7 @@ export function ReviewPromptGate() {
                 disabled={isPending || !feedback.trim()}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
               >
-                {isPending ? "Sending…" : "Send"}
+                {isPending ? t.review.sending : t.review.send}
               </button>
             </div>
           </>
@@ -196,16 +198,16 @@ export function ReviewPromptGate() {
 
         {displayedStep === "thanks" && (
           <>
-            <h2 className="text-base font-semibold">Thanks for the feedback 🙏</h2>
+            <h2 className="text-base font-semibold">{t.review.thanksTitle}</h2>
             <p className="mt-1 text-sm text-foreground-soft">
-              We read every message — this genuinely helps us improve the app.
+              {t.review.thanksBody}
             </p>
             <button
               type="button"
               onClick={() => setStep("closed")}
               className="mt-4 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink"
             >
-              Done
+              {t.common.done}
             </button>
           </>
         )}

@@ -14,6 +14,7 @@ import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/p
 import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
+import { getDictionary } from "@/lib/i18n/server";
 
 const PAGE_SIZE = 20;
 
@@ -23,6 +24,8 @@ export default async function HomePage({
   searchParams: Promise<{ scope?: string; category?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  const dictionary = await getDictionary();
+  const t = dictionary.pages.home;
   const { scope, category: categoryParam } = await searchParams;
   // Admin-only "include private posts" view — never trust the query param
   // alone, only branch the query when the signed-in user is actually an
@@ -75,7 +78,7 @@ export default async function HomePage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <div id="home-story-tray">
-        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? "You"} currentUserId={me.id} />
+        <StoryTray groups={storyGroups} meAvatarUrl={me.avatarUrl} meName={me.name ?? dictionary.shell.common.you} currentUserId={me.id} />
       </div>
 
       <div id="home-live-section" className="mt-4 flex flex-wrap items-center gap-3">
@@ -96,13 +99,13 @@ export default async function HomePage({
             href={`/home${category ? `?category=${category}` : ""}`}
             className={`px-3 py-1.5 ${!allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
           >
-            Standard
+            {t.standard}
           </Link>
           <Link
             href={`/home?scope=all${categoryQuery}`}
             className={`px-3 py-1.5 ${allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
           >
-            Admin: include private posts
+            {t.adminAll}
           </Link>
         </div>
       )}
@@ -138,8 +141,7 @@ export default async function HomePage({
       />
       {posts.length === 0 && (
         <p className="mt-8 text-sm text-foreground-soft">
-          Nothing here yet — check back soon, or connect with someone / join
-          a Circle to see more.
+          {t.empty}
         </p>
       )}
 

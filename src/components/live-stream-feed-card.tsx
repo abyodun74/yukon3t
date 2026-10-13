@@ -9,6 +9,9 @@ import { getLiveStreamViewerCount } from "@/app/actions/live-streams";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
+import { format, plural } from "@/lib/i18n/locales";
 
 export type FeedLiveStream = {
   id: string;
@@ -57,6 +60,8 @@ const COUNT_REFETCH_INTERVAL_MS = 5000;
  * once on mount to skip straight past its own "choosing" screen.
  */
 export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
+  const { t, locale } = useFeedText();
+  const { t: shell } = useShellText();
   const [viewerCount, setViewerCount] = useState(stream.viewerCount);
   const containerRef = useRef<HTMLDivElement>(null);
   const [embedActive, setEmbedActive] = useState(false);
@@ -120,11 +125,11 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 text-[0.6875rem] font-semibold text-white">
           <Radio size={11} />
-          LIVE
+          {t.live.badge}
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground-soft">
           <Eye size={13} />
-          {viewerCount} watching
+          {plural(locale, t.live.watching, viewerCount)}
         </span>
       </div>
 
@@ -135,7 +140,7 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
       <div className="mt-2.5 flex items-center gap-2.5">
         <UserAvatar avatarUrl={stream.host.avatarUrl} name={stream.host.name} size={40} />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{stream.host.name ?? "Someone"} is live</p>
+          <p className="truncate text-sm font-medium">{format(t.live.isLive, { name: stream.host.name ?? shell.common.someone })}</p>
           {stream.title && <p className="truncate text-xs text-foreground-soft">{stream.title}</p>}
         </div>
       </div>
@@ -146,21 +151,21 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
           onClick={() => join("VIEWER")}
           className="flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink transition-transform active:scale-[0.97]"
         >
-          Watch
+          {t.live.watch}
         </button>
         <button
           type="button"
           onClick={() => join("GUEST")}
           className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium transition-transform hover:border-accent hover:text-accent active:scale-[0.97]"
         >
-          Join as guest
+          {t.live.joinGuest}
         </button>
         <button
           type="button"
           onClick={() => join("COHOST")}
           className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium transition-transform hover:border-accent hover:text-accent active:scale-[0.97]"
         >
-          Join as co-host
+          {t.live.joinCohost}
         </button>
       </div>
     </div>

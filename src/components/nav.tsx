@@ -19,19 +19,22 @@ import { WhatsNewBell } from "@/components/whats-new-bell";
 import { useNavBadges } from "@/lib/use-nav-badges";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import type { Dictionary } from "@/lib/i18n/en";
-import type { Locale } from "@/lib/i18n/locales";
+import { useShellText } from "@/components/ui-text";
+import type { shellEn } from "@/lib/i18n/en/shell";
+import { format } from "@/lib/i18n/locales";
 
-function navLinks(userId: string) {
+type NavText = typeof shellEn.nav;
+
+function navLinks(userId: string, t: NavText) {
   return [
-    { href: "/home", label: "Home" },
-    { href: "/discover", label: "Discover" },
-    { href: "/circles", label: "Circles" },
-    { href: "/collab", label: "Collab Boards" },
-    { href: "/muse", label: "Muse" },
-    { href: "/connections", label: "Connections" },
-    { href: "/messages", label: "Messages" },
-    { href: `/u/${userId}`, label: "Profile" },
+    { href: "/home", label: t.home },
+    { href: "/discover", label: t.discover },
+    { href: "/circles", label: t.circles },
+    { href: "/collab", label: t.collabBoards },
+    { href: "/muse", label: t.muse },
+    { href: "/connections", label: t.connections },
+    { href: "/messages", label: t.messages },
+    { href: `/u/${userId}`, label: t.profile },
   ];
 }
 
@@ -40,29 +43,21 @@ function navLinks(userId: string) {
 // hamburger menu to keep this list short. Connections lives in the header
 // instead (next to Search) rather than here — see the header icon row
 // below.
-function bottomTabs(userId: string) {
+function bottomTabs(userId: string, t: NavText) {
   return [
-    { href: "/home", label: "Home", icon: Home },
-    { href: "/circles", label: "Circles", icon: Users },
-    { href: "/collab", label: "Collab", icon: Handshake },
-    { href: "/muse", label: "Muse", icon: Clapperboard },
-    { href: "/messages", label: "Messages", icon: MessageCircle },
-    { href: `/u/${userId}`, label: "Profile", icon: User },
+    { href: "/home", label: t.home, icon: Home },
+    { href: "/circles", label: t.circles, icon: Users },
+    { href: "/collab", label: t.collab, icon: Handshake },
+    { href: "/muse", label: t.muse, icon: Clapperboard },
+    { href: "/messages", label: t.messages, icon: MessageCircle },
+    { href: `/u/${userId}`, label: t.profile, icon: User },
   ];
 }
 
-export function Nav({
-  session,
-  theme,
-  locale,
-  labels,
-}: {
-  session: Session | null;
-  theme: Theme;
-  /** The account screens' language: the only wording here that follows it is signing out and in (`labels`). */
-  locale: Locale;
-  labels: Dictionary["nav"];
-}) {
+export function Nav({ session, theme }: { session: Session | null; theme: Theme }) {
+  // Everything here is in the reader's language except the admin links: admin stays English.
+  const { t: shell, dir } = useShellText();
+  const t = shell.nav;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Nav lives in the root layout and survives every navigation, so `open`
@@ -116,12 +111,12 @@ export function Nav({
     return () => vv.removeEventListener("resize", update);
   }, []);
   const router = useRouter();
-  const links = session?.user ? navLinks(session.user.id) : [];
+  const links = session?.user ? navLinks(session.user.id, t) : [];
   // Memoized (unlike `links` above) because it's a useEffect dependency
   // below — bottomTabs() returns a fresh array each render, which would
   // otherwise tear down and re-add the swipe listeners on every render.
   const userId = session?.user?.id;
-  const tabs = useMemo(() => (userId ? bottomTabs(userId) : []), [userId]);
+  const tabs = useMemo(() => (userId ? bottomTabs(userId, t) : []), [userId, t]);
   const { unreadMessages, pendingConnections, unreadNotifications, hasNewAnnouncement } = useNavBadges(userId);
 
   // Swipe right steps forward through the bottom tab bar and wraps around
@@ -138,7 +133,7 @@ export function Nav({
   // messages.
   useEffect(() => {
     if (tabs.length === 0) return;
-    const tabIndex = tabs.findIndex((t) => t.href === pathname);
+    const tabIndex = tabs.findIndex((tab) => tab.href === pathname);
     if (tabIndex === -1) return;
 
     const SWIPE_THRESHOLD_PX = 70;
@@ -193,7 +188,8 @@ export function Nav({
       const dy = touch.clientY - startY;
       if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dy) > Math.abs(dx)) return;
 
-      if (dx > 0) {
+      // The bar is mirrored in a right-to-left language, so the gesture is too.
+      if (dir === "rtl" ? dx < 0 : dx > 0) {
         // Swipe right: step forward, wrapping Profile back around to Home.
         const nextIndex = (tabIndex + 1) % tabs.length;
         router.push(tabs[nextIndex].href);
@@ -210,7 +206,7 @@ export function Nav({
       document.removeEventListener("touchstart", onTouchStart);
       document.removeEventListener("touchend", onTouchEnd);
     };
-  }, [tabs, pathname, router]);
+  }, [tabs, pathname, router, dir]);
 
   // Unregisters this device's FCM token (if the native Android app ever
   // handed us one — see fcm-token-bridge.tsx) before the session actually
@@ -287,7 +283,7 @@ export function Nav({
           </Link>
 
           {links.length > 0 && (
-            <nav aria-label="Main" className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
+            <nav aria-label={t.main} className="hidden gap-5 text-sm font-medium text-foreground-soft md:flex">
               {links.map((link) => (
                 <Link
                   key={link.href}
@@ -298,9 +294,9 @@ export function Nav({
                   // Voice Control) and the bare "3" becomes a real phrase.
                   aria-label={
                     link.href === "/messages" && unreadMessages > 0
-                      ? `${link.label}, ${unreadMessages} unread`
+                      ? format(t.unread, { label: link.label, count: unreadMessages })
                       : link.href === "/connections" && pendingConnections > 0
-                        ? `${link.label}, ${pendingConnections} pending`
+                        ? format(t.pending, { label: link.label, count: pendingConnections })
                         : undefined
                   }
                   className={cn(
@@ -310,12 +306,12 @@ export function Nav({
                 >
                   {link.label}
                   {link.href === "/messages" && unreadMessages > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
+                    <span className="absolute -end-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}
                   {link.href === "/connections" && pendingConnections > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
+                    <span className="absolute -end-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {pendingConnections > 9 ? "9+" : pendingConnections}
                     </span>
                   )}
@@ -331,9 +327,9 @@ export function Nav({
             {session?.user && (
               <Link
                 href="/connections"
-                aria-label={pendingConnections > 0 ? `Connections, ${pendingConnections} pending` : "Connections"}
+                aria-label={pendingConnections > 0 ? format(t.pending, { label: t.connections, count: pendingConnections }) : t.connections}
                 aria-current={pathname === "/connections" ? "page" : undefined}
-                title="Connections"
+                title={t.connections}
                 className={cn(
                   "relative rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
                   pathname === "/connections" && "bg-accent-soft text-accent",
@@ -341,7 +337,7 @@ export function Nav({
               >
                 <UserCheck size={20} />
                 {pendingConnections > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
+                  <span className="absolute -end-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                     {pendingConnections > 9 ? "9+" : pendingConnections}
                   </span>
                 )}
@@ -350,7 +346,7 @@ export function Nav({
             {session?.user && (
               <Link
                 href="/search"
-                aria-label="Search"
+                aria-label={t.search}
                 aria-current={pathname === "/search" ? "page" : undefined}
                 className={cn(
                   "rounded-full p-1.5 text-foreground-soft transition-transform hover:bg-line hover:text-accent active:scale-90",
@@ -366,8 +362,8 @@ export function Nav({
               <>
                 <Link
                   href="/invite"
-                  aria-label="Invite friends"
-                  title="Invite friends"
+                  aria-label={t.inviteFriends}
+                  title={t.inviteFriends}
                   className="hidden rounded-full p-1.5 text-foreground-soft hover:bg-line hover:text-accent sm:block"
                 >
                   <UserPlus size={20} />
@@ -376,13 +372,13 @@ export function Nav({
                   href="/faq"
                   className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                 >
-                  FAQ
+                  {t.faq}
                 </Link>
                 <Link
                   href="/settings"
                   className="hidden text-sm text-foreground-soft hover:text-accent sm:inline"
                 >
-                  Settings
+                  {t.settings}
                 </Link>
                 {session.user.isAdmin && (
                   <>
@@ -445,15 +441,14 @@ export function Nav({
                 <button
                   type="button"
                   onClick={handleSignOut}
-                  lang={locale}
                   className="hidden rounded-full border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent sm:block"
                 >
-                  {labels.signOut}
+                  {t.signOut}
                 </button>
                 <button
                   ref={menuToggleRef}
                   type="button"
-                  aria-label={open ? "Close menu" : "Open menu"}
+                  aria-label={open ? t.closeMenu : t.openMenu}
                   aria-expanded={open}
                   aria-controls="nav-more-menu"
                   onClick={() => setOpen((v) => !v)}
@@ -465,10 +460,9 @@ export function Nav({
             ) : (
               <Link
                 href="/sign-in"
-                lang={locale}
                 className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
               >
-                {labels.signIn}
+                {t.signIn}
               </Link>
             )}
           </div>
@@ -484,20 +478,20 @@ export function Nav({
             // no way to be scrolled into view — Sign out sits last.
             className="max-h-[calc(100dvh_-_var(--top-bar-height)_-_max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] overflow-y-auto overscroll-contain border-t border-line px-4 py-3 md:hidden"
           >
-            <nav aria-label="More" className="flex flex-col gap-1 text-sm font-medium">
+            <nav aria-label={t.more} className="flex flex-col gap-1 text-sm font-medium">
               <Link
                 href="/messages"
                 onClick={() => setOpen(false)}
                 aria-current={pathname === "/messages" ? "page" : undefined}
-                aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : undefined}
+                aria-label={unreadMessages > 0 ? format(t.unread, { label: t.messages, count: unreadMessages }) : undefined}
                 className={cn(
                   "relative rounded-lg px-3 py-2 hover:bg-line",
                   pathname === "/messages" ? "text-accent" : "text-foreground-soft",
                 )}
               >
-                Messages
+                {t.messages}
                 {unreadMessages > 0 && (
-                  <span className="ml-2 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[0.5625rem] font-semibold text-white">
+                  <span className="ms-2 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[0.5625rem] font-semibold text-white">
                     {unreadMessages > 9 ? "9+" : unreadMessages}
                   </span>
                 )}
@@ -511,7 +505,7 @@ export function Nav({
                   pathname === "/discover" ? "text-accent" : "text-foreground-soft",
                 )}
               >
-                Discover
+                {t.discover}
               </Link>
               <Link
                 href="/invite"
@@ -522,7 +516,7 @@ export function Nav({
                   pathname === "/invite" ? "text-accent" : "text-foreground-soft",
                 )}
               >
-                Invite friends
+                {t.inviteFriends}
               </Link>
               <div className="my-2 border-t border-line" />
               <Link
@@ -530,14 +524,14 @@ export function Nav({
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
               >
-                FAQ
+                {t.faq}
               </Link>
               <Link
                 href="/settings"
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2 text-foreground-soft hover:bg-line"
               >
-                Settings
+                {t.settings}
               </Link>
               {session.user.isAdmin && (
                 <>
@@ -607,16 +601,15 @@ export function Nav({
                 </>
               )}
               <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-foreground-soft">Theme</span>
+                <span className="text-foreground-soft">{t.theme}</span>
                 <ThemeToggle initial={theme} />
               </div>
               <button
                 type="button"
                 onClick={handleSignOut}
-                lang={locale}
-                className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-left hover:border-accent hover:text-accent"
+                className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-start hover:border-accent hover:text-accent"
               >
-                {labels.signOut}
+                {t.signOut}
               </button>
             </nav>
           </div>
@@ -651,7 +644,7 @@ export function Nav({
         // just already provided for us instead of needing our own native
         // plugin call. No-op (0px) anywhere it isn't set, including iOS/web.
         <nav
-          aria-label="Tabs"
+          aria-label={t.tabs}
           className="hig-material chrome-scale fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/90 backdrop-blur-xl supports-[backdrop-filter]:bg-surface/75 md:hidden"
           style={{
             paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
@@ -667,7 +660,7 @@ export function Nav({
                 key={tab.href}
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
-                aria-label={tab.href === "/messages" && unreadMessages > 0 ? `${tab.label}, ${unreadMessages} unread` : undefined}
+                aria-label={tab.href === "/messages" && unreadMessages > 0 ? format(t.unread, { label: tab.label, count: unreadMessages }) : undefined}
                 className={cn(
                   // Label size is chrome-rem based, not rem: six columns share the
                   // screen width, so the labels stop growing with Dynamic Type
@@ -681,7 +674,7 @@ export function Nav({
                 <span className="relative">
                   <Icon size={20} strokeWidth={active ? 2.5 : 2} />
                   {tab.href === "/messages" && unreadMessages > 0 && (
-                    <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
+                    <span className="absolute -end-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[length:calc(var(--chrome-rem)*0.5625)] font-semibold text-white">
                       {unreadMessages > 9 ? "9+" : unreadMessages}
                     </span>
                   )}

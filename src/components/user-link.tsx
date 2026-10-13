@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
 
 /**
@@ -34,7 +35,7 @@ export function UserAvatar({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
-            alt={name ? `${name}'s profile photo` : ""}
+            alt={name ? format(t.profilePhoto, { name }) : ""}
             loading="lazy"
             decoding="async"
             ref={markImageLoadedIfComplete}
@@ -52,7 +53,7 @@ export function UserAvatar({
       </div>
       {online && (
         <span
-          className="absolute bottom-0 right-0 rounded-full border-2 border-background bg-success"
+          className="absolute bottom-0 end-0 rounded-full border-2 border-background bg-success"
           style={{ width: Math.max(8, Math.round(size * 0.32)), height: Math.max(8, Math.round(size * 0.32)) }}
           role="img"
           lang={locale}
@@ -103,6 +104,7 @@ export function UserLink({
    */
   wrap?: boolean;
 }) {
+  const unknownName = useUiText().t.unknownName;
   return (
     <Link
       href={`/u/${userId}`}
@@ -114,7 +116,7 @@ export function UserLink({
     >
       <UserAvatar avatarUrl={avatarUrl} name={name} size={avatarSize} online={online} />
       <span className={cn("min-w-0", wrap ? "whitespace-normal break-words" : "truncate")}>
-        <span className="font-medium">{name ?? "Unknown"}</span>
+        <span className="font-medium">{name ?? unknownName}</span>
         {showUsername && username && <span className="ms-1 text-foreground-soft">@{username}</span>}
       </span>
     </Link>

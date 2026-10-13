@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Users, X } from "lucide-react";
 import { UserLink } from "@/components/user-link";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 import { plural } from "@/lib/i18n/locales";
 
 type Member = {

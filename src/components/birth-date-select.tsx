@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MIN_AGE } from "@/lib/validations";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();

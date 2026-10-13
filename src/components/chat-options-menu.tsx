@@ -7,7 +7,7 @@ import { hideConversation, unhideConversation } from "@/app/actions/hidden-chats
 import { SetHiddenPinForm } from "@/components/hidden-chats-panel";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 type ChatOptions = {
   privacyOpen: boolean;

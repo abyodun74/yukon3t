@@ -1,5 +1,6 @@
 import { getActiveAdForDisplay, recordAdImpression } from "@/app/actions/ads";
 import { AdClickTracker } from "@/components/ad-click-tracker";
+import { getDictionary } from "@/lib/i18n/server";
 
 /**
  * Renders nothing when no campaign is currently ACTIVE and within its date
@@ -13,10 +14,13 @@ export async function AdSlot() {
   if (!ad) return null;
 
   await recordAdImpression(ad.id);
+  const sponsored = (await getDictionary()).feed.sponsored;
 
   return (
     <div className="rounded-xl border border-line p-4">
-      <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft">Sponsored</p>
+      <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft rtl:tracking-normal">
+        {sponsored}
+      </p>
       <AdClickTracker id={ad.id} href={ad.linkUrl}>
         <div className="mt-2 flex gap-3">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-black">

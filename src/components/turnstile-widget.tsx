@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 import type { Locale } from "@/lib/i18n/locales";
 
 // The subset of Cloudflare's explicit-render API this component uses.

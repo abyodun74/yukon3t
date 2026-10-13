@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 import type { Locale } from "@/lib/i18n/locales";
 
 export const TURNSTILE_WAIT_MESSAGE = sharedEn.turnstile.wait;

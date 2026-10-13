@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LanguagePicker } from "@/components/language-picker";
-import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function CheckEmailPage({
@@ -14,7 +13,7 @@ export default async function CheckEmailPage({
   const t = await getDictionary();
 
   return (
-    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
       <h1 className="text-2xl font-semibold">{t.checkEmail.title}</h1>
       <p className="mt-3 text-sm text-foreground-soft">
         {isVerify ? t.checkEmail.verifyBody : t.checkEmail.linkBody}

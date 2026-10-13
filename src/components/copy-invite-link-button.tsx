@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Link2, Check } from "lucide-react";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 export function CopyInviteLinkButton({ conversationId }: { conversationId: string }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");

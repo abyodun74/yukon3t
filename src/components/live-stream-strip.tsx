@@ -11,6 +11,9 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { Sheet } from "@/components/sheet";
 import { captureError } from "@/lib/error-tracking";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
+import { format, byCode } from "@/lib/i18n/locales";
 
 type Stream = {
   id: string;
@@ -35,25 +38,11 @@ function targetUserIdFrom(audience: string) {
   return audience.startsWith(USER_PREFIX) ? audience.slice(USER_PREFIX.length) : "";
 }
 
-function startErrorMessage(code?: string) {
-  switch (code) {
-    case "not_configured":
-      return "Live streaming isn't set up yet.";
-    case "already_live":
-      return "You're already live.";
-    case "rate_limited":
-      return "Slow down a little and try again.";
-    case "not_a_member":
-      return "You're not a member of that Circle.";
-    case "not_a_connection":
-      return "You're not connected with that person.";
-    default:
-      return "Couldn't go live — try again.";
-  }
-}
 
 /** "Live now" strip + Go Live entry point, rendered on Home alongside StoryTray. */
 export function LiveStreamStrip() {
+  const { t } = useFeedText();
+  const { t: shell } = useShellText();
   const [streams, setStreams] = useState<Stream[]>([]);
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
@@ -153,7 +142,7 @@ export function LiveStreamStrip() {
       if (targetUserId) fd.set("targetUserId", targetUserId);
       const result = await startLiveStream(fd);
       if (result.error || !result.liveStreamId) {
-        setError(startErrorMessage(result.error ?? undefined));
+        setError(byCode(t.live.errors, result.error));
         if (result.error === "already_live" && result.liveStreamId) {
           router.push(`/live/${result.liveStreamId}`);
         }
@@ -181,7 +170,7 @@ export function LiveStreamStrip() {
             className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
           >
             <Radio size={14} />
-            Go Live
+            {t.live.goLive}
           </button>
           {streams.map((s) => (
             <button
@@ -193,10 +182,10 @@ export function LiveStreamStrip() {
               <div className="relative">
                 <UserAvatar avatarUrl={s.host.avatarUrl} name={s.host.name} size={48} className="border-2 border-danger" />
                 <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-danger px-1 text-[0.5625rem] font-semibold text-white">
-                  LIVE
+                  {t.live.badge}
                 </span>
               </div>
-              <span className="max-w-16 truncate text-xs text-foreground-soft">{s.host.name ?? "Unknown"}</span>
+              <span className="max-w-16 truncate text-xs text-foreground-soft">{s.host.name ?? shell.common.unknown}</span>
             </button>
           ))}
         </div>
@@ -207,31 +196,31 @@ export function LiveStreamStrip() {
           className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
         >
           <Radio size={14} />
-          Go Live
+          {t.live.goLive}
         </button>
       )}
 
-      <Sheet open={composing} onClose={() => setComposing(false)} title="Go live">
-        <input
-          aria-label="What's happening?"
+      <Sheet open={composing} onClose={() => setComposing(false)} title={t.live.goLiveTitle}>
+        <input dir="auto"
+          aria-label={t.live.titleLabel}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="What's happening?"
+          placeholder={t.live.titleLabel}
           maxLength={100}
           autoFocus
           className="w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
         />
 
-        <label className="mt-3 block text-xs font-medium text-foreground-soft">Who can watch</label>
+        <label className="mt-3 block text-xs font-medium text-foreground-soft">{t.live.audience}</label>
         <select
-          aria-label="Who can watch"
+          aria-label={t.live.audience}
           value={audience}
           onChange={(e) => setAudience(e.target.value)}
           className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
         >
-          <option value="">Everyone — shown on Home</option>
+          <option value="">{t.live.everyone}</option>
           {circles && circles.length > 0 && (
-            <optgroup label="A Circle">
+            <optgroup label={t.live.aCircle}>
               {circles.map((c) => (
                 <option key={c.id} value={`${CIRCLE_PREFIX}${c.id}`}>
                   {c.parentName ? `${c.parentName} › ${c.name}` : c.name}
@@ -240,10 +229,10 @@ export function LiveStreamStrip() {
             </optgroup>
           )}
           {connections && connections.length > 0 && (
-            <optgroup label="A specific person">
+            <optgroup label={t.live.aPerson}>
               {connections.map((c) => (
                 <option key={c.id} value={`${USER_PREFIX}${c.id}`}>
-                  {c.name ?? "Unknown"}
+                  {c.name ?? shell.common.unknown}
                 </option>
               ))}
             </optgroup>
@@ -252,30 +241,28 @@ export function LiveStreamStrip() {
 
         {circlesFailed && (
           <p className="mt-1 text-xs text-danger">
-            Couldn&apos;t load your Circles —{" "}
+            {t.live.circlesFailed}{" "}
             <button type="button" onClick={retryCircles} className="underline">
-              retry
+              {shell.common.retry}
             </button>
-            .
           </p>
         )}
 
         {connectionsFailed && (
           <p className="mt-1 text-xs text-danger">
-            Couldn&apos;t load your connections —{" "}
+            {t.live.connectionsFailed}{" "}
             <button type="button" onClick={retryConnections} className="underline">
-              retry
+              {shell.common.retry}
             </button>
-            .
           </p>
         )}
 
         <p className="mt-1 text-xs text-foreground-soft">
           {targetUserId
-            ? `Only ${targetUserName} can see or join it — nobody else, not even your other connections.`
+            ? format(t.live.onlyPerson, { name: targetUserName ?? shell.common.someone })
             : circleId
-              ? "Only members of this Circle can see or join it. It won't appear on Home or anywhere else."
-              : "Visible to everyone on Home."}
+              ? t.live.onlyCircle
+              : t.live.visibleToAll}
         </p>
 
         {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
@@ -286,7 +273,7 @@ export function LiveStreamStrip() {
           onClick={goLive}
           className="mt-3 w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Start streaming
+          {t.live.start}
         </button>
       </Sheet>
     </div>

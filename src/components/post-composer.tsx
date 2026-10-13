@@ -8,7 +8,7 @@ import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry, probeVideoDuration } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
-import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
+import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -23,9 +23,11 @@ import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
-import { useUiText } from "@/components/ui-text";
+import { useUiText, useShellText } from "@/components/ui-text";
 import { cn } from "@/lib/utils";
 import { announce } from "@/lib/announce";
+import { useFeedText } from "@/components/feed-text";
+import { format, plural, byCode } from "@/lib/i18n/locales";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -73,13 +75,6 @@ const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   FACEBOOK: "Facebook",
 };
 
-function formatSecondsLabel(seconds: number) {
-  if (seconds % 60 === 0 && seconds >= 60) {
-    const minutes = seconds / 60;
-    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
-  }
-  return `${seconds} second${seconds === 1 ? "" : "s"}`;
-}
 
 // datetime-local inputs want "YYYY-MM-DDTHH:mm" in the viewer's own local
 // time — Date#toISOString() is UTC, so the offset has to be subtracted out
@@ -89,71 +84,10 @@ function nowForDateTimeLocal() {
   return d.toISOString().slice(0, 16);
 }
 
-function errorMessage(code: string) {
-  switch (code) {
-    case "not_configured":
-      return "Media uploads aren't set up yet — you can still post text.";
-    case "too_large":
-      return "That file is too large.";
-    case "moderation":
-      return "That media didn't pass our content guidelines and wasn't posted.";
-    case "not_a_member":
-      return "Join this Circle first.";
-    case "rate_limited":
-      return "You're posting too fast — slow down a little.";
-    case "invalid":
-      return "That link isn't valid — check it starts with http:// or https://.";
-    case "network":
-      return "Couldn't reach the server — check your connection and try again.";
-    case "stale_deployment":
-      return STALE_DEPLOYMENT_MESSAGE;
-    case "unavailable":
-      return "Couldn't transcribe that clip — try again.";
-    default:
-      return "Couldn't post — try again.";
-  }
-}
-
-function deviceChallengeErrorMessage(code: string) {
-  switch (code) {
-    case "invalid_code":
-      return "That code didn't match — check it and try again.";
-    case "expired":
-      return "That code expired — resend and try again.";
-    case "too_many_attempts":
-      return "Too many wrong attempts — resend and try again.";
-    case "not_found":
-      return "That verification has expired — resend and try again.";
-    case "rate_limited":
-      return "Too many attempts. Please wait a bit and try again.";
-    default:
-      return "Couldn't verify that code — try again.";
-  }
-}
-
-function imageUrlErrorMessage(code: string) {
-  switch (code) {
-    case "blocked_host":
-      return "That URL isn't allowed — link directly to a public image.";
-    case "invalid_content_type":
-      return "That link isn't a JPEG, PNG, or WebP image.";
-    case "too_large":
-      return "That image is too large (max 25MB).";
-    case "fetch_failed":
-      return "Couldn't fetch that image — check the link and try again.";
-    case "not_configured":
-      return "Media uploads aren't set up yet.";
-    case "rate_limited":
-      return "You're adding images too fast — slow down a little.";
-    default:
-      return "Couldn't add that image — check the link and try again.";
-  }
-}
-
 export function PostComposer({
   circleId,
   channelId,
-  placeholder = circleId ? "Share something with this Circle..." : "Share a photo, a short video, or an update...",
+  placeholder: placeholderProp,
   // Prefilled from the viewer's account-wide default (Settings) — purely a
   // starting point for the per-post picker below, not itself enforced.
   // Meaningless (and hidden) for a Circle post: circleId is always stored
@@ -175,6 +109,22 @@ export function PostComposer({
   authorName?: string | null;
   authorAvatarUrl?: string | null;
 }) {
+  const { t, locale } = useFeedText();
+  const { t: shell } = useShellText();
+  const placeholder = placeholderProp ?? (circleId ? t.composer.circlePlaceholder : t.composer.placeholder);
+  // A whole number of minutes is said in minutes, anything else in seconds.
+  const inMinutesOrSeconds = (seconds: number, minuteForms: string, secondForms: string) =>
+    seconds % 60 === 0 && seconds >= 60 ? plural(locale, minuteForms, seconds / 60) : plural(locale, secondForms, seconds);
+  const videoTooLong = inMinutesOrSeconds(
+    MAX_UPLOAD_VIDEO_SECONDS,
+    t.composer.errors.videoTooLongMinutes,
+    t.composer.errors.videoTooLongSeconds,
+  );
+  const reviewHold = inMinutesOrSeconds(
+    VIDEO_INSTANT_PUBLISH_MAX_SECONDS,
+    t.composer.reviewHoldMinutes,
+    t.composer.reviewHoldSeconds,
+  );
   const [images, setImages] = useState<File[]>([]);
   const [urlImages, setUrlImages] = useState<string[]>([]);
   const [video, setVideo] = useState<File | null>(null);
@@ -365,7 +315,7 @@ export function PostComposer({
     // other device/format combination hits the same gap.
     if (picked.length === 0 && all.length > 0) {
       setStatus("error");
-      setErrorText("That image format isn't supported — try a JPEG, PNG, WebP, or GIF.");
+      setErrorText(t.composer.errors.imageFormat);
       return;
     }
     // Resize before the size check — a raw phone photo routinely exceeds
@@ -378,13 +328,13 @@ export function PostComposer({
     } catch (err) {
       console.error("[pickImages] resizeImageFile failed", err);
       setStatus("error");
-      setErrorText("Couldn't process that image — try again.");
+      setErrorText(t.composer.errors.imageProcess);
       return;
     }
     const tooBig = next.find((f) => f.size > MAX_IMAGE_BYTES);
     if (tooBig) {
       setStatus("error");
-      setErrorText("Images must be 25MB or smaller each.");
+      setErrorText(t.composer.errors.imageTooLarge);
       return;
     }
     setVideo(null);
@@ -420,7 +370,7 @@ export function PostComposer({
     const result = await addImageFromUrl(fd);
     setImageUrlPending(false);
     if (result.error || !result.publicUrl) {
-      setImageUrlError(imageUrlErrorMessage(result.error ?? "invalid"));
+      setImageUrlError(byCode(t.composer.imageUrlErrors, result.error ?? "invalid"));
       return;
     }
     setVideo(null);
@@ -437,12 +387,12 @@ export function PostComposer({
     const file = normalizeVideoFile(rawFile);
     if (!file) {
       setStatus("error");
-      setErrorText("Use an MP4, MOV or WebM video.");
+      setErrorText(t.composer.errors.videoType);
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
       setStatus("error");
-      setErrorText("Video must be 2GB or smaller.");
+      setErrorText(t.composer.errors.videoTooLarge);
       return;
     }
 
@@ -489,7 +439,7 @@ export function PostComposer({
       }
       if (duration > MAX_UPLOAD_VIDEO_SECONDS) {
         setStatus("error");
-        setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
+        setErrorText(videoTooLong);
         return null;
       }
       // Sent along with the post so the server can route anything over
@@ -513,12 +463,12 @@ export function PostComposer({
   async function handleNativeVideoAttach(native: NonNullable<Awaited<ReturnType<typeof pickVideoNative>>>) {
     if (native.size > MAX_VIDEO_BYTES) {
       setStatus("error");
-      setErrorText("Video must be 2GB or smaller.");
+      setErrorText(t.composer.errors.videoTooLarge);
       return;
     }
     if (native.durationSeconds && native.durationSeconds > MAX_UPLOAD_VIDEO_SECONDS) {
       setStatus("error");
-      setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
+      setErrorText(videoTooLong);
       return;
     }
 
@@ -539,14 +489,14 @@ export function PostComposer({
       const requested = await requestUploadUrl(fd);
       if (requested.error || !requested.uploadUrl || !requested.publicUrl) {
         setStatus("error");
-        setErrorText(errorMessage(requested.error ?? "network"));
+        setErrorText(byCode(t.composer.errors, requested.error ?? "network"));
         return;
       }
 
       const uploaded = await uploadVideoNative(native.uri, requested.uploadUrl, native.mimeType);
       if (!uploaded) {
         setStatus("error");
-        setErrorText(errorMessage("network"));
+        setErrorText(byCode(t.composer.errors, "network"));
         return;
       }
 
@@ -578,7 +528,7 @@ export function PostComposer({
     // http(s) link is still accepted and posted as a plain link — only the
     // protocol is checked, no allowlist of hosts.
     if (!parseVideoEmbedUrl(url) && !normalizeLinkUrl(url)) {
-      setEmbedError("Enter a valid link, starting with http:// or https://.");
+      setEmbedError(t.composer.errors.linkInvalid);
       return;
     }
     setImages([]);
@@ -708,7 +658,7 @@ export function PostComposer({
       // A rejected server-action call (e.g. no connectivity) would
       // otherwise be an uncaught exception that crashes the whole
       // page instead of showing a normal composer error.
-      const message = isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network");
+      const message = isStaleDeploymentError(err) ? t.composer.errors.stale_deployment : byCode(t.composer.errors, "network");
       if (optimisticId) markOptimisticPostError(optimisticId, message);
       else {
         setStatus("error");
@@ -732,7 +682,7 @@ export function PostComposer({
       return;
     }
     if (result.error) {
-      const message = errorMessage(result.error);
+      const message = byCode(t.composer.errors, result.error);
       if (optimisticId) markOptimisticPostError(optimisticId, message);
       else {
         setStatus("error");
@@ -740,7 +690,7 @@ export function PostComposer({
       }
     } else {
       if (optimisticId) removeOptimisticPost(optimisticId);
-      announce("Posted");
+      announce(t.composer.posted);
       setStatus("idle");
       setImages([]);
       setUrlImages([]);
@@ -782,7 +732,7 @@ export function PostComposer({
     try {
       const res = await confirmPostDeviceChallenge(deviceChallenge.id, deviceCode.trim());
       if (res.error) {
-        setDeviceChallengeError(deviceChallengeErrorMessage(res.error));
+        setDeviceChallengeError(byCode(t.composer.deviceErrors, res.error));
         return;
       }
       const fd = deviceChallenge.fd;
@@ -791,7 +741,7 @@ export function PostComposer({
       setStatus("uploading");
       await submitPostFormData(fd);
     } catch {
-      setDeviceChallengeError(deviceChallengeErrorMessage("network"));
+      setDeviceChallengeError(byCode(t.composer.deviceErrors, "network"));
     } finally {
       setDeviceChallengePending(false);
     }
@@ -805,18 +755,18 @@ export function PostComposer({
         const content = String(fd.get("content") ?? "").trim();
         if (!content && imageCount === 0 && !video && !nativeVideoUpload && !embedUrl && !pendingGif && !isEvent) {
           setStatus("error");
-          setErrorText("Write something, attach a photo/video, or add event details first.");
+          setErrorText(t.composer.errors.empty);
           return;
         }
         if (isEvent) {
           if (!eventAt || new Date(eventAt) <= new Date()) {
             setStatus("error");
-            setErrorText("Pick a future date and time for the event.");
+            setErrorText(t.composer.errors.eventDate);
             return;
           }
           if (!eventLocation.trim()) {
             setStatus("error");
-            setErrorText("Add a location for the event.");
+            setErrorText(t.composer.errors.eventLocation);
             return;
           }
         }
@@ -851,7 +801,7 @@ export function PostComposer({
             content,
             previewUrl: preview.url,
             previewKind: preview.kind,
-            authorName: authorName ?? "You",
+            authorName: authorName ?? shell.common.you,
             authorAvatarUrl: authorAvatarUrl ?? null,
             createdAt: new Date(),
             status: "sending",
@@ -881,7 +831,7 @@ export function PostComposer({
         startTransition(async () => {
           const media = await uploadAll();
           if ("error" in media) {
-            const message = errorMessage(media.error);
+            const message = byCode(t.composer.errors, media.error);
             if (optimisticId) markOptimisticPostError(optimisticId, message);
             else {
               setStatus("error");
@@ -900,13 +850,13 @@ export function PostComposer({
         });
       }}
     >
-      <textarea
+      <textarea dir="auto"
         ref={contentRef}
         name="content"
         maxLength={50000}
         rows={3}
         placeholder={placeholder}
-        aria-label={placeholder || "Write a post"}
+        aria-label={placeholder || t.composer.label}
         onChange={(e) => setSuggestionText(e.target.value)}
         onPaste={handlePaste}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
@@ -926,8 +876,8 @@ export function PostComposer({
               <button
                 type="button"
                 onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                aria-label="Remove image"
-                className="absolute right-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
+                aria-label={t.composer.removeImage}
+                className="absolute end-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
               >
                 <X size={12} />
               </button>
@@ -941,8 +891,8 @@ export function PostComposer({
               <button
                 type="button"
                 onClick={() => setUrlImages((prev) => prev.filter((_, idx) => idx !== i))}
-                aria-label="Remove image"
-                className="absolute right-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
+                aria-label={t.composer.removeImage}
+                className="absolute end-0 top-0 rounded-full bg-black/60 p-1.5 text-white"
               >
                 <X size={12} />
               </button>
@@ -953,8 +903,8 @@ export function PostComposer({
 
       {showImageUrlInput && (
         <div className="mt-2 flex items-center gap-2">
-          <input
-            aria-label="Image URL"
+          <input dir="ltr"
+            aria-label={t.composer.imageUrlLabel}
             type="url"
             value={imageUrlValue}
             onChange={(e) => setImageUrlValue(e.target.value)}
@@ -967,7 +917,7 @@ export function PostComposer({
             onClick={addImageUrl}
             className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
           >
-            {imageUrlPending ? "Adding..." : "Add"}
+            {imageUrlPending ? t.composer.adding : t.composer.add}
           </button>
           <button
             type="button"
@@ -975,7 +925,7 @@ export function PostComposer({
               setShowImageUrlInput(false);
               setImageUrlError(null);
             }}
-            aria-label="Cancel"
+            aria-label={shell.common.cancel}
             className="p-2 -m-2 text-foreground-soft"
           >
             <X size={16} />
@@ -994,7 +944,7 @@ export function PostComposer({
                 setVideo(null);
                 setVideoDurationSeconds(null);
               }}
-              aria-label="Remove video"
+              aria-label={t.composer.removeVideo}
               className="p-2 -m-2 text-danger"
             >
               <X size={14} />
@@ -1002,7 +952,7 @@ export function PostComposer({
           </div>
           {videoDurationSeconds !== null && videoDurationSeconds > VIDEO_INSTANT_PUBLISH_MAX_SECONDS && (
             <p className="mt-1 text-foreground-soft">
-              Over {formatSecondsLabel(VIDEO_INSTANT_PUBLISH_MAX_SECONDS)} — this won&apos;t go live until it&apos;s reviewed.
+              {reviewHold}
             </p>
           )}
         </div>
@@ -1010,7 +960,7 @@ export function PostComposer({
 
       {nativeVideoUploading && (
         <div className="mt-2 rounded-lg border border-line px-3 py-2 text-xs text-foreground-soft">
-          Uploading video…
+          {t.composer.uploadingVideo}
         </div>
       )}
 
@@ -1021,7 +971,7 @@ export function PostComposer({
             <button
               type="button"
               onClick={() => setNativeVideoUpload(null)}
-              aria-label="Remove video"
+              aria-label={t.composer.removeVideo}
               className="p-2 -m-2 text-danger"
             >
               <X size={14} />
@@ -1030,7 +980,7 @@ export function PostComposer({
           {nativeVideoUpload.videoDurationSeconds !== undefined &&
             nativeVideoUpload.videoDurationSeconds > VIDEO_INSTANT_PUBLISH_MAX_SECONDS && (
               <p className="mt-1 text-foreground-soft">
-                Over {formatSecondsLabel(VIDEO_INSTANT_PUBLISH_MAX_SECONDS)} — this won&apos;t go live until it&apos;s reviewed.
+                {reviewHold}
               </p>
             )}
         </div>
@@ -1039,12 +989,12 @@ export function PostComposer({
       {embedUrl && (
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <span className="flex-1 truncate">
-            {parsedEmbed ? `${EMBED_PROVIDER_LABELS[parsedEmbed.provider]} video linked` : embedUrl}
+            {parsedEmbed ? format(t.composer.videoLinked, { provider: EMBED_PROVIDER_LABELS[parsedEmbed.provider] }) : embedUrl}
           </span>
           <button
             type="button"
             onClick={() => setEmbedUrl(null)}
-            aria-label="Remove linked video"
+            aria-label={t.composer.removeLinkedVideo}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -1056,11 +1006,11 @@ export function PostComposer({
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="flex-1 truncate">GIF attached</span>
+          <span className="flex-1 truncate">{t.composer.gifAttached}</span>
           <button
             type="button"
             onClick={() => setPendingGif(null)}
-            aria-label="Remove GIF"
+            aria-label={t.composer.removeGif}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -1071,11 +1021,11 @@ export function PostComposer({
       {showEmbedInput && (
         <div className="mt-2 flex items-center gap-2">
           <input
-            aria-label="Link or video URL"
+            aria-label={t.composer.linkLabel}
             type="url"
             value={embedUrlValue}
             onChange={(e) => setEmbedUrlValue(e.target.value)}
-            placeholder="Paste any link, or a YouTube/Vimeo/TikTok/Dailymotion/Instagram video"
+            placeholder={t.composer.linkPlaceholder}
             className="flex-1 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
           />
           <button
@@ -1084,7 +1034,7 @@ export function PostComposer({
             onClick={() => addEmbed()}
             className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
           >
-            Add
+            {t.composer.add}
           </button>
           <button
             type="button"
@@ -1092,7 +1042,7 @@ export function PostComposer({
               setShowEmbedInput(false);
               setEmbedError(null);
             }}
-            aria-label="Cancel"
+            aria-label={shell.common.cancel}
             className="text-foreground-soft"
           >
             <X size={16} />
@@ -1104,9 +1054,9 @@ export function PostComposer({
       {isEvent && (
         <div className="mt-2 space-y-2 rounded-lg border border-line p-3">
           <div>
-            <label className="block text-xs font-medium text-foreground-soft">When</label>
+            <label className="block text-xs font-medium text-foreground-soft">{t.composer.when}</label>
             <input
-              aria-label="When"
+              aria-label={t.composer.when}
               type="datetime-local"
               name="eventAt"
               value={eventAt}
@@ -1116,15 +1066,15 @@ export function PostComposer({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-foreground-soft">Where</label>
+            <label className="block text-xs font-medium text-foreground-soft">{t.composer.where}</label>
             <input
-              aria-label="Where"
+              aria-label={t.composer.where}
               type="text"
               name="eventLocation"
               value={eventLocation}
               onChange={(e) => setEventLocation(e.target.value)}
               maxLength={200}
-              placeholder="Address, venue, or a video call link"
+              placeholder={t.composer.wherePlaceholder}
               className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
             />
           </div>
@@ -1187,11 +1137,11 @@ export function PostComposer({
           />
           <MediaPickerButton
             icon={<ImagePlus size={16} />}
-            title="Add a photo"
+            title={t.composer.addPhoto}
             disabled={hasOtherMedia || imageCount >= MAX_IMAGES}
             options={[
               {
-                label: "Upload from device",
+                label: t.composer.uploadFromDevice,
                 icon: <Upload size={14} />,
                 onSelect: async () => {
                   if (isNativePickerActive()) return;
@@ -1212,7 +1162,7 @@ export function PostComposer({
                 },
               },
               {
-                label: "Take a photo",
+                label: t.composer.takePhoto,
                 icon: <Camera size={14} />,
                 onSelect: () => {
                   if (isNativePickerActive()) return;
@@ -1221,7 +1171,7 @@ export function PostComposer({
                 },
               },
               {
-                label: "Add from a URL",
+                label: t.composer.addFromUrl,
                 icon: <ImageDown size={14} />,
                 onSelect: () => setShowImageUrlInput(true),
               },
@@ -1229,7 +1179,7 @@ export function PostComposer({
           />
           <MediaPickerButton
             icon={<Video size={16} />}
-            title="Add a video"
+            title={t.composer.addVideo}
             disabled={
               imageCount > 0 ||
               Boolean(video) ||
@@ -1240,7 +1190,7 @@ export function PostComposer({
             }
             options={[
               {
-                label: "Upload from device",
+                label: t.composer.uploadFromDevice,
                 icon: <Upload size={14} />,
                 onSelect: async () => {
                   if (isNativePickerActive()) return;
@@ -1254,7 +1204,7 @@ export function PostComposer({
                 },
               },
               {
-                label: "Record live",
+                label: t.composer.recordLive,
                 icon: <Circle size={14} className="text-danger" fill="currentColor" />,
                 onSelect: () => setShowRecorder(true),
               },
@@ -1270,8 +1220,8 @@ export function PostComposer({
               "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
               showEmbedInput ? "text-accent" : "text-foreground-soft",
             )}
-            title="Add a link"
-            aria-label="Add a link"
+            title={t.composer.addLink}
+            aria-label={t.composer.addLink}
             aria-expanded={showEmbedInput}
           >
             <LinkIcon size={16} />
@@ -1283,8 +1233,8 @@ export function PostComposer({
               "rounded-lg p-2.5 -m-1 hover:bg-line",
               isEvent ? "text-accent" : "text-foreground-soft",
             )}
-            title={isEvent ? "Remove event details" : "Add event details"}
-            aria-label={isEvent ? "Remove event details" : "Add event details"}
+            title={isEvent ? t.composer.removeEvent : t.composer.addEvent}
+            aria-label={isEvent ? t.composer.removeEvent : t.composer.addEvent}
             aria-expanded={isEvent}
           >
             <Calendar size={16} />
@@ -1301,8 +1251,8 @@ export function PostComposer({
           >
             <Mic size={16} />
           </button>
-          <p className="ml-1 hidden text-xs text-foreground-soft sm:inline">
-            Posts are prescreened for safety before they appear.
+          <p className="ms-1 hidden text-xs text-foreground-soft sm:inline">
+            {t.composer.prescreened}
           </p>
         </div>
         <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
@@ -1312,19 +1262,19 @@ export function PostComposer({
           {!circleId && (
             <>
               <label htmlFor="post-visibility" className="sr-only">
-                Who can see this post
+                {t.composer.audience}
               </label>
               <select
                 id="post-visibility"
                 name="visibility"
                 defaultValue={defaultVisibility}
-                title="Who can see this post"
-                aria-label="Who can see this post"
+                title={t.composer.audience}
+                aria-label={t.composer.audience}
                 className="rounded-lg border border-line bg-background px-2 py-1.5 text-xs text-foreground-soft outline-none focus:border-accent"
               >
-                <option value="PUBLIC">Everyone</option>
-                <option value="CONNECTIONS_ONLY">Friends only</option>
-                <option value="PRIVATE">Private</option>
+                <option value="PUBLIC">{t.composer.everyone}</option>
+                <option value="CONNECTIONS_ONLY">{t.composer.friendsOnly}</option>
+                <option value="PRIVATE">{t.composer.private}</option>
               </select>
             </>
           )}
@@ -1338,7 +1288,7 @@ export function PostComposer({
                 (isPending would never flip true for it) — checking status
                 alone covers both that flow and the normal Post-button
                 submit. */}
-            {status === "uploading" ? "Posting..." : "Post"}
+            {status === "uploading" ? t.composer.posting : t.composer.post}
           </button>
         </div>
       </div>
@@ -1356,13 +1306,13 @@ export function PostComposer({
       {status === "error" && errorText && (
         <p role="alert" className="mt-1 text-xs text-danger">
           {errorText}
-          {errorText === STALE_DEPLOYMENT_MESSAGE && (
+          {errorText === t.composer.errors.stale_deployment && (
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="ml-1.5 font-medium underline"
             >
-              Refresh
+              {t.composer.refresh}
             </button>
           )}
         </p>
@@ -1379,15 +1329,14 @@ export function PostComposer({
       />
       {deviceChallenge && (
         <div className="mt-3 rounded-lg border border-line bg-surface p-4 text-sm">
-          <p className="font-semibold">We don&apos;t recognize this device</p>
+          <p className="font-semibold">{t.composer.deviceTitle}</p>
           <p className="mt-1 text-foreground-soft">
-            For your security, enter the 6-digit code we just emailed you to publish this post. Your draft is
-            still here — it&apos;ll go out the moment you confirm.
+            {t.composer.deviceBody}
           </p>
           {deviceChallengeError && <p role="alert" className="mt-2 text-danger">{deviceChallengeError}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
-              aria-label="6-digit code"
+              aria-label={t.composer.codeLabel}
               value={deviceCode}
               onChange={(e) => setDeviceCode(e.target.value)}
               inputMode="numeric"
@@ -1402,7 +1351,7 @@ export function PostComposer({
               onClick={confirmDeviceCode}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60"
             >
-              {deviceChallengePending ? "Confirming..." : "Confirm and post"}
+              {deviceChallengePending ? t.composer.confirming : t.composer.confirm}
             </button>
             <button
               type="button"
@@ -1414,7 +1363,7 @@ export function PostComposer({
               }}
               className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
             >
-              Cancel
+              {shell.common.cancel}
             </button>
           </div>
         </div>

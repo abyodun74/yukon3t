@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { renameGroupChat } from "@/app/actions/messages";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 import { format } from "@/lib/i18n/locales";
 
 export function GroupNameEditor({

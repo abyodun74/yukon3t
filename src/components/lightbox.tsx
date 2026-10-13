@@ -7,8 +7,11 @@ import { saveMediaToGallery } from "@/lib/save-to-gallery";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { cn } from "@/lib/utils";
+import { useShellText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
+  const { t } = useShellText();
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSave() {
@@ -24,9 +27,9 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
     {/* The button's own label changing isn't reliably re-announced by a
         screen reader that's already sitting on it — this is. */}
     <span role="status" className="sr-only">
-      {state === "saving" && "Saving…"}
-      {state === "saved" && "Saved to device"}
-      {state === "error" && "Couldn't save"}
+      {state === "saving" && t.viewer.saving}
+      {state === "saved" && t.viewer.savedToDevice}
+      {state === "error" && t.viewer.saveFailed}
     </span>
     <button
       type="button"
@@ -37,18 +40,18 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
       disabled={state === "saving"}
       // Only while idle — in every other state the visible text ("Saving…",
       // "Saved", "Couldn't save") is the name, so the label never hides it.
-      aria-label={state === "idle" ? "Save to device" : undefined}
-      title="Save to device"
+      aria-label={state === "idle" ? t.viewer.saveToDevice : undefined}
+      title={t.viewer.saveToDevice}
       className={cn(
         "absolute left-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white disabled:opacity-60",
         state === "error" && "text-danger",
       )}
     >
       {state === "saved" ? <Check size={16} aria-hidden /> : <Download size={16} aria-hidden />}
-      {state === "saving" && "Saving…"}
-      {state === "saved" && "Saved"}
-      {state === "error" && "Couldn't save"}
-      {state === "idle" && "Save"}
+      {state === "saving" && t.viewer.saving}
+      {state === "saved" && t.viewer.saved}
+      {state === "error" && t.viewer.saveFailed}
+      {state === "idle" && t.viewer.save}
     </button>
     </>
   );
@@ -70,6 +73,7 @@ export function Lightbox({
   onClose: () => void;
   alt?: string;
 }) {
+  const { t } = useShellText();
   const isGallery = Boolean(images && images.length > 0 && index !== undefined && onIndexChange);
   const currentMediaUrl = isGallery && images && index !== undefined ? images[index] : video;
 
@@ -107,17 +111,17 @@ export function Lightbox({
       aria-modal="true"
       aria-label={
         video
-          ? "Video viewer"
+          ? t.viewer.video
           : isGallery && images && index !== undefined && images.length > 1
-            ? `Photo ${index + 1} of ${images.length}`
-            : "Photo viewer"
+            ? format(t.viewer.photoOf, { index: index + 1, total: images.length })
+            : t.viewer.photo
       }
       tabIndex={-1}
     >
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t.common.close}
         className="absolute right-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 text-white/80 hover:text-white"
       >
         <X size={24} aria-hidden />
@@ -134,7 +138,7 @@ export function Lightbox({
           {images.length > 1 && (
             <button
               type="button"
-              aria-label="Previous"
+              aria-label={t.viewer.previous}
               onClick={(e) => {
                 e.stopPropagation();
                 onIndexChange((index - 1 + images.length) % images.length);
@@ -152,7 +156,7 @@ export function Lightbox({
           {images.length > 1 && (
             <button
               type="button"
-              aria-label="Next"
+              aria-label={t.viewer.next}
               onClick={(e) => {
                 e.stopPropagation();
                 onIndexChange((index + 1) % images.length);
@@ -171,7 +175,7 @@ export function Lightbox({
           controls
           autoPlay
           onClick={(e) => e.stopPropagation()}
-          aria-label={alt || "Video"}
+          aria-label={alt || t.viewer.videoLabel}
           className="max-h-[90vh] max-w-full rounded-lg bg-black"
         />
       )}

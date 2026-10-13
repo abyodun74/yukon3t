@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useMessagesText } from "@/components/ui-text";
-import type { messagesEn } from "@/lib/i18n/en";
+import { useMessagesText } from "@/components/messages-text";
+import type { messagesEn } from "@/lib/i18n/en/messages";
 import { plural, type Locale } from "@/lib/i18n/locales";
 
 /** A 4-8 digit PIN entry: numeric keypad, masked with a show toggle, and never captured by session replay. */

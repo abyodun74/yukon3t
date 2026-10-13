@@ -13,6 +13,9 @@ import { SearchBar } from "@/components/search-bar";
 import { semanticSearch } from "@/lib/search-embeddings";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { isOnline } from "@/lib/presence";
+import { format, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { countryName } from "@/lib/i18n/country-names";
 
 type SearchPostRow = Awaited<
   ReturnType<typeof prisma.post.findMany<{ include: typeof postCardInclude }>>
@@ -36,25 +39,16 @@ function currentAffairsCutoff() {
   return new Date(Date.now() - CURRENT_AFFAIRS_WINDOW_MS);
 }
 
-function sortLabel(sort: SortOption) {
-  switch (sort) {
-    case "relevant":
-      return "Most relevant";
-    case "recent":
-      return "Most recent";
-    case "oldest":
-      return "Oldest";
-    case "current":
-      return "Current affairs";
-  }
-}
-
 export default async function SearchPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; sort?: string; country?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.pages.search;
+  const sortText = dictionary.pages.sort;
   const { q: rawQuery, sort: sortParam, country } = await searchParams;
   const q = (rawQuery ?? "").trim();
   const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
@@ -269,13 +263,13 @@ export default async function SearchPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Search</h1>
+      <h1 className="text-2xl font-semibold">{t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Find people, usernames, Circles, group chats, collaborations, and posts across YuKon3t.
+        {t.intro}
       </p>
 
       <div className="mt-6">
-        <SearchBar initialQuery={q} />
+        <SearchBar initialQuery={q} labels={{ placeholder: t.placeholder, label: t.label }} />
       </div>
 
       {q.length >= 2 && (
@@ -283,26 +277,26 @@ export default async function SearchPage({
           <input type="hidden" name="q" value={q} />
           <select
             name="sort"
-            aria-label="Sort by"
+            aria-label={sortText.label}
             defaultValue={sort}
             className="rounded-lg border border-line bg-surface px-3 py-2"
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {sortLabel(option)}
+                {sortText[option]}
               </option>
             ))}
           </select>
           <select
             name="country"
-            aria-label="Filter by location"
+            aria-label={t.locationLabel}
             defaultValue={country ?? ""}
             className="rounded-lg border border-line bg-surface px-3 py-2"
           >
-            <option value="">Any location</option>
+            <option value="">{t.anyLocation}</option>
             {COUNTRIES.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {countryName(c, locale)}
               </option>
             ))}
           </select>
@@ -310,24 +304,24 @@ export default async function SearchPage({
             type="submit"
             className="rounded-lg bg-accent px-4 py-2 font-medium text-accent-ink"
           >
-            Apply
+            {t.apply}
           </button>
         </form>
       )}
 
       {q.length > 0 && q.length < 2 && (
-        <p className="mt-8 text-sm text-foreground-soft">Keep typing — at least 2 characters.</p>
+        <p className="mt-8 text-sm text-foreground-soft">{t.keepTyping}</p>
       )}
       {noResults && (
         <p className="mt-8 text-sm text-foreground-soft">
-          Nothing matches &quot;{q}&quot; yet — try a different term or broaden your filters.
+          {format(t.noResults, { query: q })}
         </p>
       )}
 
       {people.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            People
+            {t.people}
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {people.map((person) => (
@@ -342,7 +336,7 @@ export default async function SearchPage({
                     <span className="min-w-0 truncate">
                       <span className="font-semibold">{person.name}</span>
                       {person.username && (
-                        <span className="ml-1 text-xs font-normal text-foreground-soft">
+                        <span className="ms-1 text-xs font-normal text-foreground-soft">
                           @{person.username}
                         </span>
                       )}
@@ -351,10 +345,10 @@ export default async function SearchPage({
                   <TrustBadge band={person.trustBand} />
                 </div>
                 <p className="mt-1 text-xs text-foreground-soft">
-                  {person.country ?? "Unknown location"}
+                  {person.country ? countryName(person.country, locale) : t.unknownLocation}
                 </p>
                 {person.bio && (
-                  <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{person.bio}</p>
+                  <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{person.bio}</p>
                 )}
               </Link>
             ))}
@@ -365,7 +359,7 @@ export default async function SearchPage({
       {circles.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Circles
+            {t.circles}
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {circles.map((circle) => (
@@ -377,10 +371,10 @@ export default async function SearchPage({
                 <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
                   {circle.category.join(", ")}
                 </p>
-                <h3 className="mt-1 break-words font-semibold">{circle.name}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
+                <h3 dir="auto" className="mt-1 break-words font-semibold">{circle.name}</h3>
+                <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                 <p className="mt-2 text-xs text-foreground-soft">
-                  {circle._count.members} member{circle._count.members === 1 ? "" : "s"}
+                  {plural(locale, t.members, circle._count.members)}
                 </p>
               </Link>
             ))}
@@ -391,7 +385,7 @@ export default async function SearchPage({
       {groupChats.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Group chats
+            {t.groupChats}
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {groupChats.map((group) => (
@@ -400,12 +394,12 @@ export default async function SearchPage({
                 href={`/messages/${group.id}`}
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
-                <h3 className="break-words font-semibold">{group.name ?? "Group"}</h3>
+                <h3 dir="auto" className="break-words font-semibold">{group.name ?? t.group}</h3>
                 <p className="mt-1 text-xs text-foreground-soft">
-                  Started by {group.createdBy?.name ?? "Unknown"}
+                  {format(t.startedBy, { name: group.createdBy?.name ?? t.unknown })}
                 </p>
                 <p className="mt-2 text-xs text-foreground-soft">
-                  {group._count.members}/20 members
+                  {format(t.groupMembers, { count: group._count.members, max: 20 })}
                 </p>
               </Link>
             ))}
@@ -416,7 +410,7 @@ export default async function SearchPage({
       {collabs.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Collaborations
+            {t.collaborations}
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {collabs.map((collab) => (
@@ -428,11 +422,10 @@ export default async function SearchPage({
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
                   {collab.type}
                 </p>
-                <h3 className="mt-1 break-words font-semibold">{collab.title}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
+                <h3 dir="auto" className="mt-1 break-words font-semibold">{collab.title}</h3>
+                <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
                 <p className="mt-2 text-xs text-foreground-soft">
-                  by {collab.author.name} · {collab._count.participants} participant
-                  {collab._count.participants === 1 ? "" : "s"}
+                  {`${format(t.by, { name: collab.author.name ?? t.unknown })} · ${plural(locale, t.participants, collab._count.participants)}`}
                 </p>
               </Link>
             ))}
@@ -443,7 +436,7 @@ export default async function SearchPage({
       {posts.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Posts
+            {t.posts}
           </h2>
           <div className="mt-3 space-y-4">
             <SearchPostsList
@@ -465,15 +458,15 @@ export default async function SearchPage({
       {hasSmartResults && smart && (
         <div className="mt-10 border-t border-line pt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-accent">
-            Related to &quot;{q}&quot;
+            {format(t.relatedTo, { query: q })}
           </h2>
           <p className="mt-1 text-xs text-foreground-soft">
-            No exact match for that, but these look related.
+            {t.relatedIntro}
           </p>
 
           {smart.people.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">People</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.people}</h3>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {smart.people.map((person) => (
                   <Link
@@ -487,7 +480,7 @@ export default async function SearchPage({
                         <span className="min-w-0 truncate">
                           <span className="font-semibold">{person.name}</span>
                           {person.username && (
-                            <span className="ml-1 text-xs font-normal text-foreground-soft">
+                            <span className="ms-1 text-xs font-normal text-foreground-soft">
                               @{person.username}
                             </span>
                           )}
@@ -496,7 +489,7 @@ export default async function SearchPage({
                       <TrustBadge band={person.trustBand} />
                     </div>
                     {person.bio && (
-                      <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{person.bio}</p>
+                      <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{person.bio}</p>
                     )}
                   </Link>
                 ))}
@@ -506,7 +499,7 @@ export default async function SearchPage({
 
           {smart.circles.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">Circles</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.circles}</h3>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {smart.circles.map((circle) => (
                   <Link
@@ -515,10 +508,10 @@ export default async function SearchPage({
                     className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
-                    <h4 className="mt-1 break-words font-semibold">{circle.name}</h4>
-                    <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
+                    <h4 dir="auto" className="mt-1 break-words font-semibold">{circle.name}</h4>
+                    <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">
-                      {circle._count.members} member{circle._count.members === 1 ? "" : "s"}
+                      {plural(locale, t.members, circle._count.members)}
                     </p>
                   </Link>
                 ))}
@@ -529,7 +522,7 @@ export default async function SearchPage({
           {smart.collabs.length > 0 && (
             <div className="mt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-                Collaborations
+                {t.collaborations}
               </h3>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {smart.collabs.map((collab) => (
@@ -541,11 +534,10 @@ export default async function SearchPage({
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
                       {collab.type}
                     </p>
-                    <h4 className="mt-1 break-words font-semibold">{collab.title}</h4>
-                    <p className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
+                    <h4 dir="auto" className="mt-1 break-words font-semibold">{collab.title}</h4>
+                    <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">
-                      by {collab.author.name} · {collab._count.participants} participant
-                      {collab._count.participants === 1 ? "" : "s"}
+                      {`${format(t.by, { name: collab.author.name ?? t.unknown })} · ${plural(locale, t.participants, collab._count.participants)}`}
                     </p>
                   </Link>
                 ))}
@@ -555,7 +547,7 @@ export default async function SearchPage({
 
           {smart.posts.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">Posts</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.posts}</h3>
               <div className="mt-2 space-y-4">
                 {smart.posts.map((post) => (
                   <PostCard key={post.id} post={post} viewerId={me.id} viewerIsAdmin={me.isAdmin} />

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Bell, BellRing } from "lucide-react";
 import { toggleSubscription } from "@/app/actions/subscriptions";
 import { cn } from "@/lib/utils";
+import { useFeedText } from "@/components/feed-text";
 
 /**
  * One-directional "subscribe" toggle — same optimistic-with-revert shape as
@@ -19,6 +20,7 @@ export function SubscribeButton({
   initiallySubscribed: boolean;
   variant?: "icon" | "pill";
 }) {
+  const { t } = useFeedText();
   const [subscribed, setSubscribed] = useState(initiallySubscribed);
   const [isPending, startTransition] = useTransition();
 
@@ -46,7 +48,7 @@ export function SubscribeButton({
         )}
       >
         {subscribed ? <BellRing size={14} /> : <Bell size={14} />}
-        {subscribed ? "Subscribed" : "Subscribe"}
+        {subscribed ? t.people.subscribed : t.people.subscribe}
       </button>
     );
   }
@@ -56,9 +58,9 @@ export function SubscribeButton({
       type="button"
       disabled={isPending}
       onClick={toggle}
-      aria-label="Subscribe"
+      aria-label={t.people.subscribe}
       aria-pressed={subscribed}
-      title={subscribed ? "Unsubscribe" : "Subscribe"}
+      title={subscribed ? t.people.unsubscribe : t.people.subscribe}
       className={cn("flex items-center hover:text-accent", subscribed && "text-accent")}
     >
       {subscribed ? <BellRing size={16} /> : <Bell size={16} />}

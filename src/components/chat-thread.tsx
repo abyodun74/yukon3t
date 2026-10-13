@@ -48,8 +48,9 @@ import { markNativePickerActive, markNativePickerInactive, isNativePickerActive 
 import { getDraft, setDraft } from "@/lib/message-draft-storage";
 import { announce } from "@/lib/announce";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
-import { useMessagesText, useUiText } from "@/components/ui-text";
-import type { messagesEn } from "@/lib/i18n/en";
+import { useMessagesText } from "@/components/messages-text";
+import { useUiText } from "@/components/ui-text";
+import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Flag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { deletePost } from "@/app/actions/posts";
 import { ReportModal } from "@/components/report-form";
+import { useFeedText } from "@/components/feed-text";
+import { useShellText } from "@/components/ui-text";
 
 /** The "⋯" menu on each post: Edit/Delete (own post; admin gets Delete only) and Report (relocated here from the old always-visible inline form). */
 export function PostOptionsMenu({
@@ -24,6 +26,8 @@ export function PostOptionsMenu({
   reportedUserId: string;
   onEdit: () => void;
 }) {
+  const { t } = useFeedText();
+  const { t: shell } = useShellText();
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -54,7 +58,7 @@ export function PostOptionsMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Post options"
+        aria-label={t.post.options}
         aria-expanded={open}
         className="rounded-lg p-1 text-foreground-soft hover:bg-line"
       >
@@ -62,7 +66,7 @@ export function PostOptionsMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-52 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+        <div className="absolute end-0 z-20 mt-1 w-52 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
           {canEdit && (
             <button
               type="button"
@@ -70,9 +74,9 @@ export function PostOptionsMenu({
                 setOpen(false);
                 onEdit();
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-line"
             >
-              <Pencil size={14} /> Edit
+              <Pencil size={14} /> {t.post.edit}
             </button>
           )}
           {canReport && (
@@ -83,23 +87,23 @@ export function PostOptionsMenu({
                 setReporting(true);
                 setReportEverOpened(true);
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-line"
             >
-              <Flag size={14} /> Report
+              <Flag size={14} /> {t.post.report}
             </button>
           )}
           {canDelete && !confirmingDelete && (
             <button
               type="button"
               onClick={() => setConfirmingDelete(true)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-line"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-danger hover:bg-line"
             >
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {shell.common.delete}
             </button>
           )}
           {canDelete && confirmingDelete && (
             <div className="px-3 py-2 text-xs">
-              <p className="text-foreground-soft">Delete this post? This can&apos;t be undone.</p>
+              <p className="text-foreground-soft">{t.post.deleteConfirm}</p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
@@ -115,14 +119,14 @@ export function PostOptionsMenu({
                   }}
                   className="rounded-md bg-danger px-2 py-1 font-medium text-white disabled:opacity-50"
                 >
-                  Delete
+                  {shell.common.delete}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingDelete(false)}
                   className="text-foreground-soft"
                 >
-                  Cancel
+                  {shell.common.cancel}
                 </button>
               </div>
             </div>

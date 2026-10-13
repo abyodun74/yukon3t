@@ -13,7 +13,7 @@ import {
   splitE164,
   type PhoneCountryOption,
 } from "@/lib/phone-number";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 
 const CONTROL_CLASS = "rounded-lg border border-line bg-surface text-sm";

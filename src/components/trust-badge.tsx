@@ -1,16 +1,13 @@
+"use client";
+
 import { ShieldCheck, BadgeCheck, Sparkle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFeedText } from "@/components/feed-text";
 
 const styles: Record<string, string> = {
   TRUSTED: "text-success",
   ESTABLISHED: "text-teal",
   NEW: "text-foreground-soft",
-};
-
-const labels: Record<string, string> = {
-  TRUSTED: "Trusted",
-  ESTABLISHED: "Established",
-  NEW: "New member",
 };
 
 const icons: Record<string, typeof ShieldCheck> = {
@@ -29,7 +26,9 @@ const icons: Record<string, typeof ShieldCheck> = {
  */
 export function TrustBadge({ band }: { band: string }) {
   const Icon = icons[band] ?? icons.NEW;
-  const label = labels[band] ?? "New member";
+  const { t } = useFeedText();
+  const trust: Record<string, string> = t.people.trust;
+  const label = trust[band] ?? trust.NEW;
   return (
     <span
       className={cn("inline-flex shrink-0 items-center", styles[band] ?? styles.NEW)}

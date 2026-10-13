@@ -7,6 +7,7 @@ import { getActiveLiveStreams } from "@/app/actions/live-streams";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { ScrollFab } from "@/components/scroll-fab";
+import { useFeedText } from "@/components/feed-text";
 
 function goTo(sectionId: string, focusTextarea?: boolean) {
   const target = document.getElementById(sectionId);
@@ -32,6 +33,7 @@ function goTo(sectionId: string, focusTextarea?: boolean) {
  * to rather than its own independent poll).
  */
 export function HomeQuickActions({ profileHref }: { profileHref: string }) {
+  const { t } = useFeedText();
   const [liveCount, setLiveCount] = useState(0);
   const router = useRouter();
 
@@ -55,24 +57,24 @@ export function HomeQuickActions({ profileHref }: { profileHref: string }) {
       actions={[
         {
           key: "live",
-          label: "Live",
+          label: t.quickActions.live,
           icon: <Radio size={16} />,
           iconClassName: "bg-danger text-white",
           badge: liveCount > 0 && (
-            <span className="unread-dot absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-white" />
+            <span className="unread-dot absolute -end-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-white" />
           ),
           onSelect: () => goTo("home-live-section"),
         },
         {
           key: "story",
-          label: "Add story",
+          label: t.quickActions.addStory,
           icon: <ImagePlus size={16} />,
           iconClassName: "bg-teal text-white",
           onSelect: () => goTo("home-story-tray"),
         },
         {
           key: "post",
-          label: "New post",
+          label: t.quickActions.newPost,
           icon: <Plus size={16} />,
           iconClassName: "bg-accent text-accent-ink",
           onSelect: () => router.push(`${profileHref}?compose=1`),

@@ -6,7 +6,7 @@ import { transcribeAudio } from "@/app/actions/transcription";
 import { uploadFileDirect } from "@/lib/upload-client";
 import { useAudioRecorder } from "@/lib/use-audio-recorder";
 import { useUiText } from "@/components/ui-text";
-import type { uiEn } from "@/lib/i18n/en";
+import type { uiEn } from "@/lib/i18n/en/ui";
 import { format } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_DICTATION_SECONDS — duplicated locally

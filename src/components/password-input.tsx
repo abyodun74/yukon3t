@@ -3,7 +3,7 @@
 import { useState, type ChangeEventHandler } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { sharedEn } from "@/lib/i18n/en";
+import { sharedEn } from "@/lib/i18n/en/shared";
 
 export function PasswordInput({
   id,

@@ -3,7 +3,7 @@
 import { Plus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ScrollFab } from "@/components/scroll-fab";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 /**
  * Appears once the inbox header (#messages-header — with its own "New

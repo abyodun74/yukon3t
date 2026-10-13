@@ -5,6 +5,7 @@ import { AlertTriangle, ExternalLink } from "lucide-react";
 import { checkLinkBeforeOpen } from "@/app/actions/link-safety";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
+import { useShellText } from "@/components/ui-text";
 
 /**
  * Shown before following any post's shared link, instead of navigating
@@ -28,6 +29,7 @@ import { Sheet } from "@/components/sheet";
  * viewer actually taps through.
  */
 export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boolean; onClose: () => void }) {
+  const { t } = useShellText();
   const [status, setStatus] = useState<"checking" | "safe" | "flagged" | "unknown">("checking");
 
   let domain = url;
@@ -65,20 +67,20 @@ export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boo
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Leaving YuKon3t">
+    <Sheet open={open} onClose={onClose} title={t.link.title}>
       <p className="flex items-center gap-2 break-all rounded-lg border border-line bg-background px-3 py-2 text-sm">
         <ExternalLink size={14} className="shrink-0 text-foreground-soft" />
         {domain}
       </p>
 
-      {status === "checking" && <p className="mt-2 text-xs text-foreground-soft">Checking link safety…</p>}
+      {status === "checking" && <p className="mt-2 text-xs text-foreground-soft">{t.link.checking}</p>}
       {status === "flagged" && (
         <p role="alert" className="mt-2 flex items-start gap-1.5 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          This link was flagged as potentially unsafe by an automated scan. Continue only if you trust it.
+          {t.link.flagged}
         </p>
       )}
-      {status === "safe" && <p role="status" className="mt-2 text-xs text-success">No known threats found.</p>}
+      {status === "safe" && <p role="status" className="mt-2 text-xs text-success">{t.link.safe}</p>}
 
       <div className="mt-4 flex items-center gap-2">
         <button
@@ -89,14 +91,14 @@ export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boo
             status === "flagged" ? "bg-danger text-white" : "bg-accent text-accent-ink",
           )}
         >
-          {status === "flagged" ? "Continue anyway" : "Continue"}
+          {status === "flagged" ? t.link.continueAnyway : t.link.continue}
         </button>
         <button
           type="button"
           onClick={onClose}
           className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </Sheet>

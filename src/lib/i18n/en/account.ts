@@ -1,0 +1,338 @@
+import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/en/common";
+
+/**
+ * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding), their emails, the
+ * Settings language block and the two translated FAQ entries. Spread into the dictionary's top level.
+ */
+export const accountEn = {
+  languagePicker: { label: "Language" },
+  settings: {
+    language: {
+      heading: "Language",
+      body: "The menus, your Home feed, Search, Discover, Connections, Notifications, Messages, comments, dictation and the sign-in screens are available in these languages. The rest of the app is in English for now.",
+    },
+  },
+  // The two FAQ entries about languages (src/app/faq/page.tsx): the only ones shown in the reader's language.
+  faq: {
+    dictation: {
+      q: "Can I dictate a post instead of typing it?",
+      a: "Yes — tap the microphone icon in the post composer (or a chat message box) to record a short voice clip; it's transcribed and dropped into the text box for you to review and edit before posting or sending. This is separate from the round mic/send button in a chat, which instead sends the recording itself as a voice note — the dictation mic sits next to the emoji button and always produces editable text. Speak in your own language: Spanish, French, Portuguese, Arabic and many others are recognised automatically, whatever language the app is shown in.",
+    },
+    languages: {
+      q: "Can I use YuKon3t in a language other than English?",
+      a: "Signing in, creating an account, verifying it, resetting your password and setting up your profile are available in English, Spanish, French, Portuguese and Arabic, and so are the emails and texts those screens send. They open in your phone or browser's language when it is one of the five; to switch, use the Language menu at the top corner of the home page (below Sign in) or at the bottom of the other account screens — the choice is remembered on that device. The home page you see before signing in is in those five languages too; once you're signed in, change it under Settings → Language. So are the menus, your Home feed (posts, stories, sharing and the post composer), Search, Discover, Connections, Notifications and What's new, Messages (your conversation list, chats, group chats and hidden chats), comments on posts, the voice, video and GIF pickers they open, dictation and the report form. In Arabic those screens read right to left. The rest of the app — Circles, Collab Boards, Muse, live streams and calls, profiles, the Settings page itself, and the notifications we send — is currently in English. What people write is never translated: a message or comment appears in the language it was written in.",
+    },
+  },
+  landing: {
+    eyebrow: "Global connection, done honestly",
+    title: "Connect with people worldwide — by interest, by culture, by purpose.",
+    intro:
+      "YuKon3t is built around one idea: every major connection app has a trust problem. We fixed the ones that keep showing up in real user reviews — fake profiles, opaque moderation, and paywalled safety.",
+    createAccount: "New here? Create account free",
+    guidelines: "Read our guidelines",
+    pillars: [
+      {
+        title: "Verified before you message",
+        body: "Every account confirms its email before DMs unlock, and every action taken against an account comes with a stated reason and an appeal path — no silent bans.",
+      },
+      {
+        title: "Say what you're here for",
+        body: "Tag your intent — friendship, cultural exchange, professional, community, or travel tips — so conversations never drift into something you didn't sign up for.",
+      },
+      {
+        title: "Free Circles, no organizer tax",
+        body: "Create or join interest and identity communities for free. No per-year organizer fees.",
+      },
+      {
+        title: "Your data is always yours",
+        body: "Export or permanently delete your account in one click, free, forever. Never paywalled.",
+      },
+    ],
+    waysTitle: "Two ways to connect",
+    circles: {
+      title: "Circles",
+      body: "Interest and identity communities — hobbies, causes, cultures. Free to create and join.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Cross-country skill exchanges, volunteering, study groups, and projects — the connection type most global apps skip.",
+    },
+  },
+  common: {
+    signIn: "Sign in",
+    captchaFailed,
+    somethingWentWrong: "Something went wrong — try again.",
+    invalidEmail: "Enter a valid email address.",
+    emailLabel: "Email address",
+    emailPlaceholder,
+    codeLabel: "Verification code",
+    phoneLabel: "Phone number",
+    newCodeSent: "A new code is on its way.",
+    resendCode: "Resend code",
+    resending: "Resending...",
+    confirming: "Confirming...",
+    switching: "Switching...",
+    sending: "Sending...",
+    nothingToVerify: "Nothing to verify here",
+    alreadyVerified: "Already verified",
+  },
+  apple: { signIn: "Sign in with Apple", redirecting: "Redirecting..." },
+  signIn: {
+    title: "Sign in to YuKon3t",
+    passwordHeading: "Username & password",
+    resetDone: "Password reset — sign in with your new password.",
+    resetRequired:
+      "For your security, you need to set a new password. We've emailed a reset link to the address on your account.",
+    errors: {
+      invalid_credentials: "Incorrect username/email or password.",
+      rate_limited: "Too many attempts. Please wait a few minutes and try again.",
+      locked:
+        "Too many failed attempts — this account is locked for 24 hours. Reset your password below to unlock it immediately.",
+    },
+    identifier: "Username or email",
+    password: "Password",
+    submit: "Sign in",
+    submitting: "Signing in...",
+    forgotPassword: "Forgot password?",
+    or: "or",
+    magicHeading: "Email link",
+    magicIntro: "No password to leak or reuse — we'll email you a secure sign-in link instead.",
+    magicSubmit: "Send sign-in link",
+  },
+  checkEmail: {
+    title: "Check your email",
+    verifyBody:
+      "If an account with that email needs verifying, we've sent it a 6-digit code. It expires in 10 minutes.",
+    linkBody: "We sent you a secure sign-in link. It expires shortly, so use it soon.",
+    enterCode: "Enter code",
+    closeTab: "You can close this tab.",
+  },
+  verifyDevice: {
+    expiredBody: "This link has expired or was opened on a different device. Sign in again to continue.",
+    title: "We don't recognize this device",
+    body: "For your security, enter the 6-digit code we just emailed you to finish signing in. If this wasn't you, just ignore it — your account is safe.",
+    errors: {
+      invalid_code: "That code didn't match — check it and try again.",
+      expired: "That code expired — request a new one below.",
+      too_many_attempts: "Too many wrong attempts — request a new code below.",
+      not_found: "That verification link is no longer valid — request a new code below.",
+      rate_limited: "Too many attempts. Please wait a bit and try again.",
+    },
+    submit: "Confirm and sign in",
+    cancel: "Cancel and go back",
+  },
+  signUp: {
+    title: "Create an account",
+    intro:
+      "Choose a username, enter your email and your desired password, then confirm your account with a code we send by email or text before you can sign in.",
+    appleDivider: "or create an account with a password",
+    haveAccount: "Already have an account?",
+    form: {
+      oneFix: "Just one thing to fix",
+      fewFixes: "A few things to fix",
+      othersSaved: "Your other details are saved.",
+      username: "Username",
+      usernameTitle: "Letters, numbers and underscores only",
+      usernamePlaceholder: "3–20 letters, numbers, _",
+      email: "Email",
+      emailPlaceholder,
+      signInInstead: "Sign in instead",
+      password: "Password",
+      passwordPlaceholder: "At least 8 characters",
+      birthDate: "Date of birth",
+      ageHint: "You must be at least {age} to use YuKon3t.",
+      verifyWith: "Verify with",
+      emailCode: "Email code",
+      emailCodeHint: "We'll email a 6-digit code to the address above.",
+      phoneNumber: "Phone number",
+      phoneHint: "We'll text a code to this number.",
+      editAll: "Edit all details",
+      submit: "Create account",
+      submitting: "Creating account...",
+      reasons: {
+        username_required: "Choose a username.",
+        username_length: "Usernames are {usernameMin}–{usernameMax} characters long.",
+        username_characters:
+          "Usernames can only use letters, numbers and underscores ({usernameMin}–{usernameMax} characters).",
+        username_reserved: "That username is reserved — choose a different one.",
+        username_taken: "That username is taken — try another.",
+        email_required: "Enter your email address.",
+        email_invalid: "That doesn't look like a valid email address — check it for typos.",
+        email_taken: "An account with that email already exists.",
+        password_required: "Choose a password.",
+        password_too_short: "Passwords need at least {passwordMin} characters.",
+        password_too_long: "Passwords can be at most {passwordMax} characters.",
+        birth_date_required: "Select the month, day and year you were born.",
+        birth_date_underage: "You must be at least {age} years old to use YuKon3t.",
+        phone_required: "Enter your phone number.",
+        phone_invalid: phoneInvalid,
+        phone_taken: "That phone number is already verified on another account.",
+      },
+      formErrors: {
+        rate_limited: "Too many attempts. Please wait a bit and try again.",
+        captcha: captchaFailed,
+        invalid: "Something went wrong — please try again.",
+      },
+    },
+  },
+  verifyPhone: {
+    expiredBody: "This link has expired or was opened on a different device.",
+    title: "Verify your phone",
+    intro: "Enter your phone number and we'll text you a code to confirm your account.",
+    noText: "Not getting the text?",
+    emailInstead: "We can send the code to your email instead.",
+    useEmail: "Use email code instead",
+    form: {
+      errors: {
+        invalid: phoneInvalid,
+        invalid_code: "That code didn't match — check it and try again.",
+        rate_limited: "Too many attempts — try again in a bit.",
+        not_configured: "Phone verification isn't set up yet.",
+        phone_taken: "That number is already verified on another account.",
+        send_failed: "Couldn't send the code — try again in a moment.",
+        no_session: "This link expired — please sign up again.",
+        captcha: "We couldn't complete the security check — please try again.",
+      },
+      somethingWentWrong: "Something went wrong — try again.",
+      confirmedTitle: "Phone confirmed",
+      confirmedBody: "Your account is verified. You can now sign in.",
+      signIn: "Sign in",
+      codeLabel: "Enter the code we sent you",
+      verify: "Verify",
+      resendCode: "Resend code",
+      phoneLabel: "Phone number",
+      sendCode: "Send code",
+    },
+  },
+  verifyEmail: {
+    confirmedTitle: "Email confirmed",
+    confirmedBody: "Your email is verified. You can now sign in with your username and password.",
+    expiredBody:
+      "This link has expired or was opened on a different device. Sign in and we'll help you finish verifying your account.",
+    title: "Confirm your email",
+    body: "Enter the 6-digit code we sent to {email}.",
+    errors: {
+      invalid_code: "That code didn't match — check it and try again.",
+      expired: "That code expired — we've sent you a new one.",
+      too_many_attempts: "Too many wrong attempts — we've sent you a new code.",
+      rate_limited: "Too many attempts. Please wait a bit and try again.",
+      invalid_phone: phoneInvalid,
+      phone_taken: "That phone number is already verified on another account.",
+    },
+    submit: "Confirm email",
+    slowTitle: "Email taking too long?",
+    slowBody: "Verify with your phone number instead — we'll text you a code.",
+    usePhone: "Use phone",
+  },
+  forgotPassword: {
+    title: "Reset your password",
+    intro: "Enter the email on your account and we'll send you a link to reset your password.",
+    sent: "If that email is registered, a reset link is on its way — check your inbox.",
+    expired: "That reset link expired or was already used — request a new one below.",
+    submit: "Send reset link",
+    back: "Back to sign in",
+  },
+  resetPassword: {
+    invalidTitle: "Invalid reset link",
+    invalidBody: "This password reset link is missing its token.",
+    requestNew: "Request a new link",
+    title: "Choose a new password",
+    errors: {
+      invalid: "Password must be at least 8 characters.",
+      mismatch: "Those passwords don't match.",
+      same_password: "That's your old password. For your security, choose a different one.",
+    },
+    newLabel: "New password",
+    newPlaceholder: "New password (min. 8 characters)",
+    confirm: "Re-enter new password",
+    submit: "Reset password",
+    submitting: "Resetting...",
+  },
+  onboarding: {
+    title: "Set up your profile",
+    intro:
+      "This is what other members see. Be honest about your intent — it keeps this community usable for everyone.",
+    required:
+      "Every field below is required except Bio, which is optional. Your account won't be created until the rest are filled in.",
+    errors: {
+      invalid: "Please fill in all required fields.",
+      moderation: "Your bio didn't pass our content guidelines. Please revise it.",
+      underage: "You must be at least {age} years old to use YuKon3t.",
+    },
+    name: "Display name",
+    bio: "Bio",
+    optional: "(optional)",
+    birthDate: "Date of birth",
+    ageHint: "You must be at least {age} to use YuKon3t.",
+    country: "Country",
+    countryPlaceholder: "Select your country...",
+    languages: "Languages",
+    languagesHint: "Pick at least one language you speak.",
+    languagesPlaceholder: "Search languages...",
+    interests: "Interests",
+    interestsHint: "Pick at least one — this is how Circles and connections get matched to you.",
+    interestsPlaceholder: "Search interests...",
+    intentsLabel: "What are you open to here?",
+    intentsHint: "Pick at least one.",
+    // The same labels as intentLabels (validations.ts), which the rest of the app shows; dictionaries.test.ts keeps
+    // the two in step.
+    intents: {
+      FRIENDSHIP: "Friendship",
+      CULTURAL_EXCHANGE: "Cultural Exchange",
+      PROFESSIONAL: "Professional",
+      COMMUNITY: "Community",
+      TRAVEL_TIPS: "Travel Tips",
+    },
+    submit: "Continue",
+    submitting: "Saving...",
+  },
+  emails: {
+    verificationCode: {
+      subject: "Your YuKon3t verification code",
+      intro: "Your YuKon3t verification code is:",
+      outro: "This code expires in 10 minutes. If you didn't request this, ignore this email.",
+    },
+    passwordReset: {
+      subject: "Reset your YuKon3t password",
+      requested: {
+        intro: "Someone requested a password reset for this YuKon3t account.",
+        link: "Reset your password",
+        outro: "This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.",
+      },
+      required: {
+        intro:
+          "For your security, you need to set a new password for this YuKon3t account. We're asking everyone to choose a new password as a security precaution.",
+        link: "Choose a new password",
+        outro: "This link expires in 1 hour. Your old password no longer signs you in.",
+      },
+    },
+    magicLink: {
+      subject: "Sign in to {host}",
+      heading: "Sign in to {host}",
+      button: "Sign in",
+      ignore: "If you did not request this email you can safely ignore it.",
+    },
+    deviceChallenge: {
+      subjects: {
+        LOGIN: "Confirm it's you — new sign-in to your YuKon3t account",
+        PASSWORD_CHANGE: "Confirm it's you — password change on YuKon3t",
+        POST: "Confirm it's you — new device posting to YuKon3t",
+        HIDDEN_PIN_RESET: "Your YuKon3t security code",
+      },
+      intros: {
+        LOGIN:
+          "Someone just tried to sign in to your YuKon3t account from a device we don't recognize ({device}).",
+        PASSWORD_CHANGE:
+          "Someone just tried to change the password on your YuKon3t account from a device we don't recognize ({device}).",
+        POST: "Someone just tried to post from your YuKon3t account from a device we don't recognize ({device}).",
+      },
+      ifYou: "If this is you, enter this code to continue:",
+      outro:
+        "This code expires in 10 minutes. If this wasn't you, don't share this code with anyone — and change your password from Settings as soon as you can.",
+      hiddenPinReset: {
+        intro: "Enter this code in YuKon3t to continue:",
+        outro: "This code expires in 10 minutes. If you didn't ask for it, don't share it with anyone.",
+      },
+    },
+  },
+};

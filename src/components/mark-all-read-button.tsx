@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { markAllAsRead } from "@/app/actions/notifications";
 
-export function MarkAllReadButton() {
+export function MarkAllReadButton({ label }: { label: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -20,7 +20,7 @@ export function MarkAllReadButton() {
       }}
       className="rounded-lg border border-line px-3 py-2.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
     >
-      Mark all as read
+      {label}
     </button>
   );
 }

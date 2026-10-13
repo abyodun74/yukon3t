@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { uiEn } from "@/lib/i18n/en";
+import { uiEn } from "@/lib/i18n/en/ui";
 import { intlLocale, type Locale } from "@/lib/i18n/locales";
 
 // `locale` is the language of the wording around the date (see src/lib/i18n). Left out, or English, the date is

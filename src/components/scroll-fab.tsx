@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useShellText } from "@/components/ui-text";
 
 export type ScrollFabAction = {
   key: string;
@@ -36,6 +37,7 @@ export function ScrollFab({
   hideWhileVisibleId?: string;
   actions: ScrollFabAction[];
 }) {
+  const { t } = useShellText();
   // Starts "not visible" (so the FAB shows immediately) when there's no
   // target to watch — and, since the effect below then bails out before
   // ever calling setTargetVisible again, stays that way permanently.
@@ -119,7 +121,7 @@ export function ScrollFab({
     <div
       ref={containerRef}
       className={cn(
-        "fixed bottom-24 right-4 z-[35] flex flex-col items-end gap-2 transition-all duration-200 md:bottom-6 md:right-6",
+        "fixed bottom-24 end-4 z-[35] flex flex-col items-end gap-2 transition-all duration-200 md:bottom-6 md:end-6",
         shown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",
       )}
     >
@@ -131,7 +133,7 @@ export function ScrollFab({
               type="button"
               onClick={() => handleActionClick(action)}
               tabIndex={shown ? 0 : -1}
-              className="animate-rise-in flex items-center gap-2 rounded-full bg-surface py-2 pl-4 pr-2 text-sm font-medium text-foreground shadow-[var(--shadow-md)]"
+              className="animate-rise-in flex items-center gap-2 rounded-full bg-surface py-2 ps-4 pe-2 text-sm font-medium text-foreground shadow-[var(--shadow-md)]"
             >
               {action.label}
               <span
@@ -151,7 +153,7 @@ export function ScrollFab({
         type="button"
         onClick={handleMainClick}
         aria-expanded={multi ? expanded : undefined}
-        aria-label={multi ? (expanded ? "Close quick actions" : "Quick actions") : primary.label}
+        aria-label={multi ? (expanded ? t.quickActions.close : t.quickActions.open) : primary.label}
         tabIndex={shown ? 0 : -1}
         className={cn(
           "flex h-14 w-14 items-center justify-center rounded-full text-accent-ink shadow-[var(--shadow-md)] transition-transform duration-200",

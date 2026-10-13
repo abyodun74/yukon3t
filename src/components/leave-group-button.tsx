@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { LogOut } from "lucide-react";
 import { leaveGroup } from "@/app/actions/messages";
-import { useMessagesText } from "@/components/ui-text";
+import { useMessagesText } from "@/components/messages-text";
 
 export function LeaveGroupButton({ conversationId }: { conversationId: string }) {
   const [isPending, startTransition] = useTransition();

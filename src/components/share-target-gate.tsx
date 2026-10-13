@@ -14,6 +14,8 @@ import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client
 import { UserAvatar } from "@/components/user-link";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useShellText } from "@/components/ui-text";
+import { format, plural, byCode } from "@/lib/i18n/locales";
 
 const EMBED_PROVIDER_LABEL: Record<string, string> = {
   YOUTUBE: "YouTube",
@@ -70,35 +72,6 @@ type UploadedMedia =
   | { mediaType: "IMAGE"; mediaUrls: string[] }
   | { mediaType: "VIDEO"; mediaUrls: []; videoUrl: string; videoThumbnailUrl?: string; videoDurationSeconds?: number };
 
-function uploadErrorMessage(code: string) {
-  switch (code) {
-    case "too_large":
-      return "That file is too large.";
-    case "not_configured":
-      return "Media uploads aren't set up yet.";
-    case "stale_deployment":
-      return "This app needs an update — reopen it and try again.";
-    default:
-      return "Couldn't upload that — check your connection and try again.";
-  }
-}
-
-function publishErrorMessage(code: string) {
-  switch (code) {
-    case "moderation":
-      return "That didn't pass our content guidelines and wasn't posted.";
-    case "too_large":
-      return "That file is too large.";
-    case "rate_limited":
-      return "You're posting too fast — slow down a little.";
-    case "not_a_member":
-    case "blocked":
-      return "Couldn't send to that conversation.";
-    default:
-      return "Couldn't post — try again.";
-  }
-}
-
 function probeVideoDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -154,6 +127,10 @@ function probeVideoDuration(file: File): Promise<number | null> {
  * provider falls back to "Send to a friend" only.
  */
 export function ShareTargetGate({ userId }: { userId: string }) {
+  const { t, dir, locale } = useShellText();
+  // Not being let into a conversation and being blocked read the same: the send didn't go through.
+  const publishError = (code: string) =>
+    byCode(t.shareTarget.postErrors, code === "not_a_member" || code === "blocked" ? "send_failed" : code);
   const router = useRouter();
   const [share, setShare] = useState<PendingShareMedia | null>(null);
   const [view, setView] = useState<View>("root");
@@ -329,7 +306,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       const uploaded = await ensureUploaded();
       if (!uploaded.ok) {
         setStatus("error");
-        setErrorText(uploadErrorMessage(uploaded.error));
+        setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
         return;
       }
       fd.set("content", stripLinks(share!.text));
@@ -353,7 +330,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     }
     if (result.error) {
       setStatus("error");
-      setErrorText(publishErrorMessage(result.error));
+      setErrorText(publishError(result.error));
       return;
     }
     setStatus("done");
@@ -368,7 +345,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     const uploaded = await ensureUploaded();
     if (!uploaded.ok) {
       setStatus("error");
-      setErrorText(uploadErrorMessage(uploaded.error));
+      setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
       return;
     }
     const fd = new FormData();
@@ -387,7 +364,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     const result = await sendMessage(fd);
     if (result.error) {
       setStatus("error");
-      setErrorText(publishErrorMessage(result.error));
+      setErrorText(publishError(result.error));
       return;
     }
     setStatus("done");
@@ -406,12 +383,12 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       const uploaded = await ensureUploaded();
       if (!uploaded.ok) {
         setStatus("error");
-        setErrorText(uploadErrorMessage(uploaded.error));
+        setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
         return;
       }
       if (uploaded.media.mediaType === "NONE") {
         setStatus("error");
-        setErrorText("Stories need a photo or video.");
+        setErrorText(t.shareTarget.storyNeedsMedia);
         return;
       }
       fd.set("mediaType", uploaded.media.mediaType);
@@ -430,7 +407,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     const result = await createStory(fd);
     if (result.error) {
       setStatus("error");
-      setErrorText(publishErrorMessage(result.error));
+      setErrorText(publishError(result.error));
       return;
     }
     setStatus("done");
@@ -450,12 +427,12 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       const uploaded = await ensureUploaded();
       if (!uploaded.ok) {
         setStatus("error");
-        setErrorText(uploadErrorMessage(uploaded.error));
+        setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
         return;
       }
       if (uploaded.media.mediaType !== "VIDEO") {
         setStatus("error");
-        setErrorText("Muse needs a video.");
+        setErrorText(t.shareTarget.museNeedsVideo);
         return;
       }
       fd.set("videoUrl", uploaded.media.videoUrl);
@@ -467,7 +444,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     const result = await createMuse(fd);
     if (result.error) {
       setStatus("error");
-      setErrorText(publishErrorMessage(result.error));
+      setErrorText(publishError(result.error));
       return;
     }
     setStatus("done");
@@ -490,7 +467,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       onClick={busy ? undefined : close}
       role="dialog"
       aria-modal="true"
-      aria-label={view === "root" ? "Share to YuKon3t" : "Send to a friend"}
+      aria-label={view === "root" ? t.shareTarget.title : t.shareTarget.sendToFriend}
       tabIndex={-1}
     >
       <div
@@ -499,10 +476,10 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">
-            {view === "root" ? "Share to YuKon3t" : "Send to a friend"}
+            {view === "root" ? t.shareTarget.title : t.shareTarget.sendToFriend}
           </h2>
           {!busy && (
-            <button type="button" onClick={close} aria-label="Close" className="text-foreground-soft hover:text-danger">
+            <button type="button" onClick={close} aria-label={t.common.close} className="text-foreground-soft hover:text-danger">
               <X size={18} />
             </button>
           )}
@@ -520,29 +497,26 @@ export function ShareTargetGate({ userId }: { userId: string }) {
             own notice instead of previewUrl's own <video>/<img> branch. */}
         {embed && (
           <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
-            {EMBED_PROVIDER_LABEL[embed.provider] ?? "Video"} link detected — the actual player
-            will show up wherever you post this, not just a link.
+            {EMBED_PROVIDER_LABEL[embed.provider]
+              ? format(t.shareTarget.embedDetected, { provider: EMBED_PROVIDER_LABEL[embed.provider] })
+              : t.shareTarget.embedDetectedOther}
           </p>
         )}
 
         {linkOnly && (
           <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
-            That app only shared a link, not the actual photo or video — some apps (Instagram,
-            TikTok, and others) don&apos;t hand over the real file when sharing to outside apps.
-            To bring in the actual photo/video: save it in that app first, then share the saved
-            copy from your Gallery/Photos to YuKon3t. Or just send the link to a friend below.
+            {t.shareTarget.linkOnly}
           </p>
         )}
         {share.skipped > 0 && (
           <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-            {share.skipped === 1 ? "One item" : `${share.skipped} items`} couldn&apos;t be
-            included (too large, or not a supported photo/video type).
+            {plural(locale, t.shareTarget.skipped, share.skipped)}
           </p>
         )}
 
         {errorText && <p role="alert" className="mt-3 text-xs text-danger">{errorText}</p>}
-        {status === "busy" && <p className="mt-3 text-xs text-foreground-soft">Posting…</p>}
-        {status === "done" && <p role="status" className="mt-3 text-xs text-success">Posted!</p>}
+        {status === "busy" && <p className="mt-3 text-xs text-foreground-soft">{t.shareTarget.posting}</p>}
+        {status === "done" && <p role="status" className="mt-3 text-xs text-success">{t.shareTarget.posted}</p>}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">
@@ -554,7 +528,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <CirclePlus size={16} />
-                Add to your story
+                {t.shareTarget.toStory}
               </button>
             )}
             {canShareToMuse && (
@@ -565,7 +539,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <Clapperboard size={16} />
-                Post to Muse
+                {t.shareTarget.toMuse}
               </button>
             )}
             {hasPostableContent && (
@@ -576,7 +550,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <SquarePen size={16} />
-                Post to Feed
+                {t.shareTarget.toFeed}
               </button>
             )}
             <button
@@ -586,7 +560,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
             >
               <Send size={16} />
-              Send to a friend
+              {t.shareTarget.sendToFriend}
             </button>
           </div>
         )}
@@ -594,9 +568,9 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         {view === "friends" && (
           <>
             <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-              {conversations === null && <li className="px-2 py-1 text-sm text-foreground-soft">Loading…</li>}
+              {conversations === null && <li className="px-2 py-1 text-sm text-foreground-soft">{t.common.loading}</li>}
               {conversations?.length === 0 && (
-                <li className="px-2 py-1 text-sm text-foreground-soft">No conversations yet.</li>
+                <li className="px-2 py-1 text-sm text-foreground-soft">{t.shareTarget.noConversations}</li>
               )}
               {conversations?.map((c) => (
                 <li key={c.id}>
@@ -618,7 +592,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
               disabled={busy}
               className="mt-3 text-xs text-foreground-soft hover:text-accent disabled:opacity-50"
             >
-              ← Back
+              {`${dir === "rtl" ? "→" : "←"} ${t.shareTarget.back}`}
             </button>
           </>
         )}

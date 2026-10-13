@@ -4,12 +4,13 @@ import { useState } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { THEME_COOKIE, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useShellText } from "@/components/ui-text";
 import { hapticSelection } from "@/lib/haptics";
 
-const options: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+const options: { value: Theme; icon: typeof Sun }[] = [
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
+  { value: "system", icon: Monitor },
 ];
 
 // Plain top-level function, not part of the component/hook body: the React
@@ -26,6 +27,7 @@ function persistTheme(value: Theme) {
 
 export function ThemeToggle({ initial }: { initial: Theme }) {
   const [theme, setTheme] = useState<Theme>(initial);
+  const { t } = useShellText();
 
   function apply(value: Theme) {
     if (value === theme) return;
@@ -36,11 +38,11 @@ export function ThemeToggle({ initial }: { initial: Theme }) {
 
   return (
     <div className="flex items-center gap-0.5 rounded-full border border-line p-0.5">
-      {options.map(({ value, label, icon: Icon }) => (
+      {options.map(({ value, icon: Icon }) => (
         <button
           key={value}
           type="button"
-          aria-label={`${label} theme`}
+          aria-label={t.theme[value]}
           aria-pressed={theme === value}
           onClick={() => apply(value)}
           className={cn(

@@ -3,6 +3,8 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { WhatsNewSeenMarker } from "@/components/whats-new-seen-marker";
+import { intlLocale } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "What's New on YuKon3t — Latest Features & Updates";
 const description =
@@ -34,6 +36,8 @@ export const metadata: Metadata = {
 
 export default async function WhatsNewPage() {
   await getSessionUserOrRedirect();
+  const locale = await getLocale();
+  const t = (await getDictionary()).pages.whatsNew;
 
   const announcements = await prisma.announcement.findMany({
     orderBy: { createdAt: "desc" },
@@ -45,16 +49,21 @@ export default async function WhatsNewPage() {
       <BackButton />
       <WhatsNewSeenMarker />
 
-      <h1 className="mt-2 text-2xl font-semibold">What&apos;s new</h1>
+      <h1 className="mt-2 text-2xl font-semibold">{t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Updates and new features on YuKon3t.
+        {t.intro}
       </p>
 
       <div className="mt-6 space-y-4">
         {announcements.map((a) => (
           <div key={a.id} className="rounded-xl border border-line p-4">
-            <h2 className="break-words font-semibold">{a.title}</h2>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">{a.body}</p>
+            {/* Written by an admin, in whatever language they wrote it. */}
+            <h2 dir="auto" className="break-words font-semibold">
+              {a.title}
+            </h2>
+            <p dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">
+              {a.body}
+            </p>
             {a.mediaUrl && (
               <div className="mt-3 overflow-hidden rounded-lg bg-black">
                 {a.mediaType === "VIDEO" ? (
@@ -72,12 +81,12 @@ export default async function WhatsNewPage() {
               </div>
             )}
             <p className="mt-2 text-xs text-foreground-soft">
-              {a.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+              {a.createdAt.toLocaleDateString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric" })}
             </p>
           </div>
         ))}
         {announcements.length === 0 && (
-          <p className="text-sm text-foreground-soft">Nothing here yet — check back later.</p>
+          <p className="text-sm text-foreground-soft">{t.empty}</p>
         )}
       </div>
     </div>

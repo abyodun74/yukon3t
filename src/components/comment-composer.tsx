@@ -15,7 +15,7 @@ import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { announce } from "@/lib/announce";
 import { useUiText } from "@/components/ui-text";
-import type { uiEn } from "@/lib/i18n/en";
+import type { uiEn } from "@/lib/i18n/en/ui";
 import { plural } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS — duplicated locally
