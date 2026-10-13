@@ -250,3 +250,20 @@ A concurrent-user-focused audit (not a security one) found and fixed the real bo
 - Calls: `timeout-missed-calls` is actually scheduled now, and every transition out of `RINGING` is guarded — see "Calls". 1:1 calls also reconnect instead of ending on a dropped connection, and stale `ACCEPTED` rows are swept.
 
 **Known open items, not yet addressed**: production `DATABASE_URL` using Neon's pooler is still unverified (the bullet above); media is served straight from the R2 public URL with no cache headers or CDN in front (verify what `R2_PUBLIC_URL` actually points at); the video crons declare `maxDuration = 300`, an assumption that hasn't been checked against Netlify's own function limits; announcement broadcast and subscriber-notification fan-out (`notifySubscribers`) still run synchronously inside the request that triggers them; search's exact-match path is unindexed `ILIKE`; nothing ever prunes `Notification` or `AnalyticsEvent` rows; and the database backup builds the whole dump in memory before uploading.
+
+## Planned, not built: "For you" feed (decided 2026-10-12)
+
+The owner has approved this design but asked that it **not be implemented yet**. Do not start it unprompted. **Remind the owner about it** whenever you learn that the app has reached roughly 500–1,000 active users, or that content has grown to about a million posts; nothing checks these numbers automatically, so ask for (or look at) current counts when the topic of the feed, growth or scale comes up.
+
+Decided:
+- **Version 1 only: stated interests.** Rank posts by similarity between the post's embedding and the user's own (`User.embedding`: name, username, bio, interests), blended with recency. No behavioural signals (likes, watch time, impressions) and no new tracking tables; that was "Version 2" and is not approved.
+- **A separate "For you" tab** on Home. The newest-first feed stays as it is and stays the default.
+- **An off switch in Settings** that removes the tab for that user.
+
+Still open (ask before building): posts only, or suggested Circles and people as well.
+
+Constraints agreed in the same discussion:
+- Candidates come only from what `getListablePostsWhere` already allows, and only posts that have cleared moderation (nothing flagged, pending video review, private, or from blocked users); the hidden-chat rules above apply to any people suggestions.
+- Mix in some recent or unrelated posts so the tab doesn't narrow to one topic.
+- Use the nearest-neighbour helpers in `src/lib/search-embeddings.ts`, never a bare `ORDER BY "embedding" <=>`; `User.embedding` deliberately has no HNSW index. Cache per user so Home doesn't slow down (see the Moderation page timeouts fixed in `2307211`).
+- Ships with a Privacy Policy and FAQ explanation of how suggestions are chosen and how to turn them off, and the App Store / Play Store data forms need "personalisation" declared (no native build needed). Whether EU DSA or US state rules on feeds for minors apply was left for the owner to check with a lawyer.
