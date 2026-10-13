@@ -1,6 +1,7 @@
 "use client";
 
 import { PostCard, type PostCardData } from "@/components/post-card";
+import { useShellText } from "@/components/ui-text";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreCirclePosts } from "@/app/actions/circles";
 
@@ -17,6 +18,7 @@ export function CirclePostsList({
   viewerId: string;
   viewerIsAdmin: boolean;
 }) {
+  const { t } = useShellText();
   const { items, hasMore, loading, sentinelRef } = useInfiniteScroll({
     initialItems: initialPosts,
     initialHasMore,
@@ -31,7 +33,7 @@ export function CirclePostsList({
       ))}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-4">
-          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{t.common.loadingMore}</span>}
         </div>
       )}
     </>

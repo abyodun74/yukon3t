@@ -15,6 +15,9 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
+import { useCollabText } from "@/components/collab-text";
+import { useUiText } from "@/components/ui-text";
+import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 
 const MATERIAL_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
@@ -22,28 +25,13 @@ const MATERIAL_ACCEPT =
 type Participant = { id: string; name: string };
 type Recording = { id: string; startedAt: number; durationSeconds: number | null };
 
-function joinErrorMessage(code?: string) {
-  switch (code) {
-    case "not_configured":
-      return "Live sessions aren't set up yet.";
-    case "not_a_participant":
-      return "Join this collaboration first to start the session.";
-    case "not_started":
-      return "The organizer or a co-admin hasn't started this session yet.";
-    case "rate_limited":
-      return "Slow down a little and try again.";
-    default:
-      return "Couldn't join the session — try again.";
-  }
-}
-
-function formatRecordingLabel(recording: Recording) {
-  const date = new Date(recording.startedAt * 1000).toLocaleString([], {
+function formatRecordingLabel(recording: Recording, locale: Locale, withMinutes: string) {
+  const date = new Date(recording.startedAt * 1000).toLocaleString(intlLocale(locale) ?? [], {
     dateStyle: "medium",
     timeStyle: "short",
   });
   const minutes = recording.durationSeconds ? Math.round(recording.durationSeconds / 60) : null;
-  return minutes ? `${date} · ${minutes} min` : date;
+  return minutes ? format(withMinutes, { date, minutes }) : date;
 }
 
 /**
@@ -87,6 +75,10 @@ export function CollabSessionRoom({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { startSession, dailyCall } = useCallSession();
+  const { locale, t: collab } = useCollabText();
+  const t = collab.session;
+  const { t: ui } = useUiText();
+  const names = participants.map((p) => p.name).join(ui.listSeparator);
 
   const collabIdRef = useRef(collabId);
   useEffect(() => {
@@ -132,7 +124,7 @@ export function CollabSessionRoom({
     setError(null);
     const result = await joinCollabSession(collabId);
     if (result.error || !result.roomUrl || !result.token) {
-      setError(joinErrorMessage(result.error ?? undefined));
+      setError(byCode(t.joinErrors, result.error));
       return;
     }
     setJoined(true);
@@ -186,11 +178,7 @@ export function CollabSessionRoom({
     const result = await shareCollabMaterial({ file, conversationId, dailyCall });
     setUploading(false);
     if (!result.ok) {
-      setError(
-        result.error === "upload_failed"
-          ? "Couldn't upload that file — try again."
-          : "Uploaded, but couldn't share it in chat — try again.",
-      );
+      setError(byCode(t.errors, result.error));
     }
   }
 
@@ -199,7 +187,7 @@ export function CollabSessionRoom({
     const result = await getCollabRecordingLink(collabId, recordingId);
     setFetchingLinkId(null);
     if (result.error || !result.url) {
-      setError("Couldn't get that recording's link — try again.");
+      setError(t.linkError);
       return;
     }
     window.open(result.url, "_blank", "noopener,noreferrer");
@@ -211,11 +199,13 @@ export function CollabSessionRoom({
         <div className="flex items-center gap-2 text-sm">
           <Video size={16} className="text-foreground-soft" />
           {participants.length === 0 ? (
-            <span className="text-foreground-soft">No one&apos;s in the session</span>
+            <span className="text-foreground-soft">{t.empty}</span>
           ) : (
             <span>
-              {participants.length} in session:{" "}
-              <span className="text-foreground-soft">{participants.map((p) => p.name).join(", ")}</span>
+              {plural(locale, t.inSession, participants.length)}{" "}
+              <span dir="auto" className="text-foreground-soft">
+                {names}
+              </span>
             </span>
           )}
         </div>
@@ -241,11 +231,11 @@ export function CollabSessionRoom({
                     markNativePickerActive();
                     fileInputRef.current?.click();
                   }}
-                  title="Upload material to share with participants"
+                  title={t.uploadHint}
                   className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
                 >
                   <Upload size={14} />
-                  {uploading ? "Uploading…" : "Upload material"}
+                  {uploading ? t.uploading : t.upload}
                 </button>
               </>
             )}
@@ -255,11 +245,11 @@ export function CollabSessionRoom({
                 onClick={join}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
               >
-                {canStart ? "Start session" : "Join session"}
+                {canStart ? t.start : t.join}
               </button>
             ) : (
               <span className="text-xs text-foreground-soft">
-                Waiting for the organizer to start the session
+                {t.waiting}
               </span>
             )}
           </div>
@@ -269,11 +259,11 @@ export function CollabSessionRoom({
 
       {recordings.length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">Recordings</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.recordings}</p>
           <ul className="mt-1.5 space-y-1">
             {recordings.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-foreground-soft">{formatRecordingLabel(r)}</span>
+                <span className="text-foreground-soft">{formatRecordingLabel(r, locale, t.recording)}</span>
                 <button
                   type="button"
                   disabled={fetchingLinkId === r.id}
@@ -281,7 +271,7 @@ export function CollabSessionRoom({
                   className="flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-1 font-medium hover:border-accent hover:text-accent disabled:opacity-50"
                 >
                   <Download size={12} />
-                  {fetchingLinkId === r.id ? "Loading..." : "Get link"}
+                  {fetchingLinkId === r.id ? t.loading : t.getLink}
                 </button>
               </li>
             ))}
@@ -293,12 +283,11 @@ export function CollabSessionRoom({
         open={confirmingJoin}
         onClose={() => setConfirmingJoin(false)}
         panelClassName="max-w-xs text-center"
-        ariaLabel="A session is already in progress"
+        ariaLabel={t.inProgress}
       >
-        <p className="text-sm font-medium">A session is already in progress</p>
+        <p className="text-sm font-medium">{t.inProgress}</p>
         <p className="mt-1 text-sm text-foreground-soft">
-          {participants.map((p) => p.name).join(", ")} {participants.length === 1 ? "is" : "are"} already in this
-          session. Ready to join?
+          {format(participants.length === 1 ? t.alreadyOne : t.alreadyMany, { names })}
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <button
@@ -306,14 +295,14 @@ export function CollabSessionRoom({
             onClick={confirmJoin}
             className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
           >
-            Yes, join now
+            {t.joinNow}
           </button>
           <button
             type="button"
             onClick={() => setConfirmingJoin(false)}
             className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Leave — not now
+            {t.notNow}
           </button>
         </div>
       </Sheet>

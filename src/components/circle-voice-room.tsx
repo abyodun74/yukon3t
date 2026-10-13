@@ -11,36 +11,18 @@ import {
   getVoiceChannelInviteCounts,
 } from "@/app/actions/circle-voice";
 import { CallFrame } from "@/components/call-frame";
+import { EnglishOnly } from "@/components/english-only";
 import { UserAvatar } from "@/components/user-link";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { useCirclesText } from "@/components/circles-text";
+import { useUiText } from "@/components/ui-text";
+import { byCode, format, plural } from "@/lib/i18n/locales";
 
 type Participant = { id: string; name: string };
 type ActiveRoom = { roomUrl: string; token: string };
 type CircleMember = { id: string; name: string | null; avatarUrl: string | null };
 type InviteCounts = { pending: number; accepted: number; declined: number };
-
-function joinErrorMessage(code?: string) {
-  switch (code) {
-    case "not_configured":
-      return "Voice rooms aren't set up yet.";
-    case "not_a_member":
-      return "Join this Circle first to use the voice room.";
-    default:
-      return "Couldn't join the voice room — try again.";
-  }
-}
-
-function inviteErrorMessage(code?: string) {
-  switch (code) {
-    case "not_a_member":
-      return "That person isn't a member of this Circle.";
-    case "rate_limited":
-      return "Slow down a little — try again shortly.";
-    default:
-      return "Couldn't send that invite — try again.";
-  }
-}
 
 /** Persistent, drop-in voice room for one voice Channel — no ringing, members join/leave freely. */
 export function CircleVoiceRoom({
@@ -59,6 +41,9 @@ export function CircleVoiceRoom({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
+  const { locale, t: circles } = useCirclesText();
+  const t = circles.voice;
+  const { t: ui } = useUiText();
 
   const channelIdRef = useRef(channelId);
   useEffect(() => {
@@ -101,7 +86,7 @@ export function CircleVoiceRoom({
     setError(null);
     const result = await joinCircleVoiceRoom(channelId);
     if (result.error || !result.roomUrl || !result.token) {
-      setError(joinErrorMessage(result.error ?? undefined));
+      setError(byCode(t.joinErrors, result.error));
       return;
     }
     setActive({ roomUrl: result.roomUrl, token: result.token });
@@ -116,7 +101,7 @@ export function CircleVoiceRoom({
     setInviteError(null);
     const result = await inviteToVoiceChannel(channelId, memberId);
     if (result.error) {
-      setInviteError(inviteErrorMessage(result.error));
+      setInviteError(byCode(t.inviteErrors, result.error));
       return;
     }
     setInvitedIds((prev) => new Set(prev).add(memberId));
@@ -129,11 +114,13 @@ export function CircleVoiceRoom({
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Mic size={16} className="shrink-0 text-foreground-soft" />
           {participants.length === 0 ? (
-            <span className="text-foreground-soft">No one&apos;s in the voice room</span>
+            <span className="text-foreground-soft">{t.empty}</span>
           ) : (
             <span className="min-w-0 break-words">
-              {participants.length} talking:{" "}
-              <span className="text-foreground-soft">{participants.map((p) => p.name).join(", ")}</span>
+              {plural(locale, t.talking, participants.length)}{" "}
+              <span dir="auto" className="text-foreground-soft">
+                {participants.map((p) => p.name).join(ui.listSeparator)}
+              </span>
             </span>
           )}
         </div>
@@ -142,7 +129,7 @@ export function CircleVoiceRoom({
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              aria-label="Invite to voice channel"
+              aria-label={t.inviteLabel}
               className="rounded-lg border border-line p-1.5 text-foreground-soft hover:border-accent hover:text-accent"
             >
               <UserPlus size={16} />
@@ -154,26 +141,26 @@ export function CircleVoiceRoom({
               onClick={join}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
             >
-              Join voice
+              {t.join}
             </button>
           )}
         </div>
       </div>
 
       <p className="mt-2 text-xs text-foreground-soft">
-        {inviteCounts.pending} pending · {inviteCounts.accepted} accepted · {inviteCounts.declined} declined
+        {format(t.counts, inviteCounts)}
       </p>
 
       {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
-      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Invite to voice">
+      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title={t.inviteTitle}>
         {inviteError && <p role="alert" className="text-xs text-danger">{inviteError}</p>}
         <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
           {circleMembers.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2">
                 <UserAvatar avatarUrl={m.avatarUrl} name={m.name} size={24} />
-                <span className="min-w-0 truncate">{m.name ?? "Unknown"}</span>
+                <span dir="auto" className="min-w-0 truncate">{m.name ?? t.unknown}</span>
               </span>
               <button
                 type="button"
@@ -181,16 +168,19 @@ export function CircleVoiceRoom({
                 onClick={() => invite(m.id)}
                 className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-accent disabled:opacity-50"
               >
-                {invitedIds.has(m.id) ? "Invited" : "Invite"}
+                {invitedIds.has(m.id) ? t.invited : t.invite}
               </button>
             </li>
           ))}
-          {circleMembers.length === 0 && <li className="text-sm text-foreground-soft">No other Circle members yet.</li>}
+          {circleMembers.length === 0 && <li className="text-sm text-foreground-soft">{t.noMembers}</li>}
         </ul>
       </Sheet>
 
       {active && (
-        <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />
+        // The call screens are not translated yet.
+        <EnglishOnly contents>
+          <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />
+        </EnglishOnly>
       )}
     </div>
   );

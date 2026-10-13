@@ -21,6 +21,10 @@ import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { isCollabAdmin, canViewCollab } from "@/lib/collab-permissions";
+import { countryName } from "@/lib/i18n/country-names";
+import { vocabName } from "@/lib/i18n/language-names";
+import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function CollabDetailPage({
   params,
@@ -29,6 +33,10 @@ export default async function CollabDetailPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { id } = await params;
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.collab;
+  const [byBefore, byAfter] = aroundPlaceholder(t.board.by, "name");
 
   const collab = await prisma.collabBoardPost.findUnique({
     where: { id },
@@ -112,7 +120,7 @@ export default async function CollabDetailPage({
           return accepted
             .map((c) => (c.requesterId === me.id ? c.target : c.requester))
             .filter((u) => !excludeIds.has(u.id))
-            .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
+            .map((u) => ({ value: u.id, label: u.name ?? t.form.unknown }));
         })()
       : [];
 
@@ -179,21 +187,23 @@ export default async function CollabDetailPage({
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-            {collab.type}
+            {vocabName(collab.type, dictionary.vocab.collabTypes)}
           </span>
           {collab.visibility === "PRIVATE" && (
             <span className="rounded-full bg-line px-2.5 py-0.5 text-xs font-medium text-foreground-soft">
-              Private
+              {t.board.private}
             </span>
           )}
         </div>
         <span className="break-words text-xs text-foreground-soft">
-          {collab.worldwide ? "Worldwide" : collab.countries.join(", ")}
+          {collab.worldwide
+            ? t.board.worldwide
+            : collab.countries.map((country) => countryName(country, locale)).join(dictionary.ui.listSeparator)}
         </span>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
+        <h1 dir="auto" className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
         <div className="flex flex-wrap items-center gap-2">
           {(isOwner || isParticipant || collab.visibility === "PUBLIC") && (
             <CollabParticipantButton
@@ -208,7 +218,7 @@ export default async function CollabDetailPage({
               href={`/collab/${collab.id}/edit`}
               className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft hover:border-accent hover:text-foreground"
             >
-              Edit
+              {t.board.edit}
             </Link>
           )}
           {collab.status === "OPEN" && (isOwner || me.isAdmin) && (
@@ -220,7 +230,7 @@ export default async function CollabDetailPage({
         </div>
       </div>
 
-      <p className="mt-2 break-words text-sm text-foreground-soft">{collab.description}</p>
+      <p dir="auto" className="mt-2 break-words text-sm text-foreground-soft">{collab.description}</p>
 
       {canJoinSession && collab.nextSessionAt && collab.scheduleTime && (
         <div className="mt-3">
@@ -242,8 +252,8 @@ export default async function CollabDetailPage({
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-foreground-soft">by</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {byBefore.trim() && <span className="text-xs text-foreground-soft">{byBefore.trim()}</span>}
           <UserLink
             userId={collab.author.id}
             name={collab.author.name}
@@ -252,13 +262,14 @@ export default async function CollabDetailPage({
             avatarSize={18}
             className="text-xs font-medium"
           />
+          {byAfter.trim() && <span className="text-xs text-foreground-soft">{byAfter.trim()}</span>}
           <TrustBadge band={collab.author.trustBand} />
           <span className="text-xs text-foreground-soft">
-            · {collab._count.participants} participant{collab._count.participants === 1 ? "" : "s"}
+            · {plural(locale, t.board.participants, collab._count.participants)}
           </span>
           {collab.status === "CLOSED" && (
             <span className="rounded-full bg-line px-2 py-0.5 text-[0.6875rem] text-foreground-soft">
-              Closed
+              {t.board.closed}
             </span>
           )}
         </div>
@@ -301,11 +312,9 @@ export default async function CollabDetailPage({
       {canModerate && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Participants
+            {t.detail.participantsHeading}
           </h2>
-          <p className="mt-1 text-xs text-foreground-soft">
-            Co-admins get the same management powers as you, except closing this collaboration.
-          </p>
+          <p className="mt-1 text-xs text-foreground-soft">{t.detail.coAdminNote}</p>
           <div className="mt-3">
             <CollabParticipantManager collabId={collab.id} participants={allParticipants} />
           </div>
@@ -326,7 +335,7 @@ export default async function CollabDetailPage({
 
       <div className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          Collaboration chat
+          {t.detail.chatHeading}
         </h2>
         {conversation && canJoinSession ? (
           <div className="mt-3">
@@ -338,7 +347,7 @@ export default async function CollabDetailPage({
               conversationLabel={collab.title}
               members={conversation.members.map((m) => ({
                 userId: m.user.id,
-                name: m.user.name ?? "Unknown",
+                name: m.user.name ?? dictionary.messages.fallback.unknown,
                 username: m.user.username,
                 avatarUrl: m.user.avatarUrl,
                 lastReadAt: m.lastReadAt,
@@ -347,7 +356,7 @@ export default async function CollabDetailPage({
           </div>
         ) : (
           <p className="mt-3 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-            Participate in this collaboration to post photos, videos, and messages here.
+            {t.detail.chatLocked}
           </p>
         )}
       </div>

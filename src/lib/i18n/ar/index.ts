@@ -1,6 +1,8 @@
 import type { Dictionary } from "@/lib/i18n/en";
 import { account } from "@/lib/i18n/ar/account";
 import { advertise } from "@/lib/i18n/ar/advertise";
+import { circles } from "@/lib/i18n/ar/circles";
+import { collab } from "@/lib/i18n/ar/collab";
 import { feed } from "@/lib/i18n/ar/feed";
 import { invite } from "@/lib/i18n/ar/invite";
 import { messages } from "@/lib/i18n/ar/messages";
@@ -24,6 +26,8 @@ export const ar: Dictionary = {
   settings,
   invite,
   advertise,
+  circles,
+  collab,
   vocab,
   ...account,
 };

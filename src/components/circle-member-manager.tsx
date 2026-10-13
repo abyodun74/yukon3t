@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addCircleCoAdmin, removeCircleCoAdmin, removeCircleMember } from "@/app/actions/circles";
 import { UserLink } from "@/components/user-link";
+import { useCirclesText } from "@/components/circles-text";
 
 type Member = {
   role: string;
@@ -20,10 +21,11 @@ export function CircleMemberManager({
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const t = useCirclesText().t.members;
 
   const manageable = members.filter((m) => m.role !== "OWNER");
   if (manageable.length === 0) {
-    return <p className="text-sm text-foreground-soft">No other members yet.</p>;
+    return <p className="text-sm text-foreground-soft">{t.noOthers}</p>;
   }
 
   return (
@@ -35,7 +37,7 @@ export function CircleMemberManager({
             <span className="flex min-w-0 items-center gap-1.5">
               <UserLink userId={m.user.id} name={m.user.name} username={m.user.username} avatarUrl={m.user.avatarUrl} />
               {isCoAdmin && (
-                <span className="text-xs font-normal text-accent">Co-admin</span>
+                <span className="text-xs font-normal text-accent">{t.coAdmin}</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">
@@ -51,7 +53,7 @@ export function CircleMemberManager({
                 }
                 className="rounded-md border border-line px-2 py-1 font-medium hover:border-accent hover:text-accent disabled:opacity-50"
               >
-                {isCoAdmin ? "Remove co-admin" : "Make co-admin"}
+                {isCoAdmin ? t.removeCoAdmin : t.makeCoAdmin}
               </button>
               <button
                 type="button"
@@ -64,7 +66,7 @@ export function CircleMemberManager({
                 }
                 className="rounded-md border border-line px-2 py-1 font-medium text-danger hover:border-danger disabled:opacity-50"
               >
-                Remove
+                {t.remove}
               </button>
             </div>
           </li>

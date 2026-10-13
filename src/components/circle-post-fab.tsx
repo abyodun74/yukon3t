@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { ScrollFab } from "@/components/scroll-fab";
+import { useFeedText } from "@/components/feed-text";
 
 function focusComposer() {
   const target = document.getElementById("circle-composer");
@@ -17,13 +18,14 @@ function focusComposer() {
  * prop threaded through from the page.
  */
 export function CirclePostFab() {
+  const { t } = useFeedText();
   return (
     <ScrollFab
       hideWhileVisibleId="circle-composer"
       actions={[
         {
           key: "new-post",
-          label: "New post",
+          label: t.quickActions.newPost,
           icon: <Plus size={24} />,
           iconClassName: "bg-accent text-accent-ink",
           onSelect: focusComposer,

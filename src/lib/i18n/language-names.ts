@@ -142,3 +142,11 @@ export function languageName(
 export function interestName(stored: string, interests: Record<string, string>): string {
   return Object.hasOwn(interests, stored) ? interests[stored] : stored;
 }
+
+/**
+ * A stored Circle category or collaboration type in the reader's language: `names` is the dictionary's
+ * vocab.circleCategories or vocab.collabTypes. A job title, or any value not listed there, is shown as stored.
+ */
+export function vocabName(stored: string, names: Record<string, string>): string {
+  return Object.hasOwn(names, stored) ? names[stored] : stored;
+}

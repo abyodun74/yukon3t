@@ -5,10 +5,12 @@ import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 import { feedCategoryLabels, intentLabels, reportReasonCategoryLabels } from "@/lib/validations";
 import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
 import { GENERAL_INTERESTS } from "@/lib/interests";
+import { GENERAL_CIRCLE_CATEGORIES } from "@/lib/circle-categories";
+import { COLLAB_TYPES } from "@/lib/collab-types";
 import { LANGUAGES } from "@/lib/languages";
 import { EMOJI_STYLE_VALUES } from "@/lib/emoji-style";
 import { RINGTONE_LABELS } from "@/lib/ringtones";
-import { interestName, languageName } from "@/lib/i18n/language-names";
+import { interestName, languageName, vocabName } from "@/lib/i18n/language-names";
 
 /** Every entry of a dictionary by its dotted path ("signIn.errors.locked", "shared.birthDate.months.0"). */
 function flatten(value: unknown, path = "", out = new Map<string, unknown>()) {
@@ -48,6 +50,8 @@ const PRODUCT_NAME_TITLES = [
   "shell.nav.collabBoards",
   "shell.nav.muse",
   "pages.search.circles",
+  "circles.list.title",
+  "collab.board.title",
 ];
 // "{name}: {text}", with nothing in it to translate.
 const NAME_THEN_TEXT = ["messages.inbox.from", "messages.thread.incoming"];
@@ -56,13 +60,15 @@ const GIF_LABELS = ["messages.inbox.gif", "messages.thread.bubble.gif", "ui.comm
 const LATIN_SCRIPT_SHARED = [...GIF_LABELS, "ui.listSeparator", "ui.report.reasons.SPAM"];
 // Feature and brand names kept as they are: Ambient (like Muse), and two of the emoji sets.
 const NAMES_KEPT = ["settings.ambient.heading", "settings.emoji.styles.google", "settings.emoji.styles.twitter"];
-// "Zoom", "Total", "Marimba", "Yoga" and "Fitness" are the words Spanish, French and Portuguese use too.
+// "Zoom", "Total", "Marimba", "Yoga" and "Fitness" are the words Spanish, French and Portuguese use too, and "min"
+// their abbreviation of "minutes" in "{date} · {minutes} min".
 const LATIN_LOANWORDS = [
   "ui.crop.zoom",
   "advertise.form.total",
   "settings.calls.ringtones.MARIMBA",
   "vocab.interests.Yoga",
   "vocab.interests.Fitness",
+  "collab.session.recording",
 ];
 const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   es: [
@@ -78,6 +84,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "ui.report.reasons.PHISHING",
     "feed.categories.GENERAL",
     "shell.viewer.videoLabel",
+    "vocab.collabTypes.Networking",
   ],
   // French puts a space before the colon, so its "{name} : {text}" differs.
   fr: [
@@ -114,6 +121,18 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "vocab.interests.Aviation",
     "vocab.languages.Tagalog",
     "vocab.languages.Dari",
+    // "Type", "Public", "Co-admin", "Participants", "Culture" and "Hackathons" are French words too.
+    "circles.channels.type",
+    "circles.channels.public",
+    "circles.details.public",
+    "circles.list.coAdmin",
+    "circles.members.coAdmin",
+    "collab.form.type",
+    "collab.participants.coAdmin",
+    "collab.board.participants",
+    "collab.detail.participantsHeading",
+    "vocab.circleCategories.Culture",
+    "vocab.collabTypes.Hackathons",
   ],
   pt: [
     "onboarding.bio",
@@ -130,6 +149,8 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "settings.calls.ringtones.DIGITAL",
     "vocab.interests.Podcasts",
     "vocab.languages.Dari",
+    "vocab.collabTypes.Hackathons",
+    "vocab.collabTypes.Networking",
   ],
   ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT, ...NAMES_KEPT],
 };
@@ -246,6 +267,21 @@ describe("dictionaries", () => {
   it("lists every general interest, under its stored name in English", () => {
     expect(Object.keys(en.vocab.interests)).toEqual([...GENERAL_INTERESTS]);
     for (const interest of GENERAL_INTERESTS) expect(en.vocab.interests[interest]).toBe(interest);
+  });
+
+  it("lists every general Circle category and every collaboration type, under its stored name in English", () => {
+    expect(Object.keys(en.vocab.circleCategories)).toEqual([...GENERAL_CIRCLE_CATEGORIES]);
+    for (const category of GENERAL_CIRCLE_CATEGORIES) expect(en.vocab.circleCategories[category]).toBe(category);
+    expect(Object.keys(en.vocab.collabTypes)).toEqual([...COLLAB_TYPES]);
+    for (const type of COLLAB_TYPES) expect(en.vocab.collabTypes[type]).toBe(type);
+  });
+
+  it.each(TRANSLATED)("%s shows a Circle category or collaboration type it has no name for as stored", (locale) => {
+    const { circleCategories, collabTypes } = DICTIONARIES[locale].vocab;
+    expect(vocabName("Bookkeeping", circleCategories)).toBe("Bookkeeping");
+    expect(vocabName("constructor", collabTypes)).toBe("constructor");
+    expect(vocabName("Travel", circleCategories)).toBe(circleCategories.Travel);
+    expect(vocabName("Mentorship", collabTypes)).toBe(collabTypes.Mentorship);
   });
 
   it.each(TRANSLATED)("%s shows an interest it has no name for as stored", (locale) => {

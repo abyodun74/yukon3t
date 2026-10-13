@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { respondToCollabInvite } from "@/app/actions/collab";
+import { useCollabText } from "@/components/collab-text";
+import { aroundPlaceholder } from "@/lib/i18n/locales";
 
 /** Shown to an invitee who hasn't yet responded to a PRIVATE collab's CollabInvite — this is their only way in. */
 export function CollabInviteResponse({
@@ -15,12 +17,15 @@ export function CollabInviteResponse({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const t = useCollabText().t.inviteResponse;
+  const [before, after] = aroundPlaceholder(t.text, "name");
 
   return (
     <div className="rounded-xl border border-accent/40 bg-accent/5 p-4">
       <p className="text-sm">
-        <span className="font-semibold">{inviterName ?? "Someone"}</span> invited you to
-        collaborate — this is a private collaboration, only visible to people invited to it.
+        {before}
+        <bdi className="font-semibold">{inviterName ?? t.someone}</bdi>
+        {after}
       </p>
       <div className="mt-3 flex gap-2">
         <button
@@ -31,7 +36,7 @@ export function CollabInviteResponse({
               setError(null);
               const result = await respondToCollabInvite(inviteId, true);
               if (result.error) {
-                setError("Couldn't accept — try again.");
+                setError(t.acceptError);
                 return;
               }
               router.refresh();
@@ -39,7 +44,7 @@ export function CollabInviteResponse({
           }
           className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
-          Accept
+          {t.accept}
         </button>
         <button
           type="button"
@@ -49,7 +54,7 @@ export function CollabInviteResponse({
               setError(null);
               const result = await respondToCollabInvite(inviteId, false);
               if (result.error) {
-                setError("Couldn't decline — try again.");
+                setError(t.declineError);
                 return;
               }
               router.push("/collab");
@@ -57,7 +62,7 @@ export function CollabInviteResponse({
           }
           className="rounded-lg border border-line px-4 py-2.5 text-sm disabled:opacity-50"
         >
-          Decline
+          {t.decline}
         </button>
       </div>
       {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Hash, Lock, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CreateChannelModal } from "@/components/create-channel-modal";
+import { getDictionary } from "@/lib/i18n/server";
 
 type ChannelSummary = {
   id: string;
@@ -15,10 +16,12 @@ function ChannelLink({
   circleSlug,
   channel,
   active,
+  privateLabel,
 }: {
   circleSlug: string;
   channel: ChannelSummary;
   active: boolean;
+  privateLabel: string;
 }) {
   const Icon = channel.type === "TEXT" ? Hash : Mic;
   return (
@@ -31,8 +34,8 @@ function ChannelLink({
       )}
     >
       <Icon size={14} className="shrink-0" />
-      <span className="truncate">{channel.name}</span>
-      {channel.visibility === "PRIVATE" && <Lock size={11} role="img" aria-label="Private" className="ml-auto shrink-0" />}
+      <span dir="auto" className="truncate">{channel.name}</span>
+      {channel.visibility === "PRIVATE" && <Lock size={11} role="img" aria-label={privateLabel} className="ms-auto shrink-0" />}
     </Link>
   );
 }
@@ -42,7 +45,7 @@ function ChannelLink({
  * filtered down to what the viewer can access (see canAccessChannel) before
  * reaching this component; it doesn't re-check visibility itself.
  */
-export function ChannelList({
+export async function ChannelList({
   circleId,
   circleSlug,
   channels,
@@ -55,6 +58,7 @@ export function ChannelList({
   activeSlug: string;
   canManage: boolean;
 }) {
+  const t = (await getDictionary()).circles.channels;
   const textChannels = channels.filter((c) => c.type === "TEXT");
   const voiceChannels = channels.filter((c) => c.type === "VOICE");
 
@@ -63,11 +67,17 @@ export function ChannelList({
       {textChannels.length > 0 && (
         <div>
           <p className="px-2 text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft">
-            Text Channels
+            {t.text}
           </p>
           <div className="mt-1 space-y-0.5">
             {textChannels.map((c) => (
-              <ChannelLink key={c.id} circleSlug={circleSlug} channel={c} active={c.slug === activeSlug} />
+              <ChannelLink
+                key={c.id}
+                circleSlug={circleSlug}
+                channel={c}
+                active={c.slug === activeSlug}
+                privateLabel={t.private}
+              />
             ))}
           </div>
         </div>
@@ -75,11 +85,17 @@ export function ChannelList({
       {voiceChannels.length > 0 && (
         <div>
           <p className="px-2 text-[0.625rem] font-semibold uppercase tracking-wide text-foreground-soft">
-            Voice Channels
+            {t.voice}
           </p>
           <div className="mt-1 space-y-0.5">
             {voiceChannels.map((c) => (
-              <ChannelLink key={c.id} circleSlug={circleSlug} channel={c} active={c.slug === activeSlug} />
+              <ChannelLink
+                key={c.id}
+                circleSlug={circleSlug}
+                channel={c}
+                active={c.slug === activeSlug}
+                privateLabel={t.private}
+              />
             ))}
           </div>
         </div>

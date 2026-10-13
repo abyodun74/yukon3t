@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { joinCircle, leaveCircle } from "@/app/actions/circles";
+import { useCirclesText } from "@/components/circles-text";
 
 export function CircleMembershipButton({
   circleId,
@@ -20,11 +21,12 @@ export function CircleMembershipButton({
   const [isPending, startTransition] = useTransition();
   const [justRequested, setJustRequested] = useState(false);
   const router = useRouter();
+  const t = useCirclesText().t.membership;
 
   if (isOwner) {
     return (
       <span className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft">
-        You own this Circle
+        {t.owner}
       </span>
     );
   }
@@ -32,7 +34,7 @@ export function CircleMembershipButton({
   if (!isMember && (hasPendingRequest || justRequested)) {
     return (
       <span className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft">
-        Request pending
+        {t.pending}
       </span>
     );
   }
@@ -54,7 +56,7 @@ export function CircleMembershipButton({
       }
       className="rounded-lg border border-line px-4 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
     >
-      {isMember ? "Leave" : visibility === "PRIVATE" ? "Request to Join" : "Join"}
+      {isMember ? t.leave : visibility === "PRIVATE" ? t.request : t.join}
     </button>
   );
 }

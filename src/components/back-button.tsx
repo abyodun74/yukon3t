@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { useShellText } from "@/components/ui-text";
+import { localeDirection } from "@/lib/i18n/locales";
 
 const CLASS_NAME = "mb-4 flex items-center gap-1 rounded-lg p-1.5 text-sm text-foreground-soft hover:bg-line";
 
@@ -23,19 +24,20 @@ export function BackButton({
 }: {
   fallbackHref?: string;
   href?: string;
-  /** Left out, it is "Back" in the reader's language, on a screen that is still English too (hence its own `lang`). */
+  /** Left out, it is "Back" in the reader's language, on a screen that is still English too (hence its own `lang` and `dir`). */
   label?: string;
 }) {
   const router = useRouter();
   const { locale, t } = useShellText();
   const lang = label === undefined ? locale : undefined;
+  const dir = lang ? localeDirection(lang) : undefined;
   const text = label ?? t.common.back;
 
   if (href) {
     return (
       // w-fit: unlike a <button>, an <a> set to display:flex stretches to the
       // full row, which would make the whole line a click target/hover area.
-      <Link href={href} lang={lang} className={`${CLASS_NAME} w-fit`}>
+      <Link href={href} lang={lang} dir={dir} className={`${CLASS_NAME} w-fit`}>
         <ArrowLeft size={18} className="rtl:-scale-x-100" />
         {text}
       </Link>
@@ -53,6 +55,7 @@ export function BackButton({
         }
       }}
       lang={lang}
+      dir={dir}
       className={CLASS_NAME}
     >
       <ArrowLeft size={18} className="rtl:-scale-x-100" />

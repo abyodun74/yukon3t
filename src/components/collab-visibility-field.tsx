@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MultiSelect } from "@/components/multi-select";
+import { useCollabText } from "@/components/collab-text";
 
 /** Public/private radio for creating a collab — Private reveals a connections picker for who to invite up front. */
 export function CollabVisibilityField({
@@ -10,11 +11,13 @@ export function CollabVisibilityField({
   candidates: { value: string; label: string }[];
 }) {
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const { t: collab } = useCollabText();
+  const t = collab.form;
 
   return (
     <div>
-      <label className="block text-sm font-medium">Who can see this?</label>
-      <div className="mt-1 flex gap-4 text-sm">
+      <label className="block text-sm font-medium">{t.visibility}</label>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <label className="flex items-center gap-1.5">
           <input
             type="radio"
@@ -23,7 +26,7 @@ export function CollabVisibilityField({
             checked={visibility === "PUBLIC"}
             onChange={() => setVisibility("PUBLIC")}
           />
-          Public — announced to everyone, request to join
+          {t.public}
         </label>
         <label className="flex items-center gap-1.5">
           <input
@@ -33,17 +36,22 @@ export function CollabVisibilityField({
             checked={visibility === "PRIVATE"}
             onChange={() => setVisibility("PRIVATE")}
           />
-          Private — invite specific people
+          {t.private}
         </label>
       </div>
 
       {visibility === "PRIVATE" && (
         <div className="mt-2">
           {candidates.length > 0 ? (
-            <MultiSelect name="inviteeIds" options={candidates} placeholder="Search connections to invite..." />
+            <MultiSelect
+              name="inviteeIds"
+              options={candidates}
+              placeholder={t.inviteePlaceholder}
+              labels={collab.controls.multiSelect}
+            />
           ) : (
             <p className="text-xs text-foreground-soft">
-              You don&apos;t have any connections yet to invite — connect with someone first.
+              {t.noConnections}
             </p>
           )}
         </div>

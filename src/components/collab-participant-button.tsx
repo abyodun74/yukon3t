@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { joinCollab, leaveCollab } from "@/app/actions/collab";
+import { useCollabText } from "@/components/collab-text";
+import { byCode } from "@/lib/i18n/locales";
 
 export function CollabParticipantButton({
   collabId,
@@ -19,11 +21,12 @@ export function CollabParticipantButton({
   const [error, setError] = useState<string | null>(null);
   const [justRequested, setJustRequested] = useState(false);
   const router = useRouter();
+  const t = useCollabText().t.participation;
 
   if (isOwner) {
     return (
       <span className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft">
-        You started this collaboration
+        {t.owner}
       </span>
     );
   }
@@ -31,7 +34,7 @@ export function CollabParticipantButton({
   if (!isParticipant && (hasPendingRequest || justRequested)) {
     return (
       <span className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft">
-        Request pending
+        {t.pending}
       </span>
     );
   }
@@ -46,11 +49,7 @@ export function CollabParticipantButton({
             setError(null);
             const result = isParticipant ? await leaveCollab(collabId) : await joinCollab(collabId);
             if (result.error) {
-              setError(
-                result.error === "owner_cannot_leave"
-                  ? "Close this collaboration instead of leaving it."
-                  : "Couldn't update your participation — try again.",
-              );
+              setError(byCode(t.errors, result.error));
               return;
             }
             if (!isParticipant && "requested" in result && result.requested) {
@@ -61,7 +60,7 @@ export function CollabParticipantButton({
         }
         className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
       >
-        {isParticipant ? "Leave" : "Request to Join"}
+        {isParticipant ? t.leave : t.request}
       </button>
       {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
     </div>

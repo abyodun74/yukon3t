@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Lock, Plus } from "lucide-react";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
+import { format, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export type SubCircleSummary = {
   id: string;
@@ -26,7 +28,7 @@ export type SubCircleSummary = {
  * checkSubCircleParent); it also decides whether an empty list is shown at
  * all — nobody else has any use for a "No sub-circles yet" box.
  */
-export function SubCircleList({
+export async function SubCircleList({
   parentSlug,
   subCircles,
   viewerId,
@@ -40,6 +42,8 @@ export function SubCircleList({
   canAdd: boolean;
 }) {
   if (subCircles.length === 0 && !canAdd) return null;
+  const locale = await getLocale();
+  const t = (await getDictionary()).circles.subCircles;
   const pending = new Set(pendingRequestCircleIds);
 
   return (
@@ -47,11 +51,11 @@ export function SubCircleList({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Sub-circles{subCircles.length > 0 ? ` · ${subCircles.length}` : ""}
+            {subCircles.length > 0 ? format(t.headingCount, { count: subCircles.length }) : t.heading}
           </h2>
           {subCircles.length > 0 && (
             <p className="mt-1 text-xs text-foreground-soft">
-              Join any of these on its own — each has its own members.
+              {t.hint}
             </p>
           )}
         </div>
@@ -61,14 +65,14 @@ export function SubCircleList({
             className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
           >
             <Plus size={14} />
-            Add a sub-circle
+            {t.add}
           </Link>
         )}
       </div>
 
       {subCircles.length === 0 ? (
         <p className="mt-3 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-          No sub-circles yet. Add one to give a part of this Circle its own space and its own members.
+          {t.empty}
         </p>
       ) : (
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -88,18 +92,16 @@ export function SubCircleList({
                       className="h-10 w-10 shrink-0 rounded-lg object-cover"
                     />
                   )}
-                  <span className="min-w-0 truncate font-semibold">{sub.name}</span>
+                  <span dir="auto" className="min-w-0 truncate font-semibold">{sub.name}</span>
                   {sub.visibility === "PRIVATE" && (
-                    <span title="Private — join by request" className="flex shrink-0 items-center text-foreground-soft">
+                    <span title={t.privateHint} className="flex shrink-0 items-center text-foreground-soft">
                       <Lock size={12} />
                     </span>
                   )}
                 </Link>
-                <p className="mt-2 line-clamp-2 break-words text-sm text-foreground-soft">{sub.description}</p>
+                <p dir="auto" className="mt-2 line-clamp-2 break-words text-sm text-foreground-soft">{sub.description}</p>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-foreground-soft">
-                    {count} member{count === 1 ? "" : "s"}
-                  </span>
+                  <span className="text-xs text-foreground-soft">{plural(locale, t.members, count)}</span>
                   <CircleMembershipButton
                     circleId={sub.id}
                     isMember={isMember}

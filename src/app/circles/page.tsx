@@ -3,9 +3,15 @@ import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { CirclesNewFab } from "@/components/circles-new-fab";
+import { vocabName } from "@/lib/i18n/language-names";
+import { plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function CirclesPage() {
   const me = await getOnboardedUserOrRedirect();
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.circles.list;
 
   const circles = await prisma.circle.findMany({
     // Main Circles only — a sub-circle is listed on its main Circle's page,
@@ -23,17 +29,16 @@ export default async function CirclesPage() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div id="circles-header" className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Circles</h1>
+          <h1 className="text-2xl font-semibold">{t.title}</h1>
           <p className="mt-1 text-sm text-foreground-soft">
-            Interest and identity communities. Free to create and join — no
-            organizer fees, ever.
+            {t.intro}
           </p>
         </div>
         <Link
           href="/circles/new"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
         >
-          Start a Circle
+          {t.start}
         </Link>
       </div>
 
@@ -61,11 +66,13 @@ export default async function CirclesPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
-                      {circle.category.join(", ")}
+                      {circle.category
+                        .map((category) => vocabName(category, dictionary.vocab.circleCategories))
+                        .join(dictionary.ui.listSeparator)}
                     </p>
                     {circle.visibility === "PRIVATE" && (
                       <span
-                        title="Private — join by request"
+                        title={t.privateHint}
                         className="flex items-center text-foreground-soft"
                       >
                         <Lock size={11} />
@@ -73,28 +80,26 @@ export default async function CirclesPage() {
                     )}
                     {(isOwner || isCoAdmin) && (
                       <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-accent">
-                        {isOwner ? "Owner" : "Co-admin"}
+                        {isOwner ? t.owner : t.coAdmin}
                       </span>
                     )}
                   </div>
-                  <h2 className="mt-1 truncate font-semibold">{circle.name}</h2>
+                  <h2 dir="auto" className="mt-1 truncate font-semibold">{circle.name}</h2>
                 </div>
               </div>
-              <p className="mt-2 line-clamp-2 text-sm text-foreground-soft">
+              <p dir="auto" className="mt-2 line-clamp-2 text-sm text-foreground-soft">
                 {circle.description}
               </p>
               <p className="mt-3 text-xs text-foreground-soft">
-                {circle._count.members} member
-                {circle._count.members === 1 ? "" : "s"}
-                {circle._count.subCircles > 0 &&
-                  ` · ${circle._count.subCircles} sub-circle${circle._count.subCircles === 1 ? "" : "s"}`}
+                {plural(locale, t.members, circle._count.members)}
+                {circle._count.subCircles > 0 && ` · ${plural(locale, t.subCircles, circle._count.subCircles)}`}
               </p>
             </Link>
           );
         })}
         {circles.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            No Circles yet — be the first to start one.
+            {t.empty}
           </p>
         )}
       </div>

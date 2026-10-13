@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* `rtl:` and `ltr:` go by the language a part of the page is written in, not by any dir="rtl" ancestor as Tailwind's
+   own variants do. Every part of this app sets `lang` and `dir` together (<html> for the reader's language,
+   EnglishOnly in src/components/english-only.tsx for a part that is still English), so on an Arabic page an English
+   part keeps its icons and spacing unmirrored, and an Arabic part inside it is mirrored again. :lang() rather than
+   :dir(): the build lowers :dir() to a list of languages anyway. A new right-to-left language goes in
+   localeDirection (src/lib/i18n/locales.ts) and here. */
+@custom-variant rtl (&:where(:lang(ar)));
+@custom-variant ltr (&:where(:not(:lang(ar))));
+
 :root {
   --background: #f7f6f2;
   --surface: #ffffff;

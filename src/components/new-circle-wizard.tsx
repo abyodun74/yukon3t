@@ -3,26 +3,33 @@
 import { useRef, useState } from "react";
 import { createCircle } from "@/app/actions/circles";
 import { MultiSelect } from "@/components/multi-select";
+import { useCirclesText } from "@/components/circles-text";
+import type { circlesEn } from "@/lib/i18n/en/circles";
+import { format } from "@/lib/i18n/locales";
 import { cn } from "@/lib/utils";
 
-const STEP_LABELS = ["Name", "Category", "Theme", "Privacy"] as const;
+const STEPS = ["name", "category", "theme", "privacy"] as const;
 
-function validateStep(step: number, formData: FormData): string | null {
+function validateStep(
+  step: number,
+  formData: FormData,
+  messages: typeof circlesEn.create.validation,
+): string | null {
   if (step === 1) {
     const name = ((formData.get("name") as string) ?? "").trim();
     if (name.length < 3 || name.length > 60) {
-      return "Name must be between 3 and 60 characters.";
+      return messages.name;
     }
   }
   if (step === 2) {
     const category = formData.getAll("category") as string[];
-    if (category.length < 1) return "Pick at least one category.";
-    if (category.length > 5) return "Pick at most 5 categories.";
+    if (category.length < 1) return messages.categoryMin;
+    if (category.length > 5) return messages.categoryMax;
   }
   if (step === 3) {
     const description = ((formData.get("description") as string) ?? "").trim();
     if (description.length < 10 || description.length > 1000) {
-      return "Theme must be between 10 and 1000 characters.";
+      return messages.theme;
     }
   }
   return null;
@@ -40,7 +47,8 @@ export function NewCircleWizard({
   parentName,
   forcePrivate = false,
 }: {
-  categories: readonly string[];
+  /** `value` is the stored (English) category, `label` what it is shown as in the reader's language. */
+  categories: readonly { value: string; label: string }[];
   /** Set when creating a sub-circle under this main Circle (see createCircle). */
   parentId?: string;
   parentName?: string;
@@ -50,10 +58,12 @@ export function NewCircleWizard({
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const { t: circles } = useCirclesText();
+  const t = circles.create;
 
   function goNext() {
     if (!formRef.current) return;
-    const message = validateStep(step, new FormData(formRef.current));
+    const message = validateStep(step, new FormData(formRef.current), t.validation);
     if (message) {
       setError(message);
       return;
@@ -71,10 +81,10 @@ export function NewCircleWizard({
     <form ref={formRef} action={createCircle} className="mt-6 space-y-4">
       {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-foreground-soft">
-        {STEP_LABELS.map((label, i) => {
+        {STEPS.map((key, i) => {
           const stepNumber = i + 1;
           return (
-            <li key={label} className="flex items-center gap-1.5">
+            <li key={key} className="flex items-center gap-1.5">
               <span
                 className={cn(
                   "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.625rem]",
@@ -87,18 +97,19 @@ export function NewCircleWizard({
               >
                 {stepNumber}
               </span>
-              <span className={cn(step === stepNumber && "text-foreground")}>{label}</span>
-              {stepNumber < STEP_LABELS.length && <span className="ml-1 text-line">/</span>}
+              <span className={cn(step === stepNumber && "text-foreground")}>{t.steps[key]}</span>
+              {stepNumber < STEPS.length && <span className="ms-1 text-line">/</span>}
             </li>
           );
         })}
       </ol>
 
       <div className={step === 1 ? "" : "hidden"}>
-        <label className="block text-sm font-medium">Name</label>
+        <label className="block text-sm font-medium">{t.name}</label>
         <input
-          aria-label="Name"
+          aria-label={t.name}
           name="name"
+          dir="auto"
           required
           minLength={3}
           maxLength={60}
@@ -107,58 +118,53 @@ export function NewCircleWizard({
       </div>
 
       <div className={step === 2 ? "" : "hidden"}>
-        <label className="block text-sm font-medium">Category</label>
-        <p className="mt-0.5 text-xs text-foreground-soft">
-          General topics plus specific job types — search e.g. &quot;Cybersecurity Analyst&quot; or &quot;Bookkeeping&quot;.
-        </p>
+        <label className="block text-sm font-medium">{t.category}</label>
+        <p className="mt-0.5 text-xs text-foreground-soft">{t.categoryHint}</p>
         <div className="mt-1">
           <MultiSelect
             name="category"
             options={categories}
-            placeholder="Search categories..."
+            placeholder={t.categoryPlaceholder}
             max={5}
+            labels={circles.controls.multiSelect}
           />
         </div>
       </div>
 
       <div className={step === 3 ? "" : "hidden"}>
-        <label className="block text-sm font-medium">Theme</label>
-        <p className="mt-0.5 text-xs text-foreground-soft">
-          Describe what this Circle is about — the shared interest or
-          identity that brings people here — so members know what to
-          expect before they join.
-        </p>
+        <label className="block text-sm font-medium">{t.theme}</label>
+        <p className="mt-0.5 text-xs text-foreground-soft">{t.themeHint}</p>
         <textarea
-          aria-label="Theme"
+          aria-label={t.theme}
           name="description"
+          dir="auto"
           required
           minLength={10}
           maxLength={1000}
           rows={4}
-          placeholder="e.g. A space for first-gen university students abroad to swap advice on visas, housing, and homesickness."
+          placeholder={t.themePlaceholder}
           className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
         />
       </div>
 
       <div className={step === 4 ? "" : "hidden"}>
-        <label className="block text-sm font-medium">Privacy</label>
+        <label className="block text-sm font-medium">{t.privacy}</label>
         {forcePrivate ? (
           <>
             <input type="hidden" name="visibility" value="PRIVATE" />
             <p className="mt-1 text-sm text-foreground-soft">
-              Private — join by request only. {parentName ? `“${parentName}”` : "The main Circle"} is private, so its
-              sub-circles are too.
+              {parentName ? format(t.forcedPrivate, { name: parentName }) : t.forcedPrivateNoName}
             </p>
           </>
         ) : (
-          <div className="mt-1 flex gap-4 text-sm">
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <label className="flex items-center gap-1.5">
               <input type="radio" name="visibility" value="PUBLIC" defaultChecked />
-              Public — anyone can find and join
+              {t.public}
             </label>
             <label className="flex items-center gap-1.5">
               <input type="radio" name="visibility" value="PRIVATE" />
-              Private — join by request only
+              {t.private}
             </label>
           </div>
         )}
@@ -175,7 +181,7 @@ export function NewCircleWizard({
             onClick={goBack}
             className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent"
           >
-            Back
+            {t.back}
           </button>
         )}
         {/* The `key`s are load-bearing. Without them React sees one <button> in
@@ -192,17 +198,17 @@ export function NewCircleWizard({
             key="next"
             type="button"
             onClick={goNext}
-            className="ml-auto rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
+            className="ms-auto rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
           >
-            Next
+            {t.next}
           </button>
         ) : (
           <button
             key="create"
             type="submit"
-            className="ml-auto rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
+            className="ms-auto rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
           >
-            {parentId ? "Create sub-circle" : "Create Circle"}
+            {parentId ? t.submitSub : t.submit}
           </button>
         )}
       </div>

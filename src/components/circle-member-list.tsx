@@ -1,4 +1,5 @@
 import { UserLink } from "@/components/user-link";
+import { getDictionary } from "@/lib/i18n/server";
 
 type Member = {
   role: string;
@@ -12,9 +13,10 @@ type Member = {
  * an owner/co-admin gets the manager itself, which already lists everyone
  * too, so this never renders alongside it.
  */
-export function CircleMemberList({ members }: { members: Member[] }) {
+export async function CircleMemberList({ members }: { members: Member[] }) {
+  const t = (await getDictionary()).circles.members;
   if (members.length === 0) {
-    return <p className="text-sm text-foreground-soft">No members yet.</p>;
+    return <p className="text-sm text-foreground-soft">{t.none}</p>;
   }
 
   return (
@@ -22,8 +24,8 @@ export function CircleMemberList({ members }: { members: Member[] }) {
       {members.map((m) => (
         <li key={m.user.id} className="flex items-center gap-1.5 py-2 text-sm">
           <UserLink userId={m.user.id} name={m.user.name} username={m.user.username} avatarUrl={m.user.avatarUrl} />
-          {m.role === "OWNER" && <span className="text-xs font-normal text-accent">Owner</span>}
-          {m.role === "MODERATOR" && <span className="text-xs font-normal text-accent">Co-admin</span>}
+          {m.role === "OWNER" && <span className="text-xs font-normal text-accent">{t.owner}</span>}
+          {m.role === "MODERATOR" && <span className="text-xs font-normal text-accent">{t.coAdmin}</span>}
         </li>
       ))}
     </ul>

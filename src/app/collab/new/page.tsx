@@ -8,6 +8,9 @@ import { CollabSubmitButton } from "@/components/collab-submit-button";
 import { CollabVisibilityField } from "@/components/collab-visibility-field";
 import { MultiSelect } from "@/components/multi-select";
 import { COLLAB_TYPES } from "@/lib/collab-types";
+import { vocabName } from "@/lib/i18n/language-names";
+import { byCode } from "@/lib/i18n/locales";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -16,6 +19,10 @@ export default async function NewCollabPostPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { error } = await searchParams;
+  const dictionary = await getDictionary();
+  const t = dictionary.collab.form;
+  // The stored value is the English name; only the label a type is shown under follows the reader's language.
+  const typeOptions = COLLAB_TYPES.map((type) => ({ value: type, label: vocabName(type, dictionary.vocab.collabTypes) }));
 
   // Candidates for a private collab's invite list — same "my accepted
   // connections" query messages/[id]/page.tsx uses for group-add candidates.
@@ -30,34 +37,30 @@ export default async function NewCollabPostPage({
   const inviteeCandidates = accepted
     .map((c) => (c.requesterId === me.id ? c.target : c.requester))
     .filter((other) => !hiddenPeerIds.has(other.id))
-    .map((other) => ({ value: other.id, label: other.name ?? "Unknown" }));
+    .map((other) => ({ value: other.id, label: other.name ?? t.unknown }));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
-      <h1 className="text-2xl font-semibold">Post a collaboration</h1>
+      <h1 className="text-2xl font-semibold">{t.newTitle}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Skill exchanges, mentorship, professional services, events, and
-        projects that cross borders.
+        {t.newIntro}
       </p>
 
       {error && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {error === "rate_limited"
-            ? "You're posting too fast — try again shortly."
-            : error === "moderation"
-              ? "That didn't pass our content guidelines."
-              : "Please check your inputs."}
+          {byCode(t.errors, error)}
         </p>
       )}
 
       <form action={createCollabPost} className="mt-6 space-y-4">
         <div>
           <label htmlFor="collab-title" className="block text-sm font-medium">
-            Title
+            {t.title}
           </label>
           <input
             id="collab-title"
             name="title"
+            dir="auto"
             required
             minLength={5}
             maxLength={100}
@@ -65,12 +68,16 @@ export default async function NewCollabPostPage({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Type</label>
-          <p className="mt-0.5 text-xs text-foreground-soft">
-            Search e.g. &quot;Tax Advising&quot;, &quot;Mentorship&quot;, or &quot;Sales &amp; Marketing&quot;.
-          </p>
+          <label className="block text-sm font-medium">{t.type}</label>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.typeHint}</p>
           <div className="mt-1">
-            <MultiSelect name="type" options={COLLAB_TYPES} placeholder="Search collaboration types..." max={1} />
+            <MultiSelect
+              name="type"
+              options={typeOptions}
+              placeholder={t.typePlaceholder}
+              max={1}
+              labels={dictionary.shared.multiSelect}
+            />
           </div>
         </div>
         <CollabCountriesField />
@@ -78,25 +85,22 @@ export default async function NewCollabPostPage({
         <CollabScheduleField />
         <div>
           <label htmlFor="collab-description" className="block text-sm font-medium">
-            What is this collaboration?
+            {t.description}
           </label>
-          <p className="mt-0.5 text-xs text-foreground-soft">
-            Describe the goal before people commit — what you&apos;re trying
-            to build or exchange, what a collaborator would actually do, and
-            any expectations up front.
-          </p>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.descriptionHint}</p>
           <textarea
             id="collab-description"
             name="description"
+            dir="auto"
             required
             minLength={20}
             maxLength={2000}
             rows={5}
-            placeholder="e.g. Looking for 2-3 people to practice conversational Japanese/English exchange twice a week over video for the next month."
+            placeholder={t.descriptionPlaceholder}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
-        <CollabSubmitButton />
+        <CollabSubmitButton label={t.submit} pendingLabel={t.submitting} />
       </form>
     </div>
   );

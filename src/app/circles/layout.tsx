@@ -1,6 +1,16 @@
-import { EnglishOnly } from "@/components/english-only";
+import { CirclesTextProvider } from "@/components/circles-text";
+import { FeedLayout } from "@/components/feed-layout";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-// This part of the app is not translated yet: it stays English and left-to-right in every language.
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <EnglishOnly>{children}</EnglishOnly>;
+// A Circle's page shows posts and the composer (the feed's wording) and its own controls (the Circles').
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const t = await getDictionary();
+  return (
+    <FeedLayout>
+      <CirclesTextProvider locale={locale} text={t.circles}>
+        {children}
+      </CirclesTextProvider>
+    </FeedLayout>
+  );
 }

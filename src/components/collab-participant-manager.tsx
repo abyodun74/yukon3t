@@ -8,6 +8,7 @@ import {
   removeCollabParticipant,
 } from "@/app/actions/collab";
 import { UserLink } from "@/components/user-link";
+import { useCollabText } from "@/components/collab-text";
 
 type Participant = {
   role: string;
@@ -24,6 +25,7 @@ export function CollabParticipantManager({
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const t = useCollabText().t.participants;
   // Removing someone is disruptive and affects a third party's access, not
   // just the actor's own state — same reasoning as the moderation queue's
   // ban/suspend confirm step. It sits right next to the same-sized
@@ -33,7 +35,7 @@ export function CollabParticipantManager({
 
   const manageable = participants.filter((p) => p.role !== "OWNER");
   if (manageable.length === 0) {
-    return <p className="text-sm text-foreground-soft">No other participants yet.</p>;
+    return <p className="text-sm text-foreground-soft">{t.none}</p>;
   }
 
   return (
@@ -45,7 +47,7 @@ export function CollabParticipantManager({
             <span className="flex min-w-0 items-center gap-1.5">
               <UserLink userId={p.user.id} name={p.user.name} username={p.user.username} avatarUrl={p.user.avatarUrl} />
               {isCoAdmin && (
-                <span className="text-xs font-normal text-accent">Co-admin</span>
+                <span className="text-xs font-normal text-accent">{t.coAdmin}</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">
@@ -61,7 +63,7 @@ export function CollabParticipantManager({
                 }
                 className="rounded-md border border-line px-2 py-2 font-medium hover:border-accent hover:text-accent disabled:opacity-50"
               >
-                {isCoAdmin ? "Remove co-admin" : "Make co-admin"}
+                {isCoAdmin ? t.removeCoAdmin : t.makeCoAdmin}
               </button>
               {confirmingRemoveId === p.user.id ? (
                 <span className="flex items-center gap-2">
@@ -77,14 +79,14 @@ export function CollabParticipantManager({
                     }
                     className="rounded-md bg-danger px-2 py-2 font-medium text-white disabled:opacity-50"
                   >
-                    Yes, remove
+                    {t.confirmRemove}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmingRemoveId(null)}
                     className="rounded-md px-2 py-2 font-medium text-foreground-soft hover:bg-line"
                   >
-                    Cancel
+                    {t.cancel}
                   </button>
                 </span>
               ) : (
@@ -94,7 +96,7 @@ export function CollabParticipantManager({
                   onClick={() => setConfirmingRemoveId(p.user.id)}
                   className="rounded-md border border-line px-2 py-2 font-medium text-danger hover:border-danger disabled:opacity-50"
                 >
-                  Remove
+                  {t.remove}
                 </button>
               )}
             </div>

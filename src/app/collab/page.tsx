@@ -7,6 +7,10 @@ import { UserLink } from "@/components/user-link";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
+import { countryName } from "@/lib/i18n/country-names";
+import { vocabName } from "@/lib/i18n/language-names";
+import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 type SortOption = "recent" | "oldest";
 
@@ -18,6 +22,15 @@ export default async function CollabPage({
   const me = await getOnboardedUserOrRedirect();
   const { sort: sortParam } = await searchParams;
   const sort: SortOption = sortParam === "oldest" ? "oldest" : "recent";
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.collab.board;
+  const [byBefore, byAfter] = aroundPlaceholder(t.by, "name");
+  const typeName = (type: string) => vocabName(type, dictionary.vocab.collabTypes);
+  const where = (post: { worldwide: boolean; countries: string[] }) =>
+    post.worldwide
+      ? t.worldwide
+      : post.countries.map((country) => countryName(country, locale)).join(dictionary.ui.listSeparator);
 
   const posts = await prisma.collabBoardPost.findMany({
     where: { status: "OPEN", visibility: "PUBLIC" },
@@ -57,35 +70,34 @@ export default async function CollabPage({
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Collab Boards</h1>
+          <h1 className="text-2xl font-semibold">{t.title}</h1>
           <p className="mt-1 text-sm text-foreground-soft">
-            Cross-country skill exchanges, volunteering, study groups, and
-            projects.
+            {t.intro}
           </p>
         </div>
         <Link
           href="/collab/new"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
         >
-          Post a collaboration
+          {t.post}
         </Link>
       </div>
 
       <form className="mt-6 flex items-center gap-3 text-sm">
         <select
           name="sort"
-          aria-label="Sort by"
+          aria-label={t.sortLabel}
           defaultValue={sort}
           className="rounded-lg border border-line bg-surface px-3 py-2"
         >
-          <option value="recent">Most recent</option>
-          <option value="oldest">Oldest</option>
+          <option value="recent">{t.recent}</option>
+          <option value="oldest">{t.oldest}</option>
         </select>
         <button
           type="submit"
           className="rounded-lg border border-line px-3 py-2 font-medium hover:border-accent hover:text-accent"
         >
-          Apply
+          {t.apply}
         </button>
       </form>
 
@@ -97,21 +109,19 @@ export default async function CollabPage({
             <Link href={`/collab/${post.id}`} className="block">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-                  {post.type}
+                  {typeName(post.type)}
                 </span>
-                <span className="break-words text-right text-xs text-foreground-soft">
-                  {post.worldwide ? "Worldwide" : post.countries.join(", ")}
-                </span>
+                <span className="break-words text-end text-xs text-foreground-soft">{where(post)}</span>
               </div>
-              <h2 className="mt-2 break-words font-semibold hover:text-accent">{post.title}</h2>
-              <p className="mt-1 break-words text-sm text-foreground-soft">{post.description}</p>
+              <h2 dir="auto" className="mt-2 break-words font-semibold hover:text-accent">{post.title}</h2>
+              <p dir="auto" className="mt-1 break-words text-sm text-foreground-soft">{post.description}</p>
               <p className="mt-1 text-xs text-foreground-soft">
-                {post._count.participants} participant{post._count.participants === 1 ? "" : "s"}
+                {plural(locale, t.participants, post._count.participants)}
               </p>
             </Link>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="text-xs text-foreground-soft">by</span>
+                {byBefore.trim() && <span className="text-xs text-foreground-soft">{byBefore.trim()}</span>}
                 <UserLink
                   userId={post.author.id}
                   name={post.author.name}
@@ -120,6 +130,7 @@ export default async function CollabPage({
                   avatarSize={18}
                   className="text-xs font-medium"
                 />
+                {byAfter.trim() && <span className="text-xs text-foreground-soft">{byAfter.trim()}</span>}
                 <TrustBadge band={post.author.trustBand} />
               </div>
               <div className="flex items-center gap-3">
@@ -151,7 +162,7 @@ export default async function CollabPage({
         })}
         {posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            Nothing posted yet — start the first collaboration.
+            {t.empty}
           </p>
         )}
       </div>
@@ -159,10 +170,10 @@ export default async function CollabPage({
       {privatePosts.length > 0 && (
         <div className="mt-10">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-            Your private collaborations
+            {t.privateHeading}
           </h2>
           <p className="mt-1 text-xs text-foreground-soft">
-            Only visible to you and whoever&apos;s invited — not shown on the board above.
+            {t.privateIntro}
           </p>
           <div className="mt-3 space-y-3">
             {privatePosts.map((post) => (
@@ -173,16 +184,17 @@ export default async function CollabPage({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
-                    {post.type}
+                    {typeName(post.type)}
                   </span>
                   <span className="rounded-full bg-line px-2 py-0.5 text-[0.6875rem] text-foreground-soft">
-                    Private
+                    {t.private}
                   </span>
                 </div>
-                <h3 className="mt-2 break-words font-semibold">{post.title}</h3>
+                <h3 dir="auto" className="mt-2 break-words font-semibold">{post.title}</h3>
                 <p className="mt-1 text-xs text-foreground-soft">
-                  by {post.author.name} ·{" "}
-                  {post._count.participants} participant{post._count.participants === 1 ? "" : "s"}
+                  {byBefore}
+                  <bdi>{post.author.name}</bdi>
+                  {byAfter} · {plural(locale, t.participants, post._count.participants)}
                 </p>
               </Link>
             ))}

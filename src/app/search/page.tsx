@@ -14,6 +14,7 @@ import { semanticSearch } from "@/lib/search-embeddings";
 import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { isOnline } from "@/lib/presence";
 import { format, plural } from "@/lib/i18n/locales";
+import { vocabName } from "@/lib/i18n/language-names";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { countryName } from "@/lib/i18n/country-names";
 
@@ -369,7 +370,9 @@ export default async function SearchPage({
                 className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
-                  {circle.category.join(", ")}
+                  {circle.category
+                    .map((category) => vocabName(category, dictionary.vocab.circleCategories))
+                    .join(dictionary.ui.listSeparator)}
                 </p>
                 <h3 dir="auto" className="mt-1 break-words font-semibold">{circle.name}</h3>
                 <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
@@ -420,7 +423,7 @@ export default async function SearchPage({
                 className="rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                  {collab.type}
+                  {vocabName(collab.type, dictionary.vocab.collabTypes)}
                 </p>
                 <h3 dir="auto" className="mt-1 break-words font-semibold">{collab.title}</h3>
                 <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>
@@ -507,7 +510,9 @@ export default async function SearchPage({
                     href={`/circles/${circle.slug}`}
                     className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
                   >
-                    <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
+                    <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category
+                    .map((category) => vocabName(category, dictionary.vocab.circleCategories))
+                    .join(dictionary.ui.listSeparator)}</p>
                     <h4 dir="auto" className="mt-1 break-words font-semibold">{circle.name}</h4>
                     <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{circle.description}</p>
                     <p className="mt-2 text-xs text-foreground-soft">
@@ -532,7 +537,7 @@ export default async function SearchPage({
                     className="rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
-                      {collab.type}
+                      {vocabName(collab.type, dictionary.vocab.collabTypes)}
                     </p>
                     <h4 dir="auto" className="mt-1 break-words font-semibold">{collab.title}</h4>
                     <p dir="auto" className="mt-1 line-clamp-2 text-sm text-foreground-soft">{collab.description}</p>

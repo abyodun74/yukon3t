@@ -24,6 +24,9 @@ import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { getMyCircles } from "@/app/actions/circles";
 import { CirclePostFab } from "@/components/circle-post-fab";
+import { vocabName } from "@/lib/i18n/language-names";
+import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 // Same cursor pagination as /connections/page.tsx, auto-loaded further pages
 // as the viewer scrolls (see CirclePostsList / loadMoreCirclePosts).
@@ -39,6 +42,15 @@ export default async function CirclePage({
   const me = await getOnboardedUserOrRedirect();
   const { slug } = await params;
   const { channel: requestedSlug } = await searchParams;
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.circles.page;
+  const [subCircleOfBefore, subCircleOfAfter] = aroundPlaceholder(t.subCircleOf, "name");
+  // The stored value is the English name; only the label a category is shown under follows the reader's language.
+  const categoryOptions = CIRCLE_CATEGORIES.map((category) => ({
+    value: category,
+    label: vocabName(category, dictionary.vocab.circleCategories),
+  }));
 
   const [circle, { circles: myCircles }] = await Promise.all([
     prisma.circle.findUnique({
@@ -158,16 +170,21 @@ export default async function CirclePage({
       <BackButton href={backHref} />
       {circle.parent && (
         <p className="text-xs text-foreground-soft">
-          Sub-circle of{" "}
+          {subCircleOfBefore}
           <Link href={`/circles/${circle.parent.slug}`} className="font-medium text-accent hover:underline">
-            {circle.parent.name}
+            <bdi>{circle.parent.name}</bdi>
           </Link>
+          {subCircleOfAfter}
         </p>
       )}
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category.join(", ")}</p>
+        <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
+          {circle.category
+            .map((category) => vocabName(category, dictionary.vocab.circleCategories))
+            .join(dictionary.ui.listSeparator)}
+        </p>
         {circle.visibility === "PRIVATE" && (
-          <span title="Private Circle" className="flex items-center text-foreground-soft">
+          <span title={t.privateCircle} className="flex items-center text-foreground-soft">
             <Lock size={12} />
           </span>
         )}
@@ -182,14 +199,14 @@ export default async function CirclePage({
               className="h-12 w-12 shrink-0 rounded-xl object-cover"
             />
           )}
-          <h1 className="min-w-0 break-words text-2xl font-semibold">{circle.name}</h1>
+          <h1 dir="auto" className="min-w-0 break-words text-2xl font-semibold">{circle.name}</h1>
           {canModerate && (
             <CircleDetailsEditModal
               circleId={circle.id}
               name={circle.name}
               description={circle.description}
               category={circle.category}
-              categoryOptions={CIRCLE_CATEGORIES}
+              categoryOptions={categoryOptions}
               visibility={circle.visibility}
               // A sub-circle under a private main Circle can't be more open than it.
               visibilityLocked={circle.parent?.visibility === "PRIVATE"}
@@ -214,14 +231,12 @@ export default async function CirclePage({
           )}
         </div>
       </div>
-      <p className="mt-2 break-words text-sm text-foreground-soft">{circle.description}</p>
-      <p className="mt-1 text-xs text-foreground-soft">
-        {circle._count.members} members
-      </p>
+      <p dir="auto" className="mt-2 break-words text-sm text-foreground-soft">{circle.description}</p>
+      <p className="mt-1 text-xs text-foreground-soft">{plural(locale, t.members, circle._count.members)}</p>
 
       {isPrivateNonMember ? (
         <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-          This Circle is private. Request to join to see its channels and posts.
+          {t.privateNotice}
         </p>
       ) : (
         <>
@@ -245,7 +260,7 @@ export default async function CirclePage({
             <div className="mt-6 space-y-2" data-testid="circle-live-now">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-danger">
                 <Radio size={14} />
-                Live now
+                {t.liveNow}
               </h2>
               {circleLiveStreams.map((s) => (
                 <Link
@@ -253,8 +268,8 @@ export default async function CirclePage({
                   href={`/live/${s.id}`}
                   className="flex items-center justify-between gap-3 rounded-xl border border-danger/40 px-4 py-3 text-sm hover:border-danger"
                 >
-                  <span className="min-w-0 truncate font-medium">{s.title}</span>
-                  <span className="shrink-0 text-xs text-foreground-soft">{s.host.name ?? s.host.username}</span>
+                  <span dir="auto" className="min-w-0 truncate font-medium">{s.title}</span>
+                  <span dir="auto" className="shrink-0 text-xs text-foreground-soft">{s.host.name ?? s.host.username}</span>
                 </Link>
               ))}
             </div>
@@ -276,9 +291,9 @@ export default async function CirclePage({
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="truncate font-semibold">#{activeChannel.name}</h2>
+                      <h2 dir="auto" className="truncate font-semibold">#{activeChannel.name}</h2>
                       {activeChannel.topic && (
-                        <p className="truncate text-xs text-foreground-soft">{activeChannel.topic}</p>
+                        <p dir="auto" className="truncate text-xs text-foreground-soft">{activeChannel.topic}</p>
                       )}
                     </div>
                     {canModerate && (
@@ -309,13 +324,13 @@ export default async function CirclePage({
                           </div>
                         ) : (
                           <p className="rounded-xl border border-line p-4 text-sm text-foreground-soft">
-                            Join this Circle to post.
+                            {t.joinToPost}
                           </p>
                         )}
                       </div>
                       <div className="mt-6 space-y-4">
                         {posts.length === 0 && (
-                          <p className="text-sm text-foreground-soft">No posts yet — be the first.</p>
+                          <p className="text-sm text-foreground-soft">{t.noPosts}</p>
                         )}
                         {posts.length > 0 && (
                           <CirclePostsList
@@ -335,7 +350,7 @@ export default async function CirclePage({
                   )}
                 </>
               ) : (
-                <p className="text-sm text-foreground-soft">No channels available.</p>
+                <p className="text-sm text-foreground-soft">{t.noChannels}</p>
               )}
             </div>
           </div>
@@ -343,11 +358,9 @@ export default async function CirclePage({
           {canModerate ? (
             <div className="mt-8">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-                Members
+                {t.membersHeading}
               </h2>
-              <p className="mt-1 text-xs text-foreground-soft">
-                Co-admins get the same management powers as you, except deleting this Circle.
-              </p>
+              <p className="mt-1 text-xs text-foreground-soft">{t.coAdminNote}</p>
               <div className="mt-3">
                 <CircleMemberManager circleId={circle.id} members={allMembers} />
               </div>
@@ -358,7 +371,7 @@ export default async function CirclePage({
             isMember && (
               <div className="mt-8">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-                  Members
+                  {t.membersHeading}
                 </h2>
                 <div className="mt-3">
                   <CircleMemberList members={allMembers} />

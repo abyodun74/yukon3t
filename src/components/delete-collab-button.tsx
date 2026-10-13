@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteCollabPost } from "@/app/actions/collab";
+import { useCollabText } from "@/components/collab-text";
 
 export function DeleteCollabButton({
   collabId,
@@ -12,6 +13,7 @@ export function DeleteCollabButton({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const t = useCollabText().t.delete;
 
   if (!confirming) {
     return (
@@ -20,7 +22,7 @@ export function DeleteCollabButton({
         onClick={() => setConfirming(true)}
         className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
       >
-        {isAdminOverride ? "Delete collaboration (admin)" : "Delete collaboration"}
+        {isAdminOverride ? t.openAdmin : t.open}
       </button>
     );
   }
@@ -28,9 +30,7 @@ export function DeleteCollabButton({
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="text-foreground-soft">
-        {isAdminOverride
-          ? "Delete this collaboration for everyone? Use this for duplicates or policy violations."
-          : "Delete this collaboration for everyone?"}
+        {isAdminOverride ? t.confirmAdmin : t.confirm}
       </span>
       <button
         type="button"
@@ -42,7 +42,7 @@ export function DeleteCollabButton({
         }
         className="rounded-md bg-danger px-2.5 py-1 font-medium text-white disabled:opacity-50"
       >
-        Delete
+        {t.action}
       </button>
       <button
         type="button"
@@ -50,7 +50,7 @@ export function DeleteCollabButton({
         onClick={() => setConfirming(false)}
         className="rounded-md border border-line px-2.5 py-1 disabled:opacity-50"
       >
-        Cancel
+        {t.cancel}
       </button>
     </div>
   );

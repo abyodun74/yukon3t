@@ -8,6 +8,8 @@ import { confirmCircleCoverUpload } from "@/app/actions/circles";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { useCirclesText } from "@/components/circles-text";
+import { byCode } from "@/lib/i18n/locales";
 
 const MAX_COVER_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -29,12 +31,13 @@ export function CircleCoverUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const t = useCirclesText().t.cover;
 
   function handlePicked(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setStatus("error");
-      setMessage("Use a JPEG, PNG, or WebP image.");
+      setMessage(t.type);
       return;
     }
     setStatus("idle");
@@ -50,20 +53,14 @@ export function CircleCoverUpload({
       const resized = await resizeImageFile(file);
       if (resized.size > MAX_COVER_BYTES) {
         setStatus("error");
-        setMessage("Image must be 12MB or smaller.");
+        setMessage(t.tooLarge);
         return;
       }
 
       const uploaded = await uploadFileDirect(resized, "circle-cover");
       if (!uploaded.ok) {
         setStatus(uploaded.error === "not_configured" ? "not_configured" : "error");
-        setMessage(
-          uploaded.error === "not_configured"
-            ? "Circle picture uploads aren't set up yet — check back soon."
-            : uploaded.error === "network"
-              ? "Couldn't reach the server — check your connection and try again."
-              : "Upload failed — try again.",
-        );
+        setMessage(byCode(t.uploadErrors, uploaded.error));
         return;
       }
 
@@ -77,21 +74,13 @@ export function CircleCoverUpload({
         result = await confirmCircleCoverUpload(fd);
       } catch {
         setStatus("error");
-        setMessage("Couldn't reach the server — check your connection and try again.");
+        setMessage(t.saveErrors.network);
         return;
       }
 
       if (result.error) {
         setStatus("error");
-        setMessage(
-          result.error === "moderation"
-            ? "That photo didn't pass our content guidelines and wasn't saved."
-            : result.error === "too_large"
-              ? "Image must be 12MB or smaller."
-              : result.error === "forbidden"
-                ? "Only the Circle's owner or co-admins can change its picture."
-                : "Couldn't save that photo — try again.",
-        );
+        setMessage(byCode(t.saveErrors, result.error));
         return;
       }
 
@@ -111,7 +100,7 @@ export function CircleCoverUpload({
           markNativePickerActive();
           galleryInputRef.current?.click();
         }}
-        aria-label={preview ? "Change Circle picture" : "No photo, change Circle picture"}
+        aria-label={preview ? t.change : t.noPhotoChange}
         className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-line bg-surface disabled:opacity-50"
       >
         {preview ? (
@@ -119,7 +108,7 @@ export function CircleCoverUpload({
           <img src={preview} alt="" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
-            No photo
+            {t.noPhoto}
           </div>
         )}
       </button>
@@ -153,13 +142,13 @@ export function CircleCoverUpload({
           }}
         />
         <MediaPickerButton
-          title="Change Circle picture"
+          title={t.change}
           disabled={isPending}
           menuPlacement="bottom"
           className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
           options={[
             {
-              label: "Choose from gallery",
+              label: t.fromGallery,
               icon: <Upload size={14} />,
               onSelect: () => {
                 if (isNativePickerActive()) return;
@@ -168,7 +157,7 @@ export function CircleCoverUpload({
               },
             },
             {
-              label: "Take a photo",
+              label: t.takePhoto,
               icon: <Camera size={14} />,
               onSelect: () => {
                 if (isNativePickerActive()) return;
@@ -178,10 +167,10 @@ export function CircleCoverUpload({
             },
           ]}
         >
-          {status === "uploading" ? "Uploading..." : "Change Circle picture"}
+          {status === "uploading" ? t.uploading : t.change}
         </MediaPickerButton>
         <p className="mt-1 text-xs text-foreground-soft">
-          JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
+          {t.hint}
         </p>
         {message && (
           <p
@@ -197,7 +186,7 @@ export function CircleCoverUpload({
           key={cropFile.name + cropFile.size}
           file={cropFile}
           aspect={1}
-          title="Crop Circle picture"
+          title={t.cropTitle}
           onCancel={() => setCropFile(null)}
           onCropped={(cropped) => {
             setCropFile(null);

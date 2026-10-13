@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { deleteCircle } from "@/app/actions/circles";
+import { useCirclesText } from "@/components/circles-text";
+import { plural } from "@/lib/i18n/locales";
 
 export function DeleteCircleButton({
   circleId,
@@ -15,6 +17,8 @@ export function DeleteCircleButton({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const { locale, t: circles } = useCirclesText();
+  const t = circles.delete;
 
   if (!confirming) {
     return (
@@ -23,7 +27,7 @@ export function DeleteCircleButton({
         onClick={() => setConfirming(true)}
         className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
       >
-        {isAdminOverride ? "Delete Circle (admin)" : "Delete Circle"}
+        {isAdminOverride ? t.openAdmin : t.open}
       </button>
     );
   }
@@ -31,15 +35,9 @@ export function DeleteCircleButton({
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="text-foreground-soft">
-        {isAdminOverride
-          ? "Delete this Circle for everyone? Use this for duplicates or policy violations."
-          : "Delete this Circle for everyone?"}
+        {isAdminOverride ? t.confirmAdmin : t.confirm}
         {subCircleCount > 0 && (
-          <strong className="font-semibold text-danger">
-            {" "}
-            This also permanently deletes its {subCircleCount} sub-circle{subCircleCount === 1 ? "" : "s"}, with all
-            their members and posts.
-          </strong>
+          <strong className="font-semibold text-danger"> {plural(locale, t.subCircles, subCircleCount)}</strong>
         )}
       </span>
       <button
@@ -52,7 +50,7 @@ export function DeleteCircleButton({
         }
         className="rounded-md bg-danger px-2.5 py-1 font-medium text-white disabled:opacity-50"
       >
-        Delete
+        {t.action}
       </button>
       <button
         type="button"
@@ -60,7 +58,7 @@ export function DeleteCircleButton({
         onClick={() => setConfirming(false)}
         className="rounded-md border border-line px-2.5 py-1 disabled:opacity-50"
       >
-        Cancel
+        {t.cancel}
       </button>
     </div>
   );

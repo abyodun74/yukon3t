@@ -1,6 +1,7 @@
 import { JOB_TITLES } from "@/lib/job-titles";
 
-const GENERAL_CATEGORIES = [
+/** The general categories: the ones the dictionaries translate for display (vocab.circleCategories). */
+export const GENERAL_CIRCLE_CATEGORIES = [
   "Travel",
   "Culture",
   "Language Exchange",
@@ -27,4 +28,4 @@ const GENERAL_CATEGORIES = [
 // directly rather than being stuck under the broad "Professional" bucket.
 // Large enough that the picker (circles/new/page.tsx) needs to be a
 // searchable combobox rather than a plain <select>.
-export const CIRCLE_CATEGORIES = [...GENERAL_CATEGORIES, ...JOB_TITLES] as const;
+export const CIRCLE_CATEGORIES = [...GENERAL_CIRCLE_CATEGORIES, ...JOB_TITLES] as const;

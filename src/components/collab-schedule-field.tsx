@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { WEEKDAY_LABELS } from "@/lib/collab-schedule";
+import { WEEKDAY_LABELS, weekdayName } from "@/lib/collab-schedule";
+import { useCollabText } from "@/components/collab-text";
 
 /**
  * Recurring-session scheduler for a Collab's create/edit form — a plain
@@ -22,6 +23,8 @@ export function CollabScheduleField({
   const [enabled, setEnabled] = useState(defaultDays.length > 0 && !!defaultTime);
   const [days, setDays] = useState<Set<number>>(new Set(defaultDays));
   const [time, setTime] = useState(defaultTime ?? "");
+  const { locale, t: collab } = useCollabText();
+  const t = collab.form;
 
   function toggleDay(day: number) {
     setDays((prev) => {
@@ -41,17 +44,16 @@ export function CollabScheduleField({
           onChange={(e) => setEnabled(e.target.checked)}
           className="h-4 w-4 rounded border-line accent-accent"
         />
-        Recurring session
+        {t.recurring}
       </label>
       <p className="mt-0.5 text-xs text-foreground-soft">
-        Meet on the same day(s) and time every week — participants can add it to their own calendar and get a reminder
-        before each session.
+        {t.recurringHint}
       </p>
 
       {enabled && (
         <div className="mt-2 space-y-2 rounded-lg border border-line p-3">
           <div>
-            <span className="block text-xs font-medium text-foreground-soft">Which day(s)</span>
+            <span className="block text-xs font-medium text-foreground-soft">{t.whichDays}</span>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {WEEKDAY_LABELS.map((label, day) => (
                 <label
@@ -66,14 +68,14 @@ export function CollabScheduleField({
                     onChange={() => toggleDay(day)}
                     className="sr-only"
                   />
-                  {label.slice(0, 3)}
+                  {weekdayName(day, locale, "short")}
                 </label>
               ))}
             </div>
           </div>
           <div>
             <label htmlFor="collab-schedule-time" className="block text-xs font-medium text-foreground-soft">
-              Time (UTC)
+              {t.time}
             </label>
             <input
               id="collab-schedule-time"
@@ -85,8 +87,7 @@ export function CollabScheduleField({
               className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
             />
             <p className="mt-1 text-xs text-foreground-soft">
-              Entered in UTC so everyone in the collaboration — wherever they are — sees the same shared time, rather
-              than it silently shifting day or hour for someone in a different timezone.
+              {t.timeHint}
             </p>
           </div>
         </div>

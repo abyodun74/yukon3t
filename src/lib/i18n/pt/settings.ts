@@ -42,7 +42,7 @@ export const settings: typeof settingsEn = {
   },
   language: {
     heading: "Idioma",
-    body: "Os menus, seu feed do Início, os perfis, as Configurações, Buscar, Descobrir, Conexões, Notificações, Mensagens, os comentários, o ditado, o convite de amigos, a página Anuncie e as telas de acesso à conta estão disponíveis nesses idiomas. O restante do aplicativo está em inglês por enquanto.",
+    body: "Os menus, seu feed do Início, os perfis, as Configurações, Buscar, Descobrir, Conexões, Notificações, Mensagens, os comentários, o ditado, o convite de amigos, a página Anuncie, Circles, Collab Boards e as telas de acesso à conta estão disponíveis nesses idiomas. O restante do aplicativo está em inglês por enquanto.",
   },
   emoji: {
     heading: "Estilo dos emojis",

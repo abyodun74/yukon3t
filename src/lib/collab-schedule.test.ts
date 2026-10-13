@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextOccurrence, formatScheduleDays, formatScheduleTime } from "@/lib/collab-schedule";
+import { nextOccurrence, formatScheduleDays, formatScheduleTime, weekdayName } from "@/lib/collab-schedule";
 
 describe("nextOccurrence", () => {
   it("returns null when there's no schedule", () => {
@@ -65,5 +65,27 @@ describe("formatScheduleTime", () => {
 
   it("formats a morning time", () => {
     expect(formatScheduleTime("09:30")).toBe("9:30 AM");
+  });
+});
+
+describe("in another language", () => {
+  it("names the days the way that language does, in week order", () => {
+    expect(formatScheduleDays([5, 1], "es")).toBe("lunes, viernes");
+    expect(formatScheduleDays([1, 3], "fr")).toBe("lundi, mercredi");
+    expect(formatScheduleDays([1], "pt")).toBe("segunda-feira");
+    expect(formatScheduleDays([0, 1], "ar", "، ")).toBe("الأحد، الاثنين");
+  });
+
+  it("gives a short day name a capital, and keeps English as it was", () => {
+    expect(weekdayName(1, "es", "short")).toBe("Lun");
+    expect(weekdayName(1, "en", "short")).toBe("Mon");
+    expect(weekdayName(1)).toBe("Monday");
+  });
+
+  it("writes the time the way that language does, with Western digits in Arabic", () => {
+    expect(formatScheduleTime("18:05", "es")).toBe("18:05");
+    expect(formatScheduleTime("18:05", "fr")).toBe("18:05");
+    expect(formatScheduleTime("09:30", "pt")).toBe("9:30");
+    expect(formatScheduleTime("18:05", "ar")).toMatch(/^6:05/);
   });
 });

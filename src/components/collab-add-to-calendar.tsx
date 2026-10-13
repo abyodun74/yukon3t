@@ -3,6 +3,9 @@
 import { CalendarPlus, Download } from "lucide-react";
 import { formatScheduleDays, formatScheduleTime } from "@/lib/collab-schedule";
 import { buildGoogleCalendarUrl } from "@/lib/calendar-export";
+import { useCollabText } from "@/components/collab-text";
+import { useUiText } from "@/components/ui-text";
+import { format, intlLocale } from "@/lib/i18n/locales";
 
 /**
  * Shown on a Collab's detail page when it has a recurring session schedule
@@ -30,15 +33,23 @@ export function CollabAddToCalendar({
   nextSessionAt: string;
 }) {
   const startAt = new Date(nextSessionAt);
+  const { locale, t: collab } = useCollabText();
+  const t = collab.calendar;
+  const { t: ui } = useUiText();
   const googleUrl = buildGoogleCalendarUrl({ title, description, startAt });
 
   return (
     <div className="rounded-lg border border-line p-3">
       <p className="text-sm font-medium">
-        Repeats every {formatScheduleDays(scheduleDays)} at {formatScheduleTime(scheduleTime)} UTC
+        {format(t.repeats, {
+          days: formatScheduleDays(scheduleDays, locale, ui.listSeparator),
+          time: formatScheduleTime(scheduleTime, locale),
+        })}
       </p>
       <p className="mt-0.5 text-xs text-foreground-soft">
-        Next session: {startAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+        {format(t.next, {
+          when: startAt.toLocaleString(intlLocale(locale), { dateStyle: "medium", timeStyle: "short" }),
+        })}
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         <a
@@ -48,14 +59,14 @@ export function CollabAddToCalendar({
           className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
         >
           <CalendarPlus size={14} />
-          Add to Google Calendar
+          {t.google}
         </a>
         <a
           href={`/api/collab/${collabId}/calendar`}
           className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
         >
           <Download size={14} />
-          Download .ics (Apple/Outlook)
+          {t.ics}
         </a>
       </div>
     </div>

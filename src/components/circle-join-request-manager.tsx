@@ -3,6 +3,8 @@
 import { useTransition } from "react";
 import { respondToCircleJoinRequest } from "@/app/actions/circles";
 import { UserLink } from "@/components/user-link";
+import { useCirclesText } from "@/components/circles-text";
+import { format } from "@/lib/i18n/locales";
 
 type Request = {
   id: string;
@@ -12,13 +14,14 @@ type Request = {
 /** Owner/co-admin only, shown on a PRIVATE Circle: approve or decline pending join requests. */
 export function CircleJoinRequestManager({ requests }: { requests: Request[] }) {
   const [isPending, startTransition] = useTransition();
+  const t = useCirclesText().t.joinRequests;
 
   if (requests.length === 0) return null;
 
   return (
     <div className="mt-8">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-        Join requests ({requests.length})
+        {format(t.heading, { count: requests.length })}
       </h2>
       <div className="mt-3 space-y-2">
         {requests.map((r) => (
@@ -39,7 +42,7 @@ export function CircleJoinRequestManager({ requests }: { requests: Request[] }) 
                 onClick={() => startTransition(async () => { await respondToCircleJoinRequest(r.id, true); })}
                 className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink disabled:opacity-50"
               >
-                Approve
+                {t.approve}
               </button>
               <button
                 type="button"
@@ -47,7 +50,7 @@ export function CircleJoinRequestManager({ requests }: { requests: Request[] }) 
                 onClick={() => startTransition(async () => { await respondToCircleJoinRequest(r.id, false); })}
                 className="rounded-md border border-line px-2.5 py-1 text-xs disabled:opacity-50"
               >
-                Decline
+                {t.decline}
               </button>
             </div>
           </div>

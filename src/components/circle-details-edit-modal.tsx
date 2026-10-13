@@ -6,24 +6,8 @@ import { Pencil } from "lucide-react";
 import { updateCircleDetails } from "@/app/actions/circles";
 import { MultiSelect } from "@/components/multi-select";
 import { Sheet } from "@/components/sheet";
-
-const PRIVACY_OPTIONS = [
-  ["PUBLIC", "Public", "Anyone can find and join it, and its posts and live streams can appear on Home and in search."],
-  ["PRIVATE", "Private", "People request to join. Its posts and live streams are visible only to members and never appear on Home or in search."],
-] as const;
-
-function errorMessage(code: string) {
-  switch (code) {
-    case "moderation":
-      return "That name or theme didn't pass our content guidelines.";
-    case "rate_limited":
-      return "Slow down a little — try again shortly.";
-    case "forbidden":
-      return "Only the owner or a co-admin can edit this Circle.";
-    default:
-      return "Please check your input.";
-  }
-}
+import { useCirclesText } from "@/components/circles-text";
+import { byCode } from "@/lib/i18n/locales";
 
 /** Owner/co-admin-only — mirrors ChannelSettingsModal's edit-in-a-modal pattern, for a Circle's name, theme, categories and privacy. The slug (and so its URL) never changes. */
 export function CircleDetailsEditModal({
@@ -41,7 +25,8 @@ export function CircleDetailsEditModal({
   /** The Circle's theme — the `description` column, which the creation wizard labels "Theme". */
   description: string;
   category: string[];
-  categoryOptions: readonly string[];
+  /** `value` is the stored (English) category, `label` what it is shown as in the reader's language. */
+  categoryOptions: readonly { value: string; label: string }[];
   visibility: "PUBLIC" | "PRIVATE";
   /** A sub-circle under a private main Circle stays private — it can't be more open than its parent. */
   visibilityLocked: boolean;
@@ -53,13 +38,19 @@ export function CircleDetailsEditModal({
   const [privacy, setPrivacy] = useState<"PUBLIC" | "PRIVATE">(visibility);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { t: circles } = useCirclesText();
+  const t = circles.details;
+  const privacyOptions = [
+    ["PUBLIC", t.public, t.publicHelp],
+    ["PRIVATE", t.private, t.privateHelp],
+  ] as const;
 
   function handleSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
       const result = await updateCircleDetails(circleId, formData);
       if (result.error) {
-        setError(errorMessage(result.error));
+        setError(byCode(t.errors, result.error));
         return;
       }
       setOpen(false);
@@ -72,18 +63,19 @@ export function CircleDetailsEditModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Edit Circle details"
+        aria-label={t.open}
         className="shrink-0 rounded-lg p-1.5 text-foreground-soft hover:bg-line hover:text-accent"
       >
         <Pencil size={16} />
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Edit Circle" panelClassName="max-h-[85vh] overflow-y-auto">
+      <Sheet open={open} onClose={() => setOpen(false)} title={t.title} panelClassName="max-h-[85vh] overflow-y-auto">
         <form action={handleSubmit} className="space-y-3 text-sm">
           <div>
-            <label className="text-xs font-medium text-foreground-soft">Name</label>
+            <label className="text-xs font-medium text-foreground-soft">{t.name}</label>
             <input
-              aria-label="Name"
+              aria-label={t.name}
               name="name"
+              dir="auto"
               defaultValue={name}
               required
               minLength={3}
@@ -94,14 +86,13 @@ export function CircleDetailsEditModal({
           </div>
           <div>
             <label htmlFor="circle-edit-theme" className="text-xs font-medium text-foreground-soft">
-              Theme
+              {t.theme}
             </label>
-            <p className="mt-0.5 text-[0.6875rem] text-foreground-soft">
-              What this Circle is about, so people know what to expect before they join.
-            </p>
+            <p className="mt-0.5 text-[0.6875rem] text-foreground-soft">{t.themeHint}</p>
             <textarea
               id="circle-edit-theme"
               name="description"
+              dir="auto"
               defaultValue={description}
               required
               minLength={10}
@@ -111,29 +102,30 @@ export function CircleDetailsEditModal({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-foreground-soft">Category</label>
+            <label className="text-xs font-medium text-foreground-soft">{t.category}</label>
             <div className="mt-1">
               <MultiSelect
                 name="category"
                 options={categoryOptions}
                 defaultValues={category}
-                placeholder="Search categories..."
+                placeholder={t.categoryPlaceholder}
                 max={5}
+                labels={circles.controls.multiSelect}
               />
             </div>
           </div>
           <fieldset>
-            <legend className="text-xs font-medium text-foreground-soft">Privacy</legend>
+            <legend className="text-xs font-medium text-foreground-soft">{t.privacy}</legend>
             {visibilityLocked ? (
               <>
                 <input type="hidden" name="visibility" value="PRIVATE" />
                 <p className="mt-1 text-[0.6875rem] text-foreground-soft">
-                  Private — a sub-circle under a private Circle stays private.
+                  {t.lockedPrivate}
                 </p>
               </>
             ) : (
               <div className="mt-1 space-y-1.5">
-                {PRIVACY_OPTIONS.map(([value, label, help]) => (
+                {privacyOptions.map(([value, label, help]) => (
                   <label
                     key={value}
                     className="flex cursor-pointer items-start gap-2 rounded-lg border border-line p-2 has-[:checked]:border-accent"
@@ -156,8 +148,7 @@ export function CircleDetailsEditModal({
             )}
             {privacy === "PRIVATE" && visibility === "PUBLIC" && !visibilityLocked && (
               <p className="mt-1.5 text-[0.6875rem] text-danger">
-                Making this Circle private hides its existing posts and live streams from non-members right away
-                {hasSubCircles ? ", and makes its sub-circles private too" : ""}. Anyone who is already a member stays a member.
+                {hasSubCircles ? t.goingPrivateSubs : t.goingPrivate}
               </p>
             )}
           </fieldset>
@@ -167,7 +158,7 @@ export function CircleDetailsEditModal({
             disabled={isPending}
             className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Save changes"}
+            {isPending ? t.saving : t.save}
           </button>
         </form>
       </Sheet>

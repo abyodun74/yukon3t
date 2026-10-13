@@ -5,6 +5,8 @@
 
 import { accountEn } from "@/lib/i18n/en/account";
 import { advertiseEn } from "@/lib/i18n/en/advertise";
+import { circlesEn } from "@/lib/i18n/en/circles";
+import { collabEn } from "@/lib/i18n/en/collab";
 import { feedEn } from "@/lib/i18n/en/feed";
 import { inviteEn } from "@/lib/i18n/en/invite";
 import { messagesEn } from "@/lib/i18n/en/messages";
@@ -19,6 +21,8 @@ import { vocabEn } from "@/lib/i18n/en/vocab";
 export {
   accountEn,
   advertiseEn,
+  circlesEn,
+  collabEn,
   feedEn,
   inviteEn,
   messagesEn,
@@ -42,6 +46,8 @@ export const en = {
   settings: settingsEn,
   invite: inviteEn,
   advertise: advertiseEn,
+  circles: circlesEn,
+  collab: collabEn,
   vocab: vocabEn,
   ...accountEn,
 };

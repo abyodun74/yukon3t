@@ -9,11 +9,11 @@ import { useFormStatus } from "react-dom";
  * producing duplicate collaboration posts.
  */
 export function CollabSubmitButton({
-  label = "Post",
-  pendingLabel = "Posting...",
+  label,
+  pendingLabel,
 }: {
-  label?: string;
-  pendingLabel?: string;
+  label: string;
+  pendingLabel: string;
 }) {
   const { pending } = useFormStatus();
 

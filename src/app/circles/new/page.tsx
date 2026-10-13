@@ -5,6 +5,9 @@ import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { checkSubCircleParent } from "@/lib/circle-hierarchy";
 import { NewCircleWizard } from "@/components/new-circle-wizard";
 import { BackButton } from "@/components/back-button";
+import { vocabName } from "@/lib/i18n/language-names";
+import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function NewCirclePage({
   searchParams,
@@ -13,6 +16,8 @@ export default async function NewCirclePage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { error, parent: parentSlug } = await searchParams;
+  const dictionary = await getDictionary();
+  const t = dictionary.circles.create;
 
   // `?parent=<slug>` means "add a sub-circle to that main Circle". Only its
   // owner may (createCircle re-checks this — this is just so nobody is shown
@@ -27,38 +32,41 @@ export default async function NewCirclePage({
     redirect("/circles");
   }
 
+  const [subIntroBefore, subIntroAfter] = aroundPlaceholder(
+    parent?.visibility === "PRIVATE" ? t.subIntroPrivate : t.subIntro,
+    "name",
+  );
+  // The stored value is the English name; only the label a category is shown under follows the reader's language
+  // (the job titles among them are shown as stored).
+  const categoryOptions = CIRCLE_CATEGORIES.map((category) => ({
+    value: category,
+    label: vocabName(category, dictionary.vocab.circleCategories),
+  }));
+
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
       {parent && <BackButton href={`/circles/${parent.slug}`} />}
-      <h1 className="text-2xl font-semibold">{parent ? "Add a sub-circle" : "Start a Circle"}</h1>
+      <h1 className="text-2xl font-semibold">{parent ? t.subTitle : t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
         {parent ? (
           <>
-            A sub-circle of <span className="font-medium text-foreground">{parent.name}</span>, with its own members.
-            Anyone can join it on its own{parent.visibility === "PRIVATE" ? ", by request" : ""}. You become its
-            owner.
+            {subIntroBefore}
+            <bdi className="font-medium text-foreground">{parent.name}</bdi>
+            {subIntroAfter}
           </>
         ) : (
-          "Free forever. You become the owner and first moderator."
+          t.intro
         )}
       </p>
 
       {error && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {error === "rate_limited"
-            ? parent
-              ? "You're creating sub-circles too fast — try again in an hour."
-              : "You're creating Circles too fast — try again in an hour."
-            : error === "moderation"
-              ? "That name/description didn't pass our content guidelines."
-              : error === "invalid_parent"
-                ? "You can only add a sub-circle to a main Circle you own."
-                : "Please check your inputs."}
+          {byCode(t.errors, error === "rate_limited" && parent ? "rate_limited_sub" : error)}
         </p>
       )}
 
       <NewCircleWizard
-        categories={CIRCLE_CATEGORIES}
+        categories={categoryOptions}
         parentId={parent?.id}
         parentName={parent?.name}
         forcePrivate={parent?.visibility === "PRIVATE"}

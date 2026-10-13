@@ -42,7 +42,7 @@ export const settings: typeof settingsEn = {
   },
   language: {
     heading: "Langue",
-    body: "Les menus, votre fil d'accueil, les profils, les Paramètres, la recherche, Découvrir, Relations, les notifications, Messages, les commentaires, la dictée, l'invitation d'amis, la page Publicité et les écrans de connexion sont disponibles dans ces langues. Le reste de l'application est en anglais pour le moment.",
+    body: "Les menus, votre fil d'accueil, les profils, les Paramètres, la recherche, Découvrir, Relations, les notifications, Messages, les commentaires, la dictée, l'invitation d'amis, la page Publicité, Circles, Collab Boards et les écrans de connexion sont disponibles dans ces langues. Le reste de l'application est en anglais pour le moment.",
   },
   emoji: {
     heading: "Style des emojis",
