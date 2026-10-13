@@ -66,7 +66,6 @@ export const pt: Dictionary = {
   apple: { signIn: "Entrar com a Apple", redirecting: "Redirecionando..." },
   signIn: {
     title: "Entre no YuKon3t",
-    createAccount: "Novo por aqui? Crie uma conta",
     passwordHeading: "Usuário e senha",
     resetDone: "Senha redefinida. Entre com sua nova senha.",
     resetRequired:

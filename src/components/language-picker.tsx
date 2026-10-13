@@ -2,6 +2,7 @@
 
 import { useId, useOptimistic, useTransition } from "react";
 import { setLocale } from "@/app/actions/locale";
+import { cn } from "@/lib/utils";
 import { LOCALE_NAMES, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 
 /**
@@ -9,13 +10,26 @@ import { LOCALE_NAMES, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales
  * Android WebView), each language under its own name. The choice goes in a cookie, never the URL, and the page
  * re-renders in place — client state on it (what has been typed into the sign-up form) is kept.
  */
-export function LanguagePicker({ locale, label }: { locale: Locale; label: string }) {
+export function LanguagePicker({
+  locale,
+  label,
+  className,
+}: {
+  locale: Locale;
+  label: string;
+  className?: string;
+}) {
   const id = useId();
   const [isPending, startTransition] = useTransition();
   const [shown, setShown] = useOptimistic(locale);
 
   return (
-    <div className="mt-8 flex w-full items-center justify-center gap-2 text-xs text-foreground-soft">
+    <div
+      className={cn(
+        "mt-8 flex w-full items-center justify-center gap-2 text-xs text-foreground-soft",
+        className,
+      )}
+    >
       <label htmlFor={id}>{label}</label>
       <select
         id={id}

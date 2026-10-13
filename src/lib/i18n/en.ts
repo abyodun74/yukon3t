@@ -71,7 +71,6 @@ export const en = {
   apple: { signIn: "Sign in with Apple", redirecting: "Redirecting..." },
   signIn: {
     title: "Sign in to YuKon3t",
-    createAccount: "New here? Create account",
     passwordHeading: "Username & password",
     resetDone: "Password reset — sign in with your new password.",
     resetRequired:

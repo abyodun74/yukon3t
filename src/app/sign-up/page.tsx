@@ -7,7 +7,6 @@ import { countryFromGeoHeaders } from "@/lib/request-country";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
-import { LanguagePicker } from "@/components/language-picker";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
@@ -72,8 +71,6 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
           {t.common.signIn}
         </Link>
       </p>
-
-      <LanguagePicker locale={locale} label={t.languagePicker.label} />
     </div>
   );
 }

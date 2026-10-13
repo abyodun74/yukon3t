@@ -1682,7 +1682,7 @@ const sections: Section[] = [
         q: "What do I need to sign up?",
         a: (
           <>
-            From the home page tap Get started, then Create account. Enter a
+            From the home page tap New here? Create account free. Enter a
             username (3–20 letters, numbers, or underscores), your email, a
             password, and your date of birth, then choose how to verify:
             an email code, or a phone number (enter it right there: pick
@@ -1702,7 +1702,8 @@ const sections: Section[] = [
             Spanish, French and Portuguese, and so are the emails and texts
             those screens send. They open in your phone or browser&apos;s
             language when it is one of the four; to switch, use the Language
-            menu at the bottom of any of those screens — the choice is
+            menu at the top right of the home page (below Sign in) or at the
+            bottom of the other account screens — the choice is
             remembered on that device. The rest of the app is currently in
             English.
           </>

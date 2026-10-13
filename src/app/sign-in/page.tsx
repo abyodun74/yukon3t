@@ -13,7 +13,6 @@ import { verifyTurnstile } from "@/lib/turnstile";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
-import { LanguagePicker } from "@/components/language-picker";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "Sign In to YuKon3t";
@@ -95,18 +94,11 @@ export default async function SignInPage({
     <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="font-display text-3xl font-semibold">{t.signIn.title}</h1>
 
-      <Link
-        href="/sign-up"
-        className="mt-6 w-full rounded-lg border border-accent px-4 py-3 text-center text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink"
-      >
-        {t.signIn.createAccount}
-      </Link>
-
       {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (
         <AppleSignInButton showCaptchaError={error === "apple_captcha"} />
       )}
 
-      <div className="mt-8 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
+      <div className="mt-6 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <h2 className="text-sm font-semibold">{t.signIn.passwordHeading}</h2>
 
         {reset && !passwordError && (
@@ -215,8 +207,6 @@ export default async function SignInPage({
           />
         </form>
       </div>
-
-      <LanguagePicker locale={locale} label={t.languagePicker.label} />
     </div>
   );
 }

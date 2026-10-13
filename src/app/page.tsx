@@ -3,6 +3,8 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
+import { LanguagePicker } from "@/components/language-picker";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "YuKon3t — Verified Global Friendships, No Fake Profiles";
 const description =
@@ -58,6 +60,8 @@ export default async function Home() {
   if (session?.user) {
     redirect("/home");
   }
+  const locale = await getLocale();
+  const t = await getDictionary();
 
   return (
     <div>
@@ -70,7 +74,16 @@ export default async function Home() {
               "radial-gradient(60% 50% at 50% 0%, var(--accent-soft) 0%, transparent 70%)",
           }}
         />
-        <div className="mx-auto max-w-5xl px-4 py-20 text-center sm:py-28">
+        <div className="absolute inset-x-0 top-0 z-10">
+          <div className="mx-auto flex max-w-6xl justify-end px-4 pt-3">
+            <LanguagePicker
+              locale={locale}
+              label={t.languagePicker.label}
+              className="mt-0 w-auto justify-end"
+            />
+          </div>
+        </div>
+        <div className="mx-auto max-w-5xl px-4 pb-20 pt-24 text-center sm:pb-28 sm:pt-28">
           <p className="text-xs font-semibold uppercase tracking-widest text-accent">
             Global connection, done honestly
           </p>
@@ -84,10 +97,10 @@ export default async function Home() {
           </p>
           <div className="mt-8 flex justify-center gap-3">
             <Link
-              href="/sign-in"
+              href="/sign-up"
               className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-ink shadow-[var(--shadow-md)] hover:-translate-y-0.5"
             >
-              Get started free
+              New here? Create account free
             </Link>
             <Link
               href="/legal/guidelines"
