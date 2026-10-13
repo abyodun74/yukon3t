@@ -1704,8 +1704,9 @@ const sections: Section[] = [
             language when it is one of the four; to switch, use the Language
             menu at the top right of the home page (below Sign in) or at the
             bottom of the other account screens — the choice is
-            remembered on that device. The rest of the app is currently in
-            English.
+            remembered on that device. The home page you see before signing
+            in is in those four languages too. The rest of the app is
+            currently in English.
           </>
         ),
       },

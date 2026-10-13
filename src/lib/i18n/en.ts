@@ -50,6 +50,41 @@ export const en = {
   shared: sharedEn,
   languagePicker: { label: "Language" },
   nav: { signOut: "Sign out", signIn: "Sign in" },
+  landing: {
+    eyebrow: "Global connection, done honestly",
+    title: "Connect with people worldwide — by interest, by culture, by purpose.",
+    intro:
+      "YuKon3t is built around one idea: every major connection app has a trust problem. We fixed the ones that keep showing up in real user reviews — fake profiles, opaque moderation, and paywalled safety.",
+    createAccount: "New here? Create account free",
+    guidelines: "Read our guidelines",
+    pillars: [
+      {
+        title: "Verified before you message",
+        body: "Every account confirms its email before DMs unlock, and every action taken against an account comes with a stated reason and an appeal path — no silent bans.",
+      },
+      {
+        title: "Say what you're here for",
+        body: "Tag your intent — friendship, cultural exchange, professional, community, or travel tips — so conversations never drift into something you didn't sign up for.",
+      },
+      {
+        title: "Free Circles, no organizer tax",
+        body: "Create or join interest and identity communities for free. No per-year organizer fees.",
+      },
+      {
+        title: "Your data is always yours",
+        body: "Export or permanently delete your account in one click, free, forever. Never paywalled.",
+      },
+    ],
+    waysTitle: "Two ways to connect",
+    circles: {
+      title: "Circles",
+      body: "Interest and identity communities — hobbies, causes, cultures. Free to create and join.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Cross-country skill exchanges, volunteering, study groups, and projects — the connection type most global apps skip.",
+    },
+  },
   common: {
     signIn: "Sign in",
     captchaFailed,

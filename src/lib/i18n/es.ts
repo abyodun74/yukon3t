@@ -45,6 +45,41 @@ export const es: Dictionary = {
   },
   languagePicker: { label: "Idioma" },
   nav: { signOut: "Cerrar sesión", signIn: "Iniciar sesión" },
+  landing: {
+    eyebrow: "Conexión global, con honestidad",
+    title: "Conecta con personas de todo el mundo: por intereses, por cultura, por propósito.",
+    intro:
+      "YuKon3t parte de una idea: todas las grandes aplicaciones para conectar con otras personas tienen un problema de confianza. Resolvimos los problemas que aparecen una y otra vez en las reseñas de usuarios reales: perfiles falsos, moderación opaca y seguridad solo para quienes pagan.",
+    createAccount: "¿Primera vez? Crea tu cuenta gratis",
+    guidelines: "Lee nuestras normas",
+    pillars: [
+      {
+        title: "Cuentas verificadas antes de cualquier mensaje",
+        body: "Cada cuenta confirma su correo antes de que se habiliten los mensajes directos, y toda medida que se tome contra una cuenta incluye el motivo y una vía de apelación: nada de expulsiones silenciosas.",
+      },
+      {
+        title: "Di qué buscas aquí",
+        body: "Marca tu intención (amistad, intercambio cultural, contactos profesionales, comunidad o consejos de viaje) para que las conversaciones nunca se desvíen hacia algo que no viniste a buscar.",
+      },
+      {
+        title: "Circles gratis, sin cobrarle a quien organiza",
+        body: "Crea comunidades en torno a intereses e identidades, o únete a ellas, gratis. Sin cuotas anuales para organizadores.",
+      },
+      {
+        title: "Tus datos siempre son tuyos",
+        body: "Exporta tu cuenta o elimínala definitivamente con un solo clic, siempre gratis. Nunca tendrás que pagar por eso.",
+      },
+    ],
+    waysTitle: "Dos formas de conectar",
+    circles: {
+      title: "Circles",
+      body: "Comunidades en torno a intereses e identidades: pasatiempos, causas, culturas. Crearlas y unirte es gratis.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Intercambios de habilidades entre países, voluntariado, grupos de estudio y proyectos: el tipo de conexión que la mayoría de las aplicaciones globales pasan por alto.",
+    },
+  },
   common: {
     signIn: "Iniciar sesión",
     captchaFailed,

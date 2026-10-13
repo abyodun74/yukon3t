@@ -22,10 +22,11 @@ const english = flatten(en);
 const TRANSLATED = SUPPORTED_LOCALES.filter((locale) => locale !== "en");
 
 // Entries that really are spelled the same in both languages. Anything else left identical to English is a miss.
+const PRODUCT_NAME_TITLES = ["landing.circles.title", "landing.collabBoards.title"];
 const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
-  es: [],
-  fr: ["onboarding.bio"],
-  pt: ["onboarding.bio"],
+  es: [...PRODUCT_NAME_TITLES],
+  fr: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
+  pt: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
 };
 
 describe("dictionaries", () => {

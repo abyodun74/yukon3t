@@ -45,6 +45,41 @@ export const pt: Dictionary = {
   },
   languagePicker: { label: "Idioma" },
   nav: { signOut: "Sair", signIn: "Entrar" },
+  landing: {
+    eyebrow: "Conexão global, feita com honestidade",
+    title: "Conecte-se com pessoas do mundo todo: por interesse, por cultura, por propósito.",
+    intro:
+      "O YuKon3t parte de uma ideia: todo grande aplicativo de conexão entre pessoas tem um problema de confiança. Resolvemos os problemas que não param de aparecer nas avaliações de usuários reais: perfis falsos, moderação opaca e segurança só para quem paga.",
+    createAccount: "Primeira vez aqui? Crie sua conta grátis",
+    guidelines: "Leia nossas diretrizes",
+    pillars: [
+      {
+        title: "Contas verificadas antes de qualquer mensagem",
+        body: "Cada conta confirma o e-mail antes de ter as mensagens diretas liberadas, e toda medida tomada contra uma conta vem com o motivo informado e um caminho para recorrer: nada de banimentos silenciosos.",
+      },
+      {
+        title: "Diga o que você procura",
+        body: "Marque sua intenção (amizade, intercâmbio cultural, contatos profissionais, comunidade ou dicas de viagem) para que as conversas nunca se desviem para algo que você não veio buscar.",
+      },
+      {
+        title: "Circles grátis, sem cobrar de quem organiza",
+        body: "Crie comunidades de interesse e identidade ou entre nas que já existem, de graça. Sem taxas anuais para organizadores.",
+      },
+      {
+        title: "Seus dados são sempre seus",
+        body: "Exporte sua conta ou exclua-a permanentemente com um clique, sempre de graça. Você nunca precisará pagar por isso.",
+      },
+    ],
+    waysTitle: "Duas formas de se conectar",
+    circles: {
+      title: "Circles",
+      body: "Comunidades de interesse e identidade: hobbies, causas, culturas. Criar e participar é de graça.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Trocas de habilidades entre países, voluntariado, grupos de estudo e projetos: o tipo de conexão que a maioria dos aplicativos globais deixa de lado.",
+    },
+  },
   common: {
     signIn: "Entrar",
     captchaFailed,

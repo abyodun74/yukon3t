@@ -46,6 +46,41 @@ export const fr: Dictionary = {
   },
   languagePicker: { label: "Langue" },
   nav: { signOut: "Se déconnecter", signIn: "Se connecter" },
+  landing: {
+    eyebrow: "Des liens sans frontières, en toute honnêteté",
+    title: "Tissez des liens dans le monde entier, selon vos centres d'intérêt, votre culture et vos objectifs.",
+    intro:
+      "YuKon3t repose sur une idée : toutes les grandes applications de mise en relation ont un problème de confiance. Nous avons réglé les problèmes qui reviennent sans cesse dans les avis de vrais utilisateurs : faux profils, modération opaque et sécurité payante.",
+    createAccount: "Première visite ? Créez un compte gratuit",
+    guidelines: "Consultez nos règles",
+    pillars: [
+      {
+        title: "Des comptes vérifiés avant tout message",
+        body: "Chaque compte confirme son adresse e-mail avant que les messages privés ne soient débloqués, et toute mesure prise à l'encontre d'un compte s'accompagne d'un motif explicite et d'une voie de recours : aucun bannissement silencieux.",
+      },
+      {
+        title: "Dites ce que vous recherchez",
+        body: "Indiquez vos intentions (amitié, échange culturel, relations professionnelles, communauté ou conseils de voyage) pour que les conversations ne dérivent jamais vers autre chose que ce que vous recherchez.",
+      },
+      {
+        title: "Circles gratuits, sans faire payer les organisateurs",
+        body: "Créez ou rejoignez gratuitement des communautés réunies par un centre d'intérêt ou une identité. Aucuns frais annuels pour les organisateurs.",
+      },
+      {
+        title: "Vos données restent toujours les vôtres",
+        body: "Exportez votre compte ou supprimez-le définitivement en un clic. C'est gratuit et le restera toujours. Vous n'aurez jamais à payer pour cela.",
+      },
+    ],
+    waysTitle: "Deux façons de tisser des liens",
+    circles: {
+      title: "Circles",
+      body: "Des communautés réunies par un centre d'intérêt ou une identité : loisirs, causes, cultures. Créer un Circle ou en rejoindre un est gratuit.",
+    },
+    collabBoards: {
+      title: "Collab Boards",
+      body: "Échanges de compétences entre pays, bénévolat, groupes d'étude et projets : le type de lien que la plupart des applications internationales laissent de côté.",
+    },
+  },
   common: {
     signIn: "Se connecter",
     captchaFailed,
