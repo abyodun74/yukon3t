@@ -127,6 +127,7 @@ export function SignupPhoneVerificationForm({
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={10}
+              dir="ltr"
               className={INPUT_CLASS}
             />
           </div>

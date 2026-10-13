@@ -147,7 +147,7 @@ export function SignUpForm({
           aria-invalid={fieldErrors.username ? true : undefined}
           aria-describedby={describedBy("username")}
           placeholder={t.usernamePlaceholder}
-          className={cn(INPUT_CLASS, "mt-1", fieldErrors.username && "border-danger")}
+          className={cn(INPUT_CLASS, "ltr-value mt-1", fieldErrors.username && "border-danger")}
         />
         {errorFor("username")}
       </div>
@@ -166,7 +166,7 @@ export function SignUpForm({
           aria-invalid={fieldErrors.email ? true : undefined}
           aria-describedby={describedBy("email")}
           placeholder={t.emailPlaceholder}
-          className={cn(INPUT_CLASS, "mt-1", fieldErrors.email && "border-danger")}
+          className={cn(INPUT_CLASS, "ltr-value mt-1", fieldErrors.email && "border-danger")}
         />
         {fieldErrors.email === "email_taken" ? (
           <FieldError id="signup-email-error">

@@ -1,5 +1,5 @@
 import { dictionaryFor } from "@/lib/i18n/dictionaries";
-import { format, type Locale } from "@/lib/i18n/locales";
+import { format, localeDirection, type Locale } from "@/lib/i18n/locales";
 import type { SecurityChallengePurpose } from "@/generated/prisma/enums";
 
 // Subject and body of every email the account flows send. The language is always the caller's decision: a send made
@@ -10,13 +10,25 @@ type Email = { subject: string; html: string };
 
 const CODE_STYLE = "font-size:28px;font-weight:700;letter-spacing:4px;";
 
+/** `lang` and `dir` for the element holding an email's wording, so Arabic is laid out right-to-left. */
+function langAttrs(locale: Locale) {
+  return `lang="${locale}" dir="${localeDirection(locale)}"`;
+}
+
+function inLanguage(locale: Locale, html: string) {
+  return `<div ${langAttrs(locale)}>${html}</div>`;
+}
+
 export function verificationCodeEmail(locale: Locale, code: string): Email {
   const t = dictionaryFor(locale).emails.verificationCode;
   return {
     subject: t.subject,
-    html: `<p>${t.intro}</p>
+    html: inLanguage(
+      locale,
+      `<p>${t.intro}</p>
       <p style="${CODE_STYLE}">${code}</p>
       <p>${t.outro}</p>`,
+    ),
   };
 }
 
@@ -25,9 +37,12 @@ export function passwordResetEmail(locale: Locale, reason: "requested" | "requir
   const { subject, [reason]: t } = dictionaryFor(locale).emails.passwordReset;
   return {
     subject,
-    html: `<p>${t.intro}</p>
+    html: inLanguage(
+      locale,
+      `<p>${t.intro}</p>
         <p><a href="${url}">${t.link}</a></p>
         <p>${t.outro}</p>`,
+    ),
   };
 }
 
@@ -43,17 +58,23 @@ export function deviceChallengeEmail(
   if (purpose === "HIDDEN_PIN_RESET") {
     return {
       subject,
-      html: `<p>${t.hiddenPinReset.intro}</p>
+      html: inLanguage(
+        locale,
+        `<p>${t.hiddenPinReset.intro}</p>
     <p style="${CODE_STYLE}">${code}</p>
     <p>${t.hiddenPinReset.outro}</p>`,
+      ),
     };
   }
   return {
     subject,
-    html: `<p>${format(t.intros[purpose], { device: deviceLabel })}</p>
+    html: inLanguage(
+      locale,
+      `<p>${format(t.intros[purpose], { device: deviceLabel })}</p>
     <p>${t.ifYou}</p>
     <p style="${CODE_STYLE}">${code}</p>
     <p>${t.outro}</p>`,
+    ),
   };
 }
 
@@ -81,7 +102,7 @@ export function magicLinkEmail(
     subject: format(t.subject, { host }),
     html: `
 <body style="background: ${color.background};">
-  <table width="100%" border="0" cellspacing="20" cellpadding="0"
+  <table ${langAttrs(locale)} width="100%" border="0" cellspacing="20" cellpadding="0"
     style="background: ${color.mainBackground}; max-width: 600px; margin: auto; border-radius: 10px;">
     <tr>
       <td align="center"

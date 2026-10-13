@@ -4,6 +4,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { LanguagePicker } from "@/components/language-picker";
+import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function ForgotPasswordPage({
@@ -16,7 +17,7 @@ export default async function ForgotPasswordPage({
   const t = await getDictionary();
 
   return (
-    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">{t.forgotPassword.title}</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">{t.forgotPassword.intro}</p>
 
@@ -53,7 +54,7 @@ export default async function ForgotPasswordPage({
           required
           autoComplete="email"
           placeholder={t.common.emailPlaceholder}
-          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+          className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm ltr-value outline-none focus:border-accent"
         />
         <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
         <SubmitButton

@@ -27,6 +27,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   es: [...PRODUCT_NAME_TITLES],
   fr: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
   pt: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
+  ar: [...PRODUCT_NAME_TITLES],
 };
 
 describe("dictionaries", () => {

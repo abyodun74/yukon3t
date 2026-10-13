@@ -1,4 +1,4 @@
-// English, and the shape every other language is typed against (es.ts, fr.ts, pt.ts): a key missing there is a compile
+// English, and the shape every other language is typed against (es.ts, fr.ts, pt.ts, ar.ts): a key missing there is a compile
 // error. Placeholders are `{name}`, filled by format() in locales.ts. No imports, so it is safe in client bundles.
 
 const captchaFailed =

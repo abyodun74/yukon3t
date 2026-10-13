@@ -1699,14 +1699,14 @@ const sections: Section[] = [
           <>
             Signing in, creating an account, verifying it, resetting your
             password and setting up your profile are available in English,
-            Spanish, French and Portuguese, and so are the emails and texts
+            Spanish, French, Portuguese and Arabic, and so are the emails and texts
             those screens send. They open in your phone or browser&apos;s
-            language when it is one of the four; to switch, use the Language
-            menu at the top right of the home page (below Sign in) or at the
+            language when it is one of the five; to switch, use the Language
+            menu at the top corner of the home page (below Sign in) or at the
             bottom of the other account screens — the choice is
             remembered on that device. The home page you see before signing
-            in is in those four languages too. The rest of the app is
-            currently in English.
+            in is in those five languages too. In Arabic those screens read
+            right to left. The rest of the app is currently in English.
           </>
         ),
       },

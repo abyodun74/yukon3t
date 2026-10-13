@@ -7,6 +7,7 @@ import { countryFromGeoHeaders } from "@/lib/request-country";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
+import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "Sign Up for YuKon3t — Join Free, Verified Communities";
@@ -42,7 +43,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   const t = await getDictionary();
 
   return (
-    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">{t.signUp.title}</h1>
       <p className="mt-2 text-center text-sm text-foreground-soft">{t.signUp.intro}</p>
 

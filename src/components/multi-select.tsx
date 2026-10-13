@@ -123,7 +123,7 @@ export function MultiSelect({
                 type="button"
                 onClick={() => add(option.value)}
                 className={cn(
-                  "block w-full px-3 py-2 text-left text-sm hover:bg-line",
+                  "block w-full px-3 py-2 text-start text-sm hover:bg-line",
                 )}
               >
                 {option.label}

@@ -67,13 +67,14 @@ export function PasswordInput({
         onChange={onChange}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
-        className={cn(className, "pr-10")}
+        // The eye button sits at the end of the field, which is the left on the Arabic account screens.
+        className={cn(className, "ltr-value pr-10 rtl:pl-10 rtl:pr-4")}
       />
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
         aria-label={visible ? labels.hide : labels.show}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-foreground-soft hover:text-accent"
+        className="absolute inset-y-0 right-0 flex rtl:left-0 rtl:right-auto items-center px-3 text-foreground-soft hover:text-accent"
       >
         {visible ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>

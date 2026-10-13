@@ -36,7 +36,7 @@ declare global {
 const GIVE_UP_AFTER_MS = 10_000;
 
 // Cloudflare's own codes for the languages the account screens come in.
-const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br" };
+const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br", ar: "ar" };
 
 let scriptPromise: Promise<void> | null = null;
 

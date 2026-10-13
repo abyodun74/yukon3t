@@ -1,7 +1,7 @@
 // The languages the account screens (sign in, sign up, verify, password recovery, onboarding, sign out) are written
 // in, and how a request's language is chosen. Pure and client-safe: the half that reads next/headers is in server.ts.
 
-export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt"] as const;
+export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = "en";
@@ -15,7 +15,13 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   es: "Español",
   fr: "Français",
   pt: "Português",
+  ar: "العربية",
 };
+
+/** The `dir` for anything written in `locale`. Goes on the same element as `lang`: the page shell around it is English. */
+export function localeDirection(locale: Locale): "ltr" | "rtl" {
+  return locale === "ar" ? "rtl" : "ltr";
+}
 
 export function isLocale(value: unknown): value is Locale {
   return (SUPPORTED_LOCALES as readonly unknown[]).includes(value);

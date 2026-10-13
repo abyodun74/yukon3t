@@ -7,7 +7,7 @@
 import type { Locale } from "@/lib/i18n/locales";
 
 // Verify's own names for the languages this app has (it writes the text message itself, from its own templates).
-const VERIFY_LOCALES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-BR" };
+const VERIFY_LOCALES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-BR", ar: "ar" };
 
 export function isPhoneVerificationConfigured() {
   return Boolean(

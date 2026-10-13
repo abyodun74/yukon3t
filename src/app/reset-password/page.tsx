@@ -3,6 +3,7 @@ import { resetPassword } from "@/app/actions/password-auth";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { LanguagePicker } from "@/components/language-picker";
+import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function ResetPasswordPage({
@@ -17,7 +18,7 @@ export default async function ResetPasswordPage({
 
   if (!token) {
     return (
-      <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+      <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
         <h1 className="text-2xl font-semibold">{t.resetPassword.invalidTitle}</h1>
         <p className="mt-2 text-center text-sm text-foreground-soft">{t.resetPassword.invalidBody}</p>
         <Link href="/forgot-password" className="mt-4 font-medium text-accent hover:underline">
@@ -29,7 +30,7 @@ export default async function ResetPasswordPage({
   }
 
   return (
-    <div lang={locale} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
+    <div lang={locale} dir={localeDirection(locale)} className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
       <h1 className="text-2xl font-semibold">{t.resetPassword.title}</h1>
 
       {error === "invalid" && (

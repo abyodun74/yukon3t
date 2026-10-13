@@ -9,7 +9,7 @@ import { MultiSelect } from "@/components/multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { LanguagePicker } from "@/components/language-picker";
-import { format } from "@/lib/i18n/locales";
+import { format, localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function OnboardingPage({
@@ -27,7 +27,7 @@ export default async function OnboardingPage({
   const t = dictionary.onboarding;
 
   return (
-    <div lang={locale} className="mx-auto max-w-xl px-4 py-16">
+    <div lang={locale} dir={localeDirection(locale)} className="mx-auto max-w-xl px-4 py-16">
       <h1 className="text-2xl font-semibold">{t.title}</h1>
       <p className="mt-2 text-sm text-foreground-soft">{t.intro}</p>
       <p className="mt-2 text-sm font-medium text-foreground">{t.required}</p>

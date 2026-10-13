@@ -56,6 +56,15 @@
   }
 }
 
+/* The Arabic account screens (dir="rtl", see localeDirection in src/lib/i18n/locales.ts): a field whose value is
+   always Latin (username, email, password) is typed left-to-right so symbols and "_" stay where they were typed,
+   but keeps the page's alignment. Only once it holds something: while empty it shows its Arabic placeholder, which
+   has to stay right-to-left. Outside a dir="rtl" ancestor the class does nothing. */
+[dir="rtl"] .ltr-value:not(:placeholder-shown) {
+  direction: ltr;
+  text-align: right;
+}
+
 /* Explicit theme choice always wins over the OS preference, in both directions. */
 :root[data-theme="dark"] {
   --background: #14181a;

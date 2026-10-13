@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
 import { LanguagePicker } from "@/components/language-picker";
+import { localeDirection } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "YuKon3t — Verified Global Friendships, No Fake Profiles";
@@ -45,7 +46,7 @@ export default async function Home() {
   const t = await getDictionary();
 
   return (
-    <div lang={locale}>
+    <div lang={locale} dir={localeDirection(locale)}>
       <section className="relative overflow-hidden">
         <div
           aria-hidden
@@ -65,10 +66,10 @@ export default async function Home() {
           </div>
         </div>
         <div className="mx-auto max-w-5xl px-4 pb-20 pt-24 text-center sm:pb-28 sm:pt-28">
-          <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+          <p className="text-xs font-semibold uppercase tracking-widest text-accent rtl:text-sm rtl:tracking-normal">
             {t.landing.eyebrow}
           </p>
-          <h1 className="font-display mt-4 text-4xl font-semibold italic tracking-tight text-balance sm:text-6xl">
+          <h1 className="font-display mt-4 text-4xl font-semibold italic tracking-tight text-balance sm:text-6xl rtl:not-italic rtl:leading-snug rtl:tracking-normal sm:rtl:leading-snug">
             {t.landing.title}
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-foreground-soft">
@@ -112,11 +113,11 @@ export default async function Home() {
       <section className="mx-auto max-w-5xl px-4 py-16 text-center">
         <h2 className="font-display text-2xl font-semibold">{t.landing.waysTitle}</h2>
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-xl border border-line p-6 text-left shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
+          <div className="rounded-xl border border-line p-6 text-start shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
             <h3 className="font-display font-semibold text-teal">{t.landing.circles.title}</h3>
             <p className="mt-2 text-sm text-foreground-soft">{t.landing.circles.body}</p>
           </div>
-          <div className="rounded-xl border border-line p-6 text-left shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
+          <div className="rounded-xl border border-line p-6 text-start shadow-[var(--shadow-sm)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
             <h3 className="font-display font-semibold text-teal">{t.landing.collabBoards.title}</h3>
             <p className="mt-2 text-sm text-foreground-soft">{t.landing.collabBoards.body}</p>
           </div>

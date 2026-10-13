@@ -95,7 +95,8 @@ export function PhoneNumberField({
   const countryName = options?.find((o) => o.code === country)?.name;
 
   return (
-    <div className="flex gap-2">
+    // Always left-to-right, on the Arabic account screens too: "+966 5…" is read country code first.
+    <div dir="ltr" className="flex gap-2">
       <div className="relative flex shrink-0">
         <select
           aria-label={labels.countryCode}

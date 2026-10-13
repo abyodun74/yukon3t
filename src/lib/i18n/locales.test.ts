@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_LOCALE, LOCALE_COOKIE, format, isLocale, localeFromRequest, resolveLocale } from "@/lib/i18n/locales";
+import {
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE,
+  format,
+  isLocale,
+  localeDirection,
+  localeFromRequest,
+  resolveLocale,
+} from "@/lib/i18n/locales";
 
 describe("resolveLocale", () => {
   it("falls back to English with nothing to go on", () => {
@@ -12,6 +20,7 @@ describe("resolveLocale", () => {
   it("lets a supported cookie win over the header", () => {
     expect(resolveLocale("fr", "es-MX,es;q=0.9")).toBe("fr");
     expect(resolveLocale("en", "pt-BR")).toBe("en");
+    expect(resolveLocale("ar", "en-US,en;q=0.9")).toBe("ar");
   });
 
   it("ignores a cookie that isn't a supported language", () => {
@@ -28,6 +37,9 @@ describe("resolveLocale", () => {
     expect(resolveLocale(null, "fr-CA")).toBe("fr");
     expect(resolveLocale(null, "en-GB")).toBe("en");
     expect(resolveLocale(null, "ES-mx")).toBe("es");
+    expect(resolveLocale(null, "ar")).toBe("ar");
+    expect(resolveLocale(null, "ar-SA")).toBe("ar");
+    expect(resolveLocale(null, "ar-EG,ar;q=0.9,en;q=0.8")).toBe("ar");
   });
 
   it("honours q-values over header order", () => {
@@ -59,6 +71,7 @@ describe("localeFromRequest", () => {
 
   it("falls back to Accept-Language, then English", () => {
     expect(localeFromRequest(request({ cookie: "a=1", "accept-language": "es-AR,es;q=0.9" }))).toBe("es");
+    expect(localeFromRequest(request({ cookie: `${LOCALE_COOKIE}=ar`, "accept-language": "en-US" }))).toBe("ar");
     expect(localeFromRequest(request({}))).toBe("en");
   });
 });
@@ -66,9 +79,17 @@ describe("localeFromRequest", () => {
 describe("isLocale", () => {
   it("accepts only the supported codes", () => {
     expect(isLocale("es")).toBe(true);
+    expect(isLocale("ar")).toBe(true);
     expect(isLocale("de")).toBe(false);
     expect(isLocale(undefined)).toBe(false);
     expect(isLocale("toString")).toBe(false);
+  });
+});
+
+describe("localeDirection", () => {
+  it("is right-to-left for Arabic only", () => {
+    expect(localeDirection("ar")).toBe("rtl");
+    for (const locale of ["en", "es", "fr", "pt"] as const) expect(localeDirection(locale)).toBe("ltr");
   });
 });
 
