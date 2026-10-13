@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { blockUser, unblockUser } from "@/app/actions/blocks";
 import { hapticNotification, hapticImpact } from "@/lib/haptics";
+import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 /** Toggles block state for a profile — always visible next to Report, unlike Report it needs no reason. */
 export function BlockButton({
@@ -12,13 +14,15 @@ export function BlockButton({
   initiallyBlocked,
 }: {
   targetId: string;
-  targetName: string;
+  /** Null for an account whose name the data doesn't have: the wording then says "this account". */
+  targetName: string | null;
   initiallyBlocked: boolean;
 }) {
   const router = useRouter();
   const [blocked, setBlocked] = useState(initiallyBlocked);
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const { locale, dir, t } = useUiText();
 
   if (blocked) {
     return (
@@ -35,17 +39,21 @@ export function BlockButton({
             }
           })
         }
+        lang={locale}
+        dir={dir}
         className="text-xs text-foreground-soft hover:text-accent disabled:opacity-50"
       >
-        Unblock {targetName}
+        {targetName ? format(t.block.unblock, { name: targetName }) : t.block.unblockAccount}
       </button>
     );
   }
 
   if (confirming) {
     return (
-      <span className="flex items-center gap-2 text-xs">
-        <span className="text-foreground-soft">Block {targetName}?</span>
+      <span lang={locale} dir={dir} className="flex items-center gap-2 text-xs">
+        <span className="text-foreground-soft">
+          {targetName ? format(t.block.confirm, { name: targetName }) : t.block.confirmAccount}
+        </span>
         <button
           type="button"
           disabled={isPending}
@@ -62,10 +70,10 @@ export function BlockButton({
           }
           className="font-medium text-danger disabled:opacity-50"
         >
-          Yes, block
+          {t.block.yes}
         </button>
         <button type="button" onClick={() => setConfirming(false)} className="text-foreground-soft">
-          Cancel
+          {t.cancel}
         </button>
       </span>
     );
@@ -75,9 +83,11 @@ export function BlockButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
+      lang={locale}
+      dir={dir}
       className="text-xs text-foreground-soft hover:text-danger"
     >
-      Block
+      {t.block.block}
     </button>
   );
 }

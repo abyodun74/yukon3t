@@ -11,6 +11,7 @@ export const shellEn = {
   common: {
     loading: "Loading…",
     loadingMore: "Loading more...",
+    back: "Back",
     cancel: "Cancel",
     save: "Save",
     delete: "Delete",

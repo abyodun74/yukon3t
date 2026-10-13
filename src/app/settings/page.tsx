@@ -15,7 +15,7 @@ import { PhoneVerificationForm } from "@/components/phone-verification-form";
 import { getRequestCountry } from "@/lib/request-country";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
 import { LanguagePicker } from "@/components/language-picker";
-import { localeDirection } from "@/lib/i18n/locales";
+import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
@@ -33,30 +33,40 @@ export default async function SettingsPage({
 }) {
   const user = await getSessionUserOrRedirect();
   const locale = await getLocale();
-  const t = await getDictionary();
+  const dictionary = await getDictionary();
+  const t = dictionary.settings;
+  const offlineMessage = dictionary.shared.submitButton.offline;
   const { error, saved } = await searchParams;
   const blocked = await listBlockedUsers();
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
 
+  const [signedInBefore, signedInAfter] = aroundPlaceholder(t.signedInAs, "email");
+  const [profileBefore, profileAfter] = aroundPlaceholder(t.editProfile, "link");
+  const [faqBefore, faqAfter] = aroundPlaceholder(t.faq, "link");
+  const [usernameBefore, usernameAfter] = aroundPlaceholder(t.signInMethod.usernameIs, "username");
+
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
       <div>
-        <BackButton href="/home" />
-        <h1 className="font-display text-2xl font-semibold">Settings</h1>
+        <BackButton href="/home" label={dictionary.shell.common.back} />
+        <h1 className="font-display text-2xl font-semibold">{t.title}</h1>
         <p className="mt-1 text-sm text-foreground-soft">
-          Signed in as {user.email}
+          {signedInBefore}
+          <bdi>{user.email}</bdi>
+          {signedInAfter}
         </p>
         <p className="mt-2 text-sm text-foreground-soft">
-          Want to change your name, bio, photo, or interests?{" "}
+          {profileBefore}
           <Link href={`/u/${user.id}`} className="text-accent hover:underline">
-            Edit your profile
+            {t.editProfileLink}
           </Link>
-          . New to YuKon3t or looking for how something works?{" "}
+          {profileAfter}{" "}
+          {faqBefore}
           <Link href="/faq" className="text-accent hover:underline">
-            Check the FAQ
+            {t.faqLink}
           </Link>
-          .
+          {faqAfter}
         </p>
       </div>
 
@@ -65,38 +75,28 @@ export default async function SettingsPage({
           href="#sign-in-method"
           className="block rounded-lg border border-accent bg-accent-soft px-4 py-3 text-sm font-medium hover:underline"
         >
-          For your security, please choose a new password
+          {t.passwordResetRequired}
         </Link>
       )}
 
       {saved && (
         <p role="status" className="rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
-          Settings updated.
+          {t.saved}
         </p>
       )}
       {error && (
         <p role="alert" className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {error === "username_taken"
-            ? "That username is taken — try another."
-            : error === "current_password_invalid"
-              ? "Current password is incorrect."
-              : error === "same_password"
-                ? "That's your current password. For your security, choose a different one."
-              : error === "rate_limited"
-                ? "Too many attempts — try again in a few minutes."
-                : "Please check your inputs."}
+          {byCode(t.errors, error)}
         </p>
       )}
 
       <div>
-        <h2 className="text-lg font-semibold">Privacy</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Controls what people who aren&apos;t connected to you can see.
-        </p>
+        <h2 className="text-lg font-semibold">{t.privacy.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.privacy.intro}</p>
         <form action={updatePrivacy} className="mt-4 space-y-4">
           <div>
             <label htmlFor="settings-posts-visibility" className="block text-sm font-medium">
-              Who can see your posts
+              {t.privacy.postsVisibility}
             </label>
             <select
               id="settings-posts-visibility"
@@ -104,10 +104,13 @@ export default async function SettingsPage({
               defaultValue={user.postsVisibility}
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
             >
-              <option value="PUBLIC">Anyone signed in</option>
-              <option value="CONNECTIONS_ONLY">Only my connections</option>
+              <option value="PUBLIC">{t.privacy.public}</option>
+              <option value="CONNECTIONS_ONLY">{t.privacy.connectionsOnly}</option>
+              {/* Admin-only, so it stays English like the rest of admin. */}
               {user.isAdmin && (
-                <option value="HIDDEN">Invisible to everyone (admin only)</option>
+                <option value="HIDDEN" lang="en">
+                  Invisible to everyone (admin only)
+                </option>
               )}
             </select>
           </div>
@@ -117,11 +120,12 @@ export default async function SettingsPage({
               name="discoverable"
               defaultChecked={user.discoverable}
             />
-            Show my profile in Discover
+            {t.privacy.discoverable}
           </label>
           <SubmitButton
-            label="Save privacy settings"
-            pendingLabel="Saving..."
+            label={t.privacy.save}
+            pendingLabel={t.saving}
+            offlineMessage={offlineMessage}
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           />
         </form>
@@ -130,62 +134,50 @@ export default async function SettingsPage({
           href="/messages/hidden"
           className="mt-4 flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm hover:border-accent hover:text-accent"
         >
-          <span>Hidden chats</span>
-          <span aria-hidden className="text-foreground-soft">
+          <span>{t.privacy.hiddenChats}</span>
+          <span aria-hidden className="text-foreground-soft rtl:-scale-x-100">
             &rsaquo;
           </span>
         </Link>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold">Notifications</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Get notified about incoming calls and new messages even when
-          YuKon3t isn&apos;t open in a tab.
-        </p>
+        <h2 className="text-lg font-semibold">{t.notifications.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.notifications.intro}</p>
         <div className="mt-4">
           <PushNotificationsToggle />
         </div>
       </div>
 
-      {/* The one block of Settings in the reader's language, so it carries its own lang/dir. */}
-      <div lang={locale} dir={localeDirection(locale)}>
-        <h2 className="text-lg font-semibold">{t.settings.language.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.settings.language.body}</p>
+      <div>
+        <h2 className="text-lg font-semibold">{t.language.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.language.body}</p>
         {/* The one place a signed-in person can change it: the other pickers are on the signed-out screens. */}
-        <LanguagePicker locale={locale} label={t.languagePicker.label} className="mt-4 justify-start" />
+        <LanguagePicker locale={locale} label={dictionary.languagePicker.label} className="mt-4 justify-start" />
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold">Emoji style</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Choose how emoji look everywhere in the app — reactions, messages, and posts.
-        </p>
+        <h2 className="text-lg font-semibold">{t.emoji.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.emoji.intro}</p>
         <div className="mt-4">
           <EmojiStyleSetting />
         </div>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold">Ambient</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          A handful of people you actually know, and casual moments instead
-          of composed posts — early groundwork, no lock-screen widget yet.
-        </p>
+        <h2 className="text-lg font-semibold">{t.ambient.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.ambient.intro}</p>
         <Link
           href="/settings/ambient"
           className="mt-3 inline-block rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
         >
-          Manage Inner Circle
+          {t.ambient.manage}
         </Link>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold">Invite friends</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Send the app link straight to people in your phone&apos;s contacts
-          who aren&apos;t on YuKon3t yet.
-        </p>
+        <h2 className="text-lg font-semibold">{t.invite.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.invite.intro}</p>
         <div className="mt-4">
           <InvitePanel defaultCountry={await getRequestCountry()} />
         </div>
@@ -193,24 +185,18 @@ export default async function SettingsPage({
 
       {blocked.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold">Blocked accounts</h2>
-          <p className="mt-1 text-sm text-foreground-soft">
-            They can&apos;t message, call, or connect with you, and you won&apos;t see them in Discover.
-          </p>
+          <h2 className="text-lg font-semibold">{t.blocked.heading}</h2>
+          <p className="mt-1 text-sm text-foreground-soft">{t.blocked.intro}</p>
           <ul className="mt-4 space-y-2">
             {blocked.map((b) => (
               <li
                 key={b.id}
                 className="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm"
               >
-                <Link href={`/u/${b.blocked.id}`} className="min-w-0 break-words hover:text-accent">
-                  {b.blocked.name ?? "Deleted account"}
+                <Link href={`/u/${b.blocked.id}`} dir="auto" className="min-w-0 break-words hover:text-accent">
+                  {b.blocked.name ?? t.blocked.deleted}
                 </Link>
-                <BlockButton
-                  targetId={b.blocked.id}
-                  targetName={b.blocked.name ?? "them"}
-                  initiallyBlocked
-                />
+                <BlockButton targetId={b.blocked.id} targetName={b.blocked.name} initiallyBlocked />
               </li>
             ))}
           </ul>
@@ -218,37 +204,34 @@ export default async function SettingsPage({
       )}
 
       <div>
-        <h2 className="text-lg font-semibold">Calls</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Plays for both audio and video calls.
-        </p>
+        <h2 className="text-lg font-semibold">{t.calls.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.calls.intro}</p>
         <form action={updateRingtone} className="mt-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium">Ringtone</label>
+            <label className="block text-sm font-medium">{t.calls.ringtone}</label>
             <div className="mt-1">
               <RingtonePicker defaultValue={user.ringtone} />
             </div>
           </div>
           <SubmitButton
-            label="Save ringtone"
-            pendingLabel="Saving..."
+            label={t.calls.save}
+            pendingLabel={t.saving}
+            offlineMessage={offlineMessage}
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           />
         </form>
       </div>
 
       <div id="sign-in-method" className="scroll-mt-24">
-        <h2 className="text-lg font-semibold">Sign-in method</h2>
+        <h2 className="text-lg font-semibold">{t.signInMethod.heading}</h2>
         <p className="mt-1 text-sm text-foreground-soft">
-          {hasPassword
-            ? "You can sign in with your username and password, or the email link."
-            : "Add a username and password as an alternative to the email sign-in link."}
+          {hasPassword ? t.signInMethod.withPassword : t.signInMethod.withoutPassword}
         </p>
         <form action={setPassword} className="mt-4 space-y-4">
           {!user.username && (
             <div>
               <label htmlFor="settings-username" className="block text-sm font-medium">
-                Username
+                {t.signInMethod.username}
               </label>
               <input
                 id="settings-username"
@@ -258,19 +241,21 @@ export default async function SettingsPage({
                 maxLength={20}
                 pattern="[a-zA-Z0-9_]+"
                 autoComplete="username"
-                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                className="ltr-value mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
             </div>
           )}
           {user.username && (
             <p className="text-sm">
-              Username: <span className="font-medium">{user.username}</span>
+              {usernameBefore}
+              <bdi className="font-medium">{user.username}</bdi>
+              {usernameAfter}
             </p>
           )}
           {hasPassword && (
             <div>
               <label htmlFor="settings-current-password" className="block text-sm font-medium">
-                Current password
+                {t.signInMethod.currentPassword}
               </label>
               <PasswordInput
                 id="settings-current-password"
@@ -279,12 +264,13 @@ export default async function SettingsPage({
                 maxLength={72}
                 autoComplete="current-password"
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                labels={dictionary.shared.passwordInput}
               />
             </div>
           )}
           <div>
             <label htmlFor="settings-new-password" className="block text-sm font-medium">
-              {hasPassword ? "New password" : "Password"}
+              {hasPassword ? t.signInMethod.newPassword : t.signInMethod.password}
             </label>
             <PasswordInput
               id="settings-new-password"
@@ -294,31 +280,31 @@ export default async function SettingsPage({
               maxLength={72}
               autoComplete="new-password"
               className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+              labels={dictionary.shared.passwordInput}
             />
           </div>
-          {hasPassword && (
-            <p className="text-xs text-foreground-soft">
-              Changing your password signs you out everywhere else.
-            </p>
-          )}
+          {hasPassword && <p className="text-xs text-foreground-soft">{t.signInMethod.signsOut}</p>}
           <SubmitButton
-            label={hasPassword ? "Update password" : "Set password"}
-            pendingLabel={hasPassword ? "Updating..." : "Setting..."}
+            label={hasPassword ? t.signInMethod.update : t.signInMethod.set}
+            pendingLabel={hasPassword ? t.signInMethod.updating : t.signInMethod.setting}
+            offlineMessage={offlineMessage}
             className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
           />
         </form>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold">Phone verification</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          Optional — verifying a phone number raises your trust score.
-        </p>
+        <h2 className="text-lg font-semibold">{t.phone.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.phone.intro}</p>
         <div className="mt-4">
           <PhoneVerificationForm
             phone={user.phone}
             phoneVerifiedAt={user.phoneVerifiedAt}
             defaultCountry={await getRequestCountry()}
+            locale={locale}
+            t={dictionary.verifyPhone.form}
+            shared={dictionary.shared}
+            verifiedLabel={t.phone.verified}
           />
         </div>
       </div>

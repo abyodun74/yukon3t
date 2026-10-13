@@ -11,6 +11,15 @@ export const ui: typeof uiEn = {
   profilePhoto: "صورة الملف الشخصي لـ {name}",
   unknownName: "غير معروف",
   time: { justNow: "الآن", today: "اليوم", yesterday: "أمس" },
+  block: {
+    block: "حظر",
+    confirm: "حظر {name}؟",
+    confirmAccount: "حظر هذا الحساب؟",
+    yes: "نعم، حظر",
+    unblock: "إلغاء حظر {name}",
+    unblockAccount: "إلغاء حظر هذا الحساب",
+  },
+  crop: { title: "قص الصورة", use: "استخدام الصورة", cropping: "جارٍ القص...", zoom: "التكبير" },
   reactions: {
     count:
       "zero: لا تفاعلات | one: تفاعل واحد | two: تفاعلان | few: # تفاعلات | many: # تفاعلًا | other: # تفاعل",

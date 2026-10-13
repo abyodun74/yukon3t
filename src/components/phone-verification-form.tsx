@@ -2,22 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { requestPhoneVerification, confirmPhoneVerification } from "@/app/actions/phone-verification";
-import { useTurnstileGate, TURNSTILE_WAIT_MESSAGE } from "@/components/use-turnstile-gate";
+import { useTurnstileGate } from "@/components/use-turnstile-gate";
 import { PhoneNumberField } from "@/components/phone-number-field";
-import { PHONE_INVALID_MESSAGE } from "@/lib/phone-number";
+import type { Dictionary } from "@/lib/i18n/en";
+import { aroundPlaceholder, type Locale } from "@/lib/i18n/locales";
 
 const INPUT_CLASS =
   "mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid: PHONE_INVALID_MESSAGE,
-  invalid_code: "That code didn't match — check it and try again.",
-  rate_limited: "Too many attempts — try again in a bit.",
-  not_configured: "Phone verification isn't set up yet.",
-  phone_taken: "That number is already verified on another account.",
-  send_failed: "Couldn't send the code — try again in a moment.",
-  captcha: "We couldn't complete the security check — please try again.",
-};
+// The same wording as the sign-up phone step (verifyPhone.form): the actions answer with the same error codes.
+type Strings = Dictionary["verifyPhone"]["form"];
+
+function errorText(t: Strings, code: string) {
+  return (t.errors as Record<string, string>)[code] ?? t.somethingWentWrong;
+}
 
 /**
  * Two-step inline flow (send code → enter code), same useTransition +
@@ -34,22 +32,34 @@ export function PhoneVerificationForm({
   phone,
   phoneVerifiedAt,
   defaultCountry,
+  locale,
+  t,
+  shared,
+  verifiedLabel,
 }: {
   phone: string | null;
   phoneVerifiedAt: Date | null;
   /** The request's geo country, for the country selector's starting choice. */
   defaultCountry: string | null;
+  locale: Locale;
+  t: Strings;
+  shared: Dictionary["shared"];
+  /** "Phone verified: {number}", from the Settings wording. */
+  verifiedLabel: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [pendingPhone, setPendingPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const captcha = useTurnstileGate();
+  const captcha = useTurnstileGate(locale);
 
   if (phoneVerifiedAt && phone) {
+    const [before, after] = aroundPlaceholder(verifiedLabel, "number");
     return (
       <p className="text-sm">
-        Phone verified: <span className="font-medium">•••• {phone.slice(-4)}</span>
+        {before}
+        <bdi className="font-medium">•••• {phone.slice(-4)}</bdi>
+        {after}
       </p>
     );
   }
@@ -69,10 +79,7 @@ export function PhoneVerificationForm({
               const result = await confirmPhoneVerification(formData);
               if (result.error) {
                 // "invalid" on this step can only be the code's format: the number was accepted when the code was sent.
-                setError(
-                  ERROR_MESSAGES[result.error === "invalid" ? "invalid_code" : result.error] ??
-                    "Something went wrong — try again.",
-                );
+                setError(errorText(t, result.error === "invalid" ? "invalid_code" : result.error));
                 return;
               }
               // Verified — re-render will pick up the new phoneVerifiedAt
@@ -82,14 +89,15 @@ export function PhoneVerificationForm({
           }}
         >
           <div>
-            <label className="block text-sm font-medium">Enter the code we sent you</label>
+            <label className="block text-sm font-medium">{t.codeLabel}</label>
             <input
-              aria-label="Enter the code we sent you"
+              aria-label={t.codeLabel}
               name="code"
               required
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={10}
+              dir="ltr"
               className={INPUT_CLASS}
             />
           </div>
@@ -100,7 +108,7 @@ export function PhoneVerificationForm({
               disabled={isPending}
               className="rounded-lg border border-line px-4 py-2 text-sm font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
             >
-              Verify
+              {t.verify}
             </button>
             <button
               type="button"
@@ -110,19 +118,19 @@ export function PhoneVerificationForm({
                 const formData = new FormData();
                 formData.set("phone", pendingPhone);
                 if (!captcha.attach(formData)) {
-                  setError(TURNSTILE_WAIT_MESSAGE);
+                  setError(shared.turnstile.wait);
                   return;
                 }
                 startTransition(async () => {
                   const result = await requestPhoneVerification(formData);
                   if (result.error) {
-                    setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+                    setError(errorText(t, result.error));
                   }
                 });
               }}
               className="text-sm text-accent hover:underline disabled:opacity-50"
             >
-              Resend code
+              {t.resendCode}
             </button>
           </div>
         </form>
@@ -142,13 +150,13 @@ export function PhoneVerificationForm({
           const phoneValue = String(formData.get("phone") ?? "").trim();
           setError(null);
           if (!captcha.attach(formData)) {
-            setError(TURNSTILE_WAIT_MESSAGE);
+            setError(shared.turnstile.wait);
             return;
           }
           startTransition(async () => {
             const result = await requestPhoneVerification(formData);
             if (result.error) {
-              setError(ERROR_MESSAGES[result.error] ?? "Something went wrong — try again.");
+              setError(errorText(t, result.error));
               return;
             }
             setPendingPhone(result.phone ?? phoneValue);
@@ -158,10 +166,15 @@ export function PhoneVerificationForm({
       >
         <div>
           <label htmlFor="settings-phone-number" className="block text-sm font-medium">
-            Phone number
+            {t.phoneLabel}
           </label>
           <div className="mt-1">
-            <PhoneNumberField id="settings-phone-number" defaultCountry={defaultCountry} />
+            <PhoneNumberField
+              id="settings-phone-number"
+              defaultCountry={defaultCountry}
+              locale={locale}
+              labels={shared.phoneField}
+            />
           </div>
         </div>
         {error && <p role="alert" className="text-xs text-danger">{error}</p>}
@@ -170,7 +183,7 @@ export function PhoneVerificationForm({
           disabled={isPending}
           className="w-full rounded-lg border border-line px-4 py-2.5 text-sm font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
         >
-          Send code
+          {t.sendCode}
         </button>
       </form>
       {captcha.widget}

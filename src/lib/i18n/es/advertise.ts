@@ -1,0 +1,68 @@
+import type { advertiseEn } from "@/lib/i18n/en/advertise";
+import { serverUnreachable } from "@/lib/i18n/es/common";
+
+export const advertise: typeof advertiseEn = {
+  page: {
+    eyebrow: "Anúnciate en YuKon3t",
+    title: "Lleva tu negocio a una audiencia global y verificada.",
+    intro:
+      "Una tarifa fija, sin necesidad de cuenta y sin segmentación de audiencia que configurar: tu anuncio se muestra en toda la aplicación durante los días que elijas. Cada anuncio se revisa antes de publicarse, y el precio es de {price} por día.",
+    canceled: "Se canceló el pago y no se hizo ningún cargo. Puedes enviarlo de nuevo cuando quieras.",
+    notConfigured: "Las reservas de anuncios aún no están disponibles. Vuelve pronto o escríbenos directamente.",
+  },
+  success: {
+    eyebrow: "Pago recibido",
+    title: "Gracias: tu anuncio está reservado.",
+    body: "Revisaremos tu anuncio en breve (normalmente en un día hábil) antes de publicarlo. Si tenemos alguna pregunta, te escribiremos al correo de contacto que indicaste.",
+    back: "Volver a YuKon3t",
+  },
+  form: {
+    company: "Nombre de la empresa",
+    contactName: "Nombre de contacto",
+    contactEmail: "Correo de contacto",
+    emailPlaceholder: "tu@empresa.com",
+    emailHint: "Aquí recibirás tu recibo y el estado de la revisión.",
+    headline: "Título",
+    headlinePlaceholder: "¿Qué anuncias?",
+    copy: "Texto del anuncio",
+    copyPlaceholder: "Una o dos frases que describan lo que ofreces.",
+    link: "URL del enlace",
+    linkPlaceholder: "https://tuempresa.com",
+    creative: "Imagen o video del anuncio",
+    removeMedia: "Quitar archivo",
+    addPhoto: "Agregar una foto",
+    addVideo: "Agregar un video",
+    uploadFromDevice: "Subir desde el dispositivo",
+    takePhoto: "Tomar una foto",
+    duration: "Duración",
+    days: "one: # día | other: # días",
+    total: "Total",
+    preparing: "Preparando el pago...",
+    continue: "Continuar al pago: {price}",
+    stripeNote:
+      "Pagarás de forma segura con Stripe. Los anuncios se publican tras una revisión rápida, normalmente en un día hábil.",
+    oneTime:
+      "one: Cargo único por # día. No se renueva ni se repite automáticamente. Para publicar otra campaña más adelante necesitas una reserva nueva y un cargo aparte. | other: Cargo único por # días. No se renueva ni se repite automáticamente. Para publicar otra campaña más adelante necesitas una reserva nueva y un cargo aparte.",
+    errors: {
+      too_large: "Ese archivo es demasiado grande.",
+      moderation: "Ese anuncio no cumple nuestras normas de contenido.",
+      rate_limited: "Demasiados intentos. Inténtalo de nuevo en breve.",
+      not_configured: "Las reservas de anuncios aún no están disponibles. Vuelve pronto.",
+      payment_setup_failed: "No pudimos iniciar el pago. Inténtalo de nuevo.",
+      invalid: "Revisa los datos que ingresaste.",
+      network: serverUnreachable,
+      captcha: "No pudimos completar la verificación de seguridad. Espera un momento e inténtalo de nuevo.",
+      other: "No pudimos enviar la reserva. Inténtalo de nuevo.",
+      imageType: "Usa una imagen JPEG, PNG o WebP.",
+      imageTooLarge: "Las imágenes deben pesar 25 MB o menos.",
+      videoType: "Usa un video MP4, MOV o WebM.",
+      videoTooLarge: "El video debe pesar 2 GB o menos.",
+      videoTooLong: "one: Los videos deben durar # segundo o menos. | other: Los videos deben durar # segundos o menos.",
+      details: "Completa los datos de tu empresa y de contacto.",
+      adFields: "Completa el título, el texto y el enlace de tu anuncio.",
+      media: "Agrega una foto o un video a tu anuncio.",
+      securityWait: "Terminando la verificación de seguridad. Inténtalo de nuevo en un momento.",
+      securityExpired: "La verificación de seguridad venció. Espera un momento e inténtalo de nuevo.",
+    },
+  },
+};

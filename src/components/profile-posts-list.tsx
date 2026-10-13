@@ -5,6 +5,7 @@ import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreProfilePosts } from "@/app/actions/posts";
 import { useOptimisticPosts } from "@/lib/optimistic-posts-store";
 import { OptimisticPostCard } from "@/components/optimistic-post-card";
+import { useShellText } from "@/components/ui-text";
 
 export function ProfilePostsList({
   profileUserId,
@@ -29,6 +30,7 @@ export function ProfilePostsList({
   // pending post while the viewer is looking at someone else's profile (they
   // navigated away from their own before it confirmed). Only ever show it on
   // the viewer's own profile, never anyone else's.
+  const loadingMore = useShellText().t.common.loadingMore;
   const allOptimisticPosts = useOptimisticPosts();
   const optimisticPosts = profileUserId === viewerId ? allOptimisticPosts : [];
 
@@ -42,7 +44,7 @@ export function ProfilePostsList({
       ))}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-4">
-          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{loadingMore}</span>}
         </div>
       )}
     </>

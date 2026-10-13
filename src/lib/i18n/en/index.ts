@@ -4,14 +4,32 @@
 // filled by format() in locales.ts.
 
 import { accountEn } from "@/lib/i18n/en/account";
+import { advertiseEn } from "@/lib/i18n/en/advertise";
 import { feedEn } from "@/lib/i18n/en/feed";
+import { inviteEn } from "@/lib/i18n/en/invite";
 import { messagesEn } from "@/lib/i18n/en/messages";
 import { pagesEn } from "@/lib/i18n/en/pages";
+import { profileEn } from "@/lib/i18n/en/profile";
+import { settingsEn } from "@/lib/i18n/en/settings";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import { shellEn } from "@/lib/i18n/en/shell";
 import { uiEn } from "@/lib/i18n/en/ui";
+import { vocabEn } from "@/lib/i18n/en/vocab";
 
-export { accountEn, feedEn, messagesEn, pagesEn, sharedEn, shellEn, uiEn };
+export {
+  accountEn,
+  advertiseEn,
+  feedEn,
+  inviteEn,
+  messagesEn,
+  pagesEn,
+  profileEn,
+  settingsEn,
+  sharedEn,
+  shellEn,
+  uiEn,
+  vocabEn,
+};
 
 export const en = {
   shared: sharedEn,
@@ -20,6 +38,11 @@ export const en = {
   shell: shellEn,
   feed: feedEn,
   pages: pagesEn,
+  profile: profileEn,
+  settings: settingsEn,
+  invite: inviteEn,
+  advertise: advertiseEn,
+  vocab: vocabEn,
   ...accountEn,
 };
 

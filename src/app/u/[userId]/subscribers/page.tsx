@@ -3,6 +3,8 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { SubscribersList } from "@/components/subscriptions-list";
+import { format } from "@/lib/i18n/locales";
+import { getDictionary } from "@/lib/i18n/server";
 
 // Same cursor pagination as /connections/page.tsx, auto-loaded further pages
 // as the viewer scrolls (see SubscribersList / loadMoreSubscribers).
@@ -15,6 +17,8 @@ export default async function SubscribersPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
+  const dictionary = await getDictionary();
+  const t = dictionary.profile.page;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -47,10 +51,10 @@ export default async function SubscribersPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <BackButton />
+      <BackButton label={dictionary.shell.common.back} />
 
       <h1 className="mt-2 text-2xl font-semibold">
-        {user.id === me.id ? "Your subscribers" : `${user.name}'s subscribers`}
+        {user.id === me.id ? t.yourSubscribers : format(t.subscribersOf, { name: user.name })}
       </h1>
 
       <div className="mt-6 space-y-3">

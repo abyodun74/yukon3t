@@ -1,6 +1,12 @@
-import { EnglishOnly } from "@/components/english-only";
+import { AdvertiseTextProvider } from "@/components/advertise-text";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-// This part of the app is not translated yet: it stays English and left-to-right in every language.
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <EnglishOnly>{children}</EnglishOnly>;
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const t = await getDictionary();
+  return (
+    <AdvertiseTextProvider locale={locale} text={t.advertise}>
+      {children}
+    </AdvertiseTextProvider>
+  );
 }

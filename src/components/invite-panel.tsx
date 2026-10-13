@@ -7,9 +7,9 @@ import type { ContactPayload } from "@capacitor-community/contacts";
 import { captureError } from "@/lib/error-tracking";
 import { Sheet } from "@/components/sheet";
 import { PhoneNumberField } from "@/components/phone-number-field";
-import { PHONE_INVALID_MESSAGE, isValidE164 } from "@/lib/phone-number";
-
-const INVITE_MESSAGE = "Join me on YuKon3t — connect across cultures, interests, and borders:";
+import { useInviteText } from "@/components/invite-text";
+import { isValidE164 } from "@/lib/phone-number";
+import { plural } from "@/lib/i18n/locales";
 
 type InviteContact = { id: string; name: string | null; tel: string };
 
@@ -46,6 +46,7 @@ function flattenNativeContacts(contacts: ContactPayload[]): InviteContact[] {
 }
 
 export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null }) {
+  const { locale, t } = useInviteText();
   // Read directly during render rather than via useEffect+setState — same
   // convention as ShareModal's canNativeShare/url: these are plain,
   // synchronous browser-API reads with nothing to subscribe to, so an
@@ -103,7 +104,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
 
   async function shareLink() {
     try {
-      await navigator.share({ title: "YuKon3t", text: INVITE_MESSAGE, url: inviteUrl });
+      await navigator.share({ title: "YuKon3t", text: t.message, url: inviteUrl });
     } catch {
       // Cancelling the native share sheet also lands here — not an error worth surfacing.
     }
@@ -122,9 +123,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
           status = await Contacts.requestPermissions();
         }
         if (status.contacts !== "granted" && status.contacts !== "limited") {
-          setPickError(
-            "Contacts permission was denied — enable it for YuKon3t in your phone's Settings to invite from your contacts.",
-          );
+          setPickError(t.errors.permission);
           setNativeLoading(false);
           return;
         }
@@ -133,7 +132,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
         });
         const rows = flattenNativeContacts(fetched);
         if (rows.length === 0) {
-          setPickError("None of your contacts have a phone number saved.");
+          setPickError(t.errors.noNumbers);
           setNativeLoading(false);
           return;
         }
@@ -147,7 +146,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
         // isn't lost — it just doesn't go to the user's screen anymore.
         console.error("Native contact picker failed:", err);
         await captureError(err, { component: "invite-panel", flow: "native-contacts" });
-        setPickError("Couldn't open your contacts — please try again.");
+        setPickError(t.errors.openFailed);
       } finally {
         setNativeLoading(false);
       }
@@ -162,7 +161,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
         (c.tel ?? []).map((tel) => ({ id: String(contactRowId++), name: c.name?.[0] ?? null, tel })),
       );
       if (rows.length === 0) {
-        setPickError("Those contacts don't have a phone number saved.");
+        setPickError(t.errors.pickedNoNumbers);
         return;
       }
       setContacts((prev) => [...prev, ...rows]);
@@ -201,7 +200,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
     if (!tel) return;
     // Nothing checks this number later (it only goes into an sms: link), so a mistyped one is caught here.
     if (!isValidE164(tel)) {
-      setPickError(PHONE_INVALID_MESSAGE);
+      setPickError(t.controls.phoneInvalid);
       return;
     }
     setPickError(null);
@@ -215,15 +214,15 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   }
 
   function smsHref(tel: string) {
-    return `sms:${encodeURIComponent(tel)}?body=${encodeURIComponent(`${INVITE_MESSAGE} ${inviteUrl}`)}`;
+    return `sms:${encodeURIComponent(tel)}?body=${encodeURIComponent(`${t.message} ${inviteUrl}`)}`;
   }
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-line bg-surface p-4">
-        <p className="text-sm font-medium">Your invite link</p>
+        <p className="text-sm font-medium">{t.linkHeading}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
+          <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-background px-3 py-2 text-start text-xs text-foreground-soft">
             {inviteUrl || "…"}
           </code>
           <button
@@ -232,7 +231,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
             className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent"
           >
             {copyStatus === "copied" ? <Check size={14} /> : <Link2 size={14} />}
-            {copyStatus === "copied" ? "Copied!" : copyStatus === "failed" ? "Couldn't copy" : "Copy"}
+            {copyStatus === "copied" ? t.copied : copyStatus === "failed" ? t.copyFailed : t.copy}
           </button>
           {canShare && (
             <button
@@ -241,17 +240,15 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-accent-ink"
             >
               <Share2 size={14} />
-              Share
+              {t.share}
             </button>
           )}
         </div>
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4">
-        <p className="text-sm font-medium">Invite by text message</p>
-        <p className="mt-1 text-xs text-foreground-soft">
-          Pick contacts (where supported) or enter a number, then send each one a text with your invite link.
-        </p>
+        <p className="text-sm font-medium">{t.textHeading}</p>
+        <p className="mt-1 text-xs text-foreground-soft">{t.textIntro}</p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {canPickContacts && (
@@ -262,7 +259,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
             >
               <Users size={14} />
-              {nativeLoading ? "Opening contacts…" : "Choose from contacts"}
+              {nativeLoading ? t.openingContacts : t.chooseContacts}
             </button>
           )}
           <div
@@ -275,7 +272,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
             }}
           >
             <label htmlFor="invite-phone" className="sr-only">
-              Phone number
+              {t.phoneLabel}
             </label>
             <PhoneNumberField
               key={manualFieldKey}
@@ -285,6 +282,8 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               defaultCountry={defaultCountry}
               controlClassName="py-2"
               onValueChange={setManualNumber}
+              locale={locale}
+              labels={t.controls.phoneField}
             />
           </div>
           <button
@@ -293,7 +292,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
             disabled={!manualNumber}
             className="rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
           >
-            Add
+            {t.add}
           </button>
         </div>
         {pickError && <p role="alert" className="mt-2 text-xs text-danger">{pickError}</p>}
@@ -306,20 +305,20 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
                 className="animate-rise-in flex items-center gap-2 rounded-lg border border-line px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  {c.name && <p className="truncate text-sm font-medium">{c.name}</p>}
-                  <p className="truncate text-xs text-foreground-soft">{c.tel}</p>
+                  {c.name && <p dir="auto" className="truncate text-sm font-medium">{c.name}</p>}
+                  <p dir="ltr" className="truncate text-start text-xs text-foreground-soft">{c.tel}</p>
                 </div>
                 <a
                   href={smsHref(c.tel)}
                   className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink"
                 >
                   <MessageSquareText size={13} />
-                  Invite
+                  {t.invite}
                 </a>
                 <button
                   type="button"
                   onClick={() => removeContact(c.id)}
-                  aria-label="Remove"
+                  aria-label={t.remove}
                   className="shrink-0 text-foreground-soft hover:text-danger"
                 >
                   <X size={14} />
@@ -333,25 +332,25 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
       <Sheet
         open={nativeRows !== null}
         onClose={closeNativePicker}
-        title="Choose contacts"
+        title={t.pickerTitle}
         panelClassName="flex max-h-[80vh] flex-col"
       >
             <div className="relative shrink-0">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-soft" />
+              <Search size={14} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-foreground-soft" />
               <input
-                aria-label="Search contacts"
+                aria-label={t.searchContacts}
                 type="search"
                 value={nativeSearch}
                 onChange={(e) => setNativeSearch(e.target.value)}
-                placeholder="Search contacts"
-                className="w-full rounded-lg border border-line bg-background py-2 pl-8 pr-3 text-sm outline-none focus:border-accent"
+                placeholder={t.searchContacts}
+                className="w-full rounded-lg border border-line bg-background py-2 ps-8 pe-3 text-sm outline-none focus:border-accent"
                 autoFocus
               />
             </div>
 
             <div className="mt-3 flex-1 overflow-y-auto">
               {filteredNativeRows.length === 0 ? (
-                <p className="py-6 text-center text-sm text-foreground-soft">No matching contacts.</p>
+                <p className="py-6 text-center text-sm text-foreground-soft">{t.noMatches}</p>
               ) : (
                 <div className="flex flex-col">
                   {filteredNativeRows.map((row) => (
@@ -366,8 +365,8 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
                         className="h-4 w-4 shrink-0 accent-accent"
                       />
                       <span className="min-w-0 flex-1">
-                        {row.name && <span className="block truncate text-sm font-medium">{row.name}</span>}
-                        <span className="block truncate text-xs text-foreground-soft">{row.tel}</span>
+                        {row.name && <span dir="auto" className="block truncate text-sm font-medium">{row.name}</span>}
+                        <span dir="ltr" className="block truncate text-start text-xs text-foreground-soft">{row.tel}</span>
                       </span>
                     </label>
                   ))}
@@ -381,7 +380,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               disabled={nativeSelected.size === 0}
               className="mt-3 shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
             >
-              {nativeSelected.size > 0 ? `Add ${nativeSelected.size} selected` : "Select contacts to add"}
+              {nativeSelected.size > 0 ? plural(locale, t.addSelected, nativeSelected.size) : t.selectToAdd}
             </button>
       </Sheet>
     </div>

@@ -1,6 +1,16 @@
-import { EnglishOnly } from "@/components/english-only";
+import { InviteTextProvider } from "@/components/invite-text";
+import { SettingsTextProvider } from "@/components/settings-text";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-// This part of the app is not translated yet: it stays English and left-to-right in every language.
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <EnglishOnly>{children}</EnglishOnly>;
+// Where the wording of the client components under /settings comes from (the invite panel is one of them).
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const t = await getDictionary();
+  return (
+    <SettingsTextProvider locale={locale} text={t.settings}>
+      <InviteTextProvider locale={locale} text={t.invite}>
+        {children}
+      </InviteTextProvider>
+    </SettingsTextProvider>
+  );
 }

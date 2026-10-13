@@ -1,17 +1,11 @@
 import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/en/common";
 
 /**
- * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding), their emails, the
- * Settings language block and the two translated FAQ entries. Spread into the dictionary's top level.
+ * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding), their emails and the
+ * two translated FAQ entries. Spread into the dictionary's top level.
  */
 export const accountEn = {
   languagePicker: { label: "Language" },
-  settings: {
-    language: {
-      heading: "Language",
-      body: "The menus, your Home feed, Search, Discover, Connections, Notifications, Messages, comments, dictation and the sign-in screens are available in these languages. The rest of the app is in English for now.",
-    },
-  },
   // The two FAQ entries about languages (src/app/faq/page.tsx): the only ones shown in the reader's language.
   faq: {
     dictation: {
@@ -20,7 +14,7 @@ export const accountEn = {
     },
     languages: {
       q: "Can I use YuKon3t in a language other than English?",
-      a: "Signing in, creating an account, verifying it, resetting your password and setting up your profile are available in English, Spanish, French, Portuguese and Arabic, and so are the emails and texts those screens send. They open in your phone or browser's language when it is one of the five; to switch, use the Language menu at the top corner of the home page (below Sign in) or at the bottom of the other account screens — the choice is remembered on that device. The home page you see before signing in is in those five languages too; once you're signed in, change it under Settings → Language. So are the menus, your Home feed (posts, stories, sharing and the post composer), Search, Discover, Connections, Notifications and What's new, Messages (your conversation list, chats, group chats and hidden chats), comments on posts, the voice, video and GIF pickers they open, dictation and the report form. In Arabic those screens read right to left. The rest of the app — Circles, Collab Boards, Muse, live streams and calls, profiles, the Settings page itself, and the notifications we send — is currently in English. What people write is never translated: a message or comment appears in the language it was written in.",
+      a: "Signing in, creating an account, verifying it, resetting your password and setting up your profile are available in English, Spanish, French, Portuguese and Arabic, and so are the emails and texts those screens send. They open in your phone or browser's language when it is one of the five; to switch, use the Language menu at the top corner of the home page (below Sign in) or at the bottom of the other account screens — the choice is remembered on that device. The home page you see before signing in is in those five languages too; once you're signed in, change it under Settings → Language. So are the menus, your Home feed (posts, stories, sharing and the post composer), profiles, Settings, Search, Discover, Connections, Notifications and What's new, Messages (your conversation list, chats, group chats and hidden chats), comments on posts, the voice, video and GIF pickers they open, dictation, the report form, inviting friends and the Advertise page. In Arabic those screens read right to left. The rest of the app — Circles, Collab Boards, Muse, live streams and calls, and the notifications we send — is currently in English. What people write is never translated: a message or comment appears in the language it was written in.",
     },
   },
   landing: {

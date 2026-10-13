@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type { Emoji as EmojiComponent, EmojiStyle } from "emoji-picker-react";
 import { useEmojiStyle, EMOJI_STYLE_VALUES, type EmojiStyleValue } from "@/lib/emoji-style";
 import { cn } from "@/lib/utils";
+import { useSettingsText } from "@/components/settings-text";
 
 // Lazy-loaded for the same reason as the main picker (emoji-picker-button.tsx)
 // — this settings row is the only thing on /settings that needs the library.
@@ -11,16 +12,9 @@ const Emoji = dynamic(() => import("emoji-picker-react").then((m) => m.Emoji), {
 
 const PREVIEW_UNIFIED = "1f600"; // 😀 — expressive enough to show style differences clearly.
 
-const STYLE_LABELS: Record<EmojiStyleValue, string> = {
-  native: "Native",
-  apple: "Apple (3D-style)",
-  google: "Google",
-  facebook: "Facebook (2.5D-style)",
-  twitter: "Twitter/X",
-};
-
 export function EmojiStyleSetting() {
   const [style, setStyle] = useEmojiStyle();
+  const labels: Record<EmojiStyleValue, string> = useSettingsText().t.emoji.styles;
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -36,7 +30,7 @@ export function EmojiStyleSetting() {
           )}
         >
           <Emoji unified={PREVIEW_UNIFIED} emojiStyle={value as EmojiStyle} size={28} />
-          {STYLE_LABELS[value]}
+          {labels[value]}
         </button>
       ))}
     </div>

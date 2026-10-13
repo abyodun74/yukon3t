@@ -2,10 +2,12 @@
 // and direction. Translated: the nav and footer and the overlays any screen opens; the landing page and the account
 // screens and their emails; Home (posts, the composer, sharing, stories, the live strip), a post's page, Search,
 // Discover, Connections, Notifications and What's new; everything under /messages; comments, recorders and pickers,
-// dictation, reactions and the report sheet; the Language block of Settings and the two FAQ entries about languages.
+// dictation, reactions and the report sheet; profiles (/u), Settings, the invite page and the Advertise pages; the
+// two FAQ entries about languages. The lists a profile is filled in from are shown translated and stored in English
+// (country-names.ts, language-names.ts, the vocab area); job titles are shown as stored.
 // Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): Circles, Collab, Muse, the
-// live room, calls, profiles, Settings, invite, advertise, FAQ and legal, and admin (which stays English). So is
-// every notification written for someone else, whose language isn't stored.
+// live room, calls (and the call button and Muse composer a profile opens), FAQ and legal, and admin (which stays
+// English). So is every notification written for someone else, whose language isn't stored.
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 
 export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;

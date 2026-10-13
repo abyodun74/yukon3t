@@ -4,15 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { confirmPasswordChangeDeviceChallenge, resendPasswordChangeDeviceChallenge } from "@/app/actions/profile";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid_code: "That code didn't match — check it and try again.",
-  expired: "That code expired — request a new one below.",
-  too_many_attempts: "Too many wrong attempts — request a new code below.",
-  not_found: "That verification link is no longer valid — request a new code below.",
-  rate_limited: "Too many attempts. Please wait a bit and try again.",
-  captcha: "We couldn't complete the security check. Wait a moment and try again — if it keeps happening, turn off any content blocker or try another network.",
-};
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function VerifyDeviceSettingsPage({
   searchParams,
@@ -21,6 +13,16 @@ export default async function VerifyDeviceSettingsPage({
 }) {
   const user = await requireUser();
   const { challengeId, sent, error } = await searchParams;
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.settings.verifyDevice;
+  // The same codes, and the same wording, as the sign-in code screen.
+  const errorMessages: Record<string, string> = {
+    ...dictionary.verifyDevice.errors,
+    captcha: dictionary.common.captchaFailed,
+  };
+  const turnstile = { locale, waitMessage: dictionary.shared.turnstile.wait };
+  const offlineMessage = dictionary.shared.submitButton.offline;
 
   const challenge = challengeId
     ? await prisma.securityChallenge.findUnique({ where: { id: challengeId }, select: { id: true, userId: true, purpose: true, consumedAt: true } })
@@ -30,12 +32,10 @@ export default async function VerifyDeviceSettingsPage({
   if (!valid) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <h1 className="text-2xl font-semibold">Nothing to verify here</h1>
-        <p className="mt-3 text-sm text-foreground-soft">
-          This verification link has expired or was already used. Try changing your password again from Settings.
-        </p>
+        <h1 className="text-2xl font-semibold">{dictionary.common.nothingToVerify}</h1>
+        <p className="mt-3 text-sm text-foreground-soft">{t.usedBody}</p>
         <Link href="/settings" className="mt-6 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink">
-          Back to Settings
+          {t.backToSettings}
         </Link>
       </div>
     );
@@ -43,26 +43,24 @@ export default async function VerifyDeviceSettingsPage({
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-      <h1 className="text-2xl font-semibold">We don&apos;t recognize this device</h1>
-      <p className="mt-3 text-sm text-foreground-soft">
-        For your security, enter the 6-digit code we just emailed you to finish changing your password.
-      </p>
+      <h1 className="text-2xl font-semibold">{dictionary.verifyDevice.title}</h1>
+      <p className="mt-3 text-sm text-foreground-soft">{t.body}</p>
 
       {error && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          {ERROR_MESSAGES[error] ?? "Something went wrong — try again."}
+          {errorMessages[error] ?? dictionary.common.somethingWentWrong}
         </p>
       )}
       {sent === "1" && !error && (
         <p role="status" className="mt-4 w-full rounded-lg bg-success/10 px-4 py-2 text-center text-sm text-success">
-          A new code is on its way.
+          {dictionary.common.newCodeSent}
         </p>
       )}
 
       <form action={confirmPasswordChangeDeviceChallenge} className="mt-6 w-full space-y-3">
         <input type="hidden" name="challengeId" value={challenge.id} />
         <label htmlFor="verify-device-code" className="sr-only">
-          Verification code
+          {dictionary.common.codeLabel}
         </label>
         <input
           id="verify-device-code"
@@ -72,28 +70,31 @@ export default async function VerifyDeviceSettingsPage({
           autoComplete="one-time-code"
           maxLength={6}
           placeholder="000000"
+          dir="ltr"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
         />
-        <TurnstileWidget />
+        <TurnstileWidget {...turnstile} />
         <SubmitButton
-          label="Confirm password change"
-          pendingLabel="Confirming..."
+          label={t.submit}
+          pendingLabel={dictionary.common.confirming}
+          offlineMessage={offlineMessage}
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
         />
       </form>
 
       <form action={resendPasswordChangeDeviceChallenge} className="mt-4">
         <input type="hidden" name="challengeId" value={challenge.id} />
-        <TurnstileWidget />
+        <TurnstileWidget {...turnstile} />
         <SubmitButton
-          label="Resend code"
-          pendingLabel="Resending..."
+          label={dictionary.common.resendCode}
+          pendingLabel={dictionary.common.resending}
+          offlineMessage={offlineMessage}
           className="rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent"
         />
       </form>
 
       <Link href="/settings" className="mt-6 text-xs text-foreground-soft hover:text-accent">
-        Cancel
+        {t.cancel}
       </Link>
     </div>
   );

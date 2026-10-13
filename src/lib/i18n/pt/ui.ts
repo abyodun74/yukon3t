@@ -11,6 +11,15 @@ export const ui: typeof uiEn = {
   profilePhoto: "Foto de perfil de {name}",
   unknownName: "Desconhecido",
   time: { justNow: "Agora mesmo", today: "Hoje", yesterday: "Ontem" },
+  block: {
+    block: "Bloquear",
+    confirm: "Bloquear {name}?",
+    confirmAccount: "Bloquear esta conta?",
+    yes: "Sim, bloquear",
+    unblock: "Desbloquear {name}",
+    unblockAccount: "Desbloquear esta conta",
+  },
+  crop: { title: "Recortar foto", use: "Usar foto", cropping: "Recortando...", zoom: "Zoom" },
   reactions: {
     count: "one: # reação | other: # reações",
     add: "Adicionar um emoji",

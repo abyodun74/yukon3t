@@ -1,21 +1,16 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { createAmbientMoment, deleteAmbientMoment } from "@/app/actions/ambient";
+import { useSettingsText } from "@/components/settings-text";
+import { useUiText } from "@/components/ui-text";
+import { formatTimeAgo } from "@/lib/format-date";
+import { byCode } from "@/lib/i18n/locales";
 
 type Moment = { id: string; imageUrl: string; caption: string | null; createdAt: Date };
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid: "Couldn't read that upload — try again.",
-  rate_limited: "Too many moments at once — wait a bit and try again.",
-  too_large: "Image must be 25MB or smaller.",
-  moderation: "That photo didn't pass our content guidelines and wasn't saved.",
-  server_error: "Something went wrong saving that — try again.",
-};
 
 /**
  * Captures a single AmbientMoment (see that model's schema doc comment) —
@@ -30,12 +25,15 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { locale, t: settings } = useSettingsText();
+  const t = settings.ambient.moment;
+  const justNow = useUiText().t.time.justNow;
 
   function handleFile(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setStatus("error");
-      setMessage("Use a JPEG, PNG, or WebP image.");
+      setMessage(t.errors.type);
       return;
     }
     setStatus("uploading");
@@ -48,10 +46,10 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
         setStatus("error");
         setMessage(
           uploaded.error === "not_configured"
-            ? "Uploads aren't set up yet — check back soon."
+            ? t.errors.not_configured
             : uploaded.error === "network"
-              ? "Couldn't reach the server — check your connection and try again."
-              : "Upload failed — try again.",
+              ? t.errors.network
+              : t.errors.upload,
         );
         return;
       }
@@ -63,7 +61,20 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
       const result = await createAmbientMoment(fd);
       if (result.error) {
         setStatus("error");
-        setMessage(ERROR_MESSAGES[result.error] ?? "Something went wrong.");
+        // Only the action's own codes: the upload wording above is not theirs to pick.
+        setMessage(
+          byCode(
+            {
+              invalid: t.errors.invalid,
+              rate_limited: t.errors.rate_limited,
+              too_large: t.errors.too_large,
+              moderation: t.errors.moderation,
+              server_error: t.errors.server_error,
+              other: t.errors.other,
+            },
+            result.error,
+          ),
+        );
         return;
       }
 
@@ -88,30 +99,29 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
           ref={inputRef}
           type="file"
           accept="image/*"
-          aria-label="Choose a photo"
+          aria-label={t.choosePhoto}
           disabled={isPending}
           onChange={(e) => handleFile(e.target.files?.[0])}
-          className="block w-full text-sm text-foreground-soft file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent-ink"
+          className="block w-full text-sm text-foreground-soft file:me-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent-ink"
         />
         <input
-          aria-label="Add a caption (optional)"
+          aria-label={t.caption}
           type="text"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           maxLength={120}
-          placeholder="Add a caption (optional)"
+          placeholder={t.caption}
+          dir="auto"
           disabled={isPending}
           className="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
         />
-        {status === "uploading" && <p className="mt-2 text-xs text-foreground-soft">Sharing…</p>}
+        {status === "uploading" && <p className="mt-2 text-xs text-foreground-soft">{t.sharing}</p>}
         {message && <p role="alert" className="mt-2 text-xs text-danger">{message}</p>}
       </div>
 
       {moments.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-medium text-foreground-soft">
-            Your active moments — visible to anyone who has you in their Inner Circle, gone in 48 hours
-          </p>
+          <p className="text-xs font-medium text-foreground-soft">{t.active}</p>
           <ul className="mt-2 grid grid-cols-3 gap-2">
             {moments.map((moment) => (
               <li key={moment.id} className="group relative aspect-square overflow-hidden rounded-lg bg-black">
@@ -120,12 +130,12 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
                 <button
                   type="button"
                   onClick={() => handleDelete(moment.id)}
-                  className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[0.625rem] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute end-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[0.625rem] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
                 >
-                  Delete
+                  {t.delete}
                 </button>
-                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white">
-                  {formatDistanceToNow(moment.createdAt, { addSuffix: true })}
+                <span className="absolute bottom-1 start-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white">
+                  {formatTimeAgo(moment.createdAt, locale, justNow)}
                 </span>
               </li>
             ))}

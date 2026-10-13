@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useUiText } from "@/components/ui-text";
 
 // Hand-rolled rather than a library (react-easy-crop, cropperjs, etc.) —
 // deliberate: this app avoids pulling in native/JS deps it doesn't need
@@ -24,8 +25,8 @@ export function ImageCropModal({
   file,
   aspect = 1,
   outputSize = 1024,
-  title = "Crop photo",
-  confirmLabel = "Use photo",
+  title,
+  confirmLabel,
   onCancel,
   onCropped,
 }: {
@@ -44,6 +45,8 @@ export function ImageCropModal({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isBusy, setIsBusy] = useState(false);
   const titleId = useId();
+  // In the reader's language wherever it is mounted, so the dialog carries its own lang/dir.
+  const { locale, dir, t } = useUiText();
   const dialogRef = useDialogFocus<HTMLDivElement>(true, () => {
     if (!isBusy) onCancel();
   });
@@ -225,10 +228,12 @@ export function ImageCropModal({
       aria-modal="true"
       aria-labelledby={titleId}
       tabIndex={-1}
+      lang={locale}
+      dir={dir}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 p-4 outline-none"
     >
       <div className="my-auto w-full max-w-sm rounded-xl bg-surface p-4 shadow-xl">
-        <p id={titleId} className="mb-3 text-sm font-medium">{title}</p>
+        <p id={titleId} className="mb-3 text-sm font-medium">{title ?? t.crop.title}</p>
         <div
           ref={containerRef}
           className="relative mx-auto touch-none select-none overflow-hidden rounded-lg bg-black"
@@ -261,7 +266,7 @@ export function ImageCropModal({
 
         <input
           type="range"
-          aria-label="Zoom"
+          aria-label={t.crop.zoom}
           min={minScale}
           max={maxScale}
           step={(maxScale - minScale) / 100 || 0.01}
@@ -278,7 +283,7 @@ export function ImageCropModal({
             disabled={isBusy}
             className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
-            Cancel
+            {t.cancel}
           </button>
           <button
             type="button"
@@ -286,7 +291,7 @@ export function ImageCropModal({
             disabled={!naturalSize || isBusy}
             className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
           >
-            {isBusy ? "Cropping..." : confirmLabel}
+            {isBusy ? t.crop.cropping : (confirmLabel ?? t.crop.use)}
           </button>
         </div>
       </div>

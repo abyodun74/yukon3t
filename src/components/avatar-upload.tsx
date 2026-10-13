@@ -7,6 +7,8 @@ import { confirmAvatarUpload } from "@/app/actions/media";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { useProfileText } from "@/components/profile-text";
+import { byCode } from "@/lib/i18n/locales";
 
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -21,12 +23,13 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const t = useProfileText().t.avatar;
 
   function handlePicked(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setStatus("error");
-      setMessage("Use a JPEG, PNG, or WebP image.");
+      setMessage(t.errors.type);
       return;
     }
     setStatus("idle");
@@ -44,7 +47,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       const resized = await resizeImageFile(file);
       if (resized.size > MAX_AVATAR_BYTES) {
         setStatus("error");
-        setMessage("Image must be 12MB or smaller.");
+        setMessage(t.errors.too_large);
         return;
       }
 
@@ -53,10 +56,10 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         setStatus(uploaded.error === "not_configured" ? "not_configured" : "error");
         setMessage(
           uploaded.error === "not_configured"
-            ? "Profile picture uploads aren't set up yet — check back soon."
+            ? t.errors.not_configured
             : uploaded.error === "network"
-              ? "Couldn't reach the server — check your connection and try again."
-              : "Upload failed — try again.",
+              ? t.errors.network
+              : t.errors.upload,
         );
         return;
       }
@@ -73,18 +76,18 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         // the upload finishing and this confirm step) would otherwise be
         // an uncaught exception that crashes the whole page.
         setStatus("error");
-        setMessage("Couldn't reach the server — check your connection and try again.");
+        setMessage(t.errors.network);
         return;
       }
 
       if (result.error) {
         setStatus("error");
+        // Only these two codes have wording of their own; anything else is the general "couldn't save".
         setMessage(
-          result.error === "moderation"
-            ? "That photo didn't pass our content guidelines and wasn't saved."
-            : result.error === "too_large"
-              ? "Image must be 12MB or smaller."
-              : "Couldn't save your photo — try again.",
+          byCode(
+            { moderation: t.errors.moderation, too_large: t.errors.too_large, other: t.errors.other },
+            result.error,
+          ),
         );
         return;
       }
@@ -106,7 +109,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         }}
         // Leads with the visible "No photo" text when that's what's showing,
         // so the name still matches what a Voice Control user reads.
-        aria-label={preview ? "Change profile picture" : "No photo, change profile picture"}
+        aria-label={preview ? t.change : t.noPhotoChange}
         className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-surface disabled:opacity-50"
       >
         {preview ? (
@@ -114,7 +117,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           <img src={preview} alt="" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
-            No photo
+            {t.noPhoto}
           </div>
         )}
       </button>
@@ -160,13 +163,13 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           }}
         />
         <MediaPickerButton
-          title="Change photo"
+          title={t.changePhoto}
           disabled={isPending}
           menuPlacement="bottom"
           className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
           options={[
             {
-              label: "Choose from gallery",
+              label: t.fromGallery,
               icon: <Upload size={14} />,
               onSelect: () => {
                 if (isNativePickerActive()) return;
@@ -175,7 +178,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
               },
             },
             {
-              label: "Take a photo",
+              label: t.takePhoto,
               icon: <Camera size={14} />,
               onSelect: () => {
                 if (isNativePickerActive()) return;
@@ -185,10 +188,10 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
             },
           ]}
         >
-          {status === "uploading" ? "Uploading..." : "Change photo"}
+          {status === "uploading" ? t.uploading : t.changePhoto}
         </MediaPickerButton>
         <p className="mt-1 text-xs text-foreground-soft">
-          JPEG, PNG, or WebP, up to 12MB. No sexually explicit content.
+          {t.hint}
         </p>
         {message && (
           <p
@@ -204,7 +207,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
           key={cropFile.name + cropFile.size}
           file={cropFile}
           aspect={1}
-          title="Crop profile picture"
+          title={t.cropTitle}
           onCancel={() => setCropFile(null)}
           onCropped={(cropped) => {
             setCropFile(null);

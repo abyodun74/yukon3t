@@ -3,12 +3,6 @@ import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/fr/com
 
 export const account: typeof accountEn = {
   languagePicker: { label: "Langue" },
-  settings: {
-    language: {
-      heading: "Langue",
-      body: "Les menus, votre fil d'accueil, la recherche, Découvrir, Relations, les notifications, Messages, les commentaires, la dictée et les écrans de connexion sont disponibles dans ces langues. Le reste de l'application est en anglais pour le moment.",
-    },
-  },
   faq: {
     dictation: {
       q: "Puis-je dicter une publication au lieu de la saisir ?",
@@ -16,7 +10,7 @@ export const account: typeof accountEn = {
     },
     languages: {
       q: "Puis-je utiliser YuKon3t dans une autre langue que l'anglais ?",
-      a: "La connexion, la création d'un compte, sa vérification, la réinitialisation du mot de passe et la configuration du profil sont disponibles en anglais, en espagnol, en français, en portugais et en arabe, tout comme les e-mails et les SMS envoyés par ces écrans. Ils s'ouvrent dans la langue de votre téléphone ou de votre navigateur lorsqu'il s'agit de l'une des cinq ; pour en changer, utilisez le menu « Langue » dans le coin supérieur de la page d'accueil (sous « Se connecter ») ou au bas des autres écrans de compte. Votre choix est mémorisé sur cet appareil. La page d'accueil affichée avant la connexion existe aussi dans ces cinq langues ; une fois la connexion effectuée, changez de langue dans « Paramètres » → « Langue ». C'est également le cas des menus, de votre fil d'accueil (publications, stories, partage et éditeur de publication), de la recherche, de Découvrir, de Relations, des notifications et des nouveautés, de Messages (votre liste de discussions, les discussions, les discussions de groupe et les discussions masquées), des commentaires sous les publications, des enregistreurs vocal et vidéo et du sélecteur de GIF qui s'ouvrent depuis ces écrans, de la dictée et du formulaire de signalement. En arabe, ces écrans se lisent de droite à gauche. Le reste de l'application (Circles, Collab Boards, Muse, les directs et les appels, les profils, la page Paramètres elle-même et les notifications que nous envoyons) est pour l'instant en anglais. Ce que les gens écrivent n'est jamais traduit : un message ou un commentaire apparaît dans la langue dans laquelle il a été écrit.",
+      a: "La connexion, la création d'un compte, sa vérification, la réinitialisation du mot de passe et la configuration du profil sont disponibles en anglais, en espagnol, en français, en portugais et en arabe, tout comme les e-mails et les SMS envoyés par ces écrans. Ils s'ouvrent dans la langue de votre téléphone ou de votre navigateur lorsqu'il s'agit de l'une des cinq ; pour en changer, utilisez le menu « Langue » dans le coin supérieur de la page d'accueil (sous « Se connecter ») ou au bas des autres écrans de compte. Votre choix est mémorisé sur cet appareil. La page d'accueil affichée avant la connexion existe aussi dans ces cinq langues ; une fois la connexion effectuée, changez de langue dans « Paramètres » → « Langue ». C'est également le cas des menus, de votre fil d'accueil (publications, stories, partage et éditeur de publication), des profils, des Paramètres, de la recherche, de Découvrir, de Relations, des notifications et des nouveautés, de Messages (votre liste de discussions, les discussions, les discussions de groupe et les discussions masquées), des commentaires sous les publications, des enregistreurs vocal et vidéo et du sélecteur de GIF qui s'ouvrent depuis ces écrans, de la dictée, du formulaire de signalement, de l'invitation d'amis et de la page Publicité. En arabe, ces écrans se lisent de droite à gauche. Le reste de l'application (Circles, Collab Boards, Muse, les directs et les appels, ainsi que les notifications que nous envoyons) est pour l'instant en anglais. Ce que les gens écrivent n'est jamais traduit : un message ou un commentaire apparaît dans la langue dans laquelle il a été écrit.",
     },
   },
   landing: {

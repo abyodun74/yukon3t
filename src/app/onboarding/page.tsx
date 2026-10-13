@@ -9,6 +9,8 @@ import { MultiSelect } from "@/components/multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { LanguagePicker } from "@/components/language-picker";
+import { countryName } from "@/lib/i18n/country-names";
+import { interestName, languageName } from "@/lib/i18n/language-names";
 import { format } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
@@ -110,7 +112,7 @@ export default async function OnboardingPage({
             </option>
             {COUNTRIES.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {countryName(c, locale)}
               </option>
             ))}
           </select>
@@ -124,7 +126,10 @@ export default async function OnboardingPage({
           <div className="mt-1">
             <MultiSelect
               name="languages"
-              options={LANGUAGES}
+              options={LANGUAGES.map((l) => ({
+                value: l,
+                label: languageName(l, locale, dictionary.vocab.languages),
+              }))}
               defaultValues={user.languages}
               placeholder={t.languagesPlaceholder}
               max={10}
@@ -141,7 +146,7 @@ export default async function OnboardingPage({
           <div className="mt-1">
             <MultiSelect
               name="interests"
-              options={INTERESTS}
+              options={INTERESTS.map((i) => ({ value: i, label: interestName(i, dictionary.vocab.interests) }))}
               defaultValues={user.interests}
               placeholder={t.interestsPlaceholder}
               max={15}

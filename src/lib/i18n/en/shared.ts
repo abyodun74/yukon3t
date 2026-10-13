@@ -2,7 +2,8 @@ import { phoneInvalid } from "@/lib/i18n/en/common";
 
 /**
  * Wording inside components that are also used outside the account screens (Settings, the invite panel, Collab…).
- * Those components take it as optional props and default to this, so they stay English wherever no language is passed.
+ * Those components take it as optional props and default to this, so they stay English wherever no language is passed
+ * (Settings and the invite panel pass theirs; Collab does not yet).
  */
 export const sharedEn = {
   passwordInput: { show: "Show password", hide: "Hide password" },

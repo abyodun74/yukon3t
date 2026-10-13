@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { generateAmbientWidgetToken, revokeAmbientWidgetToken } from "@/app/actions/ambient";
+import { useSettingsText } from "@/components/settings-text";
+import { useUiText } from "@/components/ui-text";
+import { formatTimeAgo } from "@/lib/format-date";
+import { format } from "@/lib/i18n/locales";
 
 type Status = { active: true; createdAt: Date; lastUsedAt: Date | null } | { active: false };
 
@@ -17,6 +20,9 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
+  const { locale, t: settings } = useSettingsText();
+  const t = settings.ambient.token;
+  const justNow = useUiText().t.time.justNow;
 
   function handleGenerate() {
     setRevealedToken(null);
@@ -50,32 +56,28 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
 
   return (
     <div className="rounded-xl border border-line p-4">
-      <h3 className="text-sm font-semibold">Widget access token</h3>
-      <p className="mt-1 text-xs text-foreground-soft">
-        There&apos;s no lock-screen widget or watch app built yet — this is only
-        the credential one would need. Keep it private; anyone with it can
-        read (not post) your Inner Circle&apos;s ambient moments.
-      </p>
+      <h3 className="text-sm font-semibold">{t.heading}</h3>
+      <p className="mt-1 text-xs text-foreground-soft">{t.intro}</p>
 
       {status.active && (
         <p className="mt-2 text-xs text-foreground-soft">
-          Active since {formatDistanceToNow(status.createdAt, { addSuffix: true })}
-          {status.lastUsedAt && <> · last used {formatDistanceToNow(status.lastUsedAt, { addSuffix: true })}</>}
+          {format(t.activeSince, { when: formatTimeAgo(status.createdAt, locale, justNow) })}
+          {status.lastUsedAt && (
+            <> · {format(t.lastUsed, { when: formatTimeAgo(status.lastUsedAt, locale, justNow) })}</>
+          )}
         </p>
       )}
 
       {revealedToken && (
         <div className="mt-3 rounded-lg bg-background p-3">
-          <p className="text-xs text-foreground-soft">
-            Copy this now — it won&apos;t be shown again. Generating a new one revokes this one.
-          </p>
-          <code className="mt-2 block break-all text-xs">{revealedToken}</code>
+          <p className="text-xs text-foreground-soft">{t.copyNow}</p>
+          <code dir="ltr" className="mt-2 block break-all text-start text-xs">{revealedToken}</code>
           <button
             type="button"
             onClick={handleCopy}
             className="mt-2 rounded-lg border border-line px-2.5 py-1 text-xs font-medium hover:border-accent hover:text-accent"
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? t.copied : t.copy}
           </button>
         </div>
       )}
@@ -87,7 +89,7 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
           onClick={handleGenerate}
           className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
         >
-          {status.active ? "Generate new token" : "Generate token"}
+          {status.active ? t.generateNew : t.generate}
         </button>
         {status.active && (
           <button
@@ -96,7 +98,7 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
             onClick={handleRevoke}
             className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-danger hover:text-danger disabled:opacity-50"
           >
-            Revoke
+            {t.revoke}
           </button>
         )}
       </div>

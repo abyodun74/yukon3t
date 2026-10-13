@@ -3,12 +3,6 @@ import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/pt/com
 
 export const account: typeof accountEn = {
   languagePicker: { label: "Idioma" },
-  settings: {
-    language: {
-      heading: "Idioma",
-      body: "Os menus, seu feed do Início, Buscar, Descobrir, Conexões, Notificações, Mensagens, os comentários, o ditado e as telas de acesso à conta estão disponíveis nesses idiomas. O restante do aplicativo está em inglês por enquanto.",
-    },
-  },
   faq: {
     dictation: {
       q: "Posso ditar uma publicação em vez de digitar?",
@@ -16,7 +10,7 @@ export const account: typeof accountEn = {
     },
     languages: {
       q: "Posso usar o YuKon3t em outro idioma além do inglês?",
-      a: "Entrar, criar uma conta, verificá-la, redefinir sua senha e configurar seu perfil estão disponíveis em inglês, espanhol, francês, português e árabe, assim como os e-mails e as mensagens de texto que essas telas enviam. Elas abrem no idioma do seu celular ou navegador quando ele é um dos cinco; para trocar, use o menu “Idioma” no canto superior da página inicial (abaixo de “Entrar”) ou na parte de baixo das outras telas da conta. A escolha fica salva naquele dispositivo. A página inicial que você vê antes de entrar também está nesses cinco idiomas; depois de entrar, troque em “Configurações” → “Idioma”. O mesmo vale para os menus, seu feed do Início (publicações, stories, compartilhamento e o editor de publicações), Buscar, Descobrir, Conexões, Notificações e Novidades, Mensagens (sua lista de conversas, as conversas, as conversas em grupo e as conversas ocultas), os comentários nas publicações, os gravadores de voz e vídeo e o seletor de GIF que são abertos a partir deles, o ditado e o formulário de denúncia. Em árabe, essas telas são lidas da direita para a esquerda. O restante do aplicativo (Circles, Collab Boards, Muse, as transmissões ao vivo e as chamadas, os perfis, a própria página de Configurações e as notificações que enviamos) está em inglês por enquanto. O que as pessoas escrevem nunca é traduzido: uma mensagem ou um comentário aparece no idioma em que foi escrito.",
+      a: "Entrar, criar uma conta, verificá-la, redefinir sua senha e configurar seu perfil estão disponíveis em inglês, espanhol, francês, português e árabe, assim como os e-mails e as mensagens de texto que essas telas enviam. Elas abrem no idioma do seu celular ou navegador quando ele é um dos cinco; para trocar, use o menu “Idioma” no canto superior da página inicial (abaixo de “Entrar”) ou na parte de baixo das outras telas da conta. A escolha fica salva naquele dispositivo. A página inicial que você vê antes de entrar também está nesses cinco idiomas; depois de entrar, troque em “Configurações” → “Idioma”. O mesmo vale para os menus, seu feed do Início (publicações, stories, compartilhamento e o editor de publicações), os perfis, as Configurações, Buscar, Descobrir, Conexões, Notificações e Novidades, Mensagens (sua lista de conversas, as conversas, as conversas em grupo e as conversas ocultas), os comentários nas publicações, os gravadores de voz e vídeo e o seletor de GIF que são abertos a partir deles, o ditado, o formulário de denúncia, o convite de amigos e a página Anuncie. Em árabe, essas telas são lidas da direita para a esquerda. O restante do aplicativo (Circles, Collab Boards, Muse, as transmissões ao vivo e as chamadas, e as notificações que enviamos) está em inglês por enquanto. O que as pessoas escrevem nunca é traduzido: uma mensagem ou um comentário aparece no idioma em que foi escrito.",
     },
   },
   landing: {

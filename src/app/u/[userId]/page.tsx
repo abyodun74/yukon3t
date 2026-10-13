@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { TrustBadge } from "@/components/trust-badge";
@@ -20,6 +19,31 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isOnline } from "@/lib/presence";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
+import { EnglishOnly } from "@/components/english-only";
+import { COUNTRIES } from "@/lib/countries";
+import { LANGUAGES } from "@/lib/languages";
+import { INTERESTS } from "@/lib/interests";
+import { formatTimeAgo } from "@/lib/format-date";
+import { countryName } from "@/lib/i18n/country-names";
+import { interestName, languageName } from "@/lib/i18n/language-names";
+import { aroundPlaceholder, format, plural, type Locale } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+
+/** "3 subscribers" with the number in bold, wherever the language's plural form puts it. */
+function BoldCount({ locale, forms, count }: { locale: Locale; forms: string; count: number }) {
+  const text = plural(locale, forms, count);
+  const digits = String(count);
+  const at = text.indexOf(digits);
+  // A form that spells its number out ("one subscriber") has no digits to pick out.
+  if (at === -1) return <span className="text-foreground-soft">{text}</span>;
+  return (
+    <>
+      <span className="text-foreground-soft">{text.slice(0, at)}</span>
+      <span className="font-semibold">{digits}</span>
+      <span className="text-foreground-soft">{text.slice(at + digits.length)}</span>
+    </>
+  );
+}
 
 // Same cursor pagination as /connections/page.tsx, auto-loaded further pages
 // as the viewer scrolls (see ProfilePostsList / loadMoreProfilePosts).
@@ -35,6 +59,10 @@ export default async function PublicProfilePage({
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
   const { error, saved, story: storyParam } = await searchParams;
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.profile.page;
+  const [beforeName, afterName] = aroundPlaceholder(t.connectionsOnly, "name");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
@@ -134,18 +162,16 @@ export default async function PublicProfilePage({
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <ScreenshotContextTracker context={{ type: "profile", id: userId }} />
-      <BackButton />
+      <BackButton label={dictionary.shell.common.back} />
 
       {saved && (
         <p role="status" className="mb-4 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
-          Profile updated.
+          {t.updated}
         </p>
       )}
       {error && (
         <p role="alert" className="mb-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {error === "moderation"
-            ? "Your bio didn't pass our content guidelines."
-            : "Please check your inputs."}
+          {error === "moderation" ? t.errors.moderation : t.errors.other}
         </p>
       )}
 
@@ -154,7 +180,7 @@ export default async function PublicProfilePage({
           <ProfileStoryRing
             userId={user.id}
             avatarUrl={user.avatarUrl}
-            name={user.name ?? "them"}
+            name={user.name}
             stories={storiesForRing}
             isOwner={isOwnProfile}
             currentUserId={me.id}
@@ -162,29 +188,27 @@ export default async function PublicProfilePage({
             initialStoryId={storyParam}
           />
           <div className="min-w-0">
-            <h1 className="break-words text-2xl font-semibold">{user.name}</h1>
+            <h1 dir="auto" className="break-words text-2xl font-semibold">{user.name}</h1>
             <p className="text-sm text-foreground-soft">
-              {user.country ?? "Unknown location"}
+              {user.country ? countryName(user.country, locale) : dictionary.feed.people.unknownLocation}
             </p>
             {!isOwnProfile && (
               <p className="text-xs text-foreground-soft">
                 {online ? (
-                  <span className="text-success">● Online now</span>
+                  <span className="text-success">● {t.onlineNow}</span>
                 ) : user.lastSeenAt ? (
-                  `Last seen ${formatDistanceToNow(user.lastSeenAt, { addSuffix: true })}`
+                  format(t.lastSeen, { when: formatTimeAgo(user.lastSeenAt, locale, dictionary.ui.time.justNow) })
                 ) : (
-                  "Offline"
+                  t.offline
                 )}
               </p>
             )}
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <Link href={`/u/${user.id}/subscribers`} className="hover:text-accent hover:underline">
-                <span className="font-semibold">{subscriberCount}</span>{" "}
-                <span className="text-foreground-soft">Subscribers</span>
+                <BoldCount locale={locale} forms={t.subscribers} count={subscriberCount} />
               </Link>
               <Link href={`/u/${user.id}/subscribing`} className="hover:text-accent hover:underline">
-                <span className="font-semibold">{subscribingCount}</span>{" "}
-                <span className="text-foreground-soft">Subscribing</span>
+                <BoldCount locale={locale} forms={t.subscribing} count={subscribingCount} />
               </Link>
             </div>
           </div>
@@ -192,8 +216,9 @@ export default async function PublicProfilePage({
         <div className="flex flex-wrap items-center gap-2">
           {isOwnProfile && user.currentStreak > 0 && (
             <span className="text-xs text-foreground-soft">
-              🔥 {user.currentStreak}-day streak
-              {user.longestStreak > user.currentStreak && ` · best: ${user.longestStreak}`}
+              🔥 {plural(locale, dictionary.feed.streak.days, user.currentStreak)}
+              {user.longestStreak > user.currentStreak &&
+                ` · ${format(dictionary.feed.streak.best, { count: user.longestStreak })}`}
             </span>
           )}
           {isOwnProfile && <PostMuseButton />}
@@ -201,7 +226,7 @@ export default async function PublicProfilePage({
         </div>
       </div>
 
-      {user.bio && <p className="mt-4 break-words text-sm">{user.bio}</p>}
+      {user.bio && <p dir="auto" className="mt-4 break-words text-sm">{user.bio}</p>}
 
       {user.interests.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5">
@@ -210,7 +235,7 @@ export default async function PublicProfilePage({
               key={i}
               className="rounded-full bg-line px-2.5 py-0.5 text-xs text-foreground-soft"
             >
-              {i}
+              {interestName(i, dictionary.vocab.interests)}
             </span>
           ))}
         </div>
@@ -228,12 +253,19 @@ export default async function PublicProfilePage({
               openToIntents: user.openToIntents,
               avatarUrl: user.avatarUrl,
             }}
+            countryOptions={COUNTRIES.map((c) => ({ value: c, label: countryName(c, locale) }))}
+            languageOptions={LANGUAGES.map((l) => ({
+              value: l,
+              label: languageName(l, locale, dictionary.vocab.languages),
+            }))}
+            interestOptions={INTERESTS.map((i) => ({ value: i, label: interestName(i, dictionary.vocab.interests) }))}
+            multiSelectLabels={dictionary.shared.multiSelect}
           />
         </div>
       ) : iBlockedThem ? (
         <div className="mt-6 flex flex-wrap items-center gap-4">
-          <p className="text-sm text-foreground-soft">You&apos;ve blocked this account.</p>
-          <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked />
+          <p className="text-sm text-foreground-soft">{t.blocked}</p>
+          <BlockButton targetId={user.id} targetName={user.name} initiallyBlocked />
         </div>
       ) : (
         <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -245,16 +277,19 @@ export default async function PublicProfilePage({
             conversationId={conversationId}
           />
           {connection?.status === "ACCEPTED" && (
-            <CallButton calleeId={user.id} calleeName={user.name ?? "them"} currentUserId={me.id} />
+            // The call controls are not translated yet.
+            <EnglishOnly contents>
+              <CallButton calleeId={user.id} calleeName={user.name} currentUserId={me.id} />
+            </EnglishOnly>
           )}
-          <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label="Report account" />
-          <BlockButton targetId={user.id} targetName={user.name ?? "them"} initiallyBlocked={false} />
+          <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label={t.reportAccount} />
+          <BlockButton targetId={user.id} targetName={user.name} initiallyBlocked={false} />
         </div>
       )}
 
       <div className="mt-10 space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          {isOwnProfile ? "Your posts" : "Posts"}
+          {isOwnProfile ? t.yourPosts : t.posts}
         </h2>
         {isOwnProfile && (
           <div id="profile-composer">
@@ -269,14 +304,14 @@ export default async function PublicProfilePage({
         {isOwnProfile && <ProfilePostFab />}
         {!canSeePosts && (
           <p className="text-sm text-foreground-soft">
-            {user.name} only shares posts with their connections.
+            {beforeName}
+            <bdi>{user.name}</bdi>
+            {afterName}
           </p>
         )}
         {canSeePosts && posts.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            {isOwnProfile
-              ? "Nothing posted yet — share a photo, a short video, or an update."
-              : "No posts yet."}
+            {isOwnProfile ? t.emptyOwn : t.empty}
           </p>
         )}
         {canSeePosts && posts.length > 0 && (

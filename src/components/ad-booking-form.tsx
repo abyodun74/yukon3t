@@ -15,6 +15,8 @@ import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-p
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { useAdvertiseText } from "@/components/advertise-text";
+import { aroundPlaceholder, byCode, plural } from "@/lib/i18n/locales";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
@@ -35,28 +37,17 @@ function normalizeVideoFile(f: File): File | null {
   return new File([f], f.name, { type: detectedType });
 }
 
-function errorMessage(code: string) {
-  switch (code) {
-    case "too_large":
-      return "That file is too large.";
-    case "moderation":
-      return "That creative didn't pass our content guidelines.";
-    case "rate_limited":
-      return "Too many attempts — try again shortly.";
-    case "not_configured":
-      return "Ad bookings aren't set up yet — check back soon.";
-    case "payment_setup_failed":
-      return "Couldn't start checkout — try again.";
-    case "invalid":
-      return "Please check your inputs.";
-    case "network":
-      return "Couldn't reach the server — check your connection and try again.";
-    case "captcha":
-      return "We couldn't complete the security check — wait a moment and try again.";
-    default:
-      return "Couldn't submit that booking — try again.";
-  }
-}
+// The codes an upload or the booking action can answer with. Anything else reads as "couldn't submit".
+const RESULT_CODES = [
+  "too_large",
+  "moderation",
+  "rate_limited",
+  "not_configured",
+  "payment_setup_failed",
+  "invalid",
+  "network",
+  "captcha",
+] as const;
 
 // This never actually calls uploadFileDirect with "kind" pointed at requestUploadUrl
 // (the authenticated one) — it goes through requestAdUploadUrl instead, passed
@@ -67,6 +58,12 @@ async function uploadAdFile(file: File, kind: "ad-image" | "ad-video") {
 }
 
 export function AdBookingForm() {
+  const { locale, t: advertise } = useAdvertiseText();
+  const t = advertise.form;
+  function errorMessage(code: string) {
+    const known = (RESULT_CODES as readonly string[]).includes(code);
+    return byCode(t.errors, known ? code : "other");
+  }
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -102,16 +99,17 @@ export function AdBookingForm() {
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const price = adPriceCents(durationDays);
+  const [continueBefore, continueAfter] = aroundPlaceholder(t.continue, "price");
 
   async function pickImage(f: File | undefined) {
     if (!f) return;
     if (!IMAGE_TYPES.includes(f.type)) {
-      setError("Use a JPEG, PNG, or WebP image.");
+      setError(t.errors.imageType);
       return;
     }
     const resized = await resizeImageFile(f);
     if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 25MB or smaller.");
+      setError(t.errors.imageTooLarge);
       return;
     }
     setError(null);
@@ -123,11 +121,11 @@ export function AdBookingForm() {
     if (!rawFile) return;
     const f = normalizeVideoFile(rawFile);
     if (!f) {
-      setError("Use an MP4, MOV or WebM video.");
+      setError(t.errors.videoType);
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 2GB or smaller.");
+      setError(t.errors.videoTooLarge);
       return;
     }
 
@@ -155,7 +153,7 @@ export function AdBookingForm() {
       if (settled) return;
       finish();
       if (Number.isFinite(probe.duration) && probe.duration > MAX_AD_VIDEO_SECONDS) {
-        setError(`Videos must be ${MAX_AD_VIDEO_SECONDS} seconds or shorter.`);
+        setError(plural(locale, t.errors.videoTooLong, MAX_AD_VIDEO_SECONDS));
         return;
       }
       setError(null);
@@ -174,19 +172,19 @@ export function AdBookingForm() {
   function submit() {
     if (isPending) return;
     if (!companyName.trim() || !contactName.trim() || !contactEmail.trim()) {
-      setError("Fill in your company and contact details.");
+      setError(t.errors.details);
       return;
     }
     if (!headline.trim() || !body.trim() || !linkUrl.trim()) {
-      setError("Fill in your ad's headline, copy, and link.");
+      setError(t.errors.adFields);
       return;
     }
     if (!file || !mediaType) {
-      setError("Add a photo or video for your ad.");
+      setError(t.errors.media);
       return;
     }
     if (turnstileRequired && !turnstileTokenRef.current && !turnstileGaveUpRef.current) {
-      setError("Finishing the security check — try again in a moment.");
+      setError(t.errors.securityWait);
       return;
     }
     setError(null);
@@ -233,7 +231,7 @@ export function AdBookingForm() {
         if (token) {
           fd.set(TURNSTILE_RESPONSE_FIELD, token);
         } else if (!turnstileGaveUpRef.current) {
-          setError("The security check expired — wait a moment and try again.");
+          setError(t.errors.securityExpired);
           return;
         }
         // No token and the widget gave up: submit without one and let the
@@ -272,7 +270,7 @@ export function AdBookingForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="ad-company-name" className="block text-sm font-medium">
-            Company name
+            {t.company}
           </label>
           <input
             id="ad-company-name"
@@ -281,12 +279,13 @@ export function AdBookingForm() {
             onChange={(e) => setCompanyName(e.target.value)}
             maxLength={100}
             autoComplete="organization"
+            dir="auto"
             className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
         <div>
           <label htmlFor="ad-contact-name" className="block text-sm font-medium">
-            Contact name
+            {t.contactName}
           </label>
           <input
             id="ad-contact-name"
@@ -295,6 +294,7 @@ export function AdBookingForm() {
             onChange={(e) => setContactName(e.target.value)}
             maxLength={100}
             autoComplete="name"
+            dir="auto"
             className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
@@ -302,23 +302,24 @@ export function AdBookingForm() {
 
       <div className="mt-4">
         <label htmlFor="ad-contact-email" className="block text-sm font-medium">
-          Contact email
+          {t.contactEmail}
         </label>
         <input
           id="ad-contact-email"
           type="email"
           value={contactEmail}
           onChange={(e) => setContactEmail(e.target.value)}
-          placeholder="you@company.com"
+          placeholder={t.emailPlaceholder}
           autoComplete="email"
+          dir="ltr"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
-        <p className="mt-1 text-xs text-foreground-soft">Your receipt and review status go here.</p>
+        <p className="mt-1 text-xs text-foreground-soft">{t.emailHint}</p>
       </div>
 
       <div className="mt-4">
         <label htmlFor="ad-headline" className="block text-sm font-medium">
-          Headline
+          {t.headline}
         </label>
         <input
           id="ad-headline"
@@ -326,14 +327,15 @@ export function AdBookingForm() {
           value={headline}
           onChange={(e) => setHeadline(e.target.value)}
           maxLength={80}
-          placeholder="What are you advertising?"
+          placeholder={t.headlinePlaceholder}
+          dir="auto"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
 
       <div className="mt-4">
         <label htmlFor="ad-body" className="block text-sm font-medium">
-          Ad copy
+          {t.copy}
         </label>
         <textarea
           id="ad-body"
@@ -341,28 +343,30 @@ export function AdBookingForm() {
           onChange={(e) => setBody(e.target.value)}
           maxLength={280}
           rows={3}
-          placeholder="A sentence or two describing what you're offering."
+          placeholder={t.copyPlaceholder}
+          dir="auto"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
 
       <div className="mt-4">
         <label htmlFor="ad-link-url" className="block text-sm font-medium">
-          Link URL
+          {t.link}
         </label>
         <input
           id="ad-link-url"
           type="url"
           value={linkUrl}
           onChange={(e) => setLinkUrl(e.target.value)}
-          placeholder="https://yourcompany.com"
+          placeholder={t.linkPlaceholder}
           autoComplete="url"
+          dir="ltr"
           className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Creative</label>
+        <label className="block text-sm font-medium">{t.creative}</label>
         <input
           ref={imageInputRef}
           type="file"
@@ -421,20 +425,20 @@ export function AdBookingForm() {
                 setFile(null);
                 setMediaType(null);
               }}
-              aria-label="Remove media"
-              className="absolute right-1 top-1 rounded-full bg-black/60 p-2 text-white"
+              aria-label={t.removeMedia}
+              className="absolute end-1 top-1 rounded-full bg-black/60 p-2 text-white"
             >
               <X size={14} />
             </button>
           </div>
         ) : (
-          <div className="mt-2 flex items-center gap-4 rounded-lg border border-dashed border-line py-8 pl-4">
+          <div className="mt-2 flex items-center gap-4 rounded-lg border border-dashed border-line py-8 ps-4">
             <MediaPickerButton
               icon={<Upload size={18} />}
-              title="Add a photo"
+              title={t.addPhoto}
               options={[
                 {
-                  label: "Upload from device",
+                  label: t.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -443,7 +447,7 @@ export function AdBookingForm() {
                   },
                 },
                 {
-                  label: "Take a photo",
+                  label: t.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -455,10 +459,10 @@ export function AdBookingForm() {
             />
             <MediaPickerButton
               icon={<Video size={18} />}
-              title="Add a video"
+              title={t.addVideo}
               options={[
                 {
-                  label: "Upload from device",
+                  label: t.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -473,7 +477,7 @@ export function AdBookingForm() {
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Duration</label>
+        <label className="block text-sm font-medium">{t.duration}</label>
         <div className="mt-1 flex flex-wrap gap-2">
           {AD_DURATION_OPTIONS.map((days) => (
             <button
@@ -485,21 +489,23 @@ export function AdBookingForm() {
                 durationDays === days ? "border-accent bg-accent-soft text-accent" : "border-line hover:border-accent"
               }`}
             >
-              {days} days
+              {plural(locale, t.days, days)}
             </button>
           ))}
         </div>
       </div>
 
       <div className="mt-5 flex items-center justify-between rounded-lg bg-accent-soft px-4 py-3">
-        <span className="text-sm font-medium">Total</span>
-        <span className="text-lg font-semibold text-accent">{formatCents(price)}</span>
+        <span className="text-sm font-medium">{t.total}</span>
+        <bdi className="text-lg font-semibold text-accent">{formatCents(price)}</bdi>
       </div>
 
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
 
       <TurnstileWidget
         className="mt-4"
+        locale={locale}
+        waitMessage={t.errors.securityWait}
         resetSignal={turnstileReset}
         onToken={(token) => {
           turnstileTokenRef.current = token;
@@ -516,15 +522,18 @@ export function AdBookingForm() {
         onClick={submit}
         className="mt-4 w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
       >
-        {isPending ? "Preparing checkout..." : `Continue to payment — ${formatCents(price)}`}
+        {isPending ? (
+          t.preparing
+        ) : (
+          <>
+            {continueBefore}
+            <bdi>{formatCents(price)}</bdi>
+            {continueAfter}
+          </>
+        )}
       </button>
-      <p className="mt-2 text-center text-xs text-foreground-soft">
-        You&apos;ll pay securely via Stripe. Ads go live after a quick review, usually within one business day.
-      </p>
-      <p className="mt-1 text-center text-xs text-foreground-soft">
-        One-time charge for {durationDays} day{durationDays === 1 ? "" : "s"} only — this does not auto-renew or
-        recur. Running another campaign later requires a separate booking and a separate charge.
-      </p>
+      <p className="mt-2 text-center text-xs text-foreground-soft">{t.stripeNote}</p>
+      <p className="mt-1 text-center text-xs text-foreground-soft">{plural(locale, t.oneTime, durationDays)}</p>
     </div>
   );
 }

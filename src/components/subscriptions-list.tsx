@@ -5,6 +5,8 @@ import { UserLink } from "@/components/user-link";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { loadMoreSubscribers, loadMoreSubscribing } from "@/app/actions/subscriptions";
+import { useProfileText } from "@/components/profile-text";
+import { useShellText } from "@/components/ui-text";
 
 type SubscriptionUser = {
   id: string;
@@ -29,6 +31,7 @@ function SubscriptionRows({
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   viewerId: string;
 }) {
+  const loadingMore = useShellText().t.common.loadingMore;
   return (
     <>
       {items.map((r) => (
@@ -44,7 +47,7 @@ function SubscriptionRows({
       ))}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-2">
-          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">Loading more...</span>}
+          {loading && <span className="animate-loading-pulse text-xs text-foreground-soft">{loadingMore}</span>}
         </div>
       )}
     </>
@@ -68,8 +71,9 @@ export function SubscribersList({
     loadMore: (cursor) => loadMoreSubscribers(profileUserId, cursor),
     getCursor: (item) => item.id,
   });
+  const { t } = useProfileText();
 
-  if (items.length === 0) return <p className="text-sm text-foreground-soft">No subscribers yet.</p>;
+  if (items.length === 0) return <p className="text-sm text-foreground-soft">{t.lists.noSubscribers}</p>;
 
   return <SubscriptionRows items={items} hasMore={hasMore} loading={loading} sentinelRef={sentinelRef} viewerId={viewerId} />;
 }
@@ -91,8 +95,9 @@ export function SubscribingList({
     loadMore: (cursor) => loadMoreSubscribing(profileUserId, cursor),
     getCursor: (item) => item.id,
   });
+  const { t } = useProfileText();
 
-  if (items.length === 0) return <p className="text-sm text-foreground-soft">Not subscribed to anyone yet.</p>;
+  if (items.length === 0) return <p className="text-sm text-foreground-soft">{t.lists.noSubscribing}</p>;
 
   return <SubscriptionRows items={items} hasMore={hasMore} loading={loading} sentinelRef={sentinelRef} viewerId={viewerId} />;
 }

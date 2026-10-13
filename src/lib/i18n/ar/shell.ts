@@ -5,6 +5,7 @@ export const shell: typeof shellEn = {
   common: {
     loading: "جارٍ التحميل…",
     loadingMore: "جارٍ تحميل المزيد...",
+    back: "رجوع",
     cancel: "إلغاء",
     save: "حفظ",
     delete: "حذف",

@@ -5,6 +5,7 @@ import { BellRing } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { subscribeToPush, unsubscribeFromPush } from "@/app/actions/push";
 import { hapticSelection } from "@/lib/haptics";
+import { useSettingsText } from "@/components/settings-text";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -35,6 +36,7 @@ type Status = "unsupported" | "native" | "loading" | "off" | "on" | "denied";
  */
 export function PushNotificationsToggle() {
   const [status, setStatus] = useState<Status>("loading");
+  const t = useSettingsText().t.notifications;
 
   useEffect(() => {
     let cancelled = false;
@@ -101,25 +103,19 @@ export function PushNotificationsToggle() {
 
   if (status === "native") {
     return (
-      <p className="text-sm text-foreground-soft">
-        Notifications are already on for the app — no need to enable them separately here.
-      </p>
+      <p className="text-sm text-foreground-soft">{t.native}</p>
     );
   }
 
   if (status === "unsupported") {
     return (
-      <p className="text-sm text-foreground-soft">
-        Not available on this device or browser yet.
-      </p>
+      <p className="text-sm text-foreground-soft">{t.unsupported}</p>
     );
   }
 
   if (status === "denied") {
     return (
-      <p className="text-sm text-foreground-soft">
-        Notifications are blocked for this site in your browser settings — enable them there to turn this on.
-      </p>
+      <p className="text-sm text-foreground-soft">{t.denied}</p>
     );
   }
 
@@ -131,7 +127,7 @@ export function PushNotificationsToggle() {
       className="flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
     >
       <BellRing size={15} />
-      {status === "on" ? "Turn off notifications" : "Enable notifications"}
+      {status === "on" ? t.turnOff : t.enable}
     </button>
   );
 }

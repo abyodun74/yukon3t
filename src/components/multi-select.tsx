@@ -52,7 +52,10 @@ export function MultiSelect({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return normalizedOptions.filter(
-      (o) => !selected.includes(o.value) && (q === "" || o.label.toLowerCase().includes(q)),
+      // The stored (English) value matches too, so a search in either language finds a translated option.
+      (o) =>
+        !selected.includes(o.value) &&
+        (q === "" || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)),
     );
   }, [normalizedOptions, selected, query]);
 

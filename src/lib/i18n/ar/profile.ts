@@ -1,0 +1,76 @@
+import type { profileEn } from "@/lib/i18n/en/profile";
+import { serverUnreachable } from "@/lib/i18n/ar/common";
+
+export const profile: typeof profileEn = {
+  page: {
+    updated: "تم تحديث الملف الشخصي.",
+    errors: {
+      moderation: "نبذتك لا تتوافق مع إرشادات المحتوى لدينا.",
+      other: "يُرجى التحقق من البيانات التي أدخلتها.",
+    },
+    onlineNow: "متصل الآن",
+    lastSeen: "آخر ظهور: {when}",
+    offline: "غير متصل",
+    subscribers:
+      "zero: لا مشتركين | one: مشترك واحد | two: مشتركان | few: # مشتركين | many: # مشتركًا | other: # مشترك",
+    subscribing:
+      "zero: لا اشتراكات | one: اشتراك واحد | two: اشتراكان | few: # اشتراكات | many: # اشتراكًا | other: # اشتراك",
+    blocked: "لقد حظرت هذا الحساب.",
+    reportAccount: "الإبلاغ عن الحساب",
+    yourPosts: "منشوراتك",
+    posts: "المنشورات",
+    connectionsOnly: "المنشورات هنا متاحة فقط لمن هم ضمن جهات اتصال {name}.",
+    emptyOwn: "لم تنشر شيئًا بعد. شارك صورة أو فيديو قصيرًا أو خبرًا جديدًا.",
+    empty: "لا توجد منشورات بعد.",
+    yourSubscribers: "المشتركون في حسابك",
+    subscribersOf: "المشتركون في حساب {name}",
+    yourSubscribing: "اشتراكاتك",
+    subscribingOf: "اشتراكات {name}",
+  },
+  lists: {
+    noSubscribers: "لا يوجد مشتركون بعد.",
+    noSubscribing: "لا توجد اشتراكات بعد.",
+  },
+  storyRing: {
+    noPhoto: "بلا صورة",
+    noPhotoLabel: "لا توجد صورة للملف الشخصي لـ {name}",
+    viewStory: "عرض قصة {name}",
+    enlargePhoto: "تكبير صورة الملف الشخصي لـ {name}",
+  },
+  postMuse: "نشر مقطع Muse",
+  edit: {
+    open: "تعديل الملف الشخصي",
+    cancel: "إلغاء التعديل",
+    picture: "صورة الملف الشخصي",
+    name: "الاسم المعروض",
+    bio: "النبذة",
+    country: "الدولة",
+    countryPlaceholder: "اختر دولتك...",
+    languages: "اللغات",
+    languagesPlaceholder: "ابحث عن اللغات...",
+    interests: "الاهتمامات",
+    interestsPlaceholder: "ابحث عن الاهتمامات...",
+    openTo: "ما تبحث عنه",
+    save: "حفظ التغييرات",
+  },
+  avatar: {
+    change: "تغيير صورة الملف الشخصي",
+    noPhotoChange: "بلا صورة، تغيير صورة الملف الشخصي",
+    noPhoto: "بلا صورة",
+    changePhoto: "تغيير الصورة",
+    fromGallery: "اختيار من المعرض",
+    takePhoto: "التقاط صورة",
+    uploading: "جارٍ الرفع...",
+    hint: "بصيغة JPEG أو PNG أو WebP، وبحجم لا يتجاوز 12 ميغابايت. يُمنع المحتوى الجنسي الصريح.",
+    cropTitle: "قص صورة الملف الشخصي",
+    errors: {
+      type: "استخدم صورة بصيغة JPEG أو PNG أو WebP.",
+      too_large: "يجب ألا يتجاوز حجم الصورة 12 ميغابايت.",
+      not_configured: "رفع صور الملف الشخصي غير متاح بعد. عُد قريبًا.",
+      network: serverUnreachable,
+      upload: "تعذّر الرفع. حاول مرة أخرى.",
+      moderation: "هذه الصورة لا تتوافق مع إرشادات المحتوى لدينا ولم تُحفظ.",
+      other: "تعذّر حفظ صورتك. حاول مرة أخرى.",
+    },
+  },
+};

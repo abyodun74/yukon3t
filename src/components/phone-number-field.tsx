@@ -43,8 +43,8 @@ const subscribeToNothing = () => () => {};
  *   guess from the request's geo header (src/lib/request-country.ts) and falls back to the US.
  * - The country names come from the browser's own Intl data, which can differ from the server's, so the full list is
  *   only rendered after hydration; until then the select holds just the current country.
- * - `locale` and `labels` are passed by the account screens only (country names and the field's own wording in the
- *   person's language); Settings and the invite panel leave them out and stay English.
+ * - `locale` and `labels` are passed by the screens that are in the reader's language (country names and the field's
+ *   own wording): the account screens, Settings and the invite panel. Left out, the field is English.
  */
 export function PhoneNumberField({
   id,

@@ -4,6 +4,11 @@ import { DICTIONARIES } from "@/lib/i18n/dictionaries";
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 import { feedCategoryLabels, intentLabels, reportReasonCategoryLabels } from "@/lib/validations";
 import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
+import { GENERAL_INTERESTS } from "@/lib/interests";
+import { LANGUAGES } from "@/lib/languages";
+import { EMOJI_STYLE_VALUES } from "@/lib/emoji-style";
+import { RINGTONE_LABELS } from "@/lib/ringtones";
+import { interestName, languageName } from "@/lib/i18n/language-names";
 
 /** Every entry of a dictionary by its dotted path ("signIn.errors.locked", "shared.birthDate.months.0"). */
 function flatten(value: unknown, path = "", out = new Map<string, unknown>()) {
@@ -49,11 +54,24 @@ const NAME_THEN_TEXT = ["messages.inbox.from", "messages.thread.incoming"];
 // "GIF", and the ", " between the names of a list.
 const GIF_LABELS = ["messages.inbox.gif", "messages.thread.bubble.gif", "ui.comments.gifAlt"];
 const LATIN_SCRIPT_SHARED = [...GIF_LABELS, "ui.listSeparator", "ui.report.reasons.SPAM"];
+// Feature and brand names kept as they are: Ambient (like Muse), and two of the emoji sets.
+const NAMES_KEPT = ["settings.ambient.heading", "settings.emoji.styles.google", "settings.emoji.styles.twitter"];
+// "Zoom", "Total", "Marimba", "Yoga" and "Fitness" are the words Spanish, French and Portuguese use too.
+const LATIN_LOANWORDS = [
+  "ui.crop.zoom",
+  "advertise.form.total",
+  "settings.calls.ringtones.MARIMBA",
+  "vocab.interests.Yoga",
+  "vocab.interests.Fitness",
+];
 const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   es: [
     ...PRODUCT_NAME_TITLES,
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,
+    ...NAMES_KEPT,
+    ...LATIN_LOANWORDS,
+    "settings.calls.ringtones.DIGITAL",
     "messages.hidden.pin",
     "messages.inbox.video",
     "messages.thread.bubble.video",
@@ -83,6 +101,19 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "shell.nav.faq",
     "shell.nav.messages",
     "shell.nav.notifications",
+    ...NAMES_KEPT,
+    ...LATIN_LOANWORDS,
+    // "Bio", "Notifications", and these interests and language names, are spelled the same in French.
+    "profile.edit.bio",
+    "settings.notifications.heading",
+    "vocab.interests.Architecture",
+    "vocab.interests.Camping",
+    "vocab.interests.Tennis",
+    "vocab.interests.Podcasts",
+    "vocab.interests.Agriculture",
+    "vocab.interests.Aviation",
+    "vocab.languages.Tagalog",
+    "vocab.languages.Dari",
   ],
   pt: [
     "onboarding.bio",
@@ -92,8 +123,15 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "messages.hidden.pin",
     "ui.online",
     "ui.report.reasons.PHISHING",
+    ...NAMES_KEPT,
+    ...LATIN_LOANWORDS,
+    "profile.page.offline",
+    "profile.edit.bio",
+    "settings.calls.ringtones.DIGITAL",
+    "vocab.interests.Podcasts",
+    "vocab.languages.Dari",
   ],
-  ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT],
+  ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT, ...NAMES_KEPT],
 };
 
 describe("dictionaries", () => {
@@ -198,5 +236,33 @@ describe("dictionaries", () => {
 
   it("uses the app's own report reasons in English", () => {
     expect(en.ui.report.reasons).toEqual(reportReasonCategoryLabels);
+  });
+
+  it("uses the app's own ringtone names and emoji styles in English", () => {
+    expect(en.settings.calls.ringtones).toEqual(RINGTONE_LABELS);
+    expect(Object.keys(en.settings.emoji.styles).sort()).toEqual([...EMOJI_STYLE_VALUES].sort());
+  });
+
+  it("lists every general interest, under its stored name in English", () => {
+    expect(Object.keys(en.vocab.interests)).toEqual([...GENERAL_INTERESTS]);
+    for (const interest of GENERAL_INTERESTS) expect(en.vocab.interests[interest]).toBe(interest);
+  });
+
+  it.each(TRANSLATED)("%s shows an interest it has no name for as stored", (locale) => {
+    const interests = DICTIONARIES[locale].vocab.interests;
+    expect(interestName("Bookkeeping", interests)).toBe("Bookkeeping");
+    expect(interestName("toString", interests)).toBe("toString");
+    expect(interestName("Travel", interests)).toBe(interests.Travel);
+  });
+
+  it.each(TRANSLATED)("%s names every spoken language, and words the listed ones itself", (locale) => {
+    const extras = DICTIONARIES[locale].vocab.languages;
+    for (const extra of Object.keys(extras)) expect(LANGUAGES as readonly string[], extra).toContain(extra);
+    for (const language of LANGUAGES) {
+      expect(languageName(language, locale, extras).trim(), language).not.toBe("");
+      expect(languageName(language, "en", extras)).toBe(language);
+    }
+    expect(languageName("Mandarin Chinese", locale, extras)).toBe(extras["Mandarin Chinese"]);
+    expect(languageName("Not a language", locale, extras)).toBe("Not a language");
   });
 });

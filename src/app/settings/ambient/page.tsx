@@ -12,6 +12,7 @@ import { InnerCircleManager } from "@/components/inner-circle-manager";
 import { AmbientMomentComposer } from "@/components/ambient-moment-composer";
 import { AmbientWidgetTokenPanel } from "@/components/ambient-widget-token-panel";
 import { AmbientFeedPreview } from "@/components/ambient-feed-preview";
+import { getDictionary } from "@/lib/i18n/server";
 
 const title = "Ambient | YuKon3t";
 
@@ -30,6 +31,8 @@ export const metadata: Metadata = {
  */
 export default async function AmbientSettingsPage() {
   await getSessionUserOrRedirect();
+  const dictionary = await getDictionary();
+  const t = dictionary.settings.ambient;
 
   const [members, candidates, feed, myMoments, tokenStatus] = await Promise.all([
     getInnerCircle(),
@@ -42,23 +45,14 @@ export default async function AmbientSettingsPage() {
   return (
     <div className="mx-auto max-w-xl space-y-10 px-4 py-10">
       <div>
-        <BackButton href="/settings" />
-        <h1 className="font-display text-2xl font-semibold">Ambient</h1>
-        <p className="mt-2 text-sm text-foreground-soft">
-          Ambient presence over performed posting — a handful of people you actually know, and
-          casual moments instead of composed posts. There&apos;s no lock-screen widget, home-screen
-          widget, or watch app for this yet (that needs real native development this page can&apos;t
-          do on its own), but everything below works right now, inside the app, as the groundwork
-          for one.
-        </p>
+        <BackButton href="/settings" label={dictionary.shell.common.back} />
+        <h1 className="font-display text-2xl font-semibold">{t.heading}</h1>
+        <p className="mt-2 text-sm text-foreground-soft">{t.page.intro}</p>
       </div>
 
       <section>
-        <h2 className="text-sm font-semibold">Your Inner Circle</h2>
-        <p className="mt-1 text-xs text-foreground-soft">
-          Whoever&apos;s here is who your ambient feed (and a future widget) would show — not the
-          same as who you subscribe to or follow.
-        </p>
+        <h2 className="text-sm font-semibold">{t.page.circleHeading}</h2>
+        <p className="mt-1 text-xs text-foreground-soft">{t.page.circleIntro}</p>
         <div className="mt-3">
           <InnerCircleManager
             initialMembers={members}
@@ -68,29 +62,23 @@ export default async function AmbientSettingsPage() {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold">Share a moment</h2>
-        <p className="mt-1 text-xs text-foreground-soft">
-          One photo, an optional caption — visible only to people who have you in their Inner
-          Circle, gone after 48 hours.
-        </p>
+        <h2 className="text-sm font-semibold">{t.page.momentHeading}</h2>
+        <p className="mt-1 text-xs text-foreground-soft">{t.page.momentIntro}</p>
         <div className="mt-3">
           <AmbientMomentComposer initialMoments={myMoments} />
         </div>
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold">Your ambient feed (preview)</h2>
-        <p className="mt-1 text-xs text-foreground-soft">
-          What you&apos;d see ambiently from your Inner Circle — this is the same data
-          /api/ambient/feed returns for a future widget, shown here since no widget exists yet.
-        </p>
+        <h2 className="text-sm font-semibold">{t.page.feedHeading}</h2>
+        <p className="mt-1 text-xs text-foreground-soft">{t.page.feedIntro}</p>
         <div className="mt-3">
           <AmbientFeedPreview moments={feed} />
         </div>
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold">For a future widget</h2>
+        <h2 className="text-sm font-semibold">{t.page.widgetHeading}</h2>
         <div className="mt-3">
           <AmbientWidgetTokenPanel initialStatus={tokenStatus} />
         </div>

@@ -1,5 +1,6 @@
-import { formatDistanceToNow } from "date-fns";
 import { UserAvatar } from "@/components/user-link";
+import { formatTimeAgo } from "@/lib/format-date";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 type FeedMoment = {
   id: string;
@@ -14,14 +15,13 @@ type FeedMoment = {
  * for this viewer, rendered inside the app since there's no lock-screen/
  * widget/watch surface yet to show it for real.
  */
-export function AmbientFeedPreview({ moments }: { moments: FeedMoment[] }) {
+export async function AmbientFeedPreview({ moments }: { moments: FeedMoment[] }) {
+  const locale = await getLocale();
+  const dictionary = await getDictionary();
+  const t = dictionary.settings.ambient;
+
   if (moments.length === 0) {
-    return (
-      <p className="text-sm text-foreground-soft">
-        Nothing from your Inner Circle right now — moments show up here (and would show up on a
-        future widget) for 48 hours after someone shares one.
-      </p>
-    );
+    return <p className="text-sm text-foreground-soft">{t.feed.empty}</p>;
   }
 
   return (
@@ -32,12 +32,12 @@ export function AmbientFeedPreview({ moments }: { moments: FeedMoment[] }) {
           <img src={moment.imageUrl} alt={moment.caption ?? ""} className="aspect-square w-full object-cover" />
           <div className="flex items-center gap-1.5 p-2">
             <UserAvatar avatarUrl={moment.author.avatarUrl} name={moment.author.name} size={16} />
-            <span className="truncate text-xs text-foreground-soft">{moment.author.name ?? "Unnamed"}</span>
-            <span className="ml-auto shrink-0 text-[0.625rem] text-foreground-soft">
-              {formatDistanceToNow(moment.createdAt, { addSuffix: true })}
+            <span dir="auto" className="truncate text-xs text-foreground-soft">{moment.author.name ?? t.circle.unnamed}</span>
+            <span className="ms-auto shrink-0 text-[0.625rem] text-foreground-soft">
+              {formatTimeAgo(moment.createdAt, locale, dictionary.ui.time.justNow)}
             </span>
           </div>
-          {moment.caption && <p className="px-2 pb-2 text-xs">{moment.caption}</p>}
+          {moment.caption && <p dir="auto" className="px-2 pb-2 text-xs">{moment.caption}</p>}
         </li>
       ))}
     </ul>

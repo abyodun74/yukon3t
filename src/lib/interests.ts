@@ -1,6 +1,6 @@
 import { JOB_TITLES } from "@/lib/job-titles";
 
-const GENERAL_INTERESTS = [
+export const GENERAL_INTERESTS = [
   "Travel", "Backpacking", "Road Trips", "Food & Cooking", "Coffee Culture",
   "Photography", "Videography", "Music", "Live Concerts", "Dancing",
   "Reading", "Writing", "Poetry", "Film & TV", "Theatre",

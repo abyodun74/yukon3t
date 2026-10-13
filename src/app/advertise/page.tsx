@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { isPaymentsConfigured } from "@/lib/stripe";
 import { AD_PRICE_PER_DAY_CENTS, formatCents } from "@/lib/ads";
 import { AdBookingForm } from "@/components/ad-booking-form";
+import { aroundPlaceholder } from "@/lib/i18n/locales";
+import { getDictionary } from "@/lib/i18n/server";
 
 const title = "Advertise on YuKon3t — Self-Serve Ads, No Minimum";
 const description =
@@ -33,25 +35,26 @@ export default async function AdvertisePage({
 }) {
   const { canceled } = await searchParams;
   const configured = isPaymentsConfigured();
+  const t = (await getDictionary()).advertise.page;
+  const [introBefore, introAfter] = aroundPlaceholder(t.intro, "price");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
       <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-        Advertise on YuKon3t
+        {t.eyebrow}
       </p>
       <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight">
-        Put your business in front of a global, verified audience.
+        {t.title}
       </h1>
       <p className="mt-3 text-sm text-foreground-soft">
-        One flat rate, no account required, no audience targeting to configure — your ad runs
-        across the app for the number of days you pick. Every submission is reviewed before it
-        goes live, and the price is {formatCents(AD_PRICE_PER_DAY_CENTS)} per day.
+        {introBefore}
+        <bdi>{formatCents(AD_PRICE_PER_DAY_CENTS)}</bdi>
+        {introAfter}
       </p>
 
       {canceled && (
         <p role="alert" className="mt-6 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          Checkout was canceled — no charge was made. You can submit again whenever you&apos;re
-          ready.
+          {t.canceled}
         </p>
       )}
 
@@ -60,7 +63,7 @@ export default async function AdvertisePage({
           <AdBookingForm />
         ) : (
           <p className="rounded-xl border border-line p-5 text-sm text-foreground-soft">
-            Ad bookings aren&apos;t set up yet — check back soon, or reach out directly.
+            {t.notConfigured}
           </p>
         )}
       </div>

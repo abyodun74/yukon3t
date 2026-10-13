@@ -5,13 +5,23 @@ import { Pencil, X } from "lucide-react";
 import { updateProfile } from "@/app/actions/profile";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { MultiSelect } from "@/components/multi-select";
-import { intentTagValues, intentLabels } from "@/lib/validations";
-import { COUNTRIES } from "@/lib/countries";
-import { LANGUAGES } from "@/lib/languages";
-import { INTERESTS } from "@/lib/interests";
+import { useFeedText } from "@/components/feed-text";
+import { useProfileText } from "@/components/profile-text";
+import { intentTagValues } from "@/lib/validations";
+import type { sharedEn } from "@/lib/i18n/en/shared";
 
+type Option = { value: string; label: string };
+
+/**
+ * The three option lists arrive from the profile page already in the reader's language (`label`); `value` is the
+ * stored English name, which is what the form submits.
+ */
 export function EditProfileForm({
   user,
+  countryOptions,
+  languageOptions,
+  interestOptions,
+  multiSelectLabels,
 }: {
   user: {
     avatarUrl: string | null;
@@ -22,8 +32,14 @@ export function EditProfileForm({
     interests: string[];
     openToIntents: (typeof intentTagValues)[number][];
   };
+  countryOptions: Option[];
+  languageOptions: Option[];
+  interestOptions: Option[];
+  multiSelectLabels: typeof sharedEn.multiSelect;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useProfileText();
+  const intents = useFeedText().t.intents;
 
   if (!open) {
     return (
@@ -33,7 +49,7 @@ export function EditProfileForm({
         className="flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
       >
         <Pencil size={14} />
-        Edit profile
+        {t.edit.open}
       </button>
     );
   }
@@ -41,11 +57,11 @@ export function EditProfileForm({
   return (
     <div className="mt-6 rounded-xl border border-line bg-surface p-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Edit profile</h2>
+        <h2 className="text-sm font-semibold">{t.edit.open}</h2>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Cancel editing"
+          aria-label={t.edit.cancel}
           className="rounded-lg p-1 text-foreground-soft hover:bg-line"
         >
           <X size={16} />
@@ -53,7 +69,7 @@ export function EditProfileForm({
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium">Profile picture</label>
+        <label className="block text-sm font-medium">{t.edit.picture}</label>
         <div className="mt-2">
           <AvatarUpload currentUrl={user.avatarUrl} />
         </div>
@@ -61,73 +77,77 @@ export function EditProfileForm({
 
       <form action={updateProfile} className="mt-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium">Display name</label>
+          <label className="block text-sm font-medium">{t.edit.name}</label>
           <input
-            aria-label="Display name"
+            aria-label={t.edit.name}
             name="name"
             required
             minLength={2}
             maxLength={60}
             defaultValue={user.name ?? ""}
+            dir="auto"
             className="mt-1 w-full rounded-lg border border-line bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Bio</label>
+          <label className="block text-sm font-medium">{t.edit.bio}</label>
           <textarea
-            aria-label="Bio"
+            aria-label={t.edit.bio}
             name="bio"
             maxLength={500}
             rows={3}
             defaultValue={user.bio ?? ""}
+            dir="auto"
             className="mt-1 w-full rounded-lg border border-line bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Country</label>
+          <label className="block text-sm font-medium">{t.edit.country}</label>
           <select
-            aria-label="Country"
+            aria-label={t.edit.country}
             name="country"
             required
             defaultValue={user.country ?? ""}
             className="mt-1 w-full rounded-lg border border-line bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
           >
             <option value="" disabled>
-              Select your country...
+              {t.edit.countryPlaceholder}
             </option>
-            {COUNTRIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {countryOptions.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium">Languages</label>
+          <label className="block text-sm font-medium">{t.edit.languages}</label>
           <div className="mt-1">
             <MultiSelect
               name="languages"
-              options={LANGUAGES}
+              options={languageOptions}
               defaultValues={user.languages}
-              placeholder="Search languages..."
+              placeholder={t.edit.languagesPlaceholder}
               max={10}
+              labels={multiSelectLabels}
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium">Interests</label>
+          <label className="block text-sm font-medium">{t.edit.interests}</label>
           <div className="mt-1">
             <MultiSelect
               name="interests"
-              options={INTERESTS}
+              options={interestOptions}
               defaultValues={user.interests}
-              placeholder="Search interests..."
+              placeholder={t.edit.interestsPlaceholder}
               max={15}
+              labels={multiSelectLabels}
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium">Open to</label>
+          <label className="block text-sm font-medium">{t.edit.openTo}</label>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {intentTagValues.map((tag) => (
               <label
@@ -140,7 +160,7 @@ export function EditProfileForm({
                   value={tag}
                   defaultChecked={user.openToIntents.includes(tag)}
                 />
-                {intentLabels[tag]}
+                {intents[tag]}
               </label>
             ))}
           </div>
@@ -149,7 +169,7 @@ export function EditProfileForm({
           type="submit"
           className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
         >
-          Save changes
+          {t.edit.save}
         </button>
       </form>
     </div>

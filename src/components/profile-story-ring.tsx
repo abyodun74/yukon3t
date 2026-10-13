@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { Lightbox } from "@/components/lightbox";
+import { useFeedText } from "@/components/feed-text";
+import { useProfileText } from "@/components/profile-text";
+import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 /**
  * Wraps a profile's avatar with an Instagram-style story ring (only shown
@@ -48,6 +52,9 @@ export function ProfileStoryRing({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const hasStories = stories.length > 0;
+  const { t } = useProfileText();
+  const ui = useUiText().t;
+  const addToStory = useFeedText().t.stories.addToStory;
 
   return (
     <>
@@ -58,10 +65,10 @@ export function ProfileStoryRing({
           // VoiceOver still announces and Voice Control still numbers.
           <div
             role="img"
-            aria-label={`${name} has no profile photo`}
+            aria-label={format(t.storyRing.noPhotoLabel, { name })}
             className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-line bg-surface text-xs text-foreground-soft"
           >
-            No photo
+            {t.storyRing.noPhoto}
           </div>
         ) : (
         <button
@@ -79,7 +86,7 @@ export function ProfileStoryRing({
               setPhotoOpen(true);
             }
           }}
-          aria-label={hasStories ? `View ${name}'s story` : `Enlarge ${name}'s profile photo`}
+          aria-label={format(hasStories ? t.storyRing.viewStory : t.storyRing.enlargePhoto, { name })}
           className={cn(
             "h-16 w-16 overflow-hidden rounded-full border bg-surface",
             hasStories ? "border-2 border-accent" : "border border-line",
@@ -90,7 +97,7 @@ export function ProfileStoryRing({
             <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
-              No photo
+              {t.storyRing.noPhoto}
             </div>
           )}
         </button>
@@ -99,8 +106,8 @@ export function ProfileStoryRing({
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
-            aria-label="Add to your story"
-            className="absolute -bottom-1 -right-1 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
+            aria-label={addToStory}
+            className="absolute -bottom-1 -end-1 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
           >
             <Plus size={12} />
           </button>
@@ -109,10 +116,10 @@ export function ProfileStoryRing({
             instead — no reason to show yourself as online. */}
         {!isOwner && online && (
           <span
-            className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-success"
+            className="absolute bottom-0 end-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-success"
             role="img"
-            aria-label="Online"
-            title="Online"
+            aria-label={ui.online}
+            title={ui.online}
           />
         )}
       </div>
@@ -138,7 +145,7 @@ export function ProfileStoryRing({
           index={0}
           onIndexChange={() => {}}
           onClose={() => setPhotoOpen(false)}
-          alt={`${name}'s profile photo`}
+          alt={format(ui.profilePhoto, { name })}
         />
       )}
     </>

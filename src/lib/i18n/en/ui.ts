@@ -19,6 +19,18 @@ export const uiEn = {
   profilePhoto: "{name}'s profile photo",
   unknownName: "Unknown",
   time: { justNow: "Just now", today: "Today", yesterday: "Yesterday" },
+  // The block control beside a person (a profile, the blocked list in Settings). The "account" forms are for someone
+  // whose name the data doesn't have.
+  block: {
+    block: "Block",
+    confirm: "Block {name}?",
+    confirmAccount: "Block this account?",
+    yes: "Yes, block",
+    unblock: "Unblock {name}",
+    unblockAccount: "Unblock this account",
+  },
+  // The crop step of a photo upload (a profile picture, a Circle cover).
+  crop: { title: "Crop photo", use: "Use photo", cropping: "Cropping...", zoom: "Zoom" },
   reactions: {
     count: "one: # reaction | other: # reactions",
     add: "Add an emoji",
