@@ -3,6 +3,7 @@
 import { Plus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ScrollFab } from "@/components/scroll-fab";
+import { useMessagesText } from "@/components/ui-text";
 
 /**
  * Appears once the inbox header (#messages-header — with its own "New
@@ -11,6 +12,7 @@ import { ScrollFab } from "@/components/scroll-fab";
  */
 export function MessagesQuickActions() {
   const router = useRouter();
+  const { t } = useMessagesText();
 
   return (
     <ScrollFab
@@ -18,14 +20,14 @@ export function MessagesQuickActions() {
       actions={[
         {
           key: "discover-groups",
-          label: "Discover groups",
+          label: t.inbox.discoverGroups,
           icon: <Users size={16} />,
           iconClassName: "bg-teal text-white",
           onSelect: () => router.push("/messages/discover"),
         },
         {
           key: "new-group",
-          label: "New group",
+          label: t.inbox.newGroup,
           icon: <Plus size={16} />,
           iconClassName: "bg-accent text-accent-ink",
           onSelect: () => router.push("/messages/new"),

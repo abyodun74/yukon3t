@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus, X } from "lucide-react";
 import { addGroupMembers } from "@/app/actions/messages";
 import { MultiSelect } from "@/components/multi-select";
+import { useMessagesText } from "@/components/ui-text";
 
 export function AddGroupMembersButton({
   conversationId,
@@ -17,6 +18,8 @@ export function AddGroupMembersButton({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { t: messages } = useMessagesText();
+  const t = messages.group;
 
   if (candidates.length === 0) return null;
 
@@ -28,7 +31,7 @@ export function AddGroupMembersButton({
         className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-foreground-soft hover:border-accent hover:text-accent"
       >
         <UserPlus size={13} />
-        Add members
+        {t.addMembers}
       </button>
     );
   }
@@ -36,11 +39,11 @@ export function AddGroupMembersButton({
   return (
     <div className="mt-3 w-full rounded-lg border border-line p-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Add connections to this group</p>
+        <p className="text-sm font-medium">{t.addMembersTitle}</p>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Cancel"
+          aria-label={t.cancel}
           className="rounded-lg p-1 text-foreground-soft hover:bg-line"
         >
           <X size={14} />
@@ -52,7 +55,7 @@ export function AddGroupMembersButton({
           startTransition(async () => {
             const result = await addGroupMembers(conversationId, fd);
             if (result.error) {
-              setError("Couldn't add those members — try again.");
+              setError(t.addFailed);
             } else {
               setOpen(false);
               router.refresh();
@@ -61,14 +64,14 @@ export function AddGroupMembersButton({
         }}
         className="mt-2"
       >
-        <MultiSelect name="memberIds" options={candidates} placeholder="Search connections..." />
+        <MultiSelect name="memberIds" options={candidates} placeholder={t.searchConnections} labels={messages.controls.multiSelect} />
         {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
         <button
           type="submit"
           disabled={isPending}
           className="mt-2 w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink disabled:opacity-50"
         >
-          {isPending ? "Adding..." : "Add"}
+          {isPending ? t.adding : t.add}
         </button>
       </form>
     </div>

@@ -2,6 +2,8 @@
 // client use the same constants and decisions. The storage side is in storage.ts (private bucket) and
 // view-once-media.ts; the actions are in app/actions/view-once.ts.
 
+import { messagesEn } from "@/lib/i18n/en";
+
 /** An unopened view-once message's file is deleted this long after it was sent. */
 export const VIEW_ONCE_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;
 /**
@@ -114,18 +116,19 @@ export function viewOnceState(
   return message.mine ? "sent" : "available";
 }
 
-export function viewOnceLabel(state: ViewOnceState, mediaType: ViewOnceMediaType): string {
-  const noun = mediaType === "VIDEO" ? "video" : "photo";
+/** `labels` is the chat's wording in the reader's language (src/lib/i18n); English when left out. */
+export function viewOnceLabel(
+  state: ViewOnceState,
+  mediaType: ViewOnceMediaType,
+  labels: typeof messagesEn.thread.viewOnce.chip = messagesEn.thread.viewOnce.chip,
+): string {
   switch (state) {
     case "sending":
-      return `Sending view-once ${noun}…`;
     case "sent":
-      return `View-once ${noun} sent`;
     case "available":
-      return `${mediaType === "VIDEO" ? "Video" : "Photo"} · tap to view once`;
+      return labels[state][mediaType];
     case "opened":
-      return "Opened";
     case "expired":
-      return "Expired";
+      return labels[state];
   }
 }

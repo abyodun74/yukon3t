@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { setGroupDiscoverable } from "@/app/actions/messages";
 import { hapticSelection } from "@/lib/haptics";
+import { useMessagesText } from "@/components/ui-text";
 
 export function GroupDiscoverableToggle({
   conversationId,
@@ -13,6 +14,7 @@ export function GroupDiscoverableToggle({
 }) {
   const [discoverable, setDiscoverable] = useState(initialDiscoverable);
   const [isPending, startTransition] = useTransition();
+  const t = useMessagesText().t.group;
 
   function toggle() {
     hapticSelection();
@@ -31,7 +33,7 @@ export function GroupDiscoverableToggle({
       onClick={toggle}
       className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-foreground-soft hover:border-accent hover:text-accent disabled:opacity-50"
     >
-      {discoverable ? "Discoverable" : "Not discoverable"}
+      {discoverable ? t.discoverable : t.notDiscoverable}
     </button>
   );
 }

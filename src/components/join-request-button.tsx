@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestToJoinGroup } from "@/app/actions/messages";
+import { useMessagesText } from "@/components/ui-text";
 
 export function JoinRequestButton({
   conversationId,
@@ -13,6 +14,7 @@ export function JoinRequestButton({
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const t = useMessagesText().t.group;
 
   function submit() {
     startTransition(async () => {
@@ -22,13 +24,13 @@ export function JoinRequestButton({
   }
 
   if (status === "PENDING") {
-    return <p className="text-sm text-foreground-soft">Request sent — waiting for approval.</p>;
+    return <p className="text-sm text-foreground-soft">{t.requestSent}</p>;
   }
 
   return (
     <div className="space-y-2">
       {status === "DECLINED" && (
-        <p className="text-sm text-foreground-soft">Your request to join was declined.</p>
+        <p className="text-sm text-foreground-soft">{t.requestDeclined}</p>
       )}
       <button
         type="button"
@@ -36,7 +38,7 @@ export function JoinRequestButton({
         onClick={submit}
         className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
       >
-        {status === "DECLINED" ? "Request again" : "Request to join"}
+        {status === "DECLINED" ? t.requestAgain : t.request}
       </button>
     </div>
   );

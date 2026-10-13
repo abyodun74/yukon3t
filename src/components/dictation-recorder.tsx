@@ -5,6 +5,9 @@ import { Mic, Square, X } from "lucide-react";
 import { transcribeAudio } from "@/app/actions/transcription";
 import { uploadFileDirect } from "@/lib/upload-client";
 import { useAudioRecorder } from "@/lib/use-audio-recorder";
+import { useUiText } from "@/components/ui-text";
+import type { uiEn } from "@/lib/i18n/en";
+import { format } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_DICTATION_SECONDS — duplicated locally
 // since storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't
@@ -16,6 +19,24 @@ function formatDictationClock(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * What one of transcribeAudio's failure codes says, in every composer that offers dictation. Null for any other code
+ * (an upload failure, no connection): the composer words those the way it words its own.
+ */
+export function dictationErrorMessage(errors: typeof uiEn.dictation.errors, code: string): string | null {
+  switch (code) {
+    case "not_configured":
+    case "too_large":
+    case "rate_limited":
+    case "unavailable":
+      return errors[code];
+    case "invalid":
+      return errors.unavailable;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -39,6 +60,7 @@ export function DictationRecorder({
   onDone: () => void;
 }) {
   const [transcribing, setTranscribing] = useState(false);
+  const { locale, dir, t } = useUiText();
   const { stop, seconds, recording, error } = useAudioRecorder({
     maxSeconds: MAX_DICTATION_SECONDS,
     autoStart: true,
@@ -74,9 +96,13 @@ export function DictationRecorder({
 
   if (error) {
     return (
-      <div className="mt-2 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-xs">
+      <div
+        lang={locale}
+        dir={dir}
+        className="mt-2 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-xs"
+      >
         <span role="alert" className="text-danger">{error}</span>
-        <button type="button" onClick={onDone} aria-label="Dismiss" className="text-foreground-soft">
+        <button type="button" onClick={onDone} aria-label={t.dictation.dismiss} className="text-foreground-soft">
           <X size={14} />
         </button>
       </div>
@@ -84,14 +110,18 @@ export function DictationRecorder({
   }
 
   return (
-    <div className="mt-2 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-xs">
+    <div
+      lang={locale}
+      dir={dir}
+      className="mt-2 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-xs"
+    >
       <span className="flex items-center gap-1.5 text-foreground-soft">
         <Mic size={14} className={recording ? "text-danger" : ""} />
         {transcribing
-          ? "Transcribing..."
+          ? t.dictation.transcribing
           : recording
-            ? `Recording... ${formatDictationClock(seconds)}`
-            : "Starting..."}
+            ? format(t.dictation.recording, { clock: formatDictationClock(seconds) })
+            : t.dictation.starting}
       </span>
       {recording && !transcribing && (
         <button
@@ -99,7 +129,7 @@ export function DictationRecorder({
           onClick={stop}
           className="flex items-center gap-1 rounded-full border border-line px-2 py-1 font-medium"
         >
-          <Square size={12} fill="currentColor" /> Stop
+          <Square size={12} fill="currentColor" /> {t.recorder.stop}
         </button>
       )}
     </div>

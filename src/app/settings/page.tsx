@@ -14,6 +14,8 @@ import { PushNotificationsToggle } from "@/components/push-notifications-toggle"
 import { PhoneVerificationForm } from "@/components/phone-verification-form";
 import { getRequestCountry } from "@/lib/request-country";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
+import { LanguagePicker } from "@/components/language-picker";
+import { getLocale } from "@/lib/i18n/server";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
 // the action file — see Next.js docs). AccountDangerZone's exportMyData is
@@ -141,6 +143,16 @@ export default async function SettingsPage({
         <div className="mt-4">
           <PushNotificationsToggle />
         </div>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Language</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Messages, comments, dictation and the sign-in screens are available in these languages. The rest of the app
+          is in English for now.
+        </p>
+        {/* The one place a signed-in person can change it: the other pickers are on the signed-out screens. */}
+        <LanguagePicker locale={await getLocale()} label="Language" className="mt-4 justify-start" />
       </div>
 
       <div>

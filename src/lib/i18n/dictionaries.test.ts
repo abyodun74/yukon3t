@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { en } from "@/lib/i18n/en";
 import { DICTIONARIES } from "@/lib/i18n/dictionaries";
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
-import { intentLabels } from "@/lib/validations";
+import { intentLabels, reportReasonCategoryLabels } from "@/lib/validations";
 
 /** Every entry of a dictionary by its dotted path ("signIn.errors.locked", "shared.birthDate.months.0"). */
 function flatten(value: unknown, path = "", out = new Map<string, unknown>()) {
@@ -18,16 +18,57 @@ function placeholders(text: string) {
   return [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 }
 
+// "one: … | other: …" entries (see plural() in locales.ts).
+const PLURAL_CATEGORIES = ["zero", "one", "two", "few", "many", "other"];
+function pluralForms(text: string): Map<string, string> | null {
+  if (!/^(zero|one|two|few|many|other): /.test(text)) return null;
+  return new Map(
+    text.split("|").map((part) => {
+      const colon = part.indexOf(":");
+      return [part.slice(0, colon).trim(), part.slice(colon + 1).trim()] as const;
+    }),
+  );
+}
+
 const english = flatten(en);
 const TRANSLATED = SUPPORTED_LOCALES.filter((locale) => locale !== "en");
 
 // Entries that really are spelled the same in both languages. Anything else left identical to English is a miss.
 const PRODUCT_NAME_TITLES = ["landing.circles.title", "landing.collabBoards.title"];
+// "{name}: {text}", with nothing in it to translate.
+const NAME_THEN_TEXT = ["messages.inbox.from", "messages.thread.incoming"];
+// "GIF", and the ", " between the names of a list.
+const GIF_LABELS = ["messages.inbox.gif", "messages.thread.bubble.gif", "ui.comments.gifAlt"];
+const LATIN_SCRIPT_SHARED = [...GIF_LABELS, "ui.listSeparator", "ui.report.reasons.SPAM"];
 const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
-  es: [...PRODUCT_NAME_TITLES],
-  fr: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
-  pt: ["onboarding.bio", ...PRODUCT_NAME_TITLES],
-  ar: [...PRODUCT_NAME_TITLES],
+  es: [
+    ...PRODUCT_NAME_TITLES,
+    ...NAME_THEN_TEXT,
+    ...LATIN_SCRIPT_SHARED,
+    "messages.hidden.pin",
+    "messages.inbox.video",
+    "messages.thread.bubble.video",
+    "ui.report.reasons.PHISHING",
+  ],
+  // French puts a space before the colon, so its "{name} : {text}" differs.
+  fr: [
+    "onboarding.bio",
+    ...PRODUCT_NAME_TITLES,
+    ...LATIN_SCRIPT_SHARED,
+    "messages.fallback.message",
+    "messages.inbox.title",
+    "messages.inbox.photo",
+    "messages.thread.bubble.photo",
+  ],
+  pt: [
+    "onboarding.bio",
+    ...PRODUCT_NAME_TITLES,
+    ...NAME_THEN_TEXT,
+    ...LATIN_SCRIPT_SHARED,
+    "messages.hidden.pin",
+    "ui.report.reasons.PHISHING",
+  ],
+  ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT],
 };
 
 describe("dictionaries", () => {
@@ -50,8 +91,42 @@ describe("dictionaries", () => {
   it.each(SUPPORTED_LOCALES)("%s keeps every placeholder of the English string", (locale) => {
     const translated = flatten(DICTIONARIES[locale]);
     for (const [path, value] of english) {
-      expect(placeholders(translated.get(path) as string), path).toEqual(placeholders(value as string));
+      const forms = pluralForms(translated.get(path) as string);
+      if (forms) {
+        // A language may have more forms than English has, each with the same placeholders as an English form.
+        const expected = placeholders([...pluralForms(value as string)!.values()][0]);
+        for (const form of forms.values()) expect(placeholders(form), path).toEqual(expected);
+      } else {
+        expect(placeholders(translated.get(path) as string), path).toEqual(placeholders(value as string));
+      }
     }
+  });
+
+  it.each(SUPPORTED_LOCALES)("%s gives every plural entry the forms its grammar needs", (locale) => {
+    const translated = flatten(DICTIONARIES[locale]);
+    // Spanish, French and Portuguese also have a "many" form, for whole millions only; "other" covers it.
+    const needed = new Intl.PluralRules(locale).resolvedOptions().pluralCategories.filter(
+      (category) => locale === "ar" || category !== "many",
+    );
+    let seen = 0;
+    for (const [path, value] of english) {
+      if (!pluralForms(value as string)) {
+        expect(pluralForms(translated.get(path) as string), path).toBeNull();
+        continue;
+      }
+      seen++;
+      const forms = pluralForms(translated.get(path) as string);
+      expect(forms, path).not.toBeNull();
+      expect([...forms!.keys()].sort(), path).toEqual([...needed].sort());
+      for (const [category, form] of forms!) {
+        expect(PLURAL_CATEGORIES, path).toContain(category);
+        expect(form, `${path} (${category})`).not.toBe("");
+        // "#" is where the number goes. A form that spells its number out ("one member", "دقيقتين") may leave it out;
+        // "other" covers a whole range of numbers and never can.
+        if (category === "other") expect(form, path).toContain("#");
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it.each(TRANSLATED)("%s leaves nothing in English", (locale) => {
@@ -71,5 +146,9 @@ describe("dictionaries", () => {
 
   it("uses the app's own intent labels in English", () => {
     expect(en.onboarding.intents).toEqual(intentLabels);
+  });
+
+  it("uses the app's own report reasons in English", () => {
+    expect(en.ui.report.reasons).toEqual(reportReasonCategoryLabels);
   });
 });

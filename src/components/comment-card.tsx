@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 import { deleteComment, editComment, hideComment, toggleCommentReaction } from "@/app/actions/comments";
 import { ReportTrigger } from "@/components/report-form";
 import { CommentComposer } from "@/components/comment-composer";
@@ -12,7 +11,8 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { UserLink } from "@/components/user-link";
 import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, formatTimeAgo } from "@/lib/format-date";
+import { useUiText } from "@/components/ui-text";
 import type { CommentNode } from "@/lib/comment-tree";
 
 // Beyond this depth, replies stop indenting further (they'd otherwise run
@@ -57,6 +57,8 @@ export function CommentCard({
   const [editError, setEditError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { locale, t: ui } = useUiText();
+  const t = ui.comments;
 
   if (deleted) return null;
 
@@ -98,7 +100,7 @@ export function CommentCard({
       fd.set("content", text);
       const result = await editComment(comment.id, fd);
       if (result.error || !result.comment) {
-        setEditError("Couldn't save that edit.");
+        setEditError(t.editFailed);
         return;
       }
       setContent(result.comment.content);
@@ -110,7 +112,7 @@ export function CommentCard({
   return (
     <div
       className="mt-3"
-      style={depth > 0 ? { marginLeft: Math.min(depth, MAX_VISUAL_DEPTH) * 20 } : undefined}
+      style={depth > 0 ? { marginInlineStart: Math.min(depth, MAX_VISUAL_DEPTH) * 20 } : undefined}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -123,22 +125,23 @@ export function CommentCard({
             className="text-sm font-semibold"
           />
           {comment.author.id === postAuthorId && (
-            <span className="text-xs font-normal text-foreground-soft">(author)</span>
+            <span className="text-xs font-normal text-foreground-soft">{t.author}</span>
           )}
         </div>
         <span className="flex items-center gap-1.5 text-xs text-foreground-soft">
-          {editedAt && <span>Edited</span>}
-          <span title={formatDateTime(comment.createdAt)}>
-            {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
+          {editedAt && <span>{t.edited}</span>}
+          <span title={formatDateTime(comment.createdAt, locale)}>
+            {formatTimeAgo(comment.createdAt, locale, ui.time.justNow)}
           </span>
         </span>
       </div>
       {removed ? (
-        <p className="mt-1 text-sm italic text-foreground-soft">This comment was removed.</p>
+        <p className="mt-1 text-sm italic text-foreground-soft rtl:not-italic">{t.removed}</p>
       ) : editing ? (
         <div className="mt-1">
           <textarea
-            aria-label="Edit comment"
+            aria-label={t.editLabel}
+            dir="auto"
             value={editDraft}
             onChange={(e) => setEditDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -156,7 +159,7 @@ export function CommentCard({
           />
           <EmojiTypeSuggestions text={editDraft} onSelect={insertEditEmoji} />
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
-            {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
+            {editError && <span role="alert" className="me-auto text-danger">{editError}</span>}
             <EmojiPickerButton onSelect={insertEditEmoji} />
             <button
               type="button"
@@ -164,7 +167,7 @@ export function CommentCard({
               onClick={cancelEdit}
               className="rounded-md px-2 py-1 text-foreground-soft hover:bg-line"
             >
-              Cancel
+              {ui.cancel}
             </button>
             <button
               type="button"
@@ -172,29 +175,32 @@ export function CommentCard({
               onClick={saveEdit}
               className="rounded-md bg-accent px-2 py-1 font-medium text-accent-ink disabled:opacity-50"
             >
-              Save
+              {ui.save}
             </button>
           </div>
         </div>
       ) : (
         <>
           {content && (
-            <p className={cn("mt-1 whitespace-pre-wrap break-words text-sm", isEmojiOnly(content) && "text-3xl leading-tight")}>
+            <p
+              dir="auto"
+              className={cn("mt-1 whitespace-pre-wrap break-words text-sm", isEmojiOnly(content) && "text-3xl leading-tight")}
+            >
               {content}
             </p>
           )}
           {comment.gifUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset
-            <img src={comment.gifUrl} alt="GIF" loading="lazy" decoding="async" className="mt-1 max-h-52 rounded-lg object-contain" />
+            <img src={comment.gifUrl} alt={t.gifAlt} loading="lazy" decoding="async" className="mt-1 max-h-52 rounded-lg object-contain" />
           )}
           {comment.audioUrl && (
-            <audio controls preload="metadata" aria-label="Voice comment" src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />
+            <audio controls preload="metadata" aria-label={t.voiceComment} src={comment.audioUrl} className="mt-1 h-10 w-56 max-w-full" />
           )}
           {comment.videoUrl && (
             <video
               controls
               preload="metadata"
-              aria-label="Video comment"
+              aria-label={t.videoComment}
               src={comment.videoUrl}
               poster={comment.videoThumbnailUrl ?? undefined}
               className="mt-1 max-h-72 w-full max-w-xs rounded-lg bg-black object-contain"
@@ -210,7 +216,7 @@ export function CommentCard({
               onClick={() => setReplying((v) => !v)}
               className="text-xs text-foreground-soft hover:text-accent"
             >
-              Reply
+              {t.reply}
             </button>
             <EmojiPickerButton onSelect={toggleReaction} />
             {canEdit && (
@@ -219,7 +225,7 @@ export function CommentCard({
                 onClick={startEditing}
                 className="text-xs text-foreground-soft hover:text-accent"
               >
-                Edit
+                {t.edit}
               </button>
             )}
             {canDelete && (
@@ -245,7 +251,7 @@ export function CommentCard({
                 }}
                 className="text-xs text-foreground-soft hover:text-danger"
               >
-                Delete
+                {t.delete}
               </button>
             )}
             {canHide && (
@@ -263,9 +269,9 @@ export function CommentCard({
                   });
                 }}
                 className="text-xs text-foreground-soft hover:text-danger"
-                title="Hide this comment as inappropriate — keeps the thread intact for everyone else"
+                title={t.hideHint}
               >
-                Hide
+                {t.hide}
               </button>
             )}
             <ReportTrigger

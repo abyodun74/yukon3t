@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { renameGroupChat } from "@/app/actions/messages";
+import { useMessagesText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 export function GroupNameEditor({
   conversationId,
@@ -19,6 +21,7 @@ export function GroupNameEditor({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const t = useMessagesText().t.group;
 
   function save() {
     const trimmed = draft.trim();
@@ -29,9 +32,7 @@ export function GroupNameEditor({
       fd.set("name", trimmed);
       const result = await renameGroupChat(conversationId, fd);
       if (result.error) {
-        setError(
-          result.error === "moderation" ? "That name didn't pass our content guidelines." : "Couldn't save that name.",
-        );
+        setError(result.error === "moderation" ? t.nameModeration : t.nameFailed);
         return;
       }
       setEditing(false);
@@ -46,7 +47,7 @@ export function GroupNameEditor({
   }
 
   if (!canEdit) {
-    return <h1 className="min-w-0 break-words text-lg font-semibold">{name}</h1>;
+    return <h1 dir="auto" className="min-w-0 break-words text-lg font-semibold">{name}</h1>;
   }
 
   if (!editing) {
@@ -54,10 +55,10 @@ export function GroupNameEditor({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        aria-label={`${name}, rename group`}
+        aria-label={format(t.rename, { name })}
         className="flex min-w-0 items-center gap-1.5"
       >
-        <h1 className="truncate text-lg font-semibold">{name}</h1>
+        <h1 dir="auto" className="truncate text-lg font-semibold">{name}</h1>
         <Pencil size={13} className="shrink-0 text-foreground-soft" />
       </button>
     );
@@ -79,7 +80,8 @@ export function GroupNameEditor({
           }}
           maxLength={60}
           autoFocus
-          aria-label="Group name"
+          aria-label={t.name}
+          dir="auto"
           className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 text-base font-semibold outline-none focus:border-accent"
         />
         <button
@@ -88,7 +90,7 @@ export function GroupNameEditor({
           onClick={save}
           className="shrink-0 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink disabled:opacity-50"
         >
-          Save
+          {t.save}
         </button>
         <button
           type="button"
@@ -96,7 +98,7 @@ export function GroupNameEditor({
           onClick={cancel}
           className="shrink-0 rounded-md border border-line px-2.5 py-1 text-xs disabled:opacity-50"
         >
-          Cancel
+          {t.cancel}
         </button>
       </div>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}

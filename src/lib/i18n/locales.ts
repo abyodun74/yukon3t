@@ -1,5 +1,9 @@
-// The languages the account screens (sign in, sign up, verify, password recovery, onboarding, sign out) are written
-// in, and how a request's language is chosen. Pure and client-safe: the half that reads next/headers is in server.ts.
+// The languages the translated parts of the app are written in, and how a request's language is chosen. Translated:
+// the landing page and the account screens (sign in, sign up, verify, password recovery, onboarding, sign out) and
+// their emails; everything under /messages; and the components src/components/ui-text.tsx serves wherever they are
+// mounted (comments, recorders and pickers, dictation, reactions, the report sheet). The rest of the app, and every
+// notification written for someone else (whose language isn't stored), is English.
+// Pure and client-safe: the half that reads next/headers is in server.ts.
 
 export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
@@ -66,4 +70,28 @@ export function format(template: string, values: Record<string, string | number>
   return template.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : placeholder,
   );
+}
+
+/**
+ * The tag to hand Intl (dates, plural rules) for wording in `locale`. English gets none, so dates keep the device's
+ * own regional format as they always have; Arabic asks for Western digits, the way ar.ts writes every number.
+ */
+export function intlLocale(locale: Locale): string | undefined {
+  if (locale === "en") return undefined;
+  return locale === "ar" ? "ar-u-nu-latn" : locale;
+}
+
+/**
+ * Picks the form of a "one: … | other: …" entry that `count` takes in `locale` and puts the number where "#" is.
+ * A category the entry doesn't list falls back to "other".
+ */
+export function plural(locale: Locale, forms: string, count: number): string {
+  const byCategory = new Map(
+    forms.split("|").map((part) => {
+      const colon = part.indexOf(":");
+      return [part.slice(0, colon).trim(), part.slice(colon + 1).trim()] as const;
+    }),
+  );
+  const category = new Intl.PluralRules(locale).select(count);
+  return (byCategory.get(category) ?? byCategory.get("other") ?? "").replaceAll("#", String(count));
 }

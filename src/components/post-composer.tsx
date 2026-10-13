@@ -22,7 +22,8 @@ import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { useReloadHold } from "@/lib/stale-build-client";
-import { DictationRecorder } from "@/components/dictation-recorder";
+import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
+import { useUiText } from "@/components/ui-text";
 import { cn } from "@/lib/utils";
 import { announce } from "@/lib/announce";
 
@@ -219,6 +220,8 @@ export function PostComposer({
   const [embedUrlValue, setEmbedUrlValue] = useState("");
   const [embedError, setEmbedError] = useState<string | null>(null);
   const [showDictation, setShowDictation] = useState(false);
+  // Dictation is the one part of this composer in the reader's language (see ui-text.tsx); the rest is English.
+  const dictation = useUiText().t.dictation;
   // Set when createPost pauses on an unrecognized device — holds the exact
   // FormData that attempt built (media already uploaded) so, once the
   // emailed code is confirmed, the same post can be resubmitted without
@@ -1293,8 +1296,8 @@ export function PostComposer({
             onClick={() => setShowDictation(true)}
             disabled={showDictation}
             className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
-            title="Dictate text"
-            aria-label="Dictate text"
+            title={dictation.button}
+            aria-label={dictation.button}
           >
             <Mic size={16} />
           </button>
@@ -1344,7 +1347,7 @@ export function PostComposer({
           onTranscribed={appendDictatedText}
           onError={(code) => {
             setStatus("error");
-            setErrorText(errorMessage(code));
+            setErrorText(dictationErrorMessage(dictation.errors, code) ?? errorMessage(code));
           }}
           onDone={() => setShowDictation(false)}
         />

@@ -30,6 +30,7 @@ import { LinkSafetyModal } from "@/components/link-safety-modal";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
+import { useUiText } from "@/components/ui-text";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
@@ -739,6 +740,8 @@ export function PostCard({
   // === null` means "not fetched yet", distinct from an empty published
   // list, so re-expanding after a collapse doesn't refetch unnecessarily.
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // The comment section is in the reader's language (see ui-text.tsx); the card around it is English.
+  const uiText = useUiText();
   const [comments, setComments] = useState<FlatComment[] | null>(null);
   const [commentsError, setCommentsError] = useState(false);
   const [commentsCanModerate, setCommentsCanModerate] = useState(false);
@@ -1167,10 +1170,10 @@ export function PostCard({
             }}
           />
           {isCommentsPending && comments === null && (
-            <p role="status" className="mt-3 animate-loading-pulse text-xs text-foreground-soft">Loading comments...</p>
+            <p role="status" lang={uiText.locale} dir={uiText.dir} className="mt-3 animate-loading-pulse text-xs text-foreground-soft">{uiText.t.comments.loading}</p>
           )}
           {commentsError && (
-            <p role="alert" className="mt-3 text-xs text-danger">Couldn&apos;t load comments — try again.</p>
+            <p role="alert" lang={uiText.locale} dir={uiText.dir} className="mt-3 text-xs text-danger">{uiText.t.comments.loadFailed}</p>
           )}
           {comments && (
             <CommentList

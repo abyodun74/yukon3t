@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { LOCALE_NAMES, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 
 /**
- * Language choice for the account screens. A native <select> (the one picker that behaves in both WKWebView and
+ * Language choice for the translated parts of the app (see src/lib/i18n/locales.ts): on the account screens, and
+ * under Settings for someone signed in. A native <select> (the one picker that behaves in both WKWebView and
  * Android WebView), each language under its own name. The choice goes in a cookie, never the URL, and the page
  * re-renders in place — client state on it (what has been typed into the sign-up form) is kept.
  */

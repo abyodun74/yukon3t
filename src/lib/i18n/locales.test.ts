@@ -3,9 +3,11 @@ import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   format,
+  intlLocale,
   isLocale,
   localeDirection,
   localeFromRequest,
+  plural,
   resolveLocale,
 } from "@/lib/i18n/locales";
 
@@ -101,5 +103,46 @@ describe("format", () => {
   it("leaves a placeholder with no value as written", () => {
     expect(format("Hi {name}", {})).toBe("Hi {name}");
     expect(format("Hi {toString}", {})).toBe("Hi {toString}");
+  });
+});
+
+describe("plural", () => {
+  const members = "one: # member | other: # members";
+
+  it("picks the form the count takes and fills in the number", () => {
+    expect(plural("en", members, 1)).toBe("1 member");
+    expect(plural("en", members, 0)).toBe("0 members");
+    expect(plural("en", members, 12)).toBe("12 members");
+  });
+
+  it("follows each language's own rules", () => {
+    // French counts 0 as singular; English does not.
+    expect(plural("fr", "one: # membre | other: # membres", 0)).toBe("0 membre");
+    const arabic = "zero: لا أعضاء | one: عضو واحد | two: عضوان | few: # أعضاء | many: # عضوًا | other: # عضو";
+    expect(plural("ar", arabic, 0)).toBe("لا أعضاء");
+    expect(plural("ar", arabic, 1)).toBe("عضو واحد");
+    expect(plural("ar", arabic, 2)).toBe("عضوان");
+    expect(plural("ar", arabic, 5)).toBe("5 أعضاء");
+    expect(plural("ar", arabic, 11)).toBe("11 عضوًا");
+    expect(plural("ar", arabic, 100)).toBe("100 عضو");
+  });
+
+  it("falls back to the other form for a category the entry doesn't list", () => {
+    expect(plural("es", "one: # miembro | other: # miembros", 1_000_000)).toBe("1000000 miembros");
+  });
+
+  it("keeps a sentence around the number, colons included", () => {
+    expect(plural("en", "one: Wrong PIN: # try left. | other: Wrong PIN: # tries left.", 3)).toBe(
+      "Wrong PIN: 3 tries left.",
+    );
+  });
+});
+
+describe("intlLocale", () => {
+  it("leaves English to the device and asks Arabic for Western digits", () => {
+    expect(intlLocale("en")).toBeUndefined();
+    expect(intlLocale("fr")).toBe("fr");
+    expect(intlLocale("ar")).toBe("ar-u-nu-latn");
+    expect(new Intl.NumberFormat(intlLocale("ar")).format(25)).toBe("25");
   });
 });

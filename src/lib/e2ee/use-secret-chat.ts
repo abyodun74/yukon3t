@@ -1,5 +1,6 @@
 "use client";
 
+import { messagesEn } from "@/lib/i18n/en";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getMyKeyBackup,
@@ -55,11 +56,14 @@ export function useSecretChat({
   conversationId,
   currentUserId,
   enabled,
+  unavailableLabel = messagesEn.thread.bubble.unavailable,
 }: {
   conversationId: string;
   currentUserId: string;
   /** False for group chats — nothing is loaded and the hook stays inert. */
   enabled: boolean;
+  /** What stands in for a message this device has no key for, in the reader's language. Like the English, it must not say why. */
+  unavailableLabel?: string;
 }) {
   const [state, setState] = useState<ServerState | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -197,10 +201,10 @@ export function useSecretChat({
       if (!isEncryptedContent(content)) return content;
       const hit = cache.current.get(content);
       if (hit === undefined) return "…";
-      if (hit === null) return "Message unavailable on this device";
+      if (hit === null) return unavailableLabel;
       return hit;
     },
-    [version],
+    [version, unavailableLabel],
   );
 
   const enable = useCallback(async () => {

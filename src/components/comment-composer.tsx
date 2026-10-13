@@ -7,13 +7,16 @@ import { createComment } from "@/app/actions/comments";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
-import { DictationRecorder } from "@/components/dictation-recorder";
+import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { announce } from "@/lib/announce";
+import { useUiText } from "@/components/ui-text";
+import type { uiEn } from "@/lib/i18n/en";
+import { plural } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS — duplicated locally
 // since storage.ts pulls in the server-only @aws-sdk/client-s3 SDK and can't
@@ -28,34 +31,17 @@ const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
-function formatSecondsLabel(seconds: number) {
-  if (seconds % 60 === 0 && seconds >= 60) {
-    const minutes = seconds / 60;
-    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
-  }
-  return `${seconds} second${seconds === 1 ? "" : "s"}`;
-}
-
-function errorMessage(code: string) {
+function errorMessage(errors: typeof uiEn.comments.composer.errors, code: string) {
   switch (code) {
     case "rate_limited":
-      return "You're commenting too fast — slow down a little.";
     case "too_large":
-      return "That file is too large.";
     case "moderation":
-      return "That video didn't pass our content guidelines and wasn't posted.";
     case "network":
-      return "Couldn't reach the server — check your connection and try again.";
     case "upload_failed":
-      return "Couldn't upload that file — try again.";
     case "invalid":
-      return "Couldn't post that comment — try again.";
-    case "unavailable":
-      return "Couldn't transcribe that clip — try again.";
-    case "not_configured":
-      return "Dictation isn't set up yet.";
+      return errors[code];
     default:
-      return "Couldn't post — try again.";
+      return errors.other;
   }
 }
 
@@ -81,6 +67,8 @@ export function CommentComposer({
   const router = useRouter();
   const videoInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { locale, dir, t: ui } = useUiText();
+  const t = ui.comments.composer;
 
   const hasOtherMedia = Boolean(pendingGif) || Boolean(pendingAudio) || Boolean(pendingVideo);
 
@@ -98,11 +86,11 @@ export function CommentComposer({
   function pickVideo(file: File | undefined) {
     if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
-      setErrorText("Use an MP4, MOV or WebM video.");
+      setErrorText(ui.media.videoType);
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      setErrorText("Video must be 2GB or smaller.");
+      setErrorText(ui.media.videoTooLarge);
       return;
     }
 
@@ -125,7 +113,7 @@ export function CommentComposer({
       if (!Number.isFinite(probe.duration)) return;
       if (probe.duration > MAX_UPLOAD_VIDEO_SECONDS) {
         setPendingVideo((current) => (current === file ? null : current));
-        setErrorText(`Videos must be ${formatSecondsLabel(MAX_UPLOAD_VIDEO_SECONDS)} or shorter.`);
+        setErrorText(plural(locale, t.videoTooLong, MAX_UPLOAD_VIDEO_SECONDS / 60));
         return;
       }
       setVideoDurationSeconds(Math.round(probe.duration));
@@ -137,6 +125,8 @@ export function CommentComposer({
 
   return (
     <form
+      lang={locale}
+      dir={dir}
       className="mt-2"
       action={() => {
         const trimmed = content.trim();
@@ -155,7 +145,7 @@ export function CommentComposer({
           if (audio) {
             const uploaded = await uploadFileDirect(audio, "comment-audio");
             if (!uploaded.ok) {
-              setErrorText(errorMessage(uploaded.error));
+              setErrorText(errorMessage(t.errors, uploaded.error));
               return;
             }
             audioUrl = uploaded.publicUrl;
@@ -169,7 +159,7 @@ export function CommentComposer({
               captureVideoFrameFromFile(video).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
             ]);
             if (!videoResult.ok) {
-              setErrorText(errorMessage(videoResult.error));
+              setErrorText(errorMessage(t.errors, videoResult.error));
               return;
             }
             videoUrl = videoResult.publicUrl;
@@ -186,7 +176,7 @@ export function CommentComposer({
           if (videoDurationSeconds !== null) fd.set("videoDurationSeconds", String(videoDurationSeconds));
           const result = await createComment(fd);
           if (result.error) {
-            setErrorText(errorMessage(result.error));
+            setErrorText(errorMessage(t.errors, result.error));
             return;
           }
           setContent("");
@@ -195,7 +185,7 @@ export function CommentComposer({
           setPendingVideo(null);
           setVideoDurationSeconds(null);
           setErrorText(null);
-          announce(parentId ? "Reply posted" : "Comment posted");
+          announce(parentId ? t.replyPosted : t.posted);
           router.refresh();
           onDone?.();
         });
@@ -207,8 +197,9 @@ export function CommentComposer({
         onChange={(e) => setContent(e.target.value)}
         maxLength={1000}
         rows={2}
-        placeholder={parentId ? "Write a reply..." : "Write a comment..."}
-        aria-label={parentId ? "Write a reply" : "Write a comment"}
+        placeholder={parentId ? t.reply : t.comment}
+        aria-label={parentId ? t.replyLabel : t.commentLabel}
+        dir="auto"
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
       <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
@@ -216,8 +207,8 @@ export function CommentComposer({
         <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="flex-1 truncate">GIF attached</span>
-          <button type="button" onClick={() => setPendingGif(null)} aria-label="Remove GIF" className="text-danger">
+          <span className="flex-1 truncate">{t.gifAttached}</span>
+          <button type="button" onClick={() => setPendingGif(null)} aria-label={t.removeGif} className="text-danger">
             <X size={14} />
           </button>
         </div>
@@ -225,8 +216,8 @@ export function CommentComposer({
       {pendingAudio && (
         <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Mic size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">Voice clip attached</span>
-          <button type="button" onClick={() => setPendingAudio(null)} aria-label="Remove voice clip" className="text-danger">
+          <span className="flex-1 truncate">{t.voiceAttached}</span>
+          <button type="button" onClick={() => setPendingAudio(null)} aria-label={t.removeVoice} className="text-danger">
             <X size={14} />
           </button>
         </div>
@@ -234,14 +225,14 @@ export function CommentComposer({
       {pendingVideo && (
         <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">Video attached</span>
+          <span className="flex-1 truncate">{t.videoAttached}</span>
           <button
             type="button"
             onClick={() => {
               setPendingVideo(null);
               setVideoDurationSeconds(null);
             }}
-            aria-label="Remove video"
+            aria-label={t.removeVideo}
             className="text-danger"
           >
             <X size={14} />
@@ -265,8 +256,8 @@ export function CommentComposer({
           type="button"
           onClick={() => setShowDictation(true)}
           disabled={showDictation}
-          title="Dictate text"
-          aria-label="Dictate text"
+          title={ui.dictation.button}
+          aria-label={ui.dictation.button}
           className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
         >
           <Mic size={16} />
@@ -275,19 +266,19 @@ export function CommentComposer({
           type="button"
           onClick={() => setShowRecorder(true)}
           disabled={hasOtherMedia}
-          title="Record a voice comment"
-          aria-label="Record a voice comment"
+          title={t.recordVoice}
+          aria-label={t.recordVoice}
           className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
         >
           <Mic size={18} />
         </button>
         <MediaPickerButton
           icon={<Video size={16} />}
-          title="Add a video"
+          title={ui.media.addVideo}
           disabled={hasOtherMedia}
           options={[
             {
-              label: "Upload from device",
+              label: ui.media.uploadFromDevice,
               icon: <Upload size={14} />,
               onSelect: () => {
                 if (isNativePickerActive()) return;
@@ -296,7 +287,7 @@ export function CommentComposer({
               },
             },
             {
-              label: "Record live",
+              label: ui.media.recordLive,
               icon: <Circle size={14} className="text-danger" fill="currentColor" />,
               onSelect: () => setShowVideoRecorder(true),
             },
@@ -307,7 +298,7 @@ export function CommentComposer({
           disabled={isPending || (content.trim().length === 0 && !pendingGif && !pendingAudio && !pendingVideo)}
           className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
         >
-          {isPending ? "Posting..." : parentId ? "Reply" : "Comment"}
+          {isPending ? t.posting : parentId ? t.submitReply : t.submit}
         </button>
         {onDone && (
           <button
@@ -315,7 +306,7 @@ export function CommentComposer({
             onClick={onDone}
             className="text-xs text-foreground-soft"
           >
-            Cancel
+            {ui.cancel}
           </button>
         )}
       </div>
@@ -323,7 +314,7 @@ export function CommentComposer({
       {showDictation && (
         <DictationRecorder
           onTranscribed={appendDictatedText}
-          onError={(code) => setErrorText(errorMessage(code))}
+          onError={(code) => setErrorText(dictationErrorMessage(ui.dictation.errors, code) ?? errorMessage(t.errors, code))}
           onDone={() => setShowDictation(false)}
         />
       )}

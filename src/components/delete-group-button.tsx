@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { deleteGroupChat } from "@/app/actions/messages";
+import { useMessagesText } from "@/components/ui-text";
 
 /**
  * Creator or site admin: deletes the whole group, for every member —
@@ -25,12 +26,14 @@ export function DeleteGroupButton({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // English on /admin/groups, which has no MessagesTextProvider above it.
+  const t = useMessagesText().t.group;
 
   if (confirming) {
     return (
       <div className="flex items-center gap-1.5 rounded-lg border border-danger/40 bg-danger/5 px-2 py-1.5 text-xs">
         <span className="text-danger">
-          {isAdminOverride ? "Delete this group for everyone? (admin)" : "Delete for everyone?"}
+          {isAdminOverride ? t.deleteConfirmAdmin : t.deleteConfirm}
         </span>
         <button
           type="button"
@@ -38,7 +41,7 @@ export function DeleteGroupButton({
           onClick={() => setConfirming(false)}
           className="rounded px-1.5 py-0.5 font-medium hover:bg-line disabled:opacity-50"
         >
-          Cancel
+          {t.cancel}
         </button>
         <button
           type="button"
@@ -50,7 +53,7 @@ export function DeleteGroupButton({
           }
           className="rounded bg-danger px-1.5 py-0.5 font-medium text-white transition-transform active:scale-95 disabled:opacity-50"
         >
-          Delete
+          {t.deleteAction}
         </button>
       </div>
     );
@@ -63,7 +66,7 @@ export function DeleteGroupButton({
       className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-danger transition-transform hover:border-danger active:scale-95"
     >
       <Trash2 size={13} />
-      {isAdminOverride ? "Delete group (admin)" : "Delete group"}
+      {isAdminOverride ? t.deleteAdmin : t.delete}
     </button>
   );
 }

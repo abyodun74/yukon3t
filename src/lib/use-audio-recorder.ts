@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useReloadHold } from "@/lib/stale-build-client";
+import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 /**
  * Shared getUserMedia/MediaRecorder lifecycle — extracted from
@@ -49,7 +51,15 @@ export function useAudioRecorder({
   const onRecordedRef = useRef(onRecorded);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  // The DOMException name getUserMedia failed with; worded below, in the reader's language.
+  const [errorName, setErrorName] = useState<string | null>(null);
+  const micErrors = useUiText().t.recorder.micErrors;
+  const error =
+    errorName === null
+      ? null
+      : Object.hasOwn(micErrors, errorName) && errorName !== "other"
+        ? micErrors[errorName as keyof typeof micErrors]
+        : format(micErrors.other, { name: errorName });
   useReloadHold("work", recording);
 
   useEffect(() => {
@@ -102,15 +112,7 @@ export function useAudioRecorder({
       })
       .catch((err: unknown) => {
         console.error("getUserMedia failed:", err);
-        const name = err instanceof DOMException ? err.name : "Unknown";
-        const message =
-          {
-            NotAllowedError: "Microphone access was denied. Check your browser's site permissions (and your OS privacy settings) and try again.",
-            NotFoundError: "No microphone was found on this device.",
-            NotReadableError: "Your microphone is already in use by another app.",
-            SecurityError: "This page isn't running in a secure context (mic access needs HTTPS, or localhost for dev).",
-          }[name] ?? `Couldn't access your microphone (${name}).`;
-        setError(message);
+        setErrorName(err instanceof DOMException ? err.name : "Unknown");
       });
     return () => {
       cancelled = true;
@@ -119,7 +121,7 @@ export function useAudioRecorder({
       if (tickRef.current) clearInterval(tickRef.current);
       // Reset for the next activation — a fresh acquisition shouldn't
       // inherit a stale error/recording/seconds state from last time.
-      setError(null);
+      setErrorName(null);
       setRecording(false);
       setSeconds(0);
     };

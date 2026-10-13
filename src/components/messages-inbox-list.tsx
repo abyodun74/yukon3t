@@ -6,6 +6,9 @@ import { Image as ImageIcon, Mic, MessageCircle, Search, Sticker, Users, Video }
 import { UserAvatar } from "@/components/user-link";
 import { formatInboxTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
+import { useMessagesText, useUiText } from "@/components/ui-text";
+import type { messagesEn } from "@/lib/i18n/en";
+import { format } from "@/lib/i18n/locales";
 
 type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 
@@ -27,42 +30,60 @@ export type InboxItem = {
   unread: boolean;
 };
 
-const MEDIA_PREVIEW: Record<Exclude<MediaType, "NONE">, { icon: typeof ImageIcon; label: string }> = {
-  IMAGE: { icon: ImageIcon, label: "Photo" },
-  VIDEO: { icon: Video, label: "Video" },
-  AUDIO: { icon: Mic, label: "Voice message" },
-  GIF: { icon: Sticker, label: "GIF" },
+const MEDIA_PREVIEW: Record<
+  Exclude<MediaType, "NONE">,
+  { icon: typeof ImageIcon; label: "photo" | "video" | "voice" | "gif" }
+> = {
+  IMAGE: { icon: ImageIcon, label: "photo" },
+  VIDEO: { icon: Video, label: "video" },
+  AUDIO: { icon: Mic, label: "voice" },
+  GIF: { icon: Sticker, label: "gif" },
 };
 
-function LastMessagePreview({ last, isGroup }: { last: InboxItem["last"]; isGroup: boolean }) {
+function LastMessagePreview({
+  last,
+  isGroup,
+  t,
+}: {
+  last: InboxItem["last"];
+  isGroup: boolean;
+  t: typeof messagesEn.inbox;
+}) {
   if (!last) return null;
   if (last.moderationStatus !== "PUBLISHED") {
-    return <span className="italic">Message under review</span>;
+    return <span className="italic rtl:not-italic">{t.underReview}</span>;
   }
   const media = last.mediaType !== "NONE" ? MEDIA_PREVIEW[last.mediaType] : null;
-  const prefix = last.mine ? "You: " : isGroup && last.senderName ? `${last.senderName.split(" ")[0]}: ` : "";
+  const text = last.content || (media ? t[media.label] : "");
+  const line = last.mine
+    ? format(t.mine, { text })
+    : isGroup && last.senderName
+      ? format(t.from, { name: last.senderName.split(" ")[0], text })
+      : text;
+  // dir="auto": the line is mostly what someone wrote, in whatever language they wrote it.
   if (media) {
     const Icon = media.icon;
     return (
       <span className="inline-flex min-w-0 items-center gap-1">
         <Icon size={13} className="shrink-0" />
-        <span className="truncate">
-          {prefix}
-          {last.content ? last.content : media.label}
+        <span dir="auto" className="truncate">
+          {line}
         </span>
       </span>
     );
   }
   return (
-    <span className="truncate">
-      {prefix}
-      {last.content}
+    <span dir="auto" className="truncate">
+      {line}
     </span>
   );
 }
 
 export function MessagesInboxList({ items }: { items: InboxItem[] }) {
   const [query, setQuery] = useState("");
+  const { locale, t: messages } = useMessagesText();
+  const t = messages.inbox;
+  const { t: ui } = useUiText();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -75,15 +96,15 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
       <div className="relative">
         <Search
           size={16}
-          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-soft"
+          className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-foreground-soft"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search conversations"
-          aria-label="Search conversations"
-          className="w-full rounded-full border border-line bg-surface py-2.5 pl-10 pr-4 text-sm outline-none focus:border-accent"
+          placeholder={t.search}
+          aria-label={t.search}
+          className="w-full rounded-full border border-line bg-surface py-2.5 ps-10 pe-4 text-sm outline-none focus:border-accent"
         />
       </div>
 
@@ -107,7 +128,7 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className={cn("truncate text-[0.9375rem]", c.unread ? "font-semibold" : "font-medium")}>
+                <p dir="auto" className={cn("truncate text-[0.9375rem]", c.unread ? "font-semibold" : "font-medium")}>
                   {c.label}
                 </p>
                 {c.last && (
@@ -117,7 +138,7 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
                       c.unread ? "font-medium text-accent" : "text-foreground-soft",
                     )}
                   >
-                    {formatInboxTime(c.last.createdAt)}
+                    {formatInboxTime(c.last.createdAt, locale, ui.time)}
                   </span>
                 )}
               </div>
@@ -129,15 +150,15 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
                   )}
                 >
                   {c.last ? (
-                    <LastMessagePreview last={c.last} isGroup={c.isGroup} />
+                    <LastMessagePreview last={c.last} isGroup={c.isGroup} t={t} />
                   ) : (
-                    <span>No messages yet</span>
+                    <span>{t.noMessages}</span>
                   )}
                 </div>
                 {c.unread && (
                   <>
                     <span aria-hidden className="unread-dot h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
-                    <span className="sr-only">Unread</span>
+                    <span className="sr-only">{t.unread}</span>
                   </>
                 )}
               </div>
@@ -147,7 +168,7 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
 
         {filtered.length === 0 && items.length > 0 && (
           <p className="px-2 py-8 text-center text-sm text-foreground-soft">
-            No conversations match &ldquo;{query}&rdquo;.
+            {format(t.noMatch, { query })}
           </p>
         )}
 
@@ -157,9 +178,9 @@ export function MessagesInboxList({ items }: { items: InboxItem[] }) {
               <MessageCircle size={20} />
             </div>
             <div>
-              <p className="font-medium">No conversations yet</p>
+              <p className="font-medium">{t.emptyTitle}</p>
               <p className="mt-1 text-sm text-foreground-soft">
-                Connect with someone from Discover first, or join a group.
+                {t.emptyBody}
               </p>
             </div>
           </div>

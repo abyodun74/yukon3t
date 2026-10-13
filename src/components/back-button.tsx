@@ -15,7 +15,16 @@ const CLASS_NAME = "mb-4 flex items-center gap-1 rounded-lg p-1.5 text-sm text-f
  *    where "back" through history could land somewhere unrelated and the
  *    real intent is "return to <this one place>".
  */
-export function BackButton({ fallbackHref = "/home", href }: { fallbackHref?: string; href?: string }) {
+export function BackButton({
+  fallbackHref = "/home",
+  href,
+  label = "Back",
+}: {
+  fallbackHref?: string;
+  href?: string;
+  /** For a screen that is in the reader's language (see src/lib/i18n); English everywhere else. */
+  label?: string;
+}) {
   const router = useRouter();
 
   if (href) {
@@ -23,8 +32,8 @@ export function BackButton({ fallbackHref = "/home", href }: { fallbackHref?: st
       // w-fit: unlike a <button>, an <a> set to display:flex stretches to the
       // full row, which would make the whole line a click target/hover area.
       <Link href={href} className={`${CLASS_NAME} w-fit`}>
-        <ArrowLeft size={18} />
-        Back
+        <ArrowLeft size={18} className="rtl:-scale-x-100" />
+        {label}
       </Link>
     );
   }
@@ -41,8 +50,8 @@ export function BackButton({ fallbackHref = "/home", href }: { fallbackHref?: st
       }}
       className={CLASS_NAME}
     >
-      <ArrowLeft size={18} />
-      Back
+      <ArrowLeft size={18} className="rtl:-scale-x-100" />
+      {label}
     </button>
   );
 }

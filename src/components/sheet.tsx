@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { hapticImpact } from "@/lib/haptics";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useUiText } from "@/components/ui-text";
 
 type SheetVariant = "dialog" | "bottom-sheet";
 
@@ -51,6 +52,8 @@ export function Sheet({
   ariaLabel,
   children,
   panelClassName,
+  lang,
+  dir,
 }: {
   open: boolean;
   onClose: () => void;
@@ -64,6 +67,9 @@ export function Sheet({
   children: ReactNode;
   /** Extra width/sizing classes for the panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). */
   panelClassName?: string;
+  /** For a sheet whose wording is in the reader's language while the screen under it is English (see ui-text.tsx): a sheet inside an already-translated screen inherits both and passes neither. */
+  lang?: string;
+  dir?: "ltr" | "rtl";
 }) {
   const titleId = useId();
   const dialogRef = useDialogFocus<HTMLDivElement>(open, onClose);
@@ -94,6 +100,8 @@ export function Sheet({
           aria-labelledby={title !== undefined ? titleId : undefined}
           aria-label={title !== undefined ? undefined : ariaLabel}
           tabIndex={-1}
+          lang={lang}
+          dir={dir}
         >
           {variant === "bottom-sheet" ? (
             <BottomSheetPanel onClose={onClose} title={title} titleId={titleId} responsive={responsive} panelClassName={panelClassName}>
@@ -130,6 +138,7 @@ function DialogPanel({
   panelClassName?: string;
   children: ReactNode;
 }) {
+  const closeLabel = useUiText().t.close;
   // panelClassName appends rather than truly overrides (two same-specificity
   // Tailwind classes setting the same property resolve by generated-CSS
   // order, not source order, so appending a conflicting max-w-* after the
@@ -149,7 +158,7 @@ function DialogPanel({
       {title !== undefined && (
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 id={titleId} className="min-w-0 text-sm font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-foreground-soft hover:text-danger">
+          <button type="button" onClick={onClose} aria-label={closeLabel} className="shrink-0 text-foreground-soft hover:text-danger">
             <X size={18} aria-hidden />
           </button>
         </div>
@@ -186,6 +195,7 @@ function BottomSheetPanel({
   panelClassName?: string;
   children: ReactNode;
 }) {
+  const closeLabel = useUiText().t.close;
   // Only handles the DISMISS decision — a non-dismissing release needs no
   // code of its own: dragConstraints={{top:0, bottom:0}} already makes
   // motion auto-spring the panel back to y:0 the instant the drag ends,
@@ -227,7 +237,7 @@ function BottomSheetPanel({
       {title !== undefined && (
         <div className="flex items-center justify-between gap-2 px-4 pb-2">
           <h2 id={titleId} className="min-w-0 text-sm font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-foreground-soft hover:text-danger">
+          <button type="button" onClick={onClose} aria-label={closeLabel} className="shrink-0 text-foreground-soft hover:text-danger">
             <X size={18} aria-hidden />
           </button>
         </div>

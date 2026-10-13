@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiText } from "@/components/ui-text";
+import { plural } from "@/lib/i18n/locales";
 import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
 
@@ -13,6 +15,7 @@ export function ReactionBar({
   mine?: boolean;
   onToggle: (emoji: string) => void;
 }) {
+  const { locale, t } = useUiText();
   if (reactions.length === 0) return null;
 
   return (
@@ -22,7 +25,7 @@ export function ReactionBar({
           key={emoji}
           type="button"
           onClick={() => onToggle(emoji)}
-          aria-label={`${emoji} ${count} ${count === 1 ? "reaction" : "reactions"}`}
+          aria-label={`${emoji} ${plural(locale, t.reactions.count, count)}`}
           aria-pressed={reactedByMe}
           className={cn(
             "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs",

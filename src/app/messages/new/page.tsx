@@ -4,6 +4,7 @@ import { createGroupChat } from "@/app/actions/messages";
 import { MultiSelect } from "@/components/multi-select";
 import { BackButton } from "@/components/back-button";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function NewGroupChatPage({
   searchParams,
@@ -12,6 +13,8 @@ export default async function NewGroupChatPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { error } = await searchParams;
+  const messages = (await getDictionary()).messages;
+  const t = messages.newGroup;
 
   const accepted = await prisma.connection.findMany({
     where: {
@@ -31,32 +34,29 @@ export default async function NewGroupChatPage({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
-      <BackButton fallbackHref="/messages/discover" />
-      <h1 className="mt-4 text-2xl font-semibold">Start a group chat</h1>
+      <BackButton fallbackHref="/messages/discover" label={messages.back} />
+      <h1 className="mt-4 text-2xl font-semibold">{t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Pick at least 2 connections to add, plus a name for the group.
+        {t.intro}
       </p>
 
       {error && (
         <p role="alert" className="mt-4 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {error === "rate_limited"
-            ? "You're creating groups too fast — try again in an hour."
-            : error === "moderation"
-              ? "That group name didn't pass our content guidelines."
-              : "Please check your inputs."}
+          {error === "rate_limited" || error === "moderation" ? t.errors[error] : t.errors.invalid}
         </p>
       )}
 
       {connections.length < 2 ? (
         <p className="mt-6 text-sm text-foreground-soft">
-          You need at least 2 connections to start a group.
+          {t.tooFew}
         </p>
       ) : (
         <form action={createGroupChat} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium">Group name</label>
+            <label className="block text-sm font-medium">{t.name}</label>
             <input
-              aria-label="Group name"
+              aria-label={t.name}
+              dir="auto"
               name="name"
               required
               minLength={2}
@@ -65,24 +65,25 @@ export default async function NewGroupChatPage({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium">Members</label>
+            <label className="block text-sm font-medium">{t.members}</label>
             <div className="mt-1">
               <MultiSelect
                 name="memberIds"
-                options={connections.map((c) => ({ value: c.id, label: c.name ?? "Unknown" }))}
+                options={connections.map((c) => ({ value: c.id, label: c.name ?? messages.fallback.unknown }))}
+                placeholder={messages.controls.multiSelect.placeholder}
+                labels={messages.controls.multiSelect}
               />
             </div>
           </div>
           <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
             <input type="checkbox" name="discoverable" defaultChecked />
-            Make this group discoverable — anyone can find it and request to join
-            (on by default; uncheck for an invite-only group)
+            {t.discoverable}
           </label>
           <button
             type="submit"
             className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
           >
-            Create group
+            {t.submit}
           </button>
         </form>
       )}

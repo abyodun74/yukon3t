@@ -12,17 +12,28 @@ import {
   setHiddenPin,
   unlockHiddenChats,
 } from "@/app/actions/hidden-chats";
-import { HiddenPinField, hiddenPinErrorMessage } from "@/components/hidden-pin-field";
+import { HiddenPinField, hiddenPinErrorMessage, type HiddenPinError } from "@/components/hidden-pin-field";
 import { MessagesInboxList, type InboxItem } from "@/components/messages-inbox-list";
 import { PasswordInput } from "@/components/password-input";
 import { HIDDEN_CHATS_PATH } from "@/lib/hidden-chats-rules";
+import { useMessagesText } from "@/components/ui-text";
 
 const PRIMARY_BUTTON =
   "w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50";
 const LINK_BUTTON = "text-sm font-medium text-accent hover:underline";
 const TEXT_INPUT =
   "w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
-const PINS_DIFFER = "Those two PINs don't match.";
+
+/** This file's wording, and the one function every form here words a failed PIN action with. */
+function useHiddenText() {
+  const { locale, t: messages } = useMessagesText();
+  const t = messages.hidden;
+  return {
+    t,
+    errorMessage: (result: HiddenPinError, secret: "pin" | "password" = "pin") =>
+      hiddenPinErrorMessage(result, locale, t.errors, secret),
+  };
+}
 
 function ErrorNote({ error }: { error: string | null }) {
   if (!error) return null;
@@ -69,16 +80,17 @@ function NewPinFields({
   onConfirmPin: (v: string) => void;
   autoFocus?: boolean;
 }) {
+  const { t } = useHiddenText();
   return (
     <>
       <HiddenPinField
         id="hidden-new-pin"
-        label="New PIN (4 to 8 digits)"
+        label={t.newPin}
         value={pin}
         onChange={onPin}
         autoFocus={autoFocus}
       />
-      <HiddenPinField id="hidden-confirm-pin" label="Enter it again" value={confirmPin} onChange={onConfirmPin} />
+      <HiddenPinField id="hidden-confirm-pin" label={t.confirmPin} value={confirmPin} onChange={onConfirmPin} />
     </>
   );
 }
@@ -88,12 +100,13 @@ export function SetHiddenPinForm({ submitLabel, onDone }: { submitLabel: string;
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { t, errorMessage } = useHiddenText();
 
   function submit() {
-    if (pin !== confirmPin) return setError(PINS_DIFFER);
+    if (pin !== confirmPin) return setError(t.errors.mismatch);
     startTransition(async () => {
       const result = await setHiddenPin(pin, confirmPin);
-      if (result.error && result.error !== "already_set") return setError(hiddenPinErrorMessage(result));
+      if (result.error && result.error !== "already_set") return setError(errorMessage(result));
       onDone();
     });
   }
@@ -102,7 +115,7 @@ export function SetHiddenPinForm({ submitLabel, onDone }: { submitLabel: string;
     <FormShell onSubmit={submit} error={error}>
       <NewPinFields pin={pin} confirmPin={confirmPin} onPin={setPin} onConfirmPin={setConfirmPin} autoFocus />
       <button type="submit" disabled={isPending} className={PRIMARY_BUTTON}>
-        {isPending ? "Saving..." : submitLabel}
+        {isPending ? t.saving : submitLabel}
       </button>
     </FormShell>
   );
@@ -112,13 +125,14 @@ function UnlockForm({ onDone }: { onDone: () => void }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { t, errorMessage } = useHiddenText();
 
   function submit() {
     startTransition(async () => {
       const result = await unlockHiddenChats(pin);
       if (result.error) {
         setPin("");
-        return setError(hiddenPinErrorMessage(result));
+        return setError(errorMessage(result));
       }
       onDone();
     });
@@ -126,9 +140,9 @@ function UnlockForm({ onDone }: { onDone: () => void }) {
 
   return (
     <FormShell onSubmit={submit} error={error}>
-      <HiddenPinField id="hidden-unlock-pin" label="PIN" value={pin} onChange={setPin} autoFocus />
+      <HiddenPinField id="hidden-unlock-pin" label={t.pin} value={pin} onChange={setPin} autoFocus />
       <button type="submit" disabled={isPending || pin.length < 4} className={PRIMARY_BUTTON}>
-        {isPending ? "Checking..." : "Unlock"}
+        {isPending ? t.checking : t.unlock}
       </button>
     </FormShell>
   );
@@ -140,12 +154,13 @@ function ChangePinForm({ onDone }: { onDone: () => void }) {
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { t, errorMessage } = useHiddenText();
 
   function submit() {
-    if (pin !== confirmPin) return setError(PINS_DIFFER);
+    if (pin !== confirmPin) return setError(t.errors.mismatch);
     startTransition(async () => {
       const result = await changeHiddenPin(currentPin, pin, confirmPin);
-      if (result.error) return setError(hiddenPinErrorMessage(result));
+      if (result.error) return setError(errorMessage(result));
       onDone();
     });
   }
@@ -154,14 +169,14 @@ function ChangePinForm({ onDone }: { onDone: () => void }) {
     <FormShell onSubmit={submit} error={error}>
       <HiddenPinField
         id="hidden-current-pin"
-        label="Current PIN"
+        label={t.currentPin}
         value={currentPin}
         onChange={setCurrentPin}
         autoFocus
       />
       <NewPinFields pin={pin} confirmPin={confirmPin} onPin={setPin} onConfirmPin={setConfirmPin} />
       <button type="submit" disabled={isPending} className={PRIMARY_BUTTON}>
-        {isPending ? "Saving..." : "Change PIN"}
+        {isPending ? t.saving : t.changePin}
       </button>
     </FormShell>
   );
@@ -176,23 +191,25 @@ function ResetPinForm({ hasPassword, onDone }: { hasPassword: boolean; onDone: (
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { t, errorMessage } = useHiddenText();
+  const passwordLabels = useMessagesText().t.controls.passwordInput;
 
   function sendCode() {
     setError(null);
     startTransition(async () => {
       const result = await requestHiddenPinResetCode();
-      if (result.error !== null) return setError(hiddenPinErrorMessage(result));
+      if (result.error !== null) return setError(errorMessage(result));
       setChallengeId(result.challengeId);
     });
   }
 
   function submit() {
-    if (pin !== confirmPin) return setError(PINS_DIFFER);
+    if (pin !== confirmPin) return setError(t.errors.mismatch);
     startTransition(async () => {
       const result = hasPassword
         ? await resetHiddenPin(password, pin, confirmPin)
         : await resetHiddenPinWithCode(challengeId ?? "", code, pin, confirmPin);
-      if (result.error) return setError(hiddenPinErrorMessage(result, "password"));
+      if (result.error) return setError(errorMessage(result, "password"));
       onDone();
     });
   }
@@ -201,11 +218,11 @@ function ResetPinForm({ hasPassword, onDone }: { hasPassword: boolean; onDone: (
     return (
       <div className="mt-5 space-y-4">
         <p className="text-sm text-foreground-soft">
-          We&apos;ll email a code to your account&apos;s address. Your hidden chats stay hidden.
+          {t.emailIntro}
         </p>
         <ErrorNote error={error} />
         <button type="button" disabled={isPending} onClick={sendCode} className={PRIMARY_BUTTON}>
-          {isPending ? "Sending..." : "Email me a code"}
+          {isPending ? t.sending : t.emailCode}
         </button>
       </div>
     );
@@ -216,7 +233,7 @@ function ResetPinForm({ hasPassword, onDone }: { hasPassword: boolean; onDone: (
       {hasPassword ? (
         <div>
           <label htmlFor="hidden-account-password" className="block text-sm font-medium">
-            Your account password
+            {t.accountPassword}
           </label>
           <PasswordInput
             id="hidden-account-password"
@@ -227,12 +244,13 @@ function ResetPinForm({ hasPassword, onDone }: { hasPassword: boolean; onDone: (
             onChange={(e) => setPassword(e.target.value)}
             wrapperClassName="mt-1"
             className={`ph-no-capture ${TEXT_INPUT}`}
+            labels={passwordLabels}
           />
         </div>
       ) : (
         <div>
           <label htmlFor="hidden-reset-code" className="block text-sm font-medium">
-            Code from the email
+            {t.codeLabel}
           </label>
           <input
             id="hidden-reset-code"
@@ -242,14 +260,15 @@ function ResetPinForm({ hasPassword, onDone }: { hasPassword: boolean; onDone: (
             maxLength={10}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            dir="ltr"
             className={`ph-no-capture mt-1 ${TEXT_INPUT}`}
           />
         </div>
       )}
       <NewPinFields pin={pin} confirmPin={confirmPin} onPin={setPin} onConfirmPin={setConfirmPin} />
-      <p className="text-xs text-foreground-soft">Your hidden chats stay hidden. Only the PIN changes.</p>
+      <p className="text-xs text-foreground-soft">{t.resetNote}</p>
       <button type="submit" disabled={isPending} className={PRIMARY_BUTTON}>
-        {isPending ? "Saving..." : "Reset PIN"}
+        {isPending ? t.saving : t.resetPin}
       </button>
     </FormShell>
   );
@@ -273,6 +292,7 @@ export function HiddenChatsPanel({
   const [mode, setMode] = useState<Mode>("main");
   const [notice, setNotice] = useState<string | null>(null);
   const [isLocking, startLocking] = useTransition();
+  const { t } = useHiddenText();
 
   function refresh(message: string | null) {
     setMode("main");
@@ -290,15 +310,15 @@ export function HiddenChatsPanel({
 
   const cancel = (
     <button type="button" onClick={() => setMode("main")} className={`mt-4 ${LINK_BUTTON}`}>
-      Cancel
+      {t.cancel}
     </button>
   );
 
   if (mode === "reset") {
     return (
       <div>
-        <h2 className="text-lg font-semibold">Reset your PIN</h2>
-        <ResetPinForm hasPassword={hasPassword} onDone={() => refresh("PIN reset. Enter the new one to continue.")} />
+        <h2 className="text-lg font-semibold">{t.resetTitle}</h2>
+        <ResetPinForm hasPassword={hasPassword} onDone={() => refresh(t.resetDone)} />
         {cancel}
       </div>
     );
@@ -306,8 +326,8 @@ export function HiddenChatsPanel({
   if (mode === "change") {
     return (
       <div>
-        <h2 className="text-lg font-semibold">Change your PIN</h2>
-        <ChangePinForm onDone={() => refresh("PIN changed.")} />
+        <h2 className="text-lg font-semibold">{t.changeTitle}</h2>
+        <ChangePinForm onDone={() => refresh(t.changeDone)} />
         {cancel}
       </div>
     );
@@ -317,10 +337,9 @@ export function HiddenChatsPanel({
     return (
       <div>
         <p className="text-sm text-foreground-soft">
-          Hide a chat from its menu and it leaves your Messages list, badges and notifications. It can only be opened
-          here, with a PIN. Choose one to get started.
+          {t.intro}
         </p>
-        <SetHiddenPinForm submitLabel="Set PIN" onDone={() => refresh("PIN set. Enter it to continue.")} />
+        <SetHiddenPinForm submitLabel={t.setPin} onDone={() => refresh(t.pinSet)} />
       </div>
     );
   }
@@ -329,7 +348,7 @@ export function HiddenChatsPanel({
     return (
       <div>
         {notice && <p className="mb-3 rounded-lg bg-accent-soft px-4 py-2 text-sm">{notice}</p>}
-        <p className="text-sm text-foreground-soft">Enter your PIN to continue.</p>
+        <p className="text-sm text-foreground-soft">{t.enterPin}</p>
         <UnlockForm
           onDone={() => {
             setNotice(null);
@@ -338,7 +357,7 @@ export function HiddenChatsPanel({
           }}
         />
         <button type="button" onClick={() => setMode("reset")} className={`mt-4 ${LINK_BUTTON}`}>
-          Forgot PIN?
+          {t.forgot}
         </button>
       </div>
     );
@@ -354,13 +373,13 @@ export function HiddenChatsPanel({
           disabled={isLocking}
           className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
         >
-          <Lock size={14} /> Lock now
+          <Lock size={14} /> {t.lockNow}
         </button>
         <button type="button" onClick={() => setMode("change")} className={LINK_BUTTON}>
-          Change PIN
+          {t.changePin}
         </button>
         <button type="button" onClick={() => setMode("reset")} className={LINK_BUTTON}>
-          Forgot PIN?
+          {t.forgot}
         </button>
       </div>
       <div className="mt-5">
@@ -368,7 +387,7 @@ export function HiddenChatsPanel({
           <MessagesInboxList items={items} />
         ) : (
           <p className="rounded-xl border border-dashed border-line px-6 py-10 text-center text-sm text-foreground-soft">
-            Nothing here yet. Open a chat, tap the menu at the top and choose &ldquo;Hide chat&rdquo;.
+            {t.empty}
           </p>
         )}
       </div>

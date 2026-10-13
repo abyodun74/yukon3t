@@ -21,7 +21,7 @@ import { summarizeReactionRows } from "@/lib/reactions";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { DictationRecorder } from "@/components/dictation-recorder";
+import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
@@ -43,11 +43,14 @@ import { ReportModal } from "@/components/report-form";
 import { E2EE_MAX_PLAINTEXT_BYTES, isEncryptedContent } from "@/lib/e2ee/constants";
 import { utf8ByteLength } from "@/lib/e2ee/crypto";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { formatDateTime, formatDaySeparator } from "@/lib/format-date";
+import { formatClockTime, formatDateTime, formatDaySeparator } from "@/lib/format-date";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { getDraft, setDraft } from "@/lib/message-draft-storage";
 import { announce } from "@/lib/announce";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
+import { useMessagesText, useUiText } from "@/components/ui-text";
+import type { messagesEn } from "@/lib/i18n/en";
+import { format, type Locale } from "@/lib/i18n/locales";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -63,53 +66,30 @@ const MAX_VIDEO_UPLOAD_BYTES = 2048 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
-// A hidden chat's PIN unlock ran out while the thread was open.
-const HIDDEN_LOCKED_MESSAGE = "Enter your PIN to keep chatting.";
+type ThreadText = typeof messagesEn.thread;
 
-function viewOnceErrorMessage(code: string) {
+function viewOnceErrorMessage(t: ThreadText, code: string) {
   switch (code) {
     case "unavailable":
-      return "View once isn't available right now.";
     case "not_supported":
-      return "View once only works in one-to-one chats.";
     case "too_large":
-      return "That's too large to send as view once.";
     case "invalid_type":
-      return "That file type can't be sent as view once.";
     case "frame_required":
-      return "Couldn't prepare that video for view once on this device.";
     case "moderation":
-      return "That violates our Community Guidelines and wasn't sent.";
     case "moderation_unavailable":
-      return "Couldn't check that right now, so it wasn't sent — try again in a moment.";
+      return t.viewOnceErrors[code];
     case "blocked":
-      return "This message couldn't be delivered.";
+      return t.errors.blocked;
     case "hidden_locked":
-      return HIDDEN_LOCKED_MESSAGE;
+      // A hidden chat's PIN unlock ran out while the thread was open.
+      return t.errors.hiddenLocked;
     case "rate_limited":
-      return "Slow down a little.";
+      return t.errors.rateLimited;
     case "network":
     case "stale_deployment":
-      return "Couldn't reach the server — check your connection and try again.";
+      return t.errors.network;
     default:
-      return "Couldn't send that.";
-  }
-}
-
-function dictationErrorMessage(code: string) {
-  switch (code) {
-    case "not_configured":
-      return "Dictation isn't set up yet.";
-    case "too_large":
-      return "That clip is too large.";
-    case "rate_limited":
-      return "You're dictating too fast — slow down a little.";
-    case "unavailable":
-      return "Couldn't transcribe that clip — try again.";
-    case "invalid":
-      return "Couldn't transcribe that clip — try again.";
-    default:
-      return "Couldn't reach the server — check your connection and try again.";
+      return t.errors.send;
   }
 }
 
@@ -182,11 +162,11 @@ type MemberData = {
 
 const SEEN_BY_NAME_LIMIT = 3;
 
-function seenByLabel(names: string[]) {
-  if (names.length === 0) return "Sent";
-  const shown = names.slice(0, SEEN_BY_NAME_LIMIT).join(", ");
+function seenByLabel(names: string[], t: ThreadText["receipts"], separator: string) {
+  if (names.length === 0) return t.sent;
+  const shown = names.slice(0, SEEN_BY_NAME_LIMIT).join(separator);
   const rest = names.length - SEEN_BY_NAME_LIMIT;
-  return `Seen by ${shown}${rest > 0 ? ` +${rest} more` : ""}`;
+  return rest > 0 ? format(t.seenByMore, { names: shown, rest }) : format(t.seenBy, { names: shown });
 }
 
 // Client-generated ids for a message optimistically appended before the
@@ -200,37 +180,41 @@ function isSendingMessage(message: MessageData): boolean {
 }
 
 function ReceiptIcon({ message }: { message: MessageData }) {
+  const t = useMessagesText().t.thread.receipts;
   if (isSendingMessage(message)) {
-    return <Clock size={12} role="img" aria-label="Sending" className="text-accent-ink/70" />;
+    return <Clock size={12} role="img" aria-label={t.sending} className="text-accent-ink/70" />;
   }
   if (message.readAt) {
-    return <CheckCheck size={13} role="img" aria-label="Read" className="text-sky-400" />;
+    return <CheckCheck size={13} role="img" aria-label={t.read} className="text-sky-400" />;
   }
   if (message.deliveredAt) {
-    return <CheckCheck size={13} role="img" aria-label="Delivered" className="text-accent-ink/70" />;
+    return <CheckCheck size={13} role="img" aria-label={t.delivered} className="text-accent-ink/70" />;
   }
-  return <Check size={13} role="img" aria-label="Sent" className="text-accent-ink/70" />;
+  return <Check size={13} role="img" aria-label={t.sent} className="text-accent-ink/70" />;
 }
 
-function formatTime(date: Date) {
-  return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function formatTime(date: Date, locale: Locale) {
+  return formatClockTime(date, locale);
 }
 
 /** One-line summary of a quoted message for the reply preview — shared by the composer bar and the in-bubble quote. */
-function replyPreviewText(target: {
-  content: string;
-  mediaType: MessageMediaType;
-  deletedForEveryoneAt: Date | null;
-}) {
-  if (target.deletedForEveryoneAt) return "Original message was deleted";
-  if (target.mediaType === "IMAGE") return "Photo";
-  if (target.mediaType === "VIDEO") return "Video";
-  if (target.mediaType === "AUDIO") return "Voice note";
-  if (target.mediaType === "GIF") return "GIF";
+function replyPreviewText(
+  target: {
+    content: string;
+    mediaType: MessageMediaType;
+    deletedForEveryoneAt: Date | null;
+  },
+  t: ThreadText["bubble"],
+) {
+  if (target.deletedForEveryoneAt) return t.quoteDeleted;
+  if (target.mediaType === "IMAGE") return t.photo;
+  if (target.mediaType === "VIDEO") return t.video;
+  if (target.mediaType === "AUDIO") return t.voiceNote;
+  if (target.mediaType === "GIF") return t.gif;
   return target.content;
 }
 
-// How far right a bubble must be dragged before releasing counts as
+// How far a bubble must be dragged (rightwards; leftwards where the page reads right to left) before releasing counts as
 // "reply" rather than an aborted swipe — matches the common WhatsApp/
 // Telegram threshold closely enough to feel familiar.
 const SWIPE_REPLY_THRESHOLD_PX = 56;
@@ -258,6 +242,8 @@ function CorrectionList({
   mine: boolean;
   onRemove: (correctionId: string) => void;
 }) {
+  const { t: messages } = useMessagesText();
+  const t = messages.thread.bubble;
   if (corrections.length === 0) return null;
 
   return (
@@ -273,19 +259,21 @@ function CorrectionList({
           className="ph-no-capture max-w-[min(calc(100vw-7.5rem),26rem)] rounded-lg border border-line bg-surface px-2 py-1 text-xs"
         >
           <div className="flex items-center gap-2">
-            <span className="font-medium text-foreground-soft">{c.author.name ?? "Someone"} suggests</span>
+            <span className="font-medium text-foreground-soft">
+              {format(t.suggestedBy, { name: c.author.name ?? messages.fallback.someone })}
+            </span>
             {c.authorId === currentUserId && (
               <button
                 type="button"
                 onClick={() => onRemove(c.id)}
-                aria-label="Remove correction"
-                className="ml-auto text-foreground-soft hover:text-danger"
+                aria-label={t.removeCorrection}
+                className="ms-auto text-foreground-soft hover:text-danger"
               >
                 <X size={11} />
               </button>
             )}
           </div>
-          <p className="mt-0.5 whitespace-pre-wrap break-words">{c.correctedText}</p>
+          <p dir="auto" className="mt-0.5 whitespace-pre-wrap break-words">{c.correctedText}</p>
         </div>
       ))}
     </div>
@@ -307,8 +295,9 @@ function ViewOnceChip({
   // Read once per mount: the only thing the clock decides here is "expired", 14 days out.
   const [now] = useState(() => Date.now());
   const mediaType = message.mediaType === "VIDEO" ? "VIDEO" : "IMAGE";
+  const { locale, t: messages } = useMessagesText();
   const state = viewOnceState({ ...message, mine, sending }, now);
-  const label = viewOnceLabel(state, mediaType);
+  const label = viewOnceLabel(state, mediaType, messages.thread.viewOnce.chip);
 
   if (state === "available") {
     return (
@@ -323,12 +312,12 @@ function ViewOnceChip({
     );
   }
   return (
-    <p className={cn("flex items-center gap-1.5 italic", mine ? "text-accent-ink/80" : "text-foreground-soft")}>
+    <p className={cn("flex items-center gap-1.5 italic rtl:not-italic", mine ? "text-accent-ink/80" : "text-foreground-soft")}>
       <Eye size={15} aria-hidden className="shrink-0" />
       <span>
         {label}
         {mine && state === "opened" && message.viewOnceOpenedAt && (
-          <span suppressHydrationWarning> · {formatTime(message.viewOnceOpenedAt)}</span>
+          <span suppressHydrationWarning> · {formatTime(message.viewOnceOpenedAt, locale)}</span>
         )}
       </span>
     </p>
@@ -399,6 +388,13 @@ function MessageBubble({
   } | null>(null);
   const [storyLoading, setStoryLoading] = useState(false);
   const [storyError, setStoryError] = useState(false);
+  const { locale, dir, t: messages } = useMessagesText();
+  const { t: ui } = useUiText();
+  const thread = messages.thread;
+  const t = thread.bubble;
+  // Which way the page reads decides which way a bubble is swiped to reply: away from the edge it sits against for
+  // an incoming message, so rightwards in a left-to-right page and leftwards in a right-to-left one.
+  const swipeSign = dir === "rtl" ? -1 : 1;
 
   async function openStory() {
     if (!message.story || storyLoading) return;
@@ -455,11 +451,11 @@ function MessageBubble({
   function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
     const drag = dragStateRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    const dx = e.clientX - drag.startX;
+    const dx = (e.clientX - drag.startX) * swipeSign;
     const dy = e.clientY - drag.startY;
 
     if (!drag.active) {
-      // Require a clearly-horizontal, rightward gesture before capturing the
+      // Require a clearly-horizontal gesture in the reply direction (dx is positive that way) before capturing the
       // pointer — otherwise a normal vertical scroll on mobile would get
       // hijacked the instant a touch has any horizontal component at all.
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
@@ -545,7 +541,7 @@ function MessageBubble({
       fd.set("correctedText", text);
       const result = await suggestCorrection(message.id, fd);
       if (result.error || !result.corrections) {
-        setCorrectionError("Couldn't save that suggestion.");
+        setCorrectionError(thread.errors.correction);
         return;
       }
       onCorrected(message.id, result.corrections);
@@ -567,7 +563,7 @@ function MessageBubble({
     if (!text || isPending) return;
     setEditError(null);
     if (secretActive && utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
-      setEditError("That's too long to send - please shorten it.");
+      setEditError(thread.errors.editTooLong);
       return;
     }
     startTransition(async () => {
@@ -578,14 +574,14 @@ function MessageBubble({
         try {
           wire = await encryptForEdit(text);
         } catch {
-          setEditError("Couldn't save that edit.");
+          setEditError(thread.errors.edit);
           return;
         }
       }
       fd.set("content", wire);
       const result = await editMessage(message.id, fd);
       if (result.error || !result.message) {
-        setEditError("Couldn't save that edit.");
+        setEditError(thread.errors.edit);
         return;
       }
       onEdited(result.message as MessageData);
@@ -599,10 +595,10 @@ function MessageBubble({
         {dragX > 0 && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 -left-7 flex items-center text-accent"
+            className="pointer-events-none absolute inset-y-0 -start-7 flex items-center text-accent"
             style={{ opacity: Math.min(dragX / SWIPE_REPLY_THRESHOLD_PX, 1) }}
           >
-            <Reply size={16} />
+            <Reply size={16} className="rtl:-scale-x-100" />
           </div>
         )}
         {sender && (
@@ -623,7 +619,7 @@ function MessageBubble({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           style={{
-            transform: dragX ? `translateX(${dragX}px)` : undefined,
+            transform: dragX ? `translateX(${dragX * swipeSign}px)` : undefined,
             transition: isDragging ? "none" : "transform 150ms ease",
             touchAction: "pan-y",
           }}
@@ -659,16 +655,16 @@ function MessageBubble({
               )}
             >
               <p className={cn("font-medium", mine ? "text-accent-ink/80" : "text-accent")}>
-                {message.replyTo.sender.id === currentUserId ? "You" : message.replyTo.sender.name ?? "Someone"}
+                {message.replyTo.sender.id === currentUserId ? t.you : message.replyTo.sender.name ?? messages.fallback.someone}
               </p>
-              <p className={cn("truncate", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
-                {replyPreviewText(message.replyTo)}
+              <p dir="auto" className={cn("truncate", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+                {replyPreviewText(message.replyTo, t)}
               </p>
             </div>
           )}
           {deleted ? (
-            <p className={cn("italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
-              This message was deleted
+            <p className={cn("italic rtl:not-italic", mine ? "text-accent-ink/70" : "text-foreground-soft")}>
+              {t.deleted}
             </p>
           ) : editing ? (
             <div className="space-y-1">
@@ -688,14 +684,15 @@ function MessageBubble({
                 maxLength={4000}
                 rows={2}
                 autoFocus
-                aria-label="Edit message"
+                aria-label={t.editLabel}
+                dir="auto"
                 className={cn(
                   "w-full resize-none rounded-lg bg-black/10 px-2 py-1 text-sm outline-none",
                   mine ? "text-accent-ink" : "text-foreground",
                 )}
               />
               <div className="flex items-center justify-end gap-2 text-[0.6875rem]">
-                {editError && <span role="alert" className="mr-auto text-danger">{editError}</span>}
+                {editError && <span role="alert" className="me-auto text-danger">{editError}</span>}
                 <button
                   type="button"
                   disabled={isPending}
@@ -706,7 +703,7 @@ function MessageBubble({
                   }}
                   className="rounded px-2 py-0.5 hover:bg-black/10"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="button"
@@ -714,12 +711,12 @@ function MessageBubble({
                   onClick={saveEdit}
                   className="rounded bg-black/10 px-2 py-0.5 font-medium disabled:opacity-50"
                 >
-                  Save
+                  {t.save}
                 </button>
               </div>
             </div>
           ) : message.moderationStatus !== "PUBLISHED" ? (
-            <p className="italic">This message is under review.</p>
+            <p className="italic rtl:not-italic">{t.underReview}</p>
           ) : (
             <>
               {message.story && (
@@ -728,7 +725,7 @@ function MessageBubble({
                   onClick={openStory}
                   disabled={storyLoading}
                   className={cn(
-                    "mb-1.5 flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-xs disabled:opacity-70",
+                    "mb-1.5 flex w-full items-center gap-2 rounded-lg p-1.5 text-start text-xs disabled:opacity-70",
                     mine ? "bg-black/10 hover:bg-black/15" : "bg-black/5 hover:bg-black/10",
                   )}
                 >
@@ -746,16 +743,16 @@ function MessageBubble({
                   </div>
                   <span className={cn(mine ? "text-accent-ink/70" : "text-foreground-soft")}>
                     {storyError
-                      ? "This story is no longer available."
+                      ? t.storyGone
                       : storyLoading
-                        ? "Opening…"
+                        ? t.storyOpening
                         : message.isForwardedStory
                           ? mine
-                            ? "You shared a story — tap to view"
-                            : "Shared a story — tap to view"
+                            ? t.storySharedMine
+                            : t.storyShared
                           : mine
-                            ? "You replied to their story — tap to view"
-                            : "Replied to your story — tap to view"}
+                            ? t.storyRepliedMine
+                            : t.storyReplied}
                   </span>
                 </button>
               )}
@@ -775,14 +772,14 @@ function MessageBubble({
                 <ViewOnceChip message={message} mine={mine} sending={sending} onOpen={() => setViewOnceOpen(true)} />
               )}
               {message.mediaType === "AUDIO" && message.mediaUrl && (
-                <audio controls preload="metadata" aria-label="Voice note" className="h-10 w-56 max-w-full" src={message.mediaUrl} />
+                <audio controls preload="metadata" aria-label={t.voiceNote} className="h-10 w-56 max-w-full" src={message.mediaUrl} />
               )}
               {message.mediaType === "VIDEO" && message.mediaUrl && (
                 <video
                   controls
                   preload="metadata"
                   poster={message.mediaThumbnailUrl ?? undefined}
-                  aria-label="Video message"
+                  aria-label={t.videoMessage}
                   className="max-h-72 w-full rounded-lg bg-black"
                 >
                   <source src={message.mediaUrl} />
@@ -793,7 +790,7 @@ function MessageBubble({
                   type="button"
                   onClick={() => setImageOpen(true)}
                   className="block w-full cursor-zoom-in"
-                  aria-label="View image full-screen"
+                  aria-label={t.viewImage}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- R2-hosted user upload, not a local/optimizable asset */}
                   <img
@@ -810,7 +807,7 @@ function MessageBubble({
                   type="button"
                   onClick={() => setImageOpen(true)}
                   className="block w-full cursor-zoom-in"
-                  aria-label="View GIF full-screen"
+                  aria-label={t.viewGif}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset */}
                   <img
@@ -828,11 +825,13 @@ function MessageBubble({
                   index={0}
                   onIndexChange={() => {}}
                   onClose={() => setImageOpen(false)}
-                  alt={message.mediaType === "GIF" ? "GIF shared in chat" : "Photo shared in chat"}
+                  alt={message.mediaType === "GIF" ? t.gifAlt : t.photoAlt}
                 />
               )}
               {message.content && (
                 <p
+                  // What someone wrote, in whatever language they wrote it: its own direction, not the page's.
+                  dir="auto"
                   className={cn(
                     "whitespace-pre-wrap break-words",
                     message.mediaType !== "NONE" && "mt-1.5",
@@ -850,20 +849,20 @@ function MessageBubble({
               mine ? "text-accent-ink/70" : "text-foreground-soft",
             )}
           >
-            {!deleted && message.editedAt && <span>Edited</span>}
+            {!deleted && message.editedAt && <span>{t.edited}</span>}
             {/* toLocaleTimeString depends on the runtime's timezone, which
                 differs between the server (render) and the browser
                 (hydration) — suppressHydrationWarning tells React that's
                 expected here rather than a real mismatch to warn about;
                 the browser's own local time is what should win anyway. */}
-            <span suppressHydrationWarning title={formatDateTime(message.createdAt)}>
-              {formatTime(message.createdAt)}
+            <span suppressHydrationWarning title={formatDateTime(message.createdAt, locale)}>
+              {formatTime(message.createdAt, locale)}
             </span>
             {mine && seenByNames === undefined && <ReceiptIcon message={message} />}
           </div>
           {mine && seenByNames !== undefined && (
-            <p className="mt-0.5 text-right text-[0.625rem] text-accent-ink/70">
-              {seenByLabel(seenByNames)}
+            <p className="mt-0.5 text-end text-[0.625rem] text-accent-ink/70">
+              {seenByLabel(seenByNames, thread.receipts, ui.listSeparator)}
             </p>
           )}
         </div>
@@ -891,18 +890,19 @@ function MessageBubble({
               maxLength={4000}
               rows={2}
               autoFocus
-              aria-label="Suggested correction"
+              aria-label={t.correctionLabel}
+              dir="auto"
               className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1 text-xs outline-none focus:border-accent"
             />
             <div className="mt-1 flex items-center justify-end gap-2 text-[0.6875rem]">
-              {correctionError && <span role="alert" className="mr-auto text-danger">{correctionError}</span>}
+              {correctionError && <span role="alert" className="me-auto text-danger">{correctionError}</span>}
               <button
                 type="button"
                 disabled={isPending}
                 onClick={cancelCorrection}
                 className="rounded px-2 py-0.5 hover:bg-line"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -910,7 +910,7 @@ function MessageBubble({
                 onClick={saveCorrection}
                 className="rounded bg-accent px-2 py-0.5 font-medium text-accent-ink disabled:opacity-50"
               >
-                Suggest
+                {t.suggest}
               </button>
             </div>
           </div>
@@ -929,7 +929,7 @@ function MessageBubble({
           <button
             type="button"
             onClick={toggleMenu}
-            aria-label="Message options"
+            aria-label={t.options}
             aria-expanded={menuOpen}
             className="rounded-full p-1 text-foreground-soft hover:bg-line"
           >
@@ -948,9 +948,9 @@ function MessageBubble({
                   setMenuOpen(false);
                   onReply(message);
                 }}
-                className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
               >
-                Reply
+                {t.reply}
               </button>
               {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && (
                 <button
@@ -960,9 +960,9 @@ function MessageBubble({
                     setMenuOpen(false);
                     openCorrection();
                   }}
-                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                  className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
                 >
-                  {myCorrection ? "Edit your correction" : "Suggest a correction"}
+                  {myCorrection ? t.editCorrection : t.suggestCorrection}
                 </button>
               )}
               {!mine && (
@@ -973,9 +973,9 @@ function MessageBubble({
                     setReporting(true);
                     setReportEverOpened(true);
                   }}
-                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                  className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
                 >
-                  Report
+                  {t.report}
                 </button>
               )}
               {mine && !message.viewOnce && (
@@ -988,9 +988,9 @@ function MessageBubble({
                     setEditError(null);
                     setEditing(true);
                   }}
-                  className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                  className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
                 >
-                  Edit
+                  {t.edit}
                 </button>
               )}
               <button
@@ -1003,9 +1003,9 @@ function MessageBubble({
                     if (!result.error) onDeleted(message.id, "me");
                   });
                 }}
-                className="block w-full px-3 py-2 text-left text-xs hover:bg-line"
+                className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
               >
-                Delete for me
+                {t.deleteForMe}
               </button>
               {mine && (
                 <button
@@ -1018,9 +1018,9 @@ function MessageBubble({
                       if (!result.error) onDeleted(message.id, "everyone");
                     });
                   }}
-                  className="block w-full px-3 py-2 text-left text-xs text-danger hover:bg-line"
+                  className="block w-full px-3 py-2 text-start text-xs text-danger hover:bg-line"
                 >
-                  Delete for everyone
+                  {t.deleteForEveryone}
                 </button>
               )}
             </div>
@@ -1092,6 +1092,9 @@ export function ChatThread({
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [showDictation, setShowDictation] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { locale, t: messagesText } = useMessagesText();
+  const { t: ui } = useUiText();
+  const t = messagesText.thread;
   const router = useRouter();
   // The server answers "hidden_locked" once this (hidden) chat's PIN unlock has expired or been cleared. Go to the PIN
   // prompt, which returns here; the composer's text is already kept as a draft.
@@ -1101,7 +1104,12 @@ export function ChatThread({
   const [isPending, startTransition] = useTransition();
 
   // Secret chats (end-to-end encrypted text) - 1:1 only; inert for groups. See src/lib/e2ee/.
-  const secret = useSecretChat({ conversationId, currentUserId, enabled: !isGroup });
+  const secret = useSecretChat({
+    conversationId,
+    currentUserId,
+    enabled: !isGroup,
+    unavailableLabel: t.bubble.unavailable,
+  });
   const prepareSecret = secret.prepare;
   // Decrypt whatever ciphertext is in the list (and in reply quotes) into the hook's cache.
   useEffect(() => {
@@ -1174,6 +1182,7 @@ export function ChatThread({
     }
     applyShare();
     return subscribePendingShareMedia(applyShare);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/subscribe-only, same as post-composer.tsx's copy: pickImage/pickVideoFile only set state and read this thread's wording, which doesn't change while it is mounted
   }, []);
 
   // The very first fetch of a newly-opened/switched-to thread is the real
@@ -1212,12 +1221,12 @@ export function ChatThread({
       setMembers(
         result.conversation.members.map((m) => ({
           userId: m.userId,
-          name: m.user.name ?? "Unknown",
+          name: m.user.name ?? messagesText.fallback.unknown,
           lastReadAt: m.lastReadAt,
         })),
       );
     }
-  }, [router]);
+  }, [router, messagesText.fallback.unknown]);
 
   // Ref indirection so the mount/conversation-switch effect below reads as
   // a plain property access to React's own static analysis — same pattern
@@ -1456,7 +1465,7 @@ export function ChatThread({
 
   function toggleViewOnce() {
     if (!viewOnce && pendingVideo && pendingVideo.size > VIEW_ONCE_MAX_VIDEO_BYTES) {
-      setError("View-once videos must be 64MB or smaller.");
+      setError(t.errors.viewOnceVideoTooLarge);
       return;
     }
     setError(null);
@@ -1474,7 +1483,7 @@ export function ChatThread({
     const file = image ?? video;
     if (!file) return;
     if (video && video.size > VIEW_ONCE_MAX_VIDEO_BYTES) {
-      setError("View-once videos must be 64MB or smaller.");
+      setError(t.errors.viewOnceVideoTooLarge);
       return;
     }
     const replyTo = replyTarget;
@@ -1511,7 +1520,7 @@ export function ChatThread({
     startTransition(async () => {
       const uploaded = await uploadViewOnceMedia(file, conversationId);
       if (!uploaded.ok) {
-        restore(viewOnceErrorMessage(uploaded.error));
+        restore(viewOnceErrorMessage(t, uploaded.error));
         if (uploaded.error === "hidden_locked") promptHiddenUnlock();
         return;
       }
@@ -1525,17 +1534,17 @@ export function ChatThread({
           replyToMessageId: replyTo?.id,
         });
       } catch {
-        restore(viewOnceErrorMessage("network"));
+        restore(viewOnceErrorMessage(t, "network"));
         return;
       }
       if (result.error) {
-        restore(viewOnceErrorMessage(result.error));
+        restore(viewOnceErrorMessage(t, result.error));
         if (result.error === "hidden_locked") promptHiddenUnlock();
         return;
       }
       await refetch();
       dropOptimistic();
-      announce("Message sent");
+      announce(t.sent);
     });
   }
 
@@ -1551,11 +1560,11 @@ export function ChatThread({
     // never send it as readable text.
     if (text && secret.active) {
       if (utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
-        setError("That message is too long - please shorten it.");
+        setError(t.errors.tooLong);
         return;
       }
       if (!secret.canEncrypt) {
-        setError("This device can't send messages here yet - unlock your messages first.");
+        setError(t.errors.cantSendYet);
         return;
       }
     }
@@ -1610,7 +1619,7 @@ export function ChatThread({
         try {
           wireContent = await secret.encrypt(text);
         } catch {
-          setError("Couldn't send that message - it was NOT sent.");
+          setError(t.errors.notSent);
           setContent(text);
           setPendingAudio(audio);
           setPendingVideo(video);
@@ -1623,7 +1632,7 @@ export function ChatThread({
       }
       const media = await uploadPendingMedia();
       if ("error" in media) {
-        setError("Couldn't send that.");
+        setError(t.errors.send);
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);
@@ -1649,7 +1658,7 @@ export function ChatThread({
         // A rejected server-action call (e.g. no connectivity) would
         // otherwise be an uncaught exception that crashes the whole page
         // instead of showing a normal composer error.
-        setError("Couldn't reach the server — check your connection and try again.");
+        setError(t.errors.network);
         setContent(text);
         setPendingAudio(audio);
         setPendingVideo(video);
@@ -1665,14 +1674,14 @@ export function ChatThread({
         if (modeChanged) void secret.refresh();
         setError(
           result.error === "rate_limited"
-            ? "Slow down a little."
+            ? t.errors.rateLimited
             : result.error === "blocked"
-              ? "This message couldn't be delivered."
+              ? t.errors.blocked
               : result.error === "hidden_locked"
-                ? HIDDEN_LOCKED_MESSAGE
+                ? t.errors.hiddenLocked
               : modeChanged
-                ? "This chat's settings just changed - tap send again."
-                : "Couldn't send that.",
+                ? t.errors.modeChanged
+                : t.errors.send,
         );
         setContent(text);
         setPendingAudio(audio);
@@ -1685,14 +1694,14 @@ export function ChatThread({
         return;
       }
       settleOptimistic(result.message ? (result.message as MessageData) : null);
-      announce("Message sent");
+      announce(t.sent);
     });
   }
 
   async function pickImage(file: File | undefined) {
     if (!file) return;
     if (!IMAGE_TYPES.includes(file.type)) {
-      setError("Use a JPEG, PNG, WebP, or GIF image.");
+      setError(t.errors.imageType);
       return;
     }
     // Resize before the size check — see post-composer.tsx's pickImages
@@ -1700,7 +1709,7 @@ export function ChatThread({
     // version essentially never does).
     const resized = await resizeImageFile(file);
     if (resized.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 25MB or smaller.");
+      setError(t.errors.imageTooLarge);
       return;
     }
     setPendingAudio(null);
@@ -1713,11 +1722,11 @@ export function ChatThread({
   function pickVideoFile(file: File | undefined) {
     if (!file) return;
     if (!VIDEO_TYPES.includes(file.type)) {
-      setError("Use an MP4, MOV or WebM video.");
+      setError(ui.media.videoType);
       return;
     }
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-      setError("Video must be 2GB or smaller.");
+      setError(ui.media.videoTooLarge);
       return;
     }
     setPendingAudio(null);
@@ -1803,9 +1812,13 @@ export function ChatThread({
   const lastIncomingId = lastIncoming?.id;
   const lastIncomingAt = lastIncoming ? new Date(lastIncoming.createdAt).getTime() : 0;
   const lastIncomingText = lastIncoming
-    ? `${memberById.get(lastIncoming.senderId)?.name ?? conversationLabel}: ${
-        lastIncoming.moderationStatus === "PUBLISHED" ? replyPreviewText(viewOf(lastIncoming)) : "New message"
-      }`
+    ? format(t.incoming, {
+        name: memberById.get(lastIncoming.senderId)?.name ?? conversationLabel,
+        text:
+          lastIncoming.moderationStatus === "PUBLISHED"
+            ? replyPreviewText(viewOf(lastIncoming), t.bubble)
+            : t.newMessage,
+      })
     : "";
   const newestAt = messages.reduce((max, m) => Math.max(max, new Date(m.createdAt).getTime()), 0);
   const incomingAnnouncerRef = useRef<HTMLParagraphElement>(null);
@@ -1841,14 +1854,14 @@ export function ChatThread({
       role="switch"
       aria-checked={viewOnceOn}
       onClick={toggleViewOnce}
-      title="The other person can open it once, then it's deleted"
+      title={t.composer.viewOnceHint}
       className={cn(
         "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium",
         viewOnceOn ? "border-accent bg-accent text-accent-ink" : "border-line text-foreground-soft hover:bg-line",
       )}
     >
       <Eye size={13} aria-hidden />
-      View once
+      {t.composer.viewOnce}
     </button>
   ) : null;
 
@@ -1882,7 +1895,7 @@ export function ChatThread({
               {showDateSeparator && (
                 <div className="my-4 flex items-center justify-center">
                   <span className="rounded-full border border-line bg-surface px-3 py-1 text-[0.6875rem] font-medium text-foreground-soft">
-                    {formatDaySeparator(m.createdAt)}
+                    {formatDaySeparator(m.createdAt, locale, ui.time)}
                   </span>
                 </div>
               )}
@@ -1915,9 +1928,7 @@ export function ChatThread({
         })}
         {messages.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            {isGroup
-              ? "Say hello to the group!"
-              : "Say hello — if you're not connected yet, this doubles as a connection request."}
+            {isGroup ? t.emptyGroup : t.empty}
           </p>
         )}
         <div ref={bottomRef} />
@@ -1930,17 +1941,21 @@ export function ChatThread({
         // viewport (e.g. with the on-screen keyboard open) — losing sight of
         // who you're replying to, or the cancel button, mid-pick.
         <div className="ph-no-capture relative z-[60] mt-3 flex items-center gap-2 rounded-lg border border-line bg-background px-3 py-2 text-xs">
-          <Reply size={14} className="shrink-0 text-accent" />
+          <Reply size={14} className="shrink-0 text-accent rtl:-scale-x-100" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-accent">
-              Replying to {replyTarget.senderId === currentUserId ? "yourself" : (memberById.get(replyTarget.senderId)?.name ?? "them")}
+              {replyTarget.senderId === currentUserId
+                ? t.composer.replyingToSelf
+                : memberById.has(replyTarget.senderId)
+                  ? format(t.composer.replyingTo, { name: memberById.get(replyTarget.senderId)!.name })
+                  : t.composer.replyingToUnknown}
             </p>
-            <p className="truncate text-foreground-soft">{replyPreviewText(replyTarget)}</p>
+            <p dir="auto" className="truncate text-foreground-soft">{replyPreviewText(replyTarget, t.bubble)}</p>
           </div>
           <button
             type="button"
             onClick={() => setReplyTarget(null)}
-            aria-label="Cancel reply"
+            aria-label={t.composer.cancelReply}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -1951,11 +1966,11 @@ export function ChatThread({
       {pendingAudio && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Mic size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">Voice note ready to send</span>
+          <span className="flex-1 truncate">{t.composer.voiceReady}</span>
           <button
             type="button"
             onClick={() => setPendingAudio(null)}
-            aria-label="Remove voice note"
+            aria-label={t.composer.removeVoice}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -1965,7 +1980,7 @@ export function ChatThread({
       {pendingVideo && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">{viewOnceOn ? "View-once video · sent without a caption" : "Video ready to send"}</span>
+          <span className="flex-1 truncate">{viewOnceOn ? t.composer.viewOnceVideo : t.composer.videoReady}</span>
           {viewOnceToggle}
           <button
             type="button"
@@ -1973,7 +1988,7 @@ export function ChatThread({
               setPendingVideo(null);
               setViewOnce(false);
             }}
-            aria-label="Remove video"
+            aria-label={t.composer.removeVideo}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -1984,7 +1999,7 @@ export function ChatThread({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview, not an optimizable remote image */}
           <img src={pendingImagePreviewUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="flex-1 truncate">{viewOnceOn ? "View-once photo · sent without a caption" : "Photo ready to send"}</span>
+          <span className="flex-1 truncate">{viewOnceOn ? t.composer.viewOncePhoto : t.composer.photoReady}</span>
           {viewOnceToggle}
           <button
             type="button"
@@ -1992,7 +2007,7 @@ export function ChatThread({
               setPendingImage(null);
               setViewOnce(false);
             }}
-            aria-label="Remove photo"
+            aria-label={t.composer.removePhoto}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -2003,11 +2018,11 @@ export function ChatThread({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted preview, not a local/optimizable asset */}
           <img src={pendingGif} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="flex-1 truncate">GIF ready to send</span>
+          <span className="flex-1 truncate">{t.composer.gifReady}</span>
           <button
             type="button"
             onClick={() => setPendingGif(null)}
-            aria-label="Remove GIF"
+            aria-label={t.composer.removeGif}
             className="p-2 -m-2 text-danger"
           >
             <X size={14} />
@@ -2091,14 +2106,18 @@ export function ChatThread({
           rows={1}
           placeholder={
             viewOnceOn
-              ? "View-once media is sent without a caption"
+              ? t.composer.viewOncePlaceholder
               : pendingAudio || pendingVideo || pendingImage || pendingGif
-              ? "Add a caption (optional)..."
-              : `Message ${conversationLabel}...`
+              ? t.composer.captionPlaceholder
+              : format(t.composer.placeholder, { name: conversationLabel })
           }
           aria-label={
-            pendingAudio || pendingVideo || pendingImage || pendingGif ? "Add a caption" : `Message ${conversationLabel}`
+            pendingAudio || pendingVideo || pendingImage || pendingGif
+              ? t.composer.captionLabel
+              : format(t.composer.label, { name: conversationLabel })
           }
+          // Follows what is being typed; while empty, the placeholder (in the page's language) decides.
+          dir="auto"
           className="max-h-32 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />
@@ -2110,10 +2129,10 @@ export function ChatThread({
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             <MediaPickerButton
               icon={<ImagePlus size={16} />}
-              title="Add a photo"
+              title={t.composer.addPhoto}
               options={[
                 {
-                  label: "Upload from device",
+                  label: ui.media.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -2122,7 +2141,7 @@ export function ChatThread({
                   },
                 },
                 {
-                  label: "Take a photo",
+                  label: t.composer.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -2134,10 +2153,10 @@ export function ChatThread({
             />
             <MediaPickerButton
               icon={<Video size={16} />}
-              title="Add a video"
+              title={ui.media.addVideo}
               options={[
                 {
-                  label: "Upload from device",
+                  label: ui.media.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
                     if (isNativePickerActive()) return;
@@ -2146,7 +2165,7 @@ export function ChatThread({
                   },
                 },
                 {
-                  label: "Record live",
+                  label: ui.media.recordLive,
                   icon: <Circle size={14} className="text-danger" fill="currentColor" />,
                   onSelect: () => {
                     setPendingAudio(null);
@@ -2169,8 +2188,8 @@ export function ChatThread({
               type="button"
               onClick={() => setShowDictation(true)}
               disabled={showDictation}
-              title="Dictate text"
-              aria-label="Dictate text"
+              title={ui.dictation.button}
+              aria-label={ui.dictation.button}
               className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
             >
               <Mic size={16} />
@@ -2181,17 +2200,17 @@ export function ChatThread({
               type="button"
               disabled={isPending}
               onClick={handleSend}
-              aria-label="Send"
+              aria-label={t.composer.send}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
             >
-              <Send size={17} />
+              <Send size={17} className="rtl:-scale-x-100" />
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setShowAudioRecorder(true)}
-              title="Record a voice note"
-              aria-label="Record a voice note"
+              title={t.composer.recordVoice}
+              aria-label={t.composer.recordVoice}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink"
             >
               <Mic size={18} />
@@ -2204,7 +2223,7 @@ export function ChatThread({
       {showDictation && (
         <DictationRecorder
           onTranscribed={appendDictatedText}
-          onError={(code) => setError(dictationErrorMessage(code))}
+          onError={(code) => setError(dictationErrorMessage(ui.dictation.errors, code) ?? t.errors.network)}
           onDone={() => setShowDictation(false)}
         />
       )}

@@ -11,7 +11,7 @@ export default function Loading() {
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton
             key={i}
-            className={`h-9 rounded-2xl ${i % 2 === 0 ? "ml-auto w-1/2" : "w-2/5"}`}
+            className={`h-9 rounded-2xl ${i % 2 === 0 ? "ms-auto w-1/2" : "w-2/5"}`}
           />
         ))}
       </div>

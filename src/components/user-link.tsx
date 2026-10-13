@@ -112,7 +112,7 @@ export function UserLink({
       <UserAvatar avatarUrl={avatarUrl} name={name} size={avatarSize} online={online} />
       <span className={cn("min-w-0", wrap ? "whitespace-normal break-words" : "truncate")}>
         <span className="font-medium">{name ?? "Unknown"}</span>
-        {showUsername && username && <span className="ml-1 text-foreground-soft">@{username}</span>}
+        {showUsername && username && <span className="ms-1 text-foreground-soft">@{username}</span>}
       </span>
     </Link>
   );

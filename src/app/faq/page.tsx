@@ -418,7 +418,9 @@ const sections: Section[] = [
             posting or sending. This is separate from the round mic/send
             button in a chat, which instead sends the recording itself as a
             voice note — the dictation mic sits next to the emoji button and
-            always produces editable text.
+            always produces editable text. Speak in your own language:
+            Spanish, French, Portuguese, Arabic and many others are recognised
+            automatically, whatever language the app is shown in.
           </>
         ),
       },
@@ -1705,8 +1707,15 @@ const sections: Section[] = [
             menu at the top corner of the home page (below Sign in) or at the
             bottom of the other account screens — the choice is
             remembered on that device. The home page you see before signing
-            in is in those five languages too. In Arabic those screens read
-            right to left. The rest of the app is currently in English.
+            in is in those five languages too; once you&apos;re signed in,
+            change it under Settings &rarr; Language. So are Messages (your
+            conversation list, chats, group chats and hidden chats), comments
+            on posts, the voice, video and GIF pickers they open, dictation and
+            the report form. In Arabic those screens read right to left. The
+            rest of the app — the menus, your feed, Circles, Settings,
+            and the notifications we send — is currently in English.
+            What people write is never translated: a message or comment
+            appears in the language it was written in.
           </>
         ),
       },

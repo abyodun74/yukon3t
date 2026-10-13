@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { fileReport } from "@/app/actions/reports";
 import { hapticNotification } from "@/lib/haptics";
-import { reportReasonCategoryValues, reportReasonCategoryLabels } from "@/lib/validations";
+import { reportReasonCategoryValues } from "@/lib/validations";
 import { Sheet } from "@/components/sheet";
+import { useUiText } from "@/components/ui-text";
 
 export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
 
@@ -38,6 +39,8 @@ export function ReportModal({
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<"idle" | "sent" | "error">("idle");
   const [isPending, startTransition] = useTransition();
+  const { locale, dir, t: ui } = useUiText();
+  const t = ui.report;
 
   // Resets the form at the start of each new open, so a reopen starts
   // fresh (previously automatic, since each open used to be a brand new
@@ -61,37 +64,42 @@ export function ReportModal({
     <Sheet
       open={open}
       onClose={onClose}
-      title={`Report ${targetType === "USER" ? "this account" : targetType === "COMMENT" ? "comment" : targetType === "MESSAGE" ? "this message" : "post"}`}
+      title={
+        targetType === "USER" || targetType === "COMMENT" || targetType === "MESSAGE"
+          ? t.titles[targetType]
+          : t.titles.POST
+      }
+      lang={locale}
+      dir={dir}
     >
       {status === "sent" ? (
-        <p className="mt-3 text-sm text-success">Reported. Our team reviews reports within 24 hours.</p>
+        <p className="mt-3 text-sm text-success">{t.sent}</p>
       ) : (
         <>
-          <label className="mt-3 block text-xs font-medium text-foreground-soft">Reason</label>
+          <label className="mt-3 block text-xs font-medium text-foreground-soft">{t.reason}</label>
           <select
-            aria-label="Reason"
+            aria-label={t.reason}
             value={category}
             onChange={(e) => setCategory(e.target.value as typeof category)}
             className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           >
             {reportReasonCategoryValues.map((value) => (
               <option key={value} value={value}>
-                {reportReasonCategoryLabels[value]}
+                {t.reasons[value]}
               </option>
             ))}
           </select>
           <textarea
-            aria-label="A few details (min 10 characters)"
+            aria-label={t.details}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="A few details (min 10 characters)"
+            placeholder={t.details}
             rows={3}
             className="mt-2 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
           {evidenceText !== undefined && (
             <p className="mt-2 rounded-md bg-accent-soft px-2 py-1.5 text-xs text-foreground-soft">
-              We can&apos;t read this message ourselves. Submitting this report shares its text with
-              our moderators so they can review it.
+              {t.evidence}
             </p>
           )}
           <div className="mt-3 flex items-center gap-2">
@@ -114,13 +122,13 @@ export function ReportModal({
               }}
               className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
             >
-              Submit report
+              {t.submit}
             </button>
             <button type="button" onClick={onClose} className="text-xs text-foreground-soft">
-              Cancel
+              {ui.cancel}
             </button>
           </div>
-          {status === "error" && <p role="alert" className="mt-2 text-xs text-danger">Couldn&apos;t submit — try again shortly.</p>}
+          {status === "error" && <p role="alert" className="mt-2 text-xs text-danger">{t.error}</p>}
         </>
       )}
     </Sheet>
@@ -132,7 +140,7 @@ export function ReportTrigger({
   targetType,
   targetId,
   reportedUserId,
-  label = "Report",
+  label,
 }: {
   targetType: ReportTargetType;
   targetId: string;
@@ -144,6 +152,7 @@ export function ReportTrigger({
   // likersEverOpenedRef for why this needs to gate the mount instead of
   // `open` itself once Sheet owns the exit animation.
   const [everOpened, setEverOpened] = useState(false);
+  const reportLabel = useUiText().t.report.trigger;
   return (
     <>
       <button
@@ -154,7 +163,7 @@ export function ReportTrigger({
         }}
         className="text-xs text-foreground-soft hover:text-danger"
       >
-        {label}
+        {label ?? reportLabel}
       </button>
       {everOpened && (
         <ReportModal

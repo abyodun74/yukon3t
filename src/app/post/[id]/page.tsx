@@ -10,6 +10,8 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { loadPostComments } from "@/lib/comments-data";
+import { localeDirection } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 export default async function PostDetailPage({
   params,
@@ -84,6 +86,10 @@ export default async function PostDetailPage({
     }
   }
 
+  // The comment section is in the reader's language; the post above it is not translated.
+  const locale = await getLocale();
+  const commentsText = (await getDictionary()).ui.comments;
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <BackButton />
@@ -92,8 +98,12 @@ export default async function PostDetailPage({
       <PostCard post={postWithState} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
 
       <div className="mt-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
-          Comments
+        <h2
+          lang={locale}
+          dir={localeDirection(locale)}
+          className="text-sm font-semibold uppercase tracking-wide text-foreground-soft rtl:tracking-normal"
+        >
+          {commentsText.heading}
         </h2>
         <CommentComposer postId={id} />
         <CommentList

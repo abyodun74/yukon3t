@@ -6,6 +6,8 @@ import { getViewOnceContentType, openViewOnceMessage, finishViewOnceMessage } fr
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { viewOnceCanPlay, type ViewOnceMediaType } from "@/lib/view-once";
+import { useMessagesText } from "@/components/ui-text";
+import type { messagesEn } from "@/lib/i18n/en";
 
 type Phase =
   | { step: "confirm" }
@@ -15,23 +17,20 @@ type Phase =
   | { step: "failed"; message: string; retry: boolean };
 
 const DOWNLOAD_ATTEMPTS = 3;
-const UNPLAYABLE_MESSAGE = "This video can't be played on this device. Open it on another device.";
 
-function failureFor(code: string): { message: string; retry: boolean } {
+function failureFor(
+  code: string,
+  failures: typeof messagesEn.thread.viewOnce.failures,
+): { message: string; retry: boolean } {
   switch (code) {
     case "already_viewed":
-      return { message: "This has already been viewed.", retry: false };
     case "expired":
-      return { message: "This has expired.", retry: false };
+      return { message: failures[code], retry: false };
     case "unavailable":
-      return { message: "View-once media isn't available right now.", retry: true };
     case "download":
-      return {
-        message: "Couldn't load it — check your connection. You can try again for about two minutes.",
-        retry: true,
-      };
+      return { message: failures[code], retry: true };
     default:
-      return { message: "This is no longer available.", retry: false };
+      return { message: failures.gone, retry: false };
   }
 }
 
@@ -57,6 +56,7 @@ export function ViewOnceViewer({
   onClose: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>({ step: "confirm" });
+  const t = useMessagesText().t.thread.viewOnce;
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
   const objectUrlRef = useRef<string | null>(null);
   const aliveRef = useRef(true);
@@ -118,18 +118,18 @@ export function ViewOnceViewer({
       }
       if (!aliveRef.current) return;
       if (!kind) {
-        setPhase({ step: "failed", message: "Couldn't load it — check your connection and try again.", retry: true });
+        setPhase({ step: "failed", message: t.failures.precheck, retry: true });
         return;
       }
       if (kind.error !== null) {
-        setPhase({ step: "failed", ...failureFor(kind.error) });
+        setPhase({ step: "failed", ...failureFor(kind.error, t.failures) });
         return;
       }
       if (
         kind.contentType &&
         !viewOnceCanPlay(kind.contentType, (type) => document.createElement("video").canPlayType(type))
       ) {
-        setPhase({ step: "failed", message: UNPLAYABLE_MESSAGE, retry: false });
+        setPhase({ step: "failed", message: t.failures.unplayable, retry: false });
         return;
       }
     }
@@ -169,16 +169,15 @@ export function ViewOnceViewer({
       }
       if (attempt < DOWNLOAD_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
     }
-    if (aliveRef.current) setPhase({ step: "failed", ...failureFor(failure) });
-  }, [messageId]);
+    if (aliveRef.current) setPhase({ step: "failed", ...failureFor(failure, t.failures) });
+  }, [messageId, t]);
 
-  const noun = mediaType === "VIDEO" ? "video" : "photo";
   // The bytes arrived but the element can't show them. Nothing more this device can do with the file.
   const onMediaError = () => {
     finish();
     setPhase({
       step: "failed",
-      message: `This ${noun} couldn't be shown on this device.`,
+      message: t.failures.cantShow[mediaType],
       retry: false,
     });
   };
@@ -190,7 +189,7 @@ export function ViewOnceViewer({
       role="dialog"
       // Also what keeps nav.tsx's swipe-between-tabs listener off any gesture made in here.
       aria-modal="true"
-      aria-label={`View-once ${noun}`}
+      aria-label={t.label[mediaType]}
       tabIndex={-1}
       onContextMenu={blockSave}
       // ph-no-capture: private media, kept out of session replay like every message bubble.
@@ -200,8 +199,8 @@ export function ViewOnceViewer({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
-        className="absolute right-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 rounded-full bg-black/40 p-2 text-white/80 hover:text-white"
+        aria-label={t.close}
+        className="absolute end-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 rounded-full bg-black/40 p-2 text-white/80 hover:text-white"
       >
         <X size={24} aria-hidden />
       </button>
@@ -209,10 +208,9 @@ export function ViewOnceViewer({
       {phase.step === "confirm" && (
         <div className="w-full max-w-sm rounded-2xl bg-surface p-5 text-center text-foreground">
           <Eye size={28} aria-hidden className="mx-auto text-accent" />
-          <h2 className="mt-3 text-base font-semibold">You can only view this once</h2>
+          <h2 className="mt-3 text-base font-semibold">{t.confirmTitle}</h2>
           <p className="mt-2 text-sm text-foreground-soft">
-            When you close this {noun}, or leave the app, it&apos;s gone — it&apos;s deleted and can&apos;t be opened
-            again by anyone.
+            {t.confirmBody[mediaType]}
           </p>
           <div className="mt-5 flex gap-2">
             <button
@@ -220,14 +218,14 @@ export function ViewOnceViewer({
               onClick={onClose}
               className="flex-1 rounded-lg border border-line px-3 py-2 text-sm font-medium hover:bg-line"
             >
-              Not now
+              {t.notNow}
             </button>
             <button
               type="button"
               onClick={() => void load()}
               className="flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-ink"
             >
-              View {noun}
+              {t.view[mediaType]}
             </button>
           </div>
         </div>
@@ -235,7 +233,7 @@ export function ViewOnceViewer({
 
       {phase.step === "loading" && (
         <p role="status" className="text-sm text-white/80">
-          Loading…
+          {t.loading}
         </p>
       )}
 
@@ -250,7 +248,7 @@ export function ViewOnceViewer({
               onClick={onClose}
               className="flex-1 rounded-lg border border-line px-3 py-2 text-sm font-medium hover:bg-line"
             >
-              Close
+              {t.close}
             </button>
             {phase.retry && (
               <button
@@ -258,7 +256,7 @@ export function ViewOnceViewer({
                 onClick={() => void load()}
                 className="flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-ink"
               >
-                Try again
+                {t.tryAgain}
               </button>
             )}
           </div>
@@ -269,7 +267,7 @@ export function ViewOnceViewer({
         // eslint-disable-next-line @next/next/no-img-element -- in-memory blob: URL, not an optimizable remote image
         <img
           src={phase.objectUrl}
-          alt={`View-once ${noun}`}
+          alt={t.label[phase.mediaType]}
           draggable={false}
           onLoad={finish}
           onError={onMediaError}
@@ -292,7 +290,7 @@ export function ViewOnceViewer({
           onLoadedData={finish}
           onError={onMediaError}
           onContextMenu={blockSave}
-          aria-label={`View-once ${noun}`}
+          aria-label={t.label[phase.mediaType]}
           className="max-h-full max-w-full bg-black"
           style={{ WebkitTouchCallout: "none" }}
         />

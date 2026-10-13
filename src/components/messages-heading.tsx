@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { HIDDEN_CHATS_PATH } from "@/lib/hidden-chats-rules";
+import { useMessagesText } from "@/components/ui-text";
 
 const LONG_PRESS_MS = 600;
 
@@ -14,6 +15,7 @@ const LONG_PRESS_MS = 600;
 export function MessagesHeading() {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { t } = useMessagesText();
 
   function cancel() {
     if (timer.current) clearTimeout(timer.current);
@@ -33,7 +35,7 @@ export function MessagesHeading() {
       onPointerCancel={cancel}
       onContextMenu={(e) => e.preventDefault()}
     >
-      Messages
+      {t.inbox.title}
     </h1>
   );
 }

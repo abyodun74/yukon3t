@@ -21,6 +21,7 @@ import { isViewOnceConfigured } from "@/lib/storage";
 import { HiddenRelock } from "@/components/hidden-relock";
 import { getHiddenPeerIds, isMembershipLocked } from "@/lib/hidden-chats";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
+import { getDictionary } from "@/lib/i18n/server";
 
 export default async function ConversationPage({
   params,
@@ -29,6 +30,7 @@ export default async function ConversationPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { id } = await params;
+  const t = (await getDictionary()).messages;
 
   const [membership, conversation] = await Promise.all([
     prisma.conversationMember.findUnique({
@@ -55,10 +57,10 @@ export default async function ConversationPage({
 
     return (
       <div className="mx-auto max-w-lg px-4 py-14">
-        <BackButton fallbackHref="/messages" />
-        <h1 className="mt-4 break-words text-2xl font-semibold">{conversation.name ?? "Group"}</h1>
+        <BackButton fallbackHref="/messages" label={t.back} />
+        <h1 dir="auto" className="mt-4 break-words text-2xl font-semibold">{conversation.name ?? t.fallback.group}</h1>
         <p className="mt-1 text-sm text-foreground-soft">
-          You&apos;re not a member of this group yet.
+          {t.group.notMember}
         </p>
         <div className="mt-6">
           <JoinRequestButton
@@ -83,11 +85,11 @@ export default async function ConversationPage({
 
   const other = conversation.members.find((m) => m.user.id !== me.id)?.user;
   const conversationLabel = conversation.isGroup
-    ? (conversation.name ?? "Group")
-    : (other?.name ?? "Conversation");
+    ? (conversation.name ?? t.fallback.group)
+    : (other?.name ?? t.fallback.conversation);
   const members = conversation.members.map((m) => ({
     userId: m.user.id,
-    name: m.user.name ?? "Unknown",
+    name: m.user.name ?? t.fallback.unknown,
     username: m.user.username,
     avatarUrl: m.user.avatarUrl,
     lastReadAt: m.lastReadAt,
@@ -140,7 +142,7 @@ export default async function ConversationPage({
           return accepted
             .map((c) => (c.requesterId === me.id ? c.target : c.requester))
             .filter((u) => !memberIds.has(u.id) && !hiddenPeerIds.has(u.id))
-            .map((u) => ({ value: u.id, label: u.name ?? "Unknown" }));
+            .map((u) => ({ value: u.id, label: u.name ?? t.fallback.unknown }));
         })()
       : Promise.resolve([]),
 
@@ -194,7 +196,7 @@ export default async function ConversationPage({
     <div className="mx-auto max-w-2xl px-4 py-6">
       <ScreenshotContextTracker context={{ type: "conversation", id }} />
       {hidden && <HiddenRelock />}
-      <BackButton fallbackHref="/messages" />
+      <BackButton fallbackHref="/messages" label={t.back} />
       <div className="flex items-center justify-between gap-2">
         {conversation.isGroup ? (
           <GroupNameEditor
@@ -212,7 +214,7 @@ export default async function ConversationPage({
             className="text-lg font-semibold"
           />
         ) : (
-          <h1 className="text-lg font-semibold">{conversationLabel}</h1>
+          <h1 dir="auto" className="text-lg font-semibold">{conversationLabel}</h1>
         )}
         <div className="flex shrink-0 items-center gap-2">
           {!conversation.isGroup && other && (
@@ -247,7 +249,7 @@ export default async function ConversationPage({
       {pendingRequests.length > 0 && (
         <div className="mt-4">
           <JoinRequestList
-            requests={pendingRequests.map((r) => ({ id: r.id, name: r.user.name ?? "Unknown" }))}
+            requests={pendingRequests.map((r) => ({ id: r.id, name: r.user.name ?? t.fallback.unknown }))}
           />
         </div>
       )}
@@ -255,7 +257,7 @@ export default async function ConversationPage({
         <div className="mt-4">
           <ConnectionRequestBanner
             connectionId={pendingConnection.id}
-            otherName={other.name ?? "them"}
+            otherName={other.name ?? t.fallback.someone}
             iAmRequester={pendingConnection.requesterId === me.id}
           />
         </div>

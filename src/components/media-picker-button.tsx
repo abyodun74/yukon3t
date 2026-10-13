@@ -115,7 +115,7 @@ export function MediaPickerButton({
                 setOpen(false);
                 option.onSelect();
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-line"
             >
               {option.icon}
               {option.label}

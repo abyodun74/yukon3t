@@ -26,6 +26,7 @@ import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { UiTextProvider } from "@/components/ui-text";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
@@ -170,9 +171,12 @@ export default async function RootLayout({
   const session = await auth();
   const iosApp = isLikelyIosAppUserAgent((await headers()).get("user-agent"));
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
-  // The page shell is English; only the account screens and the nav's own sign out / sign in follow this.
+  // The page shell is English. What follows this: the account screens, the nav's own sign out / sign in, everything
+  // under /messages (its own layout), and the components UiTextProvider serves wherever they are mounted (comments,
+  // recorders and pickers, dictation, the report sheet).
   const locale = await getLocale();
-  const navLabels = (await getDictionary()).nav;
+  const dictionary = await getDictionary();
+  const navLabels = dictionary.nav;
 
   return (
     <html
@@ -225,6 +229,7 @@ export default async function RootLayout({
             rather than each animated component wrapping itself, same
             reasoning as CallSessionProvider just inside it. */}
         <MotionConfig reducedMotion="user">
+          <UiTextProvider locale={locale} text={dictionary.ui}>
           <CallSessionProvider>
             <AppSplash />
             <CapacitorBridge />
@@ -279,6 +284,7 @@ export default async function RootLayout({
               <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
             </footer>
           </CallSessionProvider>
+          </UiTextProvider>
         </MotionConfig>
       </body>
     </html>

@@ -3,6 +3,8 @@
 import { Circle, Mic, Square } from "lucide-react";
 import { useAudioRecorder } from "@/lib/use-audio-recorder";
 import { Sheet } from "@/components/sheet";
+import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 /**
  * In-browser microphone recording for a chat voice note — same lifecycle/
@@ -29,9 +31,10 @@ export function AudioRecorderModal({
     fileNamePrefix: "voice-note",
     active: open,
   });
+  const { locale, dir, t } = useUiText();
 
   return (
-    <Sheet open={open} onClose={onClose} title="Record a voice note">
+    <Sheet open={open} onClose={onClose} title={t.recorder.voiceTitle} lang={locale} dir={dir}>
       {error ? (
         <p className="text-sm text-danger">{error}</p>
       ) : (
@@ -39,7 +42,9 @@ export function AudioRecorderModal({
           <div className="flex flex-col items-center justify-center rounded-lg bg-background py-8">
             <Mic size={32} className={recording ? "text-danger" : "text-foreground-soft"} />
             <span className="mt-2 text-xs text-foreground-soft">
-              {recording ? `${seconds}s / ${maxSeconds}s` : `Up to ${maxSeconds}s`}
+              {recording
+                ? format(t.recorder.progress, { seconds, max: maxSeconds })
+                : format(t.recorder.limit, { max: maxSeconds })}
             </span>
           </div>
           <div className="mt-3 flex items-center justify-center">
@@ -49,7 +54,7 @@ export function AudioRecorderModal({
                 onClick={start}
                 className="flex items-center gap-1.5 rounded-full bg-danger px-4 py-2 text-sm font-medium text-white"
               >
-                <Circle size={14} fill="currentColor" /> Record
+                <Circle size={14} fill="currentColor" /> {t.recorder.record}
               </button>
             ) : (
               <button
@@ -57,7 +62,7 @@ export function AudioRecorderModal({
                 onClick={stop}
                 className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium"
               >
-                <Square size={14} fill="currentColor" /> Stop
+                <Square size={14} fill="currentColor" /> {t.recorder.stop}
               </button>
             )}
           </div>

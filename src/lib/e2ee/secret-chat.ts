@@ -73,7 +73,10 @@ export function pushPreview(params: { secret: boolean; content: string; mediaTyp
   }
 }
 
-/** The inbox's last-message line: ciphertext is unreadable noise, so show a plain stand-in that doesn't mark the chat as secret. */
-export function inboxPreview(content: string): string {
-  return isEncryptedContent(content) ? "Message" : content;
+/**
+ * The inbox's last-message line: ciphertext is unreadable noise, so show a plain stand-in that doesn't mark the chat
+ * as secret. `standIn` is that word in the reader's language ("Message", `fallback.message` in src/lib/i18n).
+ */
+export function inboxPreview(content: string, standIn = "Message"): string {
+  return isEncryptedContent(content) ? standIn : content;
 }

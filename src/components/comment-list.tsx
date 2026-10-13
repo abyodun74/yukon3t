@@ -1,4 +1,7 @@
+"use client";
+
 import { CommentCard } from "@/components/comment-card";
+import { useUiText } from "@/components/ui-text";
 import { buildCommentTree, type FlatComment } from "@/lib/comment-tree";
 
 export function CommentList({
@@ -21,17 +24,18 @@ export function CommentList({
   onCommentCountChange?: (delta: number) => void;
 }) {
   const tree = buildCommentTree(comments);
+  const { locale, dir, t } = useUiText();
 
   if (tree.length === 0) {
     return (
-      <p className="mt-4 text-sm text-foreground-soft">
-        No comments yet — be the first to say something.
+      <p lang={locale} dir={dir} className="mt-4 text-sm text-foreground-soft">
+        {t.comments.empty}
       </p>
     );
   }
 
   return (
-    <div className="mt-4 divide-y divide-line">
+    <div lang={locale} dir={dir} className="mt-4 divide-y divide-line">
       {tree.map((comment) => (
         <div key={comment.id} className="py-3 first:pt-0">
           <CommentCard

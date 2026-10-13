@@ -2,13 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { isOnline } from "@/lib/presence";
 import { inboxPreview } from "@/lib/e2ee/secret-chat";
 import type { InboxItem } from "@/components/messages-inbox-list";
+import { messagesEn } from "@/lib/i18n/en";
 
 /**
  * The rows of a conversation list for one user: "visible" is the Messages inbox, "hidden" is the PIN-locked area
  * (/messages/hidden) — the same query split on the caller's own ConversationMember.hiddenAt, so a conversation is
  * always in exactly one of the two. Callers of "hidden" must have checked isHiddenUnlocked first.
  */
-export async function getInboxItems(userId: string, which: "visible" | "hidden"): Promise<InboxItem[]> {
+export async function getInboxItems(
+  userId: string,
+  which: "visible" | "hidden",
+  /** What a row is called when the data has no name for it, in the reader's language. */
+  names: Pick<typeof messagesEn.fallback, "group" | "unknown" | "message"> = messagesEn.fallback,
+): Promise<InboxItem[]> {
   const conversations = await prisma.conversation.findMany({
     where: { members: { some: { userId, hiddenAt: which === "hidden" ? { not: null } : null } } },
     include: {
@@ -36,7 +42,7 @@ export async function getInboxItems(userId: string, which: "visible" | "hidden")
   return conversations.map((c) => {
     const myMembership = c.members.find((m) => m.user.id === userId);
     const other = c.members.find((m) => m.user.id !== userId)?.user;
-    const label = c.isGroup ? (c.name ?? "Group") : (other?.name ?? "Unknown");
+    const label = c.isGroup ? (c.name ?? names.group) : (other?.name ?? names.unknown);
     const last = c.messages[0];
     const unread = Boolean(
       last &&
@@ -51,7 +57,7 @@ export async function getInboxItems(userId: string, which: "visible" | "hidden")
       online: c.isGroup ? false : isOnline(other?.lastSeenAt ?? null),
       last: last
         ? {
-            content: inboxPreview(last.content),
+            content: inboxPreview(last.content, names.message),
             mediaType: last.mediaType,
             moderationStatus: last.moderationStatus,
             createdAt: last.createdAt,

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { useUiText } from "@/components/ui-text";
 import dynamic from "next/dynamic";
 import { Plus, Smile } from "lucide-react";
 // Type-only import — erased entirely at build time, so this doesn't pull
@@ -76,6 +77,7 @@ export function EmojiPickerButton({
   quickReactions?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useUiText();
   const skippedFirstOpenChange = useRef(false);
   useEffect(() => {
     if (!skippedFirstOpenChange.current) {
@@ -259,8 +261,8 @@ export function EmojiPickerButton({
         type="button"
         onClick={toggleOpen}
         className={triggerClassName ?? "rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"}
-        title={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
-        aria-label={triggerVariant === "plus" ? "More emoji" : "Add an emoji"}
+        title={triggerVariant === "plus" ? t.reactions.more : t.reactions.add}
+        aria-label={triggerVariant === "plus" ? t.reactions.more : t.reactions.add}
         aria-expanded={open}
       >
         {triggerVariant === "plus" ? <Plus size={16} /> : <Smile size={16} />}
@@ -273,7 +275,7 @@ export function EmojiPickerButton({
             // Not aria-modal: this is a popover, the page behind stays
             // usable (and nav.tsx's tab-swipe exclusion must not apply).
             role="dialog"
-            aria-label="Emoji picker"
+            aria-label={t.reactions.picker}
             tabIndex={-1}
             className={`fixed ${popupZClass} flex flex-col overflow-hidden rounded-lg shadow-lg outline-none`}
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
@@ -302,8 +304,8 @@ export function EmojiPickerButton({
                 <button
                   type="button"
                   onClick={expandToFullPicker}
-                  title="More emoji"
-                  aria-label="More emoji"
+                  title={t.reactions.more}
+                  aria-label={t.reactions.more}
                   className="shrink-0 rounded-full border border-line p-1.5 text-foreground-soft hover:bg-line"
                 >
                   <Plus size={18} />

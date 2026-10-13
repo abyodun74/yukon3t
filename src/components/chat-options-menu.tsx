@@ -7,6 +7,7 @@ import { hideConversation, unhideConversation } from "@/app/actions/hidden-chats
 import { SetHiddenPinForm } from "@/components/hidden-chats-panel";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useMessagesText } from "@/components/ui-text";
 
 type ChatOptions = {
   privacyOpen: boolean;
@@ -34,6 +35,7 @@ export function useChatOptions() {
 function SetPinDialog({ onClose, onPinSet }: { onClose: () => void; onPinSet: () => void }) {
   const titleId = useId();
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+  const t = useMessagesText().t.options;
 
   return (
     <div
@@ -51,15 +53,14 @@ function SetPinDialog({ onClose, onPinSet }: { onClose: () => void; onPinSet: ()
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id={titleId} className="text-lg font-semibold">
-          Choose a PIN
+          {t.pinTitle}
         </h2>
         <p className="mt-1 text-sm text-foreground-soft">
-          Hidden chats leave your Messages list and can only be opened with this PIN. Find them by pressing and holding
-          &ldquo;Messages&rdquo;, or under Settings.
+          {t.pinBody}
         </p>
-        <SetHiddenPinForm submitLabel="Set PIN and hide chat" onDone={onPinSet} />
+        <SetHiddenPinForm submitLabel={t.pinSubmit} onDone={onPinSet} />
         <button type="button" onClick={onClose} className="mt-3 w-full rounded-lg px-4 py-2 text-sm text-foreground-soft">
-          Cancel
+          {t.cancel}
         </button>
       </div>
     </div>
@@ -89,6 +90,7 @@ export function ChatOptionsMenu({
   const [open, setOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const t = useMessagesText().t.options;
 
   async function hide() {
     const result = await hideConversation(conversationId);
@@ -116,10 +118,10 @@ export function ChatOptionsMenu({
 
   const items: { label: string; icon: LucideIcon; onSelect: () => void }[] = [
     // Secret chats are 1:1 only.
-    ...(isGroup ? [] : [{ label: "Chat privacy", icon: ShieldCheck, onSelect: () => setPrivacyOpen(true) }]),
+    ...(isGroup ? [] : [{ label: t.privacy, icon: ShieldCheck, onSelect: () => setPrivacyOpen(true) }]),
     hidden
-      ? { label: "Unhide chat", icon: Eye, onSelect: () => void unhide() }
-      : { label: "Hide chat", icon: EyeOff, onSelect: () => void hide() },
+      ? { label: t.unhide, icon: Eye, onSelect: () => void unhide() }
+      : { label: t.hide, icon: EyeOff, onSelect: () => void hide() },
   ];
 
   return (
@@ -127,7 +129,7 @@ export function ChatOptionsMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Chat options"
+        aria-label={t.label}
         aria-expanded={open}
         className="rounded-lg p-2 text-foreground-soft hover:bg-line"
       >
@@ -135,7 +137,7 @@ export function ChatOptionsMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-52 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+        <div className="absolute end-0 z-20 mt-1 w-52 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
           {items.map(({ label, icon: Icon, onSelect }) => (
             <button
               key={label}
@@ -144,7 +146,7 @@ export function ChatOptionsMenu({
                 setOpen(false);
                 onSelect();
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-line"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-line"
             >
               <Icon size={14} /> {label}
             </button>

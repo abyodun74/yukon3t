@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Search, Sticker } from "lucide-react";
 import { searchGiphyGifs, trendingGiphyGifs } from "@/app/actions/gifs";
 import { computePopoverPosition, type PopoverPosition } from "@/lib/popover-position";
+import { useUiText } from "@/components/ui-text";
 
 const PICKER_WIDTH = 320;
 const PICKER_HEIGHT = 360;
@@ -18,6 +19,7 @@ export function GifPickerButton({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const { locale, dir, t } = useUiText();
   const [position, setPosition] = useState<PopoverPosition | null>(null);
   const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<{ id: string; gifUrl: string; previewUrl: string }[]>([]);
@@ -137,8 +139,8 @@ export function GifPickerButton({
         onClick={toggleOpen}
         disabled={disabled}
         className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
-        title="Add a GIF"
-        aria-label="Add a GIF"
+        title={t.gif.add}
+        aria-label={t.gif.add}
         aria-expanded={open}
       >
         <Sticker size={16} />
@@ -148,27 +150,29 @@ export function GifPickerButton({
         createPortal(
           <div
             ref={popupRef}
+            lang={locale}
+            dir={dir}
             className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
             style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
               <Search size={14} className="shrink-0 text-foreground-soft" />
               <input
-                aria-label="Search GIFs"
+                aria-label={t.gif.search}
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search GIFs"
+                placeholder={t.gif.search}
                 className="w-full bg-transparent text-sm outline-none"
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
               {notConfigured && (
-                <p className="p-3 text-center text-xs text-foreground-soft">GIF search isn&apos;t set up yet.</p>
+                <p className="p-3 text-center text-xs text-foreground-soft">{t.gif.notConfigured}</p>
               )}
               {!notConfigured && !loading && visibleGifs.length === 0 && (
                 <p className="p-3 text-center text-xs text-foreground-soft">
-                  {trimmedQuery === "" ? "No trending GIFs right now." : "No GIFs found for that search."}
+                  {trimmedQuery === "" ? t.gif.noTrending : t.gif.noResults}
                 </p>
               )}
               <div className="grid grid-cols-2 gap-1.5">

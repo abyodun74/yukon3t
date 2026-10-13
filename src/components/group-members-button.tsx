@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Users, X } from "lucide-react";
 import { UserLink } from "@/components/user-link";
+import { useMessagesText } from "@/components/ui-text";
+import { plural } from "@/lib/i18n/locales";
 
 type Member = {
   userId: string;
@@ -19,6 +21,8 @@ type Member = {
  */
 export function GroupMembersButton({ members }: { members: Member[] }) {
   const [open, setOpen] = useState(false);
+  const { locale, t: messages } = useMessagesText();
+  const t = messages.group;
 
   if (!open) {
     return (
@@ -28,7 +32,7 @@ export function GroupMembersButton({ members }: { members: Member[] }) {
         className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-foreground-soft transition-transform hover:border-accent hover:text-accent active:scale-95"
       >
         <Users size={13} />
-        {members.length} {members.length === 1 ? "member" : "members"}
+        {plural(locale, t.memberCount, members.length)}
       </button>
     );
   }
@@ -36,11 +40,11 @@ export function GroupMembersButton({ members }: { members: Member[] }) {
   return (
     <div className="mt-3 w-full rounded-lg border border-line p-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Members</p>
+        <p className="text-sm font-medium">{t.members}</p>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Close"
+          aria-label={t.close}
           className="rounded-lg p-1 text-foreground-soft hover:bg-line"
         >
           <X size={14} />

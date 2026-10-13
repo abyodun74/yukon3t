@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { getEmbedding, toPgVector } from "@/lib/embeddings";
 import { nearestGroupIds } from "@/lib/search-embeddings";
+import { format, plural } from "@/lib/i18n/locales";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const GROUP_INCLUDE = {
   _count: { select: { members: true } },
@@ -24,6 +26,9 @@ export default async function DiscoverGroupsPage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { q } = await searchParams;
+  const locale = await getLocale();
+  const messages = (await getDictionary()).messages;
+  const t = messages.discover;
 
   const baseWhere = {
     isGroup: true as const,
@@ -62,36 +67,36 @@ export default async function DiscoverGroupsPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <BackButton fallbackHref="/messages" />
+      <BackButton fallbackHref="/messages" label={messages.back} />
       <div className="mt-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Discover groups</h1>
+          <h1 className="text-2xl font-semibold">{t.title}</h1>
           <p className="mt-1 text-sm text-foreground-soft">
-            Public group chats you can request to join.
+            {t.intro}
           </p>
         </div>
         <Link
           href="/messages/new"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
         >
-          New group
+          {t.newGroup}
         </Link>
       </div>
 
       <form className="mt-6 flex items-center gap-2">
         <input
-          aria-label="Search groups by name"
+          aria-label={t.searchLabel}
           type="text"
           name="q"
           defaultValue={q ?? ""}
-          placeholder="Search groups by name..."
+          placeholder={t.search}
           className="w-full max-w-sm rounded-lg border border-line bg-surface px-4 py-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="submit"
           className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent"
         >
-          Search
+          {t.submit}
         </button>
       </form>
 
@@ -102,20 +107,18 @@ export default async function DiscoverGroupsPage({
             href={`/messages/${group.id}`}
             className="rounded-xl border border-line p-4 hover:border-accent"
           >
-            <h2 className="break-words font-semibold">{group.name ?? "Group"}</h2>
+            <h2 dir="auto" className="break-words font-semibold">{group.name ?? messages.fallback.group}</h2>
             <p className="mt-1 text-xs text-foreground-soft">
-              Started by {group.createdBy?.name ?? "Unknown"}
+              {format(t.startedBy, { name: group.createdBy?.name ?? messages.fallback.unknown })}
             </p>
             <p className="mt-3 text-xs text-foreground-soft">
-              {group._count.members} member{group._count.members === 1 ? "" : "s"}
+              {plural(locale, t.members, group._count.members)}
             </p>
           </Link>
         ))}
         {groups.length === 0 && (
           <p className="text-sm text-foreground-soft">
-            {q
-              ? `No groups match "${q}" — try a different search.`
-              : "No discoverable groups right now — check back later, or start your own."}
+            {q ? format(t.noMatch, { query: q }) : t.empty}
           </p>
         )}
       </div>

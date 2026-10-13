@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Circle, RefreshCw, Square } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Sheet } from "@/components/sheet";
+import { useUiText } from "@/components/ui-text";
+import { format } from "@/lib/i18n/locales";
 
 /**
  * In-browser camera recording (desktop webcam or mobile camera via
@@ -34,7 +36,16 @@ export function VideoRecorderModal({
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  // The DOMException name getUserMedia failed with; worded below, in the reader's language.
+  const [errorName, setErrorName] = useState<string | null>(null);
+  const { locale, dir, t } = useUiText();
+  const cameraErrors = t.recorder.cameraErrors;
+  const error =
+    errorName === null
+      ? null
+      : Object.hasOwn(cameraErrors, errorName) && errorName !== "other"
+        ? cameraErrors[errorName as keyof typeof cameraErrors]
+        : format(cameraErrors.other, { name: errorName });
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
   const [switchingCamera, setSwitchingCamera] = useState(false);
   // Best-effort fallback for a plain browser tab, same reasoning as
@@ -76,15 +87,7 @@ export function VideoRecorderModal({
         // that instead of one generic message is the difference between a
         // user knowing what to actually do next and just retrying blindly.
         console.error("getUserMedia failed:", err);
-        const name = err instanceof DOMException ? err.name : "Unknown";
-        const message =
-          {
-            NotAllowedError: "Camera/microphone access was denied. Check your browser's site permissions (and your OS privacy settings) and try again.",
-            NotFoundError: "No camera or microphone was found on this device.",
-            NotReadableError: "Your camera or microphone is already in use by another app.",
-            SecurityError: "This page isn't running in a secure context (camera access needs HTTPS, or localhost for dev).",
-          }[name] ?? `Couldn't access your camera/microphone (${name}).`;
-        setError(message);
+        setErrorName(err instanceof DOMException ? err.name : "Unknown");
       });
     // Captured now (not read as videoRef.current inside the cleanup below)
     // since the ref's own target can already be a different/unmounted node
@@ -101,7 +104,7 @@ export function VideoRecorderModal({
       if (tickRef.current) clearInterval(tickRef.current);
       // Reset for the next open — a fresh acquisition shouldn't inherit a
       // stale error/recording/facing-mode state from the previous session.
-      setError(null);
+      setErrorName(null);
       setRecording(false);
       setSeconds(0);
       setFacingMode("environment");
@@ -205,7 +208,7 @@ export function VideoRecorderModal({
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Record a video" panelClassName="max-w-md">
+    <Sheet open={open} onClose={onClose} title={t.recorder.videoTitle} panelClassName="max-w-md" lang={locale} dir={dir}>
         {error ? (
           <p className="text-sm text-danger">{error}</p>
         ) : (
@@ -217,9 +220,9 @@ export function VideoRecorderModal({
                   type="button"
                   onClick={switchCamera}
                   disabled={switchingCamera}
-                  title="Switch camera"
-                  aria-label="Switch camera"
-                  className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white disabled:opacity-50"
+                  title={t.recorder.switchCamera}
+                  aria-label={t.recorder.switchCamera}
+                  className="absolute end-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white disabled:opacity-50"
                 >
                   <RefreshCw size={16} className={switchingCamera ? "animate-spin" : undefined} />
                 </button>
@@ -227,7 +230,9 @@ export function VideoRecorderModal({
             </div>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-foreground-soft">
-                {recording ? `${seconds}s / ${maxSeconds}s` : `Up to ${maxSeconds}s`}
+                {recording
+                  ? format(t.recorder.progress, { seconds, max: maxSeconds })
+                  : format(t.recorder.limit, { max: maxSeconds })}
               </span>
               {!recording ? (
                 <button
@@ -235,7 +240,7 @@ export function VideoRecorderModal({
                   onClick={startRecording}
                   className="flex items-center gap-1.5 rounded-full bg-danger px-4 py-2 text-sm font-medium text-white"
                 >
-                  <Circle size={14} fill="currentColor" /> Record
+                  <Circle size={14} fill="currentColor" /> {t.recorder.record}
                 </button>
               ) : (
                 <button
@@ -243,7 +248,7 @@ export function VideoRecorderModal({
                   onClick={stopRecording}
                   className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium"
                 >
-                  <Square size={14} fill="currentColor" /> Stop
+                  <Square size={14} fill="currentColor" /> {t.recorder.stop}
                 </button>
               )}
             </div>

@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { respondToJoinRequest } from "@/app/actions/messages";
+import { useMessagesText } from "@/components/ui-text";
 
 export function JoinRequestList({
   requests,
@@ -11,6 +12,7 @@ export function JoinRequestList({
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const t = useMessagesText().t.group;
 
   if (requests.length === 0) return null;
 
@@ -23,12 +25,12 @@ export function JoinRequestList({
 
   return (
     <div className="mb-4 space-y-2 rounded-xl border border-line p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-        Pending join requests
+      <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft rtl:tracking-normal">
+        {t.pendingRequests}
       </p>
       {requests.map((r) => (
         <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
-          <span className="min-w-0 break-words">{r.name}</span>
+          <span dir="auto" className="min-w-0 break-words">{r.name}</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -36,7 +38,7 @@ export function JoinRequestList({
               onClick={() => respond(r.id, true)}
               className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
             >
-              Approve
+              {t.approve}
             </button>
             <button
               type="button"
@@ -44,7 +46,7 @@ export function JoinRequestList({
               onClick={() => respond(r.id, false)}
               className="rounded-md border border-line px-3 py-1.5 text-xs disabled:opacity-50"
             >
-              Decline
+              {t.decline}
             </button>
           </div>
         </div>
