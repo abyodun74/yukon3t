@@ -15,6 +15,7 @@ import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 import { getDictionary } from "@/lib/i18n/server";
+import { isAccountVerified } from "@/lib/account-verification";
 
 const PAGE_SIZE = 20;
 
@@ -38,7 +39,10 @@ export default async function HomePage({
     ? (categoryParam as (typeof feedCategoryValues)[number])
     : null;
 
-  const { groups: storyGroups } = await getConnectionsStories();
+  // getConnectionsStories throws for an account that hasn't verified its email or phone (requireVerifiedUser), which
+  // would take the whole page down with it. Password sign-in never lets such an account in, but an OAuth sign-up can
+  // arrive with neither (Auth.js stores emailVerified as null for OAuth), so the tray is simply empty for it instead.
+  const { groups: storyGroups } = isAccountVerified(me) ? await getConnectionsStories() : { groups: [] };
 
   // Everything below this point only reads posts/stories the viewer is
   // normally allowed to see (getConnectionsStories above is untouched by

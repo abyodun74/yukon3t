@@ -13,7 +13,7 @@ export const account: typeof accountEn = {
     pillars: [
       {
         title: "Des comptes vérifiés avant tout message",
-        body: "Chaque compte confirme son adresse e-mail avant que les messages privés ne soient débloqués, et toute mesure prise à l'encontre d'un compte s'accompagne d'un motif explicite et d'une voie de recours : aucun bannissement silencieux.",
+        body: "Chaque compte confirme son adresse e-mail ou son numéro de téléphone avant que les messages privés ne soient débloqués, et toute mesure prise à l'encontre d'un compte s'accompagne d'un motif explicite et d'une voie de recours : aucun bannissement silencieux.",
       },
       {
         title: "Dites ce que vous recherchez",

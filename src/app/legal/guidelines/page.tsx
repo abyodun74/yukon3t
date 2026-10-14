@@ -39,7 +39,7 @@ export default function GuidelinesPage() {
       <h2 className="mt-8 font-semibold">1. Be who you say you are</h2>
       <p className="mt-2 text-foreground-soft">
         No fake profiles, impersonation, or catfishing. Accounts must verify
-        their email before messaging unlocks.
+        their email or phone number before messaging unlocks.
       </p>
 
       <h2 className="mt-8 font-semibold">2. Respect stated intent</h2>
@@ -86,7 +86,7 @@ export default function GuidelinesPage() {
         YuKon3t helps you find people for cross-country collaboration,
         travel tips, and real-world meetups through Circles and Collab
         Boards — but we cannot verify anyone&apos;s real-world identity or
-        intentions beyond email verification and community trust signals.
+        intentions beyond email or phone verification and community trust signals.
         If you choose to meet someone in person or travel to meet them:
       </p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">

@@ -13,7 +13,7 @@ export const account: typeof accountEn = {
     pillars: [
       {
         title: "Contas verificadas antes de qualquer mensagem",
-        body: "Cada conta confirma o e-mail antes de ter as mensagens diretas liberadas, e toda medida tomada contra uma conta vem com o motivo informado e um caminho para recorrer: nada de banimentos silenciosos.",
+        body: "Cada conta confirma o e-mail ou o número de telefone antes de ter as mensagens diretas liberadas, e toda medida tomada contra uma conta vem com o motivo informado e um caminho para recorrer: nada de banimentos silenciosos.",
       },
       {
         title: "Diga o que você procura",

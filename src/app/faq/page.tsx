@@ -11,7 +11,7 @@ import type { FaqId, FaqSectionId } from "./ids";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
-  "Answers on YuKon3t's email verification, free Circles, Collab Boards, messaging, and moderation policy — everything before you sign up.";
+  "Answers on YuKon3t's email and phone verification, free Circles, Collab Boards, messaging, and moderation policy — everything before you sign up.";
 
 // title uses { absolute: ... } rather than a plain string — it already
 // carries the brand name, so the root layout's "%s | YuKon3t" template

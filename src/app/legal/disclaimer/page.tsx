@@ -38,8 +38,8 @@ export default function DisclaimerPage() {
 
       <h2 className="mt-8 font-semibold">No guarantee about other users</h2>
       <p className="mt-2 text-foreground-soft">
-        We verify that an account controls the email address it signed up
-        with, and we compute a trust score from account age, verification
+        We verify that an account controls the email address or phone number
+        it signed up with, and we compute a trust score from account age, verification
         status, and report history. We do not perform government ID checks,
         background checks, or in-person identity verification. A
         &quot;Trusted&quot; or &quot;Established&quot; badge is a signal, not

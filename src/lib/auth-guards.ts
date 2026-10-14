@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAccountVerified } from "@/lib/account-verification";
 
 export class AuthError extends Error {}
 
@@ -29,11 +30,14 @@ export async function requireUser() {
   return user;
 }
 
-/** Like requireUser, but also requires a verified email — used to gate messaging. */
+/**
+ * Like requireUser, but also requires a verified account: email or phone, whichever sign-up used (isAccountVerified,
+ * the same rule password sign-in lets an account in on). Gates posting, messaging, calls and the rest.
+ */
 export async function requireVerifiedUser() {
   const user = await requireUser();
-  if (!user.emailVerified) {
-    throw new AuthError("Verify your email to use this feature.");
+  if (!isAccountVerified(user)) {
+    throw new AuthError("Verify your account to use this feature.");
   }
   return user;
 }

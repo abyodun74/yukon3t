@@ -13,7 +13,7 @@ export const account: typeof accountEn = {
     pillars: [
       {
         title: "Cuentas verificadas antes de cualquier mensaje",
-        body: "Cada cuenta confirma su correo antes de que se habiliten los mensajes directos, y toda medida que se tome contra una cuenta incluye el motivo y una vía de apelación: nada de expulsiones silenciosas.",
+        body: "Cada cuenta confirma su correo o su número de teléfono antes de que se habiliten los mensajes directos, y toda medida que se tome contra una cuenta incluye el motivo y una vía de apelación: nada de expulsiones silenciosas.",
       },
       {
         title: "Di qué buscas aquí",

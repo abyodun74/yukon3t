@@ -16,7 +16,7 @@ export const accountEn = {
     pillars: [
       {
         title: "Verified before you message",
-        body: "Every account confirms its email before DMs unlock, and every action taken against an account comes with a stated reason and an appeal path — no silent bans.",
+        body: "Every account confirms its email or phone number before DMs unlock, and every action taken against an account comes with a stated reason and an appeal path — no silent bans.",
       },
       {
         title: "Say what you're here for",

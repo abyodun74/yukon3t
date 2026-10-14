@@ -35,6 +35,7 @@ import {
   clearPendingVerificationCookie,
 } from "@/lib/pending-verification";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
+import { signInNeedsVerification } from "@/lib/account-verification";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import {
   createDeviceChallenge,
@@ -439,7 +440,7 @@ export async function loginWithPassword(formData: FormData) {
     }
     redirect("/sign-in?notice=reset_required");
   }
-  if (!user.isAppReviewDemo && !user.emailVerified && !user.phoneVerifiedAt) {
+  if (signInNeedsVerification(user)) {
     // The password was just proven, so this browser may finish verifying the account: pick up where signup left off on
     // the page for the method they chose — both pages offer switching to the other (email delayed? use your phone).
     await issuePendingVerificationCookie(user.id);
