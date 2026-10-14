@@ -77,6 +77,8 @@ export const accountEn = {
     submit: "Sign in",
     submitting: "Signing in...",
     forgotPassword: "Forgot password?",
+    noPasswordHint:
+      "Signed up with an email link, Google or Apple, or can't remember your password? Choose “Forgot password?” to set a new one, or sign in with the email link below.",
     or: "or",
     magicHeading: "Email link",
     magicIntro: "No password to leak or reuse — we'll email you a secure sign-in link instead.",
@@ -201,6 +203,7 @@ export const accountEn = {
       rate_limited: "Too many attempts. Please wait a bit and try again.",
       invalid_phone: phoneInvalid,
       phone_taken: "That phone number is already verified on another account.",
+      send_failed: "We couldn't send the code just now. If it hasn't arrived in a minute, tap “Resend code” or verify with your phone instead.",
     },
     submit: "Confirm email",
     slowTitle: "Email taking too long?",

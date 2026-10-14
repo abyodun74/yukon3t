@@ -74,6 +74,8 @@ export const account: typeof accountEn = {
     submit: "Se connecter",
     submitting: "Connexion...",
     forgotPassword: "Mot de passe oublié ?",
+    noPasswordHint:
+      "Votre compte a été créé avec un lien par e-mail, Google ou Apple, ou vous avez oublié votre mot de passe ? Choisissez « Mot de passe oublié ? » pour en définir un nouveau, ou utilisez le lien par e-mail ci-dessous.",
     or: "ou",
     magicHeading: "Lien par e-mail",
     magicIntro:
@@ -200,6 +202,7 @@ export const account: typeof accountEn = {
       rate_limited: "Trop de tentatives. Patientez un peu, puis réessayez.",
       invalid_phone: phoneInvalid,
       phone_taken: "Ce numéro de téléphone est déjà vérifié sur un autre compte.",
+      send_failed: "Nous n'avons pas pu envoyer le code pour le moment. S'il n'arrive pas d'ici une minute, touchez « Renvoyer le code » ou vérifiez plutôt avec votre téléphone.",
     },
     submit: "Confirmer l'e-mail",
     slowTitle: "L'e-mail tarde à arriver ?",

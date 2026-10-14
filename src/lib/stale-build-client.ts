@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { flushErrors } from "@/lib/error-tracking";
+import {
+  ERROR_RECOVERY_KEY,
+  nextRecoveryAction,
+  parseRecoveryRecord,
+  type RecoveryRecord,
+} from "@/lib/error-recovery";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { hasSendingOptimisticPost } from "@/lib/optimistic-posts-store";
 import {
@@ -29,6 +36,9 @@ const BUILD_ID_TIMEOUT_MS = 8_000;
 // How long an error boundary holds back its own screen for the check, so a
 // stale client goes straight to the reload without flashing the error first.
 const BOUNDARY_CHECK_GRACE_MS = 2_500;
+// How long an automatic retry or reload gets before the error screen is shown anyway.
+const RECOVERY_SETTLE_MS = 8_000;
+const NOT_SETTLED = Symbol("not settled");
 
 const clientBuildId = process.env.APP_BUILD_ID;
 let lastCheckAt: number | null = null;
@@ -139,29 +149,93 @@ export function useReloadHold(kind: ReloadHold, active: boolean) {
 }
 
 /**
- * For error.tsx / global-error.tsx. Most of what lands on those screens right
- * after a deploy is this client being a build behind, which a reload fixes
- * and "Try again" (a re-render of the same stale client) does not. `checking`
- * is true while the first check is still deciding; `retry` is "Try again".
+ * The error boundary's own automatic recovery, once the build check has found this client up to date: re-fetch the
+ * page in place first, then reload it once if it crashes again straight away, then give up and show the screen (see
+ * nextRecoveryAction). Resolves true when it has started a retry or a reload. Without sessionStorage there is no loop
+ * guard, so it does nothing.
  */
-export function useStaleBuildRecovery(reset: () => void) {
-  const [checking, setChecking] = useState(true);
+async function recoverAutomatically(retry: () => void): Promise<boolean> {
+  const path = window.location.pathname;
+  let last: RecoveryRecord | null;
+  try {
+    last = parseRecoveryRecord(sessionStorage.getItem(ERROR_RECOVERY_KEY));
+  } catch {
+    return false;
+  }
+  const busy = { call: isReloadHeld("call"), work: hasWorkInProgress(), unsentText: hasUnsentText() };
+  const action = nextRecoveryAction({
+    path,
+    last,
+    now: Date.now(),
+    online: navigator.onLine !== false,
+    reloadSafe: !busy.call && !busy.work && !busy.unsentText,
+  });
+  if (action === "show") return false;
+  try {
+    sessionStorage.setItem(ERROR_RECOVERY_KEY, JSON.stringify({ path, step: action, at: Date.now() }));
+  } catch {
+    return false;
+  }
+  if (action === "retry") {
+    retry();
+    return true;
+  }
+  // The boundary reported the crash on mount; give that report a moment to leave before the page goes.
+  await flushErrors(2_000);
+  window.location.reload();
+  return true;
+}
+
+/**
+ * For error.tsx / global-error.tsx. Most of what lands on those screens right
+ * after a deploy is this client being a build behind, which a reload fixes;
+ * anything else gets recoverAutomatically above. `recover` is the boundary's
+ * Next `retry` (re-fetches the page's content, unlike `reset`). `checking` is
+ * true while recovery is still deciding, so a page that recovers never
+ * flashes the error screen; `retry` is "Try again". Runs again for every new
+ * `error`, which is how a retry that crashed again moves on to the next step.
+ */
+export function useStaleBuildRecovery(recover: () => void, error: unknown) {
+  // The error the screen has been released for: `checking` while that isn't the current one.
+  const [settledFor, setSettledFor] = useState<unknown>(NOT_SETTLED);
+  const checking = settledFor !== error;
+  const recoverRef = useRef(recover);
+  useEffect(() => {
+    recoverRef.current = recover;
+  });
 
   useEffect(() => {
-    let reloading = false;
-    const show = () => {
-      if (!reloading) setChecking(false);
+    let acting = false;
+    let cancelled = false;
+    const release = () => {
+      if (!cancelled) setSettledFor(error);
     };
-    const timer = setTimeout(show, BOUNDARY_CHECK_GRACE_MS);
-    void reloadIfStale("boundary").then((started) => {
-      reloading = started;
-      show();
+    const show = () => {
+      if (!acting) release();
+    };
+    const graceTimer = setTimeout(show, BOUNDARY_CHECK_GRACE_MS);
+    // A retry that neither recovers nor crashes again, or a reload that never happens, must not leave a blank page.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    void reloadIfStale("boundary").then(async (started) => {
+      acting = started || (!cancelled && (await recoverAutomatically(() => recoverRef.current())));
+      if (acting) settleTimer = setTimeout(release, RECOVERY_SETTLE_MS);
+      else show();
     });
-    return () => clearTimeout(timer);
-  }, []);
+    // Offline, nothing above acts: try again by itself once the connection is back.
+    const onOnline = () => {
+      if (!cancelled) recoverRef.current();
+    };
+    window.addEventListener("online", onOnline, { once: true });
+    return () => {
+      cancelled = true;
+      clearTimeout(graceTimer);
+      clearTimeout(settleTimer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [error]);
 
   async function retry() {
-    if (!(await reloadIfStale("boundary"))) reset();
+    if (!(await reloadIfStale("boundary"))) recover();
   }
 
   return { checking, retry };

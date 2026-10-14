@@ -27,3 +27,14 @@ export async function captureError(error: unknown, context?: Record<string, unkn
     // Never let error reporting itself become a new source of errors.
   }
 }
+
+/** Waits (at most `timeoutMs`) for reports already captured to be sent: for a page about to reload itself. */
+export async function flushErrors(timeoutMs: number) {
+  if (!process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN) return;
+  try {
+    const Sentry = await import("@sentry/nextjs");
+    await Sentry.flush(timeoutMs);
+  } catch {
+    // Same as above: a failed flush must not stop the reload.
+  }
+}

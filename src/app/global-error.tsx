@@ -76,17 +76,17 @@ const serverLocale = (): Locale => "en";
  */
 export default function GlobalError({
   error,
-  reset,
+  retry: recover,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     captureError(error, { digest: error.digest, boundary: "global-error" });
   }, [error]);
 
   // Same as error.tsx: a client a build behind reloads itself instead.
-  const { checking, retry } = useStaleBuildRecovery(reset);
+  const { checking, retry } = useStaleBuildRecovery(recover, error);
   const locale = useSyncExternalStore(noSubscription, readLocale, serverLocale);
   const t = TEXT[locale];
   if (checking) {

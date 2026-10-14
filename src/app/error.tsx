@@ -7,10 +7,10 @@ import { useShellText } from "@/components/ui-text";
 
 export default function ErrorBoundary({
   error,
-  reset,
+  retry: recover,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   const { t } = useShellText();
   useEffect(() => {
@@ -19,7 +19,7 @@ export default function ErrorBoundary({
 
   // A client left behind by a deploy lands here on its first stale chunk or
   // Server Action; that case reloads itself onto the new build.
-  const { checking, retry } = useStaleBuildRecovery(reset);
+  const { checking, retry } = useStaleBuildRecovery(recover, error);
   if (checking) return <div className="py-20" aria-busy="true" />;
 
   return (

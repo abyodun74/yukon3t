@@ -81,7 +81,16 @@ async function sendEmailOtp(userId: string, email: string, locale: Locale) {
     },
   });
 
-  return sendEmail({ to: email, ...verificationCodeEmail(locale, code) });
+  const sent = await sendEmail({ to: email, ...verificationCodeEmail(locale, code) });
+  if (!sent.ok) {
+    // Nobody received this code, so don't leave it looking live: with no unexpired code on the account, /verify-email
+    // (ensureFreshEmailOtp) sends a fresh one by itself on its next load instead of waiting for "Resend code".
+    await prisma.user.update({
+      where: { id: userId },
+      data: { emailOtpCodeHash: null, emailOtpExpires: null },
+    });
+  }
+  return sent;
 }
 
 /**
@@ -280,7 +289,9 @@ export async function resendEmailOtp(formData: FormData) {
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } });
   if (user && !user.emailVerified) {
-    await sendEmailOtp(userId, user.email, await getLocale());
+    const sent = await sendEmailOtp(userId, user.email, await getLocale());
+    // Don't say "a new code is on its way" when it isn't; the page offers resending and verifying by phone instead.
+    if (!sent.ok) redirect("/verify-email?error=send_failed");
   }
   redirect("/verify-email?sent=1");
 }
@@ -366,9 +377,13 @@ export async function loginWithPassword(formData: FormData) {
   });
   if (!user) {
     // Usernames are unique case-insensitively for new sign-ups, so "Bola" and "bola" are the same person — but only
-    // accept a case-different match when it is unambiguous (older accounts could differ only by case).
+    // accept a case-different match when it is unambiguous (older accounts could differ only by case). Same for an
+    // email address: sign-up stores it lowercased, but an account created through Google or Apple keeps the address
+    // as the provider sent it. A username can't contain "@", so the identifier decides which column to try.
     const loose = await prisma.user.findMany({
-      where: { username: { equals: identifier, mode: "insensitive" } },
+      where: identifier.includes("@")
+        ? { email: { equals: identifier, mode: "insensitive" } }
+        : { username: { equals: identifier, mode: "insensitive" } },
       take: 2,
       omit: { passwordHash: false, passwordResetRequiredAt: false },
     });

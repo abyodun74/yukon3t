@@ -6,7 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { redirect } from "next/navigation";
 import { loginWithPassword } from "@/app/actions/password-auth";
-import { PasswordInput } from "@/components/password-input";
+import { PasswordSignInForm } from "@/components/password-sign-in-form";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { verifyTurnstile } from "@/lib/turnstile";
@@ -114,42 +114,27 @@ export default async function SignInPage({
         {passwordError && (
           <div role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
             {passwordError}
+            {/* Shown for every wrong answer, whether or not the account exists or has a password, so it says nothing
+                about the account: it points people who never set one (email link, Google, Apple) at the two ways in. */}
+            {error === "invalid_credentials" && (
+              <p className="mt-1 text-xs text-foreground-soft">{t.signIn.noPasswordHint}</p>
+            )}
           </div>
         )}
 
-        <form action={loginWithPassword} className="mt-3 space-y-3">
-          <label htmlFor="identifier" className="sr-only">
-            {t.signIn.identifier}
-          </label>
-          <input
-            id="identifier"
-            type="text"
-            name="identifier"
-            required
-            autoComplete="username"
-            placeholder={t.signIn.identifier}
-            className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm ltr-value outline-none focus:border-accent"
-          />
-          <label htmlFor="password" className="sr-only">
-            {t.signIn.password}
-          </label>
-          <PasswordInput
-            id="password"
-            name="password"
-            required
-            autoComplete="current-password"
-            placeholder={t.signIn.password}
-            className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-            labels={t.shared.passwordInput}
-          />
-          <TurnstileWidget appearance="always" className="flex justify-center" {...turnstile} />
-          <SubmitButton
-            label={t.signIn.submit}
-            pendingLabel={t.signIn.submitting}
-            offlineMessage={offlineMessage}
-            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink shadow-[var(--shadow-sm)] hover:-translate-y-0.5"
-          />
-        </form>
+        <PasswordSignInForm
+          action={loginWithPassword}
+          error={passwordError ? (error ?? null) : null}
+          locale={locale}
+          t={{
+            identifier: t.signIn.identifier,
+            password: t.signIn.password,
+            submit: t.signIn.submit,
+            submitting: t.signIn.submitting,
+          }}
+          shared={{ passwordInput: t.shared.passwordInput, submitButton: t.shared.submitButton }}
+          waitMessage={t.shared.turnstile.wait}
+        />
         <p className="mt-3 text-xs">
           <Link href="/forgot-password" className="font-medium text-accent hover:underline">
             {t.signIn.forgotPassword}

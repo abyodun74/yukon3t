@@ -74,6 +74,8 @@ export const account: typeof accountEn = {
     submit: "Entrar",
     submitting: "Entrando...",
     forgotPassword: "Esqueceu a senha?",
+    noPasswordHint:
+      "Criou a conta com um link por e-mail, Google ou Apple, ou não lembra a senha? Escolha “Esqueceu a senha?” para definir uma nova, ou entre com o link por e-mail abaixo.",
     or: "ou",
     magicHeading: "Link por e-mail",
     magicIntro: "Sem senha para vazar ou reutilizar: enviamos um link de acesso seguro para o seu e-mail.",
@@ -198,6 +200,7 @@ export const account: typeof accountEn = {
       rate_limited: "Muitas tentativas. Aguarde um pouco e tente novamente.",
       invalid_phone: phoneInvalid,
       phone_taken: "Esse número de telefone já está verificado em outra conta.",
+      send_failed: "Não conseguimos enviar o código agora. Se ele não chegar em um minuto, toque em “Reenviar código” ou verifique pelo telefone.",
     },
     submit: "Confirmar e-mail",
     slowTitle: "O e-mail está demorando?",

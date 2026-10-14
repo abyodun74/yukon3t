@@ -60,9 +60,11 @@ export function PasswordInput({
         maxLength={maxLength}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={autoCorrect}
-        spellCheck={spellCheck}
+        // Off unless a caller asks otherwise: once the eye button shows the characters the field is plain text, and the
+        // phone keyboard would capitalise the first letter and autocorrect words, silently changing the password typed.
+        autoCapitalize={autoCapitalize ?? "none"}
+        autoCorrect={autoCorrect ?? "off"}
+        spellCheck={spellCheck ?? false}
         value={value}
         onChange={onChange}
         aria-invalid={invalid || undefined}
