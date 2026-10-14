@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEVICE_ID_COOKIE, DEVICE_ID_HEADER, DEVICE_ID_MAX_AGE_SECONDS } from "@/lib/device-id-constants";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  RATE_LIMIT_RETRY_AFTER_SECONDS,
+  clientIpFromHeaders,
+  deviceIdForRateLimit,
+  isDocumentRequest,
+  pageLimitChecks,
+  rateLimitPage,
+  rateLimitPageLocale,
+} from "@/lib/page-rate-limit";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 
 // Every proxy rate-limit check costs one Upstash command, so requests that
@@ -26,14 +36,55 @@ function skipsPageRateLimit(pathname: string): boolean {
   );
 }
 
-// Best-effort client IP, matching src/lib/client-ip.ts's own first-hop
-// convention — duplicated rather than shared since that file's getClientIp
-// is async-headers()-based (Server Action context), while this runs at the
-// edge directly against a NextRequest.
-function clientIp(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
+// A request with no client address isn't counted (pageLimitChecks): logged at most once per 10 minutes per instance,
+// since on a platform that stopped sending the header it would be every request.
+const NO_ADDRESS_LOG_INTERVAL_MS = 10 * 60 * 1000;
+let lastNoAddressLogAt = 0;
+function reportNoAddress() {
+  const now = Date.now();
+  if (now - lastNoAddressLogAt < NO_ADDRESS_LOG_INTERVAL_MS) return;
+  lastNoAddressLogAt = now;
+  console.error("[rate-limit] page request with no client address; not counted");
+}
+
+/** Whether the page-level limits let this request through (see pageLimitChecks for which buckets it counts against). */
+async function pageRequestAllowed(request: NextRequest): Promise<boolean> {
+  if (skipsPageRateLimit(request.nextUrl.pathname)) return true;
+  const ip = clientIpFromHeaders((name) => request.headers.get(name));
+  const checks = pageLimitChecks(ip, deviceIdForRateLimit(request.cookies.get(DEVICE_ID_COOKIE)?.value));
+  if (checks.length === 0) {
+    reportNoAddress();
+    return true;
+  }
+  const results = await Promise.all(checks.map((check) => checkRateLimit(check.limiter, check.identifier)));
+  return results.every(Boolean);
+}
+
+/**
+ * What a refused request gets. A page load (what the app's WebView shows) gets a small page in the reader's language
+ * that reloads itself, never a bare line of text with no way out; anything code reads (an RSC fetch, a Server Action,
+ * an API call) gets a bare 429. Both say when to retry.
+ */
+function tooManyRequests(request: NextRequest): NextResponse {
+  const headers = { "Retry-After": String(RATE_LIMIT_RETRY_AFTER_SECONDS), "Cache-Control": "no-store" };
+  if (!isDocumentRequest((name) => request.headers.get(name))) {
+    return new NextResponse("Too many requests", { status: 429, headers: { ...headers, "Content-Type": "text/plain" } });
+  }
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const html = rateLimitPage({
+    locale: rateLimitPageLocale(request.headers.get("cookie"), request.headers.get("accept-language")),
+    path: request.nextUrl.pathname + request.nextUrl.search,
+    nonce,
+    theme: parseTheme(request.cookies.get(THEME_COOKIE)?.value),
+  });
+  return new NextResponse(html, {
+    status: 429,
+    headers: {
+      ...headers,
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    },
+  });
 }
 
 // Per-request CSP nonce so script-src can stay locked to 'self' + this
@@ -42,15 +93,10 @@ function clientIp(request: NextRequest): string {
 // only for the rate-limit check below (Upstash's REST client, itself
 // fetch()-based and edge-safe) — everything else here stays synchronous.
 export async function proxy(request: NextRequest) {
-  // Coarse, IP-keyed page-level rate limit — every route this proxy runs
-  // against (see config.matcher below), not just the individual Server
-  // Action limiters already applied per-mutation. See rateLimiters.pageRequest
-  // in src/lib/rate-limit.ts for the actual bucket size and reasoning.
-  const allowed =
-    skipsPageRateLimit(request.nextUrl.pathname) ||
-    (await checkRateLimit("pageRequest", clientIp(request)));
-  if (!allowed) {
-    return new NextResponse("Too many requests — slow down and try again shortly.", { status: 429 });
+  // Page-level rate limit on every route this proxy runs against (see config.matcher below), on top of the
+  // individual Server Action limiters. Buckets and sizes: the page limiters in src/lib/rate-limit.ts.
+  if (!(await pageRequestAllowed(request))) {
+    return tooManyRequests(request);
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -229,6 +275,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|mp3|m4a|wav|ogg|mp4|webm|mov)$).*)",
   ],
 };

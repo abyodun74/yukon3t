@@ -180,14 +180,23 @@ const limiterDefinitions = {
   // volume, Check guards brute-forcing a submitted code.
   deviceChallengeSend: makeLimiter(5, "1 h"),
   deviceChallengeCheck: makeLimiter(10, "1 h"),
-  // Coarse, IP-keyed defense-in-depth applied to every page request in
-  // src/proxy.ts (not just mutating Server Actions, which each already have
-  // their own tighter per-action limiter above) — generous enough that no
-  // real user's normal browsing/scrolling ever trips it, tight enough to
-  // blunt a scripted crawl/scrape or a flood aimed at a single IP. Keyed by
-  // IP rather than user.id since it has to run before auth is known, at the
-  // edge, on every route.
+  // The page-level limit in src/proxy.ts, applied to nearly every request (not just mutating Server Actions, which
+  // each have their own tighter limiter above), before auth is known. Which buckets a request counts against is
+  // decided by pageLimitChecks (src/lib/page-rate-limit.ts):
+  // - pageRequest: a request with no device cookie (a first visit, a scraper that drops cookies), per client IP.
+  //   Unchanged at 300 a minute.
+  // - pageRequestDevice: a request from a known device (the device id cookie the proxy mints), per device. One
+  //   phone in active use (feed scrolling with link prefetches, a call's status checks and roster, badge counts,
+  //   presence, realtime resyncs) makes a few requests a second at most; production showed one address sustaining
+  //   more than 10 a second for 45 seconds with two phones on it (2026-10-14, a call between them), which the old
+  //   single 300-a-minute per-IP bucket refused, leaving the app on a bare error page mid-call. 1,200 a minute (20 a
+  //   second for a whole minute) is far above any real device, and still bounds a runaway client.
+  // - pageRequestNetwork: the same requests per client IP, a ceiling shared by everyone behind one address (a
+  //   household on one Wi-Fi, a mobile carrier's shared address). 3,000 a minute: room for many active devices on
+  //   one address, and a hard bound for a client that invents device ids to get fresh buckets.
   pageRequest: makeLimiter(300, "1 m"),
+  pageRequestDevice: makeLimiter(1200, "1 m"),
+  pageRequestNetwork: makeLimiter(3000, "1 m"),
   // The review-prompt gate's own free-text feedback form (submitAppFeedback
   // in actions/review-prompt.ts) — generous since a real user only ever
   // submits this once (DECLINED is terminal), just a backstop against a

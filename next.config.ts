@@ -51,6 +51,10 @@ const appBuildId = (process.env.APP_BUILD_ID ||= createHash("sha256")
 const nextConfig: NextConfig = {
   env: {
     APP_BUILD_ID: appBuildId,
+    // Which host this build runs on, inlined at build time (the proxy runs at the edge, where the platform's own
+    // env vars aren't reliably present). src/lib/page-rate-limit.ts uses it to trust only that host's own
+    // client-address header: each platform sets its own, but passes the other's through as the client sent it.
+    DEPLOY_PLATFORM: process.env.NETLIFY ? "netlify" : process.env.VERCEL ? "vercel" : "other",
   },
   // Already the default, but pinned explicitly: gzip/brotli response
   // compression for anything Next itself serves. Vercel's and Netlify's
