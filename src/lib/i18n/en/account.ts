@@ -1,22 +1,11 @@
 import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/en/common";
 
 /**
- * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding), their emails and the
- * two translated FAQ entries. Spread into the dictionary's top level.
+ * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding) and their emails.
+ * Spread into the dictionary's top level.
  */
 export const accountEn = {
   languagePicker: { label: "Language" },
-  // The two FAQ entries about languages (src/app/faq/page.tsx): the only ones shown in the reader's language.
-  faq: {
-    dictation: {
-      q: "Can I dictate a post instead of typing it?",
-      a: "Yes — tap the microphone icon in the post composer (or a chat message box) to record a short voice clip; it's transcribed and dropped into the text box for you to review and edit before posting or sending. This is separate from the round mic/send button in a chat, which instead sends the recording itself as a voice note — the dictation mic sits next to the emoji button and always produces editable text. Speak in your own language: Spanish, French, Portuguese, Arabic and many others are recognised automatically, whatever language the app is shown in.",
-    },
-    languages: {
-      q: "Can I use YuKon3t in a language other than English?",
-      a: "Signing in, creating an account, verifying it, resetting your password and setting up your profile are available in English, Spanish, French, Portuguese and Arabic, and so are the emails and texts those screens send. They open in your phone or browser's language when it is one of the five; to switch, use the Language menu at the top corner of the home page (below Sign in) or at the bottom of the other account screens — the choice is remembered on that device. The home page you see before signing in is in those five languages too; once you're signed in, change it under Settings → Language. So are the menus, your Home feed (posts, stories, sharing and the post composer), profiles, Settings, Search, Discover, Connections, Notifications and What's new, Messages (your conversation list, chats, group chats and hidden chats), comments on posts, the voice, video and GIF pickers they open, dictation, the report form, inviting friends, the Advertise page, Circles, Collab Boards, Muse, live streams and calls. In Arabic those screens read right to left. The notifications we send, the rest of this FAQ and the legal pages are currently in English. What people write is never translated: a message or comment appears in the language it was written in.",
-    },
-  },
   landing: {
     eyebrow: "Global connection, done honestly",
     title: "Connect with people worldwide — by interest, by culture, by purpose.",

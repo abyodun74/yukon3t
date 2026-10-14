@@ -4,9 +4,10 @@ import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { BackButton } from "@/components/back-button";
 import { auth } from "@/lib/auth";
 import { isViewOnceConfigured } from "@/lib/storage";
-import { en } from "@/lib/i18n/en";
-import { localeDirection } from "@/lib/i18n/locales";
-import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { getLocale } from "@/lib/i18n/server";
+import { FaqAnswer } from "./answer";
+import { faqContentFor } from "./content";
+import type { FaqId, FaqSectionId } from "./ids";
 
 const title = "YuKon3t FAQ — How Verification & Circles Work";
 const description =
@@ -34,18 +35,24 @@ export const metadata: Metadata = {
   },
 };
 
+// This file is the FAQ in English. The other languages are in content/, keyed by the same ids (ids.ts), and the
+// page shows the reader's language (faqContentFor). A change to an answer here needs the same change in each of
+// them: content.test.ts checks that every entry exists everywhere, not that it still says the same thing.
+// id: the entry's anchor (/faq#id) and translation key; never changes once shipped.
 // requiresViewOnce: only shown where view-once messages are actually switched on (isViewOnceConfigured).
-// text: the entry is shown in the reader's language, from the dictionary's `faq` section (the two entries about
-// languages, which someone who doesn't read English has to be able to read). `q` and `a` are its English.
-type Faq = { q: string; a: ReactNode; requiresViewOnce?: boolean; text?: keyof typeof en.faq };
+type Faq = { id: FaqId; q: string; a: ReactNode; requiresViewOnce?: boolean };
 // hideInIosApp: the ad-booking Q&A points at a web/Stripe purchase flow, which the native iOS app doesn't surface (see HideInIosApp).
-type Section = { title: string; items: Faq[]; hideInIosApp?: boolean };
+type Section = { id: FaqSectionId; title: string; items: Faq[]; hideInIosApp?: boolean };
+
+const heading = "Frequently asked questions";
 
 const sections: Section[] = [
   {
+    id: "getting-around",
     title: "Getting around",
     items: [
       {
+        id: "who-join-yukon3t",
         q: "Who can join YuKon3t?",
         a: (
           <>
@@ -57,6 +64,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "where-find-everything",
         q: "Where do I find everything?",
         a: (
           <>
@@ -71,6 +79,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "swipe-between-tabs-instead-tapping",
         q: "Can I swipe between tabs instead of tapping?",
         a: (
           <>
@@ -82,6 +91,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "difference-between-home-discover-connections",
         q: "What's the difference between Home, Discover, and Connections?",
         a: (
           <>
@@ -97,6 +107,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "switch-between-light-dark-mode",
         q: "How do I switch between light and dark mode?",
         a: (
           <>
@@ -107,6 +118,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "yukon3t-work-iphones-accessibility-settings",
         q: "Does YuKon3t work with my iPhone's accessibility settings?",
         a: (
           <>
@@ -122,6 +134,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "megaphone-icon-next-bell",
         q: "What's the megaphone icon next to the bell?",
         a: (
           <>
@@ -134,6 +147,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "search-app",
         q: "How do I search the app?",
         a: (
           <>
@@ -146,6 +160,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "click-someones-name-almost-everywhere",
         q: "Why can I click someone's name almost everywhere?",
         a: (
           <>
@@ -158,6 +173,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "some-people-disappear-from-discover",
         q: "Why do some people disappear from Discover?",
         a: (
           <>
@@ -170,6 +186,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "home-split-into-sections-like",
         q: "Why is Home split into sections like Occupational, Entertainment, Politics, and Sports?",
         a: (
           <>
@@ -185,9 +202,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "android-app",
     title: "The Android app",
     items: [
       {
+        id: "app-opens-chrome-instead-full",
         q: "The app opens in Chrome instead of full-screen — how do I fix that?",
         a: (
           <>
@@ -203,6 +222,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "still-get-calls-phone-asleep",
         q: "Will I still get calls if my phone is asleep or locked?",
         a: (
           <>
@@ -218,6 +238,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "shows-up-notification-phone",
         q: "What shows up as a notification on my phone?",
         a: (
           <>
@@ -244,6 +265,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "turning-up-phones-volume-unmutes",
         q: "Turning up my phone's volume unmutes a video in my feed — is that supposed to happen?",
         a: (
           <>
@@ -258,9 +280,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "posts-media",
     title: "Posts and media",
     items: [
       {
+        id: "post",
         q: "What can I post?",
         a: (
           <>
@@ -273,6 +297,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "which-video-formats-upload-everyone",
         q: "Which video formats can I upload, and can everyone watch them?",
         a: (
           <>
@@ -286,6 +311,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "was-photo-video-rejected",
         q: "Why was my photo or video rejected?",
         a: (
           <>
@@ -300,6 +326,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "delete-post-report-someone-elses",
         q: "How do I delete a post, or report someone else's?",
         a: (
           <>
@@ -310,6 +337,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-post",
         q: "How do I share a post?",
         a: (
           <>
@@ -325,6 +353,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-photo-video-from-another",
         q: "Can I share a photo or video from another app (Instagram, TikTok, WhatsApp, etc.) straight into YuKon3t?",
         a: (
           <>
@@ -352,6 +381,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "react-post-something-other-than",
         q: "Can I react to a post with something other than a heart?",
         a: (
           <>
@@ -371,6 +401,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "change-emoji-look-throughout-app",
         q: "Can I change how emoji look throughout the app?",
         a: (
           <>
@@ -382,6 +413,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "send-gif",
         q: "Can I send a GIF?",
         a: (
           <>
@@ -392,6 +424,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "videos-feed-play-automatically-no",
         q: "Why do videos in my feed play automatically with no sound?",
         a: (
           <>
@@ -403,6 +436,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "zoom-back-out-photo-without",
         q: "How do I zoom back out of a photo without closing the viewer?",
         a: (
           <>
@@ -413,8 +447,25 @@ const sections: Section[] = [
           </>
         ),
       },
-      { q: en.faq.dictation.q, a: en.faq.dictation.a, text: "dictation" },
       {
+        id: "dictate-post",
+        q: "Can I dictate a post instead of typing it?",
+        a: (
+          <>
+            Yes — tap the microphone icon in the post composer (or a chat
+            message box) to record a short voice clip; it&apos;s transcribed
+            and dropped into the text box for you to review and edit before
+            posting or sending. This is separate from the round mic/send
+            button in a chat, which instead sends the recording itself as a
+            voice note — the dictation mic sits next to the emoji button and
+            always produces editable text. Speak in your own language:
+            Spanish, French, Portuguese, Arabic and many others are
+            recognised automatically, whatever language the app is shown in.
+          </>
+        ),
+      },
+      {
+        id: "difference-between-connect-subscribe",
         q: "What's the difference between Connect and Subscribe?",
         a: (
           <>
@@ -442,6 +493,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "see-who-im-subscribed-whos",
         q: "How do I see who I'm subscribed to, or who's subscribed to me?",
         a: (
           <>
@@ -453,6 +505,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "people-you-may-know-discover",
         q: "What's \"People you may know\" on Discover?",
         a: (
           <>
@@ -467,6 +520,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "long-post-get-cut-off",
         q: "Why does a long post get cut off with a \"Show more\" link?",
         a: (
           <>
@@ -481,6 +535,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "got-message-saying-new-version",
         q: "I got a message saying \"A new version of the app is available — refresh the page to continue\" while posting.",
         a: (
           <>
@@ -492,6 +547,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "there-way-see-older-posts",
         q: "Is there a way to see older posts on a profile, in a Circle, or in search results?",
         a: (
           <>
@@ -508,9 +564,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "going-live",
     title: "Going Live",
     items: [
       {
+        id: "start-join-live-stream",
         q: "How do I start or join a live stream?",
         a: (
           <>
@@ -532,6 +590,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "who-see-live-stream-start",
         q: "Who can see a live stream I start for a Circle?",
         a: (
           <>
@@ -555,6 +614,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "start-live-stream-just-one",
         q: "Can I start a live stream with just one specific person?",
         a: (
           <>
@@ -570,6 +630,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "difference-between-watching-joining-guest",
         q: "What's the difference between watching, joining as a guest, and joining as a co-host?",
         a: (
           <>
@@ -584,6 +645,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "host-mute-guest-co-host",
         q: "Can the host mute a guest or co-host?",
         a: (
           <>
@@ -599,6 +661,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "record-go-live-stream-take",
         q: "Can I record a Go Live stream, or take a screenshot?",
         a: (
           <>
@@ -612,6 +675,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "recording-stream-posted-automatically",
         q: "Can a recording of my stream be posted automatically?",
         a: (
           <>
@@ -633,6 +697,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "did-live-stream-end-its",
         q: "Why did my live stream end on its own?",
         a: (
           <>
@@ -647,6 +712,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "people-comment-during-live-stream",
         q: "Can people comment during a live stream?",
         a: (
           <>
@@ -657,6 +723,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "keep-using-app-during-call",
         q: "Can I keep using the app during a call or a Go Live stream?",
         a: (
           <>
@@ -672,9 +739,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "stories",
     title: "Stories",
     items: [
       {
+        id: "story",
         q: "What's a Story?",
         a: (
           <>
@@ -687,6 +756,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "post-text-only-story",
         q: "Can I post a text-only Story?",
         a: (
           <>
@@ -699,6 +769,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "post-more-than-one-story",
         q: "Can I post more than one Story in the same day?",
         a: (
           <>
@@ -710,6 +781,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "move-between-different-peoples-stories",
         q: "How do I move between different people's Stories?",
         a: (
           <>
@@ -724,6 +796,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "people-react-reply-comment-story",
         q: "Can people react, reply, or comment on my Story?",
         a: (
           <>
@@ -747,9 +820,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "muse",
     title: "Muse",
     items: [
       {
+        id: "muse-2",
         q: "What's Muse?",
         a: (
           <>
@@ -764,6 +839,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "post-muse",
         q: "How do I post a Muse?",
         a: (
           <>
@@ -781,6 +857,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "delete-muse-after-ive-posted",
         q: "Can I delete a Muse after I've posted it?",
         a: (
           <>
@@ -792,6 +869,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-reshare-follow-muse",
         q: "Can I share, reshare, or follow on Muse?",
         a: (
           <>
@@ -812,6 +890,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-post-muse",
         q: "Can I share a post to Muse?",
         a: (
           <>
@@ -827,6 +906,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "view-count-muse-mean",
         q: "What does the view count on a Muse mean?",
         a: (
           <>
@@ -837,6 +917,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "muse-play-sound",
         q: "Does Muse play with sound?",
         a: (
           <>
@@ -850,6 +931,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "react-comment-muse",
         q: "Can I react or comment on a Muse?",
         a: (
           <>
@@ -861,22 +943,24 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "need-keep-scrolling-see-theres",
         q: "Do I need to keep scrolling to see if there's more?",
         a: (
           <>
             No — Muse loads the next batch of videos in the background as you
             approach the end of what&apos;s currently loaded, so scrolling
-            through feels continuous. You&apos;ll see &ldquo;You&apos;re all
-            caught up&rdquo; once you&apos;ve reached the very last one.
+            through feels continuous.
           </>
         ),
       },
     ],
   },
   {
+    id: "ambient",
     title: "Ambient",
     items: [
       {
+        id: "ambient-2",
         q: "What is Ambient?",
         a: (
           <>
@@ -888,6 +972,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "who-see-ambient-moments",
         q: "Who can see my ambient moments?",
         a: (
           <>
@@ -900,6 +985,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "there-lock-screen-watch-widget",
         q: "Is there a lock-screen or watch widget for this?",
         a: (
           <>
@@ -913,9 +999,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "connecting-messaging-calls",
     title: "Connecting, messaging, and calls",
     items: [
       {
+        id: "message-someone",
         q: "How do I message someone?",
         a: (
           <>
@@ -926,6 +1014,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "reply-specific-message",
         q: "How do I reply to a specific message?",
         a: (
           <>
@@ -938,6 +1027,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "send-photos-videos-voice-notes",
         q: "Can I send photos, videos, voice notes, or GIFs in a chat?",
         a: (
           <>
@@ -950,6 +1040,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "send-photo-video-disappears-after",
         q: "Can I send a photo or video that disappears after it's viewed?",
         requiresViewOnce: true,
         a: (
@@ -984,6 +1075,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "see-photo-chat-full-screen",
         q: "Can I see a photo in a chat full-screen?",
         a: (
           <>
@@ -994,6 +1086,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "when-open-chat-jump-straight",
         q: "When I open a chat, does it jump straight to the newest message?",
         a: (
           <>
@@ -1007,6 +1100,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "voice-video-calls-work",
         q: "How do voice and video calls work?",
         a: (
           <>
@@ -1020,6 +1114,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "add-more-people-call",
         q: "Can I add more people to a call?",
         a: (
           <>
@@ -1039,6 +1134,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "put-call-hold",
         q: "Can I put a call on hold?",
         a: (
           <>
@@ -1052,6 +1148,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "happens-call-switch-apps-lock",
         q: "What happens to a call if I switch apps or lock my phone?",
         a: (
           <>
@@ -1072,6 +1169,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "happens-connection-drops-during-call",
         q: "What happens if my connection drops during a call?",
         a: (
           <>
@@ -1086,6 +1184,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "there-limit-long-call-last",
         q: "Is there a limit on how long a call can last?",
         a: (
           <>
@@ -1096,6 +1195,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "hear-ringing-sound-when-call",
         q: "Why do I hear a ringing sound when I call someone?",
         a: (
           <>
@@ -1106,6 +1206,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "says-already-have-call-someone",
         q: "It says I \"already have a call\" with someone and won't let me call again — what do I do?",
         a: (
           <>
@@ -1118,6 +1219,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "group-chats-work",
         q: "How do group chats work?",
         a: (
           <>
@@ -1138,6 +1240,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "typed-message-but-didnt-send",
         q: "I typed a message but didn't send it — is it gone if I leave the chat?",
         a: (
           <>
@@ -1151,6 +1254,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "secret-chats",
         q: "What are secret chats?",
         a: (
           <>
@@ -1184,6 +1288,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "forget-recovery-passphrase-lose-phone",
         q: "What if I forget my recovery passphrase or lose my phone?",
         a: (
           <>
@@ -1199,6 +1304,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "moderators-read-secret-chats-report",
         q: "Can moderators read secret chats? How do I report abuse in one?",
         a: (
           <>
@@ -1219,9 +1325,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "hidden-chats",
     title: "Hidden chats",
     items: [
       {
+        id: "hiding-chat",
         q: "What does hiding a chat do?",
         a: (
           <>
@@ -1241,6 +1349,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "open-hidden-chat-unhide-one",
         q: "How do I open a hidden chat, and how do I unhide one?",
         a: (
           <>
@@ -1257,6 +1366,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "other-person-know-hid-our",
         q: "Does the other person know I hid our chat?",
         a: (
           <>
@@ -1267,6 +1377,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "forgot-pin-happens-hidden-chats",
         q: "I forgot my PIN. What happens to my hidden chats?",
         a: (
           <>
@@ -1281,6 +1392,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "doesnt-hiding-chat",
         q: "What doesn't hiding a chat do?",
         a: (
           <>
@@ -1301,9 +1413,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "circles-collab-boards",
     title: "Circles and Collab Boards",
     items: [
       {
+        id: "circle",
         q: "What's a Circle?",
         a: (
           <>
@@ -1314,6 +1428,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "who-see-shared-circle-sub",
         q: "Who can see what's shared in a Circle or sub-circle?",
         a: (
           <>
@@ -1334,6 +1449,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "pick-category-circle",
         q: "How do I pick a category for my Circle?",
         a: (
           <>
@@ -1348,6 +1464,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "rename-circle-change-its-theme",
         q: "Can I rename my Circle or change its theme, categories or privacy after creating it?",
         a: (
           <>
@@ -1366,6 +1483,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "sub-circles",
         q: "What are sub-circles?",
         a: (
           <>
@@ -1386,6 +1504,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "invite-someone-circles-voice-channel",
         q: "How do I invite someone to a Circle's voice channel?",
         a: (
           <>
@@ -1399,6 +1518,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "collab-board",
         q: "What's a Collab Board?",
         a: (
           <>
@@ -1416,6 +1536,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "difference-between-public-private-collab",
         q: "What's the difference between a public and a private Collab Board?",
         a: (
           <>
@@ -1437,6 +1558,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "starting-joining-collab-session-work",
         q: "How does starting or joining a Collab session work?",
         a: (
           <>
@@ -1459,6 +1581,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "schedule-recurring-collaboration-session",
         q: "Can I schedule a recurring collaboration session?",
         a: (
           <>
@@ -1474,6 +1597,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "add-collaborations-session-own-calendar",
         q: "Can I add a collaboration's session to my own calendar?",
         a: (
           <>
@@ -1490,6 +1614,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-screen-upload-material-during",
         q: "Can I share my screen or upload material during a Collab session?",
         a: (
           <>
@@ -1508,6 +1633,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "leave-collab-session",
         q: "How do I leave a Collab session?",
         a: (
           <>
@@ -1520,6 +1646,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "invite-someone-private-collaboration-approve",
         q: "How do I invite someone to a private collaboration, or approve a request to join a public one?",
         a: (
           <>
@@ -1534,6 +1661,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "edit-collab-board-after-ive",
         q: "Can I edit a Collab Board after I've posted it?",
         a: (
           <>
@@ -1546,6 +1674,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "co-admins-circle-collab-board",
         q: "What do co-admins do in a Circle or Collab Board?",
         a: (
           <>
@@ -1561,10 +1690,12 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "advertising",
     title: "Advertising",
     hideInIosApp: true,
     items: [
       {
+        id: "advertise-yukon3t",
         q: "How do I advertise on YuKon3t?",
         a: (
           <>
@@ -1580,13 +1711,15 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "inviting-friends",
     title: "Inviting friends",
     items: [
       {
+        id: "invite-someone-from-phones-contacts",
         q: "How do I invite someone from my phone's contacts who isn't on YuKon3t yet?",
         a: (
           <>
-            Go to Settings → Invite friends → &ldquo;Invite from
+            Go to Settings → Invite friends → &ldquo;Choose from
             contacts.&rdquo; On a phone/Android device you can pick contacts
             directly and text them the app link with one tap; everywhere
             else, it opens your device&apos;s share sheet, or you can just
@@ -1597,9 +1730,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "your-account-data",
     title: "Your account and data",
     items: [
       {
+        id: "signed-new-phone-computer-wheres",
         q: "I signed in on a new phone or computer — where's all my stuff?",
         a: (
           <>
@@ -1612,6 +1747,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "download-copy-data",
         q: "Can I download a copy of my data?",
         a: (
           <>
@@ -1622,6 +1758,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "difference-between-deactivating-deleting-account",
         q: "What's the difference between deactivating and deleting my account?",
         a: (
           <>
@@ -1634,6 +1771,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "forgot-password",
         q: "I forgot my password.",
         a: (
           <>
@@ -1645,6 +1783,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "was-asked-reset-password",
         q: "Why was I asked to reset my password?",
         a: (
           <>
@@ -1659,6 +1798,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "set-interests-find-specific-job",
         q: "How do I set my interests, or find a specific job or profession?",
         a: (
           <>
@@ -1671,6 +1811,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "need-sign-up",
         q: "What do I need to sign up?",
         a: (
           <>
@@ -1685,8 +1826,32 @@ const sections: Section[] = [
           </>
         ),
       },
-      { q: en.faq.languages.q, a: en.faq.languages.a, text: "languages" },
       {
+        id: "languages",
+        q: "Can I use YuKon3t in a language other than English?",
+        a: (
+          <>
+            Yes. YuKon3t is available in English, Spanish, French,
+            Portuguese and Arabic: the home page and sign-up, the whole app
+            once you&apos;re signed in, this FAQ, and the emails and
+            verification texts we send for your account. It opens in your
+            phone or browser&apos;s language when it is one of the five; to
+            switch, use the Language menu at the top corner of the home page
+            (below Sign in) or at the bottom of the other account screens,
+            or Settings → Language once you&apos;re signed in — the choice
+            is remembered on that device. In Arabic the app reads right to
+            left. A few things are in English only: the notifications sent
+            to your phone and a few notices written at the moment they were
+            sent, the legal pages (Terms, Privacy, Community Guidelines,
+            Disclaimer), job titles in the interest and category lists, the
+            incoming-call screen your phone itself shows, and the tools
+            admins use. What people write is never translated: a message,
+            post or comment appears in the language it was written in.
+          </>
+        ),
+      },
+      {
+        id: "sign-up-says-something-needs",
         q: "Sign-up says something needs fixing — did I lose what I typed?",
         a: (
           <>
@@ -1702,6 +1867,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "verify-account-after-signing-up",
         q: "How do I verify my account after signing up?",
         a: (
           <>
@@ -1719,6 +1885,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "says-account-locked-happened",
         q: "It says my account is locked — what happened?",
         a: (
           <>
@@ -1734,9 +1901,11 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "privacy-safety-trust",
     title: "Privacy, safety, and trust",
     items: [
       {
+        id: "who-see-posts-profile",
         q: "Who can see my posts and profile?",
         a: (
           <>
@@ -1747,6 +1916,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "trust-score-trust-badge",
         q: "What's a trust score / trust badge?",
         a: (
           <>
@@ -1758,6 +1928,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "someone-know-take-screenshot",
         q: "Will someone know if I take a screenshot?",
         a: (
           <>
@@ -1772,6 +1943,7 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "report-someone-something",
         q: "How do I report someone or something?",
         a: (
           <>
@@ -1793,48 +1965,57 @@ export default async function FaqPage() {
   // The FAQ is public: someone signed in goes Back to Home, a visitor to the landing page.
   const session = await auth();
   const viewOnceAvailable = isViewOnceConfigured();
-  const locale = await getLocale();
-  const translated = (await getDictionary()).faq;
+  // English is the JSX above; any other language comes from its content/ module (server-side only, so the browser
+  // is only ever sent the one language it shows).
+  const translated = faqContentFor(await getLocale());
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
       <BackButton href={session?.user ? "/home" : "/"} />
-      <h1 className="font-display text-3xl font-semibold">Frequently asked questions</h1>
+      <h1 className="font-display text-3xl font-semibold">{translated?.heading ?? heading}</h1>
       <p className="mt-2 text-sm text-foreground-soft">
-        Everything you need to find your way around YuKon3t. Can&apos;t find
-        an answer here? Reply to any moderation email, or reach out through
-        the report flow on the relevant page.
+        {translated?.intro ?? (
+          <>
+            Everything you need to find your way around YuKon3t. Can&apos;t find
+            an answer here? Reply to any moderation email, or reach out through
+            the report flow on the relevant page.
+          </>
+        )}
       </p>
 
       <div className="mt-10 space-y-10">
         {sections.map((section) => {
           const block = (
-            <section key={section.hideInIosApp ? undefined : section.title}>
-              <h2 className="font-display text-xl font-semibold text-teal">{section.title}</h2>
+            <section key={section.hideInIosApp ? undefined : section.id}>
+              <h2 className="font-display text-xl font-semibold text-teal">
+                {translated?.sections[section.id] ?? section.title}
+              </h2>
               <div className="mt-3 space-y-2">
                 {section.items
                   .filter((item) => viewOnceAvailable || !item.requiresViewOnce)
                   .map((item) => (
                   <details
-                    key={item.q}
-                    {...(item.text ? { lang: locale, dir: localeDirection(locale) } : {})}
-                    className="group rounded-xl border border-line bg-surface p-4 open:shadow-sm"
+                    key={item.id}
+                    id={item.id}
+                    className="group scroll-mt-24 rounded-xl border border-line bg-surface p-4 open:shadow-sm"
                   >
                     <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                       <span className="flex items-center justify-between gap-3">
-                        {item.text ? translated[item.text].q : item.q}
+                        {translated?.items[item.id].q ?? item.q}
                         <span className="shrink-0 text-foreground-soft transition-transform group-open:rotate-45">
                           +
                         </span>
                       </span>
                     </summary>
-                    <div className="mt-2 text-sm leading-relaxed text-foreground-soft">{item.text ? translated[item.text].a : item.a}</div>
+                    <div className="mt-2 text-sm leading-relaxed text-foreground-soft">
+                      {translated ? <FaqAnswer text={translated.items[item.id].a} /> : item.a}
+                    </div>
                   </details>
                 ))}
               </div>
             </section>
           );
           return section.hideInIosApp ? (
-            <HideInIosApp key={section.title}>{block}</HideInIosApp>
+            <HideInIosApp key={section.id}>{block}</HideInIosApp>
           ) : (
             block
           );

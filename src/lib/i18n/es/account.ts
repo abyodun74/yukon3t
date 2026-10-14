@@ -3,16 +3,6 @@ import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/es/com
 
 export const account: typeof accountEn = {
   languagePicker: { label: "Idioma" },
-  faq: {
-    dictation: {
-      q: "¿Puedo dictar una publicación en lugar de escribirla?",
-      a: "Sí. Toca el ícono del micrófono en el editor de publicaciones (o en el cuadro de mensaje de un chat) para grabar un audio corto; se transcribe y aparece en el cuadro de texto para que lo revises y lo edites antes de publicar o enviar. No es lo mismo que el botón redondo de micrófono/enviar de un chat, que envía la grabación tal cual como nota de voz: el micrófono de dictado está junto al botón de emojis y siempre produce texto editable. Habla en tu idioma: el español, el francés, el portugués, el árabe y muchos otros se reconocen automáticamente, sin importar en qué idioma veas la aplicación.",
-    },
-    languages: {
-      q: "¿Puedo usar YuKon3t en un idioma que no sea inglés?",
-      a: "Iniciar sesión, crear una cuenta, verificarla, restablecer tu contraseña y configurar tu perfil están disponibles en inglés, español, francés, portugués y árabe, igual que los correos y los mensajes de texto que envían esas pantallas. Se abren en el idioma de tu teléfono o navegador cuando es uno de los cinco; para cambiarlo, usa el menú «Idioma» en la esquina superior de la página de inicio (debajo de «Iniciar sesión») o al final de las demás pantallas de la cuenta. La elección se recuerda en ese dispositivo. La página de inicio que ves antes de iniciar sesión también está en esos cinco idiomas; después de iniciar sesión, cámbialo en «Ajustes» → «Idioma». También lo están los menús, tu feed de Inicio (publicaciones, historias, compartir y el editor de publicaciones), los perfiles, Ajustes, Buscar, Descubrir, Contactos, Notificaciones y Novedades, Mensajes (tu lista de conversaciones, los chats, los chats grupales y los chats ocultos), los comentarios de las publicaciones, las grabadoras de voz y video y el buscador de GIF que se abren desde ahí, el dictado, el formulario para reportar, la invitación de amigos, la página de Publicidad, Circles, Collab Boards, Muse, las transmisiones en vivo y las llamadas. En árabe, esas pantallas se leen de derecha a izquierda. Las notificaciones que enviamos, el resto de estas preguntas frecuentes y las páginas legales están en inglés por ahora. Lo que escribe la gente nunca se traduce: un mensaje o un comentario aparece en el idioma en que se escribió.",
-    },
-  },
   landing: {
     eyebrow: "Conexión global, con honestidad",
     title: "Conecta con personas de todo el mundo: por intereses, por cultura, por propósito.",

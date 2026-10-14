@@ -4,11 +4,11 @@
 // Discover, Connections, Notifications and What's new; everything under /messages; comments, recorders and pickers,
 // dictation, reactions and the report sheet; profiles (/u), Settings, the invite page and the Advertise pages;
 // Circles and Collab Boards (/circles, /collab); Muse (/muse), the live stream room (/live) and calls (the call
-// buttons, the incoming-call banner, the call screen); the two FAQ entries about languages. The fixed lists people
+// buttons, the incoming-call banner, the call screen); the FAQ (its text is in src/app/faq/content, not here). The fixed lists people
 // pick from (countries, languages, interests, a Circle's general categories, collaboration types) are shown
 // translated and stored in English (country-names.ts, language-names.ts, the vocab area); job titles are shown as
-// stored. Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): the FAQ, and legal
-// and admin (which stay English). So are every notification written for someone else, whose language isn't stored,
+// stored. Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): legal and admin,
+// which stay English. So are every notification written for someone else, whose language isn't stored,
 // the native ring screens, and the call provider's own interface where it has no translation (Arabic).
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 
