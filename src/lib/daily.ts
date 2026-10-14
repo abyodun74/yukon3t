@@ -119,11 +119,19 @@ export async function createMeetingToken({
   return data.token as string;
 }
 
+// Deleting a room is best-effort (its own `exp` removes it either way), so it is not worth waiting long for.
+const DELETE_ROOM_TIMEOUT_MS = 5_000;
+
 export async function deleteCallRoom(roomName: string) {
   try {
     await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${apiKey()}` },
+      // The call actions (endCall above all) await this, and the browser
+      // runs one Server Action at a time: while it waits, every other action
+      // in the app (sending a message, liking, calling again) queues behind
+      // it. A slow Daily API must not be able to hold all of that up.
+      signal: AbortSignal.timeout(DELETE_ROOM_TIMEOUT_MS),
     });
   } catch {
     // Best-effort cleanup — the room's own `exp` property (see

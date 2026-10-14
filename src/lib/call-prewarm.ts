@@ -29,7 +29,9 @@ import { CALL_STATUS_CHECK_TIMEOUT_MS, settledWithin } from "@/lib/call-resilien
  * as its own session dedupe key, not a separate identifier — see
  * call-button.tsx/incoming-call-listener.tsx.
  */
-type PrewarmEntry = { promise: Promise<DailyCall> };
+// `call` is set as soon as the call object exists, before its join has finished, so cancelPrewarm can destroy it
+// straight away; `cancelled` is how a call object created after the cancel finds out it isn't wanted.
+type PrewarmEntry = { promise: Promise<DailyCall>; call: DailyCall | null; cancelled: boolean };
 
 const prewarmed = new Map<string, PrewarmEntry>();
 
@@ -47,11 +49,17 @@ export function prewarmCall(
   // wide — keeping it dynamic here is also what lets DirectCallFrame's own
   // later `import("@daily-co/daily-js")` resolve from cache instantly
   // instead of fetching the chunk twice).
-  const promise = import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
+  // `promise` is assigned straight below: the chain it starts needs `entry` itself.
+  const entry = { call: null, cancelled: false } as Omit<PrewarmEntry, "promise"> as PrewarmEntry;
+  entry.promise = import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
+    // Cancelled while the chunk was still loading: never create the call
+    // object at all, so no camera or microphone is ever requested for it.
+    if (entry.cancelled) throw new Error("prewarm_cancelled");
     // avoidEval: true — this app's CSP (src/proxy.ts) never allows
     // 'unsafe-eval' in production; without this the call object fails to
     // initialize (same requirement DirectCallFrame/LiveVideoFrame have).
     const call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
+    entry.call = call;
     return call
       .join({ url: roomUrl, token, startVideoOff: muted || type === "AUDIO", startAudioOff: muted })
       .then(
@@ -64,14 +72,16 @@ export function prewarmCall(
           // waited on (it only deregisters at the very end of destroy())
           // before rejecting, so whoever falls back to a fresh call object
           // can create one straight away. The wait is bounded so a destroy
-          // that hangs can't hold the fallback up indefinitely.
-          await settledWithin(call.destroy(), CALL_STATUS_CHECK_TIMEOUT_MS);
+          // that hangs can't hold the fallback up indefinitely. Skipped when
+          // cancelPrewarm already destroyed it (that is what failed the join).
+          if (!entry.cancelled) await settledWithin(call.destroy(), CALL_STATUS_CHECK_TIMEOUT_MS);
           throw err;
         },
       );
   });
 
-  prewarmed.set(key, { promise });
+  prewarmed.set(key, entry);
+  const { promise } = entry;
 
   // Nobody may ever call takePrewarmedCall for this key (the callee
   // declines, or the caller cancels before accept) — cancelPrewarm already
@@ -105,5 +115,17 @@ export function cancelPrewarm(key: string) {
   const entry = prewarmed.get(key);
   if (!entry) return;
   prewarmed.delete(key);
-  entry.promise.then((call) => call.destroy()).catch(() => {});
+  entry.cancelled = true;
+  // Destroyed now, not once its join settles: a join still in flight (a slow
+  // or dropped network while the phone rang) would otherwise keep the
+  // caller's camera and microphone live for a call that is already over,
+  // for as long as that join takes, and daily-js refuses to create the next
+  // call's object until this one is gone. Destroying it fails the pending
+  // join, which prewarmCall's own rejection path then leaves alone.
+  if (entry.call) {
+    entry.call.destroy().catch(() => {});
+    return;
+  }
+  // Not created yet (daily-js still loading): prewarmCall sees `cancelled`
+  // and never creates it.
 }

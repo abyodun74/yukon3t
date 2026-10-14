@@ -1,8 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion, type PanInfo } from "motion/react";
+import { AnimatePresence, motion, useIsPresent, type PanInfo } from "motion/react";
 import { X } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { useId, type ReactNode, type Ref } from "react";
 import { hapticImpact } from "@/lib/haptics";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useUiText } from "@/components/ui-text";
@@ -76,8 +76,8 @@ export function Sheet({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          ref={dialogRef}
+        <SheetBackdrop
+          dialogRef={dialogRef}
           className={
             variant === "bottom-sheet"
               ? `fixed inset-0 z-50 flex items-end justify-center bg-black/60 outline-none ${responsive ? "sm:items-center sm:p-4" : ""}`
@@ -90,16 +90,9 @@ export function Sheet({
                 // starts at the top and this backdrop scrolls to the rest.
                 "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
           }
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          onClick={onClose}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={title !== undefined ? titleId : undefined}
-          aria-label={title !== undefined ? undefined : ariaLabel}
-          tabIndex={-1}
+          onClose={onClose}
+          labelledBy={title !== undefined ? titleId : undefined}
+          label={title !== undefined ? undefined : ariaLabel}
           lang={lang}
           dir={dir}
         >
@@ -112,9 +105,62 @@ export function Sheet({
               {children}
             </DialogPanel>
           )}
-        </motion.div>
+        </SheetBackdrop>
       )}
     </AnimatePresence>
+  );
+}
+
+/**
+ * The full-screen backdrop, and the dialog element itself. AnimatePresence keeps it mounted after `open` turns false,
+ * for as long as its exit animation takes: still covering the whole screen at z-50, but fading to nothing. From that
+ * moment it must stop being in the way, or it is an invisible layer catching every tap and scroll (each one landing
+ * on onClose again, for a sheet that is already closed) until the animation is done; and for good if that animation
+ * never finishes, which is what a page whose animation frames have stopped (a WebView paused in the background) can
+ * leave behind. So once it is exiting it lets touches through, stops calling onClose and is no longer announced as a
+ * modal dialog (other code treats an aria-modal element as an open sheet).
+ */
+function SheetBackdrop({
+  dialogRef,
+  className,
+  onClose,
+  labelledBy,
+  label,
+  lang,
+  dir,
+  children,
+}: {
+  dialogRef: Ref<HTMLDivElement>;
+  className: string;
+  onClose: () => void;
+  labelledBy?: string;
+  label?: string;
+  lang?: string;
+  dir?: "ltr" | "rtl";
+  children: ReactNode;
+}) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div
+      ref={dialogRef}
+      className={className}
+      style={isPresent ? undefined : { pointerEvents: "none" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onClick={isPresent ? onClose : undefined}
+      role="dialog"
+      aria-modal={isPresent ? "true" : undefined}
+      aria-hidden={isPresent ? undefined : true}
+      aria-labelledby={labelledBy}
+      aria-label={label}
+      tabIndex={-1}
+      lang={lang}
+      dir={dir}
+    >
+      {children}
+    </motion.div>
   );
 }
 
