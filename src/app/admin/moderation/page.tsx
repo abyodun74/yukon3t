@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { UNVERIFIED_ACCOUNT_WHERE } from "@/lib/account-verification";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
@@ -217,13 +218,15 @@ async function LoginIssuesSection({ limit }: SectionProps) {
         prisma.user.findMany({
           where: {
             status: "ACTIVE",
-            emailVerified: null,
+            // Verified neither by email nor by phone (src/lib/account-verification.ts): an account that
+            // verified by text is signed in and using the app, not stuck.
+            ...UNVERIFIED_ACCOUNT_WHERE,
             createdAt: { lt: new Date(now.getTime() - STUCK_UNVERIFIED_AFTER_MS) },
             // Excludes accounts the resolve-login-issues cron already auto-dismissed
             // after 48h unresolved (src/app/api/cron/resolve-login-issues) — without
             // this, still-unverified-but-dismissed accounts would keep showing here
             // forever, since verifying is what would otherwise naturally clear this
-            // bucket (emailVerified stays null either way).
+            // bucket (the verification columns stay null either way).
             loginIssueResolvedAt: null,
           },
           orderBy: { createdAt: "asc" },

@@ -4,7 +4,6 @@ import { isCronAuthorized } from "@/lib/cron-auth";
 import { advanceLongVideoReview, type VideoReviewResult } from "@/lib/video-review";
 import { notifyVideoFlaggedForReview } from "@/lib/video-review-notice";
 import { revalidatePath } from "next/cache";
-import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
 import { captureError } from "@/lib/error-tracking";
 
 // A tick can span a Cloudflare API call plus (once captions are ready) up to
@@ -304,8 +303,9 @@ async function reviewOneComment(candidate: Candidate & { postId: string }): Prom
 
 /**
  * Triggered every minute (Netlify Scheduled Function), same thin-trigger
- * pattern as moderate-videos. Claims up to BATCH_SIZE long (over Hive's 60s
- * cap) video posts still awaiting a verdict and drives each through
+ * pattern as moderate-videos. Claims up to BATCH_SIZE video posts still
+ * awaiting a verdict (long ones over Hive's 60s cap, and short ones Hive
+ * itself gave up on: see moderate-videos) and drives each through
  * reviewOnePost's own internal poll loop concurrently — see that function
  * and video-review.ts for why a single post's review can still legitimately
  * span more than one tick (Cloudflare's own copy/encode/caption pipeline
@@ -324,7 +324,9 @@ async function claimPostCandidates(claimable: object) {
     where: {
       mediaType: "VIDEO",
       videoLongReviewNeeded: true,
-      videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+      // Any known length: mostly videos over Hive's 60s cap, plus short ones Hive gave up on (moderate-videos,
+      // src/lib/video-scan-retry.ts). Without a length there are no frames to sample.
+      videoDurationSeconds: { gt: 0 },
       ...claimable,
     },
     orderBy: { createdAt: "asc" },
@@ -369,7 +371,9 @@ async function claimCommentCandidates(claimable: object) {
   const candidates = await prisma.comment.findMany({
     where: {
       videoLongReviewNeeded: true,
-      videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+      // Any known length: mostly videos over Hive's 60s cap, plus short ones Hive gave up on (moderate-videos,
+      // src/lib/video-scan-retry.ts). Without a length there are no frames to sample.
+      videoDurationSeconds: { gt: 0 },
       ...claimable,
     },
     orderBy: { createdAt: "asc" },
@@ -409,7 +413,9 @@ async function claimMuseCandidates(claimable: object) {
     where: {
       mediaType: "VIDEO",
       videoLongReviewNeeded: true,
-      videoDurationSeconds: { gt: HIVE_VIDEO_MODERATION_MAX_SECONDS },
+      // Any known length: mostly videos over Hive's 60s cap, plus short ones Hive gave up on (moderate-videos,
+      // src/lib/video-scan-retry.ts). Without a length there are no frames to sample.
+      videoDurationSeconds: { gt: 0 },
       ...claimable,
     },
     orderBy: { createdAt: "asc" },

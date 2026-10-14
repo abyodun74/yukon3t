@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFlagged } from "@/lib/hive";
+import { isFlagged, hiveFailureForStatus, isProviderWideFailure } from "@/lib/hive";
 
 function response(classes: Array<{ class: string; value: number }>) {
   return { output: [{ classes }] };
@@ -44,5 +44,34 @@ describe("isFlagged", () => {
   it("handles a missing/empty output gracefully", () => {
     expect(isFlagged({})).toBe(false);
     expect(isFlagged({ output: [] })).toBe(false);
+  });
+});
+
+describe("hiveFailureForStatus / isProviderWideFailure", () => {
+  it("treats key, credit, rate-limit and server errors as provider-wide", () => {
+    for (const status of [401, 403, 402, 429, 500, 503]) {
+      expect(isProviderWideFailure(hiveFailureForStatus(status)), String(status)).toBe(true);
+    }
+  });
+
+  it("treats other client errors as about the video", () => {
+    for (const status of [400, 404, 413, 415, 422]) {
+      expect(hiveFailureForStatus(status), String(status)).toBe("rejected_media");
+      expect(isProviderWideFailure("rejected_media")).toBe(false);
+    }
+  });
+
+  it("names the common cases", () => {
+    expect(hiveFailureForStatus(401)).toBe("unauthorized");
+    expect(hiveFailureForStatus(402)).toBe("out_of_credit");
+    expect(hiveFailureForStatus(429)).toBe("rate_limited");
+    expect(hiveFailureForStatus(502)).toBe("provider_error");
+  });
+
+  it("counts a missing key and an unreachable host as provider-wide, a timeout as about the video", () => {
+    expect(isProviderWideFailure("not_configured")).toBe(true);
+    expect(isProviderWideFailure("unreachable")).toBe(true);
+    expect(isProviderWideFailure("timeout")).toBe(false);
+    expect(isProviderWideFailure("bad_response")).toBe(false);
   });
 });

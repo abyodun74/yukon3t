@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { UNRESOLVED_LOGIN_ISSUE_CLEAR_AFTER_MS } from "@/lib/login-issues";
 import { isCronAuthorized } from "@/lib/cron-auth";
+import { UNVERIFIED_ACCOUNT_WHERE } from "@/lib/account-verification";
 
 /**
  * Triggered on a schedule (Netlify Scheduled Function), not by a user
@@ -15,10 +16,13 @@ import { isCronAuthorized } from "@/lib/cron-auth";
  *    streak so the account is no longer flagged.
  *  - Locked accounts: lockedUntil already self-expires within 24h, so this
  *    is mostly a safety net.
- *  - Stuck-unverified accounts: dismissed into "recently resolved" via
- *    loginIssueResolvedAt, WITHOUT setting emailVerified — auto-verifying
- *    an email would bypass a real security check, so this only stops
- *    nagging the moderation queue, it doesn't grant sign-in access.
+ *  - Stuck-unverified accounts (verified neither by email nor by phone,
+ *    UNVERIFIED_ACCOUNT_WHERE in src/lib/account-verification.ts — an
+ *    account that verified by text is not stuck): dismissed into "recently
+ *    resolved" via loginIssueResolvedAt, WITHOUT setting emailVerified —
+ *    auto-verifying an email would bypass a real security check, so this
+ *    only stops nagging the moderation queue, it doesn't grant sign-in
+ *    access.
  */
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -44,7 +48,7 @@ export async function GET(request: Request) {
   const dismissed = await prisma.user.updateMany({
     where: {
       status: { in: ["ACTIVE", "DEACTIVATED"] },
-      emailVerified: null,
+      ...UNVERIFIED_ACCOUNT_WHERE,
       createdAt: { lt: cutoff },
       loginIssueResolvedAt: null,
     },

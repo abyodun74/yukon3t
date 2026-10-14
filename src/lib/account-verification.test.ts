@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isAccountVerified, signInNeedsVerification } from "@/lib/account-verification";
+import { isAccountVerified, signInNeedsVerification, UNVERIFIED_ACCOUNT_WHERE } from "@/lib/account-verification";
 
 const at = new Date("2026-10-01T00:00:00Z");
 
@@ -33,5 +33,20 @@ describe("signInNeedsVerification", () => {
 
   it("lets the App Review demo account through unverified", () => {
     expect(signInNeedsVerification({ emailVerified: null, phoneVerifiedAt: null, isAppReviewDemo: true })).toBe(false);
+  });
+});
+
+describe("UNVERIFIED_ACCOUNT_WHERE", () => {
+  // What the fragment selects, evaluated the way Postgres would: every listed column must be NULL.
+  const matches = (user: { emailVerified: Date | null; phoneVerifiedAt: Date | null }) =>
+    Object.entries(UNVERIFIED_ACCOUNT_WHERE).every(([column, value]) => user[column as keyof typeof user] === value);
+
+  it("selects exactly the accounts isAccountVerified refuses", () => {
+    for (const emailVerified of [null, at]) {
+      for (const phoneVerifiedAt of [null, at]) {
+        const user = { emailVerified, phoneVerifiedAt };
+        expect(matches(user), JSON.stringify(user)).toBe(!isAccountVerified(user));
+      }
+    }
   });
 });

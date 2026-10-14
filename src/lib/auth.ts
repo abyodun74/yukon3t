@@ -17,6 +17,9 @@ import { magicLinkEmail } from "@/lib/account-emails";
 import { localeFromRequest } from "@/lib/i18n/locales";
 import { getLocale } from "@/lib/i18n/server";
 import { rememberLocale } from "@/lib/user-locale";
+import { providerVerifiedEmail } from "@/lib/oauth-email-verification";
+import { captureError } from "@/lib/error-tracking";
+import { recomputeTrustScore } from "@/lib/trust";
 
 const providers: Provider[] = [
   Resend({
@@ -174,6 +177,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
+    // Fires only after Auth.js has finished a sign-in: the account exists and, for Google/Apple, the provider account is
+    // linked to it (a refused link, a suspended account or a pending device challenge never gets here). Auth.js stores
+    // every OAuth account with emailVerified: null, so this is where the provider's own "this email is verified" claim
+    // (providerVerifiedEmail) is recorded. Only for the address on the account itself, matched case-insensitively: a
+    // provider vouching for a different address proves nothing about this account's. Only fills an empty column, never
+    // overwrites a date. Best-effort: a failure here must not turn a finished sign-in into an error.
+    async signIn({ user, account, profile }) {
+      const verifiedEmail = providerVerifiedEmail(account?.provider, profile);
+      if (!verifiedEmail || !user?.id) return;
+      try {
+        const marked = await prisma.user.updateMany({
+          where: { id: user.id, emailVerified: null, email: { equals: verifiedEmail, mode: "insensitive" } },
+          data: { emailVerified: new Date() },
+        });
+        // A verified email is part of the trust score, same as when the email code is confirmed.
+        if (marked.count > 0) await recomputeTrustScore(user.id);
+      } catch (err) {
+        console.error("[auth] could not record the provider's email verification", err);
+        await captureError(err, { where: "events.signIn", provider: account?.provider });
+      }
+    },
     // Fires once, after the adapter has actually persisted the new user —
     // the reliable place to track a magic-link/OAuth sign-up, unlike the
     // signIn callback above.

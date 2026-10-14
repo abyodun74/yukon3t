@@ -59,28 +59,87 @@ export function isFlagged(data: HiveVisualModerationResponse): boolean {
 const MODERATION_TIMEOUT_MS = 30_000;
 
 /**
- * Synchronously scans a video URL. Fails open (returns null) on any
- * error/missing key/timeout — the caller (the cron route) treats null as
- * "leave unclaimed, try again next run," never as "assume clean."
+ * Why a scan produced no verdict. "Provider-wide" failures (see isProviderWideFailure) say nothing about the video:
+ * the key is missing, refused or out of credit, Hive is rate-limiting or down, or Hive can't be reached at all. Every
+ * other video would fail the same way, so the cron stops its run and retries later without counting it against any
+ * video. The rest are about this video: Hive rejected the request for it, timed out on it, or answered something
+ * this file can't read.
  */
-export async function moderateVideo(videoUrl: string): Promise<{ flagged: boolean } | null> {
+export type HiveFailure =
+  | "not_configured"
+  | "unauthorized"
+  | "out_of_credit"
+  | "rate_limited"
+  | "provider_error"
+  | "unreachable"
+  | "rejected_media"
+  | "timeout"
+  | "bad_response";
+
+export type HiveScan = { ok: true; flagged: boolean } | { ok: false; failure: HiveFailure; detail?: string };
+
+/** What an HTTP error status from Hive means for the scan. */
+export function hiveFailureForStatus(status: number): HiveFailure {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 402) return "out_of_credit";
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "provider_error";
+  return "rejected_media";
+}
+
+export function isProviderWideFailure(failure: HiveFailure): boolean {
+  return (
+    failure === "not_configured" ||
+    failure === "unauthorized" ||
+    failure === "out_of_credit" ||
+    failure === "rate_limited" ||
+    failure === "provider_error" ||
+    failure === "unreachable"
+  );
+}
+
+// Enough of Hive's error body to say why (e.g. {"status_code":401,"message":"Invalid or expired token"}). The body
+// never contains the key; the cap keeps a log line short.
+const DETAIL_MAX_CHARS = 300;
+
+/**
+ * Synchronously scans a video URL. Never "assume clean": anything other than a readable answer comes back as a
+ * failure with its reason (and Hive's own error text when it sent one), which the cron logs, reports and acts on.
+ */
+export async function moderateVideo(videoUrl: string): Promise<HiveScan> {
   const apiKey = process.env.HIVE_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { ok: false, failure: "not_configured" };
 
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), MODERATION_TIMEOUT_MS);
   try {
-    const res = await fetch("https://api.thehive.ai/api/v3/hive/visual-moderation", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ input: [{ media_url: videoUrl }] }),
-      signal: timeoutController.signal,
-    });
-    if (!res.ok) return null;
-    const data: HiveVisualModerationResponse = await res.json();
-    return { flagged: isFlagged(data) };
-  } catch {
-    return null;
+    let res: Response;
+    try {
+      res = await fetch("https://api.thehive.ai/api/v3/hive/visual-moderation", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ input: [{ media_url: videoUrl }] }),
+        signal: timeoutController.signal,
+      });
+    } catch {
+      return { ok: false, failure: timeoutController.signal.aborted ? "timeout" : "unreachable" };
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return {
+        ok: false,
+        failure: hiveFailureForStatus(res.status),
+        detail: `HTTP ${res.status}${body ? ` ${body.slice(0, DETAIL_MAX_CHARS)}` : ""}`,
+      };
+    }
+    let data: HiveVisualModerationResponse;
+    try {
+      data = await res.json();
+    } catch {
+      return { ok: false, failure: timeoutController.signal.aborted ? "timeout" : "bad_response" };
+    }
+    if (!data || !Array.isArray(data.output)) return { ok: false, failure: "bad_response" };
+    return { ok: true, flagged: isFlagged(data) };
   } finally {
     clearTimeout(timeout);
   }
