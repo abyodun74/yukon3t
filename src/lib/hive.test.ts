@@ -54,8 +54,22 @@ describe("hiveFailureForStatus / isProviderWideFailure", () => {
     }
   });
 
-  it("treats other client errors as about the video", () => {
-    for (const status of [400, 404, 413, 415, 422]) {
+  it("treats a paused or out-of-balance account as out of credit, whatever the status", () => {
+    const paused =
+      '{"status_code":405,"message":"Your Organization is currently paused. Please check your account balance, our terms and conditions, or contact support@thehive.ai for more information."}';
+    expect(hiveFailureForStatus(405, paused)).toBe("out_of_credit");
+    expect(hiveFailureForStatus(400, paused)).toBe("out_of_credit");
+    expect(isProviderWideFailure(hiveFailureForStatus(405, paused))).toBe(true);
+  });
+
+  it("treats an unrecognised client error as provider-wide, never against the video", () => {
+    for (const status of [404, 405, 409, 410]) {
+      expect(isProviderWideFailure(hiveFailureForStatus(status)), String(status)).toBe(true);
+    }
+  });
+
+  it("treats media errors as about the video", () => {
+    for (const status of [400, 413, 415, 422]) {
       expect(hiveFailureForStatus(status), String(status)).toBe("rejected_media");
       expect(isProviderWideFailure("rejected_media")).toBe(false);
     }

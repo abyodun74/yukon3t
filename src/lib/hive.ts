@@ -78,13 +78,23 @@ export type HiveFailure =
 
 export type HiveScan = { ok: true; flagged: boolean } | { ok: false; failure: HiveFailure; detail?: string };
 
-/** What an HTTP error status from Hive means for the scan. */
-export function hiveFailureForStatus(status: number): HiveFailure {
+// Statuses that can be about the media itself (a URL Hive couldn't fetch or read, a file too large or of the wrong
+// type). Any other client error is about the account or the request, which is the same for every video.
+const MEDIA_ERROR_STATUSES = new Set([400, 413, 415, 422]);
+// Hive pauses an organization whose balance runs out and answers every request with that, under a status that isn't
+// 402 (seen live 2026-10-14: HTTP 405 "Your Organization is currently paused. Please check your account balance…").
+const ACCOUNT_PAUSED = /organi[sz]ation is (currently )?paused|account balance|insufficient (funds|credit|balance)|out of credit/i;
+
+/**
+ * What an HTTP error from Hive means for the scan. Only a status that can be about the media counts against the video;
+ * anything unrecognised is treated as provider-wide, so an account or API problem never hides or reroutes a video.
+ */
+export function hiveFailureForStatus(status: number, body = ""): HiveFailure {
+  if (status === 402 || ACCOUNT_PAUSED.test(body)) return "out_of_credit";
   if (status === 401 || status === 403) return "unauthorized";
-  if (status === 402) return "out_of_credit";
   if (status === 429) return "rate_limited";
-  if (status >= 500) return "provider_error";
-  return "rejected_media";
+  if (MEDIA_ERROR_STATUSES.has(status)) return "rejected_media";
+  return "provider_error";
 }
 
 export function isProviderWideFailure(failure: HiveFailure): boolean {
@@ -128,7 +138,7 @@ export async function moderateVideo(videoUrl: string): Promise<HiveScan> {
       const body = await res.text().catch(() => "");
       return {
         ok: false,
-        failure: hiveFailureForStatus(res.status),
+        failure: hiveFailureForStatus(res.status, body),
         detail: `HTTP ${res.status}${body ? ` ${body.slice(0, DETAIL_MAX_CHARS)}` : ""}`,
       };
     }
