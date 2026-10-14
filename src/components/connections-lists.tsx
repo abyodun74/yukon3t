@@ -186,7 +186,7 @@ export function ConnectedList({
                 {labels.message}
               </Link>
             )}
-            <CallButton calleeId={c.other.id} calleeName={c.other.name ?? "them"} currentUserId={currentUserId} />
+            <CallButton calleeId={c.other.id} calleeName={c.other.name} currentUserId={currentUserId} />
           </div>
         </div>
       ))}

@@ -1,6 +1,16 @@
-import { EnglishOnly } from "@/components/english-only";
+import { FeedLayout } from "@/components/feed-layout";
+import { MuseTextProvider } from "@/components/muse-text";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-// This part of the app is not translated yet: it stays English and left-to-right in every language.
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <EnglishOnly>{children}</EnglishOnly>;
+// Muse shows its own player and composer (Muse's wording) and the subscribe and share controls (the feed's).
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const t = await getDictionary();
+  return (
+    <FeedLayout>
+      <MuseTextProvider locale={locale} text={t.muse}>
+        {children}
+      </MuseTextProvider>
+    </FeedLayout>
+  );
 }

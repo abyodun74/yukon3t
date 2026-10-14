@@ -90,3 +90,23 @@ export function formatTimeAgo(date: Date, locale: Locale = "en", justNow: string
     unit[0],
   );
 }
+
+/** "5m" / "3h" / "2d" for a Muse comment, in the reader's own short form ("5 min", "5 د"). */
+export function formatShortAge(date: Date, locale: Locale = "en") {
+  const diffMs = Date.now() - new Date(date).getTime();
+  const hours = Math.floor(diffMs / 3_600_000);
+  const short = (value: number, unit: "minute" | "hour" | "day") =>
+    new Intl.NumberFormat(intlLocale(locale) ?? "en", { style: "unit", unit, unitDisplay: "narrow" }).format(value);
+  if (hours < 1) return short(Math.max(1, Math.floor(diffMs / 60_000)), "minute");
+  if (hours < 24) return short(hours, "hour");
+  return short(Math.floor(hours / 24), "day");
+}
+
+/** A whole number of seconds or minutes with its unit, in the reader's short form ("45s", "5 min", "45 ث"). */
+export function formatDuration(value: number, unit: "second" | "minute", locale: Locale = "en") {
+  return new Intl.NumberFormat(intlLocale(locale) ?? "en", {
+    style: "unit",
+    unit,
+    unitDisplay: unit === "second" ? "narrow" : "short",
+  }).format(value);
+}

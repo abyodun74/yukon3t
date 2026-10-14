@@ -3,13 +3,13 @@
 // screens and their emails; Home (posts, the composer, sharing, stories, the live strip), a post's page, Search,
 // Discover, Connections, Notifications and What's new; everything under /messages; comments, recorders and pickers,
 // dictation, reactions and the report sheet; profiles (/u), Settings, the invite page and the Advertise pages;
-// Circles and Collab Boards (/circles, /collab); the two FAQ entries about languages. The fixed lists people pick
-// from (countries, languages, interests, a Circle's general categories, collaboration types) are shown translated
-// and stored in English (country-names.ts, language-names.ts, the vocab area); job titles are shown as stored.
-// Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): Muse, the live room, calls
-// (the call overlays, the call button and Muse composer a profile opens, and the call frame of a Circle's voice
-// room), the FAQ, and legal and admin (which stay English). So is every notification written for someone else,
-// whose language isn't stored.
+// Circles and Collab Boards (/circles, /collab); Muse (/muse), the live stream room (/live) and calls (the call
+// buttons, the incoming-call banner, the call screen); the two FAQ entries about languages. The fixed lists people
+// pick from (countries, languages, interests, a Circle's general categories, collaboration types) are shown
+// translated and stored in English (country-names.ts, language-names.ts, the vocab area); job titles are shown as
+// stored. Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): the FAQ, and legal
+// and admin (which stay English). So are every notification written for someone else, whose language isn't stored,
+// the native ring screens, and the call provider's own interface where it has no translation (Arabic).
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 
 export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;

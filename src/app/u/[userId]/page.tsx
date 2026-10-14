@@ -19,7 +19,6 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isOnline } from "@/lib/presence";
 import { ScreenshotContextTracker } from "@/components/screenshot-context-tracker";
-import { EnglishOnly } from "@/components/english-only";
 import { COUNTRIES } from "@/lib/countries";
 import { LANGUAGES } from "@/lib/languages";
 import { INTERESTS } from "@/lib/interests";
@@ -277,10 +276,7 @@ export default async function PublicProfilePage({
             conversationId={conversationId}
           />
           {connection?.status === "ACCEPTED" && (
-            // The call controls are not translated yet.
-            <EnglishOnly contents>
-              <CallButton calleeId={user.id} calleeName={user.name} currentUserId={me.id} />
-            </EnglishOnly>
+            <CallButton calleeId={user.id} calleeName={user.name} currentUserId={me.id} />
           )}
           <ReportTrigger targetType="USER" targetId={user.id} reportedUserId={user.id} label={t.reportAccount} />
           <BlockButton targetId={user.id} targetName={user.name} initiallyBlocked={false} />

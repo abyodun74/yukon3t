@@ -1,0 +1,77 @@
+import type { liveEn } from "@/lib/i18n/en/live";
+
+// A live stream is "un direct", a co-host "coanimateur" and a guest "invité" (the generic forms, as on the Home
+// strip); the stage is "la scène". Home is "l'Accueil", the label the nav gives it. What is said to the reader
+// avoids a participle that would agree with them ("Vous êtes sur scène", "Votre demande a été refusée").
+export const live: typeof liveEn = {
+  errors: {
+    not_configured: "Les directs ne sont pas encore disponibles.",
+    not_a_member: "Rejoignez d'abord ce Circle pour regarder ce direct.",
+    not_found: "Ce direct est terminé.",
+    rate_limited: "Ralentissez un peu, puis réessayez.",
+    unavailable: "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
+    network: "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
+    stale_deployment: "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.",
+    other: "Impossible de rejoindre le direct. Réessayez.",
+  },
+  refresh: "Actualiser",
+  tryAgain: "Réessayer",
+  backHome: "Retour à l'Accueil",
+  starting: "Démarrage de votre direct…",
+  joining: "Connexion au direct…",
+  choosing: {
+    spots: "{filled}/{capacity} places de coanimateur/invité occupées",
+    watch: "Regarder",
+    askGuest: "Demander à rejoindre en tant qu'invité",
+    askCohost: "Demander à rejoindre en tant que coanimateur",
+    stageFull: "La scène est complète pour l'instant, mais vous pouvez quand même demander : une place peut se libérer.",
+    approval: "La personne qui anime le direct approuve les demandes d'invité et de coanimateur avant votre passage sur scène.",
+  },
+  badge: "EN DIRECT",
+  watching: "Spectateurs",
+  onStage: "Sur scène",
+  record: "Enregistrer",
+  stopRecording: "Arrêter l'enregistrement",
+  recordAndPost: "Enregistrer et publier",
+  recordAndPostLabel: "Enregistrer et publier dans le fil de l'Accueil",
+  screenshot: "Capture d'écran",
+  dismiss: "Fermer",
+  autoPost: {
+    failed: "Impossible de programmer la publication automatique de cet enregistrement. L'enregistrement se poursuit.",
+    set: "Cet enregistrement sera publié une fois son traitement terminé.",
+    recordFailed: "Impossible de démarrer l'enregistrement. Réessayez.",
+  },
+  recordings: {
+    title: "Enregistrements",
+    count: "Enregistrements ({count})",
+    loading: "Chargement...",
+    getLink: "Obtenir le lien",
+  },
+  stage: {
+    waiting: "En attente pour monter sur scène",
+    someone: "Quelqu'un",
+    roles: { COHOST: "coanimateur", GUEST: "invité" },
+    approve: "Approuver",
+    approveName: "Approuver {name}",
+    approveRequest: "Approuver cette demande",
+    decline: "Refuser",
+    declineName: "Refuser {name}",
+    declineRequest: "Refuser cette demande",
+    pending: {
+      COHOST: "En attente de l'approbation de votre demande de coanimateur…",
+      GUEST: "En attente de l'approbation de votre demande d'invité…",
+    },
+    cancel: "Annuler",
+    turnOnMedia: "Vous êtes sur scène : touchez pour activer votre caméra et votre micro",
+    cameraFailed: "Impossible de démarrer votre caméra. Vérifiez votre connexion, puis réessayez.",
+    declined: "Votre demande pour monter sur scène a été refusée.",
+  },
+  chat: {
+    someone: "Quelqu'un",
+    placeholder: "Écrivez quelque chose...",
+    label: "Écrire un commentaire",
+    send: "Envoyer le commentaire",
+  },
+  react: "Réagir",
+  reactWith: "Réagir avec {emoji}",
+};

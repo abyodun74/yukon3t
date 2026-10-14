@@ -66,11 +66,12 @@ export function useCallRoster(call: { callId: string; currentUserId: string } | 
  * What to call a call that has had people added to it, from one person's
  * side: the only other person's name, or "<first> + N". Null for a plain 1:1
  * call, or when nobody else is in it, where the session's own label stands.
+ * `someone` is the reader's word for a person the roster has no name for.
  */
-export function groupCallLabel(roster: CallRoster | null, selfUserId: string | undefined) {
+export function groupCallLabel(roster: CallRoster | null, selfUserId: string | undefined, someone = "Someone") {
   if (!roster?.group) return null;
   const others = roster.participants.filter((p) => p.status === "JOINED" && p.userId !== selfUserId);
   if (others.length === 0) return null;
-  const first = others[0].name ?? "Someone";
+  const first = others[0].name ?? someone;
   return others.length === 1 ? first : `${first} + ${others.length - 1}`;
 }

@@ -1,6 +1,13 @@
-import { EnglishOnly } from "@/components/english-only";
+import { LiveTextProvider } from "@/components/live-text";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-// This part of the app is not translated yet: it stays English and left-to-right in every language.
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <EnglishOnly>{children}</EnglishOnly>;
+// The live stream room is in the reader's language; its video tiles get theirs from the root layout (calls).
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const t = await getDictionary();
+  return (
+    <LiveTextProvider locale={locale} text={t.live}>
+      {children}
+    </LiveTextProvider>
+  );
 }

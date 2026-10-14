@@ -10,6 +10,9 @@ import { canShareNatively, shareNative } from "@/lib/native-share";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
 import { announce } from "@/lib/announce";
+import { useFeedText } from "@/components/feed-text";
+import { useMuseText } from "@/components/muse-text";
+import { byCode } from "@/lib/i18n/locales";
 
 // A Story only takes a clip up to this long (storage.ts MAX_STORY_VIDEO_SECONDS — duplicated because that file is
 // server-only); a longer Muse can still go to Home, a friend, or anywhere via the device share sheet.
@@ -56,6 +59,10 @@ export function MuseShareModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { dir, t: muse } = useMuseText();
+  const t = muse.share;
+  // Everything this sheet shares with the post share sheet is worded there.
+  const { t: feed } = useFeedText();
   const [view, setView] = useState<"root" | "friends">("root");
   // Sends a reopened modal back to its root screen — adjusted during
   // render (React's documented pattern for this) rather than a useEffect,
@@ -100,7 +107,7 @@ export function MuseShareModal({
         setTimeout(() => setCopied(false), 2000);
         countShare();
       })
-      .catch(() => setNotice("Couldn't copy the link."));
+      .catch(() => setNotice(t.copyFailed));
   }
 
   async function shareViaDevice() {
@@ -133,7 +140,7 @@ export function MuseShareModal({
       if (file && navigator.canShare?.({ files: [file] })) {
         data.files = [file];
       } else {
-        setNotice("Couldn't attach the video here, so only the link was shared.");
+        setNotice(t.linkOnly);
       }
       try {
         await navigator.share(data);
@@ -160,13 +167,7 @@ export function MuseShareModal({
       const result = await shareMuseToStory(museId);
       setSharingToStory(false);
       if (result.error) {
-        setNotice(
-          result.error === "too_long"
-            ? "This Muse is too long for a Story."
-            : result.error === "rate_limited"
-              ? "Slow down a little and try again."
-              : "Couldn't add it to your story.",
-        );
+        setNotice(byCode(t.storyErrors, result.error));
         return;
       }
       setSharedToStory(true);
@@ -179,11 +180,11 @@ export function MuseShareModal({
     startTransition(async () => {
       const result = await shareMuseToConversation(museId, conversationId);
       if (result.error) {
-        setNotice(result.error === "blocked" ? "You can't message this person." : "Couldn't send it.");
+        setNotice(byCode(t.sendErrors, result.error));
         return;
       }
       setSentToId(conversationId);
-      announce("Sent");
+      announce(feed.share.sent);
       if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
     });
   }
@@ -195,7 +196,7 @@ export function MuseShareModal({
     // nesting trick used wherever else in the app a fixed-position overlay
     // needs a non-default layer without Sheet itself needing a z-index prop.
     <div className="relative z-[60]">
-      <Sheet open={open} onClose={onClose} title={view === "root" ? "Share Muse" : "Send to a friend"}>
+      <Sheet open={open} onClose={onClose} title={view === "root" ? t.title : feed.share.sendToFriend}>
         {notice && <p role="alert" className="break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
 
         {view === "root" && (
@@ -207,7 +208,7 @@ export function MuseShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-60"
             >
               <House size={16} />
-              {reshared ? "On your Home" : sharingToHome ? "Sharing…" : "Share to your Home"}
+              {reshared ? t.onHome : sharingToHome ? t.sharingToHome : t.toHome}
             </button>
             {canShareToStory && (
               <button
@@ -217,7 +218,7 @@ export function MuseShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-60"
               >
                 <CirclePlus size={16} />
-                {sharedToStory ? "Added to your story" : sharingToStory ? "Adding…" : "Share to your story"}
+                {sharedToStory ? feed.share.addedToStory : sharingToStory ? feed.share.addingToStory : feed.share.toStory}
               </button>
             )}
             <button
@@ -226,7 +227,7 @@ export function MuseShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
             >
               <Send size={16} />
-              Send to a friend
+              {feed.share.sendToFriend}
             </button>
             {canNativeShare && (
               <button
@@ -236,7 +237,7 @@ export function MuseShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-60"
               >
                 <ShareIcon size={16} />
-                {sharingViaDevice ? "Preparing…" : "Share via device"}
+                {sharingViaDevice ? feed.share.preparing : feed.share.viaDevice}
               </button>
             )}
             <button
@@ -245,7 +246,7 @@ export function MuseShareModal({
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
             >
               <LinkIcon size={16} />
-              {copied ? "Link copied" : "Copy link"}
+              {copied ? feed.share.linkCopied : feed.share.copyLink}
             </button>
           </div>
         )}
@@ -253,7 +254,7 @@ export function MuseShareModal({
         {view === "friends" && (
           <div className="mt-3">
             <button type="button" onClick={() => setView("root")} className="mb-2 text-xs text-accent hover:underline">
-              ← Back
+              {`${dir === "rtl" ? "→" : "←"} ${feed.share.back}`}
             </button>
             <ul className="max-h-64 overflow-y-auto">
               {conversations === null && (
@@ -267,7 +268,7 @@ export function MuseShareModal({
                 </>
               )}
               {conversations?.length === 0 && (
-                <li className="px-2 py-3 text-sm text-foreground-soft">No conversations yet.</li>
+                <li className="px-2 py-3 text-sm text-foreground-soft">{feed.share.noConversations}</li>
               )}
               {conversations?.map((c) => (
                 <li key={c.id}>
@@ -275,11 +276,11 @@ export function MuseShareModal({
                     type="button"
                     disabled={sentToId === c.id}
                     onClick={() => sendToFriend(c.id)}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-line/60 disabled:opacity-60"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-60"
                   >
                     <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                    <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                    {sentToId === c.id && <span className="text-xs text-success">Sent</span>}
+                    <span dir="auto" className="min-w-0 flex-1 truncate">{c.label}</span>
+                    {sentToId === c.id && <span className="text-xs text-success">{feed.share.sent}</span>}
                   </button>
                 </li>
               ))}

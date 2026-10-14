@@ -26,6 +26,10 @@ import type { ReactionSummary } from "@/lib/reactions";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useMuseText } from "@/components/muse-text";
+import { useUiText } from "@/components/ui-text";
+import { formatShortAge } from "@/lib/format-date";
+import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -71,12 +75,9 @@ type MuseCommentData = {
   author: { id: string; name: string | null; avatarUrl: string | null };
 };
 
-function timeAgo(date: Date) {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const hours = Math.floor(diffMs / 3_600_000);
-  if (hours < 1) return `${Math.max(1, Math.floor(diffMs / 60_000))}m`;
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+/** "1,204 views": the plural form for `count`, with the number grouped the reader's way. */
+function countLabel(locale: Locale, forms: string, count: number) {
+  return plural(locale, forms, count).replace(String(count), count.toLocaleString(intlLocale(locale) ?? []));
 }
 
 // Same reasoning as story-viewer.tsx's SafeAreaBottomSpacer/its top-inset
@@ -110,6 +111,7 @@ export function MuseFeed({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const { t } = useMuseText();
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
   // Muse opens playing WITH sound; the speaker button mutes it. `muted` is the viewer's own choice, shared by every
@@ -218,7 +220,7 @@ export function MuseFeed({
     );
     const result = await toggleMuseRepost(museId);
     if (!result.error) {
-      setToast(nextReposted ? "Shared to your Home" : "Removed from your Home");
+      setToast(nextReposted ? t.feed.sharedToHome : t.feed.removedFromHome);
       setTimeout(() => setToast(null), 2500);
     }
     if (result.error) {
@@ -272,13 +274,13 @@ export function MuseFeed({
     return (
       <div className="flex h-dvh w-screen flex-col items-center justify-center gap-2 bg-black text-white">
         <SafeAreaTopSpacer />
-        <p className="text-sm text-white/70">No Muses yet — be the first to post one.</p>
+        <p className="text-sm text-white/70">{t.feed.empty}</p>
         <button
           type="button"
           onClick={() => router.push(`/u/${currentUserId}`)}
           className="mt-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
         >
-          Go to your profile
+          {t.feed.goToProfile}
         </button>
       </div>
     );
@@ -373,7 +375,7 @@ export function MuseFeed({
           ref={commentsDialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Comments"
+          aria-label={t.comments.title}
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-end bg-black/40 outline-none"
           onClick={() => setCommentsOpenForId(null)}
@@ -436,6 +438,9 @@ function MuseCard({
   onShare: () => void;
   onView: () => void;
 }) {
+  const { locale, t: muse } = useMuseText();
+  const t = muse.feed;
+  const { t: ui } = useUiText();
   const [paused, setPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   // Wider than isVisible on purpose — isVisible means "this is the active,
@@ -596,12 +601,12 @@ function MuseCard({
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
-          title={`Embedded video shared by ${item.author.name ?? "someone"}`}
+          title={item.author.name ? format(t.embedTitle, { name: item.author.name }) : t.embedTitleUnnamed}
         />
       ) : isNearby ? (
         <video
           ref={videoRef}
-          aria-label={`Muse by ${item.author.name ?? "someone"}`}
+          aria-label={item.author.name ? format(t.videoLabel, { name: item.author.name }) : t.videoLabelUnnamed}
           src={item.videoUrl ?? undefined}
           poster={item.videoThumbnailUrl ?? undefined}
           // Always muted when a separate audioUrl is replacing the video's
@@ -632,7 +637,7 @@ function MuseCard({
 
       {!isEmbed && soundBlocked && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
-          <p role="status" className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">Tap for sound</p>
+          <p role="status" className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">{t.tapForSound}</p>
         </div>
       )}
 
@@ -666,14 +671,14 @@ function MuseCard({
             <button
               type="button"
               onClick={() => (confirmingDelete ? onDelete() : setConfirmingDelete(true))}
-              aria-label={confirmingDelete ? "Delete? Confirm" : "Delete Muse"}
+              aria-label={confirmingDelete ? t.deleteConfirmLabel : t.delete}
               className={cn(
                 "flex items-center gap-1 rounded-full px-2 py-2 text-white",
                 confirmingDelete ? "bg-danger" : "bg-black/40",
               )}
             >
               <Trash2 size={18} />
-              {confirmingDelete && <span className="pr-1 text-xs font-medium">Delete?</span>}
+              {confirmingDelete && <span className="pe-1 text-xs font-medium">{t.deleteConfirm}</span>}
             </button>
           )}
           {/* The same toggle as tapping anywhere on the video (the
@@ -686,7 +691,7 @@ function MuseCard({
                 if (soundBlocked || consumeUnblockTap()) return;
                 setPaused((p) => !p);
               }}
-              aria-label={paused ? "Play" : "Pause"}
+              aria-label={paused ? t.play : t.pause}
               className="rounded-full bg-black/40 p-2 text-white"
             >
               {paused ? <Play size={18} /> : <Pause size={18} />}
@@ -695,7 +700,7 @@ function MuseCard({
           <button
             type="button"
             onClick={onToggleMute}
-            aria-label={muted ? "Unmute" : "Mute"}
+            aria-label={muted ? t.unmute : t.mute}
             className="rounded-full bg-black/40 p-2 text-white"
           >
             {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -724,9 +729,9 @@ function MuseCard({
                   />
                 )}
               </div>
-              {item.caption && <p className="mt-1 break-words text-sm text-white">{item.caption}</p>}
+              {item.caption && <p dir="auto" className="mt-1 break-words text-sm text-white">{item.caption}</p>}
               <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-white/70">
-                <Eye size={12} /> {item.viewCount.toLocaleString()} views
+                <Eye size={12} /> {countLabel(locale, t.views, item.viewCount)}
               </p>
               {item.sharedPostId && (
                 <Link
@@ -734,7 +739,7 @@ function MuseCard({
                   onClick={(e) => e.stopPropagation()}
                   className="mt-1 inline-block text-[0.6875rem] text-white/70 underline"
                 >
-                  View original post
+                  {t.viewOriginal}
                 </Link>
               )}
             </div>
@@ -744,7 +749,7 @@ function MuseCard({
                 type="button"
                 onClick={onOpenComments}
                 className="flex flex-col items-center gap-0.5 text-white"
-                aria-label={`Comments, ${item.commentCount}`}
+                aria-label={format(t.commentsCount, { count: item.commentCount })}
               >
                 <span className="rounded-full bg-black/40 p-2">
                   <MessageCircle size={20} />
@@ -753,14 +758,14 @@ function MuseCard({
               </button>
               <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
                 <EmojiPickerButton onSelect={handleToggleReaction} quickReactions={QUICK_REACTIONS} />
-                <span className="text-[0.6875rem]" aria-label={`${item.likeCount} ${item.likeCount === 1 ? "reaction" : "reactions"}`} role="img">
+                <span className="text-[0.6875rem]" aria-label={plural(locale, ui.reactions.count, item.likeCount)} role="img">
                   {item.likeCount}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onToggleRepost}
-                aria-label={`Reshare to Home, ${item.repostCount}`}
+                aria-label={format(t.reshareCount, { count: item.repostCount })}
                 aria-pressed={item.isReposted}
                 className="flex flex-col items-center gap-0.5 text-white"
               >
@@ -777,7 +782,7 @@ function MuseCard({
                 <button
                   type="button"
                   onClick={onShare}
-                  aria-label={`Share, ${item.shareCount}`}
+                  aria-label={format(t.shareCount, { count: item.shareCount })}
                   className="flex flex-col items-center gap-0.5 text-white"
                 >
                   <span className="rounded-full bg-black/40 p-2">
@@ -824,6 +829,8 @@ function MuseCommentsPanel({
   onPost: (content: string) => Promise<boolean>;
   onDelete: (commentId: string) => void;
 }) {
+  const { locale, t: muse } = useMuseText();
+  const t = muse.comments;
   const [text, setText] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [error, setError] = useState(false);
@@ -852,29 +859,29 @@ function MuseCommentsPanel({
     <div className="flex max-h-[70vh] flex-col rounded-t-2xl bg-surface p-4">
       <div className="flex shrink-0 items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-          Comments{comments ? ` (${comments.length})` : ""}
+          {comments ? format(t.titleCount, { count: comments.length }) : t.title}
         </p>
-        <button type="button" onClick={onClose} aria-label="Close comments" className="text-foreground-soft">
+        <button type="button" onClick={onClose} aria-label={t.close} className="text-foreground-soft">
           <X size={16} />
         </button>
       </div>
       <ul className="mt-2 flex-1 space-y-3 overflow-y-auto">
-        {comments === null && <li className="text-sm text-foreground-soft">Loading…</li>}
-        {comments?.length === 0 && <li className="text-sm text-foreground-soft">No comments yet.</li>}
+        {comments === null && <li className="text-sm text-foreground-soft">{t.loading}</li>}
+        {comments?.length === 0 && <li className="text-sm text-foreground-soft">{t.empty}</li>}
         {comments?.map((c) => (
           <li key={c.id} className="flex items-start gap-2">
             <UserAvatar avatarUrl={c.author.avatarUrl} name={c.author.name} size={28} />
             <div className="min-w-0 flex-1">
               <p className="break-words text-sm">
-                <span className="font-medium">{c.author.name ?? "Someone"}</span> {c.content}
+                <bdi className="font-medium">{c.author.name ?? t.someone}</bdi> <bdi>{c.content}</bdi>
               </p>
-              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt)}</p>
+              <p className="text-[0.6875rem] text-foreground-soft">{formatShortAge(c.createdAt, locale)}</p>
             </div>
             {(c.author.id === currentUserId || isMuseOwner) && (
               <button
                 type="button"
                 onClick={() => onDelete(c.id)}
-                aria-label="Delete comment"
+                aria-label={t.delete}
                 className="shrink-0 p-1 text-foreground-soft hover:text-danger"
               >
                 <X size={14} />
@@ -885,7 +892,8 @@ function MuseCommentsPanel({
       </ul>
       <div className="mt-3 flex shrink-0 items-center gap-2">
         <input
-          aria-label="Add a comment"
+          aria-label={t.add}
+          dir="auto"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -896,20 +904,20 @@ function MuseCommentsPanel({
             }
           }}
           maxLength={1000}
-          placeholder="Add a comment..."
+          placeholder={t.placeholder}
           className="flex-1 rounded-full border border-line bg-background px-4 py-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="button"
           disabled={!text.trim() || isPosting}
           onClick={send}
-          aria-label="Post comment"
+          aria-label={t.postLabel}
           className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
-          Post
+          {t.post}
         </button>
       </div>
-      {error && <p role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t post that comment.</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-danger">{t.failed}</p>}
       <SafeAreaBottomSpacer />
     </div>
   );

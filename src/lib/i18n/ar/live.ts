@@ -1,0 +1,77 @@
+import type { liveEn } from "@/lib/i18n/en/live";
+
+// A live stream is "بث مباشر", its host "مقدّم البث", a co-host "مقدّم مشارك" and a guest "ضيف" (as on the Home
+// strip); the stage is "المنصة". What happens to the reader's request is said in the passive ("رُفض طلبك"), so no
+// verb has to agree with the host. A count such as the stage's "2/3" is written after its label.
+export const live: typeof liveEn = {
+  errors: {
+    not_configured: "البث المباشر غير متاح بعد.",
+    not_a_member: "انضم إلى ذلك Circle أولًا لمشاهدة هذا البث.",
+    not_found: "انتهى هذا البث.",
+    rate_limited: "تمهّل قليلًا ثم حاول مرة أخرى.",
+    unavailable: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
+    network: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
+    stale_deployment: "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.",
+    other: "تعذّر الانضمام إلى البث. حاول مرة أخرى.",
+  },
+  refresh: "تحديث",
+  tryAgain: "إعادة المحاولة",
+  backHome: "العودة إلى الرئيسية",
+  starting: "جارٍ بدء بثك المباشر…",
+  joining: "جارٍ الانضمام إلى البث المباشر…",
+  choosing: {
+    spots: "الأماكن المشغولة للمقدّمين المشاركين والضيوف: {filled}/{capacity}",
+    watch: "مشاهدة",
+    askGuest: "طلب الانضمام كضيف",
+    askCohost: "طلب الانضمام كمقدّم مشارك",
+    stageFull: "المنصة ممتلئة الآن، لكن يمكنك إرسال طلبك على أي حال، فقد يتاح مكان.",
+    approval: "تحتاج طلبات الضيوف والمقدّمين المشاركين إلى موافقة مقدّم البث قبل ظهورك مباشرةً على المنصة.",
+  },
+  badge: "مباشر",
+  watching: "المشاهدون",
+  onStage: "على المنصة",
+  record: "تسجيل",
+  stopRecording: "إيقاف التسجيل",
+  recordAndPost: "تسجيل ونشر",
+  recordAndPostLabel: "التسجيل ثم النشر في خلاصة الرئيسية",
+  screenshot: "لقطة شاشة",
+  dismiss: "إغلاق",
+  autoPost: {
+    failed: "تعذّر ضبط هذا التسجيل للنشر التلقائي. التسجيل نفسه ما زال مستمرًا.",
+    set: "سيُنشر هذا التسجيل بعد اكتمال معالجته.",
+    recordFailed: "تعذّر بدء التسجيل. حاول مرة أخرى.",
+  },
+  recordings: {
+    title: "التسجيلات",
+    count: "التسجيلات ({count})",
+    loading: "جارٍ التحميل...",
+    getLink: "الحصول على الرابط",
+  },
+  stage: {
+    waiting: "بانتظار الانضمام إلى المنصة",
+    someone: "أحد الأشخاص",
+    roles: { COHOST: "مقدّم مشارك", GUEST: "ضيف" },
+    approve: "موافقة",
+    approveName: "الموافقة على طلب {name}",
+    approveRequest: "الموافقة على هذا الطلب",
+    decline: "رفض",
+    declineName: "رفض طلب {name}",
+    declineRequest: "رفض هذا الطلب",
+    pending: {
+      COHOST: "بانتظار الموافقة على طلبك للانضمام كمقدّم مشارك…",
+      GUEST: "بانتظار الموافقة على طلبك للانضمام كضيف…",
+    },
+    cancel: "إلغاء",
+    turnOnMedia: "أنت على المنصة. اضغط لتشغيل الكاميرا والميكروفون",
+    cameraFailed: "تعذّر تشغيل الكاميرا. تحقق من اتصالك ثم حاول مرة أخرى.",
+    declined: "رُفض طلبك للانضمام إلى المنصة.",
+  },
+  chat: {
+    someone: "أحد الأشخاص",
+    placeholder: "اكتب شيئًا...",
+    label: "كتابة تعليق",
+    send: "إرسال التعليق",
+  },
+  react: "تفاعل",
+  reactWith: "التفاعل باستخدام {emoji}",
+};

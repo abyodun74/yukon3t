@@ -46,7 +46,7 @@ export const settingsEn = {
   },
   language: {
     heading: "Language",
-    body: "The menus, your Home feed, profiles, Settings, Search, Discover, Connections, Notifications, Messages, comments, dictation, inviting friends, the Advertise page, Circles, Collab Boards and the sign-in screens are available in these languages. The rest of the app is in English for now.",
+    body: "The menus, your Home feed, profiles, Settings, Search, Discover, Connections, Notifications, Messages, comments, dictation, inviting friends, the Advertise page, Circles, Collab Boards, Muse, live streams, calls and the sign-in screens are available in these languages. The notifications we send, and the help and legal pages, are in English for now.",
   },
   emoji: {
     heading: "Emoji style",

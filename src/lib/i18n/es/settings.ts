@@ -41,7 +41,7 @@ export const settings: typeof settingsEn = {
   },
   language: {
     heading: "Idioma",
-    body: "Los menús, tu feed de Inicio, los perfiles, Ajustes, Buscar, Descubrir, Contactos, Notificaciones, Mensajes, los comentarios, el dictado, la invitación de amigos, la página de Publicidad, Circles, Collab Boards y las pantallas de inicio de sesión están disponibles en estos idiomas. El resto de la aplicación está en inglés por ahora.",
+    body: "Los menús, tu feed de Inicio, los perfiles, Ajustes, Buscar, Descubrir, Contactos, Notificaciones, Mensajes, los comentarios, el dictado, la invitación de amigos, la página de Publicidad, Circles, Collab Boards, Muse, las transmisiones en vivo, las llamadas y las pantallas de inicio de sesión están disponibles en estos idiomas. Las notificaciones que enviamos y las páginas de ayuda y legales están en inglés por ahora.",
   },
   emoji: {
     heading: "Estilo de emojis",

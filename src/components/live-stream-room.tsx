@@ -20,11 +20,14 @@ import {
   sendLiveStreamComment,
   getLiveStreamComments,
 } from "@/app/actions/live-streams";
-import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
+import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { createCoalescer, createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
+import { useLiveText } from "@/components/live-text";
+import { formatDuration } from "@/lib/format-date";
+import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
 
 // Not migrated to realtime — this is a periodic "I'm still here" keepalive
 // the end-inactive-streams cron watches for, not a "refetch when something
@@ -62,34 +65,21 @@ type StreamComment = {
   author: { id: string; name: string | null; avatarUrl: string | null };
 };
 
-function joinErrorMessage(code?: string) {
-  switch (code) {
-    case "not_configured":
-      return "Live streaming isn't set up yet.";
-    case "not_a_member":
-      return "Join that Circle first to watch this stream.";
-    case "not_found":
-      return "This stream has ended.";
-    case "rate_limited":
-      return "Slow down a little and try again.";
-    case "unavailable":
-    case "network":
-      return "Couldn't connect — check your connection and try again.";
-    case "stale_deployment":
-      return STALE_DEPLOYMENT_MESSAGE;
-    default:
-      return "Couldn't join the stream — try again.";
-  }
-}
-
-function formatRecordingLabel(recording: Recording) {
-  const date = new Date(recording.startedAt * 1000).toLocaleString([], {
+function formatRecordingLabel(recording: Recording, locale: Locale) {
+  const date = new Date(recording.startedAt * 1000).toLocaleString(intlLocale(locale) ?? [], {
     dateStyle: "medium",
     timeStyle: "short",
   });
   const minutes = recording.durationSeconds ? Math.round(recording.durationSeconds / 60) : null;
-  return minutes ? `${date} · ${minutes} min` : date;
+  return minutes ? `${date} · ${formatDuration(minutes, "minute", locale)}` : date;
 }
+
+// Which notice the "Record & Post" button leaves behind: worded where it is shown, not where it is set (a Daily
+// event handler).
+type AutoPostNotice = { ok: boolean; code: "failed" | "set" | "recordFailed" };
+// cameraStartError's value for the app's own "couldn't start your camera" wording; anything else in it is the call
+// provider's own error text, shown as received.
+const CAMERA_START_FAILED = "camera_start_failed";
 
 /**
  * Captures a single frame of the current tab via the Screen Capture API and
@@ -140,6 +130,7 @@ export function LiveStreamRoom({
   /** Set only from a `?role=` deep link (see src/app/live/[id]/page.tsx) — e.g. LiveStreamFeedCard's Watch/Guest/Co-host buttons on Home. Skips the "choosing" screen entirely and auto-joins with this role instead, the same way isHost already auto-joins the host. Ignored for the host (isHost's own auto-join always wins — they're never shown a role choice regardless). Omitted for every other entry point (the existing "Live now" strip, a notification link, ...), which still get the normal choosing screen exactly as before. */
   initialRole?: Role;
 }) {
+  const { locale, t } = useLiveText();
   const [phase, setPhase] = useState<"choosing" | "joining" | "active" | "error">(
     initiallyEnded ? "error" : isHost || initialRole ? "joining" : "choosing",
   );
@@ -154,7 +145,7 @@ export function LiveStreamRoom({
   // auto-post happens in a Daily event handler well after the tap, so
   // without this a failure (or even the success) would be completely
   // invisible to the host until they noticed a post that never appeared.
-  const [autoPostNotice, setAutoPostNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [autoPostNotice, setAutoPostNotice] = useState<AutoPostNotice | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [showRecordings, setShowRecordings] = useState(false);
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
@@ -507,7 +498,7 @@ export function LiveStreamRoom({
         // A clean, fixed message — not err.message/String(err) — regardless
         // of what Daily's SDK actually threw.
         console.error("Daily camera start failed:", err);
-        setCameraStartError("Couldn't start your camera. Check your connection and try again.");
+        setCameraStartError(CAMERA_START_FAILED);
       });
   }, [role, isHost, phase, dailyCall, liveStreamId, reconnectingRef]);
 
@@ -596,21 +587,21 @@ export function LiveStreamRoom({
       if (!wantsAutoPost) return;
       if (!ev.recordingId) {
         console.error("recording-started carried no recordingId — can't auto-post this recording");
-        setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+        setAutoPostNotice({ ok: false, code: "failed" });
         return;
       }
       requestLiveStreamRecordingPost(liveStreamId, ev.recordingId)
         .then((result) => {
           if (result.error) {
             console.error("requestLiveStreamRecordingPost failed:", result.error);
-            setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+            setAutoPostNotice({ ok: false, code: "failed" });
             return;
           }
-          setAutoPostNotice({ ok: true, text: "This recording will be posted once it finishes processing." });
+          setAutoPostNotice({ ok: true, code: "set" });
         })
         .catch((err: unknown) => {
           console.error("requestLiveStreamRecordingPost failed:", err);
-          setAutoPostNotice({ ok: false, text: "Couldn't set this recording to auto-post. It's still recording." });
+          setAutoPostNotice({ ok: false, code: "failed" });
         });
     }
     const recordingsTimers: ReturnType<typeof setTimeout>[] = [];
@@ -709,7 +700,7 @@ export function LiveStreamRoom({
       // plain "Record" must not inherit it.
       wantsAutoPostRef.current = false;
       console.error("Daily startRecording failed:", err);
-      if (autoPost) setAutoPostNotice({ ok: false, text: "Couldn't start recording — try again." });
+      if (autoPost) setAutoPostNotice({ ok: false, code: "recordFailed" });
     }
   }
 
@@ -738,12 +729,12 @@ export function LiveStreamRoom({
     const soft = variant === "dark" ? "text-white/70" : "text-foreground-soft";
     const border = variant === "dark" ? "border-white/20" : "border-line";
     return (
-      <div className={`mt-3 border-t ${border} pt-3 text-left`}>
-        <p className={`text-xs font-semibold uppercase tracking-wide ${soft}`}>Recordings</p>
+      <div className={`mt-3 border-t ${border} pt-3 text-start`}>
+        <p className={`text-xs font-semibold uppercase tracking-wide ${soft}`}>{t.recordings.title}</p>
         <ul className="mt-1.5 space-y-1">
           {recordings.map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
-              <span className={soft}>{formatRecordingLabel(r)}</span>
+              <span className={soft}>{formatRecordingLabel(r, locale)}</span>
               <button
                 type="button"
                 disabled={fetchingLinkId === r.id}
@@ -751,7 +742,7 @@ export function LiveStreamRoom({
                 className={`flex shrink-0 items-center gap-1 rounded-md border ${border} px-2 py-1 font-medium hover:border-accent hover:text-accent disabled:opacity-50`}
               >
                 <Download size={12} />
-                {fetchingLinkId === r.id ? "Loading..." : "Get link"}
+                {fetchingLinkId === r.id ? t.recordings.loading : t.recordings.getLink}
               </button>
             </li>
           ))}
@@ -763,7 +754,7 @@ export function LiveStreamRoom({
   if (phase === "error") {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-sm text-foreground-soft">{joinErrorMessage(error ?? undefined)}</p>
+        <p className="text-sm text-foreground-soft">{byCode(t.errors, error)}</p>
         <div className="mt-4 flex items-center justify-center gap-2">
           {error === "stale_deployment" ? (
             // Retrying with the same "Try again" click would just hit the
@@ -774,7 +765,7 @@ export function LiveStreamRoom({
               onClick={() => window.location.reload()}
               className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
             >
-              Refresh
+              {t.refresh}
             </button>
           ) : (
             // Most of what lands here (a dropped connection, the transient
@@ -800,7 +791,7 @@ export function LiveStreamRoom({
               }}
               className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
             >
-              Try again
+              {t.tryAgain}
             </button>
           )}
           <button
@@ -808,7 +799,7 @@ export function LiveStreamRoom({
             onClick={() => router.push("/home")}
             className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Back to Home
+            {t.backHome}
           </button>
         </div>
         {renderRecordingsPanel("themed")}
@@ -820,9 +811,9 @@ export function LiveStreamRoom({
     const stageFull = stageCount >= stageCapacity;
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="break-words text-sm font-medium">{title}</p>
+        <p dir="auto" className="break-words text-sm font-medium">{title}</p>
         <p className="mt-1 text-xs text-foreground-soft">
-          {stageCount}/{stageCapacity} co-host/guest spots filled
+          {format(t.choosing.spots, { filled: stageCount, capacity: stageCapacity })}
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <button
@@ -830,27 +821,25 @@ export function LiveStreamRoom({
             onClick={() => doJoin()}
             className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink"
           >
-            Watch
+            {t.choosing.watch}
           </button>
           <button
             type="button"
             onClick={() => doJoin("GUEST")}
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Ask to join as guest
+            {t.choosing.askGuest}
           </button>
           <button
             type="button"
             onClick={() => doJoin("COHOST")}
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
           >
-            Ask to join as co-host
+            {t.choosing.askCohost}
           </button>
         </div>
         <p className="mt-3 text-[0.6875rem] text-foreground-soft">
-          {stageFull
-            ? "The stage is full right now, but you can still ask — a spot may open up."
-            : "The host approves guest/co-host requests before you go live on stage."}
+          {stageFull ? t.choosing.stageFull : t.choosing.approval}
         </p>
       </div>
     );
@@ -859,7 +848,7 @@ export function LiveStreamRoom({
   if (phase === "joining" || !active) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center text-sm text-foreground-soft">
-        {isHost ? "Starting your live stream…" : "Joining live stream…"}
+        {isHost ? t.starting : t.joining}
       </div>
     );
   }
@@ -892,14 +881,14 @@ export function LiveStreamRoom({
         <div className="flex flex-wrap items-center gap-3 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs text-white">
           <span className="flex items-center gap-1 font-semibold text-danger">
             <span className="h-1.5 w-1.5 rounded-full bg-danger" />
-            LIVE
+            {t.badge}
           </span>
-          <span className="max-w-[40vw] truncate">{title}</span>
-          <span className="flex items-center gap-1" title="Watching">
+          <span dir="auto" className="max-w-[40vw] truncate">{title}</span>
+          <span className="flex items-center gap-1" title={t.watching}>
             <Eye size={12} />
             {viewerCount}
           </span>
-          <span className="flex items-center gap-1" title="On stage">
+          <span className="flex items-center gap-1" title={t.onStage}>
             <Users size={12} />
             {stageCount}/{stageCapacity}
           </span>
@@ -911,8 +900,8 @@ export function LiveStreamRoom({
               <button
                 type="button"
                 onClick={() => toggleRecording(false)}
-                title={recording ? "Stop recording" : "Record"}
-                aria-label={recording ? "Stop recording" : "Record"}
+                title={recording ? t.stopRecording : t.record}
+                aria-label={recording ? t.stopRecording : t.record}
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${
                   recording ? "bg-danger" : "hig-material-dark bg-black/60 backdrop-blur-md"
                 }`}
@@ -937,8 +926,8 @@ export function LiveStreamRoom({
               <button
                 type="button"
                 onClick={() => toggleRecording(true)}
-                title="Record & Post"
-                aria-label="Record and post to the Home Feed"
+                title={t.recordAndPost}
+                aria-label={t.recordAndPostLabel}
                 className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
               >
                 <RecordIcon size={14} className="fill-danger text-danger" />
@@ -951,8 +940,8 @@ export function LiveStreamRoom({
               type="button"
               disabled={screenshotBusy}
               onClick={handleScreenshot}
-              title="Screenshot"
-              aria-label="Screenshot"
+              title={t.screenshot}
+              aria-label={t.screenshot}
               className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white disabled:opacity-50"
             >
               <Camera size={14} />
@@ -961,8 +950,8 @@ export function LiveStreamRoom({
               <button
                 type="button"
                 onClick={() => setShowRecordings((v) => !v)}
-                title={`Recordings (${recordings.length})`}
-                aria-label={`Recordings (${recordings.length})`}
+                title={format(t.recordings.count, { count: recordings.length })}
+                aria-label={format(t.recordings.count, { count: recordings.length })}
                 className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
               >
                 <Download size={14} />
@@ -982,11 +971,11 @@ export function LiveStreamRoom({
                 autoPostNotice.ok ? "bg-black/80" : "bg-danger/90"
               }`}
             >
-              <span className="min-w-0">{autoPostNotice.text}</span>
+              <span className="min-w-0">{t.autoPost[autoPostNotice.code]}</span>
               <button
                 type="button"
                 onClick={() => setAutoPostNotice(null)}
-                aria-label="Dismiss"
+                aria-label={t.dismiss}
                 className="-m-1 shrink-0 p-2 text-white/80"
               >
                 <X size={12} />
@@ -1005,14 +994,14 @@ export function LiveStreamRoom({
             // there's room for it.
             <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg bg-black/80 p-3 text-white">
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                Waiting to join the stage
+                {t.stage.waiting}
               </p>
               <ul className="mt-1.5 space-y-2.5">
                 {stageRequests.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
                     <span className="min-w-0 truncate">
-                      {r.user.name ?? "Someone"}
-                      <span className="text-white/60"> · {r.role === "COHOST" ? "co-host" : "guest"}</span>
+                      <bdi>{r.user.name ?? t.stage.someone}</bdi>
+                      <span className="text-white/60"> · {t.stage.roles[r.role]}</span>
                     </span>
                     {/* Explicit 40px (h-10 w-10) tap targets — the icons
                         themselves are small, but on a real phone (not a
@@ -1026,8 +1015,8 @@ export function LiveStreamRoom({
                         type="button"
                         disabled={respondingRequestId === r.id}
                         onClick={() => respondToRequest(r.id, true)}
-                        title="Approve"
-                        aria-label={`Approve ${r.user.name ?? "this request"}`}
+                        title={t.stage.approve}
+                        aria-label={r.user.name ? format(t.stage.approveName, { name: r.user.name }) : t.stage.approveRequest}
                         className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
                       >
                         <Check size={18} />
@@ -1036,8 +1025,8 @@ export function LiveStreamRoom({
                         type="button"
                         disabled={respondingRequestId === r.id}
                         onClick={() => respondToRequest(r.id, false)}
-                        title="Decline"
-                        aria-label={`Decline ${r.user.name ?? "this request"}`}
+                        title={t.stage.decline}
+                        aria-label={r.user.name ? format(t.stage.declineName, { name: r.user.name }) : t.stage.declineRequest}
                         className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white disabled:opacity-50"
                       >
                         <X size={18} />
@@ -1058,7 +1047,7 @@ export function LiveStreamRoom({
         >
           <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
             <span className="min-w-0">
-              Waiting for the host to approve your {pendingStageRole === "COHOST" ? "co-host" : "guest"} request…
+              {t.stage.pending[pendingStageRole]}
             </span>
             <button
               type="button"
@@ -1066,7 +1055,7 @@ export function LiveStreamRoom({
               onClick={doCancelRequest}
               className="shrink-0 font-semibold text-white/80 underline disabled:opacity-50"
             >
-              Cancel
+              {t.stage.cancel}
             </button>
           </div>
         </div>
@@ -1088,11 +1077,11 @@ export function LiveStreamRoom({
             onClick={startMyCamera}
             className="rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-accent-ink"
           >
-            You&apos;re on stage — tap to turn on your camera &amp; mic
+            {t.stage.turnOnMedia}
           </button>
           {cameraStartError && (
             <span className="max-w-[90vw] rounded-full bg-danger/90 px-3 py-1 text-xs text-white">
-              {cameraStartError}
+              {cameraStartError === CAMERA_START_FAILED ? t.stage.cameraFailed : cameraStartError}
             </span>
           )}
         </div>
@@ -1130,8 +1119,8 @@ export function LiveStreamRoom({
                 key={c.id}
                 className="w-fit max-w-full rounded-xl hig-material-dark bg-black/50 backdrop-blur-md px-2.5 py-1.5 text-xs text-white"
               >
-                <span className="font-semibold">{c.author.name ?? "Someone"}</span>{" "}
-                <span className="break-words">{c.content}</span>
+                <bdi className="font-semibold">{c.author.name ?? t.chat.someone}</bdi>{" "}
+                <bdi className="break-words">{c.content}</bdi>
               </div>
             ))}
             <div ref={commentsEndRef} />
@@ -1145,17 +1134,18 @@ export function LiveStreamRoom({
             value={commentDraft}
             onChange={(e) => setCommentDraft(e.target.value)}
             maxLength={300}
-            placeholder="Write something..."
-            aria-label="Write a comment"
+            placeholder={t.chat.placeholder}
+            aria-label={t.chat.label}
+            dir="auto"
             className="min-w-0 flex-1 rounded-full hig-material-dark bg-black/50 backdrop-blur-md px-3 py-1.5 text-xs text-white placeholder-white/60 outline-none focus:bg-black/70"
           />
           <button
             type="submit"
             disabled={!commentDraft.trim() || sendingComment}
-            aria-label="Send comment"
+            aria-label={t.chat.send}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
           >
-            <Send size={14} />
+            <Send size={14} className="rtl:-scale-x-100" />
           </button>
         </form>
       </div>
@@ -1192,7 +1182,7 @@ export function LiveStreamRoom({
                   key={emoji}
                   type="button"
                   onClick={() => sendReaction(emoji)}
-                  aria-label={`React with ${emoji}`}
+                  aria-label={format(t.reactWith, { emoji })}
                   className="rounded-full px-2.5 py-2 text-xl hover:bg-white/20"
                 >
                   {emoji}
@@ -1210,7 +1200,7 @@ export function LiveStreamRoom({
           <button
             type="button"
             onClick={() => setReactionPickerOpen((v) => !v)}
-            aria-label="React"
+            aria-label={t.react}
             className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
           >
             <Smile size={16} />
@@ -1224,11 +1214,11 @@ export function LiveStreamRoom({
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
           <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
-            <span className="min-w-0">The host declined your stage request.</span>
+            <span className="min-w-0">{t.stage.declined}</span>
             <button
               type="button"
               onClick={() => setDeclinedNotice(false)}
-              aria-label="Dismiss"
+              aria-label={t.dismiss}
               className="shrink-0 p-2 -m-1 text-white/80"
             >
               <X size={12} />

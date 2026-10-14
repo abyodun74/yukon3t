@@ -99,6 +99,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     // French words too.
     "feed.people.message",
     "feed.post.pause",
+    "muse.feed.pause",
     "pages.connections.message",
     "pages.home.standard",
     "pages.notifications.title",

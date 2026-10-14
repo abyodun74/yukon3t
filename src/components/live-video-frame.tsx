@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff } from "lucide-react";
 import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } from "@daily-co/daily-js";
+import { useCallsText } from "@/components/calls-text";
+import { format } from "@/lib/i18n/locales";
 
 // Module scope (not inside LiveVideoFrame) so both it and the separate
 // ParticipantTile component below can call it — ParticipantTile needs its
@@ -54,6 +56,8 @@ export function LiveVideoFrame({
   /** `recordingId` is Daily's own id for the recording that just started (DailyEventObjectRecordingStarted.recordingId) — what the "Record & Post" flow needs to tell the server which recording to auto-post. Undefined on stop: that event carries no such field. */
   onRecordingChange?: (recording: boolean, recordingId?: string) => void;
 }) {
+  const { t: calls } = useCallsText();
+  const controls = calls.controls;
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
   // join() rejecting (bad token, expired room, network drop) previously had
@@ -61,7 +65,7 @@ export function LiveVideoFrame({
   // there the Prebuilt iframe at least shows Daily's own error UI; here
   // there's no fallback UI at all, so an uncaught rejection would otherwise
   // leave the "Connecting…" placeholder up forever with no visible cause.
-  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +116,7 @@ export function LiveVideoFrame({
           // A clean, fixed message — not err.message — regardless of what
           // Daily's SDK actually threw.
           console.error("Daily call join failed:", err);
-          setJoinError("Couldn't join the call. Check your connection and try again.");
+          setJoinError(true);
         });
 
       onCallObject?.(call);
@@ -187,7 +191,7 @@ export function LiveVideoFrame({
     <div className="relative flex h-full w-full flex-col bg-black">
       {broadcasters.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center text-sm text-white/60">
-          {joinError ? <span className="text-danger">{joinError}</span> : "Connecting…"}
+          {joinError ? <span className="text-danger">{calls.direct.errors.join}</span> : calls.direct.connecting}
         </div>
       ) : (
         <div
@@ -229,8 +233,8 @@ export function LiveVideoFrame({
             <button
               type="button"
               onClick={toggleAudio}
-              title={localAudioOn ? "Mute" : "Unmute"}
-              aria-label={localAudioOn ? "Mute microphone" : "Unmute microphone"}
+              title={localAudioOn ? controls.mute : controls.unmute}
+              aria-label={localAudioOn ? controls.muteMic : controls.unmuteMic}
               className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${
                 localAudioOn ? "bg-white/20" : "bg-danger"
               }`}
@@ -240,8 +244,8 @@ export function LiveVideoFrame({
             <button
               type="button"
               onClick={toggleVideo}
-              title={localVideoOn ? "Turn off camera" : "Turn on camera"}
-              aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
+              title={localVideoOn ? controls.cameraOff : controls.cameraOn}
+              aria-label={localVideoOn ? controls.cameraOff : controls.cameraOn}
               className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${
                 localVideoOn ? "bg-white/20" : "bg-danger"
               }`}
@@ -251,8 +255,8 @@ export function LiveVideoFrame({
             <button
               type="button"
               onClick={toggleScreenShare}
-              title={localScreenSharing ? "Stop sharing" : "Share screen"}
-              aria-label={localScreenSharing ? "Stop sharing screen" : "Share screen"}
+              title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
+              aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
               className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${
                 localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"
               }`}
@@ -311,8 +315,9 @@ function ParticipantTile({
         : null;
   }, [participant.local, audioTrack.state, audioTrack.persistentTrack]);
 
+  const { t: calls } = useCallsText();
   const hasVideo = displayTrack.state === "playable";
-  const name = participant.local ? "You" : participant.user_name || "Guest";
+  const name = participant.local ? calls.direct.you : participant.user_name || calls.direct.guest;
   const audioOn = trackIsOn(audioTrack.state);
 
   return (
@@ -335,7 +340,7 @@ function ParticipantTile({
         className={`h-full w-full object-cover ${participant.local ? "[transform:scaleX(-1)]" : ""} ${hasVideo ? "" : "hidden"}`}
       />
       {!participant.local && <audio ref={audioRef} autoPlay playsInline />}
-      {!hasVideo && <span className="text-xs text-white/50">{name}</span>}
+      {!hasVideo && <span dir="auto" className="text-xs text-white/50">{name}</span>}
       <span className="absolute bottom-1.5 left-1.5 rounded hig-material-dark bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[0.625rem] text-white">
         {name}
       </span>
@@ -346,8 +351,8 @@ function ParticipantTile({
         <button
           type="button"
           onClick={onToggleMute}
-          title={audioOn ? `Mute ${name}` : `Unmute ${name}`}
-          aria-label={audioOn ? `Mute ${name}` : `Unmute ${name}`}
+          title={format(audioOn ? calls.controls.muteName : calls.controls.unmuteName, { name })}
+          aria-label={format(audioOn ? calls.controls.muteName : calls.controls.unmuteName, { name })}
           className={`absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full text-white hig-material-dark backdrop-blur-md ${
             audioOn ? "bg-black/50" : "bg-danger"
           }`}

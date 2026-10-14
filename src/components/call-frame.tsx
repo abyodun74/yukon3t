@@ -4,11 +4,15 @@ import { useEffect, useRef } from "react";
 import type {
   DailyCall,
   DailyCustomTrayButtons,
+  DailyLanguage,
   DailyEventObjectAvailableDevicesUpdated,
   DailyEventObjectCustomButtonClick,
   DailyMediaDeviceInfo,
 } from "@daily-co/daily-js";
 import { Capacitor } from "@capacitor/core";
+import { useCallsText } from "@/components/calls-text";
+import { callsEn } from "@/lib/i18n/en/calls";
+import type { Locale } from "@/lib/i18n/locales";
 
 const SCREEN_SHARE_BUTTON_ID = "screenshare";
 const AUDIO_OUTPUT_BUTTON_ID = "audiooutput";
@@ -53,6 +57,10 @@ function isSpeakerDevice(device: MediaDeviceInfo) {
  * same as Daily's built-in buttons), rather than building a separate,
  * disconnected control outside the call UI.
  */
+// The call provider's own interface (its tray, menus and prompts, inside its iframe) comes in these languages of
+// ours; it has no Arabic. Where it has none, it stays English, and so do the buttons this file adds to its tray.
+const PROVIDER_LANGUAGE: Record<Locale, DailyLanguage | null> = { en: "en", es: "es", fr: "fr", pt: "pt-BR", ar: null };
+
 export function CallFrame({
   roomUrl,
   token,
@@ -74,6 +82,13 @@ export function CallFrame({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callRef = useRef<DailyCall | null>(null);
+  const { locale, t: calls } = useCallsText();
+  const providerLanguage = PROVIDER_LANGUAGE[locale];
+  // Read through a ref: the effect below runs once per room and must not re-run (and rejoin) when wording changes.
+  const textRef = useRef({ language: providerLanguage, calls: providerLanguage ? calls : callsEn });
+  useEffect(() => {
+    textRef.current = { language: providerLanguage, calls: providerLanguage ? calls : callsEn };
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -98,8 +113,8 @@ export function CallFrame({
       const trayButtons: DailyCustomTrayButtons = {
         [SCREEN_SHARE_BUTTON_ID]: {
           iconPath: SCREEN_SHARE_ICON,
-          label: "Share screen",
-          tooltip: "Share your screen",
+          label: textRef.current.calls.tray.shareScreen,
+          tooltip: textRef.current.calls.tray.shareScreenTip,
         },
       };
 
@@ -116,6 +131,8 @@ export function CallFrame({
         // Daily's own built-in self-view (fixed in place, not draggable)
         // stays on instead.
         iframeStyle: { width: "100%", height: "100%", border: "0" },
+        // English is the provider's default and is left unset, exactly as before.
+        ...(textRef.current.language && textRef.current.language !== "en" ? { lang: textRef.current.language } : {}),
         ...(activeSpeakerMode === undefined ? {} : { activeSpeakerMode }),
         customTrayButtons: trayButtons,
       });
@@ -132,10 +149,11 @@ export function CallFrame({
       // customTrayButtons has no built-in toggle/pressed concept.
       syncScreenShareButton = () => {
         const sharing = Boolean(call.participants().local?.screen);
+        const tray = textRef.current.calls.tray;
         trayButtons[SCREEN_SHARE_BUTTON_ID] = {
           iconPath: SCREEN_SHARE_ICON,
-          label: sharing ? "Stop sharing" : "Share screen",
-          tooltip: sharing ? "Stop sharing your screen" : "Share your screen",
+          label: sharing ? tray.stopSharing : tray.shareScreen,
+          tooltip: sharing ? tray.stopSharingTip : tray.shareScreenTip,
           visualState: sharing ? "active" : "default",
         };
         call.updateCustomTrayButtons({ ...trayButtons });
@@ -167,8 +185,10 @@ export function CallFrame({
           const onSpeaker = Boolean(current && isSpeakerDevice(current));
           trayButtons[AUDIO_OUTPUT_BUTTON_ID] = {
             iconPath: SPEAKER_ICON,
-            label: onSpeaker ? "Speaker" : (current?.label || "Audio output").slice(0, 24),
-            tooltip: "Switch audio output (speaker, earpiece, headset...)",
+            label: onSpeaker
+              ? textRef.current.calls.tray.speaker
+              : (current?.label || textRef.current.calls.tray.audioOutput).slice(0, 24),
+            tooltip: textRef.current.calls.controls.switchOutputHint,
             visualState: onSpeaker ? "active" : "default",
           };
         } else {
@@ -199,8 +219,8 @@ export function CallFrame({
         if (type === "VIDEO" && (isNativeApp || cameraCount > 1 || canFlipFacingMode)) {
           trayButtons[CAMERA_SWITCH_BUTTON_ID] = {
             iconPath: CAMERA_SWITCH_ICON,
-            label: "Flip camera",
-            tooltip: "Switch between front and back camera",
+            label: textRef.current.calls.tray.flipCamera,
+            tooltip: textRef.current.calls.controls.switchCameraHint,
           };
         } else {
           delete trayButtons[CAMERA_SWITCH_BUTTON_ID];

@@ -1,11 +1,14 @@
 import type { Dictionary } from "@/lib/i18n/en";
 import { account } from "@/lib/i18n/pt/account";
 import { advertise } from "@/lib/i18n/pt/advertise";
+import { calls } from "@/lib/i18n/pt/calls";
 import { circles } from "@/lib/i18n/pt/circles";
 import { collab } from "@/lib/i18n/pt/collab";
 import { feed } from "@/lib/i18n/pt/feed";
 import { invite } from "@/lib/i18n/pt/invite";
+import { live } from "@/lib/i18n/pt/live";
 import { messages } from "@/lib/i18n/pt/messages";
+import { muse } from "@/lib/i18n/pt/muse";
 import { pages } from "@/lib/i18n/pt/pages";
 import { profile } from "@/lib/i18n/pt/profile";
 import { settings } from "@/lib/i18n/pt/settings";
@@ -28,6 +31,9 @@ export const pt: Dictionary = {
   advertise,
   circles,
   collab,
+  muse,
+  live,
+  calls,
   vocab,
   ...account,
 };

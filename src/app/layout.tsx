@@ -26,8 +26,8 @@ import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
-import { EnglishOnly } from "@/components/english-only";
 import { ShellTextProvider, UiTextProvider } from "@/components/ui-text";
+import { CallsTextProvider } from "@/components/calls-text";
 import { localeDirection } from "@/lib/i18n/locales";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
@@ -175,7 +175,7 @@ export default async function RootLayout({
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   // The page is in the reader's language (src/lib/i18n), right-to-left in Arabic: <html> carries lang/dir. A part that
   // is still English says so on its own wrapper (EnglishOnly in src/components/english-only.tsx): the route segments
-  // not translated yet, through their layouts, and the call overlays below.
+  // that stay English, through their layouts. The call wording is only sent to a signed-in reader.
   const locale = await getLocale();
   const dictionary = await getDictionary();
   const footer = dictionary.shell.footer;
@@ -234,6 +234,7 @@ export default async function RootLayout({
         <MotionConfig reducedMotion="user">
           <UiTextProvider locale={locale} text={dictionary.ui}>
           <ShellTextProvider locale={locale} text={dictionary.shell}>
+          <CallsTextProvider locale={locale} text={session?.user ? dictionary.calls : undefined}>
           <CallSessionProvider>
             <AppSplash />
             <CapacitorBridge />
@@ -241,13 +242,8 @@ export default async function RootLayout({
             <StaleBuildReload />
             <OfflineBanner />
             <Nav session={session} theme={theme} />
-            {session?.user && (
-              // The call screens are not translated yet.
-              <EnglishOnly contents>
-                <IncomingCallListener currentUserId={session.user.id} />
-                <GlobalCallFrame />
-              </EnglishOnly>
-            )}
+            {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
+            {session?.user && <GlobalCallFrame />}
             {session?.user && <FcmTokenBridge />}
             {session?.user && <PresenceHeartbeat />}
             {session?.user && <ScreenshotGuard />}
@@ -293,6 +289,7 @@ export default async function RootLayout({
               <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
             </footer>
           </CallSessionProvider>
+          </CallsTextProvider>
           </ShellTextProvider>
           </UiTextProvider>
         </MotionConfig>

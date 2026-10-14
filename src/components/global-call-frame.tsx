@@ -13,6 +13,10 @@ import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture
 import { onScreenCaptureDetected, type CaptureKind } from "@/lib/screen-capture-guard";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { useCallsText } from "@/components/calls-text";
+import { callLabel } from "@/lib/call-names";
+import type { callsEn } from "@/lib/i18n/en/calls";
+import { byCode, format } from "@/lib/i18n/locales";
 
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
@@ -21,11 +25,9 @@ type CaptureAlert = { kind: CaptureKind; source: "local" | "remote" };
 /** How long a capture alert banner stays up before self-dismissing. */
 const CAPTURE_ALERT_DURATION_MS = 6000;
 
-function captureAlertText(alert: CaptureAlert) {
-  const captureNoun = alert.kind === "recording" ? "started recording the screen" : "took a screenshot";
-  return alert.source === "local"
-    ? `You ${captureNoun} — the other participant was notified.`
-    : `The other participant ${captureNoun}.`;
+function captureAlertText(alert: CaptureAlert, t: typeof callsEn.frame.capture) {
+  if (alert.source === "local") return alert.kind === "recording" ? t.localRecording : t.localScreenshot;
+  return alert.kind === "recording" ? t.remoteRecording : t.remoteScreenshot;
 }
 
 /**
@@ -39,6 +41,9 @@ export function GlobalCallFrame() {
   const { session, minimized, dailyCall, setDailyCall, endSession, hangUp, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const { t: calls } = useCallsText();
+  const t = calls.frame;
+  // The failure's code, worded where it is shown.
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [captureAlert, setCaptureAlert] = useState<CaptureAlert | null>(null);
   const [addingPerson, setAddingPerson] = useState(false);
@@ -108,9 +113,7 @@ export function GlobalCallFrame() {
     const result = await shareCollabMaterial({ file, conversationId: session.collab.conversationId, dailyCall });
     setUploadingMaterial(false);
     if (!result.ok) {
-      setUploadError(
-        result.error === "upload_failed" ? "Couldn't upload that file — try again." : "Uploaded, but couldn't share it — try again.",
-      );
+      setUploadError(result.error);
       return;
     }
     setSharedMaterial(result.material);
@@ -120,7 +123,7 @@ export function GlobalCallFrame() {
 
   // Once people have been added, the session's own label (whoever the call
   // started with) is no longer who it's with.
-  const label = groupCallLabel(roster, callInfo?.currentUserId) ?? session.label;
+  const label = groupCallLabel(roster, callInfo?.currentUserId, calls.someone) ?? callLabel(session.label, calls);
   const ringingInvitees =
     roster?.group && !roster.over
       ? roster.participants.filter((p) => p.status === "RINGING" && p.userId !== callInfo?.currentUserId)
@@ -235,14 +238,14 @@ export function GlobalCallFrame() {
           // contained corner of its own, nothing else renders there, so no
           // stacking-context concerns like the fullscreen button below.
           <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
-            <span className="hig-material-dark max-w-[7rem] truncate rounded-md bg-black/60 backdrop-blur-md px-2 py-1 text-xs text-white">
+            <span dir="auto" className="hig-material-dark max-w-[7rem] truncate rounded-md bg-black/60 backdrop-blur-md px-2 py-1 text-xs text-white">
               {label}
             </span>
             <button
               type="button"
               onClick={expand}
-              title="Expand"
-              aria-label="Expand"
+              title={t.expand}
+              aria-label={t.expand}
               className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
             >
               <Maximize2 size={14} />
@@ -258,8 +261,8 @@ export function GlobalCallFrame() {
               // separated from Expand — the highest-consequence control in
               // the widget shouldn't sit flush against a low-stakes one.
               onClick={hangUp}
-              title="Hang up"
-              aria-label="Hang up"
+              title={t.hangUp}
+              aria-label={t.hangUp}
               className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
             >
               <PhoneOff size={14} />
@@ -276,7 +279,7 @@ export function GlobalCallFrame() {
                 key={p.userId}
                 className="hig-material-dark max-w-full truncate rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur-md"
               >
-                Calling {p.name ?? "someone"}…
+                {p.name ? format(t.callingInvitee, { name: p.name }) : t.callingSomeone}
               </span>
             ))}
           </div>
@@ -292,12 +295,12 @@ export function GlobalCallFrame() {
               className="pointer-events-auto flex items-center gap-2 rounded-lg border border-danger/40 bg-danger px-3 py-2 text-sm font-medium text-white shadow-lg"
             >
               <ShieldAlert size={16} className="shrink-0" />
-              <span>{captureAlertText(captureAlert)}</span>
+              <span>{captureAlertText(captureAlert, t.capture)}</span>
               <button
                 type="button"
                 onClick={() => setCaptureAlert(null)}
-                title="Dismiss"
-                aria-label="Dismiss"
+                title={t.dismiss}
+                aria-label={t.dismiss}
                 className="shrink-0 rounded-md p-2 -m-1 transition-transform hover:bg-white/20 active:scale-90"
               >
                 <X size={14} />
@@ -315,12 +318,12 @@ export function GlobalCallFrame() {
           <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[70] flex justify-center">
             <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
               <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
-                <span className="min-w-0 truncate text-xs font-medium">{sharedMaterial.name}</span>
+                <span dir="auto" className="min-w-0 truncate text-xs font-medium">{sharedMaterial.name}</span>
                 <button
                   type="button"
                   onClick={() => setSharedMaterial(null)}
-                  title="Close"
-                  aria-label="Close"
+                  title={t.close}
+                  aria-label={t.close}
                   className="shrink-0 rounded-md p-2 -m-1 text-foreground-soft transition-transform hover:bg-background active:scale-90"
                 >
                   <X size={14} />
@@ -334,14 +337,14 @@ export function GlobalCallFrame() {
                   <iframe src={sharedMaterial.url} title={sharedMaterial.name} className="h-[65vh] w-full" />
                 ) : (
                   <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-foreground-soft">
-                    <span>Preview isn&apos;t available for this file type.</span>
+                    <span>{t.noPreview}</span>
                     <a
                       href={sharedMaterial.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
                     >
-                      Open {sharedMaterial.name}
+                      {format(t.open, { name: sharedMaterial.name })}
                     </a>
                   </div>
                 )}
@@ -380,7 +383,7 @@ export function GlobalCallFrame() {
         >
           {uploadError && (
             <span className="max-w-[10rem] truncate rounded-md bg-danger/90 px-2 py-1 text-xs text-white">
-              {uploadError}
+              {byCode(t.uploadErrors, uploadError)}
             </span>
           )}
           {session.collab && (
@@ -407,8 +410,8 @@ export function GlobalCallFrame() {
                   markNativePickerActive();
                   fileInputRef.current?.click();
                 }}
-                title="Upload material to share with participants"
-                aria-label="Upload material to share with participants"
+                title={t.uploadMaterial}
+                aria-label={t.uploadMaterial}
                 className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
               >
                 <Upload size={14} />
@@ -422,8 +425,8 @@ export function GlobalCallFrame() {
               // there is nobody to add to a call this side is leaving.
               disabled={!roster || roster.over}
               onClick={() => setAddingPerson(true)}
-              title="Add someone to this call"
-              aria-label="Add someone to this call"
+              title={t.addSomeone}
+              aria-label={t.addSomeone}
               className="hig-material-dark rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90 disabled:opacity-50"
             >
               <UserPlus size={14} />
@@ -440,8 +443,8 @@ export function GlobalCallFrame() {
             // Upload — the highest-consequence control here shouldn't sit
             // flush against a low-stakes one.
             onClick={hangUp}
-            title="Leave session"
-            aria-label="Leave session"
+            title={t.leave}
+            aria-label={t.leave}
             className="ms-1 rounded-md bg-danger p-2.5 text-white transition-transform hover:opacity-90 active:scale-90"
           >
             <PhoneOff size={14} />
@@ -449,8 +452,8 @@ export function GlobalCallFrame() {
           <button
             type="button"
             onClick={minimize}
-            title="Minimize"
-            aria-label="Minimize"
+            title={t.minimize}
+            aria-label={t.minimize}
             className="hig-material-dark ms-1 rounded-md bg-black/60 backdrop-blur-md p-2.5 text-white transition-transform hover:bg-black/80 active:scale-90"
           >
             <Minimize2 size={14} />

@@ -7,28 +7,28 @@ import { getMyConnectionsForPicker } from "@/app/actions/connections";
 import { CALL_MAX_PARTICIPANTS } from "@/lib/call-resilience";
 import { captureError } from "@/lib/error-tracking";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useCallsText } from "@/components/calls-text";
+import type { callsEn } from "@/lib/i18n/en/calls";
+import { format } from "@/lib/i18n/locales";
 
 type Connection = { id: string; name: string | null };
 
-function inviteErrorMessage(code: string, name: string) {
+/** `name` is null for a connection the data has no name for: those four refusals have a wording of their own. */
+function inviteErrorMessage(code: string, name: string | null, t: typeof callsEn.add) {
   switch (code) {
-    case "busy":
-      return `${name} is on another call.`;
-    case "unavailable":
-      return `${name} can't be added right now.`;
     case "full":
-      return `This call is full — ${CALL_MAX_PARTICIPANTS} people is the most it can hold.`;
-    case "already_in_call":
-      return `${name} is already in this call.`;
+      return format(t.full, { max: CALL_MAX_PARTICIPANTS });
     case "not_connected":
-      return "You can only add your connections.";
+      return t.notConnected;
     case "rate_limited":
-      return "Too many calls — slow down a little.";
+      return t.rateLimited;
     case "invalid":
     case "not_found":
-      return "This call has ended.";
-    default:
-      return `Couldn't add ${name} — try again.`;
+      return t.ended;
+    default: {
+      const about = code === "busy" || code === "unavailable" || code === "already_in_call" ? code : "other";
+      return name ? format(t.errors[about], { name }) : t.errorsUnnamed[about];
+    }
   }
 }
 
@@ -56,6 +56,8 @@ export function AddCallParticipantSheet({
   excludeIds: ReadonlySet<string>;
   onInvited: () => void;
 }) {
+  const { t: calls } = useCallsText();
+  const t = calls.add;
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState("");
@@ -87,13 +89,12 @@ export function AddCallParticipantSheet({
 
   async function invite(connection: Connection) {
     if (invitingId) return;
-    const name = connection.name ?? "This person";
     setError(null);
     setInvitingId(connection.id);
     const result = await inviteToCall(callId, connection.id).catch(() => ({ error: "failed" as const }));
     setInvitingId(null);
     if (result.error) {
-      setError(inviteErrorMessage(result.error, name));
+      setError(inviteErrorMessage(result.error, connection.name, t));
       return;
     }
     onInvited();
@@ -122,11 +123,11 @@ export function AddCallParticipantSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <p id={titleId} className="text-sm font-semibold">Add someone to this call</p>
+          <p id={titleId} className="text-sm font-semibold">{t.title}</p>
           <button
             type="button"
             onClick={close}
-            aria-label="Close"
+            aria-label={t.close}
             className="rounded-lg p-1 text-foreground-soft hover:bg-line"
           >
             <X size={16} />
@@ -138,8 +139,9 @@ export function AddCallParticipantSheet({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your connections"
-            aria-label="Search your connections"
+            placeholder={t.search}
+            aria-label={t.search}
+            dir="auto"
             className="min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
         </label>
@@ -147,22 +149,20 @@ export function AddCallParticipantSheet({
         <ul className="mt-3 max-h-[45vh] space-y-1 overflow-y-auto">
           {loadFailed && (
             <li className="text-sm text-foreground-soft">
-              Couldn&apos;t load your connections.{" "}
+              {t.loadFailed}{" "}
               <button type="button" onClick={() => setLoadFailed(false)} className="font-medium text-accent">
-                Try again
+                {t.tryAgain}
               </button>
             </li>
           )}
-          {!loadFailed && matches === null && <li className="text-sm text-foreground-soft">Loading…</li>}
+          {!loadFailed && matches === null && <li className="text-sm text-foreground-soft">{t.loading}</li>}
           {available?.length === 0 && (
             <li className="text-sm text-foreground-soft">
-              {connections?.length === 0
-                ? "You don't have any connections to add yet."
-                : "All of your connections are already in this call."}
+              {connections?.length === 0 ? t.none : t.allInCall}
             </li>
           )}
           {available !== null && available.length > 0 && matches?.length === 0 && (
-            <li className="text-sm text-foreground-soft">No connections match that search.</li>
+            <li className="text-sm text-foreground-soft">{t.noMatch}</li>
           )}
           {matches?.map((c) => (
             <li key={c.id}>
@@ -170,10 +170,10 @@ export function AddCallParticipantSheet({
                 type="button"
                 disabled={invitingId !== null}
                 onClick={() => invite(c)}
-                className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-line disabled:opacity-60"
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-start text-sm hover:bg-line disabled:opacity-60"
               >
-                <span className="min-w-0 truncate">{c.name ?? "Unnamed"}</span>
-                <span className="shrink-0 text-xs text-accent">{invitingId === c.id ? "Calling…" : "Add"}</span>
+                <span dir="auto" className="min-w-0 truncate">{c.name ?? t.unnamed}</span>
+                <span className="shrink-0 text-xs text-accent">{invitingId === c.id ? t.calling : t.add}</span>
               </button>
             </li>
           ))}

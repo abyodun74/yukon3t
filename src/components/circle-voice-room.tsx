@@ -11,7 +11,6 @@ import {
   getVoiceChannelInviteCounts,
 } from "@/app/actions/circle-voice";
 import { CallFrame } from "@/components/call-frame";
-import { EnglishOnly } from "@/components/english-only";
 import { UserAvatar } from "@/components/user-link";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -176,12 +175,7 @@ export function CircleVoiceRoom({
         </ul>
       </Sheet>
 
-      {active && (
-        // The call screens are not translated yet.
-        <EnglishOnly contents>
-          <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />
-        </EnglishOnly>
-      )}
+      {active && <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />}
     </div>
   );
 }

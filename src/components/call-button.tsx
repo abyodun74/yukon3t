@@ -11,6 +11,8 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isCallOverStatus } from "@/lib/call-resilience";
 import { endCallDurably } from "@/lib/end-call-durably";
+import { useCallsText } from "@/components/calls-text";
+import { byCode, format } from "@/lib/i18n/locales";
 
 type CallType = "AUDIO" | "VIDEO";
 
@@ -18,21 +20,10 @@ type OutgoingState =
   | { phase: "idle" }
   | { phase: "ringing"; callId: string; roomUrl: string; token: string; type: CallType; calleeRinging: boolean }
   | { phase: "in-call"; callId: string; roomUrl: string; token: string; type: CallType }
-  | { phase: "ended"; message: string }
+  // Why it ended, not the sentence: the toast below words it in the reader's language when it shows.
+  | { phase: "ended"; reason: "declined" | "ended" | "already_ringing"; name: string | null }
+  | { phase: "ended"; reason: "error"; code: string | undefined }
   | { phase: "duplicate"; existingCallId: string; type: CallType };
-
-function callErrorMessage(code?: string) {
-  switch (code) {
-    case "not_configured":
-      return "Calling isn't set up yet.";
-    case "not_connected":
-      return "You can only call your connections.";
-    case "rate_limited":
-      return "Too many calls — slow down a little.";
-    default:
-      return "Couldn't start the call — try again.";
-  }
-}
 
 /** Voice/video call buttons for a connection — used on their profile and in the DM thread header. */
 export function CallButton({
@@ -41,9 +32,12 @@ export function CallButton({
   currentUserId,
 }: {
   calleeId: string;
-  calleeName: string;
+  /** Null for a connection the data has no name for. */
+  calleeName: string | null;
   currentUserId: string;
 }) {
+  const { t: calls } = useCallsText();
+  const t = calls.button;
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
   const { startSession, endSession, outgoingRingRef } = useCallSession();
 
@@ -125,7 +119,7 @@ export function CallButton({
       token: state.token,
       type: state.type,
       renderer: "direct",
-      label: calleeName,
+      label: calleeName ?? calls.someone,
       onLeave: () => {
         // Can now be reached with the network still down (a reconnect that
         // ran out of retries), so this keeps retrying after the call UI is
@@ -187,7 +181,7 @@ export function CallButton({
         cancelPrewarm(pendingPrewarmKeyRef.current);
         pendingPrewarmKeyRef.current = null;
       }
-      setState({ phase: "ended", message: `${calleeName} declined the call.` });
+      setState({ phase: "ended", reason: "declined", name: calleeName });
     } else if (result.status === "ENDED" || result.status === "MISSED") {
       // Normally the callee hanging up ejects us from the Daily room, which
       // fires the session's onLeave (registered above) via GlobalCallFrame.
@@ -205,7 +199,7 @@ export function CallButton({
         cancelPrewarm(pendingPrewarmKeyRef.current);
         pendingPrewarmKeyRef.current = null;
       }
-      setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", message: "Call ended." } : s));
+      setState((s) => (s.phase === "in-call" || s.phase === "ringing" ? { phase: "ended", reason: "ended", name: null } : s));
     }
   }, [calleeName, endSession]);
 
@@ -243,12 +237,12 @@ export function CallButton({
       if (result.existingCallId) {
         setState({ phase: "duplicate", existingCallId: result.existingCallId, type });
       } else {
-        setState({ phase: "ended", message: "You already have a call ringing to this person." });
+        setState({ phase: "ended", reason: "already_ringing", name: null });
       }
       return;
     }
     if (result.error || !result.callId || !result.roomUrl || !result.token) {
-      setState({ phase: "ended", message: callErrorMessage(result.error ?? undefined) });
+      setState({ phase: "ended", reason: "error", code: result.error ?? undefined });
       return;
     }
     const resolvedType = (result.type as CallType) ?? type;
@@ -293,14 +287,29 @@ export function CallButton({
     await call(type);
   }
 
+  const voiceCallLabel = calleeName ? format(t.voiceCall, { name: calleeName }) : t.voiceCallUnnamed;
+  const videoCallLabel = calleeName ? format(t.videoCall, { name: calleeName }) : t.videoCallUnnamed;
+  const endedMessage =
+    state.phase !== "ended"
+      ? null
+      : state.reason === "error"
+        ? byCode(t.errors, state.code)
+        : state.reason === "declined"
+          ? state.name
+            ? format(t.declined, { name: state.name })
+            : t.declinedUnnamed
+          : state.reason === "already_ringing"
+            ? t.alreadyRinging
+            : t.ended;
+
   return (
     <>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => call("AUDIO")}
-          title={`Voice call ${calleeName}`}
-          aria-label={`Voice call ${calleeName}`}
+          title={voiceCallLabel}
+          aria-label={voiceCallLabel}
           className="rounded-lg border border-line p-2.5 -m-0.5 transition-transform hover:border-accent hover:text-accent active:scale-[0.92]"
         >
           <Phone size={16} />
@@ -308,8 +317,8 @@ export function CallButton({
         <button
           type="button"
           onClick={() => call("VIDEO")}
-          title={`Video call ${calleeName}`}
-          aria-label={`Video call ${calleeName}`}
+          title={videoCallLabel}
+          aria-label={videoCallLabel}
           className="rounded-lg border border-line p-2.5 -m-0.5 transition-transform hover:border-accent hover:text-accent active:scale-[0.92]"
         >
           <Video size={16} />
@@ -320,18 +329,18 @@ export function CallButton({
         open={state.phase === "ringing"}
         onClose={cancel}
         panelClassName="max-w-xs text-center"
-        ariaLabel={`Calling ${calleeName}`}
+        ariaLabel={calleeName ? format(t.callingLabel, { name: calleeName }) : t.callingLabelUnnamed}
       >
         {displayState.phase === "ringing" && (
           <>
-            <p role="status" className="text-sm text-foreground-soft">{displayState.calleeRinging ? "Ringing" : "Calling"}</p>
-            <p className="mt-1 break-words text-lg font-semibold">{calleeName}</p>
+            <p role="status" className="text-sm text-foreground-soft">{displayState.calleeRinging ? t.ringing : t.calling}</p>
+            {calleeName && <p dir="auto" className="mt-1 break-words text-lg font-semibold">{calleeName}</p>}
             <button
               type="button"
               onClick={cancel}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-transform active:scale-[0.97]"
             >
-              <PhoneOff size={16} /> Cancel
+              <PhoneOff size={16} /> {t.cancel}
             </button>
           </>
         )}
@@ -341,28 +350,28 @@ export function CallButton({
         open={state.phase === "duplicate"}
         onClose={() => setState({ phase: "idle" })}
         panelClassName="max-w-xs text-center"
-        ariaLabel="Call already in progress"
+        ariaLabel={t.duplicateLabel}
       >
         {displayState.phase === "duplicate" && (
           <>
-            <p className="text-sm font-medium">You already have a call with {calleeName}</p>
-            <p className="mt-1 text-sm text-foreground-soft">
-              A previous call is still ringing or active. Cancel it and start a new one?
+            <p className="text-sm font-medium">
+              {calleeName ? format(t.duplicateTitle, { name: calleeName }) : t.duplicateTitleUnnamed}
             </p>
+            <p className="mt-1 text-sm text-foreground-soft">{t.duplicateBody}</p>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"
                 onClick={cancelExistingAndRetry}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-transform active:scale-[0.97]"
               >
-                <PhoneOff size={16} /> Cancel it &amp; call again
+                <PhoneOff size={16} /> {t.cancelAndRetry}
               </button>
               <button
                 type="button"
                 onClick={() => setState({ phase: "idle" })}
                 className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium transition-transform hover:border-accent hover:text-accent active:scale-[0.97]"
               >
-                Never mind
+                {t.neverMind}
               </button>
             </div>
           </>
@@ -371,7 +380,7 @@ export function CallButton({
 
       {state.phase === "ended" && (
         <div className="fixed inset-x-0 bottom-4 z-50 mx-auto w-fit rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg">
-          {state.message}
+          {endedMessage}
         </div>
       )}
     </>

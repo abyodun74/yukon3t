@@ -27,6 +27,8 @@ import { captureError } from "@/lib/error-tracking";
 import { takePrewarmedCall } from "@/lib/call-prewarm";
 import { hapticSelection, hapticImpact } from "@/lib/haptics";
 import { UserAvatar } from "@/components/user-link";
+import { useCallsText } from "@/components/calls-text";
+import { callPeer, peerNotice, type CallPeer } from "@/lib/call-names";
 import type { CallRoster } from "@/lib/use-call-roster";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
@@ -142,7 +144,11 @@ export function DirectCallFrame({
 }) {
   const callRef = useRef<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
-  const [joinError, setJoinError] = useState<string | null>(null);
+  const { t: calls } = useCallsText();
+  const t = calls.direct;
+  const controls = calls.controls;
+  // Which failure, not its sentence: worded in the reader's language where it is shown.
+  const [joinError, setJoinError] = useState<"media" | "join" | null>(null);
   const [outputDevices, setOutputDevices] = useState<DailyMediaDeviceInfo[]>([]);
   const [outputIndex, setOutputIndex] = useState(0);
   const [cameraCount, setCameraCount] = useState(0);
@@ -501,7 +507,7 @@ export function DirectCallFrame({
     // cold-start path's .join().catch() already shows.
     function handleCameraError(ev: { errorMsg?: { errorMsg?: string } }) {
       console.error("Daily camera-error:", ev.errorMsg?.errorMsg);
-      setJoinError("Couldn't access your camera or microphone — check your permissions and try again.");
+      setJoinError("media");
     }
 
     function attach(c: DailyCall) {
@@ -563,7 +569,7 @@ export function DirectCallFrame({
           // the one failure that's only reported; the user can hang up, and
           // the other side's grace period ends the call otherwise.
           console.error("Daily call setup failed:", err);
-          setJoinError("Couldn't join the call. Check your connection and try again.");
+          setJoinError("join");
         });
     }
 
@@ -830,28 +836,45 @@ export function DirectCallFrame({
   const remoteOnHold = Boolean(remote && hasNotice(remoteHolds, remote));
   const remoteCameraPaused = Boolean(remote && hasNotice(remoteCamerasPaused, remote));
   const onHold = isOnHold || remoteOnHold;
-  function remoteName(participant: DailyParticipant) {
+  function knownRemoteName(participant: DailyParticipant) {
     const listed = roster?.participants.find((p) => p.userId === participant.user_id);
-    return listed?.name || participant.user_name || "Guest";
+    return listed?.name || participant.user_name || null;
+  }
+  function remoteName(participant: DailyParticipant) {
+    return knownRemoteName(participant) ?? t.guest;
   }
   // The session's label names whoever the call started with, which stops
   // being the right name once people have been added and others have left.
-  function groupPeerName() {
-    if (remote) return remoteName(remote);
+  // Who the notices below are about: a name where there is one, otherwise "the other participant" or "everyone
+  // else" (each notice has its own wording for those, see peerNotice).
+  function groupPeer(): CallPeer {
+    if (remote) return callPeer(knownRemoteName(remote));
     const others = roster?.participants.filter((p) => p.status === "JOINED" && p.userId !== selfUserId) ?? [];
-    return others.length === 1 ? others[0].name || "The other participant" : "Everyone else";
+    return others.length === 1 ? callPeer(others[0].name) : { kind: "everyone" };
   }
-  const peerDisplayName = inGroupCall ? groupPeerName() : peerName || "The other participant";
+  const peer = inGroupCall ? groupPeer() : callPeer(peerName);
   // Tap-to-swap only exists in the 1:1 layout; in the grid the tile is
   // always this side's own camera.
   const swapped = selfViewIsMain && !gridMode;
   const statusNotice =
     reconnecting || networkInterrupted
-      ? "Reconnecting…"
+      ? t.reconnecting
       : peerLossNoticeDue && hadRemote
-        ? `${peerDisplayName}'s connection was lost. Waiting…`
+        ? peerNotice(peer, {
+            named: t.peerLost,
+            other: t.peerLostOther,
+            everyone: t.peerLostEveryone,
+            private: t.peerLostPrivate,
+          })
         : null;
-  const remoteCameraPausedLabel = remoteCameraPaused ? `${peerDisplayName}'s camera is paused` : undefined;
+  const remoteCameraPausedLabel = remoteCameraPaused
+    ? peerNotice(peer, {
+        named: t.cameraPaused,
+        other: t.cameraPausedOther,
+        everyone: t.cameraPausedEveryone,
+        private: t.cameraPausedPrivate,
+      })
+    : undefined;
   const tileParticipant = onHold ? undefined : swapped ? remote : local && localVideoOn ? local : undefined;
 
   return (
@@ -867,7 +890,7 @@ export function DirectCallFrame({
       ))}
 
       {isOnHold ? (
-        <HoldOverlay text="Call on hold" />
+        <HoldOverlay text={t.callOnHold} />
       ) : gridMode ? (
         // Same grid as live-video-frame.tsx's broadcaster tiles, with rows
         // sharing the height so eight people still fit one screen.
@@ -887,7 +910,14 @@ export function DirectCallFrame({
           ))}
         </div>
       ) : remoteOnHold ? (
-        <HoldOverlay text={`${peerDisplayName} put the call on hold`} />
+        <HoldOverlay
+          text={peerNotice(peer, {
+            named: t.peerHold,
+            other: t.peerHoldOther,
+            everyone: t.peerHoldEveryone,
+            private: t.peerHoldPrivate,
+          })}
+        />
       ) : swapped && local ? (
         <SelfVideo participant={local} />
       ) : remote ? (
@@ -896,10 +926,10 @@ export function DirectCallFrame({
         <div className="flex flex-col items-center gap-1 px-4 text-center text-sm text-white/60">
           {joinError ? (
             <span role="alert" className="text-danger">
-              {joinError}
+              {t.errors[joinError]}
             </span>
           ) : (
-            !statusNotice && <span role="status">Connecting…</span>
+            !statusNotice && <span role="status">{t.connecting}</span>
           )}
         </div>
       )}
@@ -931,7 +961,7 @@ export function DirectCallFrame({
           // semantics are added by hand instead.
           role="button"
           tabIndex={0}
-          aria-label={gridMode ? "Your video" : "Swap your video with the main view"}
+          aria-label={gridMode ? t.yourVideo : t.swap}
           onKeyDown={(e) => {
             if (gridMode) return;
             if (e.key === "Enter" || e.key === " ") {
@@ -939,7 +969,7 @@ export function DirectCallFrame({
               setSelfViewIsMain((v) => !v);
             }
           }}
-          title={gridMode ? "Drag to move" : "Drag to move, tap to swap with the main view"}
+          title={gridMode ? t.dragToMove : t.dragOrSwap}
           className="chrome-scale fixed z-10 h-32 w-24 cursor-grab touch-none select-none overflow-hidden rounded-xl border border-white/20 bg-black shadow-lg active:cursor-grabbing sm:h-40 sm:w-28"
           style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "calc(1rem + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px)))", left: "1rem" }}
         >
@@ -972,8 +1002,8 @@ export function DirectCallFrame({
             type="button"
             onClick={toggleAudio}
             disabled={isOnHold || reconnecting}
-            title={localAudioOn ? "Mute" : "Unmute"}
-            aria-label={localAudioOn ? "Mute microphone" : "Unmute microphone"}
+            title={localAudioOn ? controls.mute : controls.unmute}
+            aria-label={localAudioOn ? controls.muteMic : controls.unmuteMic}
             className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localAudioOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localAudioOn ? <Mic size={16} /> : <MicOff size={16} />}
@@ -987,8 +1017,8 @@ export function DirectCallFrame({
             // calls (see daily.ts), so switching video on/off is always
             // available regardless of how the call started, letting either
             // side turn a voice call into a video call and back mid-call.
-            title={localVideoOn ? "Turn off camera" : "Turn on camera"}
-            aria-label={localVideoOn ? "Turn off camera" : "Turn on camera"}
+            title={localVideoOn ? controls.cameraOff : controls.cameraOn}
+            aria-label={localVideoOn ? controls.cameraOff : controls.cameraOn}
             className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localVideoOn ? "bg-white/20" : "bg-danger"}`}
           >
             {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
@@ -1006,8 +1036,8 @@ export function DirectCallFrame({
             // Out of the room there's nobody to tell and nothing to pause —
             // same for the mic/camera/share buttons either side of this.
             disabled={reconnecting}
-            title={isOnHold ? "Resume call" : "Hold call"}
-            aria-label={isOnHold ? "Resume call" : "Put call on hold"}
+            title={isOnHold ? controls.resume : controls.hold}
+            aria-label={isOnHold ? controls.resume : controls.holdLabel}
             className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${isOnHold ? "bg-accent text-accent-ink" : "bg-white/20"}`}
           >
             {isOnHold ? <Play size={16} /> : <Pause size={16} />}
@@ -1016,8 +1046,8 @@ export function DirectCallFrame({
             type="button"
             onClick={toggleScreenShare}
             disabled={isOnHold || reconnecting}
-            title={localScreenSharing ? "Stop sharing" : "Share screen"}
-            aria-label={localScreenSharing ? "Stop sharing screen" : "Share screen"}
+            title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
+            aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
             className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
           >
             {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
@@ -1033,8 +1063,8 @@ export function DirectCallFrame({
               type="button"
               onClick={switchCamera}
               disabled={isOnHold}
-              title="Switch between front and back camera"
-              aria-label="Switch camera"
+              title={controls.switchCameraHint}
+              aria-label={controls.switchCamera}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-transform active:scale-90 disabled:opacity-50"
             >
               <SwitchCamera size={16} />
@@ -1047,8 +1077,8 @@ export function DirectCallFrame({
             <button
               type="button"
               onClick={switchOutput}
-              title="Switch audio output (speaker, earpiece, headset...)"
-              aria-label="Switch audio output"
+              title={controls.switchOutputHint}
+              aria-label={controls.switchOutput}
               className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 ${onSpeaker ? "bg-accent text-accent-ink" : "bg-white/20"}`}
             >
               <Volume2 size={16} />
@@ -1089,23 +1119,25 @@ function RemoteTile({
   onHold: boolean;
   cameraPaused: boolean;
 }) {
+  const { t: calls } = useCallsText();
+  const t = calls.direct;
   const muted = !trackIsOn(participant.tracks.audio.state);
   return (
     <div className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-lg bg-white/5">
       {onHold ? (
-        <HoldOverlay text="On hold" />
+        <HoldOverlay text={t.onHold} />
       ) : (
         <RemoteVideo
           participant={participant}
           className="h-full w-full object-cover"
-          pausedLabel={cameraPaused ? "Camera paused" : undefined}
+          pausedLabel={cameraPaused ? t.cameraPausedShort : undefined}
           fallback={<UserAvatar avatarUrl={avatarUrl} name={name} size={56} />}
         />
       )}
       {/* Top rather than bottom: the control tray overlays the bottom row. */}
       <span className="absolute left-1 top-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-xs text-white">
-        {muted && <MicOff size={12} className="shrink-0" aria-label="Muted" />}
-        <span className="truncate">{name}</span>
+        {muted && <MicOff size={12} className="shrink-0" aria-label={t.muted} />}
+        <span dir="auto" className="truncate">{name}</span>
       </span>
     </div>
   );
@@ -1163,6 +1195,7 @@ function RemoteVideo({
   pausedLabel?: string;
   fallback?: ReactNode;
 }) {
+  const { t: calls } = useCallsText();
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoTrack = participant.tracks.video;
   const screenTrack = participant.tracks.screenVideo;
@@ -1191,7 +1224,7 @@ function RemoteVideo({
           </div>
         ) : (
           <span className="absolute px-2 text-center text-sm text-white/60">
-            {cameraPaused ? pausedLabel : participant.user_name || "Connecting…"}
+            {cameraPaused ? pausedLabel : participant.user_name || calls.direct.connecting}
           </span>
         ))}
     </>

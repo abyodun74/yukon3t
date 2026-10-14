@@ -6,40 +6,21 @@ import { X, Video, Music, Upload } from "lucide-react";
 import { createMuse } from "@/app/actions/muse";
 import { probeVideoDuration, uploadFileDirect, uploadVideoWithThumb, withRetry } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
-import { isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/stale-deployment";
+import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { cn } from "@/lib/utils";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
+import { useMuseText } from "@/components/muse-text";
+import { formatDuration } from "@/lib/format-date";
+import { byCode, plural } from "@/lib/i18n/locales";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only and
 // isn't safe in a client bundle. Same reasoning/pattern as post-composer.tsx's
 // own MAX_UPLOAD_VIDEO_SECONDS duplicate.
 const MAX_MUSE_SECONDS = 300;
-
-// Covers both uploadFileDirect's error codes and createMuse's own — same
-// "one switch, both sources" shape post-composer.tsx uses for its own
-// errorMessage helper.
-function errorMessage(code: string) {
-  switch (code) {
-    case "too_large":
-      return "That video is too large.";
-    case "moderation":
-      return "This couldn't be posted — it may violate our content guidelines.";
-    case "rate_limited":
-      return "You're posting too fast — try again in a bit.";
-    case "invalid":
-      return "That couldn't be posted — try picking the file(s) again.";
-    case "network":
-      return "Couldn't reach the server — check your connection and try again.";
-    case "stale_deployment":
-      return STALE_DEPLOYMENT_MESSAGE;
-    default:
-      return "Something went wrong — try again.";
-  }
-}
 
 // "original" = the video's own sound plays, untouched. "custom" = an
 // entirely separate uploaded audio file replaces it (the video always
@@ -60,6 +41,10 @@ type SoundMode = "original" | "custom";
  */
 export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
+  const { locale, t: muse } = useMuseText();
+  const t = muse.composer;
+  // Covers both uploadFileDirect's error codes and createMuse's own.
+  const errorMessage = (code: string) => byCode(t.errors, code);
   const [video, setVideo] = useState<File | null>(null);
   // The video (and its poster frame) starts uploading as soon as it's picked; removing it deletes the upload again.
   const eagerItems = useMemo(
@@ -119,12 +104,12 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
       if (current !== file) return current;
       if (duration === null) {
         setStatus("error");
-        setErrorText("Couldn't read this video's length — try picking a different file.");
+        setErrorText(t.unreadable);
         return null;
       }
       if (duration > MAX_MUSE_SECONDS) {
         setStatus("error");
-        setErrorText(`A Muse can be at most ${MAX_MUSE_SECONDS / 60} minutes — pick a shorter clip.`);
+        setErrorText(plural(locale, t.tooLong, MAX_MUSE_SECONDS / 60));
         return null;
       }
       setVideoDurationSeconds(Math.round(duration));
@@ -175,7 +160,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
       );
     } catch (err) {
       setStatus("error");
-      setErrorText(isStaleDeploymentError(err) ? STALE_DEPLOYMENT_MESSAGE : errorMessage("network"));
+      setErrorText(errorMessage(isStaleDeploymentError(err) ? "stale_deployment" : "network"));
       return;
     }
 
@@ -203,11 +188,9 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
       onClose={() => !busy && onClose()}
       variant="bottom-sheet"
       responsive
-      title="Post a Muse"
+      title={t.title}
     >
-        <p className="text-xs text-foreground-soft">
-          Short, funny, creative — up to {MAX_MUSE_SECONDS / 60} minutes. Visible to everyone on YuKon3t.
-        </p>
+        <p className="text-xs text-foreground-soft">{plural(locale, t.intro, MAX_MUSE_SECONDS / 60)}</p>
 
         <input
           ref={fileInputRef}
@@ -233,14 +216,16 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
             className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-line py-8 text-foreground-soft hover:border-accent hover:text-accent"
           >
             <Video size={28} />
-            <span className="text-sm font-medium">Choose a video</span>
+            <span className="text-sm font-medium">{t.chooseVideo}</span>
           </button>
         ) : (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2">
             <Video size={16} className="shrink-0 text-foreground-soft" />
-            <span className="min-w-0 flex-1 truncate text-sm">{video.name}</span>
+            <span dir="auto" className="min-w-0 flex-1 truncate text-sm">{video.name}</span>
             {videoDurationSeconds !== null && (
-              <span className="shrink-0 text-xs text-foreground-soft">{videoDurationSeconds}s</span>
+              <span className="shrink-0 text-xs text-foreground-soft">
+                {formatDuration(videoDurationSeconds, "second", locale)}
+              </span>
             )}
             <button
               type="button"
@@ -249,7 +234,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                 setVideoDurationSeconds(null);
               }}
               disabled={busy}
-              aria-label="Remove video"
+              aria-label={t.removeVideo}
               className="shrink-0 text-foreground-soft hover:text-danger disabled:opacity-40"
             >
               <X size={14} />
@@ -270,7 +255,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                   soundMode === "original" ? "bg-accent text-accent-ink" : "text-foreground-soft hover:text-foreground",
                 )}
               >
-                Original sound
+                {t.originalSound}
               </button>
               <button
                 type="button"
@@ -282,7 +267,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                   soundMode === "custom" ? "bg-accent text-accent-ink" : "text-foreground-soft hover:text-foreground",
                 )}
               >
-                Custom audio
+                {t.customAudio}
               </button>
             </div>
 
@@ -312,17 +297,17 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line py-3 text-foreground-soft hover:border-accent hover:text-accent disabled:opacity-60"
                   >
                     <Music size={16} />
-                    <span className="text-sm font-medium">Choose audio to replace the video&apos;s sound</span>
+                    <span className="text-sm font-medium">{t.chooseAudio}</span>
                   </button>
                 ) : (
                   <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2">
                     <Music size={16} className="shrink-0 text-foreground-soft" />
-                    <span className="min-w-0 flex-1 truncate text-sm">{audio.name}</span>
+                    <span dir="auto" className="min-w-0 flex-1 truncate text-sm">{audio.name}</span>
                     <button
                       type="button"
                       onClick={() => setAudio(null)}
                       disabled={busy}
-                      aria-label="Remove audio"
+                      aria-label={t.removeAudio}
                       className="shrink-0 text-foreground-soft hover:text-danger disabled:opacity-40"
                     >
                       <X size={14} />
@@ -337,10 +322,11 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
         <div className="mt-3">
           <div className="flex items-center gap-1 rounded-lg border border-line px-2">
             <input
-              aria-label="Add a caption (optional)"
+              aria-label={t.caption}
+              dir="auto"
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, 200))}
-              placeholder="Add a caption (optional)"
+              placeholder={t.caption}
               disabled={busy}
               className="w-full bg-transparent py-2 text-sm outline-none disabled:opacity-60"
             />
@@ -350,7 +336,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         {errorText && <p role="alert" className="mt-2 text-xs text-danger">{errorText}</p>}
-        {status === "done" && <p className="mt-2 text-xs text-accent">Posted!</p>}
+        {status === "done" && <p className="mt-2 text-xs text-accent">{t.posted}</p>}
 
         <button
           type="button"
@@ -359,7 +345,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
           <Upload size={15} />
-          {busy ? "Posting…" : "Post Muse"}
+          {busy ? t.posting : t.post}
         </button>
     </Sheet>
   );

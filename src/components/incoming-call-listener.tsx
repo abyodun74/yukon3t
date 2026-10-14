@@ -14,6 +14,9 @@ import { endCallDurably } from "@/lib/end-call-durably";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { hapticNotification, hapticImpact } from "@/lib/haptics";
+import { useCallsText } from "@/components/calls-text";
+import { callLabel, isPrivateCaller } from "@/lib/call-names";
+import { aroundPlaceholder } from "@/lib/i18n/locales";
 
 type IncomingCall = {
   id: string;
@@ -33,9 +36,12 @@ type IncomingCall = {
   othersInCall: number;
 };
 
-/** "<inviter> + N" for a ring into a call with other people already in it. */
-function incomingCallLabel(call: IncomingCall) {
-  const name = call.caller.name ?? "Someone";
+/**
+ * "<inviter> + N" for a ring into a call with other people already in it. `someone` stands in for a caller with no
+ * name; a hidden caller's stand-in is left as the server sent it, and worded where the label is shown (callLabel).
+ */
+function incomingCallLabel(call: IncomingCall, someone: string) {
+  const name = call.caller.name ?? someone;
   return call.othersInCall > 0 ? `${name} + ${call.othersInCall}` : name;
 }
 
@@ -43,6 +49,13 @@ type ActiveCall = { callId: string; roomUrl: string; token: string; type: "AUDIO
 
 /** Mounted once, app-wide, for any signed-in user — subscribes for a ring the same way ChatThread subscribes for messages. */
 export function IncomingCallListener({ currentUserId }: { currentUserId: string }) {
+  const { t: calls } = useCallsText();
+  const t = calls.incoming;
+  // Read by acceptCall (below) for the name of a caller who has none: a ref, for the same reason as incomingRef.
+  const someoneRef = useRef(calls.someone);
+  useEffect(() => {
+    someoneRef.current = calls.someone;
+  });
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
@@ -248,7 +261,10 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
-    const callerName = incomingRef.current?.id === callId ? incomingCallLabel(incomingRef.current) : "Someone";
+    const callerName =
+      incomingRef.current?.id === callId
+        ? incomingCallLabel(incomingRef.current, someoneRef.current)
+        : someoneRef.current;
     // Ownership of any prewarmed join for this exact call transfers to
     // DirectCallFrame now (it looks itself up by this same `call:${callId}`
     // key, via the `key` passed to startSession below) — only clear the
@@ -396,15 +412,34 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
 
   if (!incoming) return null;
 
+  // One sentence per kind of ring, the caller's name in bold wherever that language puts it. A caller whose chat
+  // the reader has hidden is shown as the app's stand-in for the name, in a sentence worded for it.
+  const isGroupRing = incoming.othersInCall > 0;
+  const isVideo = incoming.type === "VIDEO";
+  const shownName = callLabel(incoming.caller.name, calls);
+  const sentence =
+    !isGroupRing && isPrivateCaller(incoming.caller.name)
+      ? isVideo
+        ? t.callingPrivateVideo
+        : t.callingPrivate
+      : isGroupRing
+        ? isVideo
+          ? t.callingGroupVideo
+          : t.callingGroup
+        : isVideo
+          ? t.callingVideo
+          : t.calling;
+  const [beforeName, afterName] = aroundPlaceholder(sentence, "name");
+
   return (
-    <div className="fixed inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-50 mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg" role="group" aria-label="Incoming call">
+    <div className="fixed inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-50 mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg" role="group" aria-label={t.label}>
       {/* role="alert": an incoming call is the one thing here worth
           interrupting a screen reader for — without it the banner appears
           silently and the call rings out unanswered. */}
       <p role="alert" className="text-sm">
-        <span className="font-semibold">{incomingCallLabel(incoming)}</span>{" "}
-        {incoming.othersInCall > 0 ? "are" : "is"} calling
-        {incoming.type === "VIDEO" ? " (video)" : ""}...
+        {beforeName}
+        <bdi className="font-semibold">{isGroupRing ? `${shownName} + ${incoming.othersInCall}` : shownName}</bdi>
+        {afterName}
       </p>
       <div className="mt-3 flex items-center justify-center gap-4">
         <button
@@ -412,14 +447,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
           onClick={decline}
           className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
         >
-          <PhoneOff size={16} /> Decline
+          <PhoneOff size={16} /> {t.decline}
         </button>
         <button
           type="button"
           onClick={accept}
           className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
         >
-          {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} Accept
+          {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} {t.accept}
         </button>
       </div>
     </div>

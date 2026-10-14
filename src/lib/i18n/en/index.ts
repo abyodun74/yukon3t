@@ -5,11 +5,14 @@
 
 import { accountEn } from "@/lib/i18n/en/account";
 import { advertiseEn } from "@/lib/i18n/en/advertise";
+import { callsEn } from "@/lib/i18n/en/calls";
 import { circlesEn } from "@/lib/i18n/en/circles";
 import { collabEn } from "@/lib/i18n/en/collab";
 import { feedEn } from "@/lib/i18n/en/feed";
 import { inviteEn } from "@/lib/i18n/en/invite";
+import { liveEn } from "@/lib/i18n/en/live";
 import { messagesEn } from "@/lib/i18n/en/messages";
+import { museEn } from "@/lib/i18n/en/muse";
 import { pagesEn } from "@/lib/i18n/en/pages";
 import { profileEn } from "@/lib/i18n/en/profile";
 import { settingsEn } from "@/lib/i18n/en/settings";
@@ -21,11 +24,14 @@ import { vocabEn } from "@/lib/i18n/en/vocab";
 export {
   accountEn,
   advertiseEn,
+  callsEn,
   circlesEn,
   collabEn,
   feedEn,
   inviteEn,
+  liveEn,
   messagesEn,
+  museEn,
   pagesEn,
   profileEn,
   settingsEn,
@@ -48,6 +54,9 @@ export const en = {
   advertise: advertiseEn,
   circles: circlesEn,
   collab: collabEn,
+  muse: museEn,
+  live: liveEn,
+  calls: callsEn,
   vocab: vocabEn,
   ...accountEn,
 };

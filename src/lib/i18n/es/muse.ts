@@ -1,0 +1,88 @@
+import type { museEn } from "@/lib/i18n/en/muse";
+import { serverUnreachable } from "@/lib/i18n/es/common";
+
+// "Muse" stays as it is, masculine ("un Muse", "los Muses"), as in the notifications. Home is "Inicio", the label
+// the nav gives it.
+export const muse: typeof museEn = {
+  feed: {
+    empty: "Aún no hay Muses. Publica el primero.",
+    goToProfile: "Ir a tu perfil",
+    sharedToHome: "Compartido en tu Inicio",
+    removedFromHome: "Quitado de tu Inicio",
+    embedTitle: "Video insertado que compartió {name}",
+    embedTitleUnnamed: "Video insertado que compartió alguien",
+    videoLabel: "Muse de {name}",
+    videoLabelUnnamed: "Muse de alguien",
+    tapForSound: "Toca para activar el sonido",
+    delete: "Eliminar Muse",
+    deleteConfirmLabel: "¿Eliminar? Confirmar",
+    deleteConfirm: "¿Eliminar?",
+    play: "Reproducir",
+    pause: "Pausar",
+    mute: "Silenciar",
+    unmute: "Activar sonido",
+    views: "one: # visualización | other: # visualizaciones",
+    viewOriginal: "Ver la publicación original",
+    commentsCount: "Comentarios: {count}",
+    reshareCount: "Volver a compartir en Inicio: {count}",
+    shareCount: "Compartir: {count}",
+  },
+  comments: {
+    title: "Comentarios",
+    titleCount: "Comentarios ({count})",
+    close: "Cerrar comentarios",
+    loading: "Cargando…",
+    empty: "Aún no hay comentarios.",
+    someone: "Alguien",
+    delete: "Eliminar comentario",
+    add: "Agregar un comentario",
+    placeholder: "Agrega un comentario...",
+    postLabel: "Publicar comentario",
+    post: "Publicar",
+    failed: "No se pudo publicar ese comentario.",
+  },
+  share: {
+    title: "Compartir Muse",
+    onHome: "Ya está en tu Inicio",
+    sharingToHome: "Compartiendo…",
+    toHome: "Compartir en tu Inicio",
+    copyFailed: "No se pudo copiar el enlace.",
+    linkOnly: "No se pudo adjuntar el video aquí, así que solo se compartió el enlace.",
+    storyErrors: {
+      too_long: "Este Muse es demasiado largo para una historia.",
+      rate_limited: "Ve un poco más despacio e inténtalo de nuevo.",
+      other: "No se pudo agregar a tu historia.",
+    },
+    sendErrors: {
+      blocked: "No puedes enviarle mensajes a esta persona.",
+      other: "No se pudo enviar.",
+    },
+  },
+  composer: {
+    title: "Publicar un Muse",
+    intro:
+      "one: Corto, divertido, creativo: hasta # minuto. Visible para todos en YuKon3t. | other: Corto, divertido, creativo: hasta # minutos. Visible para todos en YuKon3t.",
+    chooseVideo: "Elegir un video",
+    removeVideo: "Quitar video",
+    originalSound: "Sonido original",
+    customAudio: "Audio propio",
+    chooseAudio: "Elige un audio para reemplazar el sonido del video",
+    removeAudio: "Quitar audio",
+    caption: "Agrega una descripción (opcional)",
+    posted: "¡Publicado!",
+    posting: "Publicando…",
+    post: "Publicar Muse",
+    unreadable: "No pudimos leer la duración de este video. Prueba con otro archivo.",
+    tooLong:
+      "one: Un Muse puede durar # minuto como máximo. Elige un clip más corto. | other: Un Muse puede durar # minutos como máximo. Elige un clip más corto.",
+    errors: {
+      too_large: "Ese video es demasiado grande.",
+      moderation: "No se pudo publicar: puede que infrinja nuestras normas de contenido.",
+      rate_limited: "Estás publicando muy rápido. Inténtalo de nuevo en un momento.",
+      invalid: "No se pudo publicar. Vuelve a elegir el archivo o los archivos.",
+      network: serverUnreachable,
+      stale_deployment: "Hay una nueva versión de la aplicación. Actualiza la página para continuar.",
+      other: "Algo salió mal. Inténtalo de nuevo.",
+    },
+  },
+};
