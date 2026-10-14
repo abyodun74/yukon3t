@@ -1,0 +1,47 @@
+import type { pushEn } from "@/lib/i18n/en/push";
+
+export const push: typeof pushEn = {
+  someone: "Quelqu'un",
+  privateCall: "Appel privé",
+  hiddenBody: "Vous avez une nouvelle notification",
+  message: {
+    title: "Nouveau message",
+    photo: "A envoyé une photo",
+    video: "A envoyé une vidéo",
+    gif: "A envoyé un GIF",
+    voice: "A envoyé un message vocal",
+    unreadable: "Nouveau message",
+  },
+  storyReply: { title: "Réponse à votre story", body: "A répondu à votre story : {text}" },
+  call: {
+    incomingVideo: "Appel vidéo entrant",
+    incomingVoice: "Appel audio entrant",
+    calling: "{name} vous appelle",
+    callingPrivate: "Appel privé entrant",
+    missedTitle: "Appel manqué",
+    // "a essayé de vous joindre" rather than "vous a appelé(e)", which would have to agree with the caller.
+    missed: "{name} a essayé de vous joindre",
+  },
+  activity: {
+    CONNECTION_REQUEST: "Vous a envoyé une demande de mise en relation",
+    CONNECTION_ACCEPTED: "A accepté votre demande de mise en relation",
+    POST_LIKE: "A aimé votre publication",
+    POST_COMMENT: "A commenté votre publication",
+    COMMENT_REPLY: "A répondu à votre commentaire",
+    MUSE_LIKE: "A réagi à votre Muse",
+    MUSE_COMMENT: "A commenté votre Muse",
+    MUSE_REPOST: "A repartagé votre Muse",
+    MUSE_SHARE: "A partagé votre Muse",
+    SCREENSHOT_TAKEN: "A fait une capture d'écran",
+    LIVE_STREAM_INVITE: "A démarré un direct avec vous",
+  },
+  reminders: {
+    eventTitle: "Votre événement",
+    collabTitle: "Votre collaboration",
+    eventStartingSoon: "Commence bientôt",
+    eventStartingSoonAt: "Commence bientôt. Lieu : {location}",
+    collabStartingSoon: "Commence bientôt",
+  },
+  videoReviewTitle: "Vidéo en attente d'examen",
+  recordingFailedTitle: "Enregistrement non publié",
+};

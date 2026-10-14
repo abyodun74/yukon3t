@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { getMembersHidingConversation, hiddenPushPayload, isMembershipLocked } from "@/lib/hidden-chats";
+import { getMembersHidingConversation, isMembershipLocked } from "@/lib/hidden-chats";
+import { hiddenPush, pushText } from "@/lib/push-text";
+import { format } from "@/lib/i18n/locales";
 import { storySchema, messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
@@ -460,14 +462,18 @@ export async function replyToStory(storyId: string, formData: FormData) {
 
   // The author may have this DM hidden: then the push names nobody and quotes nothing.
   const authorHidesChat = (await getMembersHidingConversation(conversation.id, [story.authorId])).length > 0;
+  const replyText = parsed.data.content.slice(0, 120);
   await sendPushToUser(
     story.authorId,
     authorHidesChat
-      ? hiddenPushPayload()
-      : {
-          title: user.name ?? "Story reply",
-          body: `Replied to your story: ${parsed.data.content.slice(0, 120)}`,
-          url: `/messages/${conversation.id}`,
+      ? hiddenPush
+      : (locale) => {
+          const t = pushText(locale).storyReply;
+          return {
+            title: user.name ?? t.title,
+            body: format(t.body, { text: replyText }),
+            url: `/messages/${conversation.id}`,
+          };
         },
   );
 

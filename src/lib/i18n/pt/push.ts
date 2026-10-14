@@ -1,0 +1,46 @@
+import type { pushEn } from "@/lib/i18n/en/push";
+
+export const push: typeof pushEn = {
+  someone: "Alguém",
+  privateCall: "Chamada privada",
+  hiddenBody: "Você tem uma nova notificação",
+  message: {
+    title: "Nova mensagem",
+    photo: "Enviou uma foto",
+    video: "Enviou um vídeo",
+    gif: "Enviou um GIF",
+    voice: "Enviou uma mensagem de voz",
+    unreadable: "Nova mensagem",
+  },
+  storyReply: { title: "Resposta ao seu story", body: "Respondeu ao seu story: {text}" },
+  call: {
+    incomingVideo: "Chamada de vídeo recebida",
+    incomingVoice: "Chamada de áudio recebida",
+    calling: "{name} está ligando para você",
+    callingPrivate: "Chamada privada recebida",
+    missedTitle: "Chamada perdida",
+    missed: "{name} ligou para você",
+  },
+  activity: {
+    CONNECTION_REQUEST: "Enviou uma solicitação de conexão para você",
+    CONNECTION_ACCEPTED: "Aceitou sua solicitação de conexão",
+    POST_LIKE: "Curtiu sua publicação",
+    POST_COMMENT: "Comentou na sua publicação",
+    COMMENT_REPLY: "Respondeu ao seu comentário",
+    MUSE_LIKE: "Reagiu ao seu Muse",
+    MUSE_COMMENT: "Comentou no seu Muse",
+    MUSE_REPOST: "Recompartilhou seu Muse",
+    MUSE_SHARE: "Compartilhou seu Muse",
+    SCREENSHOT_TAKEN: "Fez uma captura de tela",
+    LIVE_STREAM_INVITE: "Iniciou uma transmissão ao vivo com você",
+  },
+  reminders: {
+    eventTitle: "Seu evento",
+    collabTitle: "Sua colaboração",
+    eventStartingSoon: "Começa em breve",
+    eventStartingSoonAt: "Começa em breve. Local: {location}",
+    collabStartingSoon: "Começa em breve",
+  },
+  videoReviewTitle: "Vídeo em análise",
+  recordingFailedTitle: "Gravação não publicada",
+};

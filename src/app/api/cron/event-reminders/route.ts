@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
+import { pushText } from "@/lib/push-text";
+import { format, type Locale } from "@/lib/i18n/locales";
 import { sendFcmEventReminderToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
@@ -53,8 +55,18 @@ export async function GET(request: Request) {
       });
       const recipientIds = new Set([post.authorId, ...rsvps.map((r) => r.userId)]);
 
-      const title = post.content.trim().slice(0, 80) || "Your event";
-      const body = post.eventLocation ? `Starting soon at ${post.eventLocation}` : "Starting soon";
+      const eventTitle = post.content.trim().slice(0, 80);
+      const location = post.eventLocation;
+      // In each recipient's language: only the fallback title and the line under it are ours to word.
+      const titleFor = (locale: Locale) => eventTitle || pushText(locale).reminders.eventTitle;
+      const reminder = (locale: Locale) => {
+        const t = pushText(locale).reminders;
+        return {
+          title: titleFor(locale),
+          body: location ? format(t.eventStartingSoonAt, { location }) : t.eventStartingSoon,
+          url: `/post/${post.id}`,
+        };
+      };
 
       await prisma.notification.createMany({
         data: [...recipientIds].map((recipientId) => ({
@@ -66,8 +78,8 @@ export async function GET(request: Request) {
       });
 
       for (const recipientId of recipientIds) {
-        await sendPushToUser(recipientId, { title, body, url: `/post/${post.id}` });
-        await sendFcmEventReminderToUser(recipientId, { postId: post.id, title });
+        await sendPushToUser(recipientId, reminder);
+        await sendFcmEventReminderToUser(recipientId, { postId: post.id, title: titleFor });
       }
 
       remindersSent += recipientIds.size;

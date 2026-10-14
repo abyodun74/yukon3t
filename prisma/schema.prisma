@@ -229,6 +229,12 @@ model User {
   // (e.g. password reset) even though the JWT itself hasn't expired yet.
   sessionInvalidatedAt DateTime?
 
+  // The language this person last used the app in (one of SUPPORTED_LOCALES in src/lib/i18n/locales.ts), so text
+  // written for them while they're away (push notifications, the stored part of a bell row's push) is in it. Null
+  // until their first visit after this column was added, which reads as English. Kept current by rememberLocale
+  // (src/lib/user-locale.ts), which writes only when it changes.
+  locale String?
+
   // Set (by migration 20261011150000_force_password_reset) on every account whose password existed while other
   // users' password hashes could reach a browser (see SECURITY.md). While set, loginWithPassword refuses the
   // password and emails a reset link instead. Every writer of passwordHash must set this back to null. Omitted
@@ -1134,6 +1140,10 @@ model Notification {
   // specific violation type(s)). Null for every other type, which keeps
   // using the static verb.
   message        String?
+  // The same notice as `message`, as data instead of English prose (encodeNotice in src/lib/notification-notice.ts),
+  // so the bell can word it in the reader's current language. `message` is still written alongside it, for rows read
+  // by code that predates this column. Null for every row without a `message`, and for rows written before it existed.
+  messageData    String?
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 

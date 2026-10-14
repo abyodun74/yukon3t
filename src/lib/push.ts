@@ -1,5 +1,26 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
+import { perLocale, storedLocale, type Localized } from "@/lib/push-text";
+
+type PushPayload = { title: string; body: string; url?: string };
+
+// What every per-user send reads of a subscription: where to send, and the recipient's language to word it in (one
+// query for both, see push-text.ts).
+const SUBSCRIPTION_SELECT = {
+  id: true,
+  endpoint: true,
+  p256dh: true,
+  auth: true,
+  user: { select: { locale: true } },
+} as const;
+
+type Subscription = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user?: { locale: string | null };
+};
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
@@ -36,7 +57,7 @@ const BROADCAST_BATCH_SIZE = 50;
  * never block the announcement itself from being created/visible via the
  * in-app WhatsNewBell.
  */
-export async function broadcastPushAnnouncement(payload: { title: string; body: string; url?: string }) {
+export async function broadcastPushAnnouncement(payload: PushPayload) {
   if (!isPushConfigured) return;
 
   const subscriptions = await prisma.pushSubscription.findMany();
@@ -50,15 +71,15 @@ export async function broadcastPushAnnouncement(payload: { title: string; body: 
  * the announcement broadcast instead of an unbounded Promise.all. Best-
  * effort and never throws, including when the query itself fails.
  */
-export async function sendPushToUsers(
-  userIds: string[],
-  payload: { title: string; body: string; url?: string },
-) {
+export async function sendPushToUsers(userIds: string[], payload: Localized<PushPayload>) {
   if (!isPushConfigured || userIds.length === 0) return;
 
   let subscriptions;
   try {
-    subscriptions = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+    subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId: { in: userIds } },
+      select: SUBSCRIPTION_SELECT,
+    });
   } catch (err) {
     console.error("[push] subscription lookup failed", err);
     return;
@@ -66,10 +87,10 @@ export async function sendPushToUsers(
   await sendPushToSubscriptions(subscriptions, payload);
 }
 
-async function sendPushToSubscriptions(
-  subscriptions: { id: string; endpoint: string; p256dh: string; auth: string }[],
-  payload: { title: string; body: string; url?: string },
-) {
+async function sendPushToSubscriptions(subscriptions: Subscription[], payload: Localized<PushPayload>) {
+  // One JSON body per language among these subscriptions, not one per subscription.
+  const payloadFor = perLocale(payload);
+  const bodyFor = perLocale((locale) => JSON.stringify(payloadFor(locale)));
   for (let i = 0; i < subscriptions.length; i += BROADCAST_BATCH_SIZE) {
     const batch = subscriptions.slice(i, i + BROADCAST_BATCH_SIZE);
     await Promise.all(
@@ -77,7 +98,7 @@ async function sendPushToSubscriptions(
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            JSON.stringify(payload),
+            bodyFor(storedLocale(sub.user?.locale)),
           );
         } catch (err) {
           const statusCode = (err as { statusCode?: number } | null)?.statusCode;
@@ -90,10 +111,7 @@ async function sendPushToSubscriptions(
   }
 }
 
-export async function sendPushToUser(
-  userId: string,
-  payload: { title: string; body: string; url?: string },
-) {
+export async function sendPushToUser(userId: string, payload: Localized<PushPayload>) {
   if (!isPushConfigured) return;
 
   // Inside its own try/catch, like the sends below: a pool timeout here
@@ -101,19 +119,21 @@ export async function sendPushToUser(
   // already been committed.
   let subscriptions;
   try {
-    subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+    subscriptions = await prisma.pushSubscription.findMany({ where: { userId }, select: SUBSCRIPTION_SELECT });
   } catch (err) {
     console.error("[push] subscription lookup failed", err);
     return;
   }
   if (subscriptions.length === 0) return;
+  // Every subscription here is the same person's, so one language.
+  const body = JSON.stringify(perLocale(payload)(storedLocale(subscriptions[0].user?.locale)));
 
   await Promise.all(
     subscriptions.map(async (sub) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(payload),
+          body,
         );
       } catch (err) {
         // 404/410 = the browser/device unsubscribed or the subscription

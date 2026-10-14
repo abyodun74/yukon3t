@@ -22,6 +22,7 @@ import { passwordResetEmail, verificationCodeEmail } from "@/lib/account-emails"
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 import { getLocale } from "@/lib/i18n/server";
 import { issueSessionCookie } from "@/lib/session-token";
+import { rememberLocale } from "@/lib/user-locale";
 import { track } from "@/lib/analytics";
 import { requireAdmin } from "@/lib/auth-guards";
 import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
@@ -493,6 +494,7 @@ export async function loginWithPassword(formData: FormData) {
   }
 
   await issueSessionCookie(user);
+  await rememberLocale(user.id, user.locale);
   await track("SIGN_IN", user.id, { method: "password" });
 
   redirect("/home");
@@ -537,6 +539,7 @@ export async function confirmLoginDeviceChallenge(formData: FormData) {
     await prisma.user.update({ where: { id: user.id }, data: { status: "ACTIVE", deactivatedAt: null } });
   }
   await issueSessionCookie(user);
+  await rememberLocale(user.id, user.locale);
   await clearPendingDeviceChallengeCookie();
   await track("SIGN_IN", user.id, { method: "device_verified" });
 

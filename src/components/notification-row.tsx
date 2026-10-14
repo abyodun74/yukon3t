@@ -6,6 +6,7 @@ import { markAsRead } from "@/app/actions/notifications";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatTimeAgo } from "@/lib/format-date";
 import { UserAvatar } from "@/components/user-link";
+import { decodeNotice, noticeText } from "@/lib/notification-notice";
 import { notificationHasActor } from "@/lib/notification-text";
 import { useUiText } from "@/components/ui-text";
 import type { pagesEn } from "@/lib/i18n/en/pages";
@@ -19,7 +20,7 @@ export function NotificationRow({
 }: {
   notification: NotificationData;
   /** The Notifications page's wording, in the reader's language. */
-  labels: Pick<typeof pagesEn.notifications, "unread" | "types">;
+  labels: Pick<typeof pagesEn.notifications, "unread" | "types" | "notices">;
   // Drives the same staggered fade/slide-in used by the messages inbox
   // (see .inbox-row in globals.css) so the list animates in when you tap
   // the bell, instead of appearing all at once.
@@ -29,9 +30,11 @@ export function NotificationRow({
   const hasActor = notificationHasActor(notification.type);
   const { locale, t: ui } = useUiText();
   // The sentence for this kind of notification, split around where the name goes. A row that carries its own
-  // `message` (a moderation notice naming the reason, an admin's feedback preview) was written when it was sent,
-  // so it is shown as stored after the name.
+  // `message` (an admin's feedback preview, a notice from before messageData existed) was written when it was sent,
+  // so it is shown as stored after the name; a system notice stored as data is worded here, in the reader's language.
   const [before, after] = aroundPlaceholder(labels.types[notification.type], "name");
+  const notice = decodeNotice(notification.messageData);
+  const message = notice ? noticeText(notice, labels.notices, ui.listSeparator) : notification.message;
 
   return (
     <Link
@@ -52,7 +55,7 @@ export function NotificationRow({
         <span>
           {/* The unread state is otherwise only the row's accent border/tint. */}
           {unread && <span className="sr-only">{labels.unread} </span>}
-          {notification.message ? (
+          {message ? (
             <>
               {hasActor && (
                 <span dir="auto" className="break-words font-semibold">
@@ -60,7 +63,7 @@ export function NotificationRow({
                 </span>
               )}
               {hasActor && " "}
-              <span dir="auto">{notification.message}</span>
+              <span dir="auto">{message}</span>
             </>
           ) : hasActor ? (
             <>

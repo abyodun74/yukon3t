@@ -16,6 +16,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { magicLinkEmail } from "@/lib/account-emails";
 import { localeFromRequest } from "@/lib/i18n/locales";
 import { getLocale } from "@/lib/i18n/server";
+import { rememberLocale } from "@/lib/user-locale";
 
 const providers: Provider[] = [
   Resend({
@@ -95,7 +96,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user?.email) return false;
       const existing = await prisma.user.findUnique({
         where: { email: user.email },
-        select: { id: true, status: true, isAppReviewDemo: true },
+        select: { id: true, status: true, isAppReviewDemo: true, locale: true },
       });
       if (
         existing?.status === "SUSPENDED" ||
@@ -118,6 +119,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // in Postgres and logging against it throws a foreign-key violation.
       // See events.createUser below for the correct place to track that.
       if (existing) {
+        // The language notifications are written in (src/lib/user-locale.ts); best-effort, never blocks sign-in.
+        await rememberLocale(existing.id, existing.locale);
         // New/unrecognized-device step-up — same reasoning as password
         // login's own check in src/app/actions/password-auth.ts, and the
         // magic link/OAuth token was already single-use-consumed by this
@@ -177,6 +180,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async createUser({ user }) {
       if (user.id) {
         await track("SIGN_UP", user.id, { method: "magic_link_or_oauth" });
+        await rememberLocale(user.id, null);
       }
     },
   },

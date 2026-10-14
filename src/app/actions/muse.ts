@@ -448,7 +448,7 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
     await prisma.notification.create({
       data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_LIKE", museId },
     });
-    await pushActivityNotification(muse.authorId, "MUSE_LIKE", user.name ?? "Someone", `/muse/${museId}`);
+    await pushActivityNotification(muse.authorId, "MUSE_LIKE", user.name, `/muse/${museId}`);
   }
 
   const reactions = await museReactionSummary(museId, user.id);
@@ -523,7 +523,7 @@ export async function createMuseComment(museId: string, formData: FormData) {
       await prisma.notification.create({
         data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_COMMENT", museId },
       });
-      await pushActivityNotification(muse.authorId, "MUSE_COMMENT", user.name ?? "Someone", `/muse/${museId}`);
+      await pushActivityNotification(muse.authorId, "MUSE_COMMENT", user.name, `/muse/${museId}`);
     }
   }
 
@@ -585,7 +585,7 @@ export async function recordMuseShare(museId: string) {
     await prisma.notification.create({
       data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_SHARE", museId },
     });
-    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name ?? "Someone", `/muse/${museId}`);
+    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name, `/muse/${museId}`);
   }
 
   revalidatePath("/muse");
@@ -682,7 +682,7 @@ export async function toggleMuseRepost(museId: string) {
     await prisma.notification.create({
       data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_REPOST", museId },
     });
-    await pushActivityNotification(muse.authorId, "MUSE_REPOST", user.name ?? "Someone", `/muse/${museId}`);
+    await pushActivityNotification(muse.authorId, "MUSE_REPOST", user.name, `/muse/${museId}`);
   }
   // Same fan-out as any new public video post: subscribers hear about it and open Home feeds refresh.
   await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId });
@@ -759,7 +759,7 @@ export async function shareMuseToStory(museId: string) {
     await prisma.notification.create({
       data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_SHARE", museId },
     });
-    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name ?? "Someone", `/muse/${museId}`);
+    await pushActivityNotification(muse.authorId, "MUSE_SHARE", user.name, `/muse/${museId}`);
   }
   await notifySubscribers(user.id, "SUBSCRIPTION_STORY", { storyId });
 

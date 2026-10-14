@@ -1,6 +1,11 @@
 import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import { prisma } from "@/lib/prisma";
+import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
+
+// The recipient's language comes back with their tokens (one query, see push-text.ts).
+const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
+type Token = { id: string; token: string; user: { locale: string | null } };
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -18,7 +23,8 @@ if (isFcmConfigured) {
 
 export type IncomingCallPayload = {
   callId: string;
-  callerName: string;
+  // The caller as the ring shows them, in the callee's language (ringCallerName in push-text.ts).
+  callerName: Localized<string>;
   callType: "AUDIO" | "VIDEO";
 };
 
@@ -37,15 +43,18 @@ export type IncomingCallPayload = {
  * the call action that triggered it. No-op until the Firebase project env
  * vars above are set.
  */
-async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
+async function sendFcmDataToUser(userId: string, localizedData: Localized<Record<string, string>>) {
+  const dataFor = perLocale(localizedData);
   // TEMPORARY diagnostic logging — remove once the missing-ringtone
   // intermittency is root-caused. See src/lib/fcm.ts history/PR for context.
   if (!isFcmConfigured || !app) {
-    console.log("[fcm-debug] not configured, skipping send", { userId, type: data.type });
+    console.log("[fcm-debug] not configured, skipping send", { userId, type: dataFor("en").type });
     return;
   }
 
-  const tokens = await prisma.fcmToken.findMany({ where: { userId } });
+  const tokens: Token[] = await prisma.fcmToken.findMany({ where: { userId }, select: TOKEN_SELECT });
+  // Every token here is the same person's, so one language.
+  const data = dataFor(storedLocale(tokens[0]?.user.locale));
   console.log("[fcm-debug] tokens found", { userId, type: data.type, count: tokens.length });
   if (tokens.length === 0) return;
 
@@ -121,12 +130,13 @@ async function sendFcmDataToUser(userId: string, data: Record<string, string>) {
 }
 
 export async function sendFcmCallToUser(userId: string, payload: IncomingCallPayload) {
-  await sendFcmDataToUser(userId, {
+  const callerName = perLocale(payload.callerName);
+  await sendFcmDataToUser(userId, (locale) => ({
     type: "incoming_call",
     callId: payload.callId,
-    callerName: payload.callerName,
+    callerName: callerName(locale),
     callType: payload.callType,
-  });
+  }));
 }
 
 /**
@@ -146,8 +156,9 @@ export async function sendFcmCallCancelToUser(userId: string, callId: string) {
  * Android side (a no-op there until that's updated and shipped in a new
  * Play Store release, per CLAUDE.md's native-code note).
  */
-export async function sendFcmMissedCallToUser(userId: string, callId: string, callerName: string) {
-  await sendFcmDataToUser(userId, { type: "missed_call", callId, callerName });
+export async function sendFcmMissedCallToUser(userId: string, callId: string, callerName: Localized<string>) {
+  const nameFor = perLocale(callerName);
+  await sendFcmDataToUser(userId, (locale) => ({ type: "missed_call", callId, callerName: nameFor(locale) }));
 }
 
 /**
@@ -160,14 +171,13 @@ export async function sendFcmMissedCallToUser(userId: string, callId: string, ca
  * no-ops, since the in-app bell notification already covers that case live.
  * Best-effort, same contract as sendFcmDataToUser/sendPushToUser.
  */
-export async function sendFcmActivityToUser(
-  userId: string,
-  payload: { title: string; body: string; type: string; url?: string },
-) {
+export async function sendFcmActivityToUser(userId: string, localizedPayload: Localized<ActivityPayload>) {
   if (!isFcmConfigured || !app) return;
 
-  const tokens = await prisma.fcmToken.findMany({ where: { userId } });
+  const tokens: Token[] = await prisma.fcmToken.findMany({ where: { userId }, select: TOKEN_SELECT });
   if (tokens.length === 0) return;
+  // Every token here is the same person's, so one language.
+  const payload = perLocale(localizedPayload)(storedLocale(tokens[0].user.locale));
 
   try {
     await getMessaging(app).sendEachForMulticast({
@@ -215,17 +225,14 @@ export async function broadcastFcmAnnouncement(payload: { title: string; body: s
  * shape through the announcement broadcast's chunked multicast. Best-effort
  * and never throws, including when the query itself fails.
  */
-export async function sendFcmActivityToUsers(
-  userIds: string[],
-  payload: { title: string; body: string; type: string; url?: string },
-) {
+export async function sendFcmActivityToUsers(userIds: string[], localizedPayload: Localized<ActivityPayload>) {
   if (!isFcmConfigured || !app || userIds.length === 0) return;
 
-  let tokens;
+  let tokens: Token[];
   try {
     tokens = await prisma.fcmToken.findMany({
       where: { userId: { in: userIds } },
-      select: { id: true, token: true },
+      select: TOKEN_SELECT,
     });
   } catch (err) {
     console.error("[fcm] token lookup failed", err);
@@ -233,11 +240,19 @@ export async function sendFcmActivityToUsers(
   }
   if (tokens.length === 0) return;
 
-  await sendFcmNotificationToTokens(app, tokens, {
-    notification: { title: payload.title, body: payload.body },
-    data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
-  });
+  // One multicast per language among the recipients' devices, each worded once.
+  const payloadFor = perLocale(localizedPayload);
+  for (const [locale, group] of groupByLocale(tokens, (token) => token.user.locale)) {
+    const payload = payloadFor(locale);
+    await sendFcmNotificationToTokens(app, group, {
+      notification: { title: payload.title, body: payload.body },
+      data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
+    });
+  }
 }
+
+type ActivityPayload = { title: string; body: string; type: string; url?: string };
+
 
 async function sendFcmNotificationToTokens(
   app: App,
@@ -270,11 +285,12 @@ async function sendFcmNotificationToTokens(
 
 export async function sendFcmEventReminderToUser(
   userId: string,
-  payload: { postId: string; title: string },
+  payload: { postId: string; title: Localized<string> },
 ) {
-  await sendFcmDataToUser(userId, {
+  const titleFor = perLocale(payload.title);
+  await sendFcmDataToUser(userId, (locale) => ({
     type: "event_reminder",
     postId: payload.postId,
-    title: payload.title,
-  });
+    title: titleFor(locale),
+  }));
 }

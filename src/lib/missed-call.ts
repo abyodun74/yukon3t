@@ -3,6 +3,8 @@ import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallCancelToUser, sendFcmMissedCallToUser } from "@/lib/fcm";
 import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { nameOrSomeone, pushText } from "@/lib/push-text";
+import { format } from "@/lib/i18n/locales";
 
 /**
  * Tells the callee a call went unanswered — shared by endCall (the caller
@@ -14,7 +16,8 @@ import { getHiddenPeerIds } from "@/lib/hidden-chats";
 export async function notifyMissedCall(params: {
   callId: string;
   callerId: string;
-  callerName: string;
+  // Null for a caller with no name: "Someone" in the callee's language.
+  callerName: string | null;
   calleeId: string;
 }) {
   const { callId, callerId, callerName, calleeId } = params;
@@ -33,12 +36,11 @@ export async function notifyMissedCall(params: {
   if ((await getHiddenPeerIds(calleeId)).includes(callerId)) return;
   // Leaves a proper "Missed call from X" notification behind on Android —
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
-  await sendFcmMissedCallToUser(calleeId, callId, callerName);
+  await sendFcmMissedCallToUser(calleeId, callId, (locale) => nameOrSomeone(callerName, locale));
 
-  await sendPushToUser(calleeId, {
-    title: "Missed call",
-    body: `${callerName} called you`,
-    url: "/",
+  await sendPushToUser(calleeId, (locale) => {
+    const t = pushText(locale).call;
+    return { title: t.missedTitle, body: format(t.missed, { name: nameOrSomeone(callerName, locale) }), url: "/" };
   });
 
   // In-app bell notification — same shape as every other notification type,

@@ -113,6 +113,36 @@ export const pagesEn = {
       COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
       LIVE_RECORDING_POST_FAILED: "A live stream recording you asked to be posted couldn't be posted",
     },
+    // The sentence of a row whose notice is stored as data (Notification.messageData, see
+    // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into
+    // Notification.message (moderation-labels.ts, live-recording-post-notice.ts) by a test.
+    notices: {
+      videoFlagged:
+        "A video you posted was flagged by our automated review and is on hold pending a closer look.",
+      videoFlaggedReasons:
+        "A video you posted was flagged by our automated review ({reasons}) and is on hold pending a closer look.",
+      recordingFailed:
+        "Your live stream recording couldn't be posted to the Home Feed. The recording itself is still available to download from the stream's Recordings list.",
+      recordingFlagged:
+        "Your live stream recording couldn't be posted to the Home Feed — our automated review flagged it. The recording itself is still available to download from the stream's Recordings list.",
+      recordingFlaggedReasons:
+        "Your live stream recording couldn't be posted to the Home Feed — our automated review flagged it ({reasons}). The recording itself is still available to download from the stream's Recordings list.",
+      categories: {
+        sexual: "sexually explicit content",
+        "sexual/minors": "sexual content involving minors",
+        harassment: "harassment",
+        "harassment/threatening": "threatening harassment",
+        hate: "hateful content",
+        "hate/threatening": "threatening hateful content",
+        illicit: "illicit activity",
+        "illicit/violent": "violent illicit activity",
+        "self-harm": "self-harm content",
+        violence: "violent content",
+        "violence/graphic": "graphic violence",
+        profanity: "profanity",
+        moderation_api_error: "content our system couldn't fully verify",
+      },
+    },
   },
   whatsNew: {
     title: "What's new",

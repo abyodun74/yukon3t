@@ -1,0 +1,46 @@
+import type { pushEn } from "@/lib/i18n/en/push";
+
+export const push: typeof pushEn = {
+  someone: "Alguien",
+  privateCall: "Llamada privada",
+  hiddenBody: "Tienes una nueva notificación",
+  message: {
+    title: "Nuevo mensaje",
+    photo: "Envió una foto",
+    video: "Envió un video",
+    gif: "Envió un GIF",
+    voice: "Envió un mensaje de voz",
+    unreadable: "Nuevo mensaje",
+  },
+  storyReply: { title: "Respuesta a tu historia", body: "Respondió a tu historia: {text}" },
+  call: {
+    incomingVideo: "Videollamada entrante",
+    incomingVoice: "Llamada de voz entrante",
+    calling: "{name} te está llamando",
+    callingPrivate: "Llamada privada entrante",
+    missedTitle: "Llamada perdida",
+    missed: "{name} te llamó",
+  },
+  activity: {
+    CONNECTION_REQUEST: "Te envió una solicitud de contacto",
+    CONNECTION_ACCEPTED: "Aceptó tu solicitud de contacto",
+    POST_LIKE: "Le gustó tu publicación",
+    POST_COMMENT: "Comentó tu publicación",
+    COMMENT_REPLY: "Respondió a tu comentario",
+    MUSE_LIKE: "Reaccionó a tu Muse",
+    MUSE_COMMENT: "Comentó tu Muse",
+    MUSE_REPOST: "Volvió a compartir tu Muse",
+    MUSE_SHARE: "Compartió tu Muse",
+    SCREENSHOT_TAKEN: "Hizo una captura de pantalla",
+    LIVE_STREAM_INVITE: "Inició una transmisión en vivo contigo",
+  },
+  reminders: {
+    eventTitle: "Tu evento",
+    collabTitle: "Tu colaboración",
+    eventStartingSoon: "Empieza pronto",
+    eventStartingSoonAt: "Empieza pronto en {location}",
+    collabStartingSoon: "Empieza pronto",
+  },
+  videoReviewTitle: "Video en revisión",
+  recordingFailedTitle: "Grabación no publicada",
+};

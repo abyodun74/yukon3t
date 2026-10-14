@@ -109,6 +109,33 @@ export const pages: typeof pagesEn = {
       COLLAB_SESSION_REMINDER: "Una sesión de colaboración en la que participas está por empezar",
       LIVE_RECORDING_POST_FAILED: "No se pudo publicar la grabación de una transmisión en vivo que pediste publicar",
     },
+    notices: {
+      videoFlagged:
+        "Nuestra revisión automática marcó un video que publicaste y quedó en espera de una revisión más detallada.",
+      videoFlaggedReasons:
+        "Nuestra revisión automática marcó un video que publicaste ({reasons}) y quedó en espera de una revisión más detallada.",
+      recordingFailed:
+        "No se pudo publicar la grabación de tu transmisión en vivo en el feed de Inicio. La grabación sigue disponible para descargar en la lista de Grabaciones de la transmisión.",
+      recordingFlagged:
+        "No se pudo publicar la grabación de tu transmisión en vivo en el feed de Inicio porque nuestra revisión automática la marcó. La grabación sigue disponible para descargar en la lista de Grabaciones de la transmisión.",
+      recordingFlaggedReasons:
+        "No se pudo publicar la grabación de tu transmisión en vivo en el feed de Inicio porque nuestra revisión automática la marcó ({reasons}). La grabación sigue disponible para descargar en la lista de Grabaciones de la transmisión.",
+      categories: {
+        sexual: "contenido sexual explícito",
+        "sexual/minors": "contenido sexual que involucra a menores",
+        harassment: "acoso",
+        "harassment/threatening": "acoso con amenazas",
+        hate: "contenido de odio",
+        "hate/threatening": "contenido de odio con amenazas",
+        illicit: "actividad ilícita",
+        "illicit/violent": "actividad ilícita violenta",
+        "self-harm": "contenido de autolesiones",
+        violence: "contenido violento",
+        "violence/graphic": "violencia explícita",
+        profanity: "lenguaje soez",
+        moderation_api_error: "contenido que nuestro sistema no pudo verificar por completo",
+      },
+    },
   },
   whatsNew: {
     title: "Novedades",

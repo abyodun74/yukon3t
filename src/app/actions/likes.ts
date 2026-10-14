@@ -70,7 +70,7 @@ export async function toggleLike(postId: string) {
         postId: post.id,
       },
     });
-    await pushActivityNotification(post.authorId, "POST_LIKE", user.name ?? "Someone", `/post/${post.id}`);
+    await pushActivityNotification(post.authorId, "POST_LIKE", user.name, `/post/${post.id}`);
   }
 
   revalidatePostViews(post);

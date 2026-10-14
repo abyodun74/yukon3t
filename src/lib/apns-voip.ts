@@ -9,6 +9,7 @@
 import { createSign } from "node:crypto";
 import http2 from "node:http2";
 import { prisma } from "@/lib/prisma";
+import { perLocale, storedLocale, type Localized } from "@/lib/push-text";
 
 // Same bundle ID as capacitor.config.ts's appId / ios/App/App's actual
 // target — VoIP pushes go to "<bundle-id>.voip", not the plain bundle ID
@@ -184,7 +185,8 @@ async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unkn
 
 export type VoipIncomingCallPayload = {
   callId: string;
-  callerName: string;
+  // What CallKit shows as the caller, in the callee's language (ringCallerName in push-text.ts).
+  callerName: Localized<string>;
   callType: "AUDIO" | "VIDEO";
 };
 
@@ -199,8 +201,13 @@ export type VoipIncomingCallPayload = {
 export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCallPayload) {
   if (!isVoipPushConfigured()) return;
 
-  const tokens = await prisma.voipPushToken.findMany({ where: { userId } });
+  const tokens = await prisma.voipPushToken.findMany({
+    where: { userId },
+    select: { id: true, token: true, user: { select: { locale: true } } },
+  });
   if (tokens.length === 0) return;
+  // Every token here is the same person's, so one language.
+  const callerName = perLocale(payload.callerName)(storedLocale(tokens[0].user.locale));
 
   const staleTokenIds: string[] = [];
   await Promise.all(
@@ -209,7 +216,7 @@ export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCa
         aps: { alert: "" },
         type: "incoming_call",
         callId: payload.callId,
-        callerName: payload.callerName,
+        callerName,
         callType: payload.callType,
       });
       // 400 = BadDeviceToken, 410 = Unregistered — either way this exact

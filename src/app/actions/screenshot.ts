@@ -8,7 +8,8 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { screenshotTargetSchema } from "@/lib/validations";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-chats";
-import { HIDDEN_PUSH_TYPE, hiddenPushPayload } from "@/lib/hidden-chats-rules";
+import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
+import { hiddenPush } from "@/lib/push-text";
 
 type ScreenshotTarget =
   | { type: "post"; id: string }
@@ -23,7 +24,7 @@ const REPEAT_WINDOW_MS = 10 * 60 * 1000;
 async function notifyOne(
   recipientId: string,
   actorId: string,
-  actorName: string,
+  actorName: string | null,
   fk: { postId?: string; storyId?: string; conversationId?: string },
   url: string,
   // The recipient has this conversation hidden: the row is still written (the bell and its count leave out rows of
@@ -51,7 +52,7 @@ async function notifyOne(
   // Also when the recipient has hidden their 1:1 chat with this person and the screenshot was of something else (a
   // post, a story, their profile): that bell row is left out too (HIDDEN_PEER_NOTIFICATION_TYPES).
   if (hiddenForRecipient || (await getHiddenPeerIds(recipientId)).includes(actorId)) {
-    await sendFcmActivityToUser(recipientId, { ...hiddenPushPayload(), type: HIDDEN_PUSH_TYPE });
+    await sendFcmActivityToUser(recipientId, (locale) => ({ ...hiddenPush(locale), type: HIDDEN_PUSH_TYPE }));
     return;
   }
   await pushActivityNotification(recipientId, "SCREENSHOT_TAKEN", actorName, url);
@@ -82,13 +83,13 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
     case "post": {
       const post = await prisma.post.findUnique({ where: { id: target.id }, select: { authorId: true } });
       if (!post) return { error: "not_found" };
-      await notifyOne(post.authorId, user.id, user.name ?? "Someone", { postId: target.id }, `/post/${target.id}`);
+      await notifyOne(post.authorId, user.id, user.name, { postId: target.id }, `/post/${target.id}`);
       return { error: null };
     }
     case "story": {
       const story = await prisma.story.findUnique({ where: { id: target.id }, select: { authorId: true } });
       if (!story) return { error: "not_found" };
-      await notifyOne(story.authorId, user.id, user.name ?? "Someone", { storyId: target.id }, `/u/${story.authorId}`);
+      await notifyOne(story.authorId, user.id, user.name, { storyId: target.id }, `/u/${story.authorId}`);
       return { error: null };
     }
     case "conversation": {
@@ -105,7 +106,7 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
           notifyOne(
             recipientId,
             user.id,
-            user.name ?? "Someone",
+            user.name,
             { conversationId: target.id },
             `/messages/${target.id}`,
             hiding.has(recipientId),
@@ -117,7 +118,7 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
     case "profile": {
       const owner = await prisma.user.findUnique({ where: { id: target.id }, select: { id: true } });
       if (!owner) return { error: "not_found" };
-      await notifyOne(target.id, user.id, user.name ?? "Someone", {}, `/u/${user.id}`);
+      await notifyOne(target.id, user.id, user.name, {}, `/u/${user.id}`);
       return { error: null };
     }
   }

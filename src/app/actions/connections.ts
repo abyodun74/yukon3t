@@ -87,7 +87,7 @@ export async function requestConnection(formData: FormData) {
       connectionId: connection.id,
     },
   });
-  await pushActivityNotification(targetId, "CONNECTION_REQUEST", user.name ?? "Someone", "/connections");
+  await pushActivityNotification(targetId, "CONNECTION_REQUEST", user.name, "/connections");
   await notifyBadgeChange(targetId);
   await track("CONNECTION_REQUESTED", user.id, { targetId, intentTag });
 
@@ -170,7 +170,7 @@ export async function respondToConnection(connectionId: string, accept: boolean)
         connectionId: updated.id,
       },
     });
-    await pushActivityNotification(updated.requesterId, "CONNECTION_ACCEPTED", user.name ?? "Someone", "/connections");
+    await pushActivityNotification(updated.requesterId, "CONNECTION_ACCEPTED", user.name, "/connections");
     await notifyBadgeChange(updated.requesterId);
     await notifyBadgeChange(user.id);
     await track("CONNECTION_ACCEPTED", user.id, { requesterId: updated.requesterId });

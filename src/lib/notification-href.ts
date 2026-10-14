@@ -57,6 +57,8 @@ export type NotificationData = {
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
   message: string | null;
+  // The same notice as data, worded at read time (notification-notice.ts). Optional: rows from before it existed.
+  messageData?: string | null;
   postId: string | null;
   circle: { slug: string } | null;
   conversationId: string | null;

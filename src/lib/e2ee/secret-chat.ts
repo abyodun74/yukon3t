@@ -54,22 +54,32 @@ export function textForModeration(params: { secret: boolean; content: string }):
  * The one-line summary used for push notifications. Never contains ciphertext,
  * and never text from a secret chat. What a secret chat gets instead must not
  * say it is one: a notification is read on a lock screen, by whoever is near
- * the phone.
+ * the phone. `words` are the lines in the recipient's language (push.message
+ * in src/lib/i18n); the choice between them is the same in every language.
  */
-export function pushPreview(params: { secret: boolean; content: string; mediaType: MediaType }): string {
+export function pushPreview(
+  params: { secret: boolean; content: string; mediaType: MediaType },
+  words: { photo: string; video: string; gif: string; voice: string; unreadable: string } = {
+    photo: "Sent a photo",
+    video: "Sent a video",
+    gif: "Sent a GIF",
+    voice: "Sent a voice note",
+    unreadable: "New message",
+  },
+): string {
   switch (params.mediaType) {
     case "IMAGE":
-      return "Sent a photo";
+      return words.photo;
     case "VIDEO":
-      return "Sent a video";
+      return words.video;
     case "GIF":
-      return "Sent a GIF";
+      return words.gif;
     case "AUDIO":
-      return "Sent a voice note";
+      return words.voice;
     default:
       // Encrypted-looking text in a chat that isn't (or is no longer) secret
       // gets the same line: never show ciphertext in a notification.
-      return params.secret || isEncryptedContent(params.content) ? "New message" : params.content;
+      return params.secret || isEncryptedContent(params.content) ? words.unreadable : params.content;
   }
 }
 

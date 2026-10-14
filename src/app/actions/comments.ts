@@ -205,7 +205,7 @@ export async function createComment(formData: FormData) {
           commentId: comment.id,
         },
       });
-      await pushActivityNotification(post.authorId, "POST_COMMENT", user.name ?? "Someone", `/post/${postId}`);
+      await pushActivityNotification(post.authorId, "POST_COMMENT", user.name, `/post/${postId}`);
     }
 
     if (parentComment && parentComment.authorId !== user.id && parentComment.authorId !== post.authorId) {
@@ -218,7 +218,7 @@ export async function createComment(formData: FormData) {
           commentId: comment.id,
         },
       });
-      await pushActivityNotification(parentComment.authorId, "COMMENT_REPLY", user.name ?? "Someone", `/post/${postId}`);
+      await pushActivityNotification(parentComment.authorId, "COMMENT_REPLY", user.name, `/post/${postId}`);
     }
   }
 

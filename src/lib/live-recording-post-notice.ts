@@ -1,26 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
-import { violationLabelsFromReasons } from "@/lib/moderation-labels";
+import { violationKeysFromReasons } from "@/lib/moderation-labels";
+import { encodeNotice, type Notice } from "@/lib/notification-notice";
+import { noticeLine, pushText } from "@/lib/push-text";
+import type { Locale } from "@/lib/i18n/locales";
 
 /**
- * User-facing sentence for a "Record & Post" recording that never became a
- * Post. `reasons` is the automated video review's own free-form reason list
- * (see video-review.ts) when moderation is what stopped it, so the host is
- * told the specific violation(s) — same convention as
- * videoPendingReviewNoticeText. Every other irrecoverable outcome passes a
+ * What stopped a "Record & Post" recording, as a notice (notification-notice.ts). `reasons` is the automated video
+ * review's own free-form reason list (see video-review.ts) when moderation is what stopped it, so the host is told the
+ * specific violation(s), same convention as videoPendingReviewNoticeText. Every other irrecoverable outcome passes a
  * plain one-item reason instead and gets the generic wording.
  */
-function noticeText(reasons: string[], moderated: boolean): string {
-  const base = "Your live stream recording couldn't be posted to the Home Feed";
-  if (!moderated) {
-    return `${base}. The recording itself is still available to download from the stream's Recordings list.`;
-  }
-  const labels = violationLabelsFromReasons(reasons);
-  if (labels.length === 0) {
-    return `${base} — our automated review flagged it. The recording itself is still available to download from the stream's Recordings list.`;
-  }
-  return `${base} — our automated review flagged it (${labels.join(", ")}). The recording itself is still available to download from the stream's Recordings list.`;
+function recordingNotice(reasons: string[], moderated: boolean): Notice {
+  return moderated
+    ? { kind: "recording_flagged", categories: violationKeysFromReasons(reasons) }
+    : { kind: "recording_failed" };
 }
 
 /**
@@ -48,16 +43,15 @@ export async function notifyLiveRecordingPostFailed(
   reasons: string[],
   options: { moderated: boolean },
 ) {
-  const message = noticeText(reasons, options.moderated);
+  const notice = recordingNotice(reasons, options.moderated);
+  // English prose for the bell row's `message` (read by code that predates messageData); the pushes are worded in the
+  // host's stored language, and the bell in whatever language the host reads it in.
+  const message = noticeLine(notice, "en");
   const url = `/live/${liveStreamId}`;
+  const push = (locale: Locale) => ({ title: pushText(locale).recordingFailedTitle, body: noticeLine(notice, locale), url });
 
-  await sendPushToUser(hostId, { title: "Recording not posted", body: message, url });
-  await sendFcmActivityToUser(hostId, {
-    title: "Recording not posted",
-    body: message,
-    type: "LIVE_RECORDING_POST_FAILED",
-    url,
-  });
+  await sendPushToUser(hostId, push);
+  await sendFcmActivityToUser(hostId, (locale) => ({ ...push(locale), type: "LIVE_RECORDING_POST_FAILED" }));
 
   // In-app bell notification — actorId is the host themself (system-
   // generated, no separate real actor; see notificationHasActor in
@@ -70,6 +64,7 @@ export async function notifyLiveRecordingPostFailed(
       type: "LIVE_RECORDING_POST_FAILED",
       liveStreamId,
       message,
+      messageData: encodeNotice(notice),
     },
   });
 }

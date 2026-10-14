@@ -107,7 +107,7 @@ export async function notifyMissedInvitees(
       return notifyMissedCall({
         callId: call.id,
         callerId: inviterId,
-        callerName: nameById.get(inviterId) ?? "Someone",
+        callerName: nameById.get(inviterId) ?? null,
         calleeId: p.userId,
       });
     }),

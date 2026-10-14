@@ -46,7 +46,13 @@ describe("sendPushToUsers", () => {
     await sendPushToUsers(["u1", "u2"], payload);
 
     expect(subscriptionFindMany).toHaveBeenCalledTimes(1);
-    expect(subscriptionFindMany).toHaveBeenCalledWith({ where: { userId: { in: ["u1", "u2"] } } });
+    expect(subscriptionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: { in: ["u1", "u2"] } },
+        // The recipient's language comes back in the same query.
+        select: expect.objectContaining({ user: { select: { locale: true } } }),
+      }),
+    );
     expect(sendNotification).toHaveBeenCalledTimes(3);
     expect(sendNotification.mock.calls[0][1]).toBe(JSON.stringify(payload));
   });
@@ -82,6 +88,26 @@ describe("sendPushToUsers", () => {
   it("skips the query entirely with no recipients", async () => {
     await sendPushToUsers([], payload);
     expect(subscriptionFindMany).not.toHaveBeenCalled();
+  });
+
+  it("words a localized payload in each recipient's stored language, once per language", async () => {
+    subscriptionFindMany.mockResolvedValue([
+      { ...subs(1)[0], id: "a", user: { locale: "es" } },
+      { ...subs(1)[0], id: "b", user: { locale: null } },
+      { ...subs(1)[0], id: "c", user: { locale: "es" } },
+      { ...subs(1)[0], id: "d", user: { locale: "ar" } },
+    ]);
+    const build = vi.fn((locale: string) => ({ title: locale, body: "x" }));
+    await sendPushToUsers(["u1", "u2", "u3"], build);
+
+    expect(build).toHaveBeenCalledTimes(3);
+    expect(sendNotification.mock.calls.map((call) => JSON.parse(call[1]).title)).toEqual(["es", "en", "es", "ar"]);
+  });
+
+  it("words a single recipient's push in their language", async () => {
+    subscriptionFindMany.mockResolvedValue([{ ...subs(1)[0], user: { locale: "fr" } }]);
+    await sendPushToUser("u1", (locale) => ({ title: locale, body: "x" }));
+    expect(JSON.parse(sendNotification.mock.calls[0][1]).title).toBe("fr");
   });
 
   it("does not throw when the subscription query fails", async () => {

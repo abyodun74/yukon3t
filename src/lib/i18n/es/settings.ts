@@ -41,7 +41,7 @@ export const settings: typeof settingsEn = {
   },
   language: {
     heading: "Idioma",
-    body: "Toda la aplicación, las pantallas de inicio de sesión y las preguntas frecuentes están disponibles en estos idiomas. Las notificaciones que llegan a tu teléfono y las páginas legales están en inglés por ahora.",
+    body: "Toda la aplicación, las pantallas de inicio de sesión y las preguntas frecuentes están disponibles en estos idiomas, y las notificaciones que llegan a tu teléfono siguen el que elijas aquí. Las páginas legales están en inglés.",
   },
   emoji: {
     heading: "Estilo de emojis",

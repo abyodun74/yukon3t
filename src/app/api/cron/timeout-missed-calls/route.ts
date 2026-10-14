@@ -98,7 +98,7 @@ async function timeOutRinging() {
       await notifyMissedCall({
         callId: call.id,
         callerId: call.callerId,
-        callerName: call.caller.name ?? "Someone",
+        callerName: call.caller.name,
         calleeId: call.calleeId,
       });
     }),

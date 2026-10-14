@@ -1840,12 +1840,14 @@ const sections: Section[] = [
             (below Sign in) or at the bottom of the other account screens,
             or Settings → Language once you&apos;re signed in — the choice
             is remembered on that device. In Arabic the app reads right to
-            left. A few things are in English only: the notifications sent
-            to your phone and a few notices written at the moment they were
-            sent, the legal pages (Terms, Privacy, Community Guidelines,
+            left. A few things are in English only: the legal pages (Terms, Privacy, Community Guidelines,
             Disclaimer), job titles in the interest and category lists, the
             incoming-call screen your phone itself shows, and the tools
-            admins use. What people write is never translated: a message,
+            admins use. Notifications sent to your phone are in the language you last
+            chose from a Language menu or, if you&apos;ve never chosen one, in
+            your phone or browser&apos;s language (in English until you next
+            open YuKon3t). A few older notices stay in English, as they were
+            written. What people write is never translated: a message,
             post or comment appears in the language it was written in.
           </>
         ),

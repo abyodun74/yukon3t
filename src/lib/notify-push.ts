@@ -1,25 +1,25 @@
-import type { NotificationType } from "@/generated/prisma/client";
-import { NOTIFICATION_VERB } from "@/lib/notification-text";
 import { sendFcmActivityToUser } from "@/lib/fcm";
+import { activityLine, nameOrSomeone, type ActivityPushType } from "@/lib/push-text";
 
 /**
  * Native push companion to an in-app `Notification` row — call this right
  * alongside `prisma.notification.create` for any type that should also
  * reach the phone as a real Android notification (see sendFcmActivityToUser
  * for why this is a "notification" FCM payload, not data-only like calls).
- * Reuses NOTIFICATION_VERB so push copy never drifts from the in-app bell's
- * own text. Best-effort — never throws.
+ * The actor's name is the title and the line under it says what they did, in
+ * the recipient's language (push.activity in src/lib/i18n, which in English is
+ * NOTIFICATION_VERB, the in-app bell's own text). Best-effort — never throws.
  */
 export async function pushActivityNotification(
   recipientId: string,
-  type: NotificationType,
-  actorName: string,
+  type: ActivityPushType,
+  actorName: string | null,
   url?: string,
 ) {
-  await sendFcmActivityToUser(recipientId, {
-    title: actorName,
-    body: NOTIFICATION_VERB[type],
+  await sendFcmActivityToUser(recipientId, (locale) => ({
+    title: nameOrSomeone(actorName, locale),
+    body: activityLine(type, locale),
     type,
     url,
-  });
+  }));
 }

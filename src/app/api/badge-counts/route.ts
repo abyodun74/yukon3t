@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
+import { rememberLocale } from "@/lib/user-locale";
 
 /**
  * Combines what used to be 4 separately-polled endpoints (messages/
@@ -28,6 +29,10 @@ export async function GET() {
     }
     throw err;
   }
+
+  // The language notifications are written in follows the one this device uses (src/lib/user-locale.ts). Writes only
+  // when it changed, compared against the row requireUser already read.
+  await rememberLocale(user.id, user.locale);
 
   // Hidden chats count for nothing here: no unread dot, no bell count, no connection-request count for a hidden peer.
   // An unread message in a hidden chat must leave every badge exactly as it was.

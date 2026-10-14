@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
+import { pushText } from "@/lib/push-text";
+import type { Locale } from "@/lib/i18n/locales";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
@@ -56,8 +58,12 @@ export async function GET(request: Request) {
       });
       const recipientIds = new Set([collab.authorId, ...participants.map((p) => p.userId)]);
 
-      const title = collab.title.trim().slice(0, 80) || "Your collaboration";
-      const body = "Starting soon";
+      const collabTitle = collab.title.trim().slice(0, 80);
+      // In each recipient's language: only the fallback title and the line under it are ours to word.
+      const reminder = (locale: Locale) => {
+        const t = pushText(locale).reminders;
+        return { title: collabTitle || t.collabTitle, body: t.collabStartingSoon, url: `/collab/${collab.id}` };
+      };
 
       await prisma.notification.createMany({
         data: [...recipientIds].map((recipientId) => ({
@@ -69,13 +75,8 @@ export async function GET(request: Request) {
       });
 
       for (const recipientId of recipientIds) {
-        await sendPushToUser(recipientId, { title, body, url: `/collab/${collab.id}` });
-        await sendFcmActivityToUser(recipientId, {
-          title,
-          body,
-          type: "COLLAB_SESSION_REMINDER",
-          url: `/collab/${collab.id}`,
-        });
+        await sendPushToUser(recipientId, reminder);
+        await sendFcmActivityToUser(recipientId, (locale) => ({ ...reminder(locale), type: "COLLAB_SESSION_REMINDER" }));
       }
 
       remindersSent += recipientIds.size;

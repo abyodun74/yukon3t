@@ -46,7 +46,7 @@ export const settingsEn = {
   },
   language: {
     heading: "Language",
-    body: "The whole app, the sign-in screens and the FAQ are available in these languages. The notifications sent to your phone and the legal pages are in English for now.",
+    body: "The whole app, the sign-in screens and the FAQ are available in these languages, and the notifications sent to your phone follow the one you choose here. The legal pages are in English.",
   },
   emoji: {
     heading: "Emoji style",

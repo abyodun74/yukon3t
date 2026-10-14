@@ -33,9 +33,13 @@ export function hiddenPinAttemptsLeft(failedAttempts: number): number {
 
 // ---------- Notifications ----------
 
-/** What a new message in a hidden chat sends to the person hiding it: nothing that names the chat, the sender or the text. */
-export function hiddenPushPayload() {
-  return { title: "YuKon3t", body: "You have a new notification", url: "/home" };
+/**
+ * What a new message in a hidden chat sends to the person hiding it: nothing that names the chat, the sender or the text.
+ * `body` is that one neutral sentence in the recipient's language (push.hiddenBody in src/lib/i18n, worded by
+ * hiddenPush in src/lib/push-text.ts); the title is the app's name in every language.
+ */
+export function hiddenPushPayload(body = "You have a new notification") {
+  return { title: "YuKon3t", body, url: "/home" };
 }
 
 /** The `type` on the native (FCM) version of that payload. Deliberately not "MESSAGE". */

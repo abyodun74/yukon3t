@@ -1,7 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { recordActivity } from "@/lib/trust";
-import { pushPreview } from "@/lib/e2ee/secret-chat";
 import { sendPushToUsers } from "@/lib/push";
 import { sendFcmActivityToUsers } from "@/lib/fcm";
 import { captureError } from "@/lib/error-tracking";
@@ -9,7 +8,8 @@ import { track } from "@/lib/analytics";
 import { publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { getMembersHidingConversation } from "@/lib/hidden-chats";
-import { HIDDEN_PUSH_TYPE, hiddenPushPayload, splitHiddenRecipients } from "@/lib/hidden-chats-rules";
+import { HIDDEN_PUSH_TYPE, splitHiddenRecipients } from "@/lib/hidden-chats-rules";
+import { hiddenPush, messagePush } from "@/lib/push-text";
 
 /**
  * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
@@ -63,19 +63,20 @@ export async function afterMessageSent({
     await captureError(err, { step: "hiddenRecipients", conversationId });
   }
   const { open: openIds, hidden: hiddenIds } = splitHiddenRecipients(recipientIds, hidingIds);
-  // Never the message text in a secret chat, and never ciphertext anywhere.
-  const preview = pushPreview({ secret, content, mediaType });
+  // Never the message text in a secret chat, and never ciphertext anywhere (pushPreview, through messagePush). Each
+  // recipient's copy is in their own language, read with their devices in the same query; worded once per language.
+  const messagePayload = messagePush({
+    senderName: user.name,
+    secret,
+    content,
+    mediaType,
+    url: `/messages/${conversationId}`,
+  });
   // One query + bounded sends for every recipient together (not a query and
   // an unbounded Promise.all per recipient) — a group has no member cap, and
   // the Prisma pool is only a handful of connections (src/lib/prisma.ts).
-  await bestEffort("webPush", () =>
-    sendPushToUsers(openIds, {
-      title: user.name ?? "New message",
-      body: preview.slice(0, 120),
-      url: `/messages/${conversationId}`,
-    }),
-  );
-  await bestEffort("webPushHidden", () => sendPushToUsers(hiddenIds, hiddenPushPayload()));
+  await bestEffort("webPush", () => sendPushToUsers(openIds, messagePayload));
+  await bestEffort("webPushHidden", () => sendPushToUsers(hiddenIds, hiddenPush));
   // Web Push (above) never reaches a Capacitor-wrapped mobile app — iOS's
   // WebView doesn't support the Push API at all, and Android's own native
   // notification path for messages was this same gap (only comments/likes/
@@ -84,16 +85,11 @@ export async function afterMessageSent({
   // showed the in-app bell/badge update instantly (Realtime, unaffected)
   // but never surfaced as a native push on iOS.
   await bestEffort("fcm", () =>
-    sendFcmActivityToUsers(openIds, {
-      title: user.name ?? "New message",
-      body: preview.slice(0, 120),
-      type: "MESSAGE",
-      url: `/messages/${conversationId}`,
-    }),
+    sendFcmActivityToUsers(openIds, (locale) => ({ ...messagePayload(locale), type: "MESSAGE" })),
   );
   // The FCM data block is only { type, url }: no conversation id or sender in it for these recipients either.
   await bestEffort("fcmHidden", () =>
-    sendFcmActivityToUsers(hiddenIds, { ...hiddenPushPayload(), type: HIDDEN_PUSH_TYPE }),
+    sendFcmActivityToUsers(hiddenIds, (locale) => ({ ...hiddenPush(locale), type: HIDDEN_PUSH_TYPE })),
   );
   // In-app only (no email) — see MESSAGE in the NotificationType enum. One
   // row per recipient per message, same as every other notification type

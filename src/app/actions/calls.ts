@@ -11,6 +11,8 @@ import { sendFcmCallToUser } from "@/lib/fcm";
 import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
+import { incomingCallPush, ringCallerName } from "@/lib/push-text";
+import type { Locale } from "@/lib/i18n/locales";
 import { track } from "@/lib/analytics";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -136,13 +138,11 @@ export async function startCall(formData: FormData) {
   });
 
   try {
-    // "Private call" if the callee has hidden their chat with this caller (src/lib/hidden-chats.ts).
-    const callerName = (await maskHiddenCallerName(calleeId, user.id, user.name)) ?? "Someone";
-    await sendPushToUser(calleeId, {
-      title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
-      body: `${callerName} is calling you`,
-      url: "/",
-    });
+    // "Private call" if the callee has hidden their chat with this caller (src/lib/hidden-chats.ts), and every ring
+    // below words the caller in the callee's language (ringCallerName: the stand-in, or "Someone" for no name).
+    const maskedName = await maskHiddenCallerName(calleeId, user.id, user.name);
+    const callerName = (locale: Locale) => ringCallerName(maskedName, locale);
+    await sendPushToUser(calleeId, incomingCallPush(call.type, maskedName));
     // Separate from the Web Push above: this is a data-only message the
     // native Android app's own notification code turns into a proper
     // call-style ring (system ringtone, full-screen), rather than a
@@ -546,12 +546,9 @@ export async function inviteToCall(callId: string, inviteeId: string) {
   try {
     // The same three rings startCall sends, with this call's id and the
     // inviter as the caller — see the comments there.
-    const callerName = (await maskHiddenCallerName(inviteeId, user.id, user.name)) ?? "Someone";
-    await sendPushToUser(inviteeId, {
-      title: `Incoming ${call.type === "VIDEO" ? "video" : "voice"} call`,
-      body: `${callerName} is calling you`,
-      url: "/",
-    });
+    const maskedName = await maskHiddenCallerName(inviteeId, user.id, user.name);
+    const callerName = (locale: Locale) => ringCallerName(maskedName, locale);
+    await sendPushToUser(inviteeId, incomingCallPush(call.type, maskedName));
     await sendFcmCallToUser(inviteeId, {
       callId,
       callerName,
@@ -762,7 +759,7 @@ export async function endCall(callId: string) {
     await notifyMissedCall({
       callId: call.id,
       callerId: user.id,
-      callerName: user.name ?? "Someone",
+      callerName: user.name,
       calleeId: call.calleeId,
     });
   } else {

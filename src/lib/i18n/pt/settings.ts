@@ -42,7 +42,7 @@ export const settings: typeof settingsEn = {
   },
   language: {
     heading: "Idioma",
-    body: "O aplicativo inteiro, as telas de acesso à conta e as perguntas frequentes estão disponíveis nesses idiomas. As notificações enviadas ao seu celular e as páginas legais estão em inglês por enquanto.",
+    body: "O aplicativo inteiro, as telas de acesso à conta e as perguntas frequentes estão disponíveis nesses idiomas, e as notificações enviadas ao seu celular seguem o que você escolher aqui. As páginas legais estão em inglês.",
   },
   emoji: {
     heading: "Estilo dos emojis",

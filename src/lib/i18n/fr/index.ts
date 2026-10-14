@@ -11,6 +11,7 @@ import { messages } from "@/lib/i18n/fr/messages";
 import { muse } from "@/lib/i18n/fr/muse";
 import { pages } from "@/lib/i18n/fr/pages";
 import { profile } from "@/lib/i18n/fr/profile";
+import { push } from "@/lib/i18n/fr/push";
 import { settings } from "@/lib/i18n/fr/settings";
 import { shared } from "@/lib/i18n/fr/shared";
 import { shell } from "@/lib/i18n/fr/shell";
@@ -35,5 +36,6 @@ export const fr: Dictionary = {
   live,
   calls,
   vocab,
+  push,
   ...account,
 };

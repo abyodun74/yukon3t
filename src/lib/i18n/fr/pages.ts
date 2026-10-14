@@ -112,6 +112,33 @@ export const pages: typeof pagesEn = {
       COLLAB_SESSION_REMINDER: "Une session de collaboration à laquelle vous participez commence bientôt",
       LIVE_RECORDING_POST_FAILED: "L'enregistrement d'un direct que vous aviez demandé à publier n'a pas pu être publié",
     },
+    notices: {
+      videoFlagged:
+        "Une vidéo que vous avez publiée a été signalée par notre contrôle automatique et est suspendue dans l'attente d'un examen plus approfondi.",
+      videoFlaggedReasons:
+        "Une vidéo que vous avez publiée a été signalée par notre contrôle automatique ({reasons}) et est suspendue dans l'attente d'un examen plus approfondi.",
+      recordingFailed:
+        "L'enregistrement de votre direct n'a pas pu être publié dans le fil d'accueil. L'enregistrement reste disponible au téléchargement dans la liste Enregistrements du direct.",
+      recordingFlagged:
+        "L'enregistrement de votre direct n'a pas pu être publié dans le fil d'accueil, car notre contrôle automatique l'a signalé. L'enregistrement reste disponible au téléchargement dans la liste Enregistrements du direct.",
+      recordingFlaggedReasons:
+        "L'enregistrement de votre direct n'a pas pu être publié dans le fil d'accueil, car notre contrôle automatique l'a signalé ({reasons}). L'enregistrement reste disponible au téléchargement dans la liste Enregistrements du direct.",
+      categories: {
+        sexual: "contenu sexuellement explicite",
+        "sexual/minors": "contenu sexuel impliquant des mineurs",
+        harassment: "harcèlement",
+        "harassment/threatening": "harcèlement accompagné de menaces",
+        hate: "contenu haineux",
+        "hate/threatening": "contenu haineux accompagné de menaces",
+        illicit: "activité illicite",
+        "illicit/violent": "activité illicite violente",
+        "self-harm": "contenu lié à l'automutilation",
+        violence: "contenu violent",
+        "violence/graphic": "violence explicite",
+        profanity: "grossièretés",
+        moderation_api_error: "contenu que notre système n'a pas pu vérifier entièrement",
+      },
+    },
   },
   whatsNew: {
     title: "Nouveautés",

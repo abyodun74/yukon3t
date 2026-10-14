@@ -15,6 +15,7 @@ import { messagesEn } from "@/lib/i18n/en/messages";
 import { museEn } from "@/lib/i18n/en/muse";
 import { pagesEn } from "@/lib/i18n/en/pages";
 import { profileEn } from "@/lib/i18n/en/profile";
+import { pushEn } from "@/lib/i18n/en/push";
 import { settingsEn } from "@/lib/i18n/en/settings";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import { shellEn } from "@/lib/i18n/en/shell";
@@ -34,6 +35,7 @@ export {
   museEn,
   pagesEn,
   profileEn,
+  pushEn,
   settingsEn,
   sharedEn,
   shellEn,
@@ -58,6 +60,7 @@ export const en = {
   live: liveEn,
   calls: callsEn,
   vocab: vocabEn,
+  push: pushEn,
   ...accountEn,
 };
 

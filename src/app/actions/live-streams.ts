@@ -22,8 +22,9 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import type { LiveStreamSignalKind } from "@/lib/live-stream-signal";
 import { captureError } from "@/lib/error-tracking";
 import { sendPushToUser } from "@/lib/push";
+import { activityLine, nameOrSomeone } from "@/lib/push-text";
+import type { Locale } from "@/lib/i18n/locales";
 import { sendFcmActivityToUser } from "@/lib/fcm";
-import { NOTIFICATION_VERB } from "@/lib/notification-text";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
@@ -138,17 +139,13 @@ export async function startLiveStream(formData: FormData) {
       },
     });
     const liveUrl = `/live/${liveStream.id}`;
-    await sendPushToUser(targetUserId, {
-      title: user.name ?? "Someone",
-      body: NOTIFICATION_VERB.LIVE_STREAM_INVITE,
+    const invitePush = (locale: Locale) => ({
+      title: nameOrSomeone(user.name, locale),
+      body: activityLine("LIVE_STREAM_INVITE", locale),
       url: liveUrl,
     });
-    await sendFcmActivityToUser(targetUserId, {
-      title: user.name ?? "Someone",
-      body: NOTIFICATION_VERB.LIVE_STREAM_INVITE,
-      type: "LIVE_STREAM_INVITE",
-      url: liveUrl,
-    });
+    await sendPushToUser(targetUserId, invitePush);
+    await sendFcmActivityToUser(targetUserId, (locale) => ({ ...invitePush(locale), type: "LIVE_STREAM_INVITE" }));
   } else if (circleId) {
     // A stream scoped to a Circle/sub-circle is only for the users that
     // scoping actually specifies — its own members — whether the Circle is

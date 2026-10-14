@@ -19,6 +19,7 @@ export default async function NotificationsPage() {
   const rowLabels = {
     unread: t.unread,
     types: t.types,
+    notices: t.notices,
     messagesFrom: t.messagesFrom,
     missedCallsFrom: t.missedCallsFrom,
   };
