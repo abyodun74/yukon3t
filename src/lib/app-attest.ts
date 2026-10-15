@@ -1,4 +1,3 @@
-import { getAppCheck } from "firebase-admin/app-check";
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { captureError } from "@/lib/error-tracking";
 import {
@@ -111,6 +110,8 @@ export async function verifyAppAttestation(formData: FormData): Promise<AttestRe
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // Lazy: firebase-admin/app-check pulls in jwks-rsa, whose require() of ESM-only jose throws at module load on Netlify and would 500 every route importing this file.
+    const { getAppCheck } = await import("firebase-admin/app-check");
     const app = getFirebaseAdminApp();
     if (!app) return { outcome: "not_configured" };
     const result = await Promise.race([
