@@ -1,6 +1,6 @@
 # Device attestation for native sign-up/sign-in — implementation plan
 
-Status (2026-10-15): **Phase 0 deployed and live in `observe` mode on Vercel and Netlify**; Phase 1 (native plugin) not built and blocked by the native build hold; Phase 2 (enforce) not started. Server verification uses Google's REST endpoint, **not** `firebase-admin/app-check` (see "Incident" below). Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
+Status (2026-10-15): **Phase 0 live in `observe` mode on Vercel and Netlify; Phase 1 Android build 29 (1.26) verified end to end on a Play-installed device (`ok` outcomes)**, not yet in production; iOS Phase 1 not built (Apple portal steps pending); Phase 2 (enforce) not started. Server verification uses Google's REST endpoint, **not** `firebase-admin/app-check` (see "Incident" below). Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
 
 **Short version:** use **Firebase App Check**. Native builds with the new plugin send a single-use App Check token in a hidden form field. The server accepts that token **instead of** a Turnstile token. Nothing else ever replaces Turnstile, so claiming to be the app gets you nothing.
 
@@ -240,3 +240,24 @@ Built under the owner's explicit go-ahead to lift the native hold and roll every
 **Deliberately not in this build:** the lock-screen widget / watch surface for ambient presence (needs real Xcode/Android Studio widget work), region-gated CallKit (China mainland was removed from availability instead), and camera cold-start work (a different kind of change, not started).
 
 **After release:** keep `NEXT_PUBLIC_APP_ATTEST_MODE=observe` for 1-2 weeks and watch `APP_ATTESTATION` outcomes per platform. If every row is `unavailable`, check that the FCM service account has the **Firebase App Check Token Verifier** role. Go/no-go for enforce is section 5.
+
+## Phase 1 Android verification (2026-10-15)
+
+Build 29 (1.26) was uploaded to the Play **internal testing** track and installed from Google Play on a real phone (Samsung `SM_S948U`, Android 13+).
+
+| Time (UTC) | Outcome | Source |
+|---|---|---|
+| 21:07:56, 21:08:32 | absent | sideloaded release APK, first launch / test (not Play-installed) |
+| 21:42:48 | absent | sideloaded APK, tap on "Verify you're human"; device log: `403 App attestation failed` |
+| 21:59:02 | **ok** | Play-installed build 29, `meta {b:29,p:android,plugin:true}` |
+| 21:59:24 | **ok** | Play-installed build 29, same |
+
+What it established:
+- The release build launches with no R8/Capacitor reflection crash on Android 13+; `getLimitedUseToken` survives minification.
+- Console setup is correct: Firebase App Check API and Play Integrity API enabled in project `yukon3t` (number `485993083605`), Play Integrity registered for the Android app and App Attest for iOS, SHA-256 fingerprints added, Cloud project linked in Play Console.
+- Server-side verification works on Netlify via `src/lib/app-check-rest.ts` (REST `verifyAppCheckToken`) with a real token, including consume.
+- Sideloaded or emulated builds fall back to Turnstile without crashing: before the API was enabled the device log read `403 ... API has not been used ... or is disabled`; afterwards `403 App attestation failed`.
+
+Observe mode only records outcomes; the Turnstile decision was unchanged. Sideloading over a Play install is impossible without uninstalling (different signing key), so use the internal testing track for further real-device checks.
+
+**Remaining before enforce:** promote 1.26 to production (staged), let adoption build, then check `ok` >= ~98% per platform and `unavailable` ~ 0 over 7 days; iOS needs App Attest and App Group registered in the Apple portal, then a Codemagic run.
