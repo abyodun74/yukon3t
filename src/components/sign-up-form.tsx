@@ -52,8 +52,8 @@ function FieldError({ id, children }: { id: string; children: ReactNode }) {
  *   before hydration is replayed as a POST rather than becoming a GET with the password in the URL.
  * - `botProtection` is <BotProtectionFields /> rendered by the server page and passed in. Rendered here it would
  *   re-stamp its timestamp on every client re-render and trip the minimum-fill-time check on a quick resubmit.
- * - TurnstileWidget fetches a fresh token after every submit and holds a submit back until it has one, so a
- *   resubmit never carries the spent token. It only sees submits because it listens on the <form> itself; this
+ * - TurnstileWidget only runs its check after the person taps "Verify you're human", and holds a submit back until
+ *   it has a token. Every token is spent by a submit, so a resubmit needs another tap and never carries the spent token. It only sees submits because it listens on the <form> itself; this
  *   component must respect its preventDefault (see handleSubmit).
  * - `locale`, `t` and `shared` are the page's language and its wording, handed down by the server page. Switching
  *   language re-renders the page around this component, which keeps its state — nothing typed is lost.
@@ -241,7 +241,7 @@ export function SignUpForm({
         </button>
       )}
 
-      <TurnstileWidget locale={locale} waitMessage={shared.turnstile.wait} />
+      <TurnstileWidget locale={locale} strings={shared.turnstile} />
       <SubmitButton
         label={t.submit}
         pendingLabel={t.submitting}

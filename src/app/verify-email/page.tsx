@@ -135,7 +135,7 @@ export default async function VerifyEmailPage({
       </form>
 
       <form action={resendEmailOtp} className="mt-4">
-        <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
+        <TurnstileWidget locale={locale} strings={t.shared.turnstile} />
         <SubmitButton
           label={t.common.resendCode}
           pendingLabel={t.common.resending}

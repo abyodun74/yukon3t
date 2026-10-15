@@ -80,14 +80,14 @@ export function AdBookingForm() {
   // app besides sign-up/password-reset.
   const [honeypot, setHoneypot] = useState("");
   const mountedAtRef = useRef(currentTimeMs());
-  // Turnstile (see turnstile-widget.tsx). This form isn't a real <form>, so
+  // Turnstile (see turnstile-widget.tsx), which only runs once the advertiser taps "Verify you're human". This form isn't a real <form>, so
   // the token comes through onToken into a ref rather than a hidden input —
   // a ref, because it can refresh while a large video is still uploading and
   // has to be read at the moment the FormData is built, not at click time.
   // Bumping turnstileReset discards the spent token after each attempt.
   const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const turnstileTokenRef = useRef<string | null>(null);
-  // Set once the widget stops waiting for a token (timeout / widget error).
+  // Set once the widget stops waiting for a token after the tap (timeout / widget error).
   // The server is the only enforcer, so past that point this form submits
   // anyway rather than trapping the advertiser — see TurnstileWidget.
   const turnstileGaveUpRef = useRef(false);
@@ -505,7 +505,7 @@ export function AdBookingForm() {
       <TurnstileWidget
         className="mt-4"
         locale={locale}
-        waitMessage={t.errors.securityWait}
+        strings={{ verify: t.errors.securityVerify, wait: t.errors.securityWait }}
         resetSignal={turnstileReset}
         onToken={(token) => {
           turnstileTokenRef.current = token;

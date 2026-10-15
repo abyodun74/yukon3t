@@ -16,7 +16,7 @@ export default async function VerifyDevicePage({
   const t = await getDictionary();
   // The actions redirect back with an error code; this is the sentence for each, in the request's language.
   const errorMessages: Record<string, string> = { ...t.verifyDevice.errors, captcha: t.common.captchaFailed };
-  const turnstile = { locale, waitMessage: t.shared.turnstile.wait };
+  const turnstile = { locale, strings: t.shared.turnstile };
   const offlineMessage = t.shared.submitButton.offline;
   const picker = <LanguagePicker locale={locale} label={t.languagePicker.label} />;
 

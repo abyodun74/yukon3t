@@ -87,7 +87,7 @@ export default async function SignInPage({
   const t = await getDictionary();
   const passwordError = passwordErrorMessage(error, t);
   const userAgent = (await headers()).get("user-agent");
-  const turnstile = { locale, waitMessage: t.shared.turnstile.wait };
+  const turnstile = { locale, strings: t.shared.turnstile };
   const offlineMessage = t.shared.submitButton.offline;
 
   return (
@@ -133,7 +133,7 @@ export default async function SignInPage({
             submitting: t.signIn.submitting,
           }}
           shared={{ passwordInput: t.shared.passwordInput, submitButton: t.shared.submitButton }}
-          waitMessage={t.shared.turnstile.wait}
+          turnstileStrings={t.shared.turnstile}
         />
         <p className="mt-3 text-xs">
           <Link href="/forgot-password" className="font-medium text-accent hover:underline">
@@ -183,7 +183,7 @@ export default async function SignInPage({
             placeholder={t.common.emailPlaceholder}
             className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm ltr-value outline-none focus:border-accent"
           />
-          <TurnstileWidget appearance="always" className="flex justify-center" {...turnstile} />
+          <TurnstileWidget className="flex justify-center" {...turnstile} />
           <SubmitButton
             label={t.signIn.magicSubmit}
             pendingLabel={t.common.sending}

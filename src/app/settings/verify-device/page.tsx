@@ -21,7 +21,7 @@ export default async function VerifyDeviceSettingsPage({
     ...dictionary.verifyDevice.errors,
     captcha: dictionary.common.captchaFailed,
   };
-  const turnstile = { locale, waitMessage: dictionary.shared.turnstile.wait };
+  const turnstile = { locale, strings: dictionary.shared.turnstile };
   const offlineMessage = dictionary.shared.submitButton.offline;
 
   const challenge = challengeId

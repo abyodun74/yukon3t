@@ -27,8 +27,8 @@ function errorText(t: Strings, code: string) {
  * verification cookie already has a number from an earlier visit), skips
  * straight to the code step and auto-fires a fresh send — the "automatic
  * resend when stuck" behavior for the phone path. That automatic send waits for
- * the Turnstile token like any other, so it goes out a moment after the page
- * loads rather than instantly.
+ * the Turnstile token like any other, so it goes out right after the person
+ * taps the verify button rather than on page load.
  *
  * Every SMS send (first send, "Resend code", and the automatic one) carries a
  * Turnstile token — an SMS costs real money per message. Confirming a code
@@ -58,7 +58,7 @@ export function SignupPhoneVerificationForm({
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const autoResent = useRef(false);
-  const captcha = useTurnstileGate(locale);
+  const captcha = useTurnstileGate(locale, shared.turnstile);
   const { attach, ready } = captcha;
   const errorMessage = (code: string) => errorText(t, code);
 

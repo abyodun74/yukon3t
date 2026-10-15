@@ -55,7 +55,7 @@ export default async function ForgotPasswordPage({
           placeholder={t.common.emailPlaceholder}
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm ltr-value outline-none focus:border-accent"
         />
-        <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
+        <TurnstileWidget locale={locale} strings={t.shared.turnstile} />
         <SubmitButton
           label={t.forgotPassword.submit}
           pendingLabel={t.common.sending}

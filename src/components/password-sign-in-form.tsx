@@ -20,7 +20,7 @@ export function PasswordSignInForm({
   locale,
   t,
   shared,
-  waitMessage,
+  turnstileStrings,
 }: {
   action: (formData: FormData) => Promise<void>;
   /** The error code the page was rendered with, if any. */
@@ -28,7 +28,7 @@ export function PasswordSignInForm({
   locale: Locale;
   t: Pick<Dictionary["signIn"], "identifier" | "password" | "submit" | "submitting">;
   shared: Pick<Dictionary["shared"], "passwordInput" | "submitButton">;
-  waitMessage: string;
+  turnstileStrings: { verify: string; wait: string };
 }) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -77,7 +77,7 @@ export function PasswordSignInForm({
         className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
         labels={shared.passwordInput}
       />
-      <TurnstileWidget appearance="always" className="flex justify-center" locale={locale} waitMessage={waitMessage} />
+      <TurnstileWidget className="flex justify-center" locale={locale} strings={turnstileStrings} />
       <SubmitButton
         label={t.submit}
         pendingLabel={t.submitting}

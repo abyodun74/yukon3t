@@ -31,7 +31,7 @@ export async function AppleSignInButton({
           {t.common.captchaFailed}
         </p>
       )}
-      <TurnstileWidget locale={locale} waitMessage={t.shared.turnstile.wait} />
+      <TurnstileWidget locale={locale} strings={t.shared.turnstile} />
       <SubmitButton
         label={
           <span className="flex items-center justify-center gap-2">

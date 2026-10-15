@@ -1,7 +1,7 @@
 import { TURNSTILE_ORIGIN, TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 
-// Cloudflare Turnstile — a CAPTCHA replacement that's invisible for most
-// real users. Layered on top of (not instead of) the honeypot/timing check
+// Cloudflare Turnstile — a CAPTCHA replacement. The client widget only
+// runs its check after the person taps "Verify you're human". Layered on top of (not instead of) the honeypot/timing check
 // in bot-protection.ts and the per-action limiters in rate-limit.ts: those
 // bound volume and catch naive scripts, this is what stops a script that
 // waits 1.2s and leaves the honeypot blank.

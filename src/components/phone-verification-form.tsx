@@ -51,7 +51,7 @@ export function PhoneVerificationForm({
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [pendingPhone, setPendingPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const captcha = useTurnstileGate(locale);
+  const captcha = useTurnstileGate(locale, shared.turnstile);
 
   if (phoneVerifiedAt && phone) {
     const [before, after] = aroundPlaceholder(verifiedLabel, "number");
