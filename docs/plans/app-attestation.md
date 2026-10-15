@@ -1,6 +1,6 @@
 # Device attestation for native sign-up/sign-in — implementation plan
 
-Status: **Phase 0 built, not yet deployed** (2026-10-15); Phase 1 onward not built. Phase 0 (web/server only) can ship any time; Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
+Status (2026-10-15): **Phase 0 deployed and live in `observe` mode on Vercel and Netlify**; Phase 1 (native plugin) not built and blocked by the native build hold; Phase 2 (enforce) not started. Server verification uses Google's REST endpoint, **not** `firebase-admin/app-check` (see "Incident" below). Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
 
 **Short version:** use **Firebase App Check**. Native builds with the new plugin send a single-use App Check token in a hidden form field. The server accepts that token **instead of** a Turnstile token. Nothing else ever replaces Turnstile, so claiming to be the app gets you nothing.
 
@@ -10,7 +10,7 @@ Status: **Phase 0 built, not yet deployed** (2026-10-15); Phase 1 onward not bui
 
 ## 1. Recommendation and rationale
 
-Use **Firebase App Check** via `@capacitor-firebase/app-check@8.5.2` (exact pin). It wraps Play Integrity (Android) and App Attest (iOS). The server verifies with `firebase-admin`'s `appCheck().verifyToken(token, { consume: true })`; `firebase-admin` (^14.2.0) is already a dependency, used by `src/lib/fcm.ts`.
+Use **Firebase App Check** via `@capacitor-firebase/app-check@8.5.2` (exact pin). It wraps Play Integrity (Android) and App Attest (iOS). The server verifies by POSTing the token to `verifyAppCheckToken` (the call `firebase-admin` makes) from `src/lib/app-check-rest.ts`, **not** via `firebase-admin/app-check` (see Incident); `firebase-admin` (^14.2.0) is already a dependency, used by `src/lib/fcm.ts`.
 
 | | App Check | Direct (Play Integrity decode + App Attest CBOR) |
 |---|---|---|
@@ -87,7 +87,7 @@ No change: the SDK runs natively outside the WebView; JWKS/consume calls are ser
 - `src/lib/firebase-admin.ts` — the `initializeApp`/`cert` singleton extracted from `src/lib/fcm.ts`; used by `fcm.ts` and `app-attest.ts`.
 - `src/lib/app-attest.ts` (server-only) — `isAppAttestEnabled()` + half-config warning; `verifyAppAttestation(formData)` → `{ outcome: "ok"|"absent"|"malformed"|"invalid"|"expired"|"consumed"|"wrong_app"|"unavailable", platform? }` (length/type check, 5s race, `verifyToken(..., {consume:true})`, `appId` allowlist).
 - `src/lib/bot-gate.ts` — `passesBotGate(formData, ip, action)`: trust rule, fallback cookie, `track("APP_ATTESTATION", null, {action, mode, outcome, platform, meta, turnstile})` when a token or meta is present and mode ≠ off.
-- `src/lib/app-attest.test.ts`, `src/lib/bot-gate.test.ts` — Vitest, mocking `firebase-admin/app-check` (style of `turnstile.test.ts`); cases in §6.
+- `src/lib/app-attest.test.ts`, `src/lib/bot-gate.test.ts` — Vitest, mocking `@/lib/app-check-rest` (style of `turnstile.test.ts`); cases in §6.
 - `src/lib/app-attest-client.ts` — above.
 - `patches/@capacitor-firebase+app-check+8.5.2.patch` — delete `node_modules/@capacitor-firebase/app-check/android/build/` before generating (Windows long paths, per CLAUDE.md).
 - Prisma migration adding `APP_ATTESTATION` to `enum AnalyticsEventType` — `prisma migrate dev --create-only` and **strip any `DROP INDEX` lines** (HNSW gotcha, CLAUDE.md).
@@ -192,3 +192,27 @@ When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "u
 5. **Rooted devices, custom ROMs, phones without Google Play services:** fail attestation → Turnstile (no lockout). App Attest doesn't detect jailbreaks — jailbroken iPhones pass.
 6. **Pre-existing CI gap** in `codemagic.yaml` (plain `npx cap sync ios`) — confirm and fix in the same release.
 7. **Owner decisions:** approve Phase 0 now (observability only); observe → enforce threshold (suggested ≥98% `ok` per platform over 7 days); ad booking attestation (recommended: no); whether to build the Phase 3 update banner.
+
+
+---
+
+## Incident: production 500s from `firebase-admin/app-check` (2026-10-15)
+
+**Impact:** from ~19:02 UTC (Netlify deploy of commit `149953f`) until the fix went live ~19:56 UTC, most routes on yukon3t.com returned 500 (Netlify serves real traffic and the native app's WebView). Vercel's separate runtime was not affected the same way.
+
+**Cause:** `src/lib/app-attest.ts` imported `firebase-admin/app-check` at module top. That pulls in `jwks-rsa`, which `require()`s the ESM-only `jose`; on Netlify's function runtime that throws at module load (`require() of ES Module .../jose/dist/webapi/index.js`), so every route importing `bot-gate.ts` crashed. It was not caused by turning on `observe` mode; the import alone was enough. The Vitest suite mocked the module, so it could not catch a load-time failure, and I reported Phase 0 as live without loading a real route on Netlify.
+
+**Fix (two steps):**
+1. `0360d70`: lazy `import()` of `firebase-admin/app-check` inside the verify call. Stopped the crashes.
+2. `fbce8e8`: removed `firebase-admin/app-check` entirely. `src/lib/app-check-rest.ts` decodes the claims (`sub` = app id, `exp`), then POSTs `{ app_check_token }` to `https://firebaseappcheck.googleapis.com/v1beta/projects/{projectId}:verifyAppCheckToken` with the service account's access token (`app.options.credential.getAccessToken()`). Google verifies signature/expiry/project and returns `alreadyConsumed`; HTTP 400 maps to `invalid`, any other failure to `unavailable` (falls to Turnstile). `src/lib/no-jwks-rsa-imports.test.ts` fails if app code imports `firebase-admin/app-check` or `/auth`.
+
+**Why `firebase-admin/app` and `/messaging` are safe:** in `firebase-admin` only the app-check, auth and phone-number-verification token verifiers import `jwks-rsa`. FCM (`fcm.ts`) only uses `app` and `messaging` and has run on Netlify for months.
+
+**Rollout lesson:** after any change to what a server module imports, deploy with the feature flag off, confirm real routes return 200 and the `___netlify-server-handler` logs are clean, then flip the flag. The Netlify rollback was blocked by the permission classifier during the incident, so the fix went forward.
+
+## Current status (2026-10-15)
+
+- Live: `passesBotGate` on all 13 gated actions; `NEXT_PUBLIC_APP_ATTEST_MODE=observe` and `FIREBASE_APP_CHECK_APP_IDS` (Android + iOS app ids) set on Vercel and Netlify production; `APP_ATTESTATION` enum migration applied.
+- Effect: none for users. Live builds have no plugin, so only `yk-app-meta` rows (platform/build) are recorded; no attestation tokens arrive yet.
+- Unproven until Phase 1: the REST call has not run against a real token. A 403 would mean the FCM service account lacks the **Firebase App Check Token Verifier** role (add it); it classifies as `unavailable` and falls back to Turnstile, so it cannot lock anyone out.
+- Next: lift the native hold, ship Phase 1 (plugin + patch, entitlements, versionCode, console setup in section 4b), watch `ok` rate in observe for 1-2 weeks, then Phase 2.
