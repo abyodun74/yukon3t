@@ -216,3 +216,8 @@ When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "u
 - Effect: none for users. Live builds have no plugin, so only `yk-app-meta` rows (platform/build) are recorded; no attestation tokens arrive yet.
 - Unproven until Phase 1: the REST call has not run against a real token. A 403 would mean the FCM service account lacks the **Firebase App Check Token Verifier** role (add it); it classifies as `unavailable` and falls back to Turnstile, so it cannot lock anyone out.
 - Next: lift the native hold, ship Phase 1 (plugin + patch, entitlements, versionCode, console setup in section 4b), watch `ok` rate in observe for 1-2 weeks, then Phase 2.
+
+## Verification log
+
+- **2026-10-15, first live observe row confirmed.** After Clear Cache and a password/magic-link sign-in in the Android app, admin analytics "App device checks" went from 0/0/0 to 1/1/1 (24h/7d/30d). This proves the full Phase 0 path in production: the cached web bundle was refreshed, the native WebView sent `yk-app-meta`, `passesBotGate` ran in `observe` mode, and `track("APP_ATTESTATION")` wrote to the database without changing the Turnstile decision. The row's contents (outcome `absent`, meta platform/build) were not inspected; only the count was. Until a Phase 1 build ships, every row will read `absent`.
+- **2026-10-15, Phase 1 native build started** (owner go-ahead). See the next section for what rode along in it.
