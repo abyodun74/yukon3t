@@ -12,7 +12,7 @@ vi.mock("firebase-admin/app", () => ({
   cert: vi.fn((c: unknown) => c),
   getApps: vi.fn(() => []),
 }));
-vi.mock("firebase-admin/app-check", () => ({ getAppCheck: vi.fn(() => ({ verifyToken: mocks.verifyToken })) }));
+vi.mock("@/lib/app-check-rest", () => ({ verifyAndConsumeAppCheckToken: mocks.verifyToken }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: mocks.captureError }));
 vi.mock("@/lib/analytics", () => ({ track: mocks.track }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => ({ set: mocks.cookieSet })) }));
@@ -116,7 +116,7 @@ describe("passesBotGate", () => {
       const { passesBotGate } = await load();
       const meta = JSON.stringify({ p: "android", b: "29", plugin: true });
       expect(await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": meta }), IP, "loginWithPassword")).toBe(false);
-      expect(mocks.verifyToken).toHaveBeenCalledWith(ATTEST, { consume: true });
+      expect(mocks.verifyToken).toHaveBeenCalledWith(ATTEST, expect.anything(), expect.any(AbortSignal));
       expect(recorded()).toEqual({
         action: "loginWithPassword",
         mode: "observe",

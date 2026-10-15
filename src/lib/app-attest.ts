@@ -1,5 +1,6 @@
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { captureError } from "@/lib/error-tracking";
+import { verifyAndConsumeAppCheckToken } from "@/lib/app-check-rest";
 import {
   APP_ATTEST_FIELD,
   APP_META_FIELD,
@@ -109,15 +110,17 @@ export async function verifyAppAttestation(formData: FormData): Promise<AttestRe
   if (!isAppAttestEnabled()) return { outcome: "not_configured" };
 
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const controller = new AbortController();
   try {
-    // Lazy: firebase-admin/app-check pulls in jwks-rsa, whose require() of ESM-only jose throws at module load on Netlify and would 500 every route importing this file.
-    const { getAppCheck } = await import("firebase-admin/app-check");
     const app = getFirebaseAdminApp();
     if (!app) return { outcome: "not_configured" };
     const result = await Promise.race([
-      getAppCheck(app).verifyToken(token, { consume: true }),
+      verifyAndConsumeAppCheckToken(token, app, controller.signal),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new AttestTimeoutError()), VERIFY_TIMEOUT_MS);
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new AttestTimeoutError());
+        }, VERIFY_TIMEOUT_MS);
       }),
     ]);
     const platform = platformOf(result.appId);
@@ -131,8 +134,6 @@ export async function verifyAppAttestation(formData: FormData): Promise<AttestRe
     }
     const code = errorCode(err);
     if (code === "app-check/app-check-token-expired") return { outcome: "expired" };
-    // Also what the SDK reports when it can't fetch Google's JWKS, so a
-    // network failure can land here; it only changes the telemetry label.
     if (code === "app-check/invalid-argument") return { outcome: "invalid" };
     reportUnavailable("error", err);
     return { outcome: "unavailable" };

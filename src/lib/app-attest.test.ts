@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   verifyToken: vi.fn(),
-  getAppCheck: vi.fn(),
   initializeApp: vi.fn(() => ({ name: "app" })),
   captureError: vi.fn(),
 }));
@@ -12,7 +11,7 @@ vi.mock("firebase-admin/app", () => ({
   cert: vi.fn((c: unknown) => c),
   getApps: vi.fn(() => []),
 }));
-vi.mock("firebase-admin/app-check", () => ({ getAppCheck: mocks.getAppCheck }));
+vi.mock("@/lib/app-check-rest", () => ({ verifyAndConsumeAppCheckToken: mocks.verifyToken }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: mocks.captureError }));
 
 const ANDROID = "1:1234567890:android:abc123";
@@ -53,7 +52,6 @@ describe("app-attest", () => {
     vi.stubEnv("FIREBASE_APP_CHECK_APP_IDS", "");
     mocks.verifyToken.mockReset();
     mocks.captureError.mockReset();
-    mocks.getAppCheck.mockReset().mockReturnValue({ verifyToken: mocks.verifyToken });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -114,7 +112,7 @@ describe("app-attest", () => {
       mocks.verifyToken.mockResolvedValue({ appId: ANDROID, token: {}, alreadyConsumed: false });
       const { verifyAppAttestation } = await load();
       expect(await verifyAppAttestation(form({ "yk-app-attest": TOKEN }))).toEqual({ outcome: "ok", platform: "android" });
-      expect(mocks.verifyToken).toHaveBeenCalledWith(TOKEN, { consume: true });
+      expect(mocks.verifyToken).toHaveBeenCalledWith(TOKEN, expect.anything(), expect.any(AbortSignal));
 
       mocks.verifyToken.mockResolvedValue({ appId: IOS, token: {}, alreadyConsumed: false });
       expect(await verifyAppAttestation(form({ "yk-app-attest": TOKEN }))).toEqual({ outcome: "ok", platform: "ios" });
