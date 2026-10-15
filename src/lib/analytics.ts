@@ -20,7 +20,9 @@ export type AnalyticsEventType =
   | "REVIEW_PROMPT_SHOWN"
   | "REVIEW_PROMPT_LOVED"
   | "REVIEW_PROMPT_DECLINED"
-  | "REVIEW_PROMPT_SNOOZED";
+  | "REVIEW_PROMPT_SNOOZED"
+  // Native-app device attestation outcome on a bot-gated action (src/lib/bot-gate.ts).
+  | "APP_ATTESTATION";
 
 /**
  * First-party, privacy-minimal product-usage log — a handful of key

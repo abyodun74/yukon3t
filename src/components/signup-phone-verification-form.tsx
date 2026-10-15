@@ -66,9 +66,12 @@ export function SignupPhoneVerificationForm({
     if (!initialPhone || autoResent.current || !ready) return;
     const formData = new FormData();
     formData.set("phone", initialPhone);
-    if (!attach(formData)) return; // token expired in the gap — the Resend button is still there
     autoResent.current = true;
     startTransition(async () => {
+      if (!(await attach(formData))) {
+        autoResent.current = false; // token expired in the gap — the Resend button is still there
+        return;
+      }
       const result = await requestSignupPhoneVerification(formData);
       if (result.error) {
         setError(errorText(t, result.error));
@@ -147,11 +150,11 @@ export function SignupPhoneVerificationForm({
                 setError(null);
                 const formData = new FormData();
                 formData.set("phone", pendingPhone);
-                if (!attach(formData)) {
-                  setError(shared.turnstile.wait);
-                  return;
-                }
                 startTransition(async () => {
+                  if (!(await attach(formData))) {
+                    setError(shared.turnstile.wait);
+                    return;
+                  }
                   const result = await requestSignupPhoneVerification(formData);
                   if (result.error) {
                     setError(errorMessage(result.error));
@@ -179,11 +182,11 @@ export function SignupPhoneVerificationForm({
           const formData = new FormData(e.currentTarget);
           const phoneValue = String(formData.get("phone") ?? "").trim();
           setError(null);
-          if (!attach(formData)) {
-            setError(shared.turnstile.wait);
-            return;
-          }
           startTransition(async () => {
+            if (!(await attach(formData))) {
+              setError(shared.turnstile.wait);
+              return;
+            }
             const result = await requestSignupPhoneVerification(formData);
             if (result.error) {
               setError(errorMessage(result.error));

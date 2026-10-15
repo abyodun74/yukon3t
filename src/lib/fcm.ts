@@ -1,25 +1,16 @@
-import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
+import type { App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import { prisma } from "@/lib/prisma";
+import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
 type Token = { id: string; token: string; user: { locale: string | null } };
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-// Env vars can't hold a literal newline, so the key is stored with escaped
-// "\n" sequences and unescaped here — the standard Firebase-on-serverless
-// pattern.
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const isFcmConfigured = isFirebaseAdminConfigured();
 
-const isFcmConfigured = !!projectId && !!clientEmail && !!privateKey;
-
-let app: App | undefined;
-if (isFcmConfigured) {
-  app = getApps()[0] ?? initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-}
+const app: App | undefined = isFcmConfigured ? getFirebaseAdminApp() : undefined;
 
 export type IncomingCallPayload = {
   callId: string;

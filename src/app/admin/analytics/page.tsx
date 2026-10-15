@@ -23,6 +23,7 @@ const EVENT_LABELS: Record<AnalyticsEventType, string> = {
   REVIEW_PROMPT_LOVED: "Review prompt: \"I love it\"",
   REVIEW_PROMPT_DECLINED: "Review prompt: \"Could be better\"",
   REVIEW_PROMPT_SNOOZED: "Review prompt: \"Maybe later\"",
+  APP_ATTESTATION: "App device checks (sign-in, sign-up and other bot-gated forms)",
 };
 
 async function countsSince(daysAgo: number) {

@@ -2623,6 +2623,8 @@ enum AnalyticsEventType {
   REVIEW_PROMPT_LOVED
   REVIEW_PROMPT_DECLINED
   REVIEW_PROMPT_SNOOZED
+  // Native-app device attestation outcome on a bot-gated action (src/lib/bot-gate.ts).
+  APP_ATTESTATION
 }
 
 enum SecurityChallengePurpose {

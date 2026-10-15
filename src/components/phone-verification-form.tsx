@@ -117,11 +117,11 @@ export function PhoneVerificationForm({
                 setError(null);
                 const formData = new FormData();
                 formData.set("phone", pendingPhone);
-                if (!captcha.attach(formData)) {
-                  setError(shared.turnstile.wait);
-                  return;
-                }
                 startTransition(async () => {
+                  if (!(await captcha.attach(formData))) {
+                    setError(shared.turnstile.wait);
+                    return;
+                  }
                   const result = await requestPhoneVerification(formData);
                   if (result.error) {
                     setError(errorText(t, result.error));
@@ -149,11 +149,11 @@ export function PhoneVerificationForm({
           const formData = new FormData(e.currentTarget);
           const phoneValue = String(formData.get("phone") ?? "").trim();
           setError(null);
-          if (!captcha.attach(formData)) {
-            setError(shared.turnstile.wait);
-            return;
-          }
           startTransition(async () => {
+            if (!(await captcha.attach(formData))) {
+              setError(shared.turnstile.wait);
+              return;
+            }
             const result = await requestPhoneVerification(formData);
             if (result.error) {
               setError(errorText(t, result.error));

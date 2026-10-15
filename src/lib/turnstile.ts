@@ -6,6 +6,10 @@ import { TURNSTILE_ORIGIN, TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shar
 // bound volume and catch naive scripts, this is what stops a script that
 // waits 1.2s and leaves the honeypot blank.
 //
+// Actions don't call this directly: they call passesBotGate (bot-gate.ts),
+// which returns exactly this result unless a native-app attestation token is
+// accepted in its place (docs/plans/app-attestation.md).
+//
 // Opt-in until configured, same pattern as R2/GTM/Clarity elsewhere in this
 // app: it only turns on once BOTH keys are set, so deploying this code
 // without them (or with only one — see the warning below) can never lock

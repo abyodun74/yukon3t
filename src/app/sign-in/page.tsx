@@ -9,7 +9,7 @@ import { loginWithPassword } from "@/app/actions/password-auth";
 import { PasswordSignInForm } from "@/components/password-sign-in-form";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { passesBotGate } from "@/lib/bot-gate";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
@@ -50,7 +50,7 @@ async function sendMagicLink(formData: FormData) {
   // most worth gating — a script rotating addresses would otherwise use it
   // to email-bomb strangers and burn the sender's reputation. Its own error
   // code so the message lands in this form's box, not the password one.
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "sendMagicLink"))) {
     redirect("/sign-in?error=magic_captcha");
   }
   const allowed = await checkRateLimit("signIn", `signin:${ip}:${email}`);

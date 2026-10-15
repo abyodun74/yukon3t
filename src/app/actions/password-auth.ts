@@ -16,7 +16,7 @@ import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { passwordSignInOutcome } from "@/lib/password-sign-in";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBotSubmission } from "@/lib/bot-protection";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { passesBotGate } from "@/lib/bot-gate";
 import { sendEmail } from "@/lib/email";
 import { passwordResetEmail, verificationCodeEmail } from "@/lib/account-emails";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
@@ -144,7 +144,7 @@ export async function signUpWithPassword(_prev: SignUpState, formData: FormData)
   const ip = await clientIp();
   // A real user can hit this (widget blocked or still loading), so unlike the
   // honeypot above it gets its own message telling them what to do.
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "signUpWithPassword"))) {
     return { fieldErrors: {}, formError: "captcha" };
   }
   const allowed = await checkRateLimit("passwordSignUp", `signup:${ip}`);
@@ -278,7 +278,7 @@ export async function resendEmailOtp(formData: FormData) {
   }
 
   // Each resend is a real outbound email.
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "resendEmailOtp"))) {
     redirect("/verify-email?error=captcha");
   }
 
@@ -344,7 +344,7 @@ export async function switchToEmailVerification() {
 
 export async function loginWithPassword(formData: FormData) {
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "loginWithPassword"))) {
     redirect("/sign-in?error=captcha");
   }
   // Skipped when the IP couldn't be determined: every such request would
@@ -530,7 +530,7 @@ export async function confirmLoginDeviceChallenge(formData: FormData) {
   }
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "confirmLoginDeviceChallenge"))) {
     redirect("/sign-in/verify-device?error=captcha");
   }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${ip}:${pending.sub}`);
@@ -568,7 +568,7 @@ export async function resendLoginDeviceChallenge(formData: FormData) {
     redirect("/sign-in");
   }
 
-  if (!(await verifyTurnstile(formData, await clientIp()))) {
+  if (!(await passesBotGate(formData, await clientIp(), "resendLoginDeviceChallenge"))) {
     redirect("/sign-in/verify-device?error=captcha");
   }
 
@@ -609,7 +609,7 @@ export async function requestPasswordReset(formData: FormData) {
   }
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "requestPasswordReset"))) {
     redirect("/forgot-password?error=captcha");
   }
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });

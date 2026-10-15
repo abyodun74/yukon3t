@@ -4,7 +4,7 @@ import { phoneInvalid, passwordInput, multiSelect } from "@/lib/i18n/fr/common";
 export const shared: typeof sharedEn = {
   passwordInput,
   submitButton: { offline: "Vous êtes hors ligne. Vérifiez votre connexion, puis réessayez." },
-  turnstile: { verify: "Confirmez que vous êtes humain", wait: "Touchez « Confirmez que vous êtes humain » pour terminer la vérification de sécurité, puis réessayez." },
+  turnstile: { verify: "Confirmez que vous êtes humain", wait: "Touchez « Confirmez que vous êtes humain » pour terminer la vérification de sécurité, puis réessayez.", checkingDevice: "Vérification de votre appareil…" },
   phoneField: { countryCode: "Indicatif du pays", placeholder: "Numéro de téléphone" },
   phoneInvalid,
   birthDate: {

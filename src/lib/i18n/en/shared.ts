@@ -8,7 +8,7 @@ import { phoneInvalid } from "@/lib/i18n/en/common";
 export const sharedEn = {
   passwordInput: { show: "Show password", hide: "Hide password" },
   submitButton: { offline: "You're offline — check your connection and try again." },
-  turnstile: { verify: "Verify you're human", wait: "Tap “Verify you're human” to finish the security check, then try again." },
+  turnstile: { verify: "Verify you're human", wait: "Tap “Verify you're human” to finish the security check, then try again.", checkingDevice: "Checking your device…" },
   phoneField: { countryCode: "Country calling code", placeholder: "Phone number" },
   phoneInvalid,
   birthDate: {

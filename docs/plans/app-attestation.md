@@ -1,6 +1,6 @@
 # Device attestation for native sign-up/sign-in — implementation plan
 
-Status: **planned, not built** (2026-10-15). Phase 0 (web/server only) can ship any time; Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
+Status: **Phase 0 built, not yet deployed** (2026-10-15); Phase 1 onward not built. Phase 0 (web/server only) can ship any time; Phase 1 needs a native release, which is on hold until the owner lifts the native build hold.
 
 **Short version:** use **Firebase App Check**. Native builds with the new plugin send a single-use App Check token in a hidden form field. The server accepts that token **instead of** a Turnstile token. Nothing else ever replaces Turnstile, so claiming to be the app gets you nothing.
 
@@ -144,6 +144,7 @@ No change: the SDK runs natively outside the WebView; JWKS/consume calls are ser
 Ship everything in §3 except native sync, entitlements and versionCode (the npm dep + patch are inert on web — dynamic import only when native and plugin available). Deploy with mode unset (`off`), then set `observe` with the Firebase env vars. Live builds have no plugin, so nobody's UX changes; you start collecting `APP_ATTESTATION` rows with `yk-app-meta` (native platform/build distribution today). Update `SECURITY.md`/`CLAUDE.md` now; privacy/FAQ can wait for Phase 1.
 
 **Phase 1 — native release, when the hold lifts.**
+*Moved here from Phase 0 (deliberate deviation):* adding `"@capacitor-firebase/app-check": "8.5.2"` to `package.json` and creating `patches/@capacitor-firebase+app-check+8.5.2.patch`. Phase 0's `src/lib/app-attest-client.ts` doesn't import the npm package at all: it reaches the native plugin with `registerPlugin("FirebaseAppCheck")` from `@capacitor/core` and a local interface for exactly `initialize({ isTokenAutoRefreshEnabled: false })` and `getLimitedUseToken(): Promise<{ token: string }>`, and only calls it when `Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("FirebaseAppCheck")`. So the patched method **must be named `getLimitedUseToken`** and return `{ token }`, and the plugin must register as `FirebaseAppCheck`. Also the fallback cookie is only set in `enforce` (in `observe` the app shows the button anyway).
 Console setup (§4b); `npm i` (applies patch), `npx cap sync android`, `npm run cap:sync:ios` (fix backslashes), entitlement, versionCode bump. AAB → internal testing; Codemagic → TestFlight. Real-device tests (§6), then production rollout (recorded Play Console flow). Update privacy/FAQ/store forms in the same window. Stay in `observe` 1–2 weeks. Go/no-go: `ok` rate on plugin builds ≥ ~98% per platform, `unavailable` ≈ 0, no crash spike.
 
 **Phase 2 — enforce (web deploy only).**

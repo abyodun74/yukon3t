@@ -506,6 +506,7 @@ export function AdBookingForm() {
         className="mt-4"
         locale={locale}
         strings={{ verify: t.errors.securityVerify, wait: t.errors.securityWait }}
+        attest={false}
         resetSignal={turnstileReset}
         onToken={(token) => {
           turnstileTokenRef.current = token;

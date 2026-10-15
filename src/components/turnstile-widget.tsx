@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ShieldCheck } from "lucide-react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
+import { APP_ATTEST_FIELD, APP_META_FIELD, appAttestMode } from "@/lib/app-attest-shared";
+import { basicAppMeta, canAttest, getAppMeta, getAttestationToken, isNativeApp } from "@/lib/app-attest-client";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -42,6 +44,8 @@ const GIVE_UP_AFTER_MS = 10_000;
 const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br", ar: "ar" };
 
 let scriptPromise: Promise<void> | null = null;
+
+const subscribeToNothing = () => () => {};
 
 // Loaded once per page, on demand. Appended from a script that already
 // carries the CSP nonce, so 'strict-dynamic' (src/proxy.ts) lets it load.
@@ -94,6 +98,15 @@ function loadTurnstileScript(): Promise<void> {
  * sign-in just works. Without this, a half-configured deploy — site key baked
  * into the client bundle, secret not set — would block every sign-in in the
  * browser while enforcing nothing on the server.
+ *
+ * Device attestation (in-form mode only, native app only — see
+ * docs/plans/app-attestation.md and src/lib/bot-gate.ts): every native submit
+ * carries `yk-app-meta`. With NEXT_PUBLIC_APP_ATTEST_MODE=observe and the
+ * attestation plugin present, the tap also fetches a single-use App Check token
+ * that rides along if it's ready by submit. With "enforce", there is no button:
+ * a submit is held while a token is fetched, then re-submitted with it; if no
+ * token comes back the button appears and the person taps it as on the web.
+ * Renders nothing until mounted, since the server can't know it's in the app.
  */
 export function TurnstileWidget({
   onToken,
@@ -102,6 +115,7 @@ export function TurnstileWidget({
   className,
   locale,
   strings = sharedEn.turnstile,
+  attest = true,
 }: {
   onToken?: (token: string | null) => void;
   /** Called when no token arrived in time after the tap, or the widget errored — stop waiting for one. */
@@ -115,7 +129,9 @@ export function TurnstileWidget({
    */
   locale?: Locale;
   /** The button label, and the notice shown when a submit is held back, in that same language. */
-  strings?: { verify: string; wait: string };
+  strings?: { verify: string; wait: string; checkingDevice?: string };
+  /** False for consumers that handle (or skip) device attestation themselves — every non-form consumer. */
+  attest?: boolean;
 }) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,10 +152,21 @@ export function TurnstileWidget({
   const [phase, setPhase] = useState<"idle" | "checking" | "off">("idle");
   const [notice, setNotice] = useState<string | null>(null);
 
+  const mounted = useSyncExternalStore(subscribeToNothing, () => true, () => false);
+  const native = useSyncExternalStore(subscribeToNothing, isNativeApp, () => false);
+  const attestCapable = useSyncExternalStore(subscribeToNothing, canAttest, () => false);
+  // Set once attestation failed on this page: the Turnstile button takes over.
+  const [attestFailed, setAttestFailed] = useState(false);
+  const attesting = attest && appAttestMode() === "enforce" && attestCapable && !attestFailed;
+  const attestingRef = useRef(attesting);
+  const metaInputRef = useRef<HTMLInputElement>(null);
+  const attestInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     onTokenRef.current = onToken;
     onGiveUpRef.current = onGiveUp;
     waitMessageRef.current = strings.wait;
+    attestingRef.current = attesting;
   });
 
   useEffect(() => {
@@ -147,6 +174,14 @@ export function TurnstileWidget({
     if (!siteKey || !container) return undefined;
 
     let cancelled = false;
+    const observing = attest && appAttestMode() === "observe";
+    // Observe mode: a token fetched on the tap, sent with the next submit if ready.
+    let observedToken: string | null = null;
+    // Enforce mode: a token fetch already under way (started on first focus or on submit).
+    let pendingAttestation: Promise<string | null> | null = null;
+    let attestInFlight = false;
+    let metaValue: string | null = null;
+    if (attest) void getAppMeta()?.then((meta) => (metaValue = meta));
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
     // Tapped before the script finished loading — run as soon as it renders.
     let executeWhenRendered = false;
@@ -182,6 +217,11 @@ export function TurnstileWidget({
 
     // The tap: only now does Cloudflare run its check.
     function startCheck() {
+      if (observing && canAttest()) {
+        void getAttestationToken().then((token) => {
+          if (!cancelled) observedToken = token;
+        });
+      }
       setNotice(null);
       setPhase("checking");
       clearTimeout(graceTimer);
@@ -219,8 +259,62 @@ export function TurnstileWidget({
       })
       .catch(() => giveUp());
 
+    function switchToTurnstile() {
+      attestingRef.current = false;
+      setAttestFailed(true);
+      setNotice(waitMessageRef.current);
+    }
+
+    // Single-use: deferred so the form's FormData is captured with it first.
+    function spendAttestToken(input: HTMLInputElement) {
+      setTimeout(() => {
+        input.value = "";
+      }, 0);
+    }
+
     const form = container.closest("form");
+
+    function handleFocus() {
+      if (attestingRef.current && !pendingAttestation && canAttest()) pendingAttestation = getAttestationToken();
+    }
+
     function handleSubmit(e: Event) {
+      if (metaInputRef.current) metaInputRef.current.value = metaValue ?? basicAppMeta() ?? "";
+
+      const attestInput = attestInputRef.current;
+      if (attestingRef.current && attestInput && form) {
+        if (attestInput.value) {
+          spendAttestToken(attestInput);
+          return;
+        }
+        e.preventDefault();
+        if (attestInFlight) return;
+        if (!canAttest()) {
+          // The server turned down an earlier token and set the fallback cookie.
+          switchToTurnstile();
+          return;
+        }
+        attestInFlight = true;
+        const submitter = (e as SubmitEvent).submitter;
+        const attestation = pendingAttestation ?? getAttestationToken();
+        pendingAttestation = null;
+        void attestation.then((token) => {
+          attestInFlight = false;
+          if (cancelled) return;
+          if (!token) {
+            switchToTurnstile();
+            return;
+          }
+          attestInput.value = token;
+          try {
+            form.requestSubmit(submitter);
+          } catch {
+            form.requestSubmit();
+          }
+        });
+        return;
+      }
+
       if (!tokenRef.current) {
         if (!gaveUpRef.current) {
           e.preventDefault();
@@ -229,11 +323,17 @@ export function TurnstileWidget({
         // else: we've stopped waiting — let the server decide.
         return;
       }
+      if (observedToken && attestInput) {
+        attestInput.value = observedToken;
+        observedToken = null;
+        spendAttestToken(attestInput);
+      }
       // Deferred so the form's FormData is captured with this token first;
       // then drop it (it's spent) so the next attempt needs a fresh tap.
       setTimeout(discardToken, 0);
     }
     form?.addEventListener("submit", handleSubmit);
+    form?.addEventListener("focusin", handleFocus);
 
     return () => {
       cancelled = true;
@@ -241,13 +341,14 @@ export function TurnstileWidget({
       startCheckRef.current = null;
       discardTokenRef.current = null;
       form?.removeEventListener("submit", handleSubmit);
+      form?.removeEventListener("focusin", handleFocus);
       if (widgetIdRef.current) {
         window.turnstile?.remove(widgetIdRef.current);
         widgetIdRef.current = null;
       }
       tokenRef.current = null;
     };
-  }, [siteKey, locale]);
+  }, [siteKey, locale, mounted, attest]);
 
   // Non-form consumers drop a spent token by bumping resetSignal.
   const firstResetSignal = useRef(resetSignal);
@@ -256,11 +357,17 @@ export function TurnstileWidget({
     discardTokenRef.current?.();
   }, [resetSignal]);
 
-  if (!siteKey) return null;
+  if (!siteKey || !mounted) return null;
 
   return (
     <div className={className}>
-      {phase === "idle" && (
+      {attest && native && <input ref={metaInputRef} type="hidden" name={APP_META_FIELD} defaultValue="" />}
+      {attest && attestCapable && <input ref={attestInputRef} type="hidden" name={APP_ATTEST_FIELD} defaultValue="" />}
+      {attesting ? (
+        <p role="status" className="text-center text-xs text-foreground-soft">
+          {strings.checkingDevice ?? sharedEn.turnstile.checkingDevice}
+        </p>
+      ) : phase === "idle" && (
         <button
           type="button"
           onClick={() => startCheckRef.current?.()}

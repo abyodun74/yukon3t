@@ -8,7 +8,7 @@ import { adBookingSchema, requestUploadSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { isBotSubmission } from "@/lib/bot-protection";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { passesBotGate } from "@/lib/bot-gate";
 import { moderateMedia } from "@/lib/moderation";
 import {
   MEDIA_LIMITS,
@@ -72,7 +72,7 @@ export async function createAdCampaign(formData: FormData) {
   }
 
   const ip = await getClientIp();
-  if (!(await verifyTurnstile(formData, ip))) {
+  if (!(await passesBotGate(formData, ip, "createAdCampaign"))) {
     return { error: "captcha" as const };
   }
   const allowed = await checkRateLimit("adBookingCreate", ip);

@@ -28,7 +28,7 @@ export function PasswordSignInForm({
   locale: Locale;
   t: Pick<Dictionary["signIn"], "identifier" | "password" | "submit" | "submitting">;
   shared: Pick<Dictionary["shared"], "passwordInput" | "submitButton">;
-  turnstileStrings: { verify: string; wait: string };
+  turnstileStrings: { verify: string; wait: string; checkingDevice?: string };
 }) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);

@@ -23,7 +23,7 @@ import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trus
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import { getClientIp } from "@/lib/client-ip";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { passesBotGate } from "@/lib/bot-gate";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 
@@ -273,7 +273,7 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
   const challengeId = String(formData.get("challengeId") ?? "");
   const code = String(formData.get("code") ?? "").trim();
 
-  if (!(await verifyTurnstile(formData, await getClientIp()))) {
+  if (!(await passesBotGate(formData, await getClientIp(), "confirmPasswordChangeDeviceChallenge"))) {
     redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
   }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${user.id}`);
@@ -307,7 +307,7 @@ export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
   const user = await requireUser();
   const challengeId = String(formData.get("challengeId") ?? "");
 
-  if (!(await verifyTurnstile(formData, await getClientIp()))) {
+  if (!(await passesBotGate(formData, await getClientIp(), "resendPasswordChangeDeviceChallenge"))) {
     redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
   }
 
