@@ -1,0 +1,117 @@
+diff --git a/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheck.java b/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheck.java
+index b3c1223..a4f3db4 100644
+--- a/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheck.java
++++ b/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheck.java
+@@ -32,6 +32,18 @@ public class FirebaseAppCheck {
+             });
+     }
+ 
++    public void getLimitedUseToken(final GetTokenResultCallback resultCallback) {
++        getFirebaseAppCheckInstance()
++            .getLimitedUseAppCheckToken()
++            .addOnSuccessListener(appCheckToken -> {
++                resultCallback.success(appCheckToken.getToken(), appCheckToken.getExpireTimeMillis());
++            })
++            .addOnFailureListener(exception -> {
++                Log.w(FirebaseAppCheckPlugin.TAG, "Get limited-use App Check token failed.", exception);
++                resultCallback.error(exception.getMessage());
++            });
++    }
++
+     public void initialize(boolean debug, boolean isTokenAutoRefreshEnabled) {
+         if (debug) {
+             getFirebaseAppCheckInstance().installAppCheckProviderFactory(
+diff --git a/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheckPlugin.java b/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheckPlugin.java
+index 95d6749..fb31610 100644
+--- a/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheckPlugin.java
++++ b/node_modules/@capacitor-firebase/app-check/android/src/main/java/io/capawesome/capacitorjs/plugins/firebase/appcheck/FirebaseAppCheckPlugin.java
+@@ -44,6 +44,31 @@ public class FirebaseAppCheckPlugin extends Plugin {
+         }
+     }
+ 
++    @PluginMethod
++    public void getLimitedUseToken(PluginCall call) {
++        try {
++            implementation.getLimitedUseToken(
++                new GetTokenResultCallback() {
++                    @Override
++                    public void success(String token, long expireTimeMillis) {
++                        JSObject result = new JSObject();
++                        result.put("token", token);
++                        result.put("expireTimeMillis", expireTimeMillis);
++                        call.resolve(result);
++                    }
++
++                    @Override
++                    public void error(String message) {
++                        call.reject(message);
++                    }
++                }
++            );
++        } catch (Exception exception) {
++            Logger.error(TAG, exception.getMessage(), exception);
++            call.reject(exception.getMessage());
++        }
++    }
++
+     @PluginMethod
+     public void initialize(PluginCall call) {
+         try {
+diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
+index e21d698..f95f442 100644
+--- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
++++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
+@@ -30,6 +30,17 @@ import FirebaseAppCheck
+         })
+     }
+ 
++    @objc public func getLimitedUseToken(completion: @escaping (String?, Int, Error?) -> Void) {
++        AppCheck.appCheck().limitedUseToken(completion: { result, error in
++            if let error = error {
++                completion(nil, 0, error)
++                return
++            }
++            // Limited-use tokens carry no expiration date of their own.
++            completion(result?.token, 0, nil)
++        })
++    }
++
+     @objc public func initialize(debug: Bool) {
+         if debug {
+             AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
+index 8147fdf..91d2419 100644
+--- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
++++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
+@@ -12,6 +12,7 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
+     public let jsName = "FirebaseAppCheck"
+     public let pluginMethods: [CAPPluginMethod] = [
+         CAPPluginMethod(name: "getToken", returnType: CAPPluginReturnPromise),
++        CAPPluginMethod(name: "getLimitedUseToken", returnType: CAPPluginReturnPromise),
+         CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
+         CAPPluginMethod(name: "setTokenAutoRefreshEnabled", returnType: CAPPluginReturnPromise)
+     ]
+@@ -45,6 +46,23 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
+         })
+     }
+ 
++    @objc func getLimitedUseToken(_ call: CAPPluginCall) {
++        implementation?.getLimitedUseToken(completion: { token, _, error in
++            if let error = error {
++                CAPLog.print("[", self.tag, "] ", error)
++                call.reject(error.localizedDescription)
++                return
++            }
++            guard let token = token else {
++                call.reject(self.errorGetTokenFailed)
++                return
++            }
++            var result = JSObject()
++            result["token"] = token
++            call.resolve(result)
++        })
++    }
++
+     @objc func initialize(_ call: CAPPluginCall) {
+         let debugToken: Any? = call.getValue("debugToken")
+ 

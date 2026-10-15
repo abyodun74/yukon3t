@@ -16,5 +16,10 @@
 	<array>
 		<string>group.com.yukon3t.app.share</string>
 	</array>
+	<!-- Firebase App Check (App Attest) - device attestation Phase 1,
+	     docs/plans/app-attestation.md. Also needs App Attest enabled on the
+	     com.yukon3t.app App ID in the Apple Developer Portal. -->
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>production</string>
 </dict>
 </plist>

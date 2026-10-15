@@ -38,7 +38,10 @@ workflows:
           npm ci
       - name: Sync Capacitor iOS project
         script: |
-          npx cap sync ios
+          # The npm script also registers the local plugin classes
+          # (ScreenCaptureGuard, NativeCallKit, ShareReceiver) that a bare
+          # `npx cap sync ios` leaves out of packageClassList.
+          npm run cap:sync:ios
       - name: Bump the build number
         script: |
           # App Store Connect rejects a re-used build number for a given

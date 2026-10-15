@@ -212,8 +212,13 @@ android {
         // for real native haptic feedback at the touchpoints added in the
         // Apple HIG pass â€” no new Android permission (vibration doesn't
         // need one on this targetSdk), no manifest change.
-        versionCode 28
-        versionName "1.25"
+        // 29: adds @capacitor-firebase/app-check (Play Integrity) with a
+        // patch-package patch exposing getLimitedUseToken — device
+        // attestation Phase 1, docs/plans/app-attestation.md. No new
+        // permission, no manifest change, no new Play Console declaration.
+        // Also the first Android build with Capacitor 8.5.2.
+        versionCode 29
+        versionName "1.26"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

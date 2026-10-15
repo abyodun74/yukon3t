@@ -221,3 +221,22 @@ When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "u
 
 - **2026-10-15, first live observe row confirmed.** After Clear Cache and a password/magic-link sign-in in the Android app, admin analytics "App device checks" went from 0/0/0 to 1/1/1 (24h/7d/30d). This proves the full Phase 0 path in production: the cached web bundle was refreshed, the native WebView sent `yk-app-meta`, `passesBotGate` ran in `observe` mode, and `track("APP_ATTESTATION")` wrote to the database without changing the Turnstile decision. The row's contents (outcome `absent`, meta platform/build) were not inspected; only the count was. Until a Phase 1 build ships, every row will read `absent`.
 - **2026-10-15, Phase 1 native build started** (owner go-ahead). See the next section for what rode along in it.
+
+## Phase 1 build (2026-10-15)
+
+Built under the owner's explicit go-ahead to lift the native hold and roll every pending native change into one release.
+
+**Android — built, signed, not yet uploaded.** `versionCode` 28 -> 29, `versionName` 1.25 -> 1.26. `android/app/build/outputs/bundle/release/app-release.aab` (signed with the real `CN=YuKon3t` release key; `jarsigner` verified). `FirebaseAppCheckPlugin.getLimitedUseToken` survives R8 unobfuscated (checked in `mapping.txt`); it is also the first Android build with Capacitor 8.5.2. The plugin adds `firebase-appcheck-playintegrity`/`-debug` 19.0.1; no manifest or permission change. Still to verify on a real device from the internal testing track (section 6).
+
+**iOS — source ready, not built.** The Mac/Codemagic build cannot run from this Windows machine. Done in source: plugin synced into `ios/App/CapApp-SPM/Package.swift` (backslashes fixed), `com.apple.developer.devicecheck.appattest-environment = production` in `App.entitlements`, `codemagic.yaml` now runs `npm run cap:sync:ios` (the pre-existing local-plugin gap). Blocked on the owner: (1) enable **App Attest** on the `com.yukon3t.app` App ID; (2) register the `group.com.yukon3t.app.share` App Group on `com.yukon3t.app` and `com.yukon3t.app.ShareExtension` — the Share Extension target is already in the Xcode project, so every iOS build needs it to sign; (3) trigger the `ios-testflight` workflow in Codemagic.
+
+**What else rides in this release** (all native, previously held):
+- iOS only: `@capacitor/haptics` has never shipped on iOS (the Android release went out as v1.25; iOS was held in review and the approved build predates it).
+- iOS only: Capacitor iOS 8.5.2 sync plus the missing `CapacitorHaptics` entry in `Package.swift`.
+- iOS only: `ScreenCaptureGuardPlugin` reads capture state from the window scene instead of `UIScreen.main` (commit `61f995b`).
+- iOS only: the Share Extension (`ios/App/ShareExtension`, `ShareReceiverPlugin`), built 2026-09-23, never in a shipped build; needs the App Group registered first.
+- Android: Capacitor 8.5.2 (security fix) and the latest dependency set; no Android native source changed since v1.25.
+
+**Deliberately not in this build:** the lock-screen widget / watch surface for ambient presence (needs real Xcode/Android Studio widget work), region-gated CallKit (China mainland was removed from availability instead), and camera cold-start work (a different kind of change, not started).
+
+**After release:** keep `NEXT_PUBLIC_APP_ATTEST_MODE=observe` for 1-2 weeks and watch `APP_ATTESTATION` outcomes per platform. If every row is `unavailable`, check that the FCM service account has the **Firebase App Check Token Verifier** role. Go/no-go for enforce is section 5.
