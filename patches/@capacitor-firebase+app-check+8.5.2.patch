@@ -57,14 +57,58 @@ index 95d6749..fb31610 100644
      @PluginMethod
      public void initialize(PluginCall call) {
          try {
+diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
+index 47972be..7aab1b1 100644
+--- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
++++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
+@@ -4,10 +4,28 @@ import FirebaseAppCheck
+ 
+ public class CustomAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
+     public func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+-        if #available(iOS 14.0, *) {
+-            return AppAttestProvider(app: app)
+-        } else {
+-            return DeviceCheckProvider(app: app)
+-        }
++        // The package's minimum is iOS 15, so App Attest (iOS 14+) is always available.
++        return AppAttestProvider(app: app)
++    }
++}
++
++/// Installs this app's App Check provider factory. Firebase reads the factory
++/// exactly once, when `FirebaseApp.configure()` creates the App Check
++/// component; anything installed later is ignored and the SDK silently uses
++/// its built-in DeviceCheck default. Several plugins call `configure()` from
++/// their `load()`, and Capacitor loads plugins in `Set` order (random per
++/// launch), so this must run before the bridge exists: AppDelegate
++/// instantiates this class by its Objective-C name as the first statement of
++/// `application(_:didFinishLaunchingWithOptions:)`. The ObjC name is fixed
++/// here so that runtime lookup does not depend on Swift name mangling.
++@objc(YKAppCheckProviderInstaller)
++public final class AppCheckProviderInstaller: NSObject {
++    override public init() {
++        super.init()
++        #if DEBUG
++        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
++        #else
++        AppCheck.setAppCheckProviderFactory(CustomAppCheckProviderFactory())
++        #endif
+     }
+ }
 diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
-index e21d698..f95f442 100644
+index e21d698..4996df8 100644
 --- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
 +++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
-@@ -30,6 +30,17 @@ import FirebaseAppCheck
+@@ -30,12 +30,15 @@ import FirebaseAppCheck
          })
      }
  
+-    @objc public func initialize(debug: Bool) {
+-        if debug {
+-            AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+-        } else {
+-            AppCheck.setAppCheckProviderFactory(CustomAppCheckProviderFactory())
+-        }
 +    @objc public func getLimitedUseToken(completion: @escaping (String?, Int, Error?) -> Void) {
 +        AppCheck.appCheck().limitedUseToken(completion: { result, error in
 +            if let error = error {
@@ -74,13 +118,11 @@ index e21d698..f95f442 100644
 +            // Limited-use tokens carry no expiration date of their own.
 +            completion(result?.token, 0, nil)
 +        })
-+    }
-+
-     @objc public func initialize(debug: Bool) {
-         if debug {
-             AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+     }
+ 
+     @objc public func setTokenAutoRefreshEnabled(_ enabled: Bool) {
 diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
-index 8147fdf..91d2419 100644
+index 8147fdf..f6cd8f2 100644
 --- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
 +++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
 @@ -12,6 +12,7 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -91,10 +133,21 @@ index 8147fdf..91d2419 100644
          CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
          CAPPluginMethod(name: "setTokenAutoRefreshEnabled", returnType: CAPPluginReturnPromise)
      ]
-@@ -45,6 +46,23 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -45,20 +46,27 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
          })
      }
  
+-    @objc func initialize(_ call: CAPPluginCall) {
+-        let debugToken: Any? = call.getValue("debugToken")
+-
+-        let hasDebugToken: Bool
+-        if let boolVal = debugToken as? Bool {
+-            hasDebugToken = boolVal
+-        } else if let strVal = debugToken as? String, !strVal.isEmpty {
+-            hasDebugToken = true
+-        } else {
+-            hasDebugToken = call.getBool("debug", false)
+-        }
 +    @objc func getLimitedUseToken(_ call: CAPPluginCall) {
 +        implementation?.getLimitedUseToken(completion: { token, _, error in
 +            if let error = error {
@@ -111,7 +164,12 @@ index 8147fdf..91d2419 100644
 +            call.resolve(result)
 +        })
 +    }
-+
-     @objc func initialize(_ call: CAPPluginCall) {
-         let debugToken: Any? = call.getValue("debugToken")
  
++    @objc func initialize(_ call: CAPPluginCall) {
++        // The provider factory is installed natively before FirebaseApp.configure()
++        // (see AppCheckProviderInstaller); a factory set from here would be ignored.
+         let isTokenAutoRefreshEnabled = call.getBool("isTokenAutoRefreshEnabled") ?? false
+-        implementation?.initialize(debug: hasDebugToken)
+         implementation?.setTokenAutoRefreshEnabled(isTokenAutoRefreshEnabled)
+         call.resolve()
+     }

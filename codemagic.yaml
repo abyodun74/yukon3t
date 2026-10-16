@@ -48,7 +48,7 @@ workflows:
           # MARKETING_VERSION (currently 1.1, see project.pbxproj; 1.0 is already live, so
           # every new store upload needs a higher version: bump MARKETING_VERSION there per
           # App Store release) — bump
-          # CURRENT_PROJECT_VERSION (currently 1) on every CI run using
+          # CURRENT_PROJECT_VERSION (2 in the repo) on every CI run using
           # Codemagic's own incrementing build counter so this never
           # collides, without hand-editing the .pbxproj per release.
           cd "$(dirname "$XCODE_PROJECT")"
