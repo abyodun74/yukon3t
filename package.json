@@ -19,7 +19,7 @@
     "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts",
     "db:backfill-post-albums": "tsx scripts/backfill-post-albums.ts",
     "db:restore-backup": "tsx scripts/restore-database-backup.ts",
-    "cap:sync:ios": "npx cap sync ios && node scripts/fix-ios-package-class-list.mjs"
+    "cap:sync:ios": "npx cap sync ios && node scripts/fix-ios-package-class-list.mjs && node scripts/fix-ios-spm-package-names.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
