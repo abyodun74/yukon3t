@@ -57,49 +57,50 @@ index 95d6749..fb31610 100644
      @PluginMethod
      public void initialize(PluginCall call) {
          try {
-diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
-index 47972be..7aab1b1 100644
---- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
-+++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/CustomAppCheckProviderFactory.swift
-@@ -4,10 +4,28 @@ import FirebaseAppCheck
+diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
+index e21d698..1994a81 100644
+--- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
++++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
+@@ -4,6 +4,30 @@ import Capacitor
+ import FirebaseCore
+ import FirebaseAppCheck
  
- public class CustomAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
-     public func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
--        if #available(iOS 14.0, *) {
--            return AppAttestProvider(app: app)
--        } else {
--            return DeviceCheckProvider(app: app)
--        }
-+        // The package's minimum is iOS 15, so App Attest (iOS 14+) is always available.
++/// App Attest only (the package's minimum is iOS 15). Private to this file on
++/// purpose: the messaging plugin carries its own identical copy, so neither
++/// depends on the other's symbols or on load order.
++private final class YKAppAttestProviderFactory: NSObject, AppCheckProviderFactory {
++    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
 +        return AppAttestProvider(app: app)
 +    }
 +}
 +
-+/// Installs this app's App Check provider factory. Firebase reads the factory
-+/// exactly once, when `FirebaseApp.configure()` creates the App Check
-+/// component; anything installed later is ignored and the SDK silently uses
-+/// its built-in DeviceCheck default. Several plugins call `configure()` from
-+/// their `load()`, and Capacitor loads plugins in `Set` order (random per
-+/// launch), so this must run before the bridge exists: AppDelegate
-+/// instantiates this class by its Objective-C name as the first statement of
-+/// `application(_:didFinishLaunchingWithOptions:)`. The ObjC name is fixed
-+/// here so that runtime lookup does not depend on Swift name mangling.
-+@objc(YKAppCheckProviderInstaller)
-+public final class AppCheckProviderInstaller: NSObject {
-+    override public init() {
-+        super.init()
-+        #if DEBUG
-+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
-+        #else
-+        AppCheck.setAppCheckProviderFactory(CustomAppCheckProviderFactory())
-+        #endif
++/// Firebase reads the App Check provider factory exactly once, when
++/// `FirebaseApp.configure()` eagerly creates the App Check component; a
++/// factory set later is ignored and the SDK uses its DeviceCheck default
++/// (not registered for this app). Every plugin that calls `configure()`
++/// (this one and @capacitor-firebase/messaging, loaded in random order)
++/// therefore calls this immediately before it, inside its
++/// `FirebaseApp.app() == nil` guard, so whichever runs first wins.
++private func ykInstallAppCheckProviderFactory() {
++    #if DEBUG
++    AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
++    #else
++    AppCheck.setAppCheckProviderFactory(YKAppAttestProviderFactory())
++    #endif
++}
++
+ @objc public class FirebaseAppCheck: NSObject {
+ 
+     override public init() {
+@@ -12,6 +36,7 @@ import FirebaseAppCheck
+                 CAPLog.print("[FirebaseAppCheck] Firebase was not configured: GoogleService-Info.plist is missing from the app bundle.")
+                 return
+             }
++            ykInstallAppCheckProviderFactory()
+             FirebaseApp.configure()
+         }
      }
- }
-diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
-index e21d698..4996df8 100644
---- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
-+++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheck.swift
-@@ -30,12 +30,15 @@ import FirebaseAppCheck
+@@ -30,12 +55,15 @@ import FirebaseAppCheck
          })
      }
  
@@ -122,7 +123,7 @@ index e21d698..4996df8 100644
  
      @objc public func setTokenAutoRefreshEnabled(_ enabled: Bool) {
 diff --git a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
-index 8147fdf..f6cd8f2 100644
+index 8147fdf..a929a40 100644
 --- a/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
 +++ b/node_modules/@capacitor-firebase/app-check/ios/Plugin/FirebaseAppCheckPlugin.swift
 @@ -12,6 +12,7 @@ public class FirebaseAppCheckPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -166,8 +167,8 @@ index 8147fdf..f6cd8f2 100644
 +    }
  
 +    @objc func initialize(_ call: CAPPluginCall) {
-+        // The provider factory is installed natively before FirebaseApp.configure()
-+        // (see AppCheckProviderInstaller); a factory set from here would be ignored.
++        // The provider factory is installed natively right before FirebaseApp.configure()
++        // (see FirebaseAppCheck.init); a factory set from here would be ignored.
          let isTokenAutoRefreshEnabled = call.getBool("isTokenAutoRefreshEnabled") ?? false
 -        implementation?.initialize(debug: hasDebugToken)
          implementation?.setTokenAutoRefreshEnabled(isTokenAutoRefreshEnabled)

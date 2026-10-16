@@ -7,20 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Must be first: install the App Attest provider factory before any
-        // plugin's load() calls FirebaseApp.configure(), which reads the
-        // factory once and otherwise falls back to DeviceCheck (not
-        // registered for this app -> every token exchange fails). The class
-        // is YKAppCheckProviderInstaller in the patched
-        // @capacitor-firebase/app-check plugin; it is looked up by its fixed
-        // ObjC name (the same way Capacitor finds plugin classes) because
-        // the App target only links CapApp-SPM, not the plugin module.
-        if let installer = NSClassFromString("YKAppCheckProviderInstaller") as? NSObject.Type {
-            _ = installer.init()
-        } else {
-            print("[app-check] YKAppCheckProviderInstaller missing; App Check will use the DeviceCheck default")
-        }
-
         // Must start here, not lazily from NativeCallKitPlugin — see that
         // file's own comment on why PushKit's delegate has to be set before
         // the webview/bridge exists.

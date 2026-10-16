@@ -1,0 +1,57 @@
+diff --git a/node_modules/@capacitor-firebase/messaging/Package.swift b/node_modules/@capacitor-firebase/messaging/Package.swift
+index fd2cba6..3043b18 100644
+--- a/node_modules/@capacitor-firebase/messaging/Package.swift
++++ b/node_modules/@capacitor-firebase/messaging/Package.swift
+@@ -20,7 +20,8 @@ let package = Package(
+                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                 .product(name: "Cordova", package: "capacitor-swift-pm"),
+                 .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+-                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk")
++                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
++                .product(name: "FirebaseAppCheck", package: "firebase-ios-sdk")
+             ],
+             path: "ios/Plugin"),
+         .testTarget(
+diff --git a/node_modules/@capacitor-firebase/messaging/ios/Plugin/FirebaseMessaging.swift b/node_modules/@capacitor-firebase/messaging/ios/Plugin/FirebaseMessaging.swift
+index 6c8d642..a81f16d 100644
+--- a/node_modules/@capacitor-firebase/messaging/ios/Plugin/FirebaseMessaging.swift
++++ b/node_modules/@capacitor-firebase/messaging/ios/Plugin/FirebaseMessaging.swift
+@@ -4,6 +4,30 @@ import UserNotifications
+ 
+ import FirebaseMessaging
+ import FirebaseCore
++import FirebaseAppCheck
++
++/// App Attest only (the package's minimum is iOS 15). Identical copy of the
++/// one in the patched @capacitor-firebase/app-check plugin, private to this
++/// file so this module does not depend on that one's symbols.
++private final class YKAppAttestProviderFactory: NSObject, AppCheckProviderFactory {
++    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
++        return AppAttestProvider(app: app)
++    }
++}
++
++/// Firebase reads the App Check provider factory exactly once, when
++/// `FirebaseApp.configure()` eagerly creates the App Check component; a
++/// factory set later is ignored and the SDK uses its DeviceCheck default
++/// (not registered for this app). This plugin and the app-check plugin both
++/// call `configure()` from their load() in random order, so each installs
++/// the factory immediately before its own guarded `configure()` call.
++private func ykInstallAppCheckProviderFactory() {
++    #if DEBUG
++    AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
++    #else
++    AppCheck.setAppCheckProviderFactory(YKAppAttestProviderFactory())
++    #endif
++}
+ 
+ @objc public class FirebaseMessaging: NSObject, NotificationHandlerProtocol {
+     private let plugin: FirebaseMessagingPlugin
+@@ -14,6 +38,7 @@ import FirebaseCore
+         self.config = config
+         super.init()
+         if FirebaseApp.app() == nil {
++            ykInstallAppCheckProviderFactory()
+             FirebaseApp.configure()
+         }
+         UIApplication.shared.registerForRemoteNotifications()
