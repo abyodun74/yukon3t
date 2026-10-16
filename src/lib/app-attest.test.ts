@@ -172,11 +172,11 @@ describe("app-attest", () => {
       expect(parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "windows", b: "<script>", plugin: "yes" }) }))).toEqual({});
     });
 
-    it("keeps the failure-reason field e, capped at 100 chars with control characters stripped", async () => {
+    it("keeps the failure-reason field e, capped at 260 chars with control characters stripped", async () => {
       const { parseAppMeta } = await load();
       const f = (e: unknown) => parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "ios", e }) }));
       expect(f("reject:The operation could not be completed")).toEqual({ p: "ios", e: "reject:The operation could not be completed" });
-      expect(f("x".repeat(400))).toEqual({ p: "ios", e: "x".repeat(100) });
+      expect(f("x".repeat(400))).toEqual({ p: "ios", e: "x".repeat(260) });
       expect(f("reject:a\u0000b\nc\u001bd\u0085e")).toEqual({ p: "ios", e: "reject:a b c d e" });
       expect(f(42)).toEqual({ p: "ios" });
       expect(f({ a: 1 })).toEqual({ p: "ios" });
@@ -190,7 +190,7 @@ describe("app-attest", () => {
       expect(parseAppMeta(form({ "yk-app-meta": "{not json" }))).toBe("invalid");
       expect(parseAppMeta(form({ "yk-app-meta": "[1,2]" }))).toBe("invalid");
       expect(parseAppMeta(form({ "yk-app-meta": "null" }))).toBe("invalid");
-      expect(parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "android", pad: "x".repeat(600) }) }))).toBe("invalid");
+      expect(parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "android", pad: "x".repeat(1100) }) }))).toBe("invalid");
     });
   });
 });

@@ -2,7 +2,7 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { captureError } from "@/lib/error-tracking";
-import { ATTEST_FALLBACK_COOKIE, appAttestMode } from "@/lib/app-attest-shared";
+import { ATTEST_FALLBACK_COOKIE, appAttestMode, shapeFailureReason } from "@/lib/app-attest-shared";
 
 // Client half of device attestation (docs/plans/app-attestation.md). Every
 // native call is gated on isNativePlatform() + isPluginAvailable(), so in a
@@ -25,11 +25,7 @@ let initPromise: Promise<boolean> | null = null;
 let metaPromise: Promise<string> | null = null;
 // Why the last token fetch failed (untrusted diagnostic telemetry, see withAttestReason).
 let lastFailure: string | null = null;
-const REASON_MAX = 80;
-
-function cleanReason(text: string): string {
-  return text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim().slice(0, REASON_MAX);
-}
+const cleanReason = shapeFailureReason;
 
 function pluginAvailable(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable(PLUGIN_NAME);

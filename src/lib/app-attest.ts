@@ -144,7 +144,7 @@ export async function verifyAppAttestation(formData: FormData): Promise<AttestRe
 
 export type AppMeta = { p?: string; b?: string; plugin?: boolean; e?: string };
 
-const META_REASON_MAX = 100;
+const META_REASON_MAX = 260;
 
 const META_PLATFORM = /^(android|ios|web)$/;
 const META_BUILD = /^[0-9A-Za-z._-]{1,16}$/;

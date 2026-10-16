@@ -177,7 +177,7 @@ When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "u
 
 **iOS:** TestFlight on a real iPhone, same checks via Safari Web Inspector; Simulator → App Attest unsupported → Turnstile; watch Firebase App Check metrics.
 
-**iOS "absent" diagnostic (2026-10-16, web-only telemetry):** the client records why a token was missing as `yk-app-meta` field `e` (`reject:<native error>`, `timeout:<ms>`, `late:<ms>`, `pending`, `init:<msg>`, `empty`; capped at 100 chars, never trusted). Read it in Neon: `SELECT "createdAt", metadata FROM "AnalyticsEvent" WHERE type='APP_ATTESTATION' ORDER BY "createdAt" DESC LIMIT 10;` and look at `metadata.meta.e`.
+**iOS "absent" diagnostic (2026-10-16, web-only telemetry):** the client records why a token was missing as `yk-app-meta` field `e` (`reject:<native error>`, `timeout:<ms>`, `late:<ms>`, `pending`, `init:<msg>`, `empty`; capped at 240 chars client-side / 260 server-side, never trusted). Read it in Neon: `SELECT "createdAt", metadata FROM "AnalyticsEvent" WHERE type='APP_ATTESTATION' ORDER BY "createdAt" DESC LIMIT 10;` and look at `metadata.meta.e`.
 
 **Web:** desktop and mobile browsers exactly as today — button, no `yk-app-attest`.
 
