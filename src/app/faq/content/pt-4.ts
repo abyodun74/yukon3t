@@ -118,6 +118,10 @@ export const pt4 = {
     q: "Como verifico minha conta depois de me cadastrar?",
     a: "No cadastro, escolha e-mail ou telefone: enviamos um código de 6 dígitos para o que você escolher, e você o digita na tela seguinte para terminar de criar a conta. Não recebeu, ou o código expirou? É só reabrir essa tela e um novo é enviado automaticamente, sem precisar procurar um botão de reenviar (embora exista um, se você quiser acionar por conta própria). Se o e-mail demorar a chegar, use «Usar telefone» nessa tela para verificar por mensagem de texto; e, se a mensagem de texto não chegar, «Usar código por e-mail» leva você de volta. Você também pode entrar a qualquer momento para continuar de onde parou.",
   },
+  "why-verify-human-app": {
+    q: "Por que às vezes me pedem para verificar que sou uma pessoa no app?",
+    a: "Ao se cadastrar, entrar ou redefinir a senha, verificamos se há uma pessoa real por trás da solicitação. Na web, é o toque em «Verificar que você é humano». No app do YuKon3t, ele pode, em vez disso, confirmar que é o app genuíno e não modificado, rodando em um dispositivo genuíno, usando o Play Integrity do Google no Android e o App Attest da Apple no iPhone. Quando essa verificação é aprovada, talvez você nem precise tocar. Você ainda verá o toque se estiver no site, usando uma cópia modificada ou não oficial do app, um dispositivo com root ou um emulador, ou se o app não conseguir concluir a verificação naquele momento. Nada dessa verificação fica guardado na sua conta; mantemos apenas um resultado anônimo (aprovada ou não, plataforma e versão do app) para detectar abusos.",
+  },
   "says-account-locked-happened": {
     q: "Aparece que minha conta está bloqueada. O que aconteceu?",
     a: "Depois de 4 tentativas com senha incorreta, a conta fica bloqueada por 24 horas, como medida de segurança. Redefinir sua senha (por «Esqueceu a senha?» na página de entrada) a desbloqueia imediatamente: você não precisa esperar as 24 horas. Se ainda assim não conseguir, fale com o suporte e podemos enviar um link de redefinição diretamente para o seu e-mail cadastrado.",

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 11, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 16, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -103,6 +103,7 @@ export default function PrivacyPage() {
         <li><b>Cloudflare (R2)</b> — stores uploaded photos and videos, including Story and ad media.</li>
         <li><b>Cloudflare (Stream)</b> — a temporary copy of an uploaded video may be sent here for automated moderation scanning and caption generation, and QuickTime (.mov) videos are sent here to be converted to a widely playable MP4; the video is still served from R2 above, and the Stream copy is deleted once it is no longer needed.</li>
         <li><b>Cloudflare (Turnstile)</b> — a bot check on sign-up, sign-in, password reset, device verification, phone-verification code requests, and ad booking forms, used to tell real people from automated scripts. When it runs, Cloudflare receives technical signals from your browser and network connection (such as your IP address) and processes them under Cloudflare&apos;s own privacy policy; it runs only when you tap “Verify you&apos;re human”, and Cloudflare may then ask you to complete a short check.</li>
+        <li><b>Firebase App Check (Google), with Play Integrity on Android and App Attest (Apple) on iPhone</b> — in the YuKon3t mobile app, on sign-up, sign-in and password reset, the app asks Google&apos;s Firebase App Check for a one-time token showing it is the genuine, unmodified app running on a genuine device. Google, and Apple on iPhone, process app and device integrity signals to produce it, under their own privacy policies, and we verify the token with Google. If it is valid, we may skip the “Verify you&apos;re human” tap; it never replaces that check on the website. We use it only for security and abuse prevention. We store no device identifiers from it, only an anonymous record of the result, platform and app version.</li>
         <li><b>OpenAI</b> — automated content moderation of text and images before publication. We do not send full account profiles to this provider — only the specific content being screened.</li>
         <li><b>Daily.co</b> — powers 1:1 voice/video calls and Collab live sessions. If a live session&apos;s host enables cloud recording, the recording is stored by Daily until the host or an admin deletes it.</li>
         <li><b>Firebase Cloud Messaging (Google)</b> — delivers push notifications to the Android app. Web push notifications are sent directly to your browser&apos;s push service without a third-party intermediary of ours.</li>

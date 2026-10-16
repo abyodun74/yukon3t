@@ -1887,6 +1887,27 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "why-verify-human-app",
+        q: "Why am I sometimes asked to verify I'm human in the app?",
+        a: (
+          <>
+            On sign-up, sign-in and password reset we check that a real
+            person is behind the request. On the web that&apos;s the
+            &ldquo;Verify you&apos;re human&rdquo; tap. In the YuKon3t app,
+            it can instead confirm that it is the genuine, unmodified app
+            running on a genuine device, using Google&apos;s Play Integrity
+            on Android and Apple&apos;s App Attest on iPhone. When that
+            check passes you may not be asked to tap at all. You&apos;ll
+            still see the tap if you&apos;re on the website, using a
+            modified or unofficial copy of the app, a rooted or emulated
+            device, or if the app can&apos;t complete the check at that
+            moment. Nothing about the check is stored on your account;
+            we keep only an anonymous result (passed or not, platform and
+            app version) to spot abuse.
+          </>
+        ),
+      },
+      {
         id: "says-account-locked-happened",
         q: "It says my account is locked — what happened?",
         a: (

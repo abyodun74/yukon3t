@@ -118,6 +118,10 @@ export const es4 = {
     q: "¿Cómo verifico mi cuenta después de registrarme?",
     a: "Al registrarte, elige correo o teléfono: enviaremos un código de 6 dígitos al que elijas, y lo escribes en la pantalla siguiente para terminar de crear tu cuenta. ¿No te llegó o el código caducó? Vuelve a abrir esa pantalla y se envía uno nuevo automáticamente, sin tener que buscar un botón para reenviarlo (aunque también hay uno, por si quieres pedirlo tú). Si el correo tarda en llegar, usa «Usar teléfono» en esa pantalla para verificar por mensaje de texto; y si el mensaje de texto no llega, «Usar código por correo» te lleva de vuelta. También puedes iniciar sesión en cualquier momento para continuar donde lo dejaste.",
   },
+  "why-verify-human-app": {
+    q: "¿Por qué a veces me piden verificar que soy una persona en la app?",
+    a: "Al registrarte, iniciar sesión o restablecer la contraseña comprobamos que detrás de la solicitud hay una persona real. En la web es el toque en «Verificar que eres una persona». En la app de YuKon3t, en cambio, ella puede confirmar que es la app genuina y sin modificar, ejecutándose en un dispositivo genuino, mediante Play Integrity de Google en Android y App Attest de Apple en iPhone. Si esa comprobación se supera, puede que no te pidan tocar nada. Seguirás viendo el toque si usas el sitio web, una copia modificada o no oficial de la app, un dispositivo con root o un emulador, o si la app no puede completar la comprobación en ese momento. No guardamos nada de esta comprobación en tu cuenta; solo conservamos un resultado anónimo (superada o no, plataforma y versión de la app) para detectar abusos.",
+  },
   "says-account-locked-happened": {
     q: "Dice que mi cuenta está bloqueada. ¿Qué pasó?",
     a: "Después de 4 intentos con una contraseña incorrecta, la cuenta se bloquea durante 24 horas como medida de seguridad. Restablecer tu contraseña (con «¿Olvidaste tu contraseña?» en la página de inicio de sesión) la desbloquea de inmediato: no tienes que esperar las 24 horas. Si aun así no puedes entrar, escribe a soporte y podemos enviar directamente un enlace para restablecerla a tu correo registrado.",
