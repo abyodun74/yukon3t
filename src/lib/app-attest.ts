@@ -142,7 +142,9 @@ export async function verifyAppAttestation(formData: FormData): Promise<AttestRe
   }
 }
 
-export type AppMeta = { p?: string; b?: string; plugin?: boolean };
+export type AppMeta = { p?: string; b?: string; plugin?: boolean; e?: string };
+
+const META_REASON_MAX = 100;
 
 const META_PLATFORM = /^(android|ios|web)$/;
 const META_BUILD = /^[0-9A-Za-z._-]{1,16}$/;
@@ -169,5 +171,10 @@ export function parseAppMeta(formData: FormData): AppMeta | "invalid" | null {
   const build = typeof record.b === "number" && Number.isSafeInteger(record.b) ? String(record.b) : record.b;
   if (typeof build === "string" && META_BUILD.test(build)) meta.b = build;
   if (typeof record.plugin === "boolean") meta.plugin = record.plugin;
+  // Failure-reason diagnostic: untrusted, control chars stripped, hard-capped.
+  if (typeof record.e === "string") {
+    const reason = record.e.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim().slice(0, META_REASON_MAX);
+    if (reason) meta.e = reason;
+  }
   return meta;
 }

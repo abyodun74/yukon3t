@@ -143,6 +143,22 @@ describe("passesBotGate", () => {
       expect(mocks.verifyToken).not.toHaveBeenCalled();
     });
 
+    it("records the failure reason e in the meta but never lets it change the decision", async () => {
+      for (const turnstileOk of [false, true]) {
+        mocks.track.mockClear();
+        stubCloudflare(turnstileOk);
+        const { passesBotGate } = await load();
+        const plain = '{"p":"ios","b":"1","plugin":true}';
+        const withE = '{"p":"ios","b":"1","plugin":true,"e":"reject:boom"}';
+        const a = await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-meta": plain }), IP, "test");
+        const b = await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-meta": withE }), IP, "test");
+        expect(a).toBe(turnstileOk);
+        expect(b).toBe(a);
+        expect(mocks.track).toHaveBeenCalledTimes(2);
+        expect(mocks.track.mock.calls[1][2]).toMatchObject({ outcome: "absent", meta: { p: "ios", plugin: true, e: "reject:boom" } });
+      }
+    });
+
     it("records nothing for a plain browser submit", async () => {
       stubCloudflare(true);
       const { passesBotGate } = await load();

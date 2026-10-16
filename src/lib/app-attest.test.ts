@@ -172,6 +172,17 @@ describe("app-attest", () => {
       expect(parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "windows", b: "<script>", plugin: "yes" }) }))).toEqual({});
     });
 
+    it("keeps the failure-reason field e, capped at 100 chars with control characters stripped", async () => {
+      const { parseAppMeta } = await load();
+      const f = (e: unknown) => parseAppMeta(form({ "yk-app-meta": JSON.stringify({ p: "ios", e }) }));
+      expect(f("reject:The operation could not be completed")).toEqual({ p: "ios", e: "reject:The operation could not be completed" });
+      expect(f("x".repeat(400))).toEqual({ p: "ios", e: "x".repeat(100) });
+      expect(f("reject:a\u0000b\nc\u001bd\u0085e")).toEqual({ p: "ios", e: "reject:a b c d e" });
+      expect(f(42)).toEqual({ p: "ios" });
+      expect(f({ a: 1 })).toEqual({ p: "ios" });
+      expect(f("\u0000\n")).toEqual({ p: "ios" });
+    });
+
     it("treats absent as null and anything unusable as invalid", async () => {
       const { parseAppMeta } = await load();
       expect(parseAppMeta(form())).toBeNull();

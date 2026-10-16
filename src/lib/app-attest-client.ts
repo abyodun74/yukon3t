@@ -23,6 +23,13 @@ interface FirebaseAppCheckPlugin {
 let plugin: FirebaseAppCheckPlugin | null = null;
 let initPromise: Promise<boolean> | null = null;
 let metaPromise: Promise<string> | null = null;
+// Why the last token fetch failed (untrusted diagnostic telemetry, see withAttestReason).
+let lastFailure: string | null = null;
+const REASON_MAX = 80;
+
+function cleanReason(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim().slice(0, REASON_MAX);
+}
 
 function pluginAvailable(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable(PLUGIN_NAME);
@@ -60,7 +67,8 @@ function initialize(): Promise<boolean> {
       .catch((err: unknown) => {
         if (/already/i.test(errorText(err))) return true;
         initPromise = null;
-        void captureError(err, { where: "app-attest-client.initialize" });
+        lastFailure = `init:${cleanReason(errorText(err))}`;
+        void captureError(err, { where: "app-attest-client.initialize", platform: Capacitor.getPlatform() });
         return false;
       });
   }
@@ -75,24 +83,55 @@ function initialize(): Promise<boolean> {
 export async function getAttestationToken(): Promise<string | null> {
   if (!canAttest()) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const started = Date.now();
   try {
     const timeout = new Promise<null>((resolve) => {
-      timer = setTimeout(() => resolve(null), TOKEN_TIMEOUT_MS);
+      timer = setTimeout(() => {
+        lastFailure = `timeout:${Date.now() - started}`;
+        resolve(null);
+      }, TOKEN_TIMEOUT_MS);
     });
     const fetchToken = async () => {
       if (!(await initialize())) return null;
       const { token } = await getPlugin().getLimitedUseToken();
       return typeof token === "string" && token !== "" ? token : null;
     };
-    return await Promise.race([fetchToken(), timeout]);
+    const result = await Promise.race([fetchToken(), timeout]);
+    if (result) lastFailure = null;
+    else if (!lastFailure) lastFailure = "empty";
+    return result;
   } catch (err) {
+    lastFailure = `reject:${cleanReason(errorText(err))}`;
+    const platform = Capacitor.getPlatform();
     // An unpatched plugin lacks the method entirely — a build problem, not a device one.
-    if (err && typeof err === "object" && "code" in err && err.code === "UNIMPLEMENTED") {
-      void captureError(err, { where: "app-attest-client.getLimitedUseToken" });
-    }
+    const unimplemented = err && typeof err === "object" && "code" in err && err.code === "UNIMPLEMENTED";
+    void captureError(err, { where: "app-attest-client.getLimitedUseToken", platform, unimplemented });
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Records that a token resolved only after the form was already submitted (so it was dropped). */
+export function noteLateAttestation(elapsedMs: number): void {
+  lastFailure = `late:${Math.round(elapsedMs)}`;
+}
+
+/** Records that the form was submitted while the token fetch was still running. */
+export function noteAttestationPending(): void {
+  lastFailure ??= "pending";
+}
+
+/**
+ * Adds the last failure reason as field `e` to a `yk-app-meta` JSON string.
+ * Untrusted telemetry only: the server whitelists, caps and never trusts it.
+ */
+export function withAttestReason(meta: string | null): string | null {
+  if (!meta || !lastFailure || !Capacitor.isNativePlatform()) return meta;
+  try {
+    return JSON.stringify({ ...(JSON.parse(meta) as Record<string, unknown>), e: lastFailure });
+  } catch {
+    return meta;
   }
 }
 

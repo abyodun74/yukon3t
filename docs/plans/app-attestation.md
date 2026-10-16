@@ -177,6 +177,8 @@ When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "u
 
 **iOS:** TestFlight on a real iPhone, same checks via Safari Web Inspector; Simulator → App Attest unsupported → Turnstile; watch Firebase App Check metrics.
 
+**iOS "absent" diagnostic (2026-10-16, web-only telemetry):** the client records why a token was missing as `yk-app-meta` field `e` (`reject:<native error>`, `timeout:<ms>`, `late:<ms>`, `pending`, `init:<msg>`, `empty`; capped at 100 chars, never trusted). Read it in Neon: `SELECT "createdAt", metadata FROM "AnalyticsEvent" WHERE type='APP_ATTESTATION' ORDER BY "createdAt" DESC LIMIT 10;` and look at `metadata.meta.e`.
+
 **Web:** desktop and mobile browsers exactly as today — button, no `yk-app-attest`.
 
 **App review:** Turnstile runs before the user lookup in `loginWithPassword`, so the `isAppReviewDemo` bypass doesn't touch it. **Add no demo-account attestation bypass.** Reviewers on real devices should pass; otherwise they get today's Turnstile tap. Google pre-launch (Test Lab) devices will likely fall back to Turnstile.

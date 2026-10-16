@@ -4,7 +4,16 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ShieldCheck } from "lucide-react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 import { APP_ATTEST_FIELD, APP_META_FIELD, appAttestMode } from "@/lib/app-attest-shared";
-import { basicAppMeta, canAttest, getAppMeta, getAttestationToken, isNativeApp } from "@/lib/app-attest-client";
+import {
+  basicAppMeta,
+  canAttest,
+  getAppMeta,
+  getAttestationToken,
+  isNativeApp,
+  noteAttestationPending,
+  noteLateAttestation,
+  withAttestReason,
+} from "@/lib/app-attest-client";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -177,6 +186,9 @@ export function TurnstileWidget({
     const observing = attest && appAttestMode() === "observe";
     // Observe mode: a token fetched on the tap, sent with the next submit if ready.
     let observedToken: string | null = null;
+    // Diagnostic only: a token fetch still running / resolving after the submit.
+    let observePending = false;
+    let submittedWhilePending = false;
     // Enforce mode: a token fetch already under way (started on first focus or on submit).
     let pendingAttestation: Promise<string | null> | null = null;
     let attestInFlight = false;
@@ -218,8 +230,14 @@ export function TurnstileWidget({
     // The tap: only now does Cloudflare run its check.
     function startCheck() {
       if (observing && canAttest()) {
+        const startedAt = Date.now();
+        observePending = true;
+        submittedWhilePending = false;
         void getAttestationToken().then((token) => {
-          if (!cancelled) observedToken = token;
+          observePending = false;
+          if (cancelled) return;
+          observedToken = token;
+          if (token && submittedWhilePending) noteLateAttestation(Date.now() - startedAt);
         });
       }
       setNotice(null);
@@ -279,7 +297,11 @@ export function TurnstileWidget({
     }
 
     function handleSubmit(e: Event) {
-      if (metaInputRef.current) metaInputRef.current.value = metaValue ?? basicAppMeta() ?? "";
+      if (observePending) {
+        submittedWhilePending = true;
+        noteAttestationPending();
+      }
+      if (metaInputRef.current) metaInputRef.current.value = withAttestReason(metaValue ?? basicAppMeta()) ?? "";
 
       const attestInput = attestInputRef.current;
       if (attestingRef.current && attestInput && form) {
