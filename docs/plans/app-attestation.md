@@ -263,3 +263,5 @@ Observe mode only records outcomes; the Turnstile decision was unchanged. Sidelo
 **iOS SwiftPM collision (found on the first real Mac/Xcode resolve):** the local `app-check` plugin path shadowed google/app-check (identity from last path component) and broke `-resolvePackageDependencies`. Fixed by `scripts/fix-ios-spm-package-names.mjs`, which copies the plugin to `ios/App/LocalPackages/CapacitorFirebaseAppCheck` on `npm run cap:sync:ios`.
 
 **Remaining before enforce:** promote 1.26 to production (staged), let adoption build, then check `ok` >= ~98% per platform and `unavailable` ~ 0 over 7 days; iOS needs App Attest and App Group registered in the Apple portal, then a Codemagic run.
+
+**iOS Phase 1 upload (2026-10-16):** first iOS Phase 1 build uploaded as version 1.1 (1), built in Xcode on a Mac (version 1.0 was already approved, so 1.0 was rejected at upload); awaiting TestFlight install + Neon `ok` row verification.

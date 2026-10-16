@@ -45,7 +45,9 @@ workflows:
       - name: Bump the build number
         script: |
           # App Store Connect rejects a re-used build number for a given
-          # MARKETING_VERSION (currently 1.0, see project.pbxproj) — bump
+          # MARKETING_VERSION (currently 1.1, see project.pbxproj; 1.0 is already live, so
+          # every new store upload needs a higher version: bump MARKETING_VERSION there per
+          # App Store release) — bump
           # CURRENT_PROJECT_VERSION (currently 1) on every CI run using
           # Codemagic's own incrementing build counter so this never
           # collides, without hand-editing the .pbxproj per release.
