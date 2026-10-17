@@ -11,6 +11,7 @@ import type {
 } from "@daily-co/daily-js";
 import { Capacitor } from "@capacitor/core";
 import { useCallsText } from "@/components/calls-text";
+import { trackDailyDestroy } from "@/lib/call-prewarm";
 import { callsEn } from "@/lib/i18n/en/calls";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -321,7 +322,7 @@ export function CallFrame({
         if (handleParticipantUpdated) call.off("participant-updated", handleParticipantUpdated);
         if (handleJoinedMeeting) call.off("joined-meeting", handleJoinedMeeting);
         onCallObject?.(null);
-        call.destroy();
+        void trackDailyDestroy(call.destroy());
         callRef.current = null;
       }
     };

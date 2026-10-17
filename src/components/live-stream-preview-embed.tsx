@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import { joinLiveStream, leaveLiveStream } from "@/app/actions/live-streams";
 import { useFeedText } from "@/components/feed-text";
+import { trackDailyDestroy } from "@/lib/call-prewarm";
 
 /**
  * The actual ongoing stream, playing inside a Home-feed card
@@ -62,7 +63,7 @@ export function LiveStreamPreviewEmbed({
         call.off("participant-joined", refreshHostTrack);
         call.off("participant-updated", refreshHostTrack);
         call.off("participant-left", refreshHostTrack);
-        call.destroy();
+        void trackDailyDestroy(call.destroy());
         call = null;
       }
       if (joinedAsViewer) {

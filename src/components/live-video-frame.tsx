@@ -5,6 +5,7 @@ import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff } from "lucid
 import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } from "@daily-co/daily-js";
 import { useCallsText } from "@/components/calls-text";
 import { format } from "@/lib/i18n/locales";
+import { trackDailyDestroy } from "@/lib/call-prewarm";
 
 // Module scope (not inside LiveVideoFrame) so both it and the separate
 // ParticipantTile component below can call it — ParticipantTile needs its
@@ -133,7 +134,7 @@ export function LiveVideoFrame({
         if (handleRecordingStarted) c.off("recording-started", handleRecordingStarted);
         if (handleRecordingStopped) c.off("recording-stopped", handleRecordingStopped);
         onCallObject?.(null);
-        c.destroy();
+        void trackDailyDestroy(c.destroy());
         callRef.current = null;
       }
     };

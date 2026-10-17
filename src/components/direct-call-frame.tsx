@@ -24,7 +24,7 @@ import {
   shouldAnnounceCameraPaused,
 } from "@/lib/call-resilience";
 import { captureError } from "@/lib/error-tracking";
-import { takePrewarmedCall } from "@/lib/call-prewarm";
+import { createCallObjectWhenReady, takePrewarmedCall, trackDailyDestroy } from "@/lib/call-prewarm";
 import { hapticSelection, hapticImpact } from "@/lib/haptics";
 import { UserAvatar } from "@/components/user-link";
 import { useCallsText } from "@/components/calls-text";
@@ -533,13 +533,18 @@ export function DirectCallFrame({
       // which can't happen during this "use client" component's initial
       // server-rendered pass.
       import("@daily-co/daily-js")
-        .then(({ default: DailyIframe }) => {
-          if (cancelled) return;
-
-          // avoidEval: true — this app's CSP (src/proxy.ts) never allows
-          // 'unsafe-eval' in production; without this the call object fails to
-          // initialize (same requirement live-video-frame.tsx already has).
-          const c = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
+        // Waits out any previous Daily instance's teardown first, and
+        // retries a createCallObject() that still refuses — see
+        // call-prewarm.ts.
+        .then(({ default: DailyIframe }) => createCallObjectWhenReady(DailyIframe, () => cancelled))
+        .then((c) => {
+          if (!c) return;
+          if (cancelled) {
+            // Unmounted between creating it and getting here: the cleanup
+            // below had nothing to destroy yet.
+            void trackDailyDestroy(c.destroy());
+            return;
+          }
           call = c;
           callRef.current = c;
           attach(c);
@@ -564,11 +569,13 @@ export function DirectCallFrame({
         .catch((err: unknown) => {
           if (cancelled) return;
           // No call object at all — the daily-js chunk didn't load, or
-          // createCallObject refused (it throws while another instance
-          // still exists). There's nothing to retry join() on, so this is
-          // the one failure that's only reported; the user can hang up, and
-          // the other side's grace period ends the call otherwise.
+          // createCallObject kept refusing (it throws while another
+          // instance still exists) past its own retries. There's nothing to
+          // retry join() on, so this is the one failure that's only
+          // reported; the user can hang up, and the other side's grace
+          // period ends the call otherwise.
           console.error("Daily call setup failed:", err);
+          void captureError(err, { component: "direct-call-frame", stage: "setup", message: String(err) });
           setJoinError("join");
         });
     }
@@ -586,7 +593,7 @@ export function DirectCallFrame({
       prewarmed
         .then((c) => {
           if (cancelled) {
-            c.destroy();
+            void trackDailyDestroy(c.destroy());
             return;
           }
           call = c;
@@ -623,6 +630,7 @@ export function DirectCallFrame({
           // bounded retry as any other failed first join, instead of the
           // call sitting on an error it could have recovered from.
           console.error("Prewarmed Daily call join failed, starting fresh:", err);
+          void captureError(err, { component: "direct-call-frame", stage: "prewarm", message: String(err) });
           coldStart();
         });
     } else {
@@ -650,7 +658,7 @@ export function DirectCallFrame({
         c.off("app-message", handleAppMessage);
         c.off("camera-error", handleCameraError);
         onCallObject?.(null);
-        c.destroy();
+        void trackDailyDestroy(c.destroy());
         callRef.current = null;
       }
     };
@@ -727,12 +735,27 @@ export function DirectCallFrame({
   useEffect(() => {
     if (!peerAbsent) return undefined;
     const notice = setTimeout(() => setPeerLossNoticeDue(true), CALL_PEER_LOSS_NOTICE_DELAY_MS);
-    const grace = setTimeout(() => endCallRef.current?.(), CALL_PEER_LOSS_GRACE_MS);
+    const grace = setTimeout(() => {
+      // Nobody else ever made it into the room: the call was answered (or
+      // placed) but never connected end to end — worth knowing about,
+      // unlike a peer who was here and dropped.
+      if (!hadRemote && endCallRef.current) {
+        void captureError(new Error("1:1 call ended: the other side never joined"), {
+          component: "direct-call-frame",
+          stage: "peer-never-joined",
+          type,
+        });
+      }
+      endCallRef.current?.();
+    }, CALL_PEER_LOSS_GRACE_MS);
     return () => {
       clearTimeout(notice);
       clearTimeout(grace);
     };
-  }, [peerAbsent]);
+    // `hadRemote` only ever turns true together with peerAbsent turning
+    // false, and `type` is fixed for the call, so neither restarts a
+    // running grace period.
+  }, [peerAbsent, hadRemote, type]);
   const localVideoTrack = local?.tracks.video.persistentTrack;
 
   // Both of these turned out unreliable on their own — confirmed live on a

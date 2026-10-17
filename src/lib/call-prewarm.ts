@@ -1,7 +1,97 @@
 "use client";
 
+import type Daily from "@daily-co/daily-js";
 import type { DailyCall } from "@daily-co/daily-js";
-import { CALL_STATUS_CHECK_TIMEOUT_MS, settledWithin } from "@/lib/call-resilience";
+import { CALL_STATUS_CHECK_TIMEOUT_MS, reconnectDelayMs, settledWithin } from "@/lib/call-resilience";
+
+/**
+ * daily-js allows one call instance at a time (strictMode, its default):
+ * createCallObject()/createFrame() throw "Duplicate DailyIframe instances
+ * are not allowed" while any other one still exists. destroy() is async —
+ * it runs leave() first and only deregisters the instance at the very end —
+ * so a fire-and-forget destroy() followed straight away by a new call
+ * object (a failed prewarm falling back to a cold start, a call accepted
+ * right after a live-stream preview unmounts) used to fail outright with
+ * "Couldn't join the call". Every destroy() of a Daily instance in this app
+ * goes through trackDailyDestroy, and every new one waits on
+ * readyForNewDailyInstance first.
+ */
+type DailyStatic = Pick<typeof Daily, "getCallInstance" | "createCallObject">;
+
+const pendingDestroys = new Set<Promise<void>>();
+
+/** How long readyForNewDailyInstance waits for tracked destroys to finish before going ahead anyway. */
+export const DAILY_TEARDOWN_WAIT_MS = 10_000;
+
+/** How many times a 1:1 call's cold start tries createCallObject() before giving up on the call. */
+export const CALL_OBJECT_CREATE_ATTEMPTS = 4;
+
+/**
+ * Records a Daily instance's pending destroy() so the next call object can
+ * wait for it (see readyForNewDailyInstance). Returns a promise that settles
+ * when the destroy does and never rejects — a failed destroy is as finished
+ * as it will ever be.
+ */
+export function trackDailyDestroy(destroyed: Promise<unknown>): Promise<void> {
+  const tracked: Promise<void> = destroyed.then(
+    () => undefined,
+    () => undefined,
+  );
+  pendingDestroys.add(tracked);
+  void tracked.then(() => pendingDestroys.delete(tracked));
+  return tracked;
+}
+
+/**
+ * Resolves once a new Daily call object can be created: every tracked
+ * destroy() has finished (or DAILY_TEARDOWN_WAIT_MS has passed). With
+ * `evictStray`, an instance still registered after that — one whose
+ * destroy hung, or one that was never destroyed at all — is destroyed here,
+ * itself bounded by CALL_STATUS_CHECK_TIMEOUT_MS. Never rejects.
+ */
+export async function readyForNewDailyInstance(
+  DailyIframe: Pick<DailyStatic, "getCallInstance">,
+  { evictStray }: { evictStray: boolean },
+) {
+  if (pendingDestroys.size > 0) {
+    await settledWithin(Promise.all(pendingDestroys), DAILY_TEARDOWN_WAIT_MS);
+  }
+  if (!evictStray) return;
+  const stray = DailyIframe.getCallInstance();
+  if (stray) await settledWithin(trackDailyDestroy(stray.destroy()), CALL_STATUS_CHECK_TIMEOUT_MS);
+}
+
+/**
+ * A new call object for DirectCallFrame's cold start, or null if
+ * `isCancelled()` turned true first. The call is what the user just placed
+ * or accepted, so anything still holding Daily's one instance slot (a
+ * live-stream preview, a previous call whose teardown hung) is evicted.
+ * If createCallObject() still throws, it's retried with the reconnect
+ * backoff — CALL_OBJECT_CREATE_ATTEMPTS times at most, never past
+ * CALL_RECONNECT_WINDOW_MS — and the last error is thrown after that.
+ */
+export async function createCallObjectWhenReady(
+  DailyIframe: DailyStatic,
+  isCancelled: () => boolean,
+): Promise<DailyCall | null> {
+  const startedAt = Date.now();
+  for (let attempt = 0; ; attempt += 1) {
+    await readyForNewDailyInstance(DailyIframe, { evictStray: true });
+    if (isCancelled()) return null;
+    try {
+      // avoidEval: true — this app's CSP (src/proxy.ts) never allows
+      // 'unsafe-eval' in production; without this the call object fails to
+      // initialize (same requirement live-video-frame.tsx already has).
+      return DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
+    } catch (err) {
+      const delay =
+        attempt + 1 < CALL_OBJECT_CREATE_ATTEMPTS ? reconnectDelayMs(attempt, Date.now() - startedAt) : null;
+      if (delay === null) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (isCancelled()) return null;
+    }
+  }
+}
 
 /**
  * Lets either side of a 1:1 call join the Daily room early — the caller the
@@ -51,7 +141,13 @@ export function prewarmCall(
   // instead of fetching the chunk twice).
   // `promise` is assigned straight below: the chain it starts needs `entry` itself.
   const entry = { call: null, cancelled: false } as Omit<PrewarmEntry, "promise"> as PrewarmEntry;
-  entry.promise = import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
+  entry.promise = import("@daily-co/daily-js").then(async ({ default: DailyIframe }) => {
+    // A previous call object may still be on its way out. Nothing else is
+    // evicted for a prewarm: it's speculative, and must never tear down a
+    // call or stream the user is actually in. If something still holds the
+    // instance slot, createCallObject() throws, the prewarm fails, and
+    // DirectCallFrame's cold start (which does evict) takes over.
+    await readyForNewDailyInstance(DailyIframe, { evictStray: false });
     // Cancelled while the chunk was still loading: never create the call
     // object at all, so no camera or microphone is ever requested for it.
     if (entry.cancelled) throw new Error("prewarm_cancelled");
@@ -74,7 +170,9 @@ export function prewarmCall(
           // can create one straight away. The wait is bounded so a destroy
           // that hangs can't hold the fallback up indefinitely. Skipped when
           // cancelPrewarm already destroyed it (that is what failed the join).
-          if (!entry.cancelled) await settledWithin(call.destroy(), CALL_STATUS_CHECK_TIMEOUT_MS);
+          // (Tracked either way, so the fallback's readyForNewDailyInstance
+          // keeps waiting on it past this bound.)
+          if (!entry.cancelled) await settledWithin(trackDailyDestroy(call.destroy()), CALL_STATUS_CHECK_TIMEOUT_MS);
           throw err;
         },
       );
@@ -123,7 +221,7 @@ export function cancelPrewarm(key: string) {
   // call's object until this one is gone. Destroying it fails the pending
   // join, which prewarmCall's own rejection path then leaves alone.
   if (entry.call) {
-    entry.call.destroy().catch(() => {});
+    void trackDailyDestroy(entry.call.destroy());
     return;
   }
   // Not created yet (daily-js still loading): prewarmCall sees `cancelled`
