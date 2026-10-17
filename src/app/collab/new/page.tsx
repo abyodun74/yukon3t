@@ -10,7 +10,8 @@ import { MultiSelect } from "@/components/multi-select";
 import { COLLAB_TYPES } from "@/lib/collab-types";
 import { vocabName } from "@/lib/i18n/language-names";
 import { byCode } from "@/lib/i18n/locales";
-import { getDictionary } from "@/lib/i18n/server";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -20,6 +21,7 @@ export default async function NewCollabPostPage({
   const me = await getOnboardedUserOrRedirect();
   const { error } = await searchParams;
   const dictionary = await getDictionary();
+  const locale = await getLocale();
   const t = dictionary.collab.form;
   // The stored value is the English name; only the label a type is shown under follows the reader's language.
   const typeOptions = COLLAB_TYPES.map((type) => ({ value: type, label: vocabName(type, dictionary.vocab.collabTypes) }));
@@ -38,6 +40,7 @@ export default async function NewCollabPostPage({
     .map((c) => (c.requesterId === me.id ? c.target : c.requester))
     .filter((other) => !hiddenPeerIds.has(other.id))
     .map((other) => ({ value: other.id, label: other.name ?? t.unknown }));
+  const circleCandidates = await getOwnedCircleOptions(me.id, locale, dictionary.collab.invites.circleMembers);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-14">
@@ -81,7 +84,7 @@ export default async function NewCollabPostPage({
           </div>
         </div>
         <CollabCountriesField />
-        <CollabVisibilityField candidates={inviteeCandidates} />
+        <CollabVisibilityField candidates={inviteeCandidates} circleCandidates={circleCandidates} />
         <CollabScheduleField />
         <div>
           <label htmlFor="collab-description" className="block text-sm font-medium">

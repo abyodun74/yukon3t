@@ -35,6 +35,7 @@ export const collabEn = {
     errors: {
       rate_limited: "You're posting too fast — try again shortly.",
       moderation: "That didn't pass our content guidelines.",
+      too_large: "A Circle you picked would send more than 200 new invites at once — pick a smaller one.",
       other: "Please check your inputs.",
     },
     editErrors: {
@@ -116,6 +117,15 @@ export const collabEn = {
     inviting: "Inviting...",
     invite: "Invite",
     open: "Invite people",
+    connectionsLabel: "Connections",
+    circleLabel: "Invite a Circle",
+    circleHint: "Only Circles you created. Each member gets their own invite and chooses whether to join.",
+    circlePlaceholder: "Search Circles you created...",
+    circleMembers: "one: # member | other: # members",
+    circleInvited: "one: Invited # member of {circles}. | other: Invited # members of {circles}.",
+    circleNoneNew: "Everyone in that Circle is already invited, already in, or can't be invited.",
+    tooLarge: "That would send more than {max} new invites at once — pick a smaller Circle.",
+    othersHidden: "one: + # more invite from another organizer | other: + # more invites from other organizers",
   },
   inviteResponse: {
     text: "{name} invited you to collaborate — this is a private collaboration, only visible to people invited to it.",

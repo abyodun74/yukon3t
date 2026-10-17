@@ -21,6 +21,8 @@ import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { isCollabAdmin, canViewCollab } from "@/lib/collab-permissions";
+import { splitVisibleInvites } from "@/lib/collab-circle-invite";
+import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
 import { countryName } from "@/lib/i18n/country-names";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
@@ -100,6 +102,44 @@ export default async function CollabDetailPage({
         })
       : [];
 
+  // The organizer's accepted connections: invite candidates, and people this
+  // viewer may see by name in the Invited list (splitVisibleInvites).
+  const acceptedConnectionUsers =
+    canModerate && collab.visibility === "PRIVATE"
+      ? (
+          await prisma.connection.findMany({
+            where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
+            include: {
+              requester: { select: { id: true, name: true } },
+              target: { select: { id: true, name: true } },
+            },
+          })
+        ).map((c) => (c.requesterId === me.id ? c.target : c.requester))
+      : [];
+
+  // Invites sent from a Circle aren't marked as such, so an admin sees an
+  // invitee by name only if they sent that invite, it was accepted, or they
+  // already know the person (connected, or in a Circle together); the rest
+  // are just counted. Keeps a co-admin from reading the member list of
+  // someone else's private Circle off this page.
+  const { visible: visibleInvites, hiddenCount: hiddenInviteCount } = await (async () => {
+    const unknownIds = collabInvites
+      .filter((i) => i.inviterId !== me.id && i.status !== "ACCEPTED")
+      .map((i) => i.inviteeId);
+    const knownIds = new Set(acceptedConnectionUsers.map((u) => u.id));
+    if (unknownIds.length > 0) {
+      const shared = await prisma.circleMembership.findMany({
+        where: {
+          userId: { in: unknownIds.filter((id) => !knownIds.has(id)) },
+          circle: { members: { some: { userId: me.id } } },
+        },
+        select: { userId: true },
+      });
+      for (const row of shared) knownIds.add(row.userId);
+    }
+    return splitVisibleInvites(collabInvites, me.id, knownIds);
+  })();
+
   // Candidates for inviting more people — the organizer's accepted
   // connections, minus anyone already a participant or already invited.
   const inviteCandidates =
@@ -110,18 +150,17 @@ export default async function CollabDetailPage({
             ...collabInvites.map((i) => i.inviteeId),
             ...(await getHiddenPeerIds(me.id)),
           ]);
-          const accepted = await prisma.connection.findMany({
-            where: { status: "ACCEPTED", OR: [{ requesterId: me.id }, { targetId: me.id }] },
-            include: {
-              requester: { select: { id: true, name: true } },
-              target: { select: { id: true, name: true } },
-            },
-          });
-          return accepted
-            .map((c) => (c.requesterId === me.id ? c.target : c.requester))
+          return acceptedConnectionUsers
             .filter((u) => !excludeIds.has(u.id))
             .map((u) => ({ value: u.id, label: u.name ?? t.form.unknown }));
         })()
+      : [];
+
+  // Circles whose members can be invited in one go — only ones this viewer
+  // created (see expandCircleInvites), whatever their collab role.
+  const circleCandidates =
+    canModerate && collab.visibility === "PRIVATE"
+      ? await getOwnedCircleOptions(me.id, locale, t.invites.circleMembers)
       : [];
 
   const myPendingJoinRequest =
@@ -328,8 +367,11 @@ export default async function CollabDetailPage({
       {canModerate && collab.visibility === "PRIVATE" && (
         <CollabInviteManager
           collabId={collab.id}
-          invites={collabInvites}
+          invites={visibleInvites.map((i) => ({ id: i.id, status: i.status, invitee: i.invitee }))}
+          totalCount={collabInvites.length}
+          hiddenCount={hiddenInviteCount}
           candidates={inviteCandidates}
+          circleCandidates={circleCandidates}
         />
       )}
 

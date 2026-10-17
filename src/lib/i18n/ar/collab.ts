@@ -33,6 +33,7 @@ export const collab: typeof collabEn = {
     errors: {
       rate_limited: "أنت تنشر بسرعة كبيرة. حاول مرة أخرى بعد لحظات.",
       moderation: "هذا المحتوى لا يتوافق مع إرشادات المحتوى لدينا.",
+      too_large: "سيُرسل Circle الذي اخترته أكثر من 200 دعوة جديدة دفعة واحدة. اختر Circle أصغر.",
       other: "يُرجى التحقق من البيانات التي أدخلتها.",
     },
     editErrors: {
@@ -114,6 +115,15 @@ export const collab: typeof collabEn = {
     inviting: "جارٍ إرسال الدعوات...",
     invite: "دعوة",
     open: "دعوة أشخاص",
+    connectionsLabel: "جهات الاتصال",
+    circleLabel: "دعوة Circle",
+    circleHint: "Circles التي أنشأتها فقط. تصل إلى كل عضو دعوة خاصة به، وهو من يقرّر الانضمام أو عدمه.",
+    circlePlaceholder: "ابحث في Circles التي أنشأتها...",
+    circleMembers: "zero: لا أعضاء | one: عضو واحد | two: عضوان | few: # أعضاء | many: # عضوًا | other: # عضو",
+    circleInvited: "zero: لم تُرسَل دعوات إلى أعضاء {circles}. | one: أُرسلت دعوة إلى عضو واحد من {circles}. | two: أُرسلت دعوتان إلى عضوين من {circles}. | few: أُرسلت دعوات إلى # أعضاء من {circles}. | many: أُرسلت دعوات إلى # عضوًا من {circles}. | other: أُرسلت دعوات إلى # عضو من {circles}.",
+    circleNoneNew: "كل أعضاء هذا Circle مدعوون أو مشاركون بالفعل، أو لا يمكن دعوتهم.",
+    tooLarge: "سيؤدي ذلك إلى إرسال أكثر من {max} دعوة جديدة دفعة واحدة. اختر Circle أصغر.",
+    othersHidden: "zero: لا دعوات أخرى | one: + دعوة أخرى من منظِّم آخر | two: + دعوتان أخريان من منظِّمين آخرين | few: + # دعوات أخرى من منظِّمين آخرين | many: + # دعوة أخرى من منظِّمين آخرين | other: + # دعوة أخرى من منظِّمين آخرين",
   },
   inviteResponse: {
     text: "دعوة من {name} للتعاون. هذا مشروع تعاوني خاص لا يراه إلا المدعوون إليه.",

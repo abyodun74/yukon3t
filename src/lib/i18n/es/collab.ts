@@ -33,6 +33,7 @@ export const collab: typeof collabEn = {
     errors: {
       rate_limited: "Estás publicando muy rápido. Inténtalo de nuevo en un momento.",
       moderation: "Eso no cumple nuestras normas de contenido.",
+      too_large: "Un Circle que elegiste enviaría más de 200 invitaciones nuevas a la vez. Elige uno más pequeño.",
       other: "Revisa los datos que ingresaste.",
     },
     editErrors: {
@@ -115,6 +116,15 @@ export const collab: typeof collabEn = {
     inviting: "Invitando...",
     invite: "Invitar",
     open: "Invitar personas",
+    connectionsLabel: "Contactos",
+    circleLabel: "Invitar a un Circle",
+    circleHint: "Solo Circles que creaste. Cada miembro recibe su propia invitación y decide si se une.",
+    circlePlaceholder: "Buscar Circles que creaste...",
+    circleMembers: "one: # miembro | other: # miembros",
+    circleInvited: "one: Invitaste a # miembro de {circles}. | other: Invitaste a # miembros de {circles}.",
+    circleNoneNew: "Todos los miembros de ese Circle ya están invitados, ya participan o no se les puede invitar.",
+    tooLarge: "Eso enviaría más de {max} invitaciones nuevas a la vez. Elige un Circle más pequeño.",
+    othersHidden: "one: + # invitación más de otro organizador | other: + # invitaciones más de otros organizadores",
   },
   inviteResponse: {
     text: "{name} te invitó a colaborar. Es una colaboración privada, visible solo para las personas invitadas.",

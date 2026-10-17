@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
+import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -361,6 +362,9 @@ export const collabPostSchema = z
     // Only meaningful (and required) when visibility is PRIVATE — who the
     // organizer is inviting up front. See createCollabPost.
     inviteeIds: z.array(z.string().cuid()).max(50).optional().default([]),
+    // Circles (that the organizer created) whose members are invited too —
+    // see selectCircleInvitees in lib/collab-circle-invite.ts.
+    circleIds: z.array(z.string().cuid()).max(COLLAB_CIRCLE_IDS_MAX).optional().default([]),
     // Optional recurring session schedule — see CollabBoardPost.scheduleDays's
     // own doc comment on why both are entered directly in UTC. Either both
     // are set (a schedule) or neither is (no schedule) — enforced below.
@@ -378,8 +382,8 @@ export const collabPostSchema = z
     message: "Pick at least one country, or mark this worldwide.",
     path: ["countries"],
   })
-  .refine((data) => data.visibility !== "PRIVATE" || data.inviteeIds.length > 0, {
-    message: "Invite at least one person, or make this collaboration public.",
+  .refine((data) => data.visibility !== "PRIVATE" || data.inviteeIds.length > 0 || data.circleIds.length > 0, {
+    message: "Invite at least one person or Circle, or make this collaboration public.",
     path: ["inviteeIds"],
   })
   .refine((data) => data.scheduleDays.length === 0 || !!data.scheduleTime, {
@@ -391,9 +395,15 @@ export const collabPostSchema = z
     path: ["scheduleDays"],
   });
 
-export const collabInviteSchema = z.object({
-  inviteeIds: z.array(z.string().cuid()).min(1).max(50),
-});
+export const collabInviteSchema = z
+  .object({
+    inviteeIds: z.array(z.string().cuid()).max(50),
+    circleIds: z.array(z.string().cuid()).max(COLLAB_CIRCLE_IDS_MAX),
+  })
+  .refine((data) => data.inviteeIds.length > 0 || data.circleIds.length > 0, {
+    message: "Pick at least one person or Circle to invite.",
+    path: ["inviteeIds"],
+  });
 
 export const adBookingSchema = z.object({
   companyName: z.string().trim().min(2).max(100),

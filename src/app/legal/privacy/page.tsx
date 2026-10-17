@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 16, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 17, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -68,6 +68,7 @@ export default function PrivacyPage() {
         <li>To create and operate your account, and to authenticate sign-ins via emailed magic links or, if you choose, a username and password.</li>
         <li>To confirm you meet our minimum age requirement before your account is created.</li>
         <li>To operate core features: Circles, Channels, Collab Boards, Stories, Discover matching, connections, messaging, and voice/video calls and live sessions.</li>
+        <li>To let a Circle&apos;s owner invite that Circle&apos;s members to a private collaboration: being a member of a Circle means its owner can send you a collaboration invite even if you aren&apos;t connected, which you can decline.</li>
         <li>To deliver push notifications you&apos;ve enabled, such as incoming calls, new messages, and event reminders.</li>
         <li>To automatically screen text, photos, and video — including ad creative — for policy violations before they are shown to others.</li>
         <li>To investigate reports, enforce our Community Guidelines, and maintain an audit trail of moderation decisions.</li>

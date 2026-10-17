@@ -139,6 +139,9 @@ const limiterDefinitions = {
   circleModerate: makeLimiter(30, "10 m"),
   channelManage: makeLimiter(30, "10 m"),
   collabModerate: makeLimiter(30, "10 m"),
+  // Inviting whole Circles to a collab: each request can notify up to 200
+  // people (COLLAB_CIRCLE_INVITE_MAX), so it's far tighter than collabModerate.
+  collabCircleInvite: makeLimiter(5, "1 h", "collabCircleInvite"),
   collabSession: makeLimiter(20, "10 m"),
   // Keyed by IP rather than user.id — /advertise takes bookings with no
   // sign-in (see getClientIp), so there's no account identifier to key on.

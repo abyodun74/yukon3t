@@ -33,7 +33,7 @@ export const pt4 = {
   },
   "difference-between-public-private-collab": {
     q: "Qual é a diferença entre um Collab Board público e um privado?",
-    a: "As colaborações **públicas** são anunciadas a todos e listadas no Collab Boards: qualquer pessoa pode tocar em «Pedir para participar», e quem organiza ou um coadmin analisa cada pedido (Aprovar/Recusar) antes de liberar o acesso. As colaborações **privadas** são apenas por convite: quem organiza escolhe conexões específicas para convidar, ao publicar ou depois, por «Convidar pessoas» na página da colaboração, e elas nunca são listadas nem aparecem na busca; só quem organiza e quem foi convidado ou já entrou consegue vê-las. Uma pessoa convidada vê um aviso para aceitar ou recusar na página da colaboração até responder.",
+    a: "As colaborações **públicas** são anunciadas a todos e listadas no Collab Boards: qualquer pessoa pode tocar em «Pedir para participar», e quem organiza ou um coadmin analisa cada pedido (Aprovar/Recusar) antes de liberar o acesso. As colaborações **privadas** são apenas por convite: quem organiza escolhe conexões específicas para convidar, ao publicar ou depois, por «Convidar pessoas» na página da colaboração, e elas nunca são listadas nem aparecem na busca; só quem organiza e quem foi convidado ou já entrou consegue vê-las. Você também pode convidar um Circle inteiro que tenha criado: cada um dos membros atuais recebe o próprio convite, e ninguém entra sem aceitar. Uma pessoa convidada vê um aviso para aceitar ou recusar na página da colaboração até responder.",
   },
   "starting-joining-collab-session-work": {
     q: "Como funciona começar uma sessão do Collab ou entrar em uma?",
@@ -57,7 +57,7 @@ export const pt4 = {
   },
   "invite-someone-private-collaboration-approve": {
     q: "Como convido alguém para uma colaboração privada ou aprovo um pedido para entrar em uma pública?",
-    a: "Em uma colaboração privada, quem organiza ou um coadmin toca em «Convidar pessoas» na página dela e busca entre as próprias conexões; uma lista de pessoas convidadas na página mostra a situação de cada convite (pendente, entrou ou recusado). Em uma pública, os pedidos pendentes aparecem em uma lista de pedidos de entrada na página, com os botões Aprovar e Recusar; ao aprovar, a pessoa passa a participar na hora.",
+    a: "Em uma colaboração privada, quem organiza ou um coadmin toca em «Convidar pessoas» na página dela e busca entre as próprias conexões, ou escolhe até cinco Circles que criou em «Convidar um Circle» (até 200 novos convites por vez). Cada membro do Circle recebe o próprio convite e decide se aceita; quem já foi convidado, quem recusou antes e quem tem um bloqueio fica de fora. Uma lista de pessoas convidadas na página mostra a situação de cada convite (pendente, entrou ou recusado); convites que outro coadmin enviou a pessoas que você não conhece aparecem só como um número, sem nomes. Em uma pública, os pedidos pendentes aparecem em uma lista de pedidos de entrada na página, com os botões Aprovar e Recusar; ao aprovar, a pessoa passa a participar na hora.",
   },
   "edit-collab-board-after-ive": {
     q: "Posso editar um Collab Board depois de publicar?",

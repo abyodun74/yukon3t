@@ -1551,9 +1551,11 @@ const sections: Section[] = [
             posting or later via &ldquo;Invite people&rdquo; on the
             collaboration&apos;s page, and they&apos;re never listed or
             searchable — only the organizer and whoever&apos;s been invited
-            or already joined can see them at all. An invited person sees an
-            Accept/Decline banner on the collaboration&apos;s page until they
-            respond.
+            or already joined can see them at all. You can also invite a
+            whole Circle you created: each of its current members gets their
+            own invite, and nobody joins unless they accept. An invited person
+            sees an Accept/Decline banner on the collaboration&apos;s page
+            until they respond.
           </>
         ),
       },
@@ -1652,8 +1654,14 @@ const sections: Section[] = [
           <>
             For a private collaboration, the organizer or a co-admin taps
             &ldquo;Invite people&rdquo; on its page and searches their
-            connections — an &ldquo;Invited&rdquo; list on the page shows
-            each invite&apos;s status (pending, joined, or declined). For a
+            connections, or picks up to five Circles they created under
+            &ldquo;Invite a Circle&rdquo; (up to 200 new invites at a time).
+            Each Circle member gets their own invite and still chooses
+            whether to accept; anyone already invited, anyone who declined
+            before, and anyone blocked is skipped. The &ldquo;Invited&rdquo;
+            list on the page shows each invite&apos;s status (pending, joined,
+            or declined) — invites a co-admin sent to people you don&apos;t
+            know are only counted, not named. For a
             public one, pending requests show up in a &ldquo;Join
             requests&rdquo; list on the page with Approve/Decline buttons —
             approving adds them as a participant right away.

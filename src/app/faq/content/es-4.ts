@@ -33,7 +33,7 @@ export const es4 = {
   },
   "difference-between-public-private-collab": {
     q: "¿Qué diferencia hay entre un Collab Board público y uno privado?",
-    a: "Las colaboraciones **públicas** se anuncian a todos y aparecen en Collab Boards: cualquiera puede tocar «Solicitar unirme», y quien organiza o un coadmin revisa cada solicitud (Aprobar/Rechazar) antes de dar acceso. Las colaboraciones **privadas** son solo por invitación: quien organiza elige a contactos concretos para invitarlos, ya sea al publicarla o más tarde con «Invitar personas» en la página de la colaboración, y nunca aparecen en listas ni en búsquedas; solo pueden verlas quien organiza y quienes fueron invitados o ya se unieron. Una persona invitada ve un aviso para aceptar o rechazar en la página de la colaboración hasta que responde.",
+    a: "Las colaboraciones **públicas** se anuncian a todos y aparecen en Collab Boards: cualquiera puede tocar «Solicitar unirme», y quien organiza o un coadmin revisa cada solicitud (Aprobar/Rechazar) antes de dar acceso. Las colaboraciones **privadas** son solo por invitación: quien organiza elige a contactos concretos para invitarlos, ya sea al publicarla o más tarde con «Invitar personas» en la página de la colaboración, y nunca aparecen en listas ni en búsquedas; solo pueden verlas quien organiza y quienes fueron invitados o ya se unieron. También puedes invitar a un Circle entero que hayas creado: cada uno de sus miembros actuales recibe su propia invitación y nadie se une si no la acepta. Una persona invitada ve un aviso para aceptar o rechazar en la página de la colaboración hasta que responde.",
   },
   "starting-joining-collab-session-work": {
     q: "¿Cómo funciona empezar una sesión de Collab o unirse a una?",
@@ -57,7 +57,7 @@ export const es4 = {
   },
   "invite-someone-private-collaboration-approve": {
     q: "¿Cómo invito a alguien a una colaboración privada o apruebo una solicitud para unirse a una pública?",
-    a: "En una colaboración privada, quien organiza o un coadmin toca «Invitar personas» en su página y busca entre sus contactos; una lista de personas invitadas en la página muestra el estado de cada invitación (pendiente, se unió o rechazada). En una pública, las solicitudes pendientes aparecen en una lista de solicitudes para unirse en la página, con los botones Aprobar y Rechazar. Al aprobar a alguien, pasa a participar de inmediato.",
+    a: "En una colaboración privada, quien organiza o un coadmin toca «Invitar personas» en su página y busca entre sus contactos, o elige hasta cinco Circles que haya creado en «Invitar a un Circle» (hasta 200 invitaciones nuevas a la vez). Cada miembro del Circle recibe su propia invitación y decide si la acepta; se omite a quien ya estaba invitado, a quien rechazó antes y a quien tenga un bloqueo. Una lista de personas invitadas en la página muestra el estado de cada invitación (pendiente, se unió o rechazada); las invitaciones que otro coadmin envió a personas que no conoces solo se cuentan, sin nombres. En una pública, las solicitudes pendientes aparecen en una lista de solicitudes para unirse en la página, con los botones Aprobar y Rechazar. Al aprobar a alguien, pasa a participar de inmediato.",
   },
   "edit-collab-board-after-ive": {
     q: "¿Puedo editar un Collab Board después de publicarlo?",
