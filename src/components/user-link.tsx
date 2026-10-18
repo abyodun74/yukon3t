@@ -5,6 +5,7 @@ import { useUiText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
+import { useImageFallback } from "@/lib/use-image-fallback";
 
 /**
  * Circular avatar — a person's photo if they have one, otherwise their
@@ -27,19 +28,21 @@ export function UserAvatar({
   online?: boolean;
 }) {
   const { locale, t } = useUiText();
+  // A picture that fails to load shows the initial instead of a broken-image icon (see useImageFallback).
+  const image = useImageFallback(avatarUrl, markImageLoadedIfComplete);
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       <div
         className={cn("h-full w-full overflow-hidden rounded-full border border-line bg-surface", className)}
       >
-        {avatarUrl ? (
+        {image.show && avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
             alt={name ? format(t.profilePhoto, { name }) : ""}
             loading="lazy"
             decoding="async"
-            ref={markImageLoadedIfComplete}
+            {...image.imgProps}
             onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
             // Profile pictures aren't saveable in-app (see protected-image.ts).
             {...protectedImageProps("img-fade-in h-full w-full object-cover")}

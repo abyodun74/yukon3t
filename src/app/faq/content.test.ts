@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import { FAQ_CONTENT } from "./content";
 import { FAQ_IDS, FAQ_SECTION_IDS } from "./ids";
 import { FAQ_MARKUP, answerLinks } from "./markup";
+import { PRIVATE_AVATARS_NOTE } from "./content/private-avatars";
 
 // The English FAQ is JSX in page.tsx, which a node test can't import (it reads the session). Its ids are read from
 // the source instead: every `id: "…"` in the `sections` array, in order, sections first.
@@ -91,5 +92,20 @@ describe.each(LANGUAGES)("FAQ in %s", (language) => {
       const found = content.items[id].a.match(/\d+/g) ?? [];
       for (const number of numbers) expect(found, `${id}: ${number}`).toContain(number);
     }
+  });
+});
+
+describe("private profile pictures note", () => {
+  it("exists in every language, as plain text the page can draw", () => {
+    for (const language of ["en", ...LANGUAGES] as const) {
+      const note = PRIVATE_AVATARS_NOTE[language];
+      expect(note.trim(), language).not.toBe("");
+      expect(note, language).not.toMatch(/[*`[\]]|\n/);
+    }
+  });
+
+  it("is attached to the profile-picture entry", () => {
+    const entry = sectionsSource.slice(sectionsSource.indexOf('id: "save-someones-profile-picture"'));
+    expect(entry.slice(0, entry.indexOf("a: ("))).toContain("privateAvatarsNote: true");
   });
 });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { isAvatarPrivateUploadEnabled } from "@/lib/storage";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { ReportTrigger } from "@/components/report-form";
@@ -259,6 +260,7 @@ export default async function PublicProfilePage({
             }))}
             interestOptions={INTERESTS.map((i) => ({ value: i, label: interestName(i, dictionary.vocab.interests) }))}
             multiSelectLabels={dictionary.shared.multiSelect}
+            privateAvatarUpload={isAvatarPrivateUploadEnabled()}
           />
         </div>
       ) : iBlockedThem ? (

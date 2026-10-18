@@ -22,6 +22,7 @@ export function EditProfileForm({
   languageOptions,
   interestOptions,
   multiSelectLabels,
+  privateAvatarUpload = false,
 }: {
   user: {
     avatarUrl: string | null;
@@ -36,6 +37,8 @@ export function EditProfileForm({
   languageOptions: Option[];
   interestOptions: Option[];
   multiSelectLabels: typeof sharedEn.multiSelect;
+  /** AVATAR_PRIVATE is on: new profile pictures go to the private bucket (see AvatarUpload). */
+  privateAvatarUpload?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { t } = useProfileText();
@@ -71,7 +74,7 @@ export function EditProfileForm({
       <div className="mt-4">
         <label className="block text-sm font-medium">{t.edit.picture}</label>
         <div className="mt-2">
-          <AvatarUpload currentUrl={user.avatarUrl} />
+          <AvatarUpload currentUrl={user.avatarUrl} privateUpload={privateAvatarUpload} />
         </div>
       </div>
 

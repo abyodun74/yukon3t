@@ -238,6 +238,10 @@ const limiterDefinitions = {
   // Reading poll pages: "Load more", and the refetch a live poll signal triggers (each open page at most once per
   // POLL_SIGNAL_COOLDOWN_MS, plus focus resyncs), so this only stops a client hammering it.
   pollList: makeLimiter(120, "1 m", "pollList"),
+  // Private profile pictures (/api/avatar/…, per signed-in user): one request per distinct avatar a screen shows,
+  // since the browser caches each redirect for ~50 minutes. A busy hour of feed, comments, search and lists stays well
+  // under this; a scraper walking every profile doesn't. Over it, avatars fall back to initials, nothing else breaks.
+  avatarView: makeLimiter(600, "1 h", "avatarView"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

@@ -355,6 +355,17 @@ export const confirmAvatarUploadSchema = z.object({
   publicUrl: z.string().url(),
 });
 
+// Private profile pictures (AVATAR_PRIVATE): one content type for both sizes (the client encodes them the same way),
+// then the two upload keys it was given. Ownership/shape of the keys is checked again with isPrivateKeyOwnedBy.
+export const requestPrivateAvatarUploadSchema = z.object({
+  contentType: z.string().trim().min(1).max(100),
+});
+
+export const confirmPrivateAvatarUploadSchema = z.object({
+  thumbKey: z.string().trim().min(1).max(200),
+  fullKey: z.string().trim().min(1).max(200),
+});
+
 export const confirmCircleCoverUploadSchema = z.object({
   circleId: z.string().cuid(),
   key: z.string().trim().min(1).max(500),

@@ -6,6 +6,7 @@ import {
   completeMultipartUpload,
   abortMultipartUpload,
   discardUploads,
+  requestPrivateAvatarUpload,
 } from "@/app/actions/media";
 import { requestViewOnceUpload } from "@/app/actions/view-once";
 import type { UploadKind } from "@/lib/storage";
@@ -37,7 +38,16 @@ const IMAGE_RESIZE_QUALITY = 0.85;
  * and fails open (returns the original file) on any error — never blocks
  * an upload over a resize/re-encode failure.
  */
-export async function resizeImageFile(file: File): Promise<File> {
+export function resizeImageFile(file: File): Promise<File> {
+  return resizeImageToMax(file, MAX_IMAGE_DIMENSION);
+}
+
+/**
+ * resizeImageFile with a caller-chosen long-side cap (private avatars upload a 320px and a 1080px copy). A separate
+ * function rather than an optional parameter on purpose: resizeImageFile is passed straight to Array.map, whose
+ * index argument would otherwise become the cap.
+ */
+export async function resizeImageToMax(file: File, maxDimension: number): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
   // Drawing onto a <canvas> only ever captures a single frame — running an
   // animated GIF through this would silently flatten it to a still image.
@@ -57,7 +67,7 @@ export async function resizeImageFile(file: File): Promise<File> {
     });
 
     const { naturalWidth: width, naturalHeight: height } = img;
-    const withinCap = width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION;
+    const withinCap = width <= maxDimension && height <= maxDimension;
     if (withinCap && file.type === "image/webp") {
       return file;
     }
@@ -65,7 +75,7 @@ export async function resizeImageFile(file: File): Promise<File> {
     // scale stays 1 (no resize, just re-encode) for anything already
     // within the cap — e.g. a same-size JPEG/PNG/HEIC-as-JPEG being
     // converted to WebP for its own sake, not because it's oversized.
-    const scale = withinCap ? 1 : MAX_IMAGE_DIMENSION / Math.max(width, height);
+    const scale = withinCap ? 1 : maxDimension / Math.max(width, height);
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
@@ -725,6 +735,55 @@ export function probeVideoDuration(file: File): Promise<number | null> {
     };
     probe.onerror = () => finish(null);
   });
+}
+
+export type PrivateAvatarUploadResult =
+  | { ok: true; thumbKey: string; fullKey: string }
+  | { ok: false; error: string };
+
+/**
+ * AVATAR_PRIVATE on: uploads a profile picture's two already-resized images (a ~320px thumbnail and a ~1080px full
+ * image, same content type) to the private avatar bucket through their own presigned PUTs (requestPrivateAvatarUpload).
+ * Not prefetched, batched or recorded like the ordinary uploads. Same retry/timeout treatment as uploadToStorage, and
+ * both are sent from memory (Android's stale-temp-file bug). Never throws.
+ */
+export async function uploadPrivateAvatar(full: File, thumb: File): Promise<PrivateAvatarUploadResult> {
+  if (full.type !== thumb.type) return { ok: false, error: "invalid" };
+  const release = holdReload("work");
+  try {
+    let presigned;
+    try {
+      presigned = await withRetry(
+        () => withTimeout(requestPrivateAvatarUpload({ contentType: full.type }), MIN_ATTEMPT_TIMEOUT_MS),
+        2,
+        800,
+        false,
+        (err) => !isStaleDeploymentError(err),
+      );
+    } catch (err) {
+      return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
+    }
+    if (presigned.error !== null) return { ok: false, error: presigned.error };
+    const { thumbUploadUrl, thumbKey, fullUploadUrl, fullKey } = presigned;
+
+    const put = async (url: string, file: File) => {
+      const body = await file.arrayBuffer();
+      return withRetry(
+        () => fetchWithTimeout(url, { method: "PUT", headers: { "Content-Type": file.type }, body }, attemptTimeoutMs(file.size)),
+        PUT_ATTEMPTS_DEFAULT,
+        800,
+      );
+    };
+    try {
+      const [thumbRes, fullRes] = await Promise.all([put(thumbUploadUrl, thumb), put(fullUploadUrl, full)]);
+      if (!thumbRes.ok || !fullRes.ok) return { ok: false, error: "upload_failed" };
+    } catch {
+      return { ok: false, error: "network" };
+    }
+    return { ok: true, thumbKey, fullKey };
+  } finally {
+    release();
+  }
 }
 
 export type ViewOnceUploadResult =

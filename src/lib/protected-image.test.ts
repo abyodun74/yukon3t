@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { blockImageSave, PROTECTED_IMAGE_CLASS, protectedImageProps } from "./protected-image";
+import { blockImageSave, isFailedImage, PROTECTED_IMAGE_CLASS, protectedImageProps } from "./protected-image";
+
+describe("isFailedImage", () => {
+  it("is true only for an image that finished without pixels", () => {
+    expect(isFailedImage({ complete: true, naturalWidth: 0 })).toBe(true);
+    expect(isFailedImage({ complete: true, naturalWidth: 320 })).toBe(false);
+    // Lazy, not started yet (or still loading).
+    expect(isFailedImage({ complete: false, naturalWidth: 0 })).toBe(false);
+  });
+});
 
 describe("protectedImageProps", () => {
   it("disables native drag and adds the protected class", () => {

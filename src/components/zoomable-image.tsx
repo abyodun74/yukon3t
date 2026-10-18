@@ -46,6 +46,9 @@ export function ZoomableImage({ src, alt = "", protect = false }: { src: string;
         alt={alt}
         // protect: a profile picture (Lightbox's own `protect`) — also no context menu/drag/callout.
         {...(protect ? protectedImageProps(IMAGE_CLASS) : { draggable: false, className: IMAGE_CLASS })}
+        // A profile picture that can't load (e.g. a private one after the session expired) leaves an empty viewer,
+        // not a broken-image icon. Other images keep the browser's usual broken state.
+        onError={protect ? (e) => void (e.currentTarget.style.visibility = "hidden") : undefined}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
           transition: isGesturing ? "none" : "transform 150ms ease-out",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { isViewOnceConfigured } from "@/lib/storage";
+import { isAvatarPrivateUploadEnabled, isViewOnceConfigured } from "@/lib/storage";
 
 const title = "Privacy Policy | YuKon3t";
 const description =
@@ -194,6 +194,22 @@ export default function PrivacyPage() {
           that a view-once photo or video was sent, by whom, when, and whether
           and when it was opened. We cannot prevent the recipient from
           capturing what is on their screen.
+        </p>
+      )}
+      {isAvatarPrivateUploadEnabled() && (
+        <p className="mt-2 text-foreground-soft">
+          <b>Profile pictures.</b> Profile pictures are kept in private
+          storage with no public link, and are shown only to people signed in
+          to YuKon3t (not to anyone you have blocked or who has blocked you).
+          A picture you add is stored as a small version, which signed-in
+          members see, and a larger version, which only you and your
+          connections can open. Both are screened automatically like any
+          other upload. When you change your picture, the previous one is
+          deleted from our storage. A picture added before profile pictures became
+          private may stay reachable at its earlier public address for a
+          limited time until we finish removing those copies. We cannot
+          prevent someone who can see your picture from capturing what is on
+          their screen.
         </p>
       )}
       <p className="mt-2 text-foreground-soft">

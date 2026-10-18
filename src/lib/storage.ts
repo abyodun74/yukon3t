@@ -570,8 +570,12 @@ export function isViewOnceConfigured() {
   );
 }
 
-/** The namespaces a browser uploads into. Deliberately not the one a sent file is kept in (viewOnceFinalKey). */
-export type PrivateObjectPurpose = "view-once" | "view-once-frame";
+/**
+ * The namespaces a browser uploads into. Deliberately not the ones a file is kept in (viewOnceFinalKey, and the
+ * avatar bucket's `avatar/…` keys): those are only ever written by a server-side copy. "avatar-upload" lives in the
+ * avatar bucket (R2_AVATAR_BUCKET_NAME), the others in the view-once bucket.
+ */
+export type PrivateObjectPurpose = "view-once" | "view-once-frame" | "avatar-upload";
 
 /** `${purpose}/${uploaderId}/${uuid}.${ext}` — server-generated and unguessable, with the uploader in the path like every public key. */
 export function privateObjectKey(purpose: PrivateObjectPurpose, userId: string, ext: string) {
@@ -679,4 +683,109 @@ export async function deletePrivateObject(key: string): Promise<boolean> {
 export function keyFromPublicUrl(url: string) {
   const base = process.env.R2_PUBLIC_URL!.replace(/\/$/, "");
   return url.startsWith(base) ? url.slice(base.length + 1) : null;
+}
+
+/** The public URL createUploadUrl hands out for `key` — derived on the server rather than trusted from a client. */
+export function publicUrlForKey(key: string) {
+  return `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
+}
+
+// --- Private avatar bucket (AVATAR_PRIVATE, see src/lib/avatar-url.ts and CLAUDE.md "Profile pictures") ----------
+// A THIRD bucket, not the view-once one: that bucket's required 15-day lifecycle rule deletes everything in it, which
+// would silently wipe every profile picture two weeks after it was set. Same account and credentials, no public
+// domain; the only way to its bytes is a presigned GET minted here (by /api/avatar/… for signed-in users).
+
+export function isAvatarBucketConfigured() {
+  return Boolean(
+    process.env.R2_ACCOUNT_ID &&
+      process.env.R2_ACCESS_KEY_ID &&
+      process.env.R2_SECRET_ACCESS_KEY &&
+      process.env.R2_AVATAR_BUCKET_NAME,
+  );
+}
+
+let warnedAvatarFlagWithoutBucket = false;
+
+/**
+ * Whether NEW profile pictures go to the private avatar bucket. Off unless AVATAR_PRIVATE=1 AND the bucket is
+ * configured; the flag without the bucket is inert (logged once), so a half-configured deploy keeps today's public
+ * uploads instead of breaking them. Serving already-private avatars doesn't depend on this, only on the bucket, so
+ * turning the flag back off never breaks a picture uploaded while it was on.
+ */
+export function isAvatarPrivateUploadEnabled() {
+  if (process.env.AVATAR_PRIVATE !== "1") return false;
+  if (isAvatarBucketConfigured()) return true;
+  if (!warnedAvatarFlagWithoutBucket) {
+    warnedAvatarFlagWithoutBucket = true;
+    console.error("[storage] AVATAR_PRIVATE=1 but R2_AVATAR_BUCKET_NAME is not set; profile pictures stay public");
+  }
+  return false;
+}
+
+function avatarBucket() {
+  if (!isAvatarBucketConfigured()) throw new Error("not_configured");
+  return process.env.R2_AVATAR_BUCKET_NAME!;
+}
+
+/** A presigned PUT for one avatar upload key (`avatar-upload/<userId>/<uuid>.<ext>`), valid 5 minutes like createUploadUrl's. */
+export async function createAvatarUploadUrl({ userId, contentType }: { userId: string; contentType: string }) {
+  const ext = validateContentType("avatar", contentType);
+  if (!ext) throw new Error("invalid_content_type");
+  const key = privateObjectKey("avatar-upload", userId, ext);
+  const uploadUrl = await getSignedUrl(
+    client(),
+    new PutObjectCommand({ Bucket: avatarBucket(), Key: key, ContentType: contentType }),
+    { expiresIn: 300 },
+  );
+  return { uploadUrl, key };
+}
+
+/**
+ * A presigned GET for one avatar object. `signingDate` lets the route sign as of the start of the hour so the URL is
+ * the same for the whole hour (avatarPresignSigningDate); `cacheControl` is what R2 answers the image with.
+ */
+export async function presignAvatarGet(
+  key: string,
+  { expiresIn, signingDate, cacheControl }: { expiresIn: number; signingDate?: Date; cacheControl: string },
+) {
+  return getSignedUrl(
+    client(),
+    new GetObjectCommand({ Bucket: avatarBucket(), Key: key, ResponseCacheControl: cacheControl }),
+    { expiresIn, ...(signingDate ? { signingDate } : {}) },
+  );
+}
+
+/** Size and content type of an avatar-bucket object; null if it does not exist. Any other failure throws. */
+export async function headAvatarObject(key: string): Promise<{ size: number; contentType: string } | null> {
+  try {
+    const head = await client().send(new HeadObjectCommand({ Bucket: avatarBucket(), Key: key }));
+    return { size: head.ContentLength ?? 0, contentType: head.ContentType ?? "" };
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (status === 404) return null;
+    throw err;
+  }
+}
+
+/** Server-side copy inside the avatar bucket (upload key → served key). Throws on failure. */
+export async function copyAvatarObject(sourceKey: string, destinationKey: string) {
+  const bucket = avatarBucket();
+  await client().send(new CopyObjectCommand({ Bucket: bucket, Key: destinationKey, CopySource: `${bucket}/${sourceKey}` }));
+}
+
+/** Writes bytes to an avatar-bucket key (the backfill's copy from the public bucket). Throws on failure. */
+export async function putAvatarObject(key: string, body: Uint8Array, contentType: string) {
+  await client().send(new PutObjectCommand({ Bucket: avatarBucket(), Key: key, Body: body, ContentType: contentType }));
+}
+
+/** Best-effort delete of an avatar-bucket object; says whether R2 confirmed it. Never throws. */
+export async function deleteAvatarObject(key: string): Promise<boolean> {
+  if (!isAvatarBucketConfigured()) return false;
+  try {
+    await client().send(new DeleteObjectCommand({ Bucket: process.env.R2_AVATAR_BUCKET_NAME!, Key: key }));
+    return true;
+  } catch (err) {
+    console.error(`[storage] failed to delete avatar object ${key}`, err);
+    return false;
+  }
 }

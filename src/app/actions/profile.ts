@@ -26,6 +26,7 @@ import { getClientIp } from "@/lib/client-ip";
 import { passesBotGate } from "@/lib/bot-gate";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
+import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -397,6 +398,9 @@ export async function exportMyData() {
       reportsFiled: true,
     },
   });
+  // A private profile picture is stored as a same-origin path (/api/avatar/…); the file the user keeps gets the full
+  // link to it on the site instead (it opens for them while signed in). A public URL is unchanged.
+  if (data) data.avatarUrl = absoluteAvatarUrl(data.avatarUrl);
   if (!data || (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0)) {
     return { error: null, data: JSON.stringify(data, null, 2) };
   }

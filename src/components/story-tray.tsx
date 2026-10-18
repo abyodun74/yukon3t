@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
+import { useImageFallback } from "@/lib/use-image-fallback";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { StoryTrayViewer, type StoryTrayAuthorGroup } from "@/components/story-tray-viewer";
 import { useFeedText } from "@/components/feed-text";
@@ -30,6 +31,7 @@ function Ring({
   onAdd?: () => void;
 }) {
   const { t } = useFeedText();
+  const image = useImageFallback(avatarUrl);
   return (
     <div className="relative flex w-16 min-w-0 shrink-0 flex-col items-center gap-1">
       <button
@@ -66,9 +68,9 @@ function Ring({
               hasStories ? "border-2 border-background" : "border border-line",
             )}
           >
-            {avatarUrl ? (
+            {image.show && avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="" loading="lazy" decoding="async" {...protectedImageProps("h-full w-full object-cover")} />
+              <img src={avatarUrl} alt="" loading="lazy" decoding="async" {...image.imgProps} {...protectedImageProps("h-full w-full object-cover")} />
             ) : (
               <span className="text-xs text-foreground-soft">{fallbackLetter.slice(0, 1)}</span>
             )}

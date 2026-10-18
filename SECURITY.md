@@ -372,6 +372,40 @@ setup: `node scripts/upload-cloudflare-watermark.mjs` (needs a currently-valid `
 `GET /client/v4/user/tokens/verify` first if unsure, since an expired/wrong token fails with a generic "Authentication error"
 that looks identical to a permissions problem).
 
+### Private profile pictures — built behind `AVATAR_PRIVATE`, off by default (2026-10-19)
+
+Until now every profile picture was a public `r2.dev` URL: anyone (signed out, a scraper) who had or guessed the URL
+could fetch it, and every page that showed it handed the URL out. The staged fix (details in CLAUDE.md "Profile pictures"
+and `src/lib/avatar-url.ts`):
+
+- **Storage.** A third R2 bucket, `R2_AVATAR_BUCKET_NAME`, with no public domain. Not the view-once bucket: its required
+  15-day lifecycle rule would delete every profile picture. Browsers only ever get a 5-minute presigned PUT for an
+  `avatar-upload/<userId>/<uuid>.<ext>` key; `confirmPrivateAvatarUpload` copies each upload to a served
+  `avatar/<userId>/<uuid>-t|-f.<ext>` key that no browser has a URL for, then checks size/type and moderates **both** images
+  from those copies (same reasoning as view-once's final keys: a still-valid PUT can't swap the picture after it passed).
+- **Serving.** `User.avatarUrl` holds `/api/avatar/<userId>/<uuid>-t.<ext>`. `GET /api/avatar/...` requires a session
+  (`auth()` JWT, no DB read), strict key validation (pure, unit-tested: no traversal, no other namespace, never the
+  `-f` file by path), a per-user limiter (`avatarView`, 600/h, fails open like every limiter), a 404 if either side blocked
+  the other, then a 302 to a presigned GET signed at the start of the hour (2h expiry; redirect cached `private` for
+  50 min). Image bytes never pass through our functions. `?size=full` gets the ~1080px image only for the owner and
+  accepted connections; everyone else is redirected to the ~320px thumbnail.
+- **Outside consumers.** The bearer-token widget feed (`/api/ambient/feed`) gets an absolute presigned thumbnail URL
+  (`avatarUrlForExternalClient`); `exportMyData` gets an absolute site link. Checked (2026-10-19): no OG/meta tag, web push,
+  FCM, email, sitemap, native/CallKit code or Daily.co payload uses an avatar URL. A source test
+  (`src/lib/avatar-exposure.test.ts`) fails if a public page or an unauthenticated route starts rendering/returning one.
+- **Fixed alongside (public path too).** `confirmAvatarUpload` used to save the client-supplied `publicUrl` as is: any
+  https URL (a tracking image every viewer's browser would load) could become someone's avatar, and on their next change
+  `keyFromPublicUrl` turned it back into a key and **deleted it** — someone else's media if the URL was theirs. The URL is now
+  derived from the caller's own `avatar/<id>/…` key, and old-avatar deletion only touches the owner's keys
+  (`deleteStoredAvatar`).
+- **Limits (accepted).** A signed-in user can still fetch any avatar they're shown, and the presigned link works for whoever
+  holds it until it expires (≤2h). A revoked session (JWT not yet expired, `sessionInvalidatedAt` set) can still load avatars:
+  the route skips `requireUser()`'s DB read on purpose. The 320px/1080px sizes are produced by the uploader's browser; a
+  modified client can upload a larger "thumbnail" (capped at 2MB) and the server can't check pixel dimensions without decoding
+  untrusted images. Migrated (pre-flag) avatars are one image for both sizes (no server-side resize, see the no-libvips
+  policy above). Until **Stage 3** deletes the public copies, a migrated avatar's old public URL keeps working for anyone who
+  already has it. Screenshots are out of scope; Android `FLAG_SECURE` for profiles is a possible **Stage 5** (native release).
+
 ## Automated database backups — status: built, pending bucket setup (2026-09-16)
 
 A daily encrypted logical backup of every table (`src/lib/db-backup.ts`, driven by the `backup-database` cron — same Netlify Scheduled Function pattern as every other `src/app/api/cron/*` route, see `netlify/functions/backup-database.mts`) uploads to a dedicated R2 bucket. `restore-database-backup.ts` (`npm run db:restore-backup`) is the corresponding manual, deliberate restore path — it is never run automatically.

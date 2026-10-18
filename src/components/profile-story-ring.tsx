@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
+import { useImageFallback } from "@/lib/use-image-fallback";
+import { avatarFullSizeUrl } from "@/lib/avatar-url";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { Lightbox } from "@/components/lightbox";
@@ -56,11 +58,14 @@ export function ProfileStoryRing({
   const { t } = useProfileText();
   const ui = useUiText().t;
   const addToStory = useFeedText().t.stories.addToStory;
+  // A picture that fails to load counts as no picture: "No photo", and nothing to enlarge.
+  const image = useImageFallback(avatarUrl);
+  const photoUrl = image.show ? avatarUrl : null;
 
   return (
     <>
       <div className="relative h-16 w-16 shrink-0">
-        {!hasStories && !avatarUrl ? (
+        {!hasStories && !photoUrl ? (
           // Nothing to open (no story, no photo to enlarge) — so not a
           // button at all, rather than a permanently disabled one that
           // VoiceOver still announces and Voice Control still numbers.
@@ -93,9 +98,9 @@ export function ProfileStoryRing({
             hasStories ? "border-2 border-accent" : "border border-line",
           )}
         >
-          {avatarUrl ? (
+          {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" loading="lazy" decoding="async" {...protectedImageProps("h-full w-full object-cover")} />
+            <img src={photoUrl} alt="" loading="lazy" decoding="async" {...image.imgProps} {...protectedImageProps("h-full w-full object-cover")} />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
               {t.storyRing.noPhoto}
@@ -140,9 +145,11 @@ export function ProfileStoryRing({
 
       <StoryUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
 
-      {photoOpen && avatarUrl && (
+      {photoOpen && photoUrl && (
         <Lightbox
-          images={[avatarUrl]}
+          // The full-size image for the owner and their connections; anyone else is served the thumbnail at this
+          // same URL (see /api/avatar), which the viewer shows at its own size rather than stretched.
+          images={[avatarFullSizeUrl(photoUrl)]}
           index={0}
           onIndexChange={() => {}}
           onClose={() => setPhotoOpen(false)}

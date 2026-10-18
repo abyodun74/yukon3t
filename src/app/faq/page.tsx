@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { BackButton } from "@/components/back-button";
 import { auth } from "@/lib/auth";
-import { isViewOnceConfigured } from "@/lib/storage";
+import { isAvatarPrivateUploadEnabled, isViewOnceConfigured } from "@/lib/storage";
+import { PRIVATE_AVATARS_NOTE } from "./content/private-avatars";
 import { getLocale } from "@/lib/i18n/server";
 import { FaqAnswer } from "./answer";
 import { faqContentFor } from "./content";
@@ -40,7 +41,9 @@ export const metadata: Metadata = {
 // them: content.test.ts checks that every entry exists everywhere, not that it still says the same thing.
 // id: the entry's anchor (/faq#id) and translation key; never changes once shipped.
 // requiresViewOnce: only shown where view-once messages are actually switched on (isViewOnceConfigured).
-type Faq = { id: FaqId; q: string; a: ReactNode; requiresViewOnce?: boolean };
+// privateAvatarsNote: while private profile pictures are on (isAvatarPrivateUploadEnabled), the answer gets one more
+// paragraph, PRIVATE_AVATARS_NOTE (content/private-avatars.ts, every language), describing how they are stored.
+type Faq = { id: FaqId; q: string; a: ReactNode; requiresViewOnce?: boolean; privateAvatarsNote?: boolean };
 // hideInIosApp: the ad-booking Q&A points at a web/Stripe purchase flow, which the native iOS app doesn't surface (see HideInIosApp).
 type Section = { id: FaqSectionId; title: string; items: Faq[]; hideInIosApp?: boolean };
 
@@ -2068,6 +2071,7 @@ const sections: Section[] = [
       {
         id: "save-someones-profile-picture",
         q: "Can I save someone's profile picture?",
+        privateAvatarsNote: true,
         a: (
           <>
             Not from within YuKon3t. Profile pictures have no save, download,
@@ -2104,9 +2108,11 @@ export default async function FaqPage() {
   // The FAQ is public: someone signed in goes Back to Home, a visitor to the landing page.
   const session = await auth();
   const viewOnceAvailable = isViewOnceConfigured();
+  const privateAvatars = isAvatarPrivateUploadEnabled();
   // English is the JSX above; any other language comes from its content/ module (server-side only, so the browser
   // is only ever sent the one language it shows).
-  const translated = faqContentFor(await getLocale());
+  const locale = await getLocale();
+  const translated = faqContentFor(locale);
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
       <BackButton href={session?.user ? "/home" : "/"} />
@@ -2147,6 +2153,13 @@ export default async function FaqPage() {
                     </summary>
                     <div className="mt-2 text-sm leading-relaxed text-foreground-soft">
                       {translated ? <FaqAnswer text={translated.items[item.id].a} /> : item.a}
+                      {item.privateAvatarsNote && privateAvatars && (
+                        <>
+                          <br />
+                          <br />
+                          {PRIVATE_AVATARS_NOTE[locale]}
+                        </>
+                      )}
                     </div>
                   </details>
                 ))}

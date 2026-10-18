@@ -18,6 +18,8 @@
     "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts",
     "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts",
     "db:backfill-post-albums": "tsx scripts/backfill-post-albums.ts",
+    "db:migrate-avatars-private": "tsx scripts/migrate-avatars-private.ts",
+    "db:revert-avatars-public": "tsx scripts/revert-avatars-public.ts",
     "db:restore-backup": "tsx scripts/restore-database-backup.ts",
     "cap:sync:ios": "npx cap sync ios && node scripts/fix-ios-package-class-list.mjs && node scripts/fix-ios-spm-package-names.mjs"
   },

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { avatarUrlForExternalClient } from "@/lib/avatar-storage";
 
 /**
  * The actual surface a future native widget/watch app would poll — see
@@ -78,5 +79,11 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ moments });
+  // A widget holds a bearer token, not the app's session cookie, so a private (route-form) avatar would 401 for it:
+  // hand it an absolute presigned link to the thumbnail instead (valid at least an hour; see avatar-storage.ts).
+  const withAvatars = await Promise.all(
+    moments.map(async (m) => ({ ...m, author: { ...m.author, avatarUrl: await avatarUrlForExternalClient(m.author.avatarUrl) } })),
+  );
+
+  return NextResponse.json({ moments: withAvatars });
 }

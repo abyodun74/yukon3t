@@ -2,8 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Camera, Upload } from "lucide-react";
-import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
-import { confirmAvatarUpload } from "@/app/actions/media";
+import { uploadFileDirect, resizeImageFile, resizeImageToMax, uploadPrivateAvatar } from "@/lib/upload-client";
+import { confirmAvatarUpload, confirmPrivateAvatarUpload } from "@/app/actions/media";
+import { AVATAR_FULL_DIMENSION, AVATAR_THUMB_DIMENSION, AVATAR_THUMB_MAX_BYTES } from "@/lib/avatar-url";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
@@ -13,7 +14,8 @@ import { byCode } from "@/lib/i18n/locales";
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
+/** `privateUpload`: AVATAR_PRIVATE is on (isAvatarPrivateUploadEnabled, read by the server page). Off: today's public path. */
+export function AvatarUpload({ currentUrl, privateUpload = false }: { currentUrl: string | null; privateUpload?: boolean }) {
   const [preview, setPreview] = useState<string | null>(currentUrl);
   const [status, setStatus] = useState<
     "idle" | "uploading" | "error" | "not_configured" | "success"
@@ -42,6 +44,10 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
     setMessage(null);
 
     startTransition(async () => {
+      if (privateUpload) {
+        await handlePrivateFile(file);
+        return;
+      }
       // Resize before the size check — a raw phone photo routinely exceeds
       // 12MB, but the resized version essentially never does.
       const resized = await resizeImageFile(file);
@@ -95,6 +101,44 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
       setPreview(uploaded.publicUrl);
       setStatus("success");
     });
+  }
+
+  // AVATAR_PRIVATE on (see src/lib/avatar-url.ts): a ~1080px image and a ~320px thumbnail made from it (same encoder,
+  // so the same type), both to the private bucket, then saved as the same-origin /api/avatar/… path.
+  async function handlePrivateFile(file: File) {
+    const full = await resizeImageToMax(file, AVATAR_FULL_DIMENSION);
+    const thumb = await resizeImageToMax(full, AVATAR_THUMB_DIMENSION);
+    if (full.size > MAX_AVATAR_BYTES || thumb.size > AVATAR_THUMB_MAX_BYTES) {
+      setStatus("error");
+      setMessage(t.errors.too_large);
+      return;
+    }
+
+    const uploaded = await uploadPrivateAvatar(full, thumb);
+    if (!uploaded.ok) {
+      setStatus("error");
+      setMessage(uploaded.error === "network" ? t.errors.network : t.errors.upload);
+      return;
+    }
+
+    let result;
+    try {
+      result = await confirmPrivateAvatarUpload({ thumbKey: uploaded.thumbKey, fullKey: uploaded.fullKey });
+    } catch {
+      setStatus("error");
+      setMessage(t.errors.network);
+      return;
+    }
+    if (result.error !== null) {
+      setStatus("error");
+      setMessage(
+        byCode({ moderation: t.errors.moderation, too_large: t.errors.too_large, other: t.errors.other }, result.error),
+      );
+      return;
+    }
+
+    setPreview(result.avatarUrl);
+    setStatus("success");
   }
 
   return (
