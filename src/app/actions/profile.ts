@@ -380,6 +380,15 @@ export async function exportMyData() {
     include: {
       posts: true,
       collabPosts: true,
+      // Polls you created (with their options), and your own votes with what each was for. Nobody else's votes.
+      pollsCreated: { include: { options: { select: { id: true, text: true, startsAt: true, position: true } } } },
+      pollVotes: {
+        select: {
+          createdAt: true,
+          poll: { select: { id: true, question: true } },
+          option: { select: { id: true, text: true, startsAt: true } },
+        },
+      },
       circleMemberships: { include: { circle: true } },
       sentConnections: { where: { targetId: { notIn: hidden.peerIds } } },
       receivedConnections: { where: { requesterId: { notIn: hidden.peerIds } } },

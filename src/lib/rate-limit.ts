@@ -229,6 +229,12 @@ const limiterDefinitions = {
   // Hidden-chats PIN entry, change and reset (actions/hidden-chats.ts). A second layer only: this limiter fails open,
   // so the lockout that actually bounds guessing is the database one in src/lib/hidden-chats.ts.
   hiddenPin: makeLimiter(20, "10 m", "hiddenPin"),
+  // Polls in Circles and collabs (actions/polls.ts). Creating one notifies up to POLL_NOTIFY_MAX_RECIPIENTS people, so
+  // it is the tight one; editing/closing/scheduling is an organizer's occasional action; voting is a tap, and changing
+  // one's mind a few times is normal.
+  pollCreate: makeLimiter(10, "1 h", "pollCreate"),
+  pollManage: makeLimiter(30, "10 m", "pollManage"),
+  pollVote: makeLimiter(60, "1 m", "pollVote"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

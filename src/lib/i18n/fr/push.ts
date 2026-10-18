@@ -36,6 +36,7 @@ export const push: typeof pushEn = {
     LIVE_STREAM_INVITE: "A démarré un direct avec vous",
     CIRCLE_INVITE: "Vous invite à rejoindre un Circle privé",
     COLLAB_SESSION_STARTED: "A démarré une session de collaboration en direct",
+    POLL_SCHEDULED: "A fixé une date à partir d'un sondage auquel vous avez participé",
   },
   reminders: {
     eventTitle: "Votre événement",

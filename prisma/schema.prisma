@@ -300,6 +300,8 @@ model User {
   receivedCircleInvites       CircleInvite[]             @relation("CircleInvitee")
   posts                       Post[]
   collabPosts                 CollabBoardPost[]
+  pollsCreated                Poll[]                     @relation("PollCreator")
+  pollVotes                   PollVote[]
   channelsCreated             Channel[]
   channelMemberships          ChannelMembership[]
   channelVoiceParticipations  ChannelVoiceParticipant[]
@@ -440,6 +442,7 @@ model Circle {
   channels      Channel[]
   notifications Notification[]
   liveStreams   LiveStream[]
+  polls         Poll[]
 
   @@index([category], type: Gin)
   @@index([parentId])
@@ -553,6 +556,7 @@ model Channel {
   voiceParticipants ChannelVoiceParticipant[]
   voiceInvites      ChannelVoiceInvite[]
   notifications     Notification[]
+  polls             Poll[]
 
   @@unique([circleId, slug])
   @@index([circleId, position])
@@ -786,6 +790,9 @@ model Post {
   // Back-relation for Muse.sharedPost (shareToMuse) — see that field's own
   // comment.
   museShares    Muse[]
+  // Back-relation for Poll.scheduledPost: the Circle event post a SCHEDULE
+  // poll was turned into (schedulePollOption in actions/polls.ts).
+  scheduledFromPolls Poll[] @relation("PollScheduledPost")
 
   @@unique([authorId, repostOfId])
   @@index([circleId])
@@ -1167,6 +1174,16 @@ enum NotificationType {
   // most one fan-out per collab per 30 minutes, decided by looking for a
   // recent row of this type (collab-session-start.ts), so no extra table.
   COLLAB_SESSION_STARTED
+  // Sent to a Circle's members (or a private channel's members) / a collab's
+  // participants, not the creator, when a poll is created there (createPoll
+  // in actions/polls.ts). Bell only, like the other bulk Circle fan-outs
+  // (CIRCLE_LIVE); at most POLL_NOTIFY_MAX_RECIPIENTS rows, once per poll
+  // (edits never re-notify). circleId/channelId or collabId is the link.
+  POLL_CREATED
+  // Sent to everyone who voted in a SCHEDULE poll (not the scheduler) when an
+  // admin schedules from it: a Circle event post (postId) or a collab's
+  // one-off session (collabId). Bell + FCM push, like COLLAB_SESSION_STARTED.
+  POLL_SCHEDULED
 }
 
 model Notification {
@@ -1280,6 +1297,17 @@ model CollabBoardPost {
   // one-off Post event).
   sessionReminderSentAt DateTime?
 
+  // A single extra session on top of (or instead of) the recurring schedule
+  // above, set by scheduling from a SCHEDULE poll (schedulePollOption in
+  // actions/polls.ts). Kept apart from nextSessionAt on purpose: the cron
+  // rolls nextSessionAt forward from itself and updateCollabPost recomputes
+  // it from the schedule, either of which would silently lose a one-off
+  // stored there. The collab-session-reminders cron reminds for it once
+  // (oneOffReminderSentAt, same claim pattern) and leaves it in place; the
+  // page shows it only while it's upcoming. Scheduling again replaces it.
+  oneOffSessionAt      DateTime?
+  oneOffReminderSentAt DateTime?
+
   // See User.embedding — embeds title+description.
   embedding Unsupported("vector(1536)")?
 
@@ -1300,11 +1328,13 @@ model CollabBoardPost {
   joinRequests        CollabJoinRequest[]
   invites             CollabInvite[]
   notifications       Notification[]
+  polls               Poll[]
 
   @@index([type])
   @@index([status])
   @@index([visibility])
   @@index([nextSessionAt])
+  @@index([oneOffSessionAt])
   @@index([authorId])
 }
 
@@ -1385,6 +1415,106 @@ model CollabSessionParticipant {
 
   @@unique([collabId, userId])
   @@index([collabId])
+}
+
+enum PollKind {
+  // Options are free text.
+  GENERAL
+  // Options are absolute instants (PollOption.startsAt, entered in UTC like a
+  // collab's schedule), and an admin can schedule from the leading one.
+  SCHEDULE
+}
+
+enum PollStatus {
+  OPEN
+  CLOSED
+}
+
+/**
+ * A modifiable poll in a Circle (optionally one of its channels) or on a
+ * Collab Board. Exactly one parent: circleId or collabId, never both, never
+ * neither (enforced in actions/polls.ts via pollParentError in lib/polls.ts,
+ * with CHECK constraints in migration 20261019120000_polls as a backstop,
+ * which Prisma's schema can't express). channelId only ever narrows a
+ * Circle poll. Votes are counted openly but never attributed: the
+ * UI shows counts only, to everyone including admins. Rules (who may do what,
+ * what an option edit does to its votes, the leading option) live in the
+ * pure lib/polls.ts. A poll past closesAt reads as closed without anything
+ * rewriting status (isPollOpen).
+ */
+model Poll {
+  id                String     @id @default(cuid())
+  circleId          String?
+  channelId         String?
+  collabId          String?
+  createdById       String
+  kind              PollKind   @default(GENERAL)
+  question          String
+  description       String?    @db.Text
+  // Fixed at creation: switching it later would leave multi-voters in an
+  // undefined state.
+  allowMultiple     Boolean    @default(false)
+  status            PollStatus @default(OPEN)
+  closesAt          DateTime?
+  // Set once a SCHEDULE poll has been scheduled from (one time only): the
+  // chosen instant and option, and for a Circle the event Post it created.
+  scheduledAt       DateTime?
+  scheduledOptionId String?
+  scheduledPostId   String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  circle        Circle?          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  collab        CollabBoardPost? @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  createdBy     User             @relation("PollCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  scheduledPost Post?            @relation("PollScheduledPost", fields: [scheduledPostId], references: [id], onDelete: SetNull)
+
+  options PollOption[]
+  votes   PollVote[]
+
+  @@index([circleId, createdAt])
+  @@index([collabId, createdAt])
+  @@index([channelId])
+  @@index([createdById])
+  @@index([scheduledPostId])
+}
+
+/**
+ * One choice: `text` for a GENERAL poll, `startsAt` for a SCHEDULE poll.
+ */
+model PollOption {
+  id        String    @id @default(cuid())
+  pollId    String
+  text      String?
+  startsAt  DateTime?
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId, position])
+}
+
+/**
+ * One row per chosen option per voter; a single-choice poll has at most one per (poll, user), enforced in votePoll.
+ */
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, optionId, userId])
+  @@index([pollId, userId])
+  @@index([optionId])
+  @@index([userId])
 }
 
 enum LiveStreamStatus {

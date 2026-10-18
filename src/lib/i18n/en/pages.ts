@@ -115,6 +115,8 @@ export const pagesEn = {
       CIRCLE_INVITE: "{name} invited you to join a private Circle",
       CIRCLE_INVITE_ACCEPTED: "{name} accepted your invitation to join the Circle",
       COLLAB_SESSION_STARTED: "{name} started a live collaboration session",
+      POLL_CREATED: "{name} started a poll",
+      POLL_SCHEDULED: "{name} scheduled a time from a poll you voted in",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into

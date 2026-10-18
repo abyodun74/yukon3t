@@ -1751,6 +1751,40 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "polls-circle-collab-board",
+        q: "How do polls work in a Circle or Collab Board?",
+        a: (
+          <>
+            A Circle&apos;s creator or co-admins (or a collaboration&apos;s
+            organizer or co-admins) can start a <strong>poll</strong> from
+            the Polls section of its page: a question with 2 to 10 choices,
+            or a <strong>find-a-time</strong> poll whose choices are dates
+            and times. Times are entered and shown in UTC so everyone shares
+            one reference, with your own local time shown next to each.
+            Members (or participants) are notified and can vote, change their
+            vote or withdraw it at any time while the poll is open. A private
+            Circle&apos;s or collaboration&apos;s polls are visible only to
+            its members.
+            <br />
+            <br />
+            Results show only how many people picked each choice, never who
+            voted for what, not even to admins. Whoever made the poll, and the
+            Circle&apos;s or collaboration&apos;s admins, can edit it, close
+            or reopen it, or delete it. If a choice that already has votes is
+            changed or removed, its votes are removed (you&apos;re asked
+            first), so no vote ends up counting for something its voter
+            didn&apos;t pick; those voters can simply vote again.
+            <br />
+            <br />
+            When a find-a-time poll has a winner, an admin (or the poll&apos;s
+            creator, once it&apos;s closed) can schedule it: in a Circle this
+            posts an event people can RSVP to and add to their calendar; on a
+            Collab Board it sets a one-off session, with the usual reminder
+            shortly before. Everyone who voted is notified.
+          </>
+        ),
+      },
     ],
   },
   {

@@ -14,6 +14,10 @@ import { CollabInviteManager } from "@/components/collab-invite-manager";
 import { CollabInviteResponse } from "@/components/collab-invite-response";
 import { CollabSessionRoom } from "@/components/collab-session-room";
 import { CollabAddToCalendar } from "@/components/collab-add-to-calendar";
+import { PollSection } from "@/components/poll-section";
+import { CollabOneOffSession } from "@/components/poll-time";
+import { getCollabPollAccess, loadPollViews } from "@/lib/polls-data";
+import { upcomingOneOffSession } from "@/lib/polls";
 import { CloseCollabButton } from "@/components/close-collab-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
 import { ChatThread } from "@/components/chat-thread";
@@ -80,6 +84,11 @@ export default async function CollabDetailPage({
   const isOwner = collab.authorId === me.id;
   const canModerate = isCollabAdmin(collab, collab.participants[0] ?? null, me);
   const canJoinSession = isParticipant || isOwner;
+
+  // Polls: anyone who can see a PUBLIC collab sees them; a PRIVATE one's, only its participants (not invitees yet).
+  const pollAccess = await getCollabPollAccess(collab, me);
+  const polls = pollAccess.canView ? await loadPollViews({ collabId: collab.id }, me, pollAccess) : [];
+  const oneOffSessionAt = upcomingOneOffSession(collab.oneOffSessionAt, new Date());
 
   const allParticipants = canModerate
     ? await prisma.collabParticipant.findMany({
@@ -289,6 +298,17 @@ export default async function CollabDetailPage({
         </div>
       )}
 
+      {canJoinSession && oneOffSessionAt && (
+        <div className="mt-3">
+          <CollabOneOffSession
+            collabId={collab.id}
+            title={collab.title}
+            description={collab.description}
+            startAt={oneOffSessionAt.toISOString()}
+          />
+        </div>
+      )}
+
       {myInvite && (
         <div className="mt-3">
           <CollabInviteResponse
@@ -361,6 +381,10 @@ export default async function CollabDetailPage({
           }
         />
       </div>
+
+      {pollAccess.canView && (
+        <PollSection collabId={collab.id} polls={polls} canCreate={pollAccess.canCreate && collab.status === "OPEN"} />
+      )}
 
       {canModerate && (
         <div className="mt-8">

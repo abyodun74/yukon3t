@@ -38,6 +38,7 @@ export const push: typeof pushEn = {
     LIVE_STREAM_INVITE: "بث مباشر معك الآن",
     CIRCLE_INVITE: "دعوة للانضمام إلى Circle خاص",
     COLLAB_SESSION_STARTED: "جلسة تعاون مباشرة بدأت الآن",
+    POLL_SCHEDULED: "حدّد موعدًا من استطلاع رأي صوّتّ فيه",
   },
   reminders: {
     eventTitle: "فعاليتك",

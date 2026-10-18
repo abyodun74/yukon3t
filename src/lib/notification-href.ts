@@ -55,7 +55,9 @@ export type NotificationData = {
     | "LIVE_RECORDING_POST_FAILED"
     | "CIRCLE_INVITE"
     | "CIRCLE_INVITE_ACCEPTED"
-    | "COLLAB_SESSION_STARTED";
+    | "COLLAB_SESSION_STARTED"
+    | "POLL_CREATED"
+    | "POLL_SCHEDULED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

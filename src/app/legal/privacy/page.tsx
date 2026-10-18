@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 18, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 19, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -46,6 +46,7 @@ export default function PrivacyPage() {
         <li><b>Account information</b>: email address, optionally a username and password (stored as a salted hash, never in plain text), date of birth (used only to confirm you meet our minimum age requirement — not shown on your profile), display name, bio, country, languages, interests, and profile picture.</li>
         <li><b>Content you create</b>: Circle and Channel posts, Collab Board listings, direct messages, 24-hour Stories (including reactions and replies to them), reports you file, and any photos or short videos you upload.</li>
         <li><b>Connection &amp; activity data</b>: Circles and Channels you join, connection requests, intent tags you select, streaks, event RSVPs, trust score signals (account age, verification status, report history).</li>
+        <li><b>Poll votes</b>: if you vote in a poll in a Circle or on a Collab Board, we store which option(s) you picked, so you can change or withdraw your vote. Everyone else, including the poll&apos;s creator and the Circle&apos;s or collaboration&apos;s admins, sees only how many people picked each option, never who voted for what. Your vote is deleted when you withdraw it, when that option or the poll is deleted, or when your account is deleted; polls you created are deleted along with your account.</li>
         <li><b>Secret chat keys and messages</b>: if you set up secret chats, we store your public encryption key and a copy of your private key that is encrypted with your recovery passphrase, which we cannot read or reset. The text of messages in a secret chat is encrypted on your device before it is sent; we store only the encrypted form and cannot read it. Photos, videos, and voice notes sent in a secret chat are not encrypted. When you report a message from a secret chat, the text of that message is shared with our moderators.</li>
         <li><b>Notification data</b>: if you enable push notifications, a device push token (a web push subscription, or, on the Android app, a Firebase Cloud Messaging token) used only to deliver notifications like calls, messages, and event reminders to your device. In the mobile apps, the app&apos;s version and build number and your device&apos;s platform (Android or iOS) are stored with that token, used only to tell people on an older version that an app update is available or required.</li>
         <li><b>Call &amp; live session data</b>: metadata needed to connect a 1:1 call or a Collab live session (who&apos;s in the room, timing). If a live session&apos;s host turns on cloud recording, the recording itself is stored as described in Section 4.</li>

@@ -4,6 +4,12 @@ import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 import { CIRCLE_INVITE_MAX } from "@/lib/circle-invite";
 import { APP_PLATFORMS, MESSAGE_MAX_LENGTH } from "@/lib/app-version";
+import {
+  POLL_DESCRIPTION_MAX,
+  POLL_OPTION_TEXT_MAX,
+  POLL_OPTIONS_MAX,
+  POLL_QUESTION_MAX,
+} from "@/lib/polls";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -726,3 +732,38 @@ export const appUpdateNoticeSchema = z.object({
   platform: z.enum(APP_PLATFORMS),
   includeUnknownBuild: z.boolean(),
 });
+
+// Polls (actions/polls.ts). Shapes only: option counts, duplicates, future times and what an edit does to existing
+// votes are the pure rules in src/lib/polls.ts. Times are ISO instants (the form reads its UTC inputs into them).
+const pollOptionInputSchema = z.object({
+  id: z.string().cuid().optional(),
+  text: z.string().max(POLL_OPTION_TEXT_MAX * 2).nullish(),
+  startsAt: z.string().datetime().nullish(),
+});
+
+const pollTextFields = {
+  question: z.string().trim().min(3).max(POLL_QUESTION_MAX),
+  description: z
+    .string()
+    .trim()
+    .max(POLL_DESCRIPTION_MAX)
+    .nullish()
+    .transform((value) => value || null),
+  closesAt: z.string().datetime().nullish(),
+  options: z.array(pollOptionInputSchema).max(POLL_OPTIONS_MAX * 2),
+};
+
+export const pollCreateSchema = z.object({
+  circleId: z.string().cuid().nullish(),
+  channelId: z.string().cuid().nullish(),
+  collabId: z.string().cuid().nullish(),
+  kind: z.enum(["GENERAL", "SCHEDULE"]),
+  allowMultiple: z.boolean(),
+  ...pollTextFields,
+});
+
+export const pollUpdateSchema = z.object(pollTextFields);
+
+export const pollIdSchema = z.string().cuid();
+
+export const pollVoteSchema = z.array(z.string().cuid()).max(POLL_OPTIONS_MAX);

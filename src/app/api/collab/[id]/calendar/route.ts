@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { buildCollabIcs } from "@/lib/calendar-export";
+import { upcomingOneOffSession } from "@/lib/polls";
 
 /**
  * Serves the next scheduled session as a downloadable .ics — the
@@ -13,8 +14,10 @@ import { buildCollabIcs } from "@/lib/calendar-export";
  * hasn't committed to attending, so there's nothing to add to their
  * calendar yet.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?session=one-off: the single session scheduled from a poll (oneOffSessionAt) instead of the recurring one.
+  const oneOff = new URL(request.url).searchParams.get("session") === "one-off";
   let user;
   try {
     user = await requireUser();
@@ -32,11 +35,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       description: true,
       authorId: true,
       nextSessionAt: true,
+      oneOffSessionAt: true,
       participants: { where: { userId: user.id }, select: { userId: true } },
     },
   });
 
-  if (!collab || !collab.nextSessionAt) {
+  const startAt = oneOff ? upcomingOneOffSession(collab?.oneOffSessionAt ?? null, new Date()) : collab?.nextSessionAt;
+  if (!collab || !startAt) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
@@ -51,10 +56,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // calendar apps that dedupe by UID, but changes once nextSessionAt
     // rolls forward to the next occurrence, which a calendar app should
     // treat as a new event rather than silently updating the last one.
-    uid: `collab-${id}-${collab.nextSessionAt.getTime()}@yukon3t.com`,
+    uid: `collab-${id}-${oneOff ? "one-off-" : ""}${startAt.getTime()}@yukon3t.com`,
     title: collab.title,
     description: collab.description,
-    startAt: collab.nextSessionAt,
+    startAt,
   });
 
   return new NextResponse(ics, {

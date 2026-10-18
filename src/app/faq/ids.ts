@@ -132,6 +132,7 @@ export const FAQ_IDS = [
   "invite-someone-private-collaboration-approve",
   "edit-collab-board-after-ive",
   "co-admins-circle-collab-board",
+  "polls-circle-collab-board",
   // Advertising
   "advertise-yukon3t",
   // Inviting friends

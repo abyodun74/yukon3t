@@ -111,6 +111,8 @@ export const pages: typeof pagesEn = {
       CIRCLE_INVITE: "{name} te invitó a unirte a un Circle privado",
       CIRCLE_INVITE_ACCEPTED: "{name} aceptó tu invitación para unirse al Circle",
       COLLAB_SESSION_STARTED: "{name} inició una sesión de colaboración en vivo",
+      POLL_CREATED: "{name} creó una encuesta",
+      POLL_SCHEDULED: "{name} programó una fecha a partir de una encuesta en la que votaste",
     },
     notices: {
       videoFlagged:

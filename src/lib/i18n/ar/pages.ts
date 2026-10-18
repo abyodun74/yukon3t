@@ -112,6 +112,8 @@ export const pages: typeof pagesEn = {
       CIRCLE_INVITE: "دعوة من {name} للانضمام إلى Circle خاص",
       CIRCLE_INVITE_ACCEPTED: "تم قبول دعوتك للانضمام إلى Circle من قِبل {name}",
       COLLAB_SESSION_STARTED: "بدء جلسة تعاون مباشرة من قِبل {name}",
+      POLL_CREATED: "أنشأ {name} استطلاع رأي",
+      POLL_SCHEDULED: "حدّد {name} موعدًا من استطلاع رأي صوّتّ فيه",
     },
     notices: {
       videoFlagged:
