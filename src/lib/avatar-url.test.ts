@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  AVATAR_FALLBACK_REDIRECT_MAX_AGE_SECONDS,
   AVATAR_PRESIGN_TTL_SECONDS,
   AVATAR_REDIRECT_MAX_AGE_SECONDS,
   avatarFullSizeUrl,
   avatarKeyForViewer,
+  avatarNeedsFullSizeCheck,
+  avatarServedObject,
   avatarPresignSigningDate,
   isAvatarRouteUrl,
   parseAvatarRouteSegments,
@@ -154,6 +157,65 @@ describe("avatarKeyForViewer", () => {
 
   it("serves a single-image avatar's one file either way", () => {
     expect(avatarKeyForViewer(single, { wantFull: true, isOwner: false, isConnection: false })).toBe(single.thumbKey);
+  });
+});
+
+describe("avatarNeedsFullSizeCheck / avatarServedObject", () => {
+  const two = parseAvatarRouteSegments([OWNER, `${UUID}-t.webp`])!;
+  const single = parseAvatarRouteSegments([OWNER, `${UUID}.webp`])!;
+  const owner = { wantFull: true, isOwner: true, isConnection: false };
+  const connection = { wantFull: true, isOwner: false, isConnection: true };
+
+  it("serves the full image with the normal max-age when it exists", () => {
+    for (const viewer of [owner, connection]) {
+      expect(avatarNeedsFullSizeCheck(two, viewer)).toBe(true);
+      expect(avatarServedObject(two, viewer, true)).toEqual({
+        key: two.fullKey,
+        maxAgeSeconds: AVATAR_REDIRECT_MAX_AGE_SECONDS,
+        fellBack: false,
+      });
+    }
+  });
+
+  it("falls back to the thumbnail with a short max-age when the full image is missing", () => {
+    expect(avatarServedObject(two, owner, false)).toEqual({
+      key: two.thumbKey,
+      maxAgeSeconds: AVATAR_FALLBACK_REDIRECT_MAX_AGE_SECONDS,
+      fellBack: true,
+    });
+    expect(AVATAR_FALLBACK_REDIRECT_MAX_AGE_SECONDS).toBeLessThan(AVATAR_REDIRECT_MAX_AGE_SECONDS);
+  });
+
+  it("never needs the check for a thumbnail request", () => {
+    for (const who of [
+      { isOwner: true, isConnection: false },
+      { isOwner: false, isConnection: true },
+      { isOwner: false, isConnection: false },
+    ]) {
+      const viewer = { wantFull: false, ...who };
+      expect(avatarNeedsFullSizeCheck(two, viewer)).toBe(false);
+      // The (unchecked) existence flag is ignored: always the thumbnail, normal max-age.
+      expect(avatarServedObject(two, viewer, false)).toEqual({
+        key: two.thumbKey,
+        maxAgeSeconds: AVATAR_REDIRECT_MAX_AGE_SECONDS,
+        fellBack: false,
+      });
+    }
+  });
+
+  it("gives a non-qualifying viewer the thumbnail without a check", () => {
+    const stranger = { wantFull: true, isOwner: false, isConnection: false };
+    expect(avatarNeedsFullSizeCheck(two, stranger)).toBe(false);
+    expect(avatarServedObject(two, stranger, false)).toEqual({
+      key: two.thumbKey,
+      maxAgeSeconds: AVATAR_REDIRECT_MAX_AGE_SECONDS,
+      fellBack: false,
+    });
+  });
+
+  it("never checks a single-image avatar (its one file is the thumbnail)", () => {
+    expect(avatarNeedsFullSizeCheck(single, owner)).toBe(false);
+    expect(avatarServedObject(single, owner, false).key).toBe(single.thumbKey);
   });
 });
 

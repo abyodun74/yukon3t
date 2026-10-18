@@ -8,6 +8,7 @@ import {
 import {
   deleteAvatarObject,
   deleteObject,
+  headAvatarObject,
   isAvatarBucketConfigured,
   keyBelongsToOwner,
   keyFromPublicUrl,
@@ -24,6 +25,19 @@ export function presignAvatarForViewer(key: string, nowMs = Date.now()) {
     signingDate: avatarPresignSigningDate(nowMs),
     cacheControl: AVATAR_IMAGE_CACHE_CONTROL,
   });
+}
+
+/**
+ * Whether an avatar-bucket object exists, for the route's full-size check. Never throws: a failed HEAD counts as
+ * missing (the route then serves the thumbnail rather than a 503 or a broken full-size link).
+ */
+export async function avatarObjectExists(key: string): Promise<boolean> {
+  try {
+    return (await headAvatarObject(key)) !== null;
+  } catch {
+    console.warn("[avatar] full-size check failed", { key });
+    return false;
+  }
 }
 
 /**

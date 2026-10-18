@@ -111,12 +111,38 @@ export function avatarFullSizeUrl(url: string): string {
   return isAvatarRouteUrl(url) ? `${url.split(/[?#]/, 1)[0]}?size=full` : url;
 }
 
+export type AvatarViewer = { wantFull: boolean; isOwner: boolean; isConnection: boolean };
+
 /** Which object a viewer gets. Full size only when asked for AND the viewer is the owner or an accepted connection. */
-export function avatarKeyForViewer(
-  target: AvatarRouteTarget,
-  { wantFull, isOwner, isConnection }: { wantFull: boolean; isOwner: boolean; isConnection: boolean },
-): string {
+export function avatarKeyForViewer(target: AvatarRouteTarget, { wantFull, isOwner, isConnection }: AvatarViewer): string {
   return wantFull && (isOwner || isConnection) ? target.fullKey : target.thumbKey;
+}
+
+/** How long the route's redirect may be cached when it fell back to the thumbnail because the full image is missing. */
+export const AVATAR_FALLBACK_REDIRECT_MAX_AGE_SECONDS = 60;
+
+/**
+ * Whether the route must check the separate full-size object exists before signing it: only a two-size avatar's full
+ * image, for a viewer who qualifies for it. Thumbnails (the hot path) and single-image avatars never need the check.
+ */
+export function avatarNeedsFullSizeCheck(target: AvatarRouteTarget, viewer: AvatarViewer): boolean {
+  return target.twoSize && avatarKeyForViewer(target, viewer) === target.fullKey;
+}
+
+/**
+ * The object to sign and how long the redirect to it may be cached. `fullExists` is the result of the full-size check
+ * (only read when avatarNeedsFullSizeCheck said one was needed): if the full image is missing, the viewer gets the
+ * thumbnail, under a short max-age so a re-upload or repair shows up quickly.
+ */
+export function avatarServedObject(
+  target: AvatarRouteTarget,
+  viewer: AvatarViewer,
+  fullExists: boolean,
+): { key: string; maxAgeSeconds: number; fellBack: boolean } {
+  if (avatarNeedsFullSizeCheck(target, viewer) && !fullExists) {
+    return { key: target.thumbKey, maxAgeSeconds: AVATAR_FALLBACK_REDIRECT_MAX_AGE_SECONDS, fellBack: true };
+  }
+  return { key: avatarKeyForViewer(target, viewer), maxAgeSeconds: AVATAR_REDIRECT_MAX_AGE_SECONDS, fellBack: false };
 }
 
 /** Signing time for a presigned avatar GET: the start of the current hour, so the URL is stable within it. */

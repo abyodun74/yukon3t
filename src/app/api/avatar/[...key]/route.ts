@@ -4,11 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isAvatarBucketConfigured } from "@/lib/storage";
-import { presignAvatarForViewer } from "@/lib/avatar-storage";
-import { AVATAR_REDIRECT_MAX_AGE_SECONDS, avatarKeyForViewer, parseAvatarRouteSegments } from "@/lib/avatar-url";
+import { avatarObjectExists, presignAvatarForViewer } from "@/lib/avatar-storage";
+import { avatarNeedsFullSizeCheck, avatarServedObject, parseAvatarRouteSegments } from "@/lib/avatar-url";
 
 // Every non-redirect answer: never cached, so a later sign-in (or an unblock) isn't stuck behind it.
 const NO_STORE = { "Cache-Control": "no-store" };
+
+// The missing-bucket error is logged once per server instance: every avatar request would hit it.
+let reportedMissingBucket = false;
 
 function refuse(status: 401 | 404 | 429 | 503) {
   return new NextResponse(null, {
@@ -27,6 +30,11 @@ function refuse(status: 401 | 404 | 429 | 503) {
  * accepted connections; anyone else is redirected to the thumbnail instead (not refused). Someone blocked either way
  * gets a 404, like an avatar that doesn't exist.
  *
+ * A qualifying `?size=full` request (and only that, never a thumbnail) first HEADs the full-size object; if it is
+ * missing, or the HEAD fails, the viewer is redirected to the thumbnail instead, with a 60-second max-age so a repair
+ * or re-upload shows up quickly. If the avatar bucket (R2_AVATAR_BUCKET_NAME) isn't configured the answer is a 503
+ * (after the 401 for signed-out requests), logged once per server instance.
+ *
  * The path ends in an image extension, so src/proxy.ts's matcher skips it: a feed's ~20 avatars don't count against
  * the page rate limit. This route's own per-user limiter (avatarView) applies instead.
  */
@@ -38,7 +46,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const viewerId = session?.user?.id;
   if (!viewerId) return refuse(401);
 
-  if (!isAvatarBucketConfigured()) return refuse(404);
+  if (!isAvatarBucketConfigured()) {
+    if (!reportedMissingBucket) {
+      reportedMissingBucket = true;
+      console.error("[avatar] R2_AVATAR_BUCKET_NAME is not configured");
+    }
+    return refuse(503);
+  }
   if (!(await checkRateLimit("avatarView", viewerId))) return refuse(429);
 
   const wantFull = request.nextUrl.searchParams.get("size") === "full";
@@ -67,9 +81,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     isConnection = Boolean(connection);
   }
 
+  const viewer = { wantFull, isOwner, isConnection };
+  let fullExists = true;
+  if (avatarNeedsFullSizeCheck(target, viewer)) {
+    fullExists = await avatarObjectExists(target.fullKey);
+    if (!fullExists) console.warn("[avatar] full-size object missing", { key: target.fullKey });
+  }
+  const served = avatarServedObject(target, viewer, fullExists);
+
   let location: string;
   try {
-    location = await presignAvatarForViewer(avatarKeyForViewer(target, { wantFull, isOwner, isConnection }));
+    location = await presignAvatarForViewer(served.key);
   } catch (err) {
     console.error("[avatar] failed to sign avatar redirect", err);
     return refuse(503);
@@ -79,7 +101,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     status: 302,
     headers: {
       Location: location,
-      "Cache-Control": `private, max-age=${AVATAR_REDIRECT_MAX_AGE_SECONDS}`,
+      "Cache-Control": `private, max-age=${served.maxAgeSeconds}`,
       "Referrer-Policy": "no-referrer",
     },
   });
