@@ -108,6 +108,9 @@ export const pages: typeof pagesEn = {
       LIVE_STREAM_INVITE: "{name} inició una transmisión en vivo contigo",
       COLLAB_SESSION_REMINDER: "Una sesión de colaboración en la que participas está por empezar",
       LIVE_RECORDING_POST_FAILED: "No se pudo publicar la grabación de una transmisión en vivo que pediste publicar",
+      CIRCLE_INVITE: "{name} te invitó a unirte a un Circle privado",
+      CIRCLE_INVITE_ACCEPTED: "{name} aceptó tu invitación para unirse al Circle",
+      COLLAB_SESSION_STARTED: "{name} inició una sesión de colaboración en vivo",
     },
     notices: {
       videoFlagged:

@@ -122,13 +122,15 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "vocab.interests.Aviation",
     "vocab.languages.Tagalog",
     "vocab.languages.Dari",
-    // "Type", "Public", "Co-admin", "Participants", "Culture" and "Hackathons" are French words too.
+    // "Type", "Description", "Public", "Co-admin", "Participants", "Culture" and "Hackathons" are French words too.
     "circles.channels.type",
     "circles.channels.public",
     "circles.details.public",
     "circles.list.coAdmin",
     "circles.members.coAdmin",
     "collab.form.type",
+    "collab.form.fieldLabels.type",
+    "collab.form.fieldLabels.description",
     "collab.participants.coAdmin",
     "collab.board.participants",
     "collab.detail.participantsHeading",

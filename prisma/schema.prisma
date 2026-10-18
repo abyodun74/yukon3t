@@ -296,6 +296,8 @@ model User {
   circleMemberships           CircleMembership[]
   ownedCircles                Circle[]                   @relation("CircleOwner")
   circleJoinRequests          CircleJoinRequest[]
+  sentCircleInvites           CircleInvite[]             @relation("CircleInviter")
+  receivedCircleInvites       CircleInvite[]             @relation("CircleInvitee")
   posts                       Post[]
   collabPosts                 CollabBoardPost[]
   channelsCreated             Channel[]
@@ -433,6 +435,7 @@ model Circle {
   createdBy     User                @relation("CircleOwner", fields: [createdById], references: [id], onDelete: Cascade)
   members       CircleMembership[]
   joinRequests  CircleJoinRequest[]
+  invites       CircleInvite[]
   posts         Post[]
   channels      Channel[]
   notifications Notification[]
@@ -458,6 +461,32 @@ model CircleJoinRequest {
 
   @@unique([circleId, userId])
   @@index([circleId, status])
+}
+
+/**
+ * A PRIVATE Circle's owner or a co-admin (MODERATOR) inviting one of their
+ * accepted connections to join — the reverse direction of CircleJoinRequest,
+ * same shape as CollabInvite. The invitee accepts (becomes a MEMBER) or
+ * declines; an admin can cancel a PENDING one (row deleted). Never expires.
+ * See inviteToCircle/respondToCircleInvite in actions/circles.ts and the pure
+ * rules in lib/circle-invite.ts.
+ */
+model CircleInvite {
+  id          String           @id @default(cuid())
+  circleId    String
+  inviterId   String
+  inviteeId   String
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+
+  circle  Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  inviter User   @relation("CircleInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User   @relation("CircleInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, inviteeId])
+  @@index([circleId, status])
+  @@index([inviteeId, status])
 }
 
 enum CircleRole {
@@ -1126,6 +1155,18 @@ enum NotificationType {
   // from the stream's own Recordings list either way, which is why
   // liveStreamId (not a postId — no Post was ever created) is the link.
   LIVE_RECORDING_POST_FAILED
+  // Sent to a specific user when a PRIVATE Circle's owner/co-admin invites
+  // them (see inviteToCircle in actions/circles.ts). Also pushes, like
+  // LIVE_STREAM_INVITE: a personally-addressed invite.
+  CIRCLE_INVITE
+  // Sent to the inviter when their CircleInvite is accepted.
+  CIRCLE_INVITE_ACCEPTED
+  // Sent to a PRIVATE collab's participants (not the starter) when its
+  // organizer/co-admin starts the live session with "Notify participants" on
+  // (see startCollabSession in actions/collab-session.ts). Also pushes. At
+  // most one fan-out per collab per 30 minutes, decided by looking for a
+  // recent row of this type (collab-session-start.ts), so no extra table.
+  COLLAB_SESSION_STARTED
 }
 
 model Notification {

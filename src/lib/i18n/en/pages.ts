@@ -112,6 +112,9 @@ export const pagesEn = {
       LIVE_STREAM_INVITE: "{name} started a live stream with you",
       COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
       LIVE_RECORDING_POST_FAILED: "A live stream recording you asked to be posted couldn't be posted",
+      CIRCLE_INVITE: "{name} invited you to join a private Circle",
+      CIRCLE_INVITE_ACCEPTED: "{name} accepted your invitation to join the Circle",
+      COLLAB_SESSION_STARTED: "{name} started a live collaboration session",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into

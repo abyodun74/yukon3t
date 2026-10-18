@@ -52,7 +52,10 @@ export type NotificationData = {
     | "CIRCLE_LIVE"
     | "LIVE_STREAM_INVITE"
     | "COLLAB_SESSION_REMINDER"
-    | "LIVE_RECORDING_POST_FAILED";
+    | "LIVE_RECORDING_POST_FAILED"
+    | "CIRCLE_INVITE"
+    | "CIRCLE_INVITE_ACCEPTED"
+    | "COLLAB_SESSION_STARTED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };

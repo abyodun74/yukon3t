@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { COLLAB_SESSION_STALE_AFTER_MS } from "@/lib/collab-session-start";
 
 /**
  * Co-admins are CollabParticipant rows with role "MODERATOR" — same shape as
@@ -40,4 +41,12 @@ export function canViewCollab(
     hasPendingInvite ||
     user.isAdmin
   );
+}
+
+/** Whether anyone is in the collab's live session right now — same staleness cutoff as getCollabSessionParticipants. */
+export async function hasLiveCollabSession(collabId: string) {
+  const count = await prisma.collabSessionParticipant.count({
+    where: { collabId, joinedAt: { gt: new Date(Date.now() - COLLAB_SESSION_STALE_AFTER_MS) } },
+  });
+  return count > 0;
 }

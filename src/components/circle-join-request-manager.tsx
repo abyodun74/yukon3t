@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { respondToCircleJoinRequest } from "@/app/actions/circles";
 import { UserLink } from "@/components/user-link";
 import { useCirclesText } from "@/components/circles-text";
@@ -14,7 +15,17 @@ type Request = {
 /** Owner/co-admin only, shown on a PRIVATE Circle: approve or decline pending join requests. */
 export function CircleJoinRequestManager({ requests }: { requests: Request[] }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const t = useCirclesText().t.joinRequests;
+
+  // Whatever the answer — including not_found for a request someone else already answered — the refresh shows the
+  // list as it now is; there's nothing more to tell the admin.
+  function respond(requestId: string, approve: boolean) {
+    startTransition(async () => {
+      await respondToCircleJoinRequest(requestId, approve);
+      router.refresh();
+    });
+  }
 
   if (requests.length === 0) return null;
 
@@ -39,7 +50,7 @@ export function CircleJoinRequestManager({ requests }: { requests: Request[] }) 
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => startTransition(async () => { await respondToCircleJoinRequest(r.id, true); })}
+                onClick={() => respond(r.id, true)}
                 className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink disabled:opacity-50"
               >
                 {t.approve}
@@ -47,7 +58,7 @@ export function CircleJoinRequestManager({ requests }: { requests: Request[] }) 
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => startTransition(async () => { await respondToCircleJoinRequest(r.id, false); })}
+                onClick={() => respond(r.id, false)}
                 className="rounded-md border border-line px-2.5 py-1 text-xs disabled:opacity-50"
               >
                 {t.decline}

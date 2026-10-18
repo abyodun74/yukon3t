@@ -70,6 +70,26 @@ export const collab: typeof collabEn = {
     time: "الوقت (UTC)",
     timeHint:
       "يُدخَل الوقت بالتوقيت العالمي المنسق (UTC) ليرى كل المشاركين، أينما كانوا، الوقت المشترك نفسه، بدلًا من أن يتغير اليوم أو الساعة دون تنبيه لمن هو في منطقة زمنية أخرى.",
+    // The banner above the form lists the inputs that need attention; each one also gets its own message under it.
+    fixFields: "يُرجى تصحيح: {fields}",
+    fieldLabels: {
+      title: "العنوان",
+      type: "النوع",
+      countries: "الدول",
+      inviteeIds: "الأشخاص المدعوون",
+      scheduleDays: "الأيام",
+      scheduleTime: "الوقت",
+      description: "الوصف",
+    },
+    fieldErrors: {
+      title: "أدخل عنوانًا من 5 إلى 100 حرف.",
+      type: "اختر نوع المشروع التعاوني.",
+      countries: "اختر دولة واحدة على الأقل، أو حدّد أن المشروع عالمي.",
+      inviteeIds: "ادعُ شخصًا واحدًا أو Circle واحدًا على الأقل، أو اجعل هذا المشروع التعاوني عامًا.",
+      scheduleDays: "اختر يومًا واحدًا على الأقل للجلسة المتكررة.",
+      scheduleTime: "أدخل وقتًا للجلسة المتكررة.",
+      description: "صِف المشروع التعاوني في 20 إلى 2000 حرف.",
+    },
   },
   detail: {
     participantsHeading: "المشاركون",
@@ -132,6 +152,7 @@ export const collab: typeof collabEn = {
     decline: "رفض",
     acceptError: "تعذّر تسجيل ردّك. حاول مرة أخرى.",
     declineError: "تعذّر تسجيل ردّك. حاول مرة أخرى.",
+    sessionLive: "هناك جلسة مباشرة الآن. اقبل الدعوة للانضمام إليها.",
   },
   joinRequests: {
     heading: "طلبات الانضمام ({count})",
@@ -178,5 +199,23 @@ export const collab: typeof collabEn = {
       other: "رُفع الملف، لكن تعذّرت مشاركته في المحادثة. حاول مرة أخرى.",
     },
     linkError: "تعذّر الحصول على رابط هذا التسجيل. حاول مرة أخرى.",
+    startSheet: {
+      title: "بدء الجلسة",
+      notify: "إشعار المشاركين بأن الجلسة مباشرة الآن",
+      notifyHint: "يصل إشعار إلى كل من في هذا المشروع التعاوني، ولا يُرسل أكثر من مرة كل 30 دقيقة.",
+      inviteMore: "دعوة أشخاص آخرين (اختياري)",
+      inviteCircles: "دعوة Circles (اختياري)",
+      start: "بدء",
+      starting: "جارٍ البدء…",
+      cancel: "إلغاء",
+      errors: {
+        too_large: "سيؤدي ذلك إلى إرسال أكثر من {max} دعوة جديدة دفعة واحدة. اختر Circle أصغر. لم تبدأ الجلسة.",
+        forbidden: "لا يمكنك دعوة إلا Circles التي أنشأتها. لم تبدأ الجلسة.",
+        rate_limited: "تمهّل قليلًا ثم حاول مرة أخرى. لم تبدأ الجلسة.",
+        invalid: "تعذّرت دعوة الأشخاص الذين اخترتهم. راجعهم وحاول مرة أخرى. لم تبدأ الجلسة.",
+        not_configured: "لم تُجهَّز الجلسات المباشرة بعد.",
+        other: "تعذّر بدء الجلسة. حاول مرة أخرى.",
+      },
+    },
   },
 };

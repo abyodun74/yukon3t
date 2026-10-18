@@ -20,7 +20,7 @@ import { ChatThread } from "@/components/chat-thread";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
-import { isCollabAdmin, canViewCollab } from "@/lib/collab-permissions";
+import { isCollabAdmin, canViewCollab, hasLiveCollabSession } from "@/lib/collab-permissions";
 import { splitVisibleInvites } from "@/lib/collab-circle-invite";
 import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
 import { countryName } from "@/lib/i18n/country-names";
@@ -66,6 +66,11 @@ export default async function CollabDetailPage({
       : null;
 
   if (!canViewCollab(collab, isParticipant, me, !!myInvite)) notFound();
+
+  // Someone in the session right now (same staleness cutoff as
+  // getCollabSessionParticipants): the invite banner says so, since accepting
+  // is all that stands between the invitee and the Join button below.
+  const inviteeSeesLiveSession = myInvite ? await hasLiveCollabSession(collab.id) : false;
 
   const engagement = engagementStatusFor(
     await getAuthorEngagementStatus(me.id, [collab.author.id]),
@@ -286,7 +291,11 @@ export default async function CollabDetailPage({
 
       {myInvite && (
         <div className="mt-3">
-          <CollabInviteResponse inviteId={myInvite.id} inviterName={myInvite.inviter.name} />
+          <CollabInviteResponse
+            inviteId={myInvite.id}
+            inviterName={myInvite.inviter.name}
+            sessionLive={inviteeSeesLiveSession}
+          />
         </div>
       )}
 
@@ -345,6 +354,11 @@ export default async function CollabDetailPage({
           hasSessionRoom={!!collab.roomName}
           title={collab.title}
           conversationId={collab.conversationId}
+          startOptions={
+            canModerate && collab.visibility === "PRIVATE"
+              ? { candidates: inviteCandidates, circleCandidates }
+              : null
+          }
         />
       </div>
 

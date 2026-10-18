@@ -70,6 +70,26 @@ export const collab: typeof collabEn = {
     time: "Hora (UTC)",
     timeHint:
       "Se indica en UTC para que todas las personas de la colaboración, estén donde estén, vean la misma hora compartida, en lugar de que cambie de día o de hora sin aviso para quien está en otra zona horaria.",
+    // The banner above the form lists the inputs that need attention; each one also gets its own message under it.
+    fixFields: "Corrige lo siguiente: {fields}",
+    fieldLabels: {
+      title: "Título",
+      type: "Tipo",
+      countries: "Países",
+      inviteeIds: "Personas a invitar",
+      scheduleDays: "Días",
+      scheduleTime: "Hora",
+      description: "Descripción",
+    },
+    fieldErrors: {
+      title: "Escribe un título de 5 a 100 caracteres.",
+      type: "Elige un tipo de colaboración.",
+      countries: "Elige al menos un país o marca la colaboración como mundial.",
+      inviteeIds: "Invita al menos a una persona o un Circle, o haz pública esta colaboración.",
+      scheduleDays: "Elige al menos un día para la sesión recurrente.",
+      scheduleTime: "Indica una hora para la sesión recurrente.",
+      description: "Describe la colaboración en 20 a 2000 caracteres.",
+    },
   },
   detail: {
     participantsHeading: "Participantes",
@@ -133,6 +153,7 @@ export const collab: typeof collabEn = {
     decline: "Rechazar",
     acceptError: "No pudimos registrar tu respuesta. Inténtalo de nuevo.",
     declineError: "No pudimos registrar tu respuesta. Inténtalo de nuevo.",
+    sessionLive: "Hay una sesión en vivo ahora mismo. Acepta para unirte.",
   },
   joinRequests: {
     heading: "Solicitudes para unirse ({count})",
@@ -178,5 +199,23 @@ export const collab: typeof collabEn = {
       other: "El archivo se subió, pero no pudimos compartirlo en el chat. Inténtalo de nuevo.",
     },
     linkError: "No pudimos obtener el enlace de esa grabación. Inténtalo de nuevo.",
+    startSheet: {
+      title: "Empezar la sesión",
+      notify: "Avisar a los participantes de que la sesión está en vivo",
+      notifyHint: "Todas las personas de esta colaboración reciben una notificación. Se envía como máximo una vez cada 30 minutos.",
+      inviteMore: "Invitar a más personas (opcional)",
+      inviteCircles: "Invitar Circles (opcional)",
+      start: "Empezar",
+      starting: "Empezando…",
+      cancel: "Cancelar",
+      errors: {
+        too_large: "Eso enviaría más de {max} invitaciones nuevas a la vez. Elige un Circle más pequeño. La sesión no se empezó.",
+        forbidden: "Solo puedes invitar Circles que creaste. La sesión no se empezó.",
+        rate_limited: "Ve un poco más despacio e inténtalo de nuevo. La sesión no se empezó.",
+        invalid: "No pudimos invitar a las personas que elegiste. Revísalas e inténtalo de nuevo. La sesión no se empezó.",
+        not_configured: "Las sesiones en vivo todavía no están configuradas.",
+        other: "No pudimos empezar la sesión. Inténtalo de nuevo.",
+      },
+    },
   },
 };

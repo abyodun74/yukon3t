@@ -19,6 +19,9 @@ export function MultiSelect({
   placeholder = sharedEn.multiSelect.placeholder,
   max,
   labels = sharedEn.multiSelect,
+  id,
+  invalid = false,
+  describedBy,
 }: {
   name: string;
   options: readonly (string | Option)[];
@@ -27,6 +30,10 @@ export function MultiSelect({
   max?: number;
   /** The component's own wording, for the account screens that aren't in English. */
   labels?: Omit<typeof sharedEn.multiSelect, "placeholder">;
+  /** For a form that needs to focus the search box, flag it as failed (aria-invalid + error border) and point it at its message. */
+  id?: string;
+  invalid?: boolean;
+  describedBy?: string;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultValues);
   const [query, setQuery] = useState("");
@@ -81,7 +88,10 @@ export function MultiSelect({
       ))}
 
       <div
-        className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 focus-within:border-accent"
+        className={cn(
+          "flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 focus-within:border-accent",
+          invalid ? "border-danger" : "border-line",
+        )}
         onClick={() => setOpen(true)}
       >
         {selected.map((value) => (
@@ -109,6 +119,9 @@ export function MultiSelect({
           onFocus={() => setOpen(true)}
           placeholder={selected.length === 0 ? placeholder : ""}
           aria-label={placeholder}
+          id={id}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
           disabled={atMax}
           className="min-w-[8ch] flex-1 bg-transparent text-sm outline-none disabled:cursor-not-allowed"
         />

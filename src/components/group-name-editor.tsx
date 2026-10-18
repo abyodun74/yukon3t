@@ -47,7 +47,7 @@ export function GroupNameEditor({
   }
 
   if (!canEdit) {
-    return <h1 dir="auto" className="min-w-0 break-words text-lg font-semibold">{name}</h1>;
+    return <h1 dir="auto" className="min-w-0 [overflow-wrap:anywhere] text-lg font-semibold">{name}</h1>;
   }
 
   if (!editing) {
@@ -56,9 +56,9 @@ export function GroupNameEditor({
         type="button"
         onClick={() => setEditing(true)}
         aria-label={format(t.rename, { name })}
-        className="flex min-w-0 items-center gap-1.5"
+        className="flex min-w-0 max-w-full items-center gap-1.5 text-start"
       >
-        <h1 dir="auto" className="truncate text-lg font-semibold">{name}</h1>
+        <h1 dir="auto" className="min-w-0 [overflow-wrap:anywhere] text-lg font-semibold">{name}</h1>
         <Pencil size={13} className="shrink-0 text-foreground-soft" />
       </button>
     );

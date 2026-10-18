@@ -72,6 +72,26 @@ export const collabEn = {
     time: "Time (UTC)",
     timeHint:
       "Entered in UTC so everyone in the collaboration — wherever they are — sees the same shared time, rather than it silently shifting day or hour for someone in a different timezone.",
+    // The banner above the form lists the inputs that need attention; each one also gets its own message under it.
+    fixFields: "Please fix: {fields}",
+    fieldLabels: {
+      title: "Title",
+      type: "Type",
+      countries: "Countries",
+      inviteeIds: "People to invite",
+      scheduleDays: "Days",
+      scheduleTime: "Time",
+      description: "Description",
+    },
+    fieldErrors: {
+      title: "Enter a title of 5 to 100 characters.",
+      type: "Pick a collaboration type.",
+      countries: "Pick at least one country, or mark this worldwide.",
+      inviteeIds: "Invite at least one person or Circle, or make this collaboration public.",
+      scheduleDays: "Pick at least one day for the recurring session.",
+      scheduleTime: "Enter a time for the recurring session.",
+      description: "Describe the collaboration in 20 to 2,000 characters.",
+    },
   },
   detail: {
     participantsHeading: "Participants",
@@ -134,6 +154,7 @@ export const collabEn = {
     decline: "Decline",
     acceptError: "Couldn't accept — try again.",
     declineError: "Couldn't decline — try again.",
+    sessionLive: "A session is live right now — accept to join it.",
   },
   joinRequests: {
     heading: "Join requests ({count})",
@@ -179,5 +200,24 @@ export const collabEn = {
       other: "Uploaded, but couldn't share it in chat — try again.",
     },
     linkError: "Couldn't get that recording's link — try again.",
+    // The "Start session" sheet on a PRIVATE collab (organizer/co-admin only); errors are startCollabSession's.
+    startSheet: {
+      title: "Start the session",
+      notify: "Notify participants that the session is live",
+      notifyHint: "Everyone in this collaboration gets a notification. It's sent at most once every 30 minutes.",
+      inviteMore: "Invite more people (optional)",
+      inviteCircles: "Invite Circles (optional)",
+      start: "Start",
+      starting: "Starting…",
+      cancel: "Cancel",
+      errors: {
+        too_large: "That would send more than {max} new invites at once — pick a smaller Circle. The session wasn't started.",
+        forbidden: "You can only invite Circles you created. The session wasn't started.",
+        rate_limited: "Slow down a little and try again. The session wasn't started.",
+        invalid: "Couldn't invite the people you picked — check them and try again. The session wasn't started.",
+        not_configured: "Live sessions aren't set up yet.",
+        other: "Couldn't start the session — try again.",
+      },
+    },
   },
 };

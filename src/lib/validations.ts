@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
+import { CIRCLE_INVITE_MAX } from "@/lib/circle-invite";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -173,6 +174,12 @@ export const updateCircleDetailsSchema = z.object({
   category: z.array(z.string().trim().min(2).max(40)).min(1).max(5),
   // Omitted = leave the Circle's privacy as it is.
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
+});
+
+// inviteToCircle. Past CIRCLE_INVITE_MAX distinct people the action answers
+// too_many (selectCircleInvitees); this bound only keeps the input small.
+export const circleInviteSchema = z.object({
+  inviteeIds: z.array(z.string().cuid()).min(1).max(CIRCLE_INVITE_MAX * 2),
 });
 
 export const announcementSchema = z.object({

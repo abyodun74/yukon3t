@@ -197,13 +197,18 @@ export default async function ConversationPage({
       <ScreenshotContextTracker context={{ type: "conversation", id }} />
       {hidden && <HiddenRelock />}
       <BackButton fallbackHref="/messages" label={t.back} />
-      <div className="flex items-center justify-between gap-2">
+      {/* Wraps: a group's title takes its own full-width line on phones and the
+          action buttons drop below it (never squeezing the name or overflowing
+          the viewport); from sm up they share the row when there is room. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
         {conversation.isGroup ? (
-          <GroupNameEditor
-            conversationId={id}
-            name={conversationLabel}
-            canEdit={conversation.createdById === me.id}
-          />
+          <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto sm:min-w-[12rem]">
+            <GroupNameEditor
+              conversationId={id}
+              name={conversationLabel}
+              canEdit={conversation.createdById === me.id}
+            />
+          </div>
         ) : other ? (
           <UserLink
             userId={other.id}
@@ -216,7 +221,7 @@ export default async function ConversationPage({
         ) : (
           <h1 dir="auto" className="text-lg font-semibold">{conversationLabel}</h1>
         )}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {!conversation.isGroup && other && (
             <CallButton calleeId={other.id} calleeName={other.name} currentUserId={me.id} />
           )}

@@ -36,6 +36,8 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "مشاركة لمقطع Muse الخاص بك",
     SCREENSHOT_TAKEN: "تم التقاط لقطة شاشة",
     LIVE_STREAM_INVITE: "بث مباشر معك الآن",
+    CIRCLE_INVITE: "دعوة للانضمام إلى Circle خاص",
+    COLLAB_SESSION_STARTED: "جلسة تعاون مباشرة بدأت الآن",
   },
   reminders: {
     eventTitle: "فعاليتك",

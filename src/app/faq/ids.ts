@@ -119,6 +119,7 @@ export const FAQ_IDS = [
   "pick-category-circle",
   "rename-circle-change-its-theme",
   "sub-circles",
+  "invite-people-private-circle",
   "invite-someone-circles-voice-channel",
   "collab-board",
   "difference-between-public-private-collab",

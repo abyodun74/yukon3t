@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MultiSelect } from "@/components/multi-select";
 import { useCollabText } from "@/components/collab-text";
+import { CollabFieldError, collabFieldErrorId, useCollabFieldInvalid } from "@/components/collab-form-errors";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 
 /**
@@ -12,16 +13,24 @@ import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 export function CollabVisibilityField({
   candidates,
   circleCandidates,
+  defaultVisibility = "PUBLIC",
+  defaultInviteeIds = [],
+  defaultCircleIds = [],
 }: {
   candidates: { value: string; label: string }[];
   circleCandidates: { value: string; label: string }[];
+  /** Restores what was picked before a failed submit. */
+  defaultVisibility?: "PUBLIC" | "PRIVATE";
+  defaultInviteeIds?: string[];
+  defaultCircleIds?: string[];
 }) {
-  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">(defaultVisibility);
+  const invalid = useCollabFieldInvalid("inviteeIds");
   const { t: collab } = useCollabText();
   const t = collab.form;
 
   return (
-    <div>
+    <div id="collab-field-inviteeIds">
       <label className="block text-sm font-medium">{t.visibility}</label>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <label className="flex items-center gap-1.5">
@@ -38,6 +47,7 @@ export function CollabVisibilityField({
           <input
             type="radio"
             name="visibility"
+            id="collab-visibility-private"
             value="PRIVATE"
             checked={visibility === "PRIVATE"}
             onChange={() => setVisibility("PRIVATE")}
@@ -51,6 +61,10 @@ export function CollabVisibilityField({
           {candidates.length > 0 ? (
             <MultiSelect
               name="inviteeIds"
+              id="collab-invitees"
+              invalid={invalid}
+              describedBy={invalid ? collabFieldErrorId("inviteeIds") : undefined}
+              defaultValues={defaultInviteeIds}
               options={candidates}
               placeholder={t.inviteePlaceholder}
               labels={collab.controls.multiSelect}
@@ -67,6 +81,10 @@ export function CollabVisibilityField({
               <div className="mt-1">
                 <MultiSelect
                   name="circleIds"
+                  id="collab-circles"
+                  invalid={invalid}
+                  describedBy={invalid ? collabFieldErrorId("inviteeIds") : undefined}
+                  defaultValues={defaultCircleIds}
                   options={circleCandidates}
                   placeholder={collab.invites.circlePlaceholder}
                   max={COLLAB_CIRCLE_IDS_MAX}
@@ -77,6 +95,7 @@ export function CollabVisibilityField({
           )}
         </div>
       )}
+      <CollabFieldError field="inviteeIds" />
     </div>
   );
 }

@@ -33,6 +33,8 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "Compartilhou seu Muse",
     SCREENSHOT_TAKEN: "Fez uma captura de tela",
     LIVE_STREAM_INVITE: "Iniciou uma transmissão ao vivo com você",
+    CIRCLE_INVITE: "Convidou você para entrar em um Circle privado",
+    COLLAB_SESSION_STARTED: "Começou uma sessão de colaboração ao vivo",
   },
   reminders: {
     eventTitle: "Seu evento",

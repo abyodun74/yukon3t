@@ -74,6 +74,9 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // live-recording-post-notice.ts always sets it, naming the specific
   // reason) — this is only the fallback wording.
   LIVE_RECORDING_POST_FAILED: "A live stream recording you asked to be posted couldn't be posted",
+  CIRCLE_INVITE: "invited you to join a private Circle",
+  CIRCLE_INVITE_ACCEPTED: "accepted your invitation to join the Circle",
+  COLLAB_SESSION_STARTED: "started a live collaboration session",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

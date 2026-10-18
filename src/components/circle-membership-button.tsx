@@ -11,12 +11,15 @@ export function CircleMembershipButton({
   isOwner,
   visibility,
   hasPendingRequest,
+  hasPendingInvite = false,
 }: {
   circleId: string;
   isMember: boolean;
   isOwner: boolean;
   visibility: "PUBLIC" | "PRIVATE";
   hasPendingRequest: boolean;
+  /** Invited to this PRIVATE Circle: joinCircle then accepts the invite instead of asking to join. */
+  hasPendingInvite?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [justRequested, setJustRequested] = useState(false);
@@ -31,7 +34,7 @@ export function CircleMembershipButton({
     );
   }
 
-  if (!isMember && (hasPendingRequest || justRequested)) {
+  if (!isMember && !hasPendingInvite && (hasPendingRequest || justRequested)) {
     return (
       <span className="rounded-lg border border-line px-4 py-1.5 text-sm text-foreground-soft">
         {t.pending}
@@ -56,7 +59,7 @@ export function CircleMembershipButton({
       }
       className="rounded-lg border border-line px-4 py-1.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
     >
-      {isMember ? t.leave : visibility === "PRIVATE" ? t.request : t.join}
+      {isMember ? t.leave : hasPendingInvite ? t.acceptInvite : visibility === "PRIVATE" ? t.request : t.join}
     </button>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Download, Upload, Video } from "lucide-react";
 import {
   joinCollabSession,
+  startCollabSession,
   leaveCollabSession,
   getCollabSessionParticipants,
   listCollabRecordings,
@@ -15,6 +17,8 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
+import { MultiSelect } from "@/components/multi-select";
+import { COLLAB_CIRCLE_IDS_MAX, COLLAB_CIRCLE_INVITE_MAX } from "@/lib/collab-circle-invite";
 import { useCollabText } from "@/components/collab-text";
 import { useUiText } from "@/components/ui-text";
 import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
@@ -23,6 +27,7 @@ const MATERIAL_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
 type Participant = { id: string; name: string };
+type Option = { value: string; label: string };
 type Recording = { id: string; startedAt: number; durationSeconds: number | null };
 
 function formatRecordingLabel(recording: Recording, locale: Locale, withMinutes: string) {
@@ -32,6 +37,34 @@ function formatRecordingLabel(recording: Recording, locale: Locale, withMinutes:
   });
   const minutes = recording.durationSeconds ? Math.round(recording.durationSeconds / 60) : null;
   return minutes ? format(withMinutes, { date, minutes }) : date;
+}
+
+/** startCollabSession's refusals from its invite step, which leave nothing written. */
+function isInviteError(error: string | null) {
+  return error === "rate_limited" || error === "forbidden" || error === "too_large" || error === "invalid";
+}
+
+/**
+ * Keeps Tab inside a modal's content: from its last focusable control Tab wraps to the first, and Shift+Tab from the
+ * first wraps to the last. Sheet itself moves focus in, gives it back and handles Escape (useDialogFocus).
+ */
+function trapTab(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== "Tab") return;
+  const focusable = [
+    ...e.currentTarget.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
+  ];
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 /**
@@ -53,6 +86,7 @@ export function CollabSessionRoom({
   hasSessionRoom,
   title,
   conversationId,
+  startOptions = null,
 }: {
   collabId: string;
   canJoin: boolean;
@@ -64,6 +98,12 @@ export function CollabSessionRoom({
   title: string;
   /** The Collab's own group chat — "Upload material" posts shared files here. Every CollabBoardPost gets one at creation (see createCollabPost), so this is really only ever null defensively. */
   conversationId: string | null;
+  /**
+   * PRIVATE collab, organizer/co-admin only: starting a session nobody's in opens the "Start session" sheet (notify
+   * participants, optionally invite more connections or Circles they created) instead of joining straight away. Same
+   * candidates as CollabInviteManager. Null for a PUBLIC collab, where Start stays one tap.
+   */
+  startOptions?: { candidates: Option[]; circleCandidates: Option[] } | null;
 }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [joined, setJoined] = useState(false);
@@ -72,8 +112,13 @@ export function CollabSessionRoom({
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [fetchingLinkId, setFetchingLinkId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [startSheetOpen, setStartSheetOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const { startSession, dailyCall } = useCallSession();
   const { locale, t: collab } = useCollabText();
   const t = collab.session;
@@ -127,6 +172,10 @@ export function CollabSessionRoom({
       setError(byCode(t.joinErrors, result.error));
       return;
     }
+    enterSession(result.roomUrl, result.token);
+  }
+
+  function enterSession(roomUrl: string, token: string) {
     setJoined(true);
     // Hands off to the root-mounted GlobalCallFrame — it always mounts
     // fullscreen (see global-call-frame.tsx), only shrinking to the corner
@@ -134,8 +183,8 @@ export function CollabSessionRoom({
     // on join.
     startSession({
       key: `collab:${collabId}`,
-      roomUrl: result.roomUrl,
-      token: result.token,
+      roomUrl,
+      token,
       type: "VIDEO",
       label: title,
       // Lets GlobalCallFrame offer "Upload material" and the shared-
@@ -160,7 +209,60 @@ export function CollabSessionRoom({
       setConfirmingJoin(true);
       return;
     }
+    // A PRIVATE collab's organizer/co-admin gets one more step before going
+    // live: who to tell, and who else to bring in. Skipping both pickers is
+    // still just "Start".
+    if (canStart && startOptions) {
+      setStartError(null);
+      setStartSheetOpen(true);
+      return;
+    }
     doJoin();
+  }
+
+  async function submitStart(fd: FormData) {
+    setStartError(null);
+    setNotice(null);
+    setStarting(true);
+    const userIds = fd.getAll("inviteeIds").map(String);
+    let result: Awaited<ReturnType<typeof startCollabSession>>;
+    try {
+      result = await startCollabSession(collabId, {
+        notify: fd.get("notify") === "on",
+        userIds,
+        circleIds: fd.getAll("circleIds").map(String),
+      });
+    } catch {
+      setStarting(false);
+      setStartError(t.startSheet.errors.other);
+      return;
+    }
+    setStarting(false);
+    if (result.circleNames.length > 0) {
+      setNotice(
+        result.invited > 0
+          ? format(plural(locale, collab.invites.circleInvited, result.invited), {
+              circles: result.circleNames.join(ui.listSeparator),
+            })
+          : collab.invites.circleNoneNew,
+      );
+    }
+    // Invites can have gone out even when joining afterwards failed (an
+    // invite error itself writes nothing) — the Invited list on this page
+    // needs to show them either way.
+    const invitesSent = (userIds.length > 0 || result.circleNames.length > 0) && !isInviteError(result.error);
+    if (result.error || !result.roomUrl || !result.token) {
+      setStartError(
+        result.error === "too_large"
+          ? format(t.startSheet.errors.too_large, { max: COLLAB_CIRCLE_INVITE_MAX })
+          : byCode(t.startSheet.errors, result.error),
+      );
+      if (invitesSent) router.refresh();
+      return;
+    }
+    setStartSheetOpen(false);
+    enterSession(result.roomUrl, result.token);
+    if (invitesSent) router.refresh();
   }
 
   function confirmJoin() {
@@ -256,6 +358,7 @@ export function CollabSessionRoom({
         )}
       </div>
       {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
+      {notice && <p role="status" className="mt-2 text-xs text-foreground-soft">{notice}</p>}
 
       {recordings.length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
@@ -277,6 +380,94 @@ export function CollabSessionRoom({
             ))}
           </ul>
         </div>
+      )}
+
+      {startOptions && (
+        <Sheet
+          open={startSheetOpen}
+          onClose={() => {
+            if (!starting) setStartSheetOpen(false);
+          }}
+          ariaLabel={t.startSheet.title}
+          panelClassName="max-w-md"
+        >
+          {/* No Sheet title, so no header Close button outside the trapped
+              form: Cancel (and Escape) is the way out. */}
+          <form
+            onKeyDown={trapTab}
+            onSubmit={(e) => {
+              // A plain submit handler, not a form action: "Starting…" has to
+              // show while the request runs, and an action's state updates
+              // only land once it has finished.
+              e.preventDefault();
+              if (!starting) submitStart(new FormData(e.currentTarget));
+            }}
+            className="space-y-4"
+          >
+            <h2 className="text-sm font-semibold">{t.startSheet.title}</h2>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  name="notify"
+                  defaultChecked
+                  aria-describedby="collab-start-notify-hint"
+                  className="h-4 w-4 rounded border-line accent-accent"
+                />
+                {t.startSheet.notify}
+              </label>
+              <p id="collab-start-notify-hint" className="mt-0.5 text-xs text-foreground-soft">
+                {t.startSheet.notifyHint}
+              </p>
+            </div>
+            {startOptions.candidates.length > 0 && (
+              <div>
+                <span className="block text-xs font-medium text-foreground-soft">{t.startSheet.inviteMore}</span>
+                <div className="mt-1">
+                  <MultiSelect
+                    name="inviteeIds"
+                    options={startOptions.candidates}
+                    placeholder={collab.invites.placeholder}
+                    labels={collab.controls.multiSelect}
+                  />
+                </div>
+              </div>
+            )}
+            {startOptions.circleCandidates.length > 0 && (
+              <div>
+                <span className="block text-xs font-medium text-foreground-soft">{t.startSheet.inviteCircles}</span>
+                <p className="mt-0.5 text-xs text-foreground-soft">{collab.invites.circleHint}</p>
+                <div className="mt-1">
+                  <MultiSelect
+                    name="circleIds"
+                    options={startOptions.circleCandidates}
+                    placeholder={collab.invites.circlePlaceholder}
+                    max={COLLAB_CIRCLE_IDS_MAX}
+                    labels={collab.controls.multiSelect}
+                  />
+                </div>
+              </div>
+            )}
+            {startError && <p role="alert" className="text-xs text-danger">{startError}</p>}
+            <div className="flex flex-col gap-2">
+              <button
+                type="submit"
+                disabled={starting}
+                className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
+              >
+                {starting ? t.startSheet.starting : t.startSheet.start}
+              </button>
+              <button
+                type="button"
+                disabled={starting}
+                onClick={() => setStartSheetOpen(false)}
+                className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+              >
+                {t.startSheet.cancel}
+              </button>
+            </div>
+          </form>
+        </Sheet>
       )}
 
       <Sheet

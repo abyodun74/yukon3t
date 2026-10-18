@@ -10,9 +10,12 @@ import { aroundPlaceholder } from "@/lib/i18n/locales";
 export function CollabInviteResponse({
   inviteId,
   inviterName,
+  sessionLive = false,
 }: {
   inviteId: string;
   inviterName: string | null;
+  /** Someone is in the collab's live session right now — accepting lands them on this page with Join available. */
+  sessionLive?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +30,7 @@ export function CollabInviteResponse({
         <bdi className="font-semibold">{inviterName ?? t.someone}</bdi>
         {after}
       </p>
+      {sessionLive && <p className="mt-1 text-sm font-medium text-accent">{t.sessionLive}</p>}
       <div className="mt-3 flex gap-2">
         <button
           type="button"

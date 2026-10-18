@@ -11,6 +11,8 @@ import { CircleCoverUpload } from "@/components/circle-cover-upload";
 import { CircleMemberManager } from "@/components/circle-member-manager";
 import { CircleMemberList } from "@/components/circle-member-list";
 import { CircleJoinRequestManager } from "@/components/circle-join-request-manager";
+import { CircleInviteManager } from "@/components/circle-invite-manager";
+import { CircleInviteResponse } from "@/components/circle-invite-response";
 import { ChannelList } from "@/components/channel-list";
 import { CircleSwitcher } from "@/components/circle-switcher";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
@@ -22,6 +24,12 @@ import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isCircleAdmin } from "@/lib/circle-permissions";
+import { canInviteToCircle, eligibleCircleInvitees } from "@/lib/circle-invite";
+import {
+  getAcceptedConnectionUsers,
+  loadCircleInviteExclusions,
+  loadStandingCircleInvites,
+} from "@/lib/circle-invite-data";
 import { getMyCircles } from "@/app/actions/circles";
 import { CirclePostFab } from "@/components/circle-post-fab";
 import { vocabName } from "@/lib/i18n/language-names";
@@ -84,6 +92,8 @@ export default async function CirclePage({
   const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
 
   const isPrivateNonMember = circle.visibility === "PRIVATE" && !isMember && !canModerate;
+  // Inviting is the owner's and co-admins' only, by membership role — no site-admin shortcut (see inviteToCircle).
+  const canInvite = circle.visibility === "PRIVATE" && canInviteToCircle(circle, circle.members[0] ?? null, me.id);
 
   const accessibleChannels = circle.channels.filter(
     (c) => c.visibility === "PUBLIC" || canModerate || c.members.some((m) => m.userId === me.id),
@@ -106,7 +116,7 @@ export default async function CirclePage({
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
-  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, mySubCircleRequests] = await Promise.all([
+  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, mySubCircleRequests, myInvites] = await Promise.all([
     !isMember
       ? prisma.circleJoinRequest.findUnique({
           where: { circleId_userId: { circleId: circle.id, userId: me.id } },
@@ -157,8 +167,52 @@ export default async function CirclePage({
           select: { circleId: true },
         })
       : Promise.resolve([]),
+
+    // Invites waiting on the viewer's answer, in one query: to this PRIVATE Circle (the accept/decline banner) and to
+    // any private sub-circle listed below (its button reads "Accept invite"). Only ones whose inviter can still invite.
+    loadStandingCircleInvites(me.id, [
+      ...(!isMember && circle.visibility === "PRIVATE" ? [circle] : []),
+      ...circle.subCircles.filter((s) => s.visibility === "PRIVATE" && s.members.length === 0),
+    ]),
   ]);
   const hasPendingRequest = myJoinRequest?.status === "PENDING";
+  const myInvite = myInvites.get(circle.id) ?? null;
+
+  // The invite manager: every invite, by name, to every admin; an accepted one only while the person is still a member
+  // (after leaving or being removed they're simply invitable again). Candidates are the viewer's own connections,
+  // filtered exactly as inviteToCircle filters them, minus anyone with an invite already pending.
+  const { circleInvites, inviteCandidates } = canInvite
+    ? await (async () => {
+        const [invites, connections] = await Promise.all([
+          prisma.circleInvite.findMany({
+            where: { circleId: circle.id },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              status: true,
+              inviteeId: true,
+              invitee: { select: { id: true, name: true, username: true, avatarUrl: true } },
+            },
+          }),
+          getAcceptedConnectionUsers(me.id),
+        ]);
+        const memberIds = new Set(allMembers.map((m) => m.userId));
+        const pendingIds = new Set(invites.filter((i) => i.status === "PENDING").map((i) => i.inviteeId));
+        const connectionIds = connections.map((u) => u.id);
+        const eligible = new Set(
+          eligibleCircleInvitees(
+            connectionIds,
+            await loadCircleInviteExclusions(circle, me.id, connectionIds, connectionIds),
+          ),
+        );
+        return {
+          circleInvites: invites.filter((i) => i.status !== "ACCEPTED" || memberIds.has(i.inviteeId)),
+          inviteCandidates: connections
+            .filter((u) => eligible.has(u.id) && !pendingIds.has(u.id))
+            .map((u) => ({ value: u.id, label: u.name ?? dictionary.circles.voice.unknown })),
+        };
+      })()
+    : { circleInvites: [], inviteCandidates: [] };
   const posts = await attachViewerState(rawPosts, me.id);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
@@ -221,6 +275,7 @@ export default async function CirclePage({
             isOwner={isOwner}
             visibility={circle.visibility}
             hasPendingRequest={hasPendingRequest}
+            hasPendingInvite={!!myInvite}
           />
           {(isOwner || me.isAdmin) && (
             <DeleteCircleButton
@@ -235,9 +290,13 @@ export default async function CirclePage({
       <p className="mt-1 text-xs text-foreground-soft">{plural(locale, t.members, circle._count.members)}</p>
 
       {isPrivateNonMember ? (
-        <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-          {t.privateNotice}
-        </p>
+        myInvite ? (
+          <CircleInviteResponse inviteId={myInvite.id} inviterName={myInvite.inviterName} />
+        ) : (
+          <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
+            {t.privateNotice}
+          </p>
+        )
       ) : (
         <>
           {canModerate && (
@@ -248,11 +307,20 @@ export default async function CirclePage({
 
           {canModerate && <CircleJoinRequestManager requests={pendingJoinRequests} />}
 
+          {canInvite && (
+            <CircleInviteManager
+              circleId={circle.id}
+              invites={circleInvites.map((i) => ({ id: i.id, status: i.status, invitee: i.invitee }))}
+              candidates={inviteCandidates}
+            />
+          )}
+
           <SubCircleList
             parentSlug={circle.slug}
             subCircles={circle.subCircles}
             viewerId={me.id}
             pendingRequestCircleIds={mySubCircleRequests.map((r) => r.circleId)}
+            pendingInviteCircleIds={circle.subCircles.filter((s) => myInvites.has(s.id)).map((s) => s.id)}
             canAdd={isOwner && !circle.parentId}
           />
 

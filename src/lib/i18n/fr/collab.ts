@@ -72,6 +72,26 @@ export const collab: typeof collabEn = {
     time: "Heure (UTC)",
     timeHint:
       "L'heure est saisie en UTC pour que tous les participants, où qu'ils se trouvent, voient la même heure commune, au lieu qu'elle change de jour ou d'heure sans prévenir pour une personne située dans un autre fuseau horaire.",
+    // The banner above the form lists the inputs that need attention; each one also gets its own message under it.
+    fixFields: "Veuillez corriger : {fields}",
+    fieldLabels: {
+      title: "Titre",
+      type: "Type",
+      countries: "Pays",
+      inviteeIds: "Personnes à inviter",
+      scheduleDays: "Jours",
+      scheduleTime: "Heure",
+      description: "Description",
+    },
+    fieldErrors: {
+      title: "Saisissez un titre de 5 à 100 caractères.",
+      type: "Choisissez un type de collaboration.",
+      countries: "Choisissez au moins un pays ou indiquez que la collaboration est mondiale.",
+      inviteeIds: "Invitez au moins une personne ou un Circle, ou rendez cette collaboration publique.",
+      scheduleDays: "Choisissez au moins un jour pour la session récurrente.",
+      scheduleTime: "Indiquez une heure pour la session récurrente.",
+      description: "Décrivez la collaboration en 20 à 2 000 caractères.",
+    },
   },
   detail: {
     participantsHeading: "Participants",
@@ -136,6 +156,7 @@ export const collab: typeof collabEn = {
     decline: "Refuser",
     acceptError: "Impossible d'enregistrer votre réponse. Réessayez.",
     declineError: "Impossible d'enregistrer votre réponse. Réessayez.",
+    sessionLive: "Une session est en direct en ce moment. Acceptez pour la rejoindre.",
   },
   joinRequests: {
     heading: "Demandes d'adhésion ({count})",
@@ -181,5 +202,23 @@ export const collab: typeof collabEn = {
       other: "Le fichier a bien été envoyé, mais il n'a pas pu être partagé dans la discussion. Réessayez.",
     },
     linkError: "Impossible d'obtenir le lien de cet enregistrement. Réessayez.",
+    startSheet: {
+      title: "Démarrer la session",
+      notify: "Prévenir les participants que la session est en direct",
+      notifyHint: "Toutes les personnes de cette collaboration reçoivent une notification. Elle est envoyée au plus une fois toutes les 30 minutes.",
+      inviteMore: "Inviter d'autres personnes (facultatif)",
+      inviteCircles: "Inviter des Circles (facultatif)",
+      start: "Démarrer",
+      starting: "Démarrage…",
+      cancel: "Annuler",
+      errors: {
+        too_large: "Cela enverrait plus de {max} nouvelles invitations d'un coup. Choisissez un Circle plus petit. La session n'a pas été démarrée.",
+        forbidden: "Vous ne pouvez inviter que les Circles que vous avez créés. La session n'a pas été démarrée.",
+        rate_limited: "Ralentissez un peu et réessayez. La session n'a pas été démarrée.",
+        invalid: "Impossible d'inviter les personnes choisies. Vérifiez-les et réessayez. La session n'a pas été démarrée.",
+        not_configured: "Les sessions en direct ne sont pas encore configurées.",
+        other: "Impossible de démarrer la session. Réessayez.",
+      },
+    },
   },
 };

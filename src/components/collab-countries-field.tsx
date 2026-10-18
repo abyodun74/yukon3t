@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { COUNTRIES } from "@/lib/countries";
 import { MultiSelect } from "@/components/multi-select";
 import { useCollabText } from "@/components/collab-text";
+import { CollabFieldError, collabFieldErrorId, useCollabFieldInvalid } from "@/components/collab-form-errors";
 import { countryName } from "@/lib/i18n/country-names";
 
 const MAX_COUNTRIES = 20;
@@ -17,6 +18,7 @@ export function CollabCountriesField({
   defaultCountries?: string[];
 }) {
   const [worldwide, setWorldwide] = useState(defaultWorldwide);
+  const invalid = useCollabFieldInvalid("countries");
   const { locale, t: collab } = useCollabText();
   const t = collab.form;
   // The stored value is the English name; only the label a country is shown under follows the reader's language.
@@ -26,12 +28,13 @@ export function CollabCountriesField({
   );
 
   return (
-    <div>
+    <div id="collab-field-countries">
       <label className="block text-sm font-medium">{t.countries}</label>
       <label className="mt-2 flex items-center gap-2 text-sm text-foreground-soft">
         <input
           type="checkbox"
           name="worldwide"
+          id="collab-worldwide"
           checked={worldwide}
           onChange={(e) => setWorldwide(e.target.checked)}
           className="h-4 w-4 rounded border-line accent-accent"
@@ -48,9 +51,13 @@ export function CollabCountriesField({
             placeholder={t.countriesPlaceholder}
             max={MAX_COUNTRIES}
             labels={collab.controls.multiSelect}
+            id="collab-countries"
+            invalid={invalid}
+            describedBy={invalid ? collabFieldErrorId("countries") : undefined}
           />
         </div>
       )}
+      <CollabFieldError field="countries" />
     </div>
   );
 }

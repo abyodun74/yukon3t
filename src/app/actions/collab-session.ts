@@ -12,11 +12,22 @@ import {
 } from "@/lib/daily";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCollabMembership } from "@/lib/collab-permissions";
-import { publishEvent } from "@/lib/realtime-server";
+import { publishEvent, notifyBadgeChange } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { sendCollabInvites } from "@/lib/collab-invites-server";
+import { pushActivityNotificationToMany } from "@/lib/notify-push";
+import { captureError } from "@/lib/error-tracking";
+import {
+  COLLAB_SESSION_NOTIFY_COOLDOWN_MS,
+  COLLAB_SESSION_STALE_AFTER_MS,
+  canStartCollabSession,
+  hasStartInvites,
+  parseStartSessionOptions,
+  sessionStartedRecipients,
+  shouldNotifySessionStarted,
+} from "@/lib/collab-session-start";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
-const STALE_AFTER_MS = 4 * 60 * 60 * 1000;
 
 /** Joins a Collab's persistent live session room, creating it on first use — no ringing, just presence, same pattern as joinCircleVoiceRoom. */
 export async function joinCollabSession(collabId: string) {
@@ -42,6 +53,19 @@ export async function joinCollabSession(collabId: string) {
     return { error: "not_a_participant" as const };
   }
 
+  return enterCollabSession(user, collab, membership.role);
+}
+
+/**
+ * The join itself, shared by joinCollabSession and startCollabSession once each has authorized the caller as a
+ * participant and spent its rate limit. Not exported: an export of this file is a callable Server Action.
+ */
+async function enterCollabSession(
+  user: { id: string; name: string | null },
+  collab: { id: string; roomName: string | null; roomUrl: string | null },
+  role: string,
+) {
+  const collabId = collab.id;
   let roomName = collab.roomName;
   let roomUrl = collab.roomUrl;
 
@@ -49,7 +73,7 @@ export async function joinCollabSession(collabId: string) {
     // Only the organizer or a co-admin can start a session from cold —
     // a regular participant can join one already underway, but can't spin
     // one up on their own.
-    if (membership.role !== "OWNER" && membership.role !== "MODERATOR") {
+    if (!canStartCollabSession(role)) {
       return { error: "not_started" as const };
     }
     try {
@@ -74,7 +98,7 @@ export async function joinCollabSession(collabId: string) {
       roomName,
       userId: user.id,
       userName: user.name ?? "Guest",
-      isOwner: membership.role === "OWNER" || membership.role === "MODERATOR",
+      isOwner: canStartCollabSession(role),
     });
   } catch {
     return { error: "call_service_unavailable" as const };
@@ -89,6 +113,136 @@ export async function joinCollabSession(collabId: string) {
 
   revalidatePath(`/collab/${collabId}`);
   return { error: null, roomUrl, token };
+}
+
+/**
+ * Organizer/co-admin of a PRIVATE collab, from the "Start session" sheet: optionally invites more people and/or the
+ * members of Circles they created (the same sendCollabInvites as inviteToCollab, with all its rules), joins the
+ * session exactly like joinCollabSession, then — with `notify` on — tells the other participants it's live.
+ *
+ * Order matters: an invite error (rate_limited, forbidden, too_large, invalid) returns before anything else happens,
+ * so the session isn't started and nobody is notified. Participants are notified only after the join succeeded, so
+ * "the session is live" never goes out for a session that failed to start; if the join itself fails after invites
+ * were sent, those invites stand (they're ordinary invites) and the error is returned with their counts. The
+ * notification is best-effort: a failure there never keeps the starter out of the room.
+ */
+export async function startCollabSession(
+  collabId: string,
+  input: { notify: boolean; userIds: string[]; circleIds: string[] },
+) {
+  const user = await requireVerifiedUser();
+  const noInvites = { invited: 0, skipped: 0, circleNames: [] as string[] };
+
+  const options = parseStartSessionOptions(input);
+  if (!options) {
+    return { error: "invalid" as const, ...noInvites };
+  }
+  if (!isCallingConfigured()) {
+    return { error: "not_configured" as const, ...noInvites };
+  }
+  if (!(await checkRateLimit("collabSession", user.id))) {
+    return { error: "rate_limited" as const, ...noInvites };
+  }
+
+  const [collab, membership] = await Promise.all([
+    prisma.collabBoardPost.findUnique({
+      where: { id: collabId },
+      select: { id: true, visibility: true, roomName: true, roomUrl: true },
+    }),
+    getCollabMembership(collabId, user.id),
+  ]);
+  if (!collab) {
+    return { error: "not_found" as const, ...noInvites };
+  }
+  if (!membership) {
+    return { error: "not_a_participant" as const, ...noInvites };
+  }
+  if (!canStartCollabSession(membership.role)) {
+    return { error: "forbidden" as const, ...noInvites };
+  }
+  if (collab.visibility !== "PRIVATE") {
+    return { error: "not_private" as const, ...noInvites };
+  }
+
+  let invites = noInvites;
+  if (hasStartInvites(options)) {
+    // The same limiter inviteToCollab spends before inviting.
+    if (!(await checkRateLimit("collabModerate", user.id))) {
+      return { error: "rate_limited" as const, ...noInvites };
+    }
+    const sent = await sendCollabInvites(user.id, collabId, {
+      inviteeIds: options.userIds,
+      circleIds: options.circleIds,
+    });
+    if (sent.error) {
+      return { error: sent.error, ...noInvites };
+    }
+    invites = { invited: sent.invited, skipped: sent.skipped, circleNames: sent.circleNames };
+  }
+
+  const joined = await enterCollabSession(user, collab, membership.role);
+  if (joined.error) {
+    return { error: joined.error, ...invites };
+  }
+
+  if (options.notify) {
+    try {
+      await notifyCollabSessionStarted(collabId, user);
+    } catch (err) {
+      console.error("[collab-session] session-started notification failed", err);
+      await captureError(err, { action: "startCollabSession", collabId });
+    }
+  }
+
+  return { error: null, ...invites, roomUrl: joined.roomUrl, token: joined.token };
+}
+
+/**
+ * COLLAB_SESSION_STARTED bell rows + FCM push to every participant but the starter, at most once per collab per
+ * COLLAB_SESSION_NOTIFY_COOLDOWN_MS. The cooldown needs no table of its own: the newest COLLAB_SESSION_STARTED row
+ * for this collab is the last fan-out (looked up through the participants' recipientId/createdAt index rather than
+ * by collabId, which has no index). The check and the insert run in one transaction that first locks the collab's
+ * row (a no-op update, same trick as lockConnectedCall), so two admins starting at the same moment can't both pass.
+ */
+async function notifyCollabSessionStarted(collabId: string, starter: { id: string; name: string | null }) {
+  const participants = await prisma.collabParticipant.findMany({ where: { collabId }, select: { userId: true } });
+  const participantIds = participants.map((p) => p.userId);
+  const recipientIds = sessionStartedRecipients(participantIds, starter.id);
+  if (recipientIds.length === 0) return;
+
+  const now = new Date();
+  const sent = await prisma.$transaction(async (tx) => {
+    await tx.collabBoardPost.updateMany({
+      where: { id: collabId, visibility: "PRIVATE" },
+      data: { visibility: "PRIVATE" },
+    });
+    const last = await tx.notification.findFirst({
+      where: {
+        recipientId: { in: participantIds },
+        type: "COLLAB_SESSION_STARTED",
+        collabId,
+        createdAt: { gt: new Date(now.getTime() - COLLAB_SESSION_NOTIFY_COOLDOWN_MS) },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    if (!shouldNotifySessionStarted({ notifyRequested: true, lastSentAt: last?.createdAt ?? null, now })) {
+      return false;
+    }
+    await tx.notification.createMany({
+      data: recipientIds.map((recipientId) => ({
+        recipientId,
+        actorId: starter.id,
+        type: "COLLAB_SESSION_STARTED" as const,
+        collabId,
+      })),
+    });
+    return true;
+  });
+  if (!sent) return;
+
+  await pushActivityNotificationToMany(recipientIds, "COLLAB_SESSION_STARTED", starter.name, `/collab/${collabId}`);
+  await Promise.all(recipientIds.map((recipientId) => notifyBadgeChange(recipientId)));
 }
 
 /** Leaves the presence list — the room itself is persistent and isn't torn down. */
@@ -110,7 +264,7 @@ export async function getCollabSessionParticipants(collabId: string) {
     await requireVerifiedUser();
 
     const participants = await prisma.collabSessionParticipant.findMany({
-      where: { collabId, joinedAt: { gt: new Date(Date.now() - STALE_AFTER_MS) } },
+      where: { collabId, joinedAt: { gt: new Date(Date.now() - COLLAB_SESSION_STALE_AFTER_MS) } },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { joinedAt: "asc" },
     });

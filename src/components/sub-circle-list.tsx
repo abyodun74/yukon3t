@@ -33,18 +33,22 @@ export async function SubCircleList({
   subCircles,
   viewerId,
   pendingRequestCircleIds,
+  pendingInviteCircleIds,
   canAdd,
 }: {
   parentSlug: string;
   subCircles: SubCircleSummary[];
   viewerId: string;
   pendingRequestCircleIds: string[];
+  /** Private sub-circles the viewer has a standing invite to (loadStandingCircleInvites): "Accept invite". */
+  pendingInviteCircleIds: string[];
   canAdd: boolean;
 }) {
   if (subCircles.length === 0 && !canAdd) return null;
   const locale = await getLocale();
   const t = (await getDictionary()).circles.subCircles;
   const pending = new Set(pendingRequestCircleIds);
+  const invited = new Set(pendingInviteCircleIds);
 
   return (
     <section id="sub-circles" className="mt-8">
@@ -108,6 +112,7 @@ export async function SubCircleList({
                     isOwner={sub.createdById === viewerId}
                     visibility={sub.visibility}
                     hasPendingRequest={pending.has(sub.id)}
+                    hasPendingInvite={invited.has(sub.id)}
                   />
                 </div>
               </li>

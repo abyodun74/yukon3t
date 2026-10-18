@@ -109,6 +109,9 @@ export const pages: typeof pagesEn = {
       LIVE_STREAM_INVITE: "بث مباشر من {name} معك",
       COLLAB_SESSION_REMINDER: "جلسة تعاون تشارك فيها تبدأ قريبًا",
       LIVE_RECORDING_POST_FAILED: "تعذّر نشر تسجيل بث مباشر طلبتَ نشره",
+      CIRCLE_INVITE: "دعوة من {name} للانضمام إلى Circle خاص",
+      CIRCLE_INVITE_ACCEPTED: "تم قبول دعوتك للانضمام إلى Circle من قِبل {name}",
+      COLLAB_SESSION_STARTED: "بدء جلسة تعاون مباشرة من قِبل {name}",
     },
     notices: {
       videoFlagged:

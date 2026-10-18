@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { circleSchema, postSchema, confirmCircleCoverUploadSchema, updateCircleDetailsSchema } from "@/lib/validations";
+import {
+  circleSchema,
+  postSchema,
+  confirmCircleCoverUploadSchema,
+  updateCircleDetailsSchema,
+  circleInviteSchema,
+} from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
@@ -38,8 +44,17 @@ import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
-import { publishEvent } from "@/lib/realtime-server";
+import { publishEvent, notifyBadgeChange } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { isBlockedWithAny } from "@/lib/blocks";
+import { pushActivityNotification } from "@/lib/notify-push";
+import {
+  canInviteToCircle,
+  canInviterStillInvite,
+  planCircleInvites,
+  selectCircleInvitees,
+} from "@/lib/circle-invite";
+import { loadCircleInviteExclusions } from "@/lib/circle-invite-data";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -162,6 +177,8 @@ export async function joinCircle(circleId: string) {
   const circle = await prisma.circle.findUnique({
     where: { id: circleId },
     select: {
+      id: true,
+      slug: true,
       visibility: true,
       createdById: true,
       members: { where: { role: "MODERATOR" }, select: { userId: true } },
@@ -184,6 +201,20 @@ export async function joinCircle(circleId: string) {
     if (alreadyMember) {
       revalidatePath("/circles");
       return { error: null, requested: false };
+    }
+    // Invited already: "Request to Join" (it reads "Accept invite" then) just accepts the invite.
+    const pendingInvite = await prisma.circleInvite.findFirst({
+      where: { circleId, inviteeId: user.id, status: "PENDING" },
+      select: { id: true, inviterId: true },
+    });
+    if (pendingInvite) {
+      const accepted = await acceptCircleInvite(user.id, pendingInvite, circle);
+      if (!accepted.error) {
+        revalidatePath("/circles");
+        return { error: null, requested: false };
+      }
+      // An invite whose inviter can no longer invite was just deleted: fall through and ask to join instead.
+      if (accepted.error !== "invite_expired") return { error: accepted.error, requested: false };
     }
     if (!existingRequest) {
       try {
@@ -264,11 +295,28 @@ export async function respondToCircleJoinRequest(requestId: string, approve: boo
     return { error: "forbidden" as const };
   }
 
+  // Guarded on PENDING, like respondToCircleInvite: a request another admin (or inviteToCircle, or the requester
+  // accepting an invite) already answered is left alone — no second CIRCLE_JOIN_APPROVED, no membership work redone.
+  const now = new Date();
+  const { count } = await prisma.circleJoinRequest.updateMany({
+    where: { id: requestId, status: "PENDING" },
+    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: now },
+  });
+  if (count === 0) {
+    revalidatePath(`/circles/${request.circle.slug}`);
+    return { error: "not_found" as const };
+  }
+
   if (approve) {
     await prisma.circleMembership.upsert({
       where: { userId_circleId: { userId: request.userId, circleId: request.circleId } },
       create: { userId: request.userId, circleId: request.circleId },
       update: {},
+    });
+    // Same as inviteToCircle's approval: an older invite of theirs shouldn't keep its old status in the list.
+    await prisma.circleInvite.updateMany({
+      where: { circleId: request.circleId, inviteeId: request.userId, status: { not: "ACCEPTED" } },
+      data: { status: "ACCEPTED", respondedAt: now },
     });
     await prisma.notification.create({
       data: {
@@ -280,12 +328,311 @@ export async function respondToCircleJoinRequest(requestId: string, approve: boo
     });
   }
 
-  await prisma.circleJoinRequest.update({
-    where: { id: requestId },
-    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+  revalidatePath(`/circles/${request.circle.slug}`);
+  return { error: null };
+}
+
+/**
+ * Owner or co-admin of a PRIVATE Circle: invites some of their accepted connections to join (each must accept via
+ * respondToCircleInvite). Judged by membership role, not isCircleAdmin — its site-admin shortcut would let a site admin
+ * invite people into anyone's private Circle. Who can be invited, the 50-person cap and what a re-invite does are in
+ * lib/circle-invite.ts. Someone who already asked to join (a PENDING CircleJoinRequest) is let straight in instead.
+ * `invited` counts invites actually sent (new or re-sent), `approved` the join requests approved, `skipped` the people
+ * named who can't be invited.
+ */
+export async function inviteToCircle(circleId: string, formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    select: { id: true, slug: true, visibility: true, createdById: true },
+  });
+  if (!circle) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(circleId, user.id);
+  if (!canInviteToCircle(circle, myMembership, user.id)) {
+    return { error: "forbidden" as const };
+  }
+  if (circle.visibility !== "PRIVATE") {
+    return { error: "not_private" as const };
+  }
+
+  const parsed = circleInviteSchema.safeParse({ inviteeIds: formData.getAll("inviteeIds") });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  const allowed = await checkRateLimit("circleInvite", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const requestedIds = [...new Set(parsed.data.inviteeIds)];
+  const selection = selectCircleInvitees(
+    requestedIds,
+    await loadCircleInviteExclusions(circle, user.id, requestedIds),
+  );
+  if (!selection.ok) {
+    return { error: selection.error };
+  }
+  const { inviteeIds, skipped } = selection;
+  if (inviteeIds.length === 0) {
+    return { error: null, invited: 0, approved: 0, skipped };
+  }
+
+  const [existingInvites, pendingRequests] = await Promise.all([
+    prisma.circleInvite.findMany({
+      where: { circleId, inviteeId: { in: inviteeIds } },
+      select: { id: true, inviteeId: true, status: true },
+    }),
+    prisma.circleJoinRequest.findMany({
+      where: { circleId, userId: { in: inviteeIds }, status: "PENDING" },
+      select: { userId: true },
+    }),
+  ]);
+  const plan = planCircleInvites({
+    inviteeIds,
+    existingInvites: new Map(existingInvites.map((i) => [i.inviteeId, i])),
+    // Members were excluded above, so nobody left is one.
+    memberIds: [],
+    pendingRequestUserIds: pendingRequests.map((r) => r.userId),
+  });
+  const now = new Date();
+
+  // Already asked to join: approve the request, as respondToCircleJoinRequest would. Guarded on PENDING so a request
+  // another admin answered meanwhile isn't approved (or announced) twice.
+  const approvedIds =
+    plan.approveRequests.length > 0
+      ? (
+          await prisma.circleJoinRequest.updateManyAndReturn({
+            where: { circleId, userId: { in: plan.approveRequests }, status: "PENDING" },
+            data: { status: "APPROVED", respondedAt: now },
+            select: { userId: true },
+          })
+        ).map((a) => a.userId)
+      : [];
+  if (approvedIds.length > 0) {
+    await prisma.circleMembership.createMany({
+      data: approvedIds.map((userId) => ({ userId, circleId })),
+      skipDuplicates: true,
+    });
+    // An older invite of theirs (declined, or from before they left) shouldn't keep its old status in the list.
+    await prisma.circleInvite.updateMany({
+      where: { circleId, inviteeId: { in: approvedIds }, status: { not: "ACCEPTED" } },
+      data: { status: "ACCEPTED", respondedAt: now },
+    });
+    await prisma.notification.createMany({
+      data: approvedIds.map((recipientId) => ({
+        recipientId,
+        actorId: user.id,
+        type: "CIRCLE_JOIN_APPROVED" as const,
+        circleId,
+      })),
+    });
+  }
+
+  // Only rows this request actually created or re-opened are notified: skipDuplicates drops an invite a concurrent
+  // request got to first, and each reset is guarded on the status it was read with.
+  const createdIds =
+    plan.create.length > 0
+      ? (
+          await prisma.circleInvite.createManyAndReturn({
+            data: plan.create.map((inviteeId) => ({ circleId, inviterId: user.id, inviteeId })),
+            skipDuplicates: true,
+            select: { inviteeId: true },
+          })
+        ).map((c) => c.inviteeId)
+      : [];
+  const statusByInviteId = new Map(existingInvites.map((i) => [i.id, i.status]));
+  const resetIds = (
+    await Promise.all(
+      plan.reset.map(async ({ inviteId, inviteeId }) => {
+        const status = statusByInviteId.get(inviteId);
+        if (!status) return null;
+        const { count } = await prisma.circleInvite.updateMany({
+          where: { id: inviteId, status },
+          // Whoever asks again becomes the inviter the invitee sees.
+          data: { status: "PENDING", inviterId: user.id, createdAt: now, respondedAt: null },
+        });
+        return count > 0 ? inviteeId : null;
+      }),
+    )
+  ).filter((id): id is string => id !== null);
+
+  const notifiedIds = [...createdIds, ...resetIds];
+  if (notifiedIds.length > 0) {
+    await prisma.notification.createMany({
+      data: notifiedIds.map((recipientId) => ({
+        recipientId,
+        actorId: user.id,
+        type: "CIRCLE_INVITE" as const,
+        circleId,
+      })),
+      skipDuplicates: true,
+    });
+    // Personally addressed, so it also pushes (unlike the bell-only COLLAB_INVITE).
+    await Promise.all(
+      notifiedIds.map(async (recipientId) => {
+        await pushActivityNotification(recipientId, "CIRCLE_INVITE", user.name, `/circles/${circle.slug}`);
+        await notifyBadgeChange(recipientId);
+      }),
+    );
+  }
+
+  revalidatePath(`/circles/${circle.slug}`);
+  return { error: null, invited: notifiedIds.length, approved: approvedIds.length, skipped };
+}
+
+/**
+ * Lets `userId` into the Circle on a PENDING invite of theirs — the shared tail of respondToCircleInvite and of
+ * joinCircle (asking to join while invited). Blocks are checked again (with the inviter and the owner), since either
+ * side may have blocked the other after the invite went out; the invitee's ACTIVE status is already enforced by
+ * requireVerifiedUser. The PENDING → ACCEPTED claim is guarded, so a double tap, or a cancel in between, can't let
+ * anyone in twice (or at all, once cancelled). Membership of a private Circle is never announced to subscribers.
+ */
+async function acceptCircleInvite(
+  userId: string,
+  invite: { id: string; inviterId: string },
+  circle: { id: string; slug: string; createdById: string },
+) {
+  // The invite only stands while its inviter could still send it: owner or still a co-admin, account still ACTIVE.
+  // One that no longer does is deleted (with the invitee's bell entry), like a cancelled one, so it doesn't linger.
+  const [inviter, inviterMembership] = await Promise.all([
+    prisma.user.findUnique({ where: { id: invite.inviterId }, select: { id: true, status: true } }),
+    getCircleMembership(circle.id, invite.inviterId),
+  ]);
+  if (!canInviterStillInvite(circle, inviter, inviterMembership)) {
+    const { count: removed } = await prisma.circleInvite.deleteMany({
+      where: { id: invite.id, inviteeId: userId, status: "PENDING" },
+    });
+    if (removed > 0) {
+      await prisma.notification.deleteMany({
+        where: { recipientId: userId, circleId: circle.id, type: "CIRCLE_INVITE" },
+      });
+    }
+    revalidatePath(`/circles/${circle.slug}`);
+    return { error: "invite_expired" as const };
+  }
+
+  if (await isBlockedWithAny(userId, [invite.inviterId, circle.createdById])) {
+    return { error: "unavailable" as const };
+  }
+
+  const now = new Date();
+  const { count } = await prisma.circleInvite.updateMany({
+    where: { id: invite.id, inviteeId: userId, status: "PENDING" },
+    data: { status: "ACCEPTED", respondedAt: now },
+  });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
+
+  const existing = await getCircleMembership(circle.id, userId);
+  await prisma.circleMembership.upsert({
+    where: { userId_circleId: { userId, circleId: circle.id } },
+    create: { userId, circleId: circle.id },
+    update: {},
+  });
+  // A request to join they'd also sent is answered by this.
+  await prisma.circleJoinRequest.updateMany({
+    where: { circleId: circle.id, userId, status: "PENDING" },
+    data: { status: "APPROVED", respondedAt: now },
   });
 
-  revalidatePath(`/circles/${request.circle.slug}`);
+  if (!existing) {
+    await track("CIRCLE_JOINED", userId, { circleId: circle.id });
+    await prisma.notification.create({
+      data: { recipientId: invite.inviterId, actorId: userId, type: "CIRCLE_INVITE_ACCEPTED", circleId: circle.id },
+    });
+    // The owner and co-admins hear about a new member as they would any other way; the inviter already got the more
+    // specific CIRCLE_INVITE_ACCEPTED above.
+    const moderators = await prisma.circleMembership.findMany({
+      where: { circleId: circle.id, role: "MODERATOR" },
+      select: { userId: true },
+    });
+    const recipientIds = new Set([circle.createdById, ...moderators.map((m) => m.userId)]);
+    recipientIds.delete(userId);
+    recipientIds.delete(invite.inviterId);
+    if (recipientIds.size > 0) {
+      await prisma.notification.createMany({
+        data: [...recipientIds].map((recipientId) => ({
+          recipientId,
+          actorId: userId,
+          type: "CIRCLE_JOINED" as const,
+          circleId: circle.id,
+        })),
+      });
+    }
+  }
+
+  revalidatePath(`/circles/${circle.slug}`);
+  return { error: null };
+}
+
+/** Invitee only: accepts or declines a pending CircleInvite. Declining tells nobody. */
+export async function respondToCircleInvite(inviteId: string, accept: boolean) {
+  const user = await requireVerifiedUser();
+
+  const invite = await prisma.circleInvite.findUnique({
+    where: { id: inviteId },
+    select: {
+      id: true,
+      inviteeId: true,
+      inviterId: true,
+      circle: { select: { id: true, slug: true, createdById: true } },
+    },
+  });
+  // Someone else's invite answers exactly like a missing one.
+  if (!invite || invite.inviteeId !== user.id) {
+    return { error: "not_found" as const };
+  }
+
+  if (accept) {
+    return acceptCircleInvite(user.id, invite, invite.circle);
+  }
+
+  const { count } = await prisma.circleInvite.updateMany({
+    where: { id: inviteId, inviteeId: user.id, status: "PENDING" },
+    data: { status: "DECLINED", respondedAt: new Date() },
+  });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
+  revalidatePath(`/circles/${invite.circle.slug}`);
+  return { error: null };
+}
+
+/** Owner or co-admin: withdraws a PENDING invite (the row is deleted, with the invitee's bell entry for it). */
+export async function cancelCircleInvite(inviteId: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("circleModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const invite = await prisma.circleInvite.findUnique({
+    where: { id: inviteId },
+    select: { inviteeId: true, circle: { select: { id: true, slug: true, createdById: true } } },
+  });
+  if (!invite) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCircleMembership(invite.circle.id, user.id);
+  if (!canInviteToCircle(invite.circle, myMembership, user.id)) {
+    return { error: "forbidden" as const };
+  }
+
+  const { count } = await prisma.circleInvite.deleteMany({ where: { id: inviteId, status: "PENDING" } });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
+  await prisma.notification.deleteMany({
+    where: { recipientId: invite.inviteeId, circleId: invite.circle.id, type: "CIRCLE_INVITE" },
+  });
+
+  revalidatePath(`/circles/${invite.circle.slug}`);
   return { error: null };
 }
 
@@ -409,8 +756,9 @@ export async function updateCircleDetails(circleId: string, formData: FormData) 
     for (const s of subs) revalidatePath(`/circles/${s.slug}`);
     await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
   } else if (visibilityChanged) {
-    // Going public: a pending "request to join" is moot now that anyone can join directly.
+    // Going public: a pending "request to join" or invite is moot now that anyone can join directly.
     await prisma.circleJoinRequest.deleteMany({ where: { circleId, status: "PENDING" } });
+    await prisma.circleInvite.deleteMany({ where: { circleId, status: "PENDING" } });
   }
 
   revalidatePath(`/circles/${circle.slug}`);

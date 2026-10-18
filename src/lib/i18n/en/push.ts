@@ -39,6 +39,8 @@ export const pushEn = {
     MUSE_SHARE: "shared your Muse",
     SCREENSHOT_TAKEN: "took a screenshot",
     LIVE_STREAM_INVITE: "started a live stream with you",
+    CIRCLE_INVITE: "invited you to join a private Circle",
+    COLLAB_SESSION_STARTED: "started a live collaboration session",
   },
   reminders: {
     eventTitle: "Your event",

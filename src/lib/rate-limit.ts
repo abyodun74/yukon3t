@@ -142,6 +142,9 @@ const limiterDefinitions = {
   // Inviting whole Circles to a collab: each request can notify up to 200
   // people (COLLAB_CIRCLE_INVITE_MAX), so it's far tighter than collabModerate.
   collabCircleInvite: makeLimiter(5, "1 h", "collabCircleInvite"),
+  // Inviting connections to a PRIVATE Circle (inviteToCircle): each request
+  // can push-notify up to 50 people (CIRCLE_INVITE_MAX).
+  circleInvite: makeLimiter(10, "1 h"),
   collabSession: makeLimiter(20, "10 m"),
   // Keyed by IP rather than user.id — /advertise takes bookings with no
   // sign-in (see getClientIp), so there's no account identifier to key on.

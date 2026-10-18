@@ -1504,6 +1504,28 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "invite-people-private-circle",
+        q: "How do I invite people to a private Circle?",
+        a: (
+          <>
+            On a private Circle&apos;s page, its owner or a co-admin can tap
+            &ldquo;Invite people&rdquo; and pick from their own connections,
+            up to 50 at a time. Each person gets a notification and an
+            Accept/Decline prompt on the Circle&apos;s page (its button reads
+            &ldquo;Accept invite&rdquo; instead of &ldquo;Request to
+            Join&rdquo;); nobody becomes a member until they accept, and
+            declining doesn&apos;t notify anyone. Inviting someone who already
+            asked to join simply approves their request. Every admin sees the
+            &ldquo;Invited&rdquo; list with each invite&apos;s status and can
+            cancel one that&apos;s still pending. Invites don&apos;t expire.
+            Someone who declined, left or was removed can be invited again.
+            A sub-circle is its own Circle, so invite people to it from its
+            own page. Making the Circle public cancels pending invites, since
+            anyone can join it then.
+          </>
+        ),
+      },
+      {
         id: "invite-someone-circles-voice-channel",
         q: "How do I invite someone to a Circle's voice channel?",
         a: (
@@ -1566,8 +1588,20 @@ const sections: Section[] = [
           <>
             Only the organizer or a co-admin can start a session from
             cold — they&apos;ll see a &ldquo;Start session&rdquo; button on
-            the collaboration&apos;s page, and tapping it connects them right
-            away, no extra confirmation. Everyone else only sees a
+            the collaboration&apos;s page. On a public collaboration, tapping
+            it connects them right away, no extra confirmation. On a private
+            one, it first opens a short &ldquo;Start the session&rdquo; panel:
+            &ldquo;Notify participants that the session is live&rdquo; (on by
+            default) sends everyone already in the collaboration a
+            notification, at most once every 30 minutes, and you can
+            optionally invite more of your connections or up to five Circles
+            you created, exactly as with &ldquo;Invite people&rdquo; (each
+            person still accepts their own invite, and someone invited while a
+            session is live is told so on the invite). Tap
+            &ldquo;Start&rdquo; without picking anyone to just go live. If an
+            invite can&apos;t be sent (for example, a Circle that would add
+            more than 200 new invites), the session isn&apos;t started and
+            nobody is notified. Everyone else only sees a
             &ldquo;Join session&rdquo; button once one&apos;s already
             underway (before that, the page just shows &ldquo;Waiting for the
             organizer to start the session&rdquo;). If a session&apos;s

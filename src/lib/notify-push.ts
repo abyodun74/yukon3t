@@ -1,4 +1,4 @@
-import { sendFcmActivityToUser } from "@/lib/fcm";
+import { sendFcmActivityToUser, sendFcmActivityToUsers } from "@/lib/fcm";
 import { activityLine, nameOrSomeone, type ActivityPushType } from "@/lib/push-text";
 
 /**
@@ -17,6 +17,21 @@ export async function pushActivityNotification(
   url?: string,
 ) {
   await sendFcmActivityToUser(recipientId, (locale) => ({
+    title: nameOrSomeone(actorName, locale),
+    body: activityLine(type, locale),
+    type,
+    url,
+  }));
+}
+
+/** pushActivityNotification for many recipients of the same activity: one token lookup, one send per language. */
+export async function pushActivityNotificationToMany(
+  recipientIds: string[],
+  type: ActivityPushType,
+  actorName: string | null,
+  url?: string,
+) {
+  await sendFcmActivityToUsers(recipientIds, (locale) => ({
     title: nameOrSomeone(actorName, locale),
     body: activityLine(type, locale),
     type,
