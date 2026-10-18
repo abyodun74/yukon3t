@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useUiText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
+import { protectedImageProps } from "@/lib/protected-image";
 
 /**
  * Circular avatar — a person's photo if they have one, otherwise their
@@ -40,7 +41,8 @@ export function UserAvatar({
             decoding="async"
             ref={markImageLoadedIfComplete}
             onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
-            className="img-fade-in h-full w-full object-cover"
+            // Profile pictures aren't saveable in-app (see protected-image.ts).
+            {...protectedImageProps("img-fade-in h-full w-full object-cover")}
           />
         ) : (
           <div

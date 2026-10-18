@@ -154,6 +154,7 @@ export const FAQ_IDS = [
   "who-see-posts-profile",
   "trust-score-trust-badge",
   "someone-know-take-screenshot",
+  "save-someones-profile-picture",
   "report-someone-something",
 ] as const;
 

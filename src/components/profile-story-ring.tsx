@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { protectedImageProps } from "@/lib/protected-image";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { Lightbox } from "@/components/lightbox";
@@ -94,7 +95,7 @@ export function ProfileStoryRing({
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt="" loading="lazy" decoding="async" {...protectedImageProps("h-full w-full object-cover")} />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-foreground-soft">
               {t.storyRing.noPhoto}
@@ -146,6 +147,8 @@ export function ProfileStoryRing({
           onIndexChange={() => {}}
           onClose={() => setPhotoOpen(false)}
           alt={format(ui.profilePhoto, { name })}
+          // Profile picture: no Save button, no context menu/drag/callout.
+          protect
         />
       )}
     </>

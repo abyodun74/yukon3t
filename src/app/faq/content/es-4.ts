@@ -148,6 +148,10 @@ export const es4 = {
     q: "¿Alguien se entera si hago una captura de pantalla?",
     a: "En las aplicaciones nativas de Android y iOS, sí, en algunos lugares: durante una llamada de voz o una videollamada (se les avisa a los dos al instante) y al ver la publicación, la historia, el mensaje directo o el perfil de otra persona; en ese caso, su dueño recibe una notificación de que hiciste una captura de pantalla. Hacer una captura de tu propio contenido nunca notifica a nadie. Esto no está disponible en un navegador normal, porque ahí no hay una forma fiable de detectar una captura de pantalla.",
   },
+  "save-someones-profile-picture": {
+    q: "¿Puedo guardar la foto de perfil de otra persona?",
+    a: "No desde YuKon3t. Las fotos de perfil no tienen opción para guardar, descargar ni compartir, tampoco cuando tocas una para ampliarla, y los atajos de mantener pulsado, hacer clic derecho o arrastrar para guardar están desactivados para ellas. Es una medida disuasoria, no un bloqueo: YuKon3t no puede impedir una captura de pantalla ni detener a alguien decidido a copiar lo que ve en su pantalla, así que usa una foto de perfil que no te importe que otros vean. Las publicaciones, las historias y Muse conservan sus propias opciones para guardar y compartir.",
+  },
   "report-someone-something": {
     q: "¿Cómo reporto a alguien o algo?",
     a: "Usa el menú «⋯» de una publicación, un comentario o un mensaje, o la opción de reportar de un perfil. Todos los reportes se clasifican y cada medida que se toma indica un motivo. Consulta nuestras [Normas de la comunidad](/legal/guidelines) (en inglés) para ver qué se hace cumplir.",

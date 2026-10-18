@@ -3,8 +3,10 @@
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { usePinchZoom } from "@/lib/use-pinch-zoom";
 import { useShellText } from "@/components/ui-text";
+import { protectedImageProps } from "@/lib/protected-image";
 
 const MAX_SCALE = 8;
+const IMAGE_CLASS = "max-h-[90vh] max-w-full select-none rounded-lg object-contain";
 const DOUBLE_TAP_SCALE = 3;
 
 /**
@@ -16,7 +18,7 @@ const DOUBLE_TAP_SCALE = 3;
  * surface needs native touch), and resetting on tap via the backdrop's own
  * onClick being stopped below.
  */
-export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) {
+export function ZoomableImage({ src, alt = "", protect = false }: { src: string; alt?: string; protect?: boolean }) {
   const { t } = useShellText();
   const { containerRef, imgRef, scale, translate, isGesturing, resetIfZoomed, movedPastTapThreshold, zoomStep, minScale, maxScale, bind } = usePinchZoom({
     maxScale: MAX_SCALE,
@@ -42,8 +44,8 @@ export function ZoomableImage({ src, alt = "" }: { src: string; alt?: string }) 
         ref={imgRef}
         src={src}
         alt={alt}
-        draggable={false}
-        className="max-h-[90vh] max-w-full select-none rounded-lg object-contain"
+        // protect: a profile picture (Lightbox's own `protect`) — also no context menu/drag/callout.
+        {...(protect ? protectedImageProps(IMAGE_CLASS) : { draggable: false, className: IMAGE_CLASS })}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
           transition: isGesturing ? "none" : "transform 150ms ease-out",

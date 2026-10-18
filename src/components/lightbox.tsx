@@ -7,6 +7,7 @@ import { saveMediaToGallery } from "@/lib/save-to-gallery";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { cn } from "@/lib/utils";
+import { blockImageSave, PROTECTED_IMAGE_CLASS } from "@/lib/protected-image";
 import { useShellText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
 
@@ -57,7 +58,11 @@ function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
   );
 }
 
-/** Full-screen media viewer for a post's images or video — Escape/click-outside/arrow-key navigable. */
+/**
+ * Full-screen media viewer for a post's images or video — Escape/click-outside/arrow-key navigable.
+ * `protect` (a profile picture): no Save button, and no context menu, drag or
+ * long-press callout anywhere in the viewer (see src/lib/protected-image.ts).
+ */
 export function Lightbox({
   images,
   index,
@@ -65,6 +70,7 @@ export function Lightbox({
   onIndexChange,
   onClose,
   alt,
+  protect = false,
 }: {
   images?: string[];
   index?: number;
@@ -72,6 +78,7 @@ export function Lightbox({
   onIndexChange?: (index: number) => void;
   onClose: () => void;
   alt?: string;
+  protect?: boolean;
 }) {
   const { t } = useShellText();
   const isGallery = Boolean(images && images.length > 0 && index !== undefined && onIndexChange);
@@ -105,8 +112,12 @@ export function Lightbox({
   return (
     <div
       ref={dialogRef}
-      className="animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none"
+      className={cn(
+        "animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none",
+        protect && PROTECTED_IMAGE_CLASS,
+      )}
       onClick={onClose}
+      onContextMenu={protect ? blockImageSave : undefined}
       role="dialog"
       aria-modal="true"
       aria-label={
@@ -131,7 +142,7 @@ export function Lightbox({
           image/video doesn't carry over when navigating to the next one —
           simpler than resetting state in an effect for the same reason
           ZoomableImage below is keyed on index. */}
-      {currentMediaUrl && <SaveButton key={currentMediaUrl} url={currentMediaUrl} kind={video ? "video" : "photo"} />}
+      {currentMediaUrl && !protect && <SaveButton key={currentMediaUrl} url={currentMediaUrl} kind={video ? "video" : "photo"} />}
 
       {isGallery && images && index !== undefined && onIndexChange && (
         <>
@@ -151,7 +162,7 @@ export function Lightbox({
           {/* Keyed on index so pinch/pan/zoom state resets on every
               prev/next navigation instead of carrying over onto the next
               image. */}
-          <ZoomableImage key={index} src={images[index]} alt={alt} />
+          <ZoomableImage key={index} src={images[index]} alt={alt} protect={protect} />
 
           {images.length > 1 && (
             <button

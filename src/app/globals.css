@@ -799,6 +799,15 @@ button:not(:disabled):active {
   opacity: 1;
 }
 
+/* Profile pictures: no long-press callout, selection or drag-out (see
+   src/lib/protected-image.ts — a deterrent, not a guarantee). */
+.protected-image {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inbox-row,
   .unread-dot,

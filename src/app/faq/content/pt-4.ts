@@ -148,6 +148,10 @@ export const pt4 = {
     q: "Alguém fica sabendo se eu fizer uma captura de tela?",
     a: "Nos aplicativos nativos para Android e iOS, sim, em alguns lugares: durante uma chamada de voz ou de vídeo (os dois são avisados na hora) e ao ver a publicação, o story, a mensagem direta ou o perfil de outra pessoa; nesse caso, o dono recebe uma notificação de que você fez uma captura de tela. Fazer uma captura do seu próprio conteúdo nunca notifica ninguém. Isso não está disponível em um navegador comum, porque ali não há um jeito confiável de detectar uma captura de tela.",
   },
+  "save-someones-profile-picture": {
+    q: "Posso salvar a foto de perfil de outra pessoa?",
+    a: "Não pelo YuKon3t. As fotos de perfil não têm opção de salvar, baixar ou compartilhar, nem quando você toca em uma para ampliá-la, e os atalhos de tocar e segurar, clicar com o botão direito e arrastar para salvar ficam desativados para elas. É uma medida para desencorajar, não um bloqueio: o YuKon3t não consegue impedir uma captura de tela nem deter alguém decidido a copiar o que aparece na própria tela, então use uma foto de perfil que você não se importe que outras pessoas vejam. Publicações, stories e Muse mantêm as próprias opções de salvar e compartilhar.",
+  },
   "report-someone-something": {
     q: "Como denuncio alguém ou alguma coisa?",
     a: "Use o menu «⋯» de uma publicação, de um comentário ou de uma mensagem, ou a opção de denunciar em um perfil. Toda denúncia é triada, e toda medida tomada informa um motivo. Consulte nossas [Diretrizes da comunidade](/legal/guidelines) (em inglês) para saber o que é aplicado.",

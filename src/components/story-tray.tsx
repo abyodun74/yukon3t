@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { protectedImageProps } from "@/lib/protected-image";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { StoryTrayViewer, type StoryTrayAuthorGroup } from "@/components/story-tray-viewer";
 import { useFeedText } from "@/components/feed-text";
@@ -67,7 +68,7 @@ function Ring({
           >
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+              <img src={avatarUrl} alt="" loading="lazy" decoding="async" {...protectedImageProps("h-full w-full object-cover")} />
             ) : (
               <span className="text-xs text-foreground-soft">{fallbackLetter.slice(0, 1)}</span>
             )}

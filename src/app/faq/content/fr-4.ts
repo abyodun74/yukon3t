@@ -148,6 +148,10 @@ export const fr4 = {
     q: "Quelqu'un saura-t-il que j'ai fait une capture d'écran ?",
     a: "Dans les applications natives Android et iOS, oui, à quelques endroits : pendant un appel vocal ou vidéo (vous êtes tous les deux prévenus instantanément), et lorsque vous consultez la publication, la story, le message privé ou le profil de quelqu'un d'autre ; son propriétaire reçoit alors une notification indiquant que vous avez fait une capture d'écran. Faire une capture d'écran de votre propre contenu ne prévient jamais personne. Cette fonction n'est pas disponible dans un navigateur ordinaire, car il n'existe aucun moyen fiable d'y détecter une capture d'écran.",
   },
+  "save-someones-profile-picture": {
+    q: "Puis-je enregistrer la photo de profil de quelqu'un ?",
+    a: "Pas depuis YuKon3t. Les photos de profil n'ont aucune option d'enregistrement, de téléchargement ou de partage, y compris quand vous en touchez une pour l'agrandir, et les raccourcis appui long, clic droit et glisser pour enregistrer sont désactivés pour elles. C'est une mesure dissuasive, pas un verrou : YuKon3t ne peut pas empêcher une capture d'écran ni arrêter quelqu'un de déterminé à copier ce qui s'affiche sur son écran ; choisissez donc une photo de profil que vous acceptez que d'autres voient. Les publications, les stories et Muse gardent leurs propres options d'enregistrement et de partage.",
+  },
   "report-someone-something": {
     q: "Comment signaler une personne ou un contenu ?",
     a: "Utilisez le menu « ⋯ » d'une publication, d'un commentaire ou d'un message, ou l'option de signalement d'un profil. Chaque signalement est trié, et chaque mesure prise est accompagnée d'un motif. Consultez nos [Règles de la communauté](/legal/guidelines) (en anglais) pour savoir ce qui est sanctionné.",
