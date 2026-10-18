@@ -15,9 +15,9 @@ import { CollabInviteResponse } from "@/components/collab-invite-response";
 import { CollabSessionRoom } from "@/components/collab-session-room";
 import { CollabAddToCalendar } from "@/components/collab-add-to-calendar";
 import { PollSection } from "@/components/poll-section";
-import { CollabOneOffSession } from "@/components/poll-time";
-import { getCollabPollAccess, loadPollViews } from "@/lib/polls-data";
-import { upcomingOneOffSession } from "@/lib/polls";
+import { CollabOneOffSessions } from "@/components/poll-time";
+import { getCollabPollAccess, loadPollPage } from "@/lib/polls-data";
+import { ONE_OFF_SESSIONS_SHOWN } from "@/lib/polls";
 import { CloseCollabButton } from "@/components/close-collab-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
 import { ChatThread } from "@/components/chat-thread";
@@ -87,8 +87,18 @@ export default async function CollabDetailPage({
 
   // Polls: anyone who can see a PUBLIC collab sees them; a PRIVATE one's, only its participants (not invitees yet).
   const pollAccess = await getCollabPollAccess(collab, me);
-  const polls = pollAccess.canView ? await loadPollViews({ collabId: collab.id }, me, pollAccess) : [];
-  const oneOffSessionAt = upcomingOneOffSession(collab.oneOffSessionAt, new Date());
+  const pollPage = pollAccess.canView
+    ? await loadPollPage({ collabId: collab.id }, me, pollAccess)
+    : { polls: [], hasMore: false };
+  // One-off sessions scheduled from polls (several possible): the upcoming ones, soonest first; past ones aren't shown.
+  const oneOffSessions = canJoinSession
+    ? await prisma.collabOneOffSession.findMany({
+        where: { collabId: collab.id, startsAt: { gt: new Date() } },
+        orderBy: { startsAt: "asc" },
+        take: ONE_OFF_SESSIONS_SHOWN,
+        select: { id: true, startsAt: true },
+      })
+    : [];
 
   const allParticipants = canModerate
     ? await prisma.collabParticipant.findMany({
@@ -298,13 +308,13 @@ export default async function CollabDetailPage({
         </div>
       )}
 
-      {canJoinSession && oneOffSessionAt && (
+      {oneOffSessions.length > 0 && (
         <div className="mt-3">
-          <CollabOneOffSession
+          <CollabOneOffSessions
             collabId={collab.id}
             title={collab.title}
             description={collab.description}
-            startAt={oneOffSessionAt.toISOString()}
+            sessions={oneOffSessions.map((s) => ({ id: s.id, startAt: s.startsAt.toISOString() }))}
           />
         </div>
       )}
@@ -383,7 +393,12 @@ export default async function CollabDetailPage({
       </div>
 
       {pollAccess.canView && (
-        <PollSection collabId={collab.id} polls={polls} canCreate={pollAccess.canCreate && collab.status === "OPEN"} />
+        <PollSection
+          collabId={collab.id}
+          polls={pollPage.polls}
+          hasMore={pollPage.hasMore}
+          canCreate={pollAccess.canCreate && collab.status === "OPEN"}
+        />
       )}
 
       {canModerate && (

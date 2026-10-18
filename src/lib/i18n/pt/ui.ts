@@ -217,6 +217,8 @@ export const ui: typeof uiEn = {
     downloadIcs: "Baixar arquivo de calendário",
     oneOffSession: "Sessão avulsa: {when}",
     joinToVote: "Só membros podem votar.",
+    loadMore: "Carregar mais enquetes",
+    loadingMore: "Carregando...",
     errors: {
       rate_limited: "Você está fazendo isso rápido demais. Espere um pouco e tente de novo.",
       invalid: "Algo na enquete não é válido. Confira e tente de novo.",

@@ -216,6 +216,8 @@ export const ui: typeof uiEn = {
     downloadIcs: "Descargar archivo de calendario",
     oneOffSession: "Sesión única: {when}",
     joinToVote: "Solo los miembros pueden votar.",
+    loadMore: "Cargar más encuestas",
+    loadingMore: "Cargando...",
     errors: {
       rate_limited: "Lo estás haciendo demasiado rápido. Espera un momento y vuelve a intentarlo.",
       invalid: "Algo en la encuesta no es válido. Revísalo y vuelve a intentarlo.",

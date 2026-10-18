@@ -28,4 +28,9 @@ export const REALTIME_CHANNELS = {
   voiceChannel: (channelId: string) => `voice-channel:${channelId}`,
   collabSession: (collabId: string) => `collab-session:${collabId}`,
   homeFeed: (category: string) => `home-feed:${category}`,
+  // A Circle's / collab's polls changed (a vote, a new poll, an edit, close/reopen, delete, schedule): every open page
+  // with that parent's poll list refetches through loadPolls (actions/polls.ts), throttled per client (see
+  // POLL_SIGNAL_* in lib/polls.ts). Empty payload: which poll, or what changed, is never in the signal.
+  circlePolls: (circleId: string) => `polls:circle:${circleId}`,
+  collabPolls: (collabId: string) => `polls:collab:${collabId}`,
 } as const;

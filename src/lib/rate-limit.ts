@@ -235,6 +235,9 @@ const limiterDefinitions = {
   pollCreate: makeLimiter(10, "1 h", "pollCreate"),
   pollManage: makeLimiter(30, "10 m", "pollManage"),
   pollVote: makeLimiter(60, "1 m", "pollVote"),
+  // Reading poll pages: "Load more", and the refetch a live poll signal triggers (each open page at most once per
+  // POLL_SIGNAL_COOLDOWN_MS, plus focus resyncs), so this only stops a client hammering it.
+  pollList: makeLimiter(120, "1 m", "pollList"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

@@ -17,8 +17,21 @@ export const POLL_OPTION_TEXT_MAX = 120;
 export const POLL_MAX_HORIZON_MS = 366 * 24 * 60 * 60 * 1000;
 /** A poll's creation notifies at most this many people (bell only); the rest still see it on the page. */
 export const POLL_NOTIFY_MAX_RECIPIENTS = 500;
-/** How many polls a Circle or collab page lists, newest first. */
-export const POLLS_LIST_LIMIT = 30;
+/** How many polls a Circle or collab page lists at first, and each "Load more" adds (newest first). */
+export const POLLS_PAGE_SIZE = 30;
+/**
+ * A live refresh re-reads every poll the viewer already has loaded (newest down to the oldest shown), at most this many;
+ * past that the list is cut back and "Load more" offered again.
+ */
+export const POLLS_REFRESH_MAX = 150;
+/**
+ * Live updates: a poll change publishes a thin "changed" signal on the parent's channel (REALTIME_CHANNELS.circlePolls /
+ * collabPolls) and every open page refetches through the authorized loadPolls action. A burst of votes on a popular
+ * poll must not make every viewer refetch once per vote, so each client waits a random 0..POLL_SIGNAL_MAX_DELAY_MS and
+ * refetches at most once per POLL_SIGNAL_COOLDOWN_MS (createSignalThrottle).
+ */
+export const POLL_SIGNAL_MAX_DELAY_MS = 2_000;
+export const POLL_SIGNAL_COOLDOWN_MS = 5_000;
 
 export type PollKindValue = "GENERAL" | "SCHEDULE";
 export type PollStatusValue = "OPEN" | "CLOSED";
@@ -296,7 +309,94 @@ export function dateToUtcInput(date: Date) {
   return date.toISOString().slice(0, 16);
 }
 
-/** A collab's one-off session (CollabBoardPost.oneOffSessionAt) is shown while it's still ahead. */
-export function upcomingOneOffSession(oneOffSessionAt: Date | null, now: Date) {
-  return oneOffSessionAt && oneOffSessionAt.getTime() > now.getTime() ? oneOffSessionAt : null;
+/** How many upcoming one-off sessions a collab page lists. */
+export const ONE_OFF_SESSIONS_SHOWN = 10;
+
+/** A one-off session is listed (and its .ics served) only while it's still ahead. */
+export function isUpcomingSession(startsAt: Date, now: Date) {
+  return startsAt.getTime() > now.getTime();
+}
+
+/**
+ * One collab session occurrence (a collab at an instant), for the reminder cron: a one-off at the very same time as a
+ * recurring session (or as another one-off) reminded in the same run isn't announced twice.
+ */
+export function sessionOccurrenceKey(collabId: string, at: Date) {
+  return `${collabId}:${at.getTime()}`;
+}
+
+/** A position in a newest-first poll list: the last poll shown. */
+export type PollCursor = { createdAt: string; id: string };
+
+function cursorTime(value: string | Date) {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+/** The cursor for "after this poll": its creation time and id (the tiebreak). */
+export function pollCursorOf(poll: { createdAt: string | Date; id: string }): PollCursor {
+  return {
+    createdAt: poll.createdAt instanceof Date ? poll.createdAt.toISOString() : poll.createdAt,
+    id: poll.id,
+  };
+}
+
+/** Newest first: createdAt descending, then id descending (the order every poll list query uses). */
+export function comparePollsNewestFirst(
+  a: { createdAt: string | Date; id: string },
+  b: { createdAt: string | Date; id: string },
+) {
+  const diff = cursorTime(b.createdAt) - cursorTime(a.createdAt);
+  if (diff !== 0) return diff;
+  return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
+}
+
+/** True when `poll` comes after `cursor` in the newest-first order (an older poll, i.e. on a later page). */
+export function isAfterCursor(poll: { createdAt: string | Date; id: string }, cursor: PollCursor) {
+  return comparePollsNewestFirst(poll, cursor) > 0;
+}
+
+/**
+ * The query condition for a page: "older" = strictly after the cursor (the next page for "Load more"); "through" = the
+ * cursor and everything before it (a live refresh of everything already shown, new polls included).
+ */
+export function pollCursorWhere(cursor: PollCursor, mode: "older" | "through") {
+  const at = new Date(cursor.createdAt);
+  if (mode === "older") {
+    return { OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor.id } }] };
+  }
+  return { OR: [{ createdAt: { gt: at } }, { createdAt: at, id: { gte: cursor.id } }] };
+}
+
+/** "Load more": the next page appended, anything already shown skipped. */
+export function appendPollPage<T extends { id: string }>(current: readonly T[], page: readonly T[]): T[] {
+  const seen = new Set(current.map((p) => p.id));
+  return [...current, ...page.filter((p) => !seen.has(p.id))];
+}
+
+/**
+ * A fresh first page from the server (a page refresh after an organizer's action) merged with what the viewer has
+ * loaded beyond it: the fresh page wins for everything it covers; polls already loaded from later pages stay after it.
+ * When the fresh page is the whole list (`freshHasMore` false), nothing else exists.
+ */
+export function mergeFirstPage<T extends { id: string; createdAt: string }>(
+  fresh: readonly T[],
+  freshHasMore: boolean,
+  current: readonly T[],
+): T[] {
+  const last = fresh[fresh.length - 1];
+  if (!freshHasMore || !last) return [...fresh];
+  const cursor = pollCursorOf(last);
+  const freshIds = new Set(fresh.map((p) => p.id));
+  return [...fresh, ...current.filter((p) => !freshIds.has(p.id) && isAfterCursor(p, cursor))];
+}
+
+/**
+ * Which element a link's hash asks the polls section to scroll to: "#poll-<id>" that poll's card when it's on the
+ * page, else the section; "#polls" the section; anything else nothing.
+ */
+export function pollScrollTarget(hash: string, loadedPollIds: readonly string[]): string | null {
+  if (hash === "#polls") return "polls";
+  const match = /^#poll-([A-Za-z0-9_-]{1,64})$/.exec(hash);
+  if (!match) return null;
+  return loadedPollIds.includes(match[1]) ? `poll-${match[1]}` : "polls";
 }

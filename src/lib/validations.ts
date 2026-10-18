@@ -767,3 +767,12 @@ export const pollUpdateSchema = z.object(pollTextFields);
 export const pollIdSchema = z.string().cuid();
 
 export const pollVoteSchema = z.array(z.string().cuid()).max(POLL_OPTIONS_MAX);
+
+// A page of polls (loadPolls): one parent, an optional cursor (the last poll shown: its creation time and id) and the
+// direction. The cursor is only a position; which polls the viewer may see is decided on the server.
+export const pollListSchema = z.object({
+  circleId: z.string().cuid().nullish(),
+  collabId: z.string().cuid().nullish(),
+  cursor: z.object({ createdAt: z.string().datetime(), id: z.string().cuid() }).nullish(),
+  mode: z.enum(["older", "through"]),
+});

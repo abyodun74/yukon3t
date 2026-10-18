@@ -217,6 +217,8 @@ export const ui: typeof uiEn = {
     downloadIcs: "Télécharger le fichier d'agenda",
     oneOffSession: "Session ponctuelle : {when}",
     joinToVote: "Seuls les membres peuvent voter.",
+    loadMore: "Charger plus de sondages",
+    loadingMore: "Chargement...",
     errors: {
       rate_limited: "Vous allez trop vite. Patientez un instant puis réessayez.",
       invalid: "Un élément du sondage n'est pas valide. Vérifiez-le puis réessayez.",

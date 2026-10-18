@@ -230,6 +230,8 @@ export const uiEn = {
     downloadIcs: "Download calendar file",
     oneOffSession: "One-off session: {when}",
     joinToVote: "Only members can vote.",
+    loadMore: "Load more polls",
+    loadingMore: "Loading...",
     errors: {
       rate_limited: "You're doing that too fast. Wait a moment and try again.",
       invalid: "Something in the poll isn't valid. Check it and try again.",

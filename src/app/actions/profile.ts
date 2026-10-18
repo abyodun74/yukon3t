@@ -379,7 +379,8 @@ export async function exportMyData() {
     },
     include: {
       posts: true,
-      collabPosts: true,
+      // Your collabs, with the one-off sessions scheduled on them from polls (times only).
+      collabPosts: { include: { oneOffSessions: { select: { startsAt: true, pollId: true, createdAt: true } } } },
       // Polls you created (with their options), and your own votes with what each was for. Nobody else's votes.
       pollsCreated: { include: { options: { select: { id: true, text: true, startsAt: true, position: true } } } },
       pollVotes: {

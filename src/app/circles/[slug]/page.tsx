@@ -33,7 +33,7 @@ import {
 import { getMyCircles } from "@/app/actions/circles";
 import { CirclePostFab } from "@/components/circle-post-fab";
 import { PollSection } from "@/components/poll-section";
-import { getCirclePollAccess, loadPollViews } from "@/lib/polls-data";
+import { circlePollWhere, getCirclePollAccess, loadPollPage } from "@/lib/polls-data";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -217,13 +217,11 @@ export default async function CirclePage({
     : { circleInvites: [], inviteCandidates: [] };
   // Polls: Circle-wide ones and those in channels this viewer can open (a private channel's stay with its members).
   const pollAccess = isPrivateNonMember ? null : await getCirclePollAccess(circle, null, me);
-  const polls = pollAccess?.canView
-    ? await loadPollViews(
-        { circleId: circle.id, OR: [{ channelId: null }, { channelId: { in: accessibleChannels.map((c) => c.id) } }] },
-        me,
-        pollAccess,
-      )
-    : [];
+  // circlePollWhere is shared with loadPolls (actions/polls.ts, via circlePollScope), so "Load more" and the live
+  // refresh see exactly the polls this page does.
+  const pollPage = pollAccess?.canView
+    ? await loadPollPage(circlePollWhere(circle.id, accessibleChannels.map((c) => c.id)), me, pollAccess)
+    : { polls: [], hasMore: false };
   const posts = await attachViewerState(rawPosts, me.id);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
@@ -357,7 +355,8 @@ export default async function CirclePage({
           {pollAccess && (
             <PollSection
               circleId={circle.id}
-              polls={polls}
+              polls={pollPage.polls}
+              hasMore={pollPage.hasMore}
               canCreate={pollAccess.canCreate}
               channels={accessibleChannels.filter((c) => c.type === "TEXT").map((c) => ({ id: c.id, name: c.name }))}
             />

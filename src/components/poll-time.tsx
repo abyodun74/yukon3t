@@ -99,31 +99,38 @@ export function PollCalendarLinks({
   );
 }
 
-/** A collab's upcoming one-off session (scheduled from a poll), with add-to-calendar. */
-export function CollabOneOffSession({
+/**
+ * A collab's upcoming one-off sessions (each scheduled from a poll; the page passes only those still ahead, soonest
+ * first), each with add-to-calendar: a Google link and that session's own .ics (?session=<id>).
+ */
+export function CollabOneOffSessions({
   collabId,
   title,
   description,
-  startAt,
+  sessions,
 }: {
   collabId: string;
   title: string;
   description: string;
-  startAt: string;
+  sessions: { id: string; startAt: string }[];
 }) {
   const { locale, t } = useUiText();
   return (
-    <div className="rounded-lg border border-line p-3">
-      <p className="text-sm font-medium" suppressHydrationWarning>
-        {format(t.polls.oneOffSession, { when: formatPollInstant(startAt, locale, "utc") })}
-      </p>
-      <PollLocalTime iso={startAt} />
-      <PollCalendarLinks
-        title={title}
-        description={description}
-        startAt={startAt}
-        icsHref={`/api/collab/${collabId}/calendar?session=one-off`}
-      />
-    </div>
+    <ul className="space-y-2">
+      {sessions.map((session) => (
+        <li key={session.id} className="rounded-lg border border-line p-3">
+          <p className="text-sm font-medium" suppressHydrationWarning>
+            {format(t.polls.oneOffSession, { when: formatPollInstant(session.startAt, locale, "utc") })}
+          </p>
+          <PollLocalTime iso={session.startAt} />
+          <PollCalendarLinks
+            title={title}
+            description={description}
+            startAt={session.startAt}
+            icsHref={`/api/collab/${collabId}/calendar?session=${encodeURIComponent(session.id)}`}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }

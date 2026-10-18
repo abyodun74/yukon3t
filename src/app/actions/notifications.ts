@@ -85,7 +85,8 @@ export async function markReadByTarget(url: string) {
       channel: { select: { slug: true } },
     },
   });
-  const ids = unread.filter((n) => notificationHref(n) === target).map((n) => n.id);
+  // Compared without the #fragment on both sides: a href may point into the page (e.g. polls' "#polls").
+  const ids = unread.filter((n) => notificationHref(n).split("#")[0] === target).map((n) => n.id);
   if (ids.length === 0) return { error: null };
 
   await prisma.notification.updateMany({

@@ -16,7 +16,15 @@ import {
   pollRecipients,
   reopenClosesAt,
   scheduleFromPollError,
-  upcomingOneOffSession,
+  isUpcomingSession,
+  sessionOccurrenceKey,
+  pollCursorOf,
+  comparePollsNewestFirst,
+  isAfterCursor,
+  pollCursorWhere,
+  appendPollPage,
+  mergeFirstPage,
+  pollScrollTarget,
   utcInputToDate,
   votePercent,
   voteSelectionError,
@@ -287,9 +295,102 @@ describe("UTC inputs", () => {
     expect(utcInputToDate("2026-10-20")).toBeNull();
     expect(dateToUtcInput(new Date("2026-10-20T18:05:59Z"))).toBe("2026-10-20T18:05");
   });
-  it("shows a collab's one-off session only while it's ahead", () => {
-    expect(upcomingOneOffSession(later(hour), now)).toEqual(later(hour));
-    expect(upcomingOneOffSession(later(-hour), now)).toBeNull();
-    expect(upcomingOneOffSession(null, now)).toBeNull();
+});
+
+describe("collab one-off sessions", () => {
+  it("are upcoming only while ahead", () => {
+    expect(isUpcomingSession(later(hour), now)).toBe(true);
+    expect(isUpcomingSession(now, now)).toBe(false);
+    expect(isUpcomingSession(later(-hour), now)).toBe(false);
+  });
+  it("share an occurrence key only for the same collab at the same instant", () => {
+    expect(sessionOccurrenceKey("c1", later(hour))).toBe(sessionOccurrenceKey("c1", new Date(later(hour).getTime())));
+    expect(sessionOccurrenceKey("c1", later(hour))).not.toBe(sessionOccurrenceKey("c2", later(hour)));
+    expect(sessionOccurrenceKey("c1", later(hour))).not.toBe(sessionOccurrenceKey("c1", later(2 * hour)));
+  });
+  it("lets the reminder cron skip a one-off coinciding with something already reminded in the run", () => {
+    // The cron's rule, replayed: claim every due row, send for an occurrence only the first time it's seen.
+    const reminded = new Set([sessionOccurrenceKey("c1", later(hour))]); // the recurring session
+    const rows = [
+      { collabId: "c1", startsAt: later(hour) }, // same time as the recurring one: claimed, not sent
+      { collabId: "c1", startsAt: later(hour / 2) }, // a different time: sent
+      { collabId: "c1", startsAt: later(hour / 2) }, // a second one-off at that same time: not sent again
+      { collabId: "c2", startsAt: later(hour) }, // another collab: sent
+    ];
+    const sent = rows.filter((row) => {
+      const key = sessionOccurrenceKey(row.collabId, row.startsAt);
+      if (reminded.has(key)) return false;
+      reminded.add(key);
+      return true;
+    });
+    expect(sent).toEqual([rows[1], rows[3]]);
+  });
+});
+
+describe("poll list paging", () => {
+  const poll = (id: string, minutesAgo: number) => ({
+    id,
+    createdAt: new Date(now.getTime() - minutesAgo * 60_000).toISOString(),
+  });
+
+  it("orders newest first, then by id descending on a tie", () => {
+    const list = [poll("a", 5), poll("c", 1), poll("b", 5), poll("d", 10)];
+    expect([...list].sort(comparePollsNewestFirst).map((p) => p.id)).toEqual(["c", "b", "a", "d"]);
+  });
+
+  it("places polls before or after a cursor", () => {
+    const cursor = pollCursorOf(poll("b", 5));
+    expect(isAfterCursor(poll("a", 5), cursor)).toBe(true);
+    expect(isAfterCursor(poll("d", 10), cursor)).toBe(true);
+    expect(isAfterCursor(poll("c", 1), cursor)).toBe(false);
+    expect(isAfterCursor(poll("b", 5), cursor)).toBe(false);
+  });
+
+  it("builds the cursor from a Date or a string the same way", () => {
+    const at = new Date("2026-10-19T11:00:00.000Z");
+    expect(pollCursorOf({ id: "x", createdAt: at })).toEqual(pollCursorOf({ id: "x", createdAt: at.toISOString() }));
+  });
+
+  it("queries strictly older for Load more, and newest down to the cursor for a refresh", () => {
+    const cursor = { createdAt: "2026-10-19T11:00:00.000Z", id: "b" };
+    const at = new Date(cursor.createdAt);
+    expect(pollCursorWhere(cursor, "older")).toEqual({
+      OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: "b" } }],
+    });
+    expect(pollCursorWhere(cursor, "through")).toEqual({
+      OR: [{ createdAt: { gt: at } }, { createdAt: at, id: { gte: "b" } }],
+    });
+  });
+
+  it("appends a page without repeating a poll already shown", () => {
+    expect(appendPollPage([poll("a", 1), poll("b", 2)], [poll("b", 2), poll("c", 3)]).map((p) => p.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("merges a refreshed first page with older polls loaded beyond it", () => {
+    const loaded = [poll("a", 1), poll("b", 2), poll("c", 3), poll("d", 4)];
+    // b was deleted, n is new; the fresh page (2 long here) ends at c, so d (loaded with Load more) stays.
+    const fresh = [poll("n", 0), poll("a", 1), poll("c", 3)];
+    expect(mergeFirstPage(fresh, true, loaded).map((p) => p.id)).toEqual(["n", "a", "c", "d"]);
+    // When the fresh page is everything there is, nothing else survives.
+    expect(mergeFirstPage(fresh, false, loaded).map((p) => p.id)).toEqual(["n", "a", "c"]);
+    expect(mergeFirstPage([], true, loaded)).toEqual([]);
+  });
+});
+
+describe("pollScrollTarget", () => {
+  it("scrolls to the section or a loaded poll", () => {
+    expect(pollScrollTarget("#polls", [])).toBe("polls");
+    expect(pollScrollTarget("#poll-abc123", ["abc123"])).toBe("poll-abc123");
+    expect(pollScrollTarget("#poll-abc123", ["other"])).toBe("polls");
+  });
+  it("ignores other hashes", () => {
+    expect(pollScrollTarget("", ["a"])).toBeNull();
+    expect(pollScrollTarget("#comments", ["a"])).toBeNull();
+    expect(pollScrollTarget("#poll-", ["a"])).toBeNull();
+    expect(pollScrollTarget("#poll-a<b", ["a<b"])).toBeNull();
   });
 });

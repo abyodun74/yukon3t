@@ -75,6 +75,13 @@ export type NotificationData = {
 };
 
 export function notificationHref(notification: NotificationData) {
+  // Polls: the polls section of the Circle / collab page (PollSection is the #polls anchor and scrolls to it on
+  // mount). Before the postId check: a POLL_SCHEDULED in a Circle carries the event post's id, and the poll card there
+  // links to it. The push for POLL_SCHEDULED uses this same URL (notifyPollScheduled in actions/polls.ts).
+  if (notification.type === "POLL_CREATED" || notification.type === "POLL_SCHEDULED") {
+    if (notification.circle) return `/circles/${notification.circle.slug}#polls`;
+    if (notification.collab) return `/collab/${notification.collab.id}#polls`;
+  }
   if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.channel && notification.circle) {

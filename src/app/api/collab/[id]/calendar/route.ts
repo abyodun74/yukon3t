@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { buildCollabIcs } from "@/lib/calendar-export";
-import { upcomingOneOffSession } from "@/lib/polls";
 
 /**
  * Serves the next scheduled session as a downloadable .ics — the
@@ -13,11 +12,16 @@ import { upcomingOneOffSession } from "@/lib/polls";
  * merely anyone who can view a PUBLIC collab's page — a casual browser
  * hasn't committed to attending, so there's nothing to add to their
  * calendar yet.
+ *
+ * `?session=<id>`: one of the collab's one-off sessions (a CollabOneOffSession row, scheduled from a poll) instead of
+ * the recurring one; 404 unless that row belongs to this collab and is still ahead.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // ?session=one-off: the single session scheduled from a poll (oneOffSessionAt) instead of the recurring one.
-  const oneOff = new URL(request.url).searchParams.get("session") === "one-off";
+  const sessionId = new URL(request.url).searchParams.get("session");
+  if (sessionId !== null && !/^[a-z0-9_]{1,64}$/i.test(sessionId)) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   let user;
   try {
     user = await requireUser();
@@ -35,12 +39,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       description: true,
       authorId: true,
       nextSessionAt: true,
-      oneOffSessionAt: true,
+      ...(sessionId
+        ? { oneOffSessions: { where: { id: sessionId, startsAt: { gt: new Date() } }, select: { startsAt: true } } }
+        : {}),
       participants: { where: { userId: user.id }, select: { userId: true } },
     },
   });
 
-  const startAt = oneOff ? upcomingOneOffSession(collab?.oneOffSessionAt ?? null, new Date()) : collab?.nextSessionAt;
+  const startAt = sessionId ? collab?.oneOffSessions?.[0]?.startsAt : collab?.nextSessionAt;
   if (!collab || !startAt) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -56,7 +62,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // calendar apps that dedupe by UID, but changes once nextSessionAt
     // rolls forward to the next occurrence, which a calendar app should
     // treat as a new event rather than silently updating the last one.
-    uid: `collab-${id}-${oneOff ? "one-off-" : ""}${startAt.getTime()}@yukon3t.com`,
+    // A one-off's UID is its own row id: two one-offs at the same instant are still two events.
+    uid: sessionId ? `collab-${id}-one-off-${sessionId}@yukon3t.com` : `collab-${id}-${startAt.getTime()}@yukon3t.com`,
     title: collab.title,
     description: collab.description,
     startAt,

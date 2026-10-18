@@ -7,6 +7,7 @@ import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
 import { nextOccurrence } from "@/lib/collab-schedule";
+import { sessionOccurrenceKey } from "@/lib/polls";
 
 // Same reasoning as event-reminders' own window: matched to the scheduled
 // function's run interval (every 15 minutes, see
@@ -36,7 +37,8 @@ export async function GET(request: Request) {
 
   let remindersSent = 0;
   let collabsFailed = 0;
-  // Recurring occurrences reminded in this run, so a one-off at the very same time isn't announced twice.
+  // Occurrences (collab + instant) reminded in this run, so a one-off at the very same time as a recurring session, or as
+  // another one-off of the same collab, isn't announced twice.
   const remindedOccurrences = new Set<string>();
 
   for (const collab of upcoming) {
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
     // session still due in this run.
     try {
       remindersSent += await sendSessionReminders(collab);
-      if (collab.nextSessionAt) remindedOccurrences.add(`${collab.id}:${collab.nextSessionAt.getTime()}`);
+      if (collab.nextSessionAt) remindedOccurrences.add(sessionOccurrenceKey(collab.id, collab.nextSessionAt));
 
       // Rolls the schedule forward to its next occurrence and resets the
       // claim for it — a recurring schedule needs a fresh reminder every
@@ -78,30 +80,38 @@ export async function GET(request: Request) {
     }
   }
 
-  // One-off sessions (CollabBoardPost.oneOffSessionAt, set by scheduling from a poll): the same reminder, once, from
-  // its own claim column. Nothing rolls forward and nothing here touches nextSessionAt, so a recurring schedule on the
-  // same collab carries on exactly as above.
-  const oneOffs = await prisma.collabBoardPost.findMany({
+  // One-off sessions (CollabOneOffSession rows, added by scheduling from a poll; a collab can have several): the same
+  // reminder, once per row, claimed per row on its own reminderSentAt. Nothing rolls forward and nothing here touches
+  // nextSessionAt, so a recurring schedule on the same collab carries on exactly as above. A row whose occurrence was
+  // already announced in this run is still claimed (so it's never reminded later either), just not sent again.
+  const oneOffs = await prisma.collabOneOffSession.findMany({
     where: {
-      status: "OPEN",
-      oneOffSessionAt: { gte: now, lte: windowEnd },
-      oneOffReminderSentAt: null,
+      startsAt: { gte: now, lte: windowEnd },
+      reminderSentAt: null,
+      collab: { status: "OPEN" },
     },
-    select: { id: true, authorId: true, title: true, oneOffSessionAt: true },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, startsAt: true, collab: { select: { id: true, authorId: true, title: true } } },
   });
-  for (const collab of oneOffs) {
-    const claimed = await prisma.collabBoardPost.updateMany({
-      where: { id: collab.id, oneOffReminderSentAt: null },
-      data: { oneOffReminderSentAt: now },
+  for (const session of oneOffs) {
+    const claimed = await prisma.collabOneOffSession.updateMany({
+      where: { id: session.id, reminderSentAt: null },
+      data: { reminderSentAt: now },
     });
     if (claimed.count === 0) continue;
-    if (remindedOccurrences.has(`${collab.id}:${collab.oneOffSessionAt!.getTime()}`)) continue;
+    const key = sessionOccurrenceKey(session.collab.id, session.startsAt);
+    if (remindedOccurrences.has(key)) continue;
+    remindedOccurrences.add(key);
     try {
-      remindersSent += await sendSessionReminders(collab);
+      remindersSent += await sendSessionReminders(session.collab);
     } catch (err) {
       collabsFailed += 1;
-      console.error(`[collab-session-reminders] failed to notify for one-off session of collab ${collab.id}`, err);
-      await captureError(err, { route: "cron/collab-session-reminders", collabId: collab.id, oneOff: true });
+      console.error(`[collab-session-reminders] failed to notify for one-off session ${session.id} of collab ${session.collab.id}`, err);
+      await captureError(err, {
+        route: "cron/collab-session-reminders",
+        collabId: session.collab.id,
+        oneOffSessionId: session.id,
+      });
     }
   }
 

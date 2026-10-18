@@ -1297,17 +1297,6 @@ model CollabBoardPost {
   // one-off Post event).
   sessionReminderSentAt DateTime?
 
-  // A single extra session on top of (or instead of) the recurring schedule
-  // above, set by scheduling from a SCHEDULE poll (schedulePollOption in
-  // actions/polls.ts). Kept apart from nextSessionAt on purpose: the cron
-  // rolls nextSessionAt forward from itself and updateCollabPost recomputes
-  // it from the schedule, either of which would silently lose a one-off
-  // stored there. The collab-session-reminders cron reminds for it once
-  // (oneOffReminderSentAt, same claim pattern) and leaves it in place; the
-  // page shows it only while it's upcoming. Scheduling again replaces it.
-  oneOffSessionAt      DateTime?
-  oneOffReminderSentAt DateTime?
-
   // See User.embedding — embeds title+description.
   embedding Unsupported("vector(1536)")?
 
@@ -1329,12 +1318,12 @@ model CollabBoardPost {
   invites             CollabInvite[]
   notifications       Notification[]
   polls               Poll[]
+  oneOffSessions      CollabOneOffSession[]
 
   @@index([type])
   @@index([status])
   @@index([visibility])
   @@index([nextSessionAt])
-  @@index([oneOffSessionAt])
   @@index([authorId])
 }
 
@@ -1472,6 +1461,8 @@ model Poll {
 
   options PollOption[]
   votes   PollVote[]
+  // The collab session scheduling from this poll created (collab polls only).
+  oneOffSession CollabOneOffSession?
 
   @@index([circleId, createdAt])
   @@index([collabId, createdAt])
@@ -1515,6 +1506,33 @@ model PollVote {
   @@index([pollId, userId])
   @@index([optionId])
   @@index([userId])
+}
+
+/**
+ * A single collab session on top of (or instead of) the recurring schedule
+ * (CollabBoardPost.nextSessionAt), created by scheduling from a SCHEDULE poll
+ * (schedulePollOption in actions/polls.ts); a collab can have several. Kept
+ * apart from nextSessionAt on purpose: the cron rolls nextSessionAt forward
+ * from itself and updateCollabPost recomputes it from the schedule, either of
+ * which would silently lose a one-off stored there. The
+ * collab-session-reminders cron reminds for each row once (reminderSentAt,
+ * claimed per row with a guarded updateMany) and leaves it in place; the
+ * collab page lists the upcoming ones. pollId is the poll it came from (one
+ * per poll), cleared if that poll is deleted: the session stays.
+ */
+model CollabOneOffSession {
+  id             String    @id @default(cuid())
+  collabId       String
+  startsAt       DateTime
+  reminderSentAt DateTime?
+  pollId         String?   @unique
+  createdAt      DateTime  @default(now())
+
+  collab CollabBoardPost @relation(fields: [collabId], references: [id], onDelete: Cascade)
+  poll   Poll?           @relation(fields: [pollId], references: [id], onDelete: SetNull)
+
+  @@index([collabId, startsAt])
+  @@index([startsAt])
 }
 
 enum LiveStreamStatus {

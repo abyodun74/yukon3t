@@ -218,6 +218,8 @@ export const ui: typeof uiEn = {
     downloadIcs: "تنزيل ملف التقويم",
     oneOffSession: "جلسة لمرة واحدة: {when}",
     joinToVote: "التصويت للأعضاء فقط.",
+    loadMore: "تحميل المزيد من الاستطلاعات",
+    loadingMore: "جارٍ التحميل...",
     errors: {
       rate_limited: "أنت تفعل ذلك بسرعة كبيرة. انتظر قليلًا ثم حاول مرة أخرى.",
       invalid: "هناك شيء غير صالح في الاستطلاع. راجعه ثم حاول مرة أخرى.",

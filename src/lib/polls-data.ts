@@ -3,13 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { isCollabAdmin } from "@/lib/collab-permissions";
 import {
-  POLLS_LIST_LIMIT,
+  POLLS_PAGE_SIZE,
+  POLLS_REFRESH_MAX,
   canCreatePoll,
   canManagePoll,
   canSchedulePoll,
   isPollOpen,
+  isUpcomingSession,
   leadingOptionIds,
+  pollCursorWhere,
   votePercent,
+  type PollCursor,
   type PollKindValue,
 } from "@/lib/polls";
 
@@ -148,13 +152,15 @@ export type PollView = {
   scheduledAt: string | null;
   scheduledOptionId: string | null;
   scheduledPostId: string | null;
+  /** The collab one-off session scheduled from this poll, while it's still ahead (its .ics is /api/collab/<id>/calendar?session=<this>). */
+  scheduledSessionId: string | null;
   canVote: boolean;
   canManage: boolean;
   canSchedule: boolean;
 };
 
 /**
- * The polls matching `where` (newest first, at most POLLS_LIST_LIMIT) with their counts, as `viewer` sees them.
+ * The polls matching `where` (newest first, then id; at most `take`) with their counts, as `viewer` sees them.
  * `access` is the viewer's access to the parent (one parent per call, or a function for per-poll access, e.g. channel
  * polls in a Circle). The caller has already decided the viewer may see these.
  */
@@ -162,11 +168,12 @@ export async function loadPollViews(
   where: Prisma.PollWhereInput,
   viewer: Viewer,
   access: PollParentAccess | ((poll: { channelId: string | null }) => PollParentAccess),
+  take: number = POLLS_PAGE_SIZE,
 ): Promise<PollView[]> {
   const polls = await prisma.poll.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    take: POLLS_LIST_LIMIT,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
     select: {
       id: true,
       kind: true,
@@ -181,6 +188,7 @@ export async function loadPollViews(
       scheduledAt: true,
       scheduledOptionId: true,
       scheduledPostId: true,
+      oneOffSession: { select: { id: true, startsAt: true } },
       createdBy: { select: { name: true } },
       channel: { select: { name: true } },
       options: { orderBy: { position: "asc" }, select: { id: true, text: true, startsAt: true } },
@@ -236,6 +244,8 @@ export async function loadPollViews(
       scheduledAt: poll.scheduledAt?.toISOString() ?? null,
       scheduledOptionId: poll.scheduledOptionId,
       scheduledPostId: poll.scheduledPostId,
+      scheduledSessionId:
+        poll.oneOffSession && isUpcomingSession(poll.oneOffSession.startsAt, now) ? poll.oneOffSession.id : null,
       canVote: parent.isMember && open,
       canManage: canManagePoll(roles),
       canSchedule: poll.kind === "SCHEDULE" && !poll.scheduledAt && canSchedulePoll({ ...roles, open }),
@@ -247,4 +257,71 @@ export async function loadPollViews(
 export async function loadPollView(pollId: string, viewer: Viewer, access: PollParentAccess) {
   const [view] = await loadPollViews({ id: pollId }, viewer, access);
   return view ?? null;
+}
+
+/**
+ * One page of a parent's polls. No cursor: the first page. "older": the page after `cursor` ("Load more"). "through":
+ * everything from the newest down to `cursor` (a live refresh of what the viewer already has), at most
+ * POLLS_REFRESH_MAX. `hasMore`: whether anything older than the last poll returned exists.
+ */
+export async function loadPollPage(
+  where: Prisma.PollWhereInput,
+  viewer: Viewer,
+  access: PollParentAccess,
+  cursor: PollCursor | null = null,
+  mode: "older" | "through" = "older",
+): Promise<{ polls: PollView[]; hasMore: boolean }> {
+  const limit = cursor && mode === "through" ? POLLS_REFRESH_MAX : POLLS_PAGE_SIZE;
+  const pageWhere: Prisma.PollWhereInput = cursor ? { AND: [where, pollCursorWhere(cursor, mode)] } : where;
+  const views = await loadPollViews(pageWhere, viewer, access, limit + 1);
+  if (views.length > limit) return { polls: views.slice(0, limit), hasMore: true };
+  if (!cursor || mode === "older") return { polls: views, hasMore: false };
+  // A refresh that fit: is there anything past the cursor (the part of the list not loaded yet)?
+  const older = await prisma.poll.findFirst({
+    where: { AND: [where, pollCursorWhere(cursor, "older")] },
+    select: { id: true },
+  });
+  return { polls: views, hasMore: !!older };
+}
+
+/** Which of a Circle's polls a viewer sees: Circle-wide ones and those in the channels they can open. */
+export function circlePollWhere(circleId: string, accessibleChannelIds: readonly string[]): Prisma.PollWhereInput {
+  return { circleId, OR: [{ channelId: null }, { channelId: { in: [...accessibleChannelIds] } }] };
+}
+
+/**
+ * The viewer's access to a Circle's poll list and the condition selecting the polls they see, or null when they may not
+ * see the list at all. The same rules as the Circle page: a PRIVATE Circle's polls are for members and admins only, and
+ * a PRIVATE channel's for its allow-list and the Circle's admins.
+ */
+export async function circlePollScope(circleId: string, viewer: Viewer) {
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    select: { id: true, createdById: true, visibility: true },
+  });
+  if (!circle) return null;
+  const access = await getCirclePollAccess(circle, null, viewer);
+  if (!access.canView) return null;
+  const channels = await prisma.channel.findMany({
+    where: {
+      circleId,
+      ...(access.isParentAdmin
+        ? {}
+        : { OR: [{ visibility: "PUBLIC" }, { members: { some: { userId: viewer.id } } }] }),
+    },
+    select: { id: true },
+  });
+  return { access, where: circlePollWhere(circleId, channels.map((c) => c.id)) };
+}
+
+/** The same for a collab: anyone who can see a PUBLIC collab, a PRIVATE one's participants (and admins). */
+export async function collabPollScope(collabId: string, viewer: Viewer) {
+  const collab = await prisma.collabBoardPost.findUnique({
+    where: { id: collabId },
+    select: { id: true, authorId: true, visibility: true },
+  });
+  if (!collab) return null;
+  const access = await getCollabPollAccess(collab, viewer);
+  if (!access.canView) return null;
+  return { access, where: { collabId } satisfies Prisma.PollWhereInput };
 }

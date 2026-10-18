@@ -15,9 +15,7 @@ import {
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
-import { recordActivity } from "@/lib/trust";
 import { notifySubscribers } from "@/lib/notify-subscribers";
-import { notifyConnections } from "@/lib/notify-connections";
 import { isGiphyUrl } from "@/lib/giphy";
 import {
   MEDIA_LIMITS,
@@ -34,11 +32,12 @@ import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
-import { isMembersOnlyPost, LEAD_POST_ONLY } from "@/lib/post-visibility";
+import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
-import { updateCircleEmbedding, toPgVector } from "@/lib/embeddings";
+import { updateCircleEmbedding } from "@/lib/embeddings";
 import { classifyPostCategory } from "@/lib/feed-category";
+import { afterPostCreated } from "@/lib/post-created";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
@@ -1248,16 +1247,8 @@ export async function createPost(formData: FormData) {
       },
     });
   }
-  // Only the lead post's caption/embed-title vector is stored — an album's
-  // non-lead siblings have no caption of their own to embed, and (per
-  // LEAD_POST_ONLY) never surface in a search/semantic result independently
-  // of their lead anyway, so there's nothing for their own embedding to do.
-  if (embedding) {
-    await prisma.$executeRaw`UPDATE "Post" SET "embedding" = ${toPgVector(embedding)}::vector WHERE "id" = ${post.id}`;
-  }
-  await recordActivity(user.id);
-  await track("POST_CREATED", user.id, { circleId: parsed.data.circleId ?? null, mediaType });
-
+  // Embedding, activity/analytics, subscriber or connection notifications and the Home feed signal: shared with the
+  // Circle event post a schedule poll creates (schedulePollOption), so the two stay identical.
   // Video-body scanning (Hive) happens on the moderate-videos cron, not
   // here — a video 60s or under publishes immediately with videoModeratedAt
   // still null, same "publish immediately, flag retroactively if needed"
@@ -1266,39 +1257,7 @@ export async function createPost(formData: FormData) {
   // over 60s skips this path entirely (videoNeedsLongReview above already
   // set videoModeratedAt and videoLongReviewNeeded at creation; videoNeedsHold
   // additionally holds it FLAGGED past VIDEO_INSTANT_PUBLISH_MAX_SECONDS).
-
-  // Notify subscribers of new content. Skipped for flagged content, and for
-  // anything other than PUBLIC visibility — a subscriber isn't necessarily
-  // an accepted connection, so a Friends-only/Private post shouldn't point
-  // them at something getVisiblePostsWhere would then just hide from them.
-  // A PRIVATE Circle's posts (and a private channel's) are members-only yet stored PUBLIC, so visibility alone can't
-  // tell them apart: without this check the author's subscribers and connections (who need not be members) were
-  // notified about a post they can't open — revealing that it exists — and the Home feed was told to refetch. Posts
-  // in a PUBLIC Circle are general/public and notify as before.
-  const membersOnly = await isMembersOnlyPost(post);
-  if (moderationStatus === "PUBLISHED" && post.visibility === "PUBLIC" && !membersOnly) {
-    await notifySubscribers(user.id, "SUBSCRIPTION_POST", { postId: post.id });
-    // Tells any open Home feed tab to refetch — both the matching category
-    // tab and "All" (PostFeedSection's own category prop), same "thin
-    // signal, go refetch through the existing already-authorized query"
-    // shape as every other realtime channel in this app. Harmless if a
-    // given viewer's getVisiblePostsWhere/buildCategoryFilter ends up
-    // returning nothing new for them (e.g. this post isn't actually visible
-    // to them) — the refetch just comes back empty.
-    await Promise.all([
-      publishEvent(REALTIME_CHANNELS.homeFeed("all"), "changed"),
-      ...(feedCategory ? [publishEvent(REALTIME_CHANNELS.homeFeed(feedCategory), "changed")] : []),
-    ]);
-  } else if (moderationStatus === "PUBLISHED" && post.visibility === "CONNECTIONS_ONLY" && !membersOnly) {
-    // The PUBLIC branch above already reaches every accepted connection too
-    // (accepting a connection request auto-subscribes both sides — see
-    // respondToConnectionRequest in actions/connections.ts), so this is
-    // mutually exclusive with it, not additive: a CONNECTIONS_ONLY post is
-    // invisible to a subscriber who isn't also a connection, so only actual
-    // connections get notified here instead of everyone the author is
-    // subscribed by.
-    await notifyConnections(user.id, "CONNECTION_POST", { postId: post.id });
-  }
+  await afterPostCreated({ post, moderationStatus, feedCategory, embedding, mediaType });
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");

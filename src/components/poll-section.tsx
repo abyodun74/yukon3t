@@ -1,42 +1,159 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, CalendarCheck, Plus } from "lucide-react";
-import { deletePoll, schedulePollOption, setPollOpen, votePoll } from "@/app/actions/polls";
+import { deletePoll, loadPolls, schedulePollOption, setPollOpen, votePoll } from "@/app/actions/polls";
 import { PollFormSheet } from "@/components/poll-form-sheet";
 import { PollCalendarLinks, PollInstant, formatPollInstant } from "@/components/poll-time";
 import { useUiText } from "@/components/ui-text";
 import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
+import {
+  POLL_SIGNAL_COOLDOWN_MS,
+  POLL_SIGNAL_MAX_DELAY_MS,
+  appendPollPage,
+  mergeFirstPage,
+  pollCursorOf,
+  pollScrollTarget,
+} from "@/lib/polls";
 import type { PollView } from "@/lib/polls-data";
+import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { createSignalThrottle, useRealtimeEvent } from "@/lib/realtime-client";
 
 /**
- * A Circle's or collab's polls: the list, voting, live results and the organizer's controls. Results are counts and
- * percentages only, for everyone (admins included); the only picks shown are the viewer's own. After a vote the action
- * answers with the poll's fresh counts; anything else refreshes the page.
+ * A Circle's or collab's polls: the list (first page from the server, "Load more" for older ones), voting, live
+ * results and the organizer's controls. Results are counts and percentages only, for everyone (admins included); the
+ * only picks shown are the viewer's own. After a vote the action answers with the poll's fresh counts; organizer
+ * actions refresh the page. Other people's votes and changes arrive live: a thin signal on the parent's poll channel,
+ * after which this re-reads everything it has loaded through loadPolls (coalesced: POLL_SIGNAL_* in lib/polls.ts).
+ * The section is the `#polls` anchor notification links land on (and each card `#poll-<id>`).
  */
 export function PollSection({
   circleId,
   collabId,
-  polls,
+  polls: initialPolls,
+  hasMore: initialHasMore,
   canCreate,
   channels = [],
 }: {
   circleId?: string;
   collabId?: string;
   polls: PollView[];
+  hasMore: boolean;
   canCreate: boolean;
   channels?: { id: string; name: string }[];
 }) {
   const { locale, dir, t: ui } = useUiText();
   const t = ui.polls;
   const [creating, setCreating] = useState(false);
+  const [polls, setPolls] = useState(initialPolls);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // A fresh first page from the server (router.refresh after an organizer's action): it replaces what it covers,
+  // older polls already loaded with "Load more" stay (React's "adjusting state when a prop changes").
+  const [source, setSource] = useState(initialPolls);
+  if (source !== initialPolls) {
+    setSource(initialPolls);
+    setPolls(mergeFirstPage(initialPolls, initialHasMore, polls));
+    if (!initialHasMore) setHasMore(false);
+  }
+
+  const pollsRef = useRef(polls);
+  useEffect(() => {
+    pollsRef.current = polls;
+  });
+
+  // The live refresh: everything from the newest poll down to the oldest one loaded (new polls, fresh counts, edits;
+  // a deleted poll drops out). Failures are left to the next signal or focus resync.
+  const refresh = useCallback(async () => {
+    const last = pollsRef.current[pollsRef.current.length - 1];
+    const result = await loadPolls({
+      circleId: circleId ?? null,
+      collabId: collabId ?? null,
+      cursor: last ? pollCursorOf(last) : null,
+      mode: "through",
+    });
+    if (result.error) return;
+    setPolls(result.polls);
+    setHasMore(result.hasMore);
+  }, [circleId, collabId]);
+
+  const throttleRef = useRef<ReturnType<typeof createSignalThrottle> | null>(null);
+  useEffect(() => {
+    const throttle = createSignalThrottle(() => refresh(), {
+      maxDelayMs: POLL_SIGNAL_MAX_DELAY_MS,
+      cooldownMs: POLL_SIGNAL_COOLDOWN_MS,
+    });
+    throttleRef.current = throttle;
+    return () => {
+      throttle.cancel();
+      throttleRef.current = null;
+    };
+  }, [refresh]);
+
+  // A signal goes through the throttle (a vote burst on a popular poll is one refetch per cooldown, not one per vote);
+  // the hook's own focus resync (null payload) is already spread out and rate-limited, so it refetches directly.
+  const handleSignal = useCallback(
+    (payload: unknown) => {
+      if (payload === null) return refresh();
+      throttleRef.current?.signal();
+    },
+    [refresh],
+  );
+  useRealtimeEvent(
+    circleId ? REALTIME_CHANNELS.circlePolls(circleId) : collabId ? REALTIME_CHANNELS.collabPolls(collabId) : null,
+    "changed",
+    handleSignal,
+  );
+
+  // Notification links land on #polls (or #poll-<id>). The section renders with the page, but the browser's own jump
+  // can happen before the content above it has settled, so scroll once more after mount, and on a later hash change.
+  useEffect(() => {
+    function scrollToHash() {
+      const target = pollScrollTarget(
+        window.location.hash,
+        pollsRef.current.map((p) => p.id),
+      );
+      if (!target) return;
+      requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ block: "start" }));
+    }
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => window.removeEventListener("hashchange", scrollToHash);
+  }, []);
+
+  async function loadMore() {
+    const last = polls[polls.length - 1];
+    if (!last || loadingMore) return;
+    setLoadingMore(true);
+    setLoadError(null);
+    try {
+      const result = await loadPolls({
+        circleId: circleId ?? null,
+        collabId: collabId ?? null,
+        cursor: pollCursorOf(last),
+        mode: "older",
+      });
+      if (result.error) {
+        setLoadError(byCode(t.errors, result.error));
+        return;
+      }
+      setPolls((current) => appendPollPage(current, result.polls));
+      setHasMore(result.hasMore);
+    } catch {
+      setLoadError(t.errors.network);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   if (polls.length === 0 && !canCreate) return null;
 
   return (
-    <section id="polls" aria-labelledby="polls-heading" lang={locale} dir={dir} className="mt-8">
+    <section id="polls" aria-labelledby="polls-heading" lang={locale} dir={dir} className="mt-8 scroll-mt-20">
       <div className="flex items-center justify-between gap-2">
         <h2
           id="polls-heading"
@@ -61,11 +178,28 @@ export function PollSection({
       ) : (
         <ul className="mt-3 space-y-3">
           {polls.map((poll) => (
-            <li key={poll.id}>
+            <li key={poll.id} id={`poll-${poll.id}`} className="scroll-mt-20">
               <PollCard poll={poll} circle={!!circleId} collabId={collabId} />
             </li>
           ))}
         </ul>
+      )}
+      {hasMore && polls.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="w-full rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+          >
+            {loadingMore ? t.loadingMore : t.loadMore}
+          </button>
+          {loadError && (
+            <p role="alert" className="mt-2 text-xs text-danger">
+              {loadError}
+            </p>
+          )}
+        </div>
       )}
       {canCreate && (
         <PollFormSheet
@@ -77,6 +211,10 @@ export function PollSection({
       )}
     </section>
   );
+}
+
+function sameIds(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((id) => b.includes(id));
 }
 
 function percentText(percent: number, locale: Locale) {
@@ -95,7 +233,9 @@ function PollCard({ poll, circle, collabId }: { poll: PollView; circle: boolean;
   if (source !== poll) {
     setSource(poll);
     setView(poll);
-    setSelected(poll.myOptionIds);
+    // A live refresh (someone else voted) mustn't throw away picks this viewer hasn't submitted yet: only follow the
+    // server's picks while the selection still matches what was saved.
+    if (sameIds(selected, view.myOptionIds)) setSelected(poll.myOptionIds);
   }
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -103,8 +243,7 @@ function PollCard({ poll, circle, collabId }: { poll: PollView; circle: boolean;
   const [isPending, startTransition] = useTransition();
 
   const inputName = `poll-${view.id}`;
-  const changed =
-    selected.length !== view.myOptionIds.length || selected.some((id) => !view.myOptionIds.includes(id));
+  const changed = !sameIds(selected, view.myOptionIds);
 
   function run(action: () => Promise<{ error: string | null }>, after?: () => void) {
     setError(null);
@@ -294,7 +433,11 @@ function PollCard({ poll, circle, collabId }: { poll: PollView; circle: boolean;
             title={view.question}
             description={view.description ?? ""}
             startAt={view.scheduledAt}
-            icsHref={collabId ? `/api/collab/${collabId}/calendar?session=one-off` : null}
+            icsHref={
+              collabId && view.scheduledSessionId
+                ? `/api/collab/${collabId}/calendar?session=${encodeURIComponent(view.scheduledSessionId)}`
+                : null
+            }
           />
         </div>
       )}

@@ -1763,7 +1763,8 @@ const sections: Section[] = [
             and times. Times are entered and shown in UTC so everyone shares
             one reference, with your own local time shown next to each.
             Members (or participants) are notified and can vote, change their
-            vote or withdraw it at any time while the poll is open. A private
+            vote or withdraw it at any time while the poll is open; results
+            update live as people vote. A private
             Circle&apos;s or collaboration&apos;s polls are visible only to
             its members.
             <br />
@@ -1780,8 +1781,9 @@ const sections: Section[] = [
             When a find-a-time poll has a winner, an admin (or the poll&apos;s
             creator, once it&apos;s closed) can schedule it: in a Circle this
             posts an event people can RSVP to and add to their calendar; on a
-            Collab Board it sets a one-off session, with the usual reminder
-            shortly before. Everyone who voted is notified.
+            Collab Board it adds a one-off session (a collaboration can have
+            several, each listed on its page until it starts), with the usual
+            reminder shortly before. Everyone who voted is notified.
           </>
         ),
       },

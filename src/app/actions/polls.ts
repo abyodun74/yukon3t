@@ -8,9 +8,11 @@ import { moderateText } from "@/lib/moderation";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { captureError } from "@/lib/error-tracking";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
-import { publishEvents } from "@/lib/realtime-server";
+import { publishEvent, publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { pollCreateSchema, pollIdSchema, pollUpdateSchema, pollVoteSchema } from "@/lib/validations";
+import { classifyPostCategory } from "@/lib/feed-category";
+import { afterPostCreated } from "@/lib/post-created";
+import { pollCreateSchema, pollIdSchema, pollListSchema, pollUpdateSchema, pollVoteSchema } from "@/lib/validations";
 import {
   canManagePoll,
   canSchedulePoll,
@@ -28,8 +30,11 @@ import {
   type NormalizedPollOption,
 } from "@/lib/polls";
 import {
+  circlePollScope,
+  collabPollScope,
   getCirclePollAccess,
   getCollabPollAccess,
+  loadPollPage,
   loadPollView,
   loadPollWithAccess,
   type PollParentAccess,
@@ -75,6 +80,17 @@ function pollText(question: string, description: string | null, options: readonl
 function revalidateParent(parent: { circle?: { slug: string } | null; collabId?: string | null }) {
   if (parent.circle) revalidatePath(`/circles/${parent.circle.slug}`);
   if (parent.collabId) revalidatePath(`/collab/${parent.collabId}`);
+}
+
+/**
+ * Tells every open page showing this parent's polls to refetch them (loadPolls below): a thin signal with an empty
+ * payload, never the poll or the vote. Clients coalesce bursts (POLL_SIGNAL_* in lib/polls.ts), so a popular poll's
+ * votes don't each cost every viewer a request. Best-effort, like every publishEvent.
+ */
+function signalPollsChanged(parent: { circleId?: string | null; collabId?: string | null }) {
+  if (parent.circleId) return publishEvent(REALTIME_CHANNELS.circlePolls(parent.circleId), "changed");
+  if (parent.collabId) return publishEvent(REALTIME_CHANNELS.collabPolls(parent.collabId), "changed");
+  return Promise.resolve();
 }
 
 function parseTime(value: string | null | undefined) {
@@ -164,6 +180,7 @@ export async function createPoll(input: unknown) {
     await captureError(err, { action: "createPoll", pollId: poll.id });
   }
 
+  await signalPollsChanged({ circleId: circle?.id, collabId: data.collabId });
   revalidateParent({ circle, collabId: data.collabId });
   return { error: null, pollId: poll.id } as const;
 }
@@ -293,6 +310,7 @@ export async function updatePoll(pollId: string, input: unknown, confirmClearVot
     }
   });
 
+  await signalPollsChanged(poll);
   revalidateParent({ circle: poll.circle, collabId: poll.collabId });
   return { error: null, votesCleared: plan.votesCleared } as const;
 }
@@ -316,6 +334,7 @@ export async function setPollOpen(pollId: string, open: boolean) {
       ? { status: "OPEN", closesAt: reopenClosesAt(poll.closesAt, new Date()) }
       : { status: "CLOSED" },
   });
+  await signalPollsChanged(poll);
   revalidateParent({ circle: poll.circle, collabId: poll.collabId });
   return { error: null } as const;
 }
@@ -334,6 +353,7 @@ export async function deletePoll(pollId: string) {
   }
 
   await prisma.poll.delete({ where: { id: pollId } });
+  await signalPollsChanged(poll);
   revalidateParent({ circle: poll.circle, collabId: poll.collabId });
   return { error: null } as const;
 }
@@ -375,15 +395,38 @@ export async function votePoll(pollId: string, optionIds: unknown) {
     }
   });
 
-  return { error: null, poll: await loadPollView(pollId, user, access) } as const;
+  // The voter gets the fresh counts right here; everyone else hears the signal and refetches.
+  const [view] = await Promise.all([loadPollView(pollId, user, access), signalPollsChanged(poll)]);
+  return { error: null, poll: view } as const;
+}
+
+/**
+ * A page of a Circle's or collab's polls as `PollView`s, for "Load more" (`mode: "older"`, after `cursor`) and for the
+ * live refresh a poll signal triggers (`mode: "through"`: everything from the newest down to `cursor`, the oldest poll
+ * the viewer has loaded; no cursor = the first page). Same visibility as the page itself (circlePollScope /
+ * collabPollScope): not_found for anyone who may not see the list, so an id says nothing about whether it exists.
+ */
+export async function loadPolls(input: unknown) {
+  const user = await requireVerifiedUser();
+  if (!(await checkRateLimit("pollList", user.id))) return failure("rate_limited");
+  const parsed = pollListSchema.safeParse(input);
+  if (!parsed.success || pollParentError(parsed.data)) return failure("invalid");
+  const { circleId, collabId, cursor, mode } = parsed.data;
+
+  const scope = circleId ? await circlePollScope(circleId, user) : await collabPollScope(collabId!, user);
+  if (!scope) return failure("not_found");
+  const page = await loadPollPage(scope.where, user, scope.access, cursor ?? null, mode);
+  return { error: null, ...page } as const;
 }
 
 /**
  * "Schedule from this option" on a SCHEDULE poll, once (lib/polls.ts: scheduleFromPollError, canSchedulePoll). Closes
  * the poll. In a Circle it posts an event (a Post with eventAt, the Circle's existing event mechanism: RSVPs and the
- * event-reminders cron) in the poll's channel, or the Circle's general text channel. On a collab it sets the one-off
- * session (CollabBoardPost.oneOffSessionAt), which the collab-session-reminders cron reminds about without touching
- * the recurring schedule. Everyone who voted (not the scheduler) gets POLL_SCHEDULED, bell + push.
+ * event-reminders cron) in the poll's channel, or the Circle's general text channel, and that post then goes through
+ * the same steps as any Circle post (feed category and embedding, subscriber notifications and the Home feed signal:
+ * afterPostCreated). On a collab it adds a one-off session (a CollabOneOffSession row; a collab can have several),
+ * which the collab-session-reminders cron reminds about without touching the recurring schedule. Everyone who voted
+ * (not the scheduler) gets POLL_SCHEDULED, bell + push.
  */
 export async function schedulePollOption(pollId: string, optionId: string) {
   const user = await requireVerifiedUser();
@@ -423,6 +466,12 @@ export async function schedulePollOption(pollId: string, optionId: string) {
     if (!channelId) return failure("no_channel");
   }
 
+  // The event post's content, classified (feed category + embedding) like createPost does, before the transaction so
+  // the OpenAI call holds no row lock. The question and description already passed moderation when the poll was
+  // created or last edited.
+  const eventContent = poll.description ? `${poll.question}\n\n${poll.description}` : poll.question;
+  const classified = poll.circleId ? await classifyPostCategory(eventContent) : null;
+
   const scheduled = await prisma.$transaction(async (tx) => {
     // The claim: only one schedule per poll, whoever gets here first.
     const claimed = await tx.poll.updateMany({
@@ -431,51 +480,68 @@ export async function schedulePollOption(pollId: string, optionId: string) {
     });
     if (claimed.count === 0) return null;
     if (poll.circleId) {
-      // The question and description already passed moderation when the poll was created or last edited.
       const post = await tx.post.create({
         data: {
           authorId: user.id,
           circleId: poll.circleId,
           channelId,
-          content: poll.description ? `${poll.question}\n\n${poll.description}` : poll.question,
+          content: eventContent,
+          // Inside a Circle membership is the access boundary; stored PUBLIC like every Circle post (createPost).
           visibility: "PUBLIC",
           mediaType: "NONE",
+          feedCategory: classified!.category,
           eventAt: startsAt,
         },
-        select: { id: true },
+        select: { id: true, authorId: true, circleId: true, channelId: true, visibility: true },
       });
       await tx.poll.update({ where: { id: pollId }, data: { scheduledPostId: post.id } });
-      return { postId: post.id };
+      return { post };
     }
-    await tx.collabBoardPost.update({
-      where: { id: poll.collabId! },
-      data: { oneOffSessionAt: startsAt, oneOffReminderSentAt: null },
-    });
-    return { postId: null };
+    // A new row: one-off sessions this collab already has (from other polls) stay.
+    await tx.collabOneOffSession.create({ data: { collabId: poll.collabId!, startsAt, pollId } });
+    return { post: null };
   });
   if (!scheduled) return failure("already_scheduled");
+
+  if (scheduled.post) {
+    try {
+      await afterPostCreated({
+        post: scheduled.post,
+        moderationStatus: "PUBLISHED",
+        feedCategory: classified!.category,
+        embedding: classified!.embedding,
+        mediaType: "NONE",
+      });
+    } catch (err) {
+      // The event exists and the poll is scheduled; a failed follow-up must not report the schedule as failed.
+      console.error("[polls] event post follow-up failed", err);
+      await captureError(err, { action: "schedulePollOption", pollId, postId: scheduled.post.id });
+    }
+  }
 
   try {
     await notifyPollScheduled(pollId, user, {
       circleId: poll.circleId,
+      circleSlug: poll.circle?.slug ?? null,
       collabId: poll.collabId,
-      postId: scheduled.postId,
+      postId: scheduled.post?.id ?? null,
     });
   } catch (err) {
     console.error("[polls] poll-scheduled notification failed", err);
     await captureError(err, { action: "schedulePollOption", pollId });
   }
 
+  await signalPollsChanged(poll);
   revalidateParent({ circle: poll.circle, collabId: poll.collabId });
   if (poll.circle) revalidatePath("/home");
-  return { error: null, postId: scheduled.postId } as const;
+  return { error: null, postId: scheduled.post?.id ?? null } as const;
 }
 
 /** POLL_SCHEDULED to everyone who voted (any option), minus the scheduler and anyone blocked either way: bell + push. */
 async function notifyPollScheduled(
   pollId: string,
   actor: { id: string; name: string | null },
-  target: { circleId: string | null; collabId: string | null; postId: string | null },
+  target: { circleId: string | null; circleSlug: string | null; collabId: string | null; postId: string | null },
 ) {
   const voters = await prisma.pollVote.findMany({
     where: { pollId },
@@ -499,7 +565,9 @@ async function notifyPollScheduled(
       postId: target.postId,
     })),
   });
-  const url = target.postId ? `/post/${target.postId}` : `/collab/${target.collabId}`;
+  // The polls section of the Circle / collab page, where notificationHref sends the bell row too (the poll card there
+  // links to the Circle event post).
+  const url = target.circleSlug ? `/circles/${target.circleSlug}#polls` : `/collab/${target.collabId}#polls`;
   await pushActivityNotificationToMany(recipients, "POLL_SCHEDULED", actor.name, url);
   await publishBadgeChanges(recipients);
 }
