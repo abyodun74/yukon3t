@@ -46,6 +46,10 @@ export const push: typeof pushEn = {
     eventStartingSoonAt: "تبدأ الفعالية قريبًا في {location}",
     collabStartingSoon: "تبدأ الجلسة قريبًا",
   },
+  appUpdate: {
+    title: "يتوفر تحديث",
+    body: "إصدار جديد من YuKon3t جاهز. حدّث التطبيق للحصول على أحدث الإصلاحات والميزات.",
+  },
   videoReviewTitle: "فيديو قيد المراجعة",
   recordingFailedTitle: "لم يُنشر التسجيل",
 };

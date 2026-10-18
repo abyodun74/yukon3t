@@ -77,6 +77,16 @@ export const shell: typeof shellEn = {
     thanksBody: "نقرأ كل رسالة، وهذا يساعدنا فعلًا على تحسين التطبيق.",
     errors: { rate_limited: "تمهّل قليلًا.", other: "تعذّر الإرسال. حاول مرة أخرى." },
   },
+  appUpdate: {
+    label: "تحديث التطبيق",
+    bannerTitle: "يتوفر تحديث",
+    bannerBody: "إصدار جديد من YuKon3t جاهز ويتضمن أحدث الإصلاحات والميزات.",
+    update: "تحديث",
+    later: "ليس الآن",
+    requiredTitle: "التحديث مطلوب",
+    requiredBody: "لم يعد هذا الإصدار من YuKon3t مدعومًا. حدّث التطبيق لمواصلة استخدامه.",
+    help: "المساعدة والأسئلة الشائعة",
+  },
   viewer: {
     photo: "عارض الصور",
     video: "عارض الفيديو",

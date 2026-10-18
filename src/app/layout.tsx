@@ -18,6 +18,7 @@ import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
 import { ShareTargetGate } from "@/components/share-target-gate";
 import { ReviewPromptGate } from "@/components/review-prompt-gate";
+import { AppUpdateGate } from "@/components/app-update-gate";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { TextScaleScript } from "@/components/text-scale-script";
@@ -242,6 +243,8 @@ export default async function RootLayout({
             <StaleBuildReload />
             <OfflineBanner />
             <Nav session={session} theme={theme} />
+            {/* Native app only; renders nothing in a browser. Not session-gated: an "Update required" applies signed out too. */}
+            <AppUpdateGate userId={session?.user?.id ?? null} />
             {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
             {session?.user && <GlobalCallFrame />}
             {session?.user && <FcmTokenBridge />}

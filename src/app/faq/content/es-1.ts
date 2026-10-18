@@ -48,6 +48,10 @@ export const es1 = {
     q: "¿Por qué Inicio está dividido en secciones como Trabajo, Entretenimiento, Política y Deportes?",
     a: "Las publicaciones se agrupan según la sección del feed que su autor eligió al escribirlas (por defecto, General), para que sea más fácil ver lo que te interesa. Mientras estás en la página, cada sección agrega las publicaciones nuevas arriba automáticamente, por lo general en unos segundos y en cerca de medio minuto cuando se publica mucho a la vez. No hace falta actualizar.",
   },
+  "update-the-app": {
+    q: "¿Cómo actualizo la aplicación y por qué me piden que la actualice?",
+    a: "La mayoría de las mejoras te llegan solas: la aplicación carga la versión más reciente de YuKon3t cada vez que la abres. Algunos cambios necesitan una versión nueva de la propia aplicación en Google Play o en la App Store, y cuando sale una puede que veas un aviso de «Actualización disponible»: toca **Actualizar** para abrir la tienda y luego toca Actualizar allí. «Ahora no» oculta el aviso durante 3 días. En contadas ocasiones, cuando una versión anterior ya no puede funcionar bien, verás en su lugar una pantalla de «Actualización necesaria»; desde ella puedes seguir abriendo estas preguntas frecuentes o cerrar sesión, y todo vuelve a funcionar en cuanto actualizas. También puedes actualizar cuando quieras: abre Google Play o la App Store, busca YuKon3t y toca Actualizar. Para enviar estos avisos, la versión y el número de compilación de la aplicación y la plataforma de tu teléfono (Android o iPhone) se guardan junto con su token de notificaciones push.",
+  },
 
   "app-opens-chrome-instead-full": {
     q: "La aplicación se abre en Chrome en lugar de a pantalla completa. ¿Cómo lo soluciono?",

@@ -1,5 +1,6 @@
 import type { App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
@@ -243,6 +244,42 @@ export async function sendFcmActivityToUsers(userIds: string[], localizedPayload
 }
 
 type ActivityPayload = { title: string; body: string; type: string; url?: string };
+
+/** Whether FCM can send at all (the Firebase admin env vars are set). */
+export function canSendFcm(): boolean {
+  return Boolean(isFcmConfigured && app);
+}
+
+/**
+ * A notification to every device matching `where` — only the admin's "Notify users on older builds" on
+ * /admin/system (actions/app-version.ts), with the filter from olderBuildTokenWhere. Worded per recipient language
+ * and sent through the same chunked multicast as the announcement broadcast. Returns how many devices it was sent to
+ * (0 when FCM isn't configured or the lookup failed). Never throws.
+ */
+export async function sendFcmNoticeToTokens(
+  where: Prisma.FcmTokenWhereInput,
+  localizedPayload: Localized<ActivityPayload>,
+): Promise<number> {
+  if (!isFcmConfigured || !app) return 0;
+
+  let tokens: Token[];
+  try {
+    tokens = await prisma.fcmToken.findMany({ where, select: TOKEN_SELECT });
+  } catch (err) {
+    console.error("[fcm] token lookup failed", err);
+    return 0;
+  }
+
+  const payloadFor = perLocale(localizedPayload);
+  for (const [locale, group] of groupByLocale(tokens, (token) => token.user.locale)) {
+    const payload = payloadFor(locale);
+    await sendFcmNotificationToTokens(app, group, {
+      notification: { title: payload.title, body: payload.body },
+      data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
+    });
+  }
+  return tokens.length;
+}
 
 
 async function sendFcmNotificationToTokens(

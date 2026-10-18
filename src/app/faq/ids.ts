@@ -32,6 +32,7 @@ export const FAQ_IDS = [
   "click-someones-name-almost-everywhere",
   "some-people-disappear-from-discover",
   "home-split-into-sections-like",
+  "update-the-app",
   // The Android app
   "app-opens-chrome-instead-full",
   "still-get-calls-phone-asleep",

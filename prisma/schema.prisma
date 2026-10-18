@@ -2424,6 +2424,10 @@ enum AuditAction {
   // CONTENT_REMOVED is still what's written if an admin then removes it,
   // same as every other flagged-content-queue removal.
   CONTENT_FLAGGED_FOR_REVIEW
+  // /admin/system's app update card (actions/app-version.ts). The target is
+  // the admin themselves (AuditLog needs a user); the reason names the platform.
+  APP_VERSION_POLICY_UPDATED
+  APP_UPDATE_NOTICE_SENT
 }
 
 model AuditLog {
@@ -2618,10 +2622,48 @@ model FcmToken {
   userId    String
   token     String   @unique
   createdAt DateTime @default(now())
+  // The installed app this token came from, as App.getInfo() reported it when
+  // the token was last registered (capacitor-bridge.tsx): "android" | "ios",
+  // the store build number (versionCode / CFBundleVersion) and the marketing
+  // version. Null on rows registered before these existed, or by a client
+  // that didn't send them. Read only for the update-notice breakdown and push
+  // on /admin/system (src/lib/app-version.ts); never trusted for anything else.
+  platform   String?
+  build      Int?
+  appVersion String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([platform, build])
+}
+
+/**
+ * The owner-set "please update the app" policy, one row per native platform
+ * ("android" | "ios"), edited on /admin/system and read by GET
+ * /api/app-version (decision in src/lib/app-version.ts). No row, or
+ * enabled = false, means nobody is prompted. latestBuild/latestVersion drive
+ * the dismissible soft banner; minBuild is the only thing that can force an
+ * update (null = force off), and only for a known build below it.
+ */
+model AppVersionPolicy {
+  platform       String    @id
+  enabled        Boolean   @default(false)
+  latestBuild    Int?
+  minBuild       Int?
+  // iOS marketing version (CFBundleShortVersionString), e.g. "1.26".
+  latestVersion  String?
+  message        String?
+  // Optional override for the store link the Update button opens.
+  storeUrl       String?
+  // iOS numeric App Store id, for itms-apps:// links.
+  appStoreId     String?
+  // iOS: also compare against the App Store's live version (iTunes lookup).
+  iosAutoDetect  Boolean   @default(true)
+  // Last "Notify users on older builds" push — the 1/hour send cooldown.
+  lastNotifiedAt DateTime?
+  updatedById    String?
+  updatedAt      DateTime  @updatedAt
 }
 
 // A raw APNs device token from iOS's PushKit (PKPushRegistry), for VoIP

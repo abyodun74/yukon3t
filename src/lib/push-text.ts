@@ -120,3 +120,9 @@ export function noticeLine(notice: Notice, locale: Locale): string {
   const dictionary = dictionaryFor(locale);
   return noticeText(notice, dictionary.pages.notifications.notices, dictionary.ui.listSeparator);
 }
+
+/** The owner's "Notify users on older builds" push from /admin/system (actions/app-version.ts). Opens Home. */
+export function appUpdatePush(locale: Locale) {
+  const t = pushText(locale).appUpdate;
+  return { title: t.title, body: t.body, type: "APP_UPDATE", url: "/home" };
+}

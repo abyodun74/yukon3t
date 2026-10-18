@@ -48,6 +48,10 @@ export const fr1 = {
     q: "Pourquoi Accueil est-il divisé en rubriques comme Vie professionnelle, Divertissement, Politique et Sport ?",
     a: "Les publications sont regroupées selon la rubrique du fil que leur auteur a choisie dans l'éditeur (par défaut, Général), afin qu'il soit plus facile de parcourir ce qui vous intéresse. Tant que vous êtes sur la page, chaque rubrique ajoute automatiquement les nouvelles publications en haut, généralement en quelques secondes, et en une demi-minute environ lorsque beaucoup de contenus sont publiés en même temps. Inutile d'actualiser.",
   },
+  "update-the-app": {
+    q: "Comment mettre à jour l'application, et pourquoi me demande-t-on de le faire ?",
+    a: "La plupart des améliorations vous parviennent d'elles-mêmes : l'application charge la dernière version de YuKon3t à chaque ouverture. Certains changements nécessitent toutefois une nouvelle version de l'application elle-même sur Google Play ou l'App Store ; quand elle sort, vous pouvez voir une bannière « Mise à jour disponible » : touchez **Mettre à jour** pour ouvrir la boutique, puis touchez Mettre à jour. « Plus tard » masque la bannière pendant 3 jours. Plus rarement, quand une ancienne version ne peut plus fonctionner correctement, un écran « Mise à jour requise » s'affiche à la place ; vous pouvez toujours ouvrir cette FAQ ou vous déconnecter depuis cet écran, et tout refonctionne dès la mise à jour faite. Vous pouvez aussi mettre à jour quand vous voulez : ouvrez Google Play ou l'App Store, recherchez YuKon3t et touchez Mettre à jour. Pour envoyer ces avis, la version et le numéro de build de l'application ainsi que la plateforme de votre téléphone (Android ou iPhone) sont enregistrés avec son jeton de notifications push.",
+  },
 
   "app-opens-chrome-instead-full": {
     q: "L'application s'ouvre dans Chrome au lieu du plein écran. Comment corriger cela ?",

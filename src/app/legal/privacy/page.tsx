@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 17, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 18, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         <li><b>Content you create</b>: Circle and Channel posts, Collab Board listings, direct messages, 24-hour Stories (including reactions and replies to them), reports you file, and any photos or short videos you upload.</li>
         <li><b>Connection &amp; activity data</b>: Circles and Channels you join, connection requests, intent tags you select, streaks, event RSVPs, trust score signals (account age, verification status, report history).</li>
         <li><b>Secret chat keys and messages</b>: if you set up secret chats, we store your public encryption key and a copy of your private key that is encrypted with your recovery passphrase, which we cannot read or reset. The text of messages in a secret chat is encrypted on your device before it is sent; we store only the encrypted form and cannot read it. Photos, videos, and voice notes sent in a secret chat are not encrypted. When you report a message from a secret chat, the text of that message is shared with our moderators.</li>
-        <li><b>Notification data</b>: if you enable push notifications, a device push token (a web push subscription, or, on the Android app, a Firebase Cloud Messaging token) used only to deliver notifications like calls, messages, and event reminders to your device.</li>
+        <li><b>Notification data</b>: if you enable push notifications, a device push token (a web push subscription, or, on the Android app, a Firebase Cloud Messaging token) used only to deliver notifications like calls, messages, and event reminders to your device. In the mobile apps, the app&apos;s version and build number and your device&apos;s platform (Android or iOS) are stored with that token, used only to tell people on an older version that an app update is available or required.</li>
         <li><b>Call &amp; live session data</b>: metadata needed to connect a 1:1 call or a Collab live session (who&apos;s in the room, timing). If a live session&apos;s host turns on cloud recording, the recording itself is stored as described in Section 4.</li>
         <li><b>Product usage events</b>: a small number of key lifecycle events tied to your account — for example sign-up, sign-in, a post created, a connection requested or accepted, a message sent, a call started, or a circle joined or created — used to keep the service reliable and to understand how features are used.</li>
         <li><b>Technical data</b>: IP address and basic request metadata (used for rate limiting and abuse prevention), session cookies, and your theme preference cookie.</li>

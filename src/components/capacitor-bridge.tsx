@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { registerFcmToken } from "@/app/actions/fcm";
 import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
+import { getNativeAppInfo } from "@/lib/native-app-info";
 import { VOIP_TOKEN_STORAGE_KEY } from "@/lib/voip-token-storage";
 import { markReadByTarget } from "@/app/actions/notifications";
 import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native-picker-activity";
@@ -158,7 +159,9 @@ export function CapacitorBridge() {
       if (cancelled) return;
 
       async function register(token: string) {
-        const result = await registerFcmToken(token).catch(() => null);
+        // Platform/build ride along for the update-notice breakdown on /admin/system (see FcmToken.build).
+        const app = await getNativeAppInfo();
+        const result = await registerFcmToken(token, app ?? undefined).catch(() => null);
         // Persisted so nav.tsx's existing sign-out handler — already
         // shared with the Android TWA's token — unregisters this device
         // too, with no changes needed there.

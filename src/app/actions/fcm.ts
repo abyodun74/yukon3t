@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { parseBuild, parseMarketingVersion, parsePlatform } from "@/lib/app-version";
 
 /**
  * Registers a native Android device's FCM token against the signed-in user.
@@ -10,19 +11,27 @@ import { prisma } from "@/lib/prisma";
  * for the full handoff, since a TWA's native code can't call an
  * authenticated API directly; it has to go through the page's own session).
  */
-export async function registerFcmToken(token: string) {
+export async function registerFcmToken(token: string, app?: { platform?: unknown; build?: unknown; version?: unknown }) {
   const user = await requireUser();
 
-  if (!token || token.length > 4096) {
+  if (typeof token !== "string" || !token || token.length > 4096) {
     return { error: "invalid" as const };
   }
 
+  // Which installed app this is (capacitor-bridge.tsx sends App.getInfo()), for the update-notice breakdown on
+  // /admin/system. Optional: the TWA bridge and an older cached bundle send only the token, which leaves whatever was
+  // stored before untouched. Malformed values are dropped, never stored.
+  const platform = parsePlatform(app?.platform);
+  const appInfo = platform
+    ? { platform, build: parseBuild(app?.build), appVersion: parseMarketingVersion(app?.version) }
+    : {};
+
   await prisma.fcmToken.upsert({
     where: { token },
-    create: { userId: user.id, token },
+    create: { userId: user.id, token, ...appInfo },
     // The same token re-registering under a different account (shared
     // device, new sign-in) should move to the new owner, not stay stuck.
-    update: { userId: user.id },
+    update: { userId: user.id, ...appInfo },
   });
 
   return { error: null };

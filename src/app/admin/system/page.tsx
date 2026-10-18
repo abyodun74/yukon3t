@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { isBackupConfigured, listBackups } from "@/lib/db-backup";
+import { prisma } from "@/lib/prisma";
+import { APP_PLATFORMS, sortBuildBreakdown } from "@/lib/app-version";
+import { AdminAppVersionCard, type AdminAppVersionPolicy } from "@/components/admin-app-version-card";
 
 // Pulled out of the component body — eslint's react-hooks/purity rule flags
 // Date.now() called directly during render (even in a Server Component);
@@ -32,6 +35,35 @@ export default async function AdminSystemPage() {
   // slow run or a missed tick) means either it's failing or was never
   // actually reachable, not just "hasn't ticked yet today."
   const isStale = hoursSinceLatest !== null && hoursSinceLatest > 30;
+
+  // App update prompts (src/lib/app-version.ts): each platform's policy, and which builds the registered push
+  // tokens report (FcmToken.platform/build, filled in as each app re-registers its token at launch).
+  const [policyRows, buildRows] = await Promise.all([
+    prisma.appVersionPolicy.findMany({
+      select: {
+        platform: true,
+        enabled: true,
+        latestBuild: true,
+        minBuild: true,
+        latestVersion: true,
+        message: true,
+        storeUrl: true,
+        appStoreId: true,
+        iosAutoDetect: true,
+        lastNotifiedAt: true,
+      },
+    }),
+    prisma.fcmToken.groupBy({ by: ["platform", "build"], _count: { _all: true } }),
+  ]);
+  const policies = new Map<string, AdminAppVersionPolicy>(
+    policyRows.map(({ platform, lastNotifiedAt, ...rest }) => [
+      platform,
+      { ...rest, lastNotifiedAt: lastNotifiedAt?.toISOString() ?? null },
+    ]),
+  );
+  const breakdown = sortBuildBreakdown(
+    buildRows.map((row) => ({ platform: row.platform, build: row.build, count: row._count._all })),
+  );
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -87,6 +119,42 @@ export default async function AdminSystemPage() {
             ? "Sentry is configured — crashes report automatically."
             : "SENTRY_DSN isn't set — crashes anywhere in the app currently report to no one."}
         </p>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-line p-5">
+        <h2 className="text-sm font-semibold">App update prompts</h2>
+        <p className="mt-1 text-sm text-foreground-soft">
+          Ask people on an old installed app to update. Nothing is shown until a platform is enabled with a latest
+          build; a force update only ever comes from a minimum build set here.
+        </p>
+        <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-foreground-soft">
+          Installed builds (push tokens)
+        </h3>
+        {breakdown.length === 0 ? (
+          <p className="mt-1 text-sm text-foreground-soft">No push tokens registered.</p>
+        ) : (
+          <table className="mt-1 w-full text-sm">
+            <thead>
+              <tr className="text-start text-xs text-foreground-soft">
+                <th className="py-1 text-start font-medium">Platform</th>
+                <th className="py-1 text-start font-medium">Build</th>
+                <th className="py-1 text-end font-medium">Devices</th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdown.map((row) => (
+                <tr key={`${row.platform}:${row.build ?? "unknown"}`} className="border-t border-line">
+                  <td className="py-1">{row.platform}</td>
+                  <td className="py-1">{row.build ?? "unknown"}</td>
+                  <td className="py-1 text-end">{row.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {APP_PLATFORMS.map((platform) => (
+          <AdminAppVersionCard key={platform} platform={platform} policy={policies.get(platform) ?? null} />
+        ))}
       </div>
 
       <div className="mt-4 rounded-xl border border-line p-5">

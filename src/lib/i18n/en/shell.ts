@@ -84,6 +84,17 @@ export const shellEn = {
     thanksBody: "We read every message — this genuinely helps us improve the app.",
     errors: { rate_limited: "Slow down a little.", other: "Couldn't send that — try again." },
   },
+  // The native app's update prompt (app-update-gate.tsx): the dismissible banner and the "Update required" screen.
+  appUpdate: {
+    label: "App update",
+    bannerTitle: "Update available",
+    bannerBody: "A new version of YuKon3t is ready with the latest fixes and features.",
+    update: "Update",
+    later: "Not now",
+    requiredTitle: "Update required",
+    requiredBody: "This version of YuKon3t is no longer supported. Update the app to keep using it.",
+    help: "Help & FAQ",
+  },
   viewer: {
     photo: "Photo viewer",
     video: "Video viewer",

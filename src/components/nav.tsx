@@ -5,13 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, Home, Users, Handshake, Search, UserPlus, UserCheck, User, Clapperboard, MessageCircle } from "lucide-react";
 import type { Session } from "next-auth";
-import { signOutAction } from "@/app/actions/auth";
-import { unregisterFcmToken } from "@/app/actions/fcm";
-import { unregisterVoipToken } from "@/app/actions/voip";
-import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
-import { VOIP_TOKEN_STORAGE_KEY } from "@/lib/voip-token-storage";
-import { clearDraftsForUser } from "@/lib/message-draft-storage";
-import { resetPostHog } from "@/lib/posthog-client";
+import { signOutThisDevice } from "@/lib/sign-out-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { NotificationReadOnVisit } from "@/components/notification-read-on-visit";
@@ -213,30 +207,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
   // ends, so a signed-out device stops receiving pushes for an account
   // nobody's using on it anymore. Runs on a best-effort basis: a failed
   // unregister should never block sign-out itself.
-  const handleSignOut = useCallback(async () => {
-    const token = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
-    if (token) {
-      localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
-      await unregisterFcmToken(token).catch(() => {});
-    }
-    // Same reasoning as the FCM cleanup just above, for the iOS VoIP push
-    // path (see apns-voip.ts) — unregisterVoipToken existed already but was
-    // never actually called from here, so a shared/public iOS device kept
-    // ringing with the previous account's incoming calls after signing out.
-    const voipToken = localStorage.getItem(VOIP_TOKEN_STORAGE_KEY);
-    if (voipToken) {
-      localStorage.removeItem(VOIP_TOKEN_STORAGE_KEY);
-      await unregisterVoipToken(voipToken).catch(() => {});
-    }
-    // So a shared/public device doesn't keep this account's unsent draft
-    // text around after they've signed out — see message-draft-storage.ts.
-    if (userId) clearDraftsForUser(userId);
-    // Same reasoning — clears the identified user from PostHog so the next
-    // signed-in session on this device isn't recorded/attributed under the
-    // account that just signed out.
-    resetPostHog();
-    await signOutAction();
-  }, [userId]);
+  const handleSignOut = useCallback(() => signOutThisDevice(userId), [userId]);
 
   return (
     <>

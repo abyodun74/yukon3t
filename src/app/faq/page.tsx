@@ -199,6 +199,28 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "update-the-app",
+        q: "How do I update the app, and why am I asked to update?",
+        a: (
+          <>
+            Most improvements reach you on their own — the app loads the
+            latest YuKon3t every time you open it. Some changes need a new
+            version of the app itself from Google Play or the App Store, and
+            when one is out you may see an &ldquo;Update available&rdquo;
+            banner: tap <strong>Update</strong> to open the store, then tap
+            Update there. &ldquo;Not now&rdquo; hides the banner for 3 days.
+            Rarely, when an older version can no longer work properly,
+            you&apos;ll see an &ldquo;Update required&rdquo; screen instead —
+            you can still open this FAQ or sign out from it, and everything
+            works again as soon as you update. You can also update any time:
+            open Google Play or the App Store, search for YuKon3t and tap
+            Update. To send these notices, the app&apos;s version and build
+            number and your phone&apos;s platform (Android or iPhone) are
+            stored with its push notification token.
+          </>
+        ),
+      },
     ],
   },
   {

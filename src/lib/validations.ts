@@ -3,6 +3,7 @@ import { AD_DURATION_OPTIONS } from "@/lib/ads";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 import { CIRCLE_INVITE_MAX } from "@/lib/circle-invite";
+import { APP_PLATFORMS, MESSAGE_MAX_LENGTH } from "@/lib/app-version";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -704,3 +705,24 @@ export const resetHiddenPinWithCodeSchema = z
   .refine(pinsMatch, { path: ["confirmPin"] });
 
 export const hiddenConversationIdSchema = z.string().cuid();
+
+// /admin/system's app update card (actions/app-version.ts). Raw form strings, empty meaning "not set"; what each must
+// look like (a build number, a version, a store link) and how they relate is checkAppVersionPolicy in app-version.ts.
+export const appVersionPolicyFormSchema = z.object({
+  platform: z.enum(APP_PLATFORMS),
+  enabled: z.boolean(),
+  iosAutoDetect: z.boolean(),
+  latestBuild: z.string().trim().max(12),
+  minBuild: z.string().trim().max(12),
+  latestVersion: z.string().trim().max(32),
+  message: z.string().trim().max(MESSAGE_MAX_LENGTH),
+  storeUrl: z.string().trim().max(500),
+  appStoreId: z.string().trim().max(20),
+  // The minBuild value typed again in the force-update confirmation; must match a new or changed minBuild.
+  confirmMinBuild: z.string().trim().max(12),
+});
+
+export const appUpdateNoticeSchema = z.object({
+  platform: z.enum(APP_PLATFORMS),
+  includeUnknownBuild: z.boolean(),
+});

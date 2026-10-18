@@ -151,7 +151,7 @@ Console setup (§4b); `npm i` (applies patch), `npx cap sync android`, `npm run 
 Set `NEXT_PUBLIC_APP_ATTEST_MODE=enforce` on both platforms, redeploy both. Plugin builds lose the tap; nothing else changes. Rollback = flip to `observe`/`off` and redeploy, no native change. Draft the "what's new" announcement (confirm with owner first — it pushes to everyone).
 
 **Phase 3 (optional) — client-only update prompt.**
-When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "update the app" banner, timed using `yk-app-meta` adoption data. Never server-enforced.
+When native but `isPluginAvailable("FirebaseAppCheck")` is false, show a soft "update the app" banner, timed using `yk-app-meta` adoption data. Never server-enforced. **Delivered (2026-10-18) by the app update prompts feature** (`app-update-gate.tsx`, `/api/app-version`, policy on `/admin/system`; see CLAUDE.md "App update prompts"): the owner sets `latestBuild` per platform and older builds get the soft banner. It keys on the build number, not on plugin availability, and stays separate from attestation enforcement: the attestation mode never shows or forces an update, and a force update comes only from an owner-set `minBuild`.
 
 ---
 

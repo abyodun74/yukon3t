@@ -49,6 +49,11 @@ export const pushEn = {
     eventStartingSoonAt: "Starting soon at {location}",
     collabStartingSoon: "Starting soon",
   },
+  // "Notify users on older builds" on /admin/system (actions/app-version.ts). Sent only by the owner, never automatically.
+  appUpdate: {
+    title: "Update available",
+    body: "A new version of YuKon3t is ready. Update the app for the latest fixes and features.",
+  },
   videoReviewTitle: "Video pending review",
   recordingFailedTitle: "Recording not posted",
 };
