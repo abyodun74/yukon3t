@@ -1723,7 +1723,12 @@ const sections: Section[] = [
             before, and anyone blocked is skipped. The &ldquo;Invited&rdquo;
             list on the page shows each invite&apos;s status (pending, joined,
             or declined) — invites a co-admin sent to people you don&apos;t
-            know are only counted, not named. For a
+            know are only counted, not named — and the organizer or a co-admin
+            can cancel one that&apos;s still pending. Invites don&apos;t
+            expire, but one can no longer be accepted once the person who sent
+            it is no longer an admin of the collaboration; the list marks it,
+            and inviting that person again (on their own or through a Circle
+            they&apos;re in) sends a fresh invite. For a
             public one, pending requests show up in a &ldquo;Join
             requests&rdquo; list on the page with Approve/Decline buttons —
             approving adds them as a participant right away.

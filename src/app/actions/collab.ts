@@ -14,6 +14,8 @@ import { notifySubscribers } from "@/lib/notify-subscribers";
 import { nextOccurrence } from "@/lib/collab-schedule";
 import { collabFieldsFromIssues, collabInvalidPath } from "@/lib/collab-form-errors";
 import { expandCircleInvites, getAcceptedConnectionIds, sendCollabInvites } from "@/lib/collab-invites-server";
+import { canCollabInviterStillInvite, canInviteToCollab } from "@/lib/collab-invite";
+import { pendingInviteClaimWhere } from "@/lib/invite-standing";
 
 export async function createCollabPost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -418,9 +420,10 @@ export async function respondToCollabJoinRequest(requestId: string, approve: boo
 }
 
 /**
- * Author or co-admin of a PRIVATE collab: invites specific people (their accepted connections) and/or the members of
- * Circles they created — everyone must accept via respondToCollabInvite before they're a participant. `invited` and
- * `skipped` count the Circle members only (the success line names the Circles).
+ * Author or co-admin of a PRIVATE collab (canInviteToCollab: no site-admin shortcut, since an invite stands only while
+ * its inviter is the author or an OWNER/MODERATOR participant): invites specific people (their accepted connections)
+ * and/or the members of Circles they created — everyone must accept via respondToCollabInvite before they're a
+ * participant. `invited` and `skipped` count the Circle members only (the success line names the Circles).
  */
 export async function inviteToCollab(collabId: string, formData: FormData) {
   const user = await requireVerifiedUser();
@@ -435,7 +438,7 @@ export async function inviteToCollab(collabId: string, formData: FormData) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(collabId, user.id);
-  if (!isCollabAdmin(collab, myMembership, user)) {
+  if (!canInviteToCollab(collab, myMembership, user.id)) {
     return { error: "forbidden" as const };
   }
   if (collab.visibility !== "PRIVATE") {
@@ -449,22 +452,38 @@ export async function inviteToCollab(collabId: string, formData: FormData) {
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const result = await sendCollabInvites(user.id, collabId, parsed.data);
+  const result = await sendCollabInvites(user.id, collab, parsed.data);
   if (!result.error) {
     revalidatePath(`/collab/${collabId}`);
   }
   return result;
 }
 
-/** Invitee only: accepts or declines a pending CollabInvite. */
+/**
+ * Invitee only: accepts or declines a pending CollabInvite. Mirrors respondToCircleInvite: an invite only stands while
+ * its inviter is still the author or an OWNER/MODERATOR participant with an ACTIVE account
+ * (canCollabInviterStillInvite); accepting one that doesn't deletes it (with the invitee's bell entry) and answers
+ * `invite_expired`. Both answers are a guarded claim on PENDING and the inviter that was judged
+ * (pendingInviteClaimWhere): a cancelled, already-answered or re-sent invite matches nothing and answers `not_found`
+ * with no side effects, so a double tap or a stale client can't add the participant or notify anyone twice.
+ */
 export async function respondToCollabInvite(inviteId: string, accept: boolean) {
   const user = await requireVerifiedUser();
 
   const invite = await prisma.collabInvite.findUnique({
     where: { id: inviteId },
-    include: {
+    select: {
+      id: true,
+      inviteeId: true,
+      inviterId: true,
+      collabId: true,
       collab: {
-        include: { participants: { where: { role: "MODERATOR" }, select: { userId: true } } },
+        select: {
+          id: true,
+          authorId: true,
+          conversationId: true,
+          participants: { where: { role: "MODERATOR" }, select: { userId: true } },
+        },
       },
     },
   });
@@ -474,29 +493,94 @@ export async function respondToCollabInvite(inviteId: string, accept: boolean) {
   if (invite.inviteeId !== user.id) {
     return { error: "forbidden" as const };
   }
+  const claim = pendingInviteClaimWhere(invite);
 
-  if (accept) {
-    await addCollabParticipant(
-      invite.collab,
-      user.id,
-      invite.collab.participants.map((p) => p.userId),
-    );
-    await prisma.notification.create({
-      data: {
-        recipientId: invite.inviterId,
-        actorId: user.id,
-        type: "COLLAB_INVITE_ACCEPTED",
-        collabId: invite.collabId,
-      },
+  if (!accept) {
+    const { count } = await prisma.collabInvite.updateMany({
+      where: claim,
+      data: { status: "DECLINED", respondedAt: new Date() },
     });
+    if (count === 0) {
+      return { error: "not_found" as const };
+    }
+    revalidatePath(`/collab/${invite.collabId}`);
+    return { error: null };
   }
 
-  await prisma.collabInvite.update({
-    where: { id: inviteId },
-    data: { status: accept ? "ACCEPTED" : "DECLINED", respondedAt: new Date() },
+  const [inviter, inviterMembership] = await Promise.all([
+    prisma.user.findUnique({ where: { id: invite.inviterId }, select: { id: true, status: true } }),
+    getCollabMembership(invite.collabId, invite.inviterId),
+  ]);
+  if (!canCollabInviterStillInvite(invite.collab, inviter, inviterMembership)) {
+    // Guarded on the inviter judged: an admin may have re-sent it (same row, new inviter) in between, and that fresh
+    // invite must not be deleted on this check.
+    const { count: removed } = await prisma.collabInvite.deleteMany({ where: claim });
+    if (removed > 0) {
+      await prisma.notification.deleteMany({
+        where: { recipientId: user.id, collabId: invite.collabId, type: "COLLAB_INVITE" },
+      });
+    }
+    revalidatePath(`/collab/${invite.collabId}`);
+    return { error: "invite_expired" as const };
+  }
+
+  const { count } = await prisma.collabInvite.updateMany({
+    where: claim,
+    data: { status: "ACCEPTED", respondedAt: new Date() },
+  });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
+
+  // Only the request that won the claim gets here, so the participant is added and everyone notified exactly once.
+  await addCollabParticipant(
+    invite.collab,
+    user.id,
+    invite.collab.participants.map((p) => p.userId),
+  );
+  await prisma.notification.create({
+    data: {
+      recipientId: invite.inviterId,
+      actorId: user.id,
+      type: "COLLAB_INVITE_ACCEPTED",
+      collabId: invite.collabId,
+    },
   });
 
   revalidatePath(`/collab/${invite.collabId}`);
+  return { error: null };
+}
+
+/** Author or co-admin (canInviteToCollab): withdraws a PENDING invite, stale or not — the row is deleted, with the invitee's bell entry for it. */
+export async function cancelCollabInvite(inviteId: string) {
+  const user = await requireVerifiedUser();
+
+  const allowed = await checkRateLimit("collabModerate", user.id);
+  if (!allowed) {
+    return { error: "rate_limited" as const };
+  }
+
+  const invite = await prisma.collabInvite.findUnique({
+    where: { id: inviteId },
+    select: { inviteeId: true, collab: { select: { id: true, authorId: true } } },
+  });
+  if (!invite) {
+    return { error: "not_found" as const };
+  }
+  const myMembership = await getCollabMembership(invite.collab.id, user.id);
+  if (!canInviteToCollab(invite.collab, myMembership, user.id)) {
+    return { error: "forbidden" as const };
+  }
+
+  const { count } = await prisma.collabInvite.deleteMany({ where: { id: inviteId, status: "PENDING" } });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
+  await prisma.notification.deleteMany({
+    where: { recipientId: invite.inviteeId, collabId: invite.collab.id, type: "COLLAB_INVITE" },
+  });
+
+  revalidatePath(`/collab/${invite.collab.id}`);
   return { error: null };
 }
 

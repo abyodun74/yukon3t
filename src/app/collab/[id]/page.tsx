@@ -26,6 +26,8 @@ import { SubscribeButton } from "@/components/subscribe-button";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import { isCollabAdmin, canViewCollab, hasLiveCollabSession } from "@/lib/collab-permissions";
 import { splitVisibleInvites } from "@/lib/collab-circle-invite";
+import { canInviteToCollab, collabInviteExcludesInvitee } from "@/lib/collab-invite";
+import { loadCollabInvitesForAdmins, loadStandingCollabInvite } from "@/lib/collab-invites-server";
 import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
 import { countryName } from "@/lib/i18n/country-names";
 import { vocabName } from "@/lib/i18n/language-names";
@@ -60,14 +62,10 @@ export default async function CollabDetailPage({
 
   // Fetched before the visibility gate below — an invitee who isn't a
   // participant yet still needs to reach this page to see the accept/
-  // decline banner (see canViewCollab).
+  // decline banner (see canViewCollab). Only an invite that still stands
+  // counts: one whose inviter is no longer an admin is never shown.
   const myInvite =
-    !isParticipant && collab.visibility === "PRIVATE"
-      ? await prisma.collabInvite.findFirst({
-          where: { collabId: collab.id, inviteeId: me.id, status: "PENDING" },
-          include: { inviter: { select: { name: true } } },
-        })
-      : null;
+    !isParticipant && collab.visibility === "PRIVATE" ? await loadStandingCollabInvite(me.id, collab) : null;
 
   if (!canViewCollab(collab, isParticipant, me, !!myInvite)) notFound();
 
@@ -83,6 +81,8 @@ export default async function CollabDetailPage({
 
   const isOwner = collab.authorId === me.id;
   const canModerate = isCollabAdmin(collab, collab.participants[0] ?? null, me);
+  // Inviting and cancelling invites: author or OWNER/MODERATOR only, not a site admin's shortcut.
+  const canInvite = canInviteToCollab(collab, collab.participants[0] ?? null, me.id);
   const canJoinSession = isParticipant || isOwner;
 
   // Polls: anyone who can see a PUBLIC collab sees them; a PRIVATE one's, only its participants (not invitees yet).
@@ -117,14 +117,9 @@ export default async function CollabDetailPage({
         })
       : [];
 
+  // Each PENDING one marked `stale` when its inviter is no longer an admin.
   const collabInvites =
-    canModerate && collab.visibility === "PRIVATE"
-      ? await prisma.collabInvite.findMany({
-          where: { collabId: collab.id },
-          orderBy: { createdAt: "asc" },
-          include: { invitee: { select: { id: true, name: true, username: true, avatarUrl: true } } },
-        })
-      : [];
+    canModerate && collab.visibility === "PRIVATE" ? await loadCollabInvitesForAdmins(collab) : [];
 
   // The organizer's accepted connections: invite candidates, and people this
   // viewer may see by name in the Invited list (splitVisibleInvites).
@@ -165,13 +160,14 @@ export default async function CollabDetailPage({
   })();
 
   // Candidates for inviting more people — the organizer's accepted
-  // connections, minus anyone already a participant or already invited.
+  // connections, minus anyone already a participant or already invited
+  // (except a stale invite, which re-inviting resets).
   const inviteCandidates =
-    canModerate && collab.visibility === "PRIVATE"
+    canInvite && collab.visibility === "PRIVATE"
       ? await (async () => {
           const excludeIds = new Set([
             ...allParticipants.map((p) => p.userId),
-            ...collabInvites.map((i) => i.inviteeId),
+            ...collabInvites.filter(collabInviteExcludesInvitee).map((i) => i.inviteeId),
             ...(await getHiddenPeerIds(me.id)),
           ]);
           return acceptedConnectionUsers
@@ -183,7 +179,7 @@ export default async function CollabDetailPage({
   // Circles whose members can be invited in one go — only ones this viewer
   // created (see expandCircleInvites), whatever their collab role.
   const circleCandidates =
-    canModerate && collab.visibility === "PRIVATE"
+    canInvite && collab.visibility === "PRIVATE"
       ? await getOwnedCircleOptions(me.id, locale, t.invites.circleMembers)
       : [];
 
@@ -323,7 +319,7 @@ export default async function CollabDetailPage({
         <div className="mt-3">
           <CollabInviteResponse
             inviteId={myInvite.id}
-            inviterName={myInvite.inviter.name}
+            inviterName={myInvite.inviterName}
             sessionLive={inviteeSeesLiveSession}
           />
         </div>
@@ -420,7 +416,8 @@ export default async function CollabDetailPage({
       {canModerate && collab.visibility === "PRIVATE" && (
         <CollabInviteManager
           collabId={collab.id}
-          invites={visibleInvites.map((i) => ({ id: i.id, status: i.status, invitee: i.invitee }))}
+          invites={visibleInvites.map((i) => ({ id: i.id, status: i.status, stale: i.stale, invitee: i.invitee }))}
+          canInvite={canInvite}
           totalCount={collabInvites.length}
           hiddenCount={hiddenInviteCount}
           candidates={inviteCandidates}

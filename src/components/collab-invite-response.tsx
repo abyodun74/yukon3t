@@ -40,7 +40,11 @@ export function CollabInviteResponse({
               setError(null);
               const result = await respondToCollabInvite(inviteId, true);
               if (result.error) {
-                setError(t.acceptError);
+                // invite_expired: the inviter is no longer an admin, so the invite was withdrawn.
+                setError(result.error === "invite_expired" ? t.unavailable : t.acceptError);
+                // not_found: answered or cancelled meanwhile — the refresh shows the page as it now is. Not on
+                // invite_expired: the collab is no longer visible to them (it would 404), so the message stays put.
+                if (result.error === "not_found") router.refresh();
                 return;
               }
               router.refresh();
@@ -59,6 +63,7 @@ export function CollabInviteResponse({
               const result = await respondToCollabInvite(inviteId, false);
               if (result.error) {
                 setError(t.declineError);
+                if (result.error === "not_found") router.refresh();
                 return;
               }
               router.push("/collab");

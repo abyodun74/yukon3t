@@ -147,7 +147,7 @@ export async function startCollabSession(
   const [collab, membership] = await Promise.all([
     prisma.collabBoardPost.findUnique({
       where: { id: collabId },
-      select: { id: true, visibility: true, roomName: true, roomUrl: true },
+      select: { id: true, authorId: true, visibility: true, roomName: true, roomUrl: true },
     }),
     getCollabMembership(collabId, user.id),
   ]);
@@ -170,7 +170,7 @@ export async function startCollabSession(
     if (!(await checkRateLimit("collabModerate", user.id))) {
       return { error: "rate_limited" as const, ...noInvites };
     }
-    const sent = await sendCollabInvites(user.id, collabId, {
+    const sent = await sendCollabInvites(user.id, collab, {
       inviteeIds: options.userIds,
       circleIds: options.circleIds,
     });

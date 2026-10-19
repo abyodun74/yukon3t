@@ -30,8 +30,10 @@ export function selectCircleInvitees({
   /** Already in the collab. */
   participantIds: Iterable<string>;
   /**
-   * Anyone with a CollabInvite to this collab, whatever its status: PENDING and ACCEPTED are already handled, and a
-   * DECLINED one isn't re-sent by a bulk invite (an individual invite can still reset it).
+   * Anyone with a CollabInvite to this collab that should keep them out (collabInviteExcludesInvitee): PENDING and
+   * ACCEPTED are already handled, and a DECLINED one isn't re-sent by a bulk invite (an individual invite can still
+   * reset it). A stale PENDING invite (its inviter is no longer an admin) is left out of this list on purpose, so the
+   * bulk invite re-sends it; it then counts against `max` like a new invite.
    */
   existingInviteeIds: Iterable<string>;
   /** Invited individually in the same request, so they aren't counted twice. */

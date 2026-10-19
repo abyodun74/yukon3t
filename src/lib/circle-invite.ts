@@ -4,6 +4,11 @@
  * exclusion, the cap and the re-invite rules are unit-tested.
  */
 
+import { holdsInviteRight, inviterStillQualifies } from "@/lib/invite-standing";
+
+/** Membership roles that may invite besides the owner (shared rule: invite-standing.ts). */
+const CIRCLE_INVITER_ROLES = ["MODERATOR"] as const;
+
 /** People one request may invite. More than this refuses the whole request, never a subset. */
 export const CIRCLE_INVITE_MAX = 50;
 
@@ -13,7 +18,7 @@ export function canInviteToCircle(
   membership: { role: string } | null,
   userId: string,
 ) {
-  return circle.createdById === userId || membership?.role === "MODERATOR";
+  return holdsInviteRight(circle.createdById, userId, membership?.role, CIRCLE_INVITER_ROLES);
 }
 
 /**
@@ -26,8 +31,7 @@ export function canInviterStillInvite(
   inviter: { id: string; status: string } | null | undefined,
   inviterMembership: { role: string } | null | undefined,
 ) {
-  if (!inviter || inviter.status !== "ACTIVE") return false;
-  return canInviteToCircle(circle, inviterMembership ?? null, inviter.id);
+  return inviterStillQualifies(circle.createdById, inviter, inviterMembership?.role, CIRCLE_INVITER_ROLES);
 }
 
 /**

@@ -3,6 +3,12 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { selectCircleInvitees } from "@/lib/collab-circle-invite";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import {
+  collabInviteExcludesInvitee,
+  collabInviteStillStands,
+  isStaleCollabInvite,
+  planCollabInvites,
+} from "@/lib/collab-invite";
 
 // The server half of inviting people to a PRIVATE collab, shared by createCollabPost and inviteToCollab
 // (actions/collab.ts) and startCollabSession (actions/collab-session.ts). Kept out of those "use server" files on
@@ -64,26 +70,93 @@ export async function expandCircleInvites(
 }
 
 /**
+ * The inviter fields collabInviteStillStands needs (a CollabInviterStanding), with their participation in `collabId`
+ * only. Server-side input to the rule; strip it before anything reaches a browser.
+ */
+export function collabInviterStandingSelect(collabId: string) {
+  return {
+    select: {
+      id: true,
+      status: true,
+      collabParticipations: { where: { collabId }, select: { collabId: true, role: true } },
+    },
+  } as const;
+}
+
+/**
+ * Every invite to `collab` for its Invited list (admins only), oldest first, each PENDING one marked `stale` when it
+ * can no longer be accepted (isStaleCollabInvite). The inviter's standing fields are dropped; only `inviterId` (for
+ * splitVisibleInvites, server-side) and the invitee's display fields remain.
+ */
+export async function loadCollabInvitesForAdmins(collab: { id: string; authorId: string }) {
+  const invites = await prisma.collabInvite.findMany({
+    where: { collabId: collab.id },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      status: true,
+      inviterId: true,
+      inviteeId: true,
+      invitee: { select: { id: true, name: true, username: true, avatarUrl: true } },
+      inviter: collabInviterStandingSelect(collab.id),
+    },
+  });
+  return invites.map(({ inviter, ...invite }) => ({
+    ...invite,
+    stale: isStaleCollabInvite(collab, { status: invite.status, inviter }),
+  }));
+}
+
+/**
+ * `inviteeId`'s PENDING invite to `collab` if it still stands (collabInviteStillStands), else null. A stale one is
+ * never shown to the invitee (accepting it would fail and delete it), and doesn't let them view the collab.
+ */
+export async function loadStandingCollabInvite(inviteeId: string, collab: { id: string; authorId: string }) {
+  const invite = await prisma.collabInvite.findFirst({
+    where: { collabId: collab.id, inviteeId, status: "PENDING" },
+    select: {
+      id: true,
+      inviter: { select: { ...collabInviterStandingSelect(collab.id).select, name: true } },
+    },
+  });
+  if (!invite || !collabInviteStillStands(collab, invite.inviter)) return null;
+  return { id: invite.id, inviterName: invite.inviter.name };
+}
+
+/**
  * Invites specific people (the inviter's accepted connections) and/or the members of Circles the inviter created
- * to an existing PRIVATE collab. The caller has already checked that `inviterId` may manage the collab, that it's
- * PRIVATE, and the request's shape (collabInviteSchema's limits). Nothing is written unless every check passes, so
- * an error here leaves no invite sent. `invited` and `skipped` count the Circle members only (the success line
+ * to an existing PRIVATE collab. The caller has already checked that `inviterId` may invite (canInviteToCollab), that
+ * it's PRIVATE, and the request's shape (collabInviteSchema's limits). Nothing is written unless every check passes,
+ * so an error here leaves no invite sent. `invited` and `skipped` count the Circle members only (the success line
  * names the Circles). Notifications are bell-only COLLAB_INVITE.
+ *
+ * Re-inviting (planCollabInvites): a DECLINED invite (individual invites only) or a stale PENDING one (individual or
+ * Circle) is reset to PENDING from this inviter and notified again; a standing PENDING or an ACCEPTED one is left alone.
  */
 export async function sendCollabInvites(
   inviterId: string,
-  collabId: string,
+  collab: { id: string; authorId: string },
   request: { inviteeIds: string[]; circleIds: string[] },
 ) {
+  const collabId = collab.id;
   const { circleIds } = request;
   if (circleIds.length > 0 && !(await checkRateLimit("collabCircleInvite", inviterId))) {
     return { error: "rate_limited" as const };
   }
 
-  const [acceptedConnectionIds, existingParticipants, existingInvites] = await Promise.all([
+  const [acceptedConnectionIds, existingParticipants, existingRows] = await Promise.all([
     getAcceptedConnectionIds(inviterId),
     prisma.collabParticipant.findMany({ where: { collabId }, select: { userId: true } }),
-    prisma.collabInvite.findMany({ where: { collabId }, select: { id: true, inviteeId: true, status: true } }),
+    prisma.collabInvite.findMany({
+      where: { collabId },
+      select: {
+        id: true,
+        inviteeId: true,
+        status: true,
+        inviterId: true,
+        inviter: collabInviterStandingSelect(collabId),
+      },
+    }),
   ]);
   const participantIds = new Set(existingParticipants.map((p) => p.userId));
   const inviteeIds = [...new Set(request.inviteeIds)].filter(
@@ -93,21 +166,22 @@ export async function sendCollabInvites(
     return { error: "invalid" as const };
   }
 
-  const existingByInvitee = new Map(existingInvites.map((i) => [i.inviteeId, i]));
-  // Already-pending or already-accepted invitees are a no-op re-invite —
-  // only brand-new invitees and DECLINED ones being re-sent need action.
-  const toCreate = inviteeIds.filter((id) => !existingByInvitee.has(id));
-  const toReset = inviteeIds.filter((id) => existingByInvitee.get(id)?.status === "DECLINED");
+  const existingInvites = existingRows.map(({ inviter, ...invite }) => ({
+    ...invite,
+    stale: isStaleCollabInvite(collab, { status: invite.status, inviter }),
+  }));
 
   // Expanded before anything is written, so a too_large refusal leaves the
-  // individual invites in the same request unsent too.
+  // individual invites in the same request unsent too. A stale PENDING invite
+  // doesn't exclude its invitee: the Circle invite re-sends it (and counts it
+  // against the cap like a new one).
   let circleInviteeIds: string[] = [];
   let skipped = 0;
   let circleNames: string[] = [];
   if (circleIds.length > 0) {
     const expanded = await expandCircleInvites(inviterId, circleIds, {
       participantIds: [...participantIds],
-      existingInviteeIds: [...existingByInvitee.keys()],
+      existingInviteeIds: existingInvites.filter(collabInviteExcludesInvitee).map((i) => i.inviteeId),
       alsoInvitingIds: inviteeIds,
     });
     if (expanded.error) {
@@ -116,38 +190,45 @@ export async function sendCollabInvites(
     ({ inviteeIds: circleInviteeIds, skipped, circleNames } = expanded);
   }
 
-  if (toCreate.length === 0 && toReset.length === 0 && circleInviteeIds.length === 0) {
+  const plan = planCollabInvites({
+    individualIds: inviteeIds,
+    circleIds: circleInviteeIds,
+    existing: new Map(existingInvites.map((i) => [i.inviteeId, i])),
+  });
+  if (plan.create.length === 0 && plan.circleCreate.length === 0 && plan.reset.length === 0) {
     return { error: null, invited: 0, skipped, circleNames };
   }
 
-  // Bulk Circle invites go through createManyAndReturn so only the rows this
-  // request actually created (skipDuplicates drops any a concurrent request
-  // got to first) are notified.
-  let circleCreatedIds: string[] = [];
-  if (circleInviteeIds.length > 0) {
-    const created = await prisma.collabInvite.createManyAndReturn({
-      data: circleInviteeIds.map((inviteeId) => ({ collabId, inviterId, inviteeId })),
-      skipDuplicates: true,
-      select: { inviteeId: true },
-    });
-    circleCreatedIds = created.map((c) => c.inviteeId);
-  }
-  const notifiedIds = [...toCreate, ...toReset, ...circleCreatedIds];
-
-  await Promise.all(
-    toReset.map((inviteeId) =>
-      prisma.collabInvite.update({
-        where: { id: existingByInvitee.get(inviteeId)!.id },
-        data: { status: "PENDING", respondedAt: null },
+  // Only rows this request actually created or re-opened are notified:
+  // skipDuplicates drops any a concurrent request got to first, and each
+  // reset is guarded on the status and inviter it was read with, so two
+  // admins re-sending the same invite at once reset and notify it only once.
+  const toCreate = [...plan.create, ...plan.circleCreate];
+  const createdIds =
+    toCreate.length > 0
+      ? (
+          await prisma.collabInvite.createManyAndReturn({
+            data: toCreate.map((inviteeId) => ({ collabId, inviterId, inviteeId })),
+            skipDuplicates: true,
+            select: { inviteeId: true },
+          })
+        ).map((c) => c.inviteeId)
+      : [];
+  const now = new Date();
+  const resetDone = (
+    await Promise.all(
+      plan.reset.map(async (r) => {
+        const { count } = await prisma.collabInvite.updateMany({
+          where: { id: r.inviteId, status: r.status as "PENDING" | "DECLINED", inviterId: r.inviterId },
+          // Whoever asks again becomes the inviter the invitee sees, and the one whose standing the invite rests on.
+          data: { status: "PENDING", inviterId, createdAt: now, respondedAt: null },
+        });
+        return count > 0 ? r : null;
       }),
-    ),
-  );
-  if (toCreate.length > 0) {
-    await prisma.collabInvite.createMany({
-      data: toCreate.map((inviteeId) => ({ collabId, inviterId, inviteeId })),
-      skipDuplicates: true,
-    });
-  }
+    )
+  ).filter((r): r is NonNullable<typeof r> => r !== null);
+  const notifiedIds = [...createdIds, ...resetDone.map((r) => r.inviteeId)];
+
   // Bell-only, no push — same as an individual invite.
   if (notifiedIds.length > 0) {
     await prisma.notification.createMany({
@@ -161,5 +242,8 @@ export async function sendCollabInvites(
     });
   }
 
-  return { error: null, invited: circleCreatedIds.length, skipped, circleNames };
+  const circleCreated = new Set(plan.circleCreate);
+  const invited =
+    createdIds.filter((id) => circleCreated.has(id)).length + resetDone.filter((r) => r.fromCircle).length;
+  return { error: null, invited, skipped, circleNames };
 }

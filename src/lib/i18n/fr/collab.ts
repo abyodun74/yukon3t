@@ -148,6 +148,9 @@ export const collab: typeof collabEn = {
     circleNoneNew: "Tous les membres de ce Circle sont déjà invités, participent déjà ou ne peuvent pas être invités.",
     tooLarge: "Cela enverrait plus de {max} nouvelles invitations d'un coup. Choisissez un Circle plus petit.",
     othersHidden: "one: + # autre invitation d'un autre organisateur | other: + # autres invitations d'autres organisateurs",
+    stale:
+      "Ne peut plus être acceptée (la personne qui a envoyé l'invitation n'est plus admin). Invitez de nouveau cette personne pour lui en envoyer une nouvelle.",
+    cancelError: "Impossible d'annuler cette invitation. Réessayez.",
   },
   inviteResponse: {
     text: "{name} vous invite à collaborer. Il s'agit d'une collaboration privée, visible uniquement par les personnes invitées.",
@@ -157,6 +160,7 @@ export const collab: typeof collabEn = {
     acceptError: "Impossible d'enregistrer votre réponse. Réessayez.",
     declineError: "Impossible d'enregistrer votre réponse. Réessayez.",
     sessionLive: "Une session est en direct en ce moment. Acceptez pour la rejoindre.",
+    unavailable: "Cette invitation ne peut plus être acceptée : la personne qui l'a envoyée n'est plus admin de cette collaboration.",
   },
   joinRequests: {
     heading: "Demandes d'adhésion ({count})",

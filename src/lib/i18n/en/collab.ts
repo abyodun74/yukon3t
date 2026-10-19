@@ -146,6 +146,9 @@ export const collabEn = {
     circleNoneNew: "Everyone in that Circle is already invited, already in, or can't be invited.",
     tooLarge: "That would send more than {max} new invites at once — pick a smaller Circle.",
     othersHidden: "one: + # more invite from another organizer | other: + # more invites from other organizers",
+    stale:
+      "Can no longer be accepted (the person who invited them is no longer an admin). Invite them again to send a new one.",
+    cancelError: "Couldn't cancel that invite — try again.",
   },
   inviteResponse: {
     text: "{name} invited you to collaborate — this is a private collaboration, only visible to people invited to it.",
@@ -155,6 +158,7 @@ export const collabEn = {
     acceptError: "Couldn't accept — try again.",
     declineError: "Couldn't decline — try again.",
     sessionLive: "A session is live right now — accept to join it.",
+    unavailable: "This invite can't be accepted any more — the person who sent it is no longer an admin of this collaboration.",
   },
   joinRequests: {
     heading: "Join requests ({count})",

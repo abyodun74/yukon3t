@@ -145,6 +145,9 @@ export const collab: typeof collabEn = {
     circleNoneNew: "Todos los miembros de ese Circle ya están invitados, ya participan o no se les puede invitar.",
     tooLarge: "Eso enviaría más de {max} invitaciones nuevas a la vez. Elige un Circle más pequeño.",
     othersHidden: "one: + # invitación más de otro organizador | other: + # invitaciones más de otros organizadores",
+    stale:
+      "Ya no se puede aceptar (quien envió la invitación ya no es admin). Vuelve a invitar a esta persona para enviarle una nueva.",
+    cancelError: "No se pudo cancelar esa invitación. Inténtalo de nuevo.",
   },
   inviteResponse: {
     text: "{name} te invitó a colaborar. Es una colaboración privada, visible solo para las personas invitadas.",
@@ -154,6 +157,7 @@ export const collab: typeof collabEn = {
     acceptError: "No pudimos registrar tu respuesta. Inténtalo de nuevo.",
     declineError: "No pudimos registrar tu respuesta. Inténtalo de nuevo.",
     sessionLive: "Hay una sesión en vivo ahora mismo. Acepta para unirte.",
+    unavailable: "Esta invitación ya no se puede aceptar: quien la envió ya no es admin de esta colaboración.",
   },
   joinRequests: {
     heading: "Solicitudes para unirse ({count})",

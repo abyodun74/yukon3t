@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, X } from "lucide-react";
-import { inviteToCollab } from "@/app/actions/collab";
+import { cancelCollabInvite, inviteToCollab } from "@/app/actions/collab";
 import { MultiSelect } from "@/components/multi-select";
 import { UserLink } from "@/components/user-link";
 import { useCollabText } from "@/components/collab-text";
@@ -14,13 +14,17 @@ import { format, plural } from "@/lib/i18n/locales";
 type Invite = {
   id: string;
   status: string;
+  /** PENDING but no longer acceptable: whoever sent it is no longer an admin (isStaleCollabInvite). */
+  stale: boolean;
   invitee: { id: string; name: string | null; username: string | null; avatarUrl: string | null };
 };
 
 /**
  * Organizer/co-admin only, shown on a PRIVATE collab: see who's been invited and invite more of your connections or
  * the members of Circles you created. `invites` is only what this viewer may see by name; `hiddenCount` is the rest
- * (see splitVisibleInvites).
+ * (see splitVisibleInvites). A pending invite can be cancelled; a stale one is labelled as no longer acceptable (still
+ * cancellable, and its invitee is back among the candidates so it can be re-sent). Inviting and cancelling need
+ * `canInvite` (canInviteToCollab); a site admin who isn't an admin of this collab only sees the list.
  */
 export function CollabInviteManager({
   collabId,
@@ -29,11 +33,13 @@ export function CollabInviteManager({
   hiddenCount,
   candidates,
   circleCandidates,
+  canInvite,
 }: {
   collabId: string;
   invites: Invite[];
   totalCount: number;
   hiddenCount: number;
+  canInvite: boolean;
   candidates: { value: string; label: string }[];
   circleCandidates: { value: string; label: string }[];
 }) {
@@ -62,16 +68,44 @@ export function CollabInviteManager({
               key={i.id}
               className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2"
             >
-              <UserLink
-                userId={i.invitee.id}
-                name={i.invitee.name}
-                username={i.invitee.username}
-                avatarUrl={i.invitee.avatarUrl}
-                avatarSize={28}
-              />
-              <span className="text-xs text-foreground-soft">
-                {i.status === "PENDING" ? t.pending : i.status === "ACCEPTED" ? t.accepted : t.declined}
-              </span>
+              <div className="min-w-0">
+                <UserLink
+                  userId={i.invitee.id}
+                  name={i.invitee.name}
+                  username={i.invitee.username}
+                  avatarUrl={i.invitee.avatarUrl}
+                  avatarSize={28}
+                />
+                {i.status === "PENDING" && i.stale && (
+                  <p className="mt-1 text-xs text-foreground-soft">{t.stale}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {!(i.status === "PENDING" && i.stale) && (
+                  <span className="text-xs text-foreground-soft">
+                    {i.status === "PENDING" ? t.pending : i.status === "ACCEPTED" ? t.accepted : t.declined}
+                  </span>
+                )}
+                {canInvite && i.status === "PENDING" && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        setError(null);
+                        setNotice(null);
+                        const result = await cancelCollabInvite(i.id);
+                        // not_found: already answered or cancelled by someone else — the refresh shows which.
+                        if (result.error && result.error !== "not_found") setError(t.cancelError);
+                        router.refresh();
+                      })
+                    }
+                    className="rounded-md border border-line px-2.5 py-1 text-xs disabled:opacity-50"
+                  >
+                    {t.cancel}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -81,8 +115,9 @@ export function CollabInviteManager({
       )}
 
       {notice && <p role="status" className="mt-3 text-xs text-foreground-soft">{notice}</p>}
+      {!open && error && <p role="alert" className="mt-3 text-xs text-danger">{error}</p>}
 
-      {(candidates.length > 0 || circleCandidates.length > 0) &&
+      {canInvite && (candidates.length > 0 || circleCandidates.length > 0) &&
         (open ? (
           <div className="mt-3 w-full rounded-lg border border-line p-3">
             <div className="flex items-center justify-between">
