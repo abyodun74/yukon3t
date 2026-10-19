@@ -1,6 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
+import { disablePostHogGeoIp } from "@/lib/posthog-geoip";
 
 // Opt-in until configured, same pattern as GTM/Clarity/R2 elsewhere in this
 // app (see analytics-scripts.tsx) — deploying without these env vars is a
@@ -30,6 +31,11 @@ export function initPostHog() {
     // miss a Next.js client-side transition.
     capture_pageview: false,
     person_profiles: "identified_only",
+    // No IP-derived location: every event (pageviews, $identify, replay
+    // $snapshot batches) carries $geoip_disable so PostHog skips GeoIP
+    // enrichment. Set in init, so nothing is ever sent without it. See
+    // posthog-geoip.ts for why there's no `ip: false` here.
+    before_send: disablePostHogGeoIp,
     session_recording: {
       // Two independent layers, deliberately not left at their SDK
       // defaults — this app has a real secret (end-to-end encrypted) chat
