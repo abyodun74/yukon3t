@@ -30,6 +30,34 @@ export function canInviterStillInvite(
   return canInviteToCircle(circle, inviterMembership ?? null, inviter.id);
 }
 
+/**
+ * What the data loaders select about an invite's inviter (inviterStandingSelect in circle-invite-data.ts): enough for
+ * canInviterStillInvite, never anything shown. `circleMemberships` may cover several Circles; only `circle.id`'s counts.
+ */
+export type InviterStanding = {
+  id: string;
+  status: string;
+  circleMemberships: { circleId: string; role: string }[];
+};
+
+/** canInviterStillInvite for an inviter loaded with their memberships, picking out this Circle's. */
+export function inviteStillStands(circle: { id: string; createdById: string }, inviter: InviterStanding | null) {
+  const membership = inviter?.circleMemberships.find((m) => m.circleId === circle.id);
+  return canInviterStillInvite(circle, inviter, membership);
+}
+
+/**
+ * A PENDING invite that can no longer be accepted, because its inviter is no longer allowed to invite (the same check
+ * acceptCircleInvite refuses on). Admins see it labelled as such in the Invited list; re-inviting the person resets
+ * it (circleInviteAction). DECLINED/ACCEPTED invites are never stale.
+ */
+export function isStaleCircleInvite(
+  circle: { id: string; createdById: string },
+  invite: { status: string; inviter: InviterStanding | null },
+) {
+  return invite.status === "PENDING" && !inviteStillStands(circle, invite.inviter);
+}
+
 export type CircleInviteExclusions = {
   inviterId: string;
   /** The inviter's accepted connections; nobody else can be invited. */
@@ -75,10 +103,12 @@ export function selectCircleInvitees(
   return { ok: true, inviteeIds, skipped: unique.length - inviteeIds.length };
 }
 
-export type ExistingCircleInvite = { id: string; status: string };
+/** `stale`: isStaleCircleInvite (only meaningful for PENDING). */
+export type ExistingCircleInvite = { id: string; status: string; stale?: boolean };
 
 /**
- * What re-inviting someone does to their CircleInvite row. PENDING: nothing (they're already asked). DECLINED: asked
+ * What re-inviting someone does to their CircleInvite row. PENDING: nothing (they're already asked), unless it's stale
+ * (its inviter can no longer invite, so it can't be accepted): asked again by the current inviter. DECLINED: asked
  * again. ACCEPTED but no longer a member (left or removed): asked again. No row: a new one. ACCEPTED and still a
  * member can't reach here (members are excluded) but is a no-op too.
  */
@@ -87,6 +117,7 @@ export function circleInviteAction(
   isMember: boolean,
 ): "create" | "reset" | "noop" {
   if (!existing) return "create";
+  if (existing.status === "PENDING") return existing.stale ? "reset" : "noop";
   if (existing.status === "DECLINED") return "reset";
   if (existing.status === "ACCEPTED" && !isMember) return "reset";
   return "noop";

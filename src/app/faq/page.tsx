@@ -1542,8 +1542,11 @@ const sections: Section[] = [
             declining doesn&apos;t notify anyone. Inviting someone who already
             asked to join simply approves their request. Every admin sees the
             &ldquo;Invited&rdquo; list with each invite&apos;s status and can
-            cancel one that&apos;s still pending. Invites don&apos;t expire.
-            Someone who declined, left or was removed can be invited again.
+            cancel one that&apos;s still pending. Invites don&apos;t expire,
+            but one can no longer be accepted once the person who sent it is
+            no longer an admin of the Circle; the list marks it, and inviting
+            that person again sends a fresh invite. Someone who declined, left
+            or was removed can be invited again.
             A sub-circle is its own Circle, so invite people to it from its
             own page. Making the Circle public cancels pending invites, since
             anyone can join it then.

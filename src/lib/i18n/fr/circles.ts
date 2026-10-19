@@ -113,6 +113,8 @@ export const circles: typeof circlesEn = {
     pending: "Invitation en attente",
     accepted: "A rejoint",
     declined: "Refusée",
+    stale:
+      "Ne peut plus être acceptée (la personne qui a envoyé l'invitation n'est plus admin). Invitez de nouveau cette personne pour lui en envoyer une nouvelle.",
     cancel: "Annuler",
     cancelError: "Impossible d'annuler cette invitation. Réessayez.",
     open: "Inviter des personnes",

@@ -5,6 +5,8 @@ import {
   canInviterStillInvite,
   circleInviteAction,
   eligibleCircleInvitees,
+  inviteStillStands,
+  isStaleCircleInvite,
   planCircleInvites,
   selectCircleInvitees,
   type CircleInviteExclusions,
@@ -52,6 +54,57 @@ describe("canInviterStillInvite", () => {
     expect(canInviterStillInvite(circle, { id: "mod", status: "SUSPENDED" }, { role: "MODERATOR" })).toBe(false);
     expect(canInviterStillInvite(circle, { id: "owner", status: "BANNED" }, { role: "OWNER" })).toBe(false);
     expect(canInviterStillInvite(circle, null, { role: "MODERATOR" })).toBe(false);
+  });
+});
+
+describe("inviteStillStands / isStaleCircleInvite", () => {
+  const circle = { id: "c1", createdById: "owner" };
+  const inviter = (id: string, status: string, memberships: { circleId: string; role: string }[]) => ({
+    id,
+    status,
+    circleMemberships: memberships,
+  });
+
+  it("uses this Circle's membership only", () => {
+    expect(inviteStillStands(circle, inviter("mod", "ACTIVE", [{ circleId: "c1", role: "MODERATOR" }]))).toBe(true);
+    // A co-admin of some other Circle is not one of this one.
+    expect(inviteStillStands(circle, inviter("mod", "ACTIVE", [{ circleId: "c2", role: "MODERATOR" }]))).toBe(false);
+    expect(inviteStillStands(circle, inviter("owner", "ACTIVE", []))).toBe(true);
+    expect(inviteStillStands(circle, null)).toBe(false);
+  });
+
+  it("marks a PENDING invite stale exactly when its inviter can no longer invite", () => {
+    const demoted = inviter("mod", "ACTIVE", [{ circleId: "c1", role: "MEMBER" }]);
+    const left = inviter("mod", "ACTIVE", []);
+    const suspended = inviter("mod", "SUSPENDED", [{ circleId: "c1", role: "MODERATOR" }]);
+    const coAdmin = inviter("mod", "ACTIVE", [{ circleId: "c1", role: "MODERATOR" }]);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: demoted })).toBe(true);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: left })).toBe(true);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: suspended })).toBe(true);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: null })).toBe(true);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: coAdmin })).toBe(false);
+    expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: inviter("owner", "ACTIVE", []) })).toBe(false);
+  });
+
+  it("never marks an answered invite stale", () => {
+    const left = inviter("mod", "ACTIVE", []);
+    expect(isStaleCircleInvite(circle, { status: "DECLINED", inviter: left })).toBe(false);
+    expect(isStaleCircleInvite(circle, { status: "ACCEPTED", inviter: left })).toBe(false);
+  });
+
+  it("agrees with canInviterStillInvite", () => {
+    const cases = [
+      inviter("mod", "ACTIVE", [{ circleId: "c1", role: "MODERATOR" }]),
+      inviter("mod", "ACTIVE", [{ circleId: "c1", role: "MEMBER" }]),
+      inviter("mod", "BANNED", [{ circleId: "c1", role: "MODERATOR" }]),
+      inviter("owner", "ACTIVE", []),
+    ];
+    for (const c of cases) {
+      const membership = c.circleMemberships.find((m) => m.circleId === "c1");
+      expect(isStaleCircleInvite(circle, { status: "PENDING", inviter: c })).toBe(
+        !canInviterStillInvite(circle, c, membership),
+      );
+    }
   });
 });
 
@@ -127,6 +180,11 @@ describe("circleInviteAction", () => {
 
   it("leaves a PENDING invite alone", () => {
     expect(circleInviteAction({ id: "i", status: "PENDING" }, false)).toBe("noop");
+    expect(circleInviteAction({ id: "i", status: "PENDING", stale: false }, false)).toBe("noop");
+  });
+
+  it("resets a stale PENDING invite (its inviter can no longer invite)", () => {
+    expect(circleInviteAction({ id: "i", status: "PENDING", stale: true }, false)).toBe("reset");
   });
 
   it("resets a DECLINED invite", () => {
@@ -142,12 +200,13 @@ describe("circleInviteAction", () => {
 describe("planCircleInvites", () => {
   it("splits invitees by what happens to each", () => {
     const plan = planCircleInvites({
-      inviteeIds: ["new", "pending", "declined", "left", "requester"],
+      inviteeIds: ["new", "pending", "declined", "left", "requester", "stale"],
       existingInvites: new Map([
-        ["pending", { id: "i1", status: "PENDING" }],
+        ["pending", { id: "i1", status: "PENDING", stale: false }],
         ["declined", { id: "i2", status: "DECLINED" }],
         ["left", { id: "i3", status: "ACCEPTED" }],
         ["requester", { id: "i4", status: "DECLINED" }],
+        ["stale", { id: "i5", status: "PENDING", stale: true }],
       ]),
       memberIds: [],
       pendingRequestUserIds: ["requester"],
@@ -158,6 +217,7 @@ describe("planCircleInvites", () => {
       reset: [
         { inviteId: "i2", inviteeId: "declined" },
         { inviteId: "i3", inviteeId: "left" },
+        { inviteId: "i5", inviteeId: "stale" },
       ],
       unchanged: ["pending"],
     });

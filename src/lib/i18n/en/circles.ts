@@ -113,6 +113,8 @@ export const circlesEn = {
     pending: "Invite pending",
     accepted: "Joined",
     declined: "Declined",
+    stale:
+      "Can no longer be accepted (the person who invited them is no longer an admin). Invite them again to send a new one.",
     cancel: "Cancel",
     cancelError: "Couldn't cancel that invite — try again.",
     open: "Invite people",

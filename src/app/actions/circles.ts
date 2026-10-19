@@ -50,10 +50,11 @@ import { pushActivityNotification } from "@/lib/notify-push";
 import {
   canInviteToCircle,
   canInviterStillInvite,
+  isStaleCircleInvite,
   planCircleInvites,
   selectCircleInvitees,
 } from "@/lib/circle-invite";
-import { loadCircleInviteExclusions } from "@/lib/circle-invite-data";
+import { inviterStandingSelect, loadCircleInviteExclusions } from "@/lib/circle-invite-data";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -380,16 +381,21 @@ export async function inviteToCircle(circleId: string, formData: FormData) {
     return { error: null, invited: 0, approved: 0, skipped };
   }
 
-  const [existingInvites, pendingRequests] = await Promise.all([
+  const [existingRows, pendingRequests] = await Promise.all([
     prisma.circleInvite.findMany({
       where: { circleId, inviteeId: { in: inviteeIds } },
-      select: { id: true, inviteeId: true, status: true },
+      select: { id: true, inviteeId: true, status: true, inviterId: true, inviter: inviterStandingSelect([circleId]) },
     }),
     prisma.circleJoinRequest.findMany({
       where: { circleId, userId: { in: inviteeIds }, status: "PENDING" },
       select: { userId: true },
     }),
   ]);
+  // A PENDING invite whose inviter can no longer invite can't be accepted; re-inviting resets it like a DECLINED one.
+  const existingInvites = existingRows.map(({ inviter, ...invite }) => ({
+    ...invite,
+    stale: isStaleCircleInvite(circle, { status: invite.status, inviter }),
+  }));
   const plan = planCircleInvites({
     inviteeIds,
     existingInvites: new Map(existingInvites.map((i) => [i.inviteeId, i])),
@@ -432,7 +438,8 @@ export async function inviteToCircle(circleId: string, formData: FormData) {
   }
 
   // Only rows this request actually created or re-opened are notified: skipDuplicates drops an invite a concurrent
-  // request got to first, and each reset is guarded on the status it was read with.
+  // request got to first, and each reset is guarded on the status and inviter it was read with (so two admins
+  // re-sending the same stale PENDING invite at once reset and notify it only once).
   const createdIds =
     plan.create.length > 0
       ? (
@@ -443,14 +450,14 @@ export async function inviteToCircle(circleId: string, formData: FormData) {
           })
         ).map((c) => c.inviteeId)
       : [];
-  const statusByInviteId = new Map(existingInvites.map((i) => [i.id, i.status]));
+  const existingById = new Map(existingInvites.map((i) => [i.id, i]));
   const resetIds = (
     await Promise.all(
       plan.reset.map(async ({ inviteId, inviteeId }) => {
-        const status = statusByInviteId.get(inviteId);
-        if (!status) return null;
+        const existing = existingById.get(inviteId);
+        if (!existing) return null;
         const { count } = await prisma.circleInvite.updateMany({
-          where: { id: inviteId, status },
+          where: { id: inviteId, status: existing.status, inviterId: existing.inviterId },
           // Whoever asks again becomes the inviter the invitee sees.
           data: { status: "PENDING", inviterId: user.id, createdAt: now, respondedAt: null },
         });
@@ -501,9 +508,11 @@ async function acceptCircleInvite(
     prisma.user.findUnique({ where: { id: invite.inviterId }, select: { id: true, status: true } }),
     getCircleMembership(circle.id, invite.inviterId),
   ]);
+  // Both writes below are also guarded on the inviter that was checked: an admin may re-send a stale invite (same row,
+  // new inviter) in between, and that fresh invite must be neither deleted here nor accepted on the old check.
   if (!canInviterStillInvite(circle, inviter, inviterMembership)) {
     const { count: removed } = await prisma.circleInvite.deleteMany({
-      where: { id: invite.id, inviteeId: userId, status: "PENDING" },
+      where: { id: invite.id, inviteeId: userId, status: "PENDING", inviterId: invite.inviterId },
     });
     if (removed > 0) {
       await prisma.notification.deleteMany({
@@ -520,7 +529,7 @@ async function acceptCircleInvite(
 
   const now = new Date();
   const { count } = await prisma.circleInvite.updateMany({
-    where: { id: invite.id, inviteeId: userId, status: "PENDING" },
+    where: { id: invite.id, inviteeId: userId, status: "PENDING", inviterId: invite.inviterId },
     data: { status: "ACCEPTED", respondedAt: now },
   });
   if (count === 0) {

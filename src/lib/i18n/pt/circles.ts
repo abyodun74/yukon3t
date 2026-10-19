@@ -111,6 +111,8 @@ export const circles: typeof circlesEn = {
     pending: "Convite pendente",
     accepted: "Entrou",
     declined: "Recusado",
+    stale:
+      "Não pode mais ser aceito (quem enviou o convite não é mais admin). Convide essa pessoa de novo para enviar um novo convite.",
     cancel: "Cancelar",
     cancelError: "Não foi possível cancelar esse convite. Tente de novo.",
     open: "Convidar pessoas",

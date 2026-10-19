@@ -28,6 +28,7 @@ import { canInviteToCircle, eligibleCircleInvitees } from "@/lib/circle-invite";
 import {
   getAcceptedConnectionUsers,
   loadCircleInviteExclusions,
+  loadCircleInvitesForAdmins,
   loadStandingCircleInvites,
 } from "@/lib/circle-invite-data";
 import { getMyCircles } from "@/app/actions/circles";
@@ -182,24 +183,18 @@ export default async function CirclePage({
 
   // The invite manager: every invite, by name, to every admin; an accepted one only while the person is still a member
   // (after leaving or being removed they're simply invitable again). Candidates are the viewer's own connections,
-  // filtered exactly as inviteToCircle filters them, minus anyone with an invite already pending.
+  // filtered exactly as inviteToCircle filters them, minus anyone with an invite already pending — except a stale one
+  // (its inviter is no longer an admin, so it can't be accepted): inviting them again re-sends it from the viewer.
   const { circleInvites, inviteCandidates } = canInvite
     ? await (async () => {
         const [invites, connections] = await Promise.all([
-          prisma.circleInvite.findMany({
-            where: { circleId: circle.id },
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true,
-              status: true,
-              inviteeId: true,
-              invitee: { select: { id: true, name: true, username: true, avatarUrl: true } },
-            },
-          }),
+          loadCircleInvitesForAdmins(circle),
           getAcceptedConnectionUsers(me.id),
         ]);
         const memberIds = new Set(allMembers.map((m) => m.userId));
-        const pendingIds = new Set(invites.filter((i) => i.status === "PENDING").map((i) => i.inviteeId));
+        const pendingIds = new Set(
+          invites.filter((i) => i.status === "PENDING" && !i.stale).map((i) => i.inviteeId),
+        );
         const connectionIds = connections.map((u) => u.id);
         const eligible = new Set(
           eligibleCircleInvitees(
@@ -319,7 +314,7 @@ export default async function CirclePage({
           {canInvite && (
             <CircleInviteManager
               circleId={circle.id}
-              invites={circleInvites.map((i) => ({ id: i.id, status: i.status, invitee: i.invitee }))}
+              invites={circleInvites.map((i) => ({ id: i.id, status: i.status, stale: i.stale, invitee: i.invitee }))}
               candidates={inviteCandidates}
             />
           )}

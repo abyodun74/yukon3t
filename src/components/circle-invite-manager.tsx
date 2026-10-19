@@ -13,12 +13,16 @@ import { format, plural } from "@/lib/i18n/locales";
 type Invite = {
   id: string;
   status: string;
+  /** PENDING but no longer acceptable: whoever sent it is no longer an admin (isStaleCircleInvite). */
+  stale: boolean;
   invitee: { id: string; name: string | null; username: string | null; avatarUrl: string | null };
 };
 
 /**
  * Owner/co-admin only, shown on a PRIVATE Circle: invite your connections, and see every invite (whoever sent it)
- * with its status; a pending one can be cancelled. `candidates` are already filtered (see eligibleCircleInvitees).
+ * with its status; a pending one can be cancelled. A stale one is labelled as no longer acceptable (still
+ * cancellable, and its invitee stays in the picker so it can be re-sent). `candidates` are already filtered (see
+ * eligibleCircleInvitees).
  */
 export function CircleInviteManager({
   circleId,
@@ -57,17 +61,24 @@ export function CircleInviteManager({
               key={i.id}
               className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2"
             >
-              <UserLink
-                userId={i.invitee.id}
-                name={i.invitee.name}
-                username={i.invitee.username}
-                avatarUrl={i.invitee.avatarUrl}
-                avatarSize={28}
-              />
+              <div className="min-w-0">
+                <UserLink
+                  userId={i.invitee.id}
+                  name={i.invitee.name}
+                  username={i.invitee.username}
+                  avatarUrl={i.invitee.avatarUrl}
+                  avatarSize={28}
+                />
+                {i.status === "PENDING" && i.stale && (
+                  <p className="mt-1 text-xs text-foreground-soft">{t.stale}</p>
+                )}
+              </div>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-foreground-soft">
-                  {i.status === "PENDING" ? t.pending : i.status === "ACCEPTED" ? t.accepted : t.declined}
-                </span>
+                {!(i.status === "PENDING" && i.stale) && (
+                  <span className="text-xs text-foreground-soft">
+                    {i.status === "PENDING" ? t.pending : i.status === "ACCEPTED" ? t.accepted : t.declined}
+                  </span>
+                )}
                 {i.status === "PENDING" && (
                   <button
                     type="button"
