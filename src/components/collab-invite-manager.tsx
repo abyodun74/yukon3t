@@ -75,6 +75,7 @@ export function CollabInviteManager({
                   username={i.invitee.username}
                   avatarUrl={i.invitee.avatarUrl}
                   avatarSize={28}
+                  className="max-w-full"
                 />
                 {i.status === "PENDING" && i.stale && (
                   <p className="mt-1 text-xs text-foreground-soft">{t.stale}</p>
