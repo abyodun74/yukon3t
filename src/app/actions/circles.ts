@@ -33,6 +33,11 @@ import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
 import { LEAD_POST_ONLY } from "@/lib/post-visibility";
+import {
+  circleCreateLockKey,
+  circleDedupeCutoff,
+  isRecentDuplicateCircle,
+} from "@/lib/circle-create-dedupe";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { updateCircleEmbedding } from "@/lib/embeddings";
@@ -58,6 +63,26 @@ import { inviterStandingSelect, loadCircleInviteExclusions } from "@/lib/circle-
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
+async function findRecentDuplicate(
+  db: Pick<typeof prisma, "circle">,
+  userId: string,
+  name: string,
+  parentId: string | null,
+) {
+  const now = new Date();
+  const found = await db.circle.findFirst({
+    where: {
+      createdById: userId,
+      parentId,
+      name: { equals: name.trim(), mode: "insensitive" },
+      createdAt: { gte: circleDedupeCutoff(now) },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, slug: true, name: true, parentId: true, createdById: true, createdAt: true },
+  });
+  return found && isRecentDuplicateCircle(found, { userId, name, parentId }, now) ? found : null;
+}
+
 export async function createCircle(formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -81,17 +106,34 @@ export async function createCircle(formData: FormData) {
   const formPath = (error: string) =>
     parent ? `/circles/new?parent=${encodeURIComponent(parent.slug)}&error=${error}` : `/circles/new?error=${error}`;
 
-  const allowed = await checkRateLimit(parent ? "subCircleCreate" : "circleCreate", user.id);
-  if (!allowed) {
-    redirect(formPath("rate_limited"));
-  }
-
   const parsed = circleSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
     category: formData.getAll("category"),
     visibility: formData.get("visibility") || undefined,
   });
+
+  // Where a finished create (or a duplicate of one) lands.
+  const finishAt = (target: { slug: string }): never => {
+    if (parent) redirect(`/circles/${parent.slug}`);
+    redirect(`/circles/${target.slug}`);
+  };
+
+  // A double-tap / retry of a submit that already created the Circle resolves
+  // to that Circle. This read-only check runs BEFORE the rate limiter and
+  // moderation so the retry isn't refused (rate_limited) or re-billed; the
+  // first submit was already allowed and moderated. The transaction below
+  // re-checks under a lock for the truly concurrent case.
+  if (parsed.success) {
+    const earlier = await findRecentDuplicate(prisma, user.id, parsed.data.name, parent?.id ?? null);
+    if (earlier) finishAt(earlier);
+  }
+
+  const allowed = await checkRateLimit(parent ? "subCircleCreate" : "circleCreate", user.id);
+  if (!allowed) {
+    redirect(formPath("rate_limited"));
+  }
+
   if (!parsed.success) {
     redirect(formPath("invalid"));
   }
@@ -104,34 +146,56 @@ export async function createCircle(formData: FormData) {
   }
 
   const baseSlug = slugify(name) || "circle";
-  let slug = baseSlug;
-  let attempt = 0;
-  // Free-form group creation invites slug collisions; resolve deterministically.
-  while (await prisma.circle.findUnique({ where: { slug } })) {
-    attempt += 1;
-    slug = `${baseSlug}-${attempt}`;
-  }
+  // Serialized per (creator, name, parent): the second of two concurrent
+  // submits waits for the first, then finds its Circle and creates nothing.
+  // A slug collision (P2002) retries the slug scan once instead of a 500.
+  let result: { circle: { id: string; slug: string }; created: boolean } | null = null;
+  for (let tries = 0; tries < 2 && !result; tries += 1) {
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${circleCreateLockKey(user.id, name, parent?.id ?? null)}))`;
+        const earlier = await findRecentDuplicate(tx, user.id, name, parent?.id ?? null);
+        if (earlier) return { circle: earlier, created: false };
 
-  const circle = await prisma.circle.create({
-    data: {
-      name,
-      description,
-      category,
-      visibility,
-      slug,
-      parentId: parent?.id ?? null,
-      createdById: user.id,
-      members: {
-        create: { userId: user.id, role: "OWNER" },
-      },
-      channels: {
-        create: [
-          { name: "General", slug: "general", type: "TEXT", position: 0, createdById: user.id },
-          { name: "Voice", slug: "voice", type: "VOICE", position: 1, createdById: user.id },
-        ],
-      },
-    },
-  });
+        let slug = baseSlug;
+        let attempt = 0;
+        // Free-form group creation invites slug collisions; resolve deterministically.
+        while (await tx.circle.findUnique({ where: { slug }, select: { id: true } })) {
+          attempt += 1;
+          slug = `${baseSlug}-${attempt}`;
+        }
+        const created = await tx.circle.create({
+          data: {
+            name,
+            description,
+            category,
+            visibility,
+            slug,
+            parentId: parent?.id ?? null,
+            createdById: user.id,
+            members: {
+              create: { userId: user.id, role: "OWNER" },
+            },
+            channels: {
+              create: [
+                { name: "General", slug: "general", type: "TEXT", position: 0, createdById: user.id },
+                { name: "Voice", slug: "voice", type: "VOICE", position: 1, createdById: user.id },
+              ],
+            },
+          },
+          select: { id: true, slug: true },
+        });
+        return { circle: created, created: true };
+      });
+    } catch (err) {
+      if (!isUniqueConstraintError(err) || tries === 1) throw err;
+    }
+  }
+  if (!result) throw new Error("createCircle: no result");
+  const circle = result.circle;
+  // Already created by the other submit, which did the embedding, analytics
+  // and notifications: don't repeat them.
+  if (!result.created) finishAt(circle);
 
   await updateCircleEmbedding(circle.id, { name, description, category });
   await track("CIRCLE_CREATED", user.id, { circleId: circle.id });

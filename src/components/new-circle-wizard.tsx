@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { createCircle } from "@/app/actions/circles";
 import { MultiSelect } from "@/components/multi-select";
 import { useCirclesText } from "@/components/circles-text";
@@ -203,15 +204,28 @@ export function NewCircleWizard({
             {t.next}
           </button>
         ) : (
-          <button
-            key="create"
-            type="submit"
-            className="ms-auto rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink"
-          >
-            {parentId ? t.submitSub : t.submit}
-          </button>
+          <CreateSubmitButton key="create" label={parentId ? t.submitSub : t.submit} />
         )}
       </div>
     </form>
+  );
+}
+
+/**
+ * Disables itself the instant the action starts (useFormStatus flips on
+ * submit) so a double-tap can't submit twice. Still a single type="submit"
+ * button under key="create": the distinct keys above are what stop the Next
+ * click from submitting, and that must stay.
+ */
+function CreateSubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="ms-auto rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
+    >
+      {label}
+    </button>
   );
 }
