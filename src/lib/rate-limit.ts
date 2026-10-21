@@ -238,6 +238,14 @@ const limiterDefinitions = {
   // Reading poll pages: "Load more", and the refetch a live poll signal triggers (each open page at most once per
   // POLL_SIGNAL_COOLDOWN_MS, plus focus resyncs), so this only stops a client hammering it.
   pollList: makeLimiter(120, "1 m", "pollList"),
+  // Circle events (actions/circle-events.ts). Organizer actions (bring-list edits, unassigning, stopping a repeat) are
+  // occasional; claiming is a tap; a nudge notifies up to EVENT_NUDGE_MAX_RECIPIENTS people, so it is the tight one
+  // (each event also allows only one per EVENT_NUDGE_COOLDOWN_MS, in the database). The list limiter only stops a
+  // client hammering "Load more" on "Coming up".
+  eventOrganize: makeLimiter(30, "10 m", "eventOrganize"),
+  eventBringClaim: makeLimiter(60, "1 m", "eventBringClaim"),
+  eventNudge: makeLimiter(10, "1 h", "eventNudge"),
+  circleEventList: makeLimiter(120, "1 m", "circleEventList"),
   // Private profile pictures (/api/avatar/…, per signed-in user): one request per distinct avatar a screen shows,
   // since the browser caches each redirect for ~50 minutes. A busy hour of feed, comments, search and lists stays well
   // under this; a scraper walking every profile doesn't. Over it, avatars fall back to initials, nothing else breaks.

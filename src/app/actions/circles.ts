@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { buildSeriesRule, type EventSeriesRule } from "@/lib/event-recurrence";
 import {
   circleSchema,
+  eventRepeatSchema,
   postSchema,
   confirmCircleCoverUploadSchema,
   updateCircleDetailsSchema,
@@ -1062,6 +1064,23 @@ export async function createPost(formData: FormData) {
   }
   const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, videoDurationSeconds, eventAt, eventLocation } =
     parsed.data;
+
+  // A repeating Circle event (lib/event-recurrence.ts): only for an event in a Circle. The first occurrence is this
+  // post; the event-series cron posts each next one, without notifying anyone.
+  let seriesRule: EventSeriesRule | null = null;
+  const repeatFrequency = formData.get("eventRepeat");
+  if (repeatFrequency && repeatFrequency !== "NONE") {
+    if (!eventAt || !parsed.data.circleId) return { error: "repeat_invalid" };
+    const repeat = eventRepeatSchema.safeParse({
+      frequency: repeatFrequency,
+      count: formData.get("eventRepeatCount") || undefined,
+      until: formData.get("eventRepeatUntil") || undefined,
+    });
+    if (!repeat.success) return { error: "repeat_invalid" };
+    const built = buildSeriesRule(eventAt, repeat.data);
+    if ("error" in built) return { error: built.error };
+    seriesRule = built.rule;
+  }
   // Hive's Visual Moderation API can't scan past 60s of content — a longer
   // video skips the automated moderate-videos cron entirely (it would just
   // fail/waste a call) and instead goes through the slower Cloudflare
@@ -1317,6 +1336,32 @@ export async function createPost(formData: FormData) {
         ...sharedPostData,
         content: parsed.data.content,
         mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
+      },
+    });
+  }
+  // The series, linked to this (lead) post as occurrence 0. Only for a post that went live: a held one never repeats.
+  // Later occurrences copy the text and location, not the media.
+  if (seriesRule && moderationStatus === "PUBLISHED" && parsed.data.circleId && parsed.data.channelId && eventAt) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        eventSeriesIndex: 0,
+        eventSeries: {
+          create: {
+            circleId: parsed.data.circleId,
+            channelId: parsed.data.channelId,
+            authorId: user.id,
+            frequency: seriesRule.frequency,
+            anchorAt: seriesRule.anchorAt,
+            maxOccurrences: seriesRule.maxOccurrences,
+            until: seriesRule.until,
+            content: parsed.data.content,
+            eventLocation: eventLocation ?? null,
+            feedCategory,
+            lastIndex: 0,
+            lastOccurrenceAt: eventAt,
+          },
+        },
       },
     });
   }

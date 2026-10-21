@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
+import { EVENT_SERIES_MAX_OCCURRENCES, EVENT_SERIES_MIN_OCCURRENCES, type EventRepeatFrequency } from "@/lib/event-recurrence";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -162,6 +163,12 @@ export function PostComposer({
   const [isEvent, setIsEvent] = useState(false);
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
+  // Repeat, for a Circle event only (lib/event-recurrence.ts; createPost re-checks everything).
+  const [eventRepeat, setEventRepeat] = useState<"NONE" | EventRepeatFrequency>("NONE");
+  const [repeatEnds, setRepeatEnds] = useState<"count" | "until">("count");
+  const [repeatCount, setRepeatCount] = useState("4");
+  const [repeatUntil, setRepeatUntil] = useState("");
+  const repeatFieldId = useId();
   const [showImageUrlInput, setShowImageUrlInput] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState("");
   const [imageUrlPending, setImageUrlPending] = useState(false);
@@ -702,6 +709,10 @@ export function PostComposer({
       setIsEvent(false);
       setEventAt("");
       setEventLocation("");
+      setEventRepeat("NONE");
+      setRepeatEnds("count");
+      setRepeatCount("4");
+      setRepeatUntil("");
       setSuggestionText("");
       formRef.current?.reset();
       router.refresh();
@@ -768,6 +779,27 @@ export function PostComposer({
             setStatus("error");
             setErrorText(t.composer.errors.eventLocation);
             return;
+          }
+          if (circleId && eventRepeat !== "NONE") {
+            const count = Number(repeatCount);
+            if (repeatEnds === "count" && !(Number.isInteger(count) && count >= EVENT_SERIES_MIN_OCCURRENCES && count <= EVENT_SERIES_MAX_OCCURRENCES)) {
+              setStatus("error");
+              setErrorText(
+                count > EVENT_SERIES_MAX_OCCURRENCES
+                  ? t.composer.errors.repeat_too_long
+                  : t.composer.errors.repeat_too_short,
+              );
+              return;
+            }
+            if (repeatEnds === "until" && !repeatUntil) {
+              setStatus("error");
+              setErrorText(t.composer.errors.repeat_invalid);
+              return;
+            }
+            fd.set("eventRepeat", eventRepeat);
+            if (repeatEnds === "count") fd.set("eventRepeatCount", String(count));
+            // The last day, to its end in the author's own time: an occurrence starting that day still happens.
+            else fd.set("eventRepeatUntil", new Date(`${repeatUntil}T23:59:59`).toISOString());
           }
         }
         if (circleId) fd.set("circleId", circleId);
@@ -1078,6 +1110,85 @@ export function PostComposer({
               className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
             />
           </div>
+          {circleId && (
+            <div className="space-y-2">
+              <div>
+                <label htmlFor={`${repeatFieldId}-repeat`} className="block text-xs font-medium text-foreground-soft">
+                  {t.composer.repeat}
+                </label>
+                <select
+                  id={`${repeatFieldId}-repeat`}
+                  value={eventRepeat}
+                  onChange={(e) => setEventRepeat(e.target.value as "NONE" | EventRepeatFrequency)}
+                  className="mt-1 w-full max-w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+                >
+                  <option value="NONE">{t.composer.repeatNone}</option>
+                  <option value="WEEKLY">{t.composer.repeatWeekly}</option>
+                  <option value="BIWEEKLY">{t.composer.repeatBiweekly}</option>
+                  <option value="MONTHLY">{t.composer.repeatMonthly}</option>
+                </select>
+              </div>
+              {eventRepeat !== "NONE" && (
+                <>
+                  <fieldset>
+                    <legend className="block text-xs font-medium text-foreground-soft">{t.composer.repeatEnds}</legend>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`${repeatFieldId}-ends`}
+                          checked={repeatEnds === "count"}
+                          onChange={() => setRepeatEnds("count")}
+                        />
+                        {t.composer.repeatEndsAfter}
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`${repeatFieldId}-ends`}
+                          checked={repeatEnds === "until"}
+                          onChange={() => setRepeatEnds("until")}
+                        />
+                        {t.composer.repeatEndsOn}
+                      </label>
+                    </div>
+                  </fieldset>
+                  {repeatEnds === "count" ? (
+                    <div>
+                      <label htmlFor={`${repeatFieldId}-count`} className="block text-xs font-medium text-foreground-soft">
+                        {t.composer.repeatCount}
+                      </label>
+                      <input
+                        id={`${repeatFieldId}-count`}
+                        type="number"
+                        inputMode="numeric"
+                        min={EVENT_SERIES_MIN_OCCURRENCES}
+                        max={EVENT_SERIES_MAX_OCCURRENCES}
+                        value={repeatCount}
+                        onChange={(e) => setRepeatCount(e.target.value)}
+                        className="mt-1 w-24 rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label htmlFor={`${repeatFieldId}-until`} className="block text-xs font-medium text-foreground-soft">
+                        {t.composer.repeatUntil}
+                      </label>
+                      <input
+                        id={`${repeatFieldId}-until`}
+                        type="date"
+                        value={repeatUntil}
+                        onChange={(e) => setRepeatUntil(e.target.value)}
+                        min={eventAt ? eventAt.slice(0, 10) : undefined}
+                        className="mt-1 w-full max-w-full rounded-lg border border-line bg-background px-3 py-1.5 text-sm outline-none focus:border-accent"
+                      />
+                    </div>
+                  )}
+                  <p className="text-[0.6875rem] text-foreground-soft">{t.composer.repeatNote}</p>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

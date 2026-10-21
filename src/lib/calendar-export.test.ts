@@ -52,3 +52,17 @@ describe("buildGoogleCalendarUrl", () => {
     expect(parsed.searchParams.get("dates")).toBe("20261013T180000Z/20261013T190000Z");
   });
 });
+
+describe("event location", () => {
+  it("adds an escaped LOCATION line only when there is one", () => {
+    const withLocation = buildCollabIcs({ uid: "event-1", title: "Picnic", description: "", startAt, now, location: "Park, Gate 2" });
+    expect(withLocation).toContain("LOCATION:Park\\, Gate 2");
+    expect(buildCollabIcs({ uid: "event-1", title: "Picnic", description: "", startAt, now })).not.toContain("LOCATION:");
+  });
+
+  it("passes it to Google Calendar", () => {
+    const url = new URL(buildGoogleCalendarUrl({ title: "Picnic", description: "", startAt, location: "Park" }));
+    expect(url.searchParams.get("location")).toBe("Park");
+    expect(new URL(buildGoogleCalendarUrl({ title: "Picnic", description: "", startAt })).searchParams.has("location")).toBe(false);
+  });
+});

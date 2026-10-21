@@ -133,6 +133,7 @@ export const FAQ_IDS = [
   "edit-collab-board-after-ive",
   "co-admins-circle-collab-board",
   "polls-circle-collab-board",
+  "circle-events-coming-up",
   // Advertising
   "advertise-yukon3t",
   // Inviting friends

@@ -79,6 +79,7 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   COLLAB_SESSION_STARTED: "started a live collaboration session",
   POLL_CREATED: "started a poll",
   POLL_SCHEDULED: "scheduled a time from a poll you voted in",
+  EVENT_RSVP_NUDGE: "asked whether you're going to an event",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

@@ -39,6 +39,7 @@ export const push: typeof pushEn = {
     CIRCLE_INVITE: "دعوة للانضمام إلى Circle خاص",
     COLLAB_SESSION_STARTED: "جلسة تعاون مباشرة بدأت الآن",
     POLL_SCHEDULED: "حدّد موعدًا من استطلاع رأي صوّتّ فيه",
+    EVENT_RSVP_NUDGE: "يسألك إن كنت ستحضر فعالية",
   },
   reminders: {
     eventTitle: "فعاليتك",

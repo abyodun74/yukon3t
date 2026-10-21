@@ -42,6 +42,7 @@ export const pushEn = {
     CIRCLE_INVITE: "invited you to join a private Circle",
     COLLAB_SESSION_STARTED: "started a live collaboration session",
     POLL_SCHEDULED: "scheduled a time from a poll you voted in",
+    EVENT_RSVP_NUDGE: "asked whether you're going to an event",
   },
   reminders: {
     eventTitle: "Your event",

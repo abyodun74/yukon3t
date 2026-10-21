@@ -302,6 +302,8 @@ model User {
   collabPosts                 CollabBoardPost[]
   pollsCreated                Poll[]                     @relation("PollCreator")
   pollVotes                   PollVote[]
+  eventSeries                 EventSeries[]
+  eventBringClaims            EventBringItem[]
   channelsCreated             Channel[]
   channelMemberships          ChannelMembership[]
   channelVoiceParticipations  ChannelVoiceParticipant[]
@@ -443,6 +445,7 @@ model Circle {
   notifications Notification[]
   liveStreams   LiveStream[]
   polls         Poll[]
+  eventSeries   EventSeries[]
 
   @@index([category], type: Gin)
   @@index([parentId])
@@ -557,6 +560,7 @@ model Channel {
   voiceInvites      ChannelVoiceInvite[]
   notifications     Notification[]
   polls             Poll[]
+  eventSeries       EventSeries[]
 
   @@unique([circleId, slug])
   @@index([circleId, position])
@@ -735,6 +739,14 @@ model Post {
   // Set once a "starts soon" reminder has gone out (see the event-reminders
   // cron route) so the same event never notifies attendees twice.
   eventReminderSentAt DateTime?
+  // When an organizer last sent "Remind people who haven't replied" for this event (nudgeEventNonResponders in
+  // actions/circle-events.ts). Doubles as the guarded claim: at most one nudge per event per EVENT_NUDGE_COOLDOWN_MS.
+  eventNudgedAt       DateTime?
+  // A repeating Circle event: the series this occurrence belongs to and its position in it (0 = the post the organizer
+  // made; later ones are created by the event-series cron). The unique pair is what stops a double cron run from
+  // creating one occurrence twice. Set null if the series row is ever deleted; the occurrence stays.
+  eventSeriesId       String?
+  eventSeriesIndex    Int?
   createdAt           DateTime         @default(now())
   editedAt            DateTime?
 
@@ -793,8 +805,11 @@ model Post {
   // Back-relation for Poll.scheduledPost: the Circle event post a SCHEDULE
   // poll was turned into (schedulePollOption in actions/polls.ts).
   scheduledFromPolls Poll[] @relation("PollScheduledPost")
+  eventSeries        EventSeries?     @relation(fields: [eventSeriesId], references: [id], onDelete: SetNull)
+  bringItems         EventBringItem[]
 
   @@unique([authorId, repostOfId])
+  @@unique([eventSeriesId, eventSeriesIndex])
   @@index([circleId])
   @@index([authorId])
   @@index([repostOfId])
@@ -811,6 +826,8 @@ model Post {
   // Backs the event-reminders cron's recurring range scan (eventAt between
   // now and the reminder window, reminder not yet sent).
   @@index([eventAt])
+  // Backs a Circle page's "Coming up" list (circleId, eventAt in the future, soonest first).
+  @@index([circleId, eventAt])
   // Matches each category section's own feed query shape on Home, same
   // reasoning as the circleId/authorId composite indexes above.
   @@index([feedCategory, moderationStatus, createdAt])
@@ -981,6 +998,73 @@ model PostRsvp {
 
   @@unique([userId, postId])
   @@index([postId])
+}
+
+/**
+ * "Who's bringing what" on a Circle event post: up to EVENT_BRING_ITEMS_MAX short items the event's organizer (its
+ * author while a member, or the Circle's owner/co-admin) lists, each claimable by one member who can see the event.
+ * Claims are guarded updateMany calls on claimedById (lib/circle-events.ts, actions/circle-events.ts). Deleted with
+ * the post; a claimer who deletes their account just frees the item.
+ */
+model EventBringItem {
+  id          String    @id @default(cuid())
+  postId      String
+  text        String
+  position    Int       @default(0)
+  claimedById String?
+  claimedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  post      Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  claimedBy User? @relation(fields: [claimedById], references: [id], onDelete: SetNull)
+
+  @@index([postId, position])
+  @@index([claimedById])
+}
+
+enum EventRepeatFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+/**
+ * A repeating Circle event. Every occurrence is its own event Post (eventSeriesId/eventSeriesIndex), so RSVPs, the
+ * bring list and reminders are per occurrence. Only one occurrence is ahead at a time: the event-series cron creates
+ * the next one shortly after the latest has started (lastOccurrenceAt + EVENT_SERIES_ROLLOVER_DELAY_MS), copying
+ * content/location/channel from here, without notifying anyone. Dates are pure UTC maths (lib/event-recurrence.ts).
+ * endedAt is set once no occurrence is left, when an organizer stops it, or when the cron finds the author can no
+ * longer post there.
+ */
+model EventSeries {
+  id               String               @id @default(cuid())
+  circleId         String
+  channelId        String
+  authorId         String
+  frequency        EventRepeatFrequency
+  // The first occurrence; every other one is computed from it (never from the previous one, so monthly can't drift).
+  anchorAt         DateTime
+  // Occurrences in total, the first included (2-12; 12 when the series ends on a date instead).
+  maxOccurrences   Int
+  // Last instant an occurrence may start at, when the organizer picked an end date.
+  until            DateTime?
+  content          String               @db.Text
+  eventLocation    String?
+  feedCategory     FeedCategory         @default(GENERAL)
+  lastIndex        Int                  @default(0)
+  lastOccurrenceAt DateTime
+  endedAt          DateTime?
+  createdAt        DateTime             @default(now())
+
+  circle  Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  posts   Post[]
+
+  @@index([endedAt, lastOccurrenceAt])
+  @@index([circleId])
+  @@index([channelId])
+  @@index([authorId])
 }
 
 model Share {
@@ -1184,6 +1268,10 @@ enum NotificationType {
   // admin schedules from it: a Circle event post (postId) or a collab's
   // one-off session (collabId). Bell + FCM push, like COLLAB_SESSION_STARTED.
   POLL_SCHEDULED
+  // Sent by a Circle event's organizer ("Remind people who haven't replied", nudgeEventNonResponders in
+  // actions/circle-events.ts) to the Circle's members who can see the event and haven't RSVP'd. Bell + FCM push, at
+  // most EVENT_NUDGE_MAX_RECIPIENTS rows, once per event per EVENT_NUDGE_COOLDOWN_MS. postId is the link.
+  EVENT_RSVP_NUDGE
 }
 
 model Notification {

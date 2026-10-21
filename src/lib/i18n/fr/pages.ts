@@ -116,6 +116,7 @@ export const pages: typeof pagesEn = {
       COLLAB_SESSION_STARTED: "{name} a démarré une session de collaboration en direct",
       POLL_CREATED: "{name} a lancé un sondage",
       POLL_SCHEDULED: "{name} a fixé une date à partir d'un sondage auquel vous avez participé",
+      EVENT_RSVP_NUDGE: "{name} vous demande si vous venez à un événement",
     },
     notices: {
       videoFlagged:

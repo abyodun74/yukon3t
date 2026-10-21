@@ -61,20 +61,25 @@ export function PollLocalTime({ iso }: { iso: string }) {
   );
 }
 
-/** Add-to-calendar for something scheduled from a poll: a Google Calendar link, and an .ics download when there is one. */
+/**
+ * Add-to-calendar: a Google Calendar link, and an .ics download when there is one. Used for anything scheduled from a
+ * poll and for a Circle event post (circle-event-panel.tsx).
+ */
 export function PollCalendarLinks({
   title,
   description,
   startAt,
+  location,
   icsHref,
 }: {
   title: string;
   description: string;
   startAt: string;
+  location?: string | null;
   icsHref?: string | null;
 }) {
   const { t } = useUiText();
-  const googleUrl = buildGoogleCalendarUrl({ title, description, startAt: new Date(startAt) });
+  const googleUrl = buildGoogleCalendarUrl({ title, description, startAt: new Date(startAt), location });
   return (
     <div className="mt-2 flex flex-wrap gap-2">
       <a

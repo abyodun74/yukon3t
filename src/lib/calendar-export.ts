@@ -30,8 +30,19 @@ function escapeIcsText(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
-export function buildCollabIcs(params: { uid: string; title: string; description: string; startAt: Date; now?: Date }): string {
-  const { uid, title, description, startAt, now = new Date() } = params;
+/**
+ * One VEVENT calendar file. Used for a collab's sessions (/api/collab/[id]/calendar) and a Circle event post
+ * (/api/events/[id]/calendar, which also passes the event's location).
+ */
+export function buildCollabIcs(params: {
+  uid: string;
+  title: string;
+  description: string;
+  startAt: Date;
+  location?: string | null;
+  now?: Date;
+}): string {
+  const { uid, title, description, startAt, location, now = new Date() } = params;
   const endAt = new Date(startAt.getTime() + SESSION_DURATION_MINUTES * 60_000);
   // CRLF line endings — RFC 5545 §3.1 requires them, and at least one real
   // calendar client (tested: Apple Calendar) silently drops an .ics using
@@ -48,6 +59,7 @@ export function buildCollabIcs(params: { uid: string; title: string; description
     `DTEND:${toIcsUtc(endAt)}`,
     `SUMMARY:${escapeIcsText(title)}`,
     `DESCRIPTION:${escapeIcsText(description)}`,
+    ...(location ? [`LOCATION:${escapeIcsText(location)}`] : []),
     "BEGIN:VALARM",
     "ACTION:DISPLAY",
     "DESCRIPTION:Reminder",
@@ -58,14 +70,20 @@ export function buildCollabIcs(params: { uid: string; title: string; description
   ].join("\r\n");
 }
 
-export function buildGoogleCalendarUrl(params: { title: string; description: string; startAt: Date }): string {
-  const { title, description, startAt } = params;
+export function buildGoogleCalendarUrl(params: {
+  title: string;
+  description: string;
+  startAt: Date;
+  location?: string | null;
+}): string {
+  const { title, description, startAt, location } = params;
   const endAt = new Date(startAt.getTime() + SESSION_DURATION_MINUTES * 60_000);
   const qs = new URLSearchParams({
     action: "TEMPLATE",
     text: title,
     details: description,
     dates: `${toIcsUtc(startAt)}/${toIcsUtc(endAt)}`,
+    ...(location ? { location } : {}),
   });
   return `https://calendar.google.com/calendar/render?${qs.toString()}`;
 }

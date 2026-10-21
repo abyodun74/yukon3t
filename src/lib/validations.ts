@@ -10,6 +10,8 @@ import {
   POLL_OPTIONS_MAX,
   POLL_QUESTION_MAX,
 } from "@/lib/polls";
+import { EVENT_BRING_ITEM_MAX_LENGTH } from "@/lib/circle-events";
+import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -786,4 +788,25 @@ export const pollListSchema = z.object({
   collabId: z.string().cuid().nullish(),
   cursor: z.object({ createdAt: z.string().datetime(), id: z.string().cuid() }).nullish(),
   mode: z.enum(["older", "through"]),
+});
+
+// Circle events (actions/circle-events.ts). Ids are only ids: whether the viewer may see or touch the event is
+// decided on the server (circle-events-data.ts).
+export const circleEventIdSchema = z.string().cuid();
+
+// "Coming up" on a Circle page: the cursor is the last event shown (its start and id).
+export const circleEventListSchema = z.object({
+  circleId: z.string().cuid(),
+  cursor: z.object({ eventAt: z.string().datetime(), id: z.string().cuid() }).nullish(),
+});
+
+// A bring-list item's text before normalizeBringItemText (lib/circle-events.ts) trims it and enforces the real limit.
+export const bringItemTextSchema = z.string().max(EVENT_BRING_ITEM_MAX_LENGTH * 4);
+
+// Repeat for a new Circle event (createPost): the frequency and exactly one end, either a number of occurrences or a
+// date. buildSeriesRule (lib/event-recurrence.ts) checks the limits; this only parses.
+export const eventRepeatSchema = z.object({
+  frequency: z.enum(EVENT_REPEAT_FREQUENCIES),
+  count: z.coerce.number().int().optional(),
+  until: z.coerce.date().optional(),
 });

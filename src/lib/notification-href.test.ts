@@ -34,6 +34,14 @@ describe("notificationHref for polls", () => {
     ).toBe("/circles/runners#polls");
     expect(notificationHref({ ...base, type: "POLL_SCHEDULED", collab: { id: "c1" } })).toBe("/collab/c1#polls");
   });
+  it("lands an RSVP nudge on the event post, and on the Circle's upcoming events without one", () => {
+    expect(
+      notificationHref({ ...base, type: "EVENT_RSVP_NUDGE", circle: { slug: "runners" }, postId: "p1" }),
+    ).toBe("/post/p1");
+    expect(notificationHref({ ...base, type: "EVENT_RSVP_NUDGE", circle: { slug: "runners" } })).toBe(
+      "/circles/runners#events",
+    );
+  });
   it("leaves other notifications alone", () => {
     expect(notificationHref({ ...base, type: "EVENT_RSVP", circle: { slug: "runners" }, postId: "p1" })).toBe(
       "/post/p1",

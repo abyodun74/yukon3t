@@ -1798,6 +1798,49 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "circle-events-coming-up",
+        q: "How do events work in a Circle?",
+        a: (
+          <>
+            Any member can post an <strong>event</strong> in a Circle by
+            adding a date, time and place to a post. The Circle&apos;s page
+            lists what&apos;s <strong>coming up</strong>, soonest first, in your
+            own time, with how many people are going and a button to say
+            you&apos;re going. Each event also has <strong>add to
+            calendar</strong> (Google Calendar or a calendar file), and the
+            usual reminder shortly before it starts if you said you&apos;re
+            going. A private Circle&apos;s events, and a private channel&apos;s,
+            are visible only to the people who can see that Circle or channel.
+            <br />
+            <br />
+            On the event&apos;s own page, its organizer (whoever posted it, or
+            the Circle&apos;s creator and co-admins) can start a{" "}
+            <strong>who&apos;s bringing what</strong> list of up to 20 items.
+            Any member who can see the event can claim an item (one person per
+            item) and let it go again; the organizer can edit, remove or
+            unassign items. Everyone who can see the event sees who claimed
+            what.
+            <br />
+            <br />
+            The organizer can also <strong>remind people who haven&apos;t
+            replied</strong>: members who can see the event and haven&apos;t
+            said they&apos;re going get one notification. This works only
+            before the event starts and at most once every 12 hours.
+            <br />
+            <br />
+            When posting an event in a Circle you can make it{" "}
+            <strong>repeat</strong> every week, every 2 weeks or every month
+            (same day of the month, or its last day in shorter months), for 2
+            to 12 dates or until a date up to a year away. Each date is its own
+            event with its own replies and list. The next date is posted
+            automatically shortly after the previous one starts, without
+            notifying anyone, and the organizer can stop the repeat at any
+            time. Dates follow UTC, so in places that change their clocks the
+            local time can shift by an hour.
+          </>
+        ),
+      },
     ],
   },
   {

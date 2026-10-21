@@ -36,6 +36,7 @@ export const push: typeof pushEn = {
     CIRCLE_INVITE: "Te invitó a unirte a un Circle privado",
     COLLAB_SESSION_STARTED: "Inició una sesión de colaboración en vivo",
     POLL_SCHEDULED: "Programó una fecha a partir de una encuesta en la que votaste",
+    EVENT_RSVP_NUDGE: "Te preguntó si vas a ir a un evento",
   },
   reminders: {
     eventTitle: "Tu evento",

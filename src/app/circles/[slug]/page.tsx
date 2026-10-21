@@ -35,6 +35,8 @@ import { getMyCircles } from "@/app/actions/circles";
 import { CirclePostFab } from "@/components/circle-post-fab";
 import { PollSection } from "@/components/poll-section";
 import { circlePollWhere, getCirclePollAccess, loadPollPage } from "@/lib/polls-data";
+import { CircleEventsSection } from "@/components/circle-events-section";
+import { circleEventsWhere, loadCircleEventPage } from "@/lib/circle-events-data";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -217,6 +219,19 @@ export default async function CirclePage({
   const pollPage = pollAccess?.canView
     ? await loadPollPage(circlePollWhere(circle.id, accessibleChannels.map((c) => c.id)), me, pollAccess)
     : { polls: [], hasMore: false };
+  // "Coming up": the upcoming events in the channels this viewer can open, under the same visibility rules as the
+  // posts (circleEventsWhere, shared with "Load more" in actions/circle-events.ts).
+  const eventPage = isPrivateNonMember
+    ? { events: [], hasMore: false }
+    : await loadCircleEventPage(
+        await circleEventsWhere(
+          circle.id,
+          accessibleChannels.filter((c) => c.type === "TEXT").map((c) => c.id),
+          me.id,
+          new Date(),
+        ),
+        me.id,
+      );
   const posts = await attachViewerState(rawPosts, me.id);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
@@ -346,6 +361,8 @@ export default async function CirclePage({
               ))}
             </div>
           )}
+
+          <CircleEventsSection circleId={circle.id} events={eventPage.events} hasMore={eventPage.hasMore} />
 
           {pollAccess && (
             <PollSection

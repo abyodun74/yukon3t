@@ -57,7 +57,8 @@ export type NotificationData = {
     | "CIRCLE_INVITE_ACCEPTED"
     | "COLLAB_SESSION_STARTED"
     | "POLL_CREATED"
-    | "POLL_SCHEDULED";
+    | "POLL_SCHEDULED"
+    | "EVENT_RSVP_NUDGE";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -81,6 +82,13 @@ export function notificationHref(notification: NotificationData) {
   if (notification.type === "POLL_CREATED" || notification.type === "POLL_SCHEDULED") {
     if (notification.circle) return `/circles/${notification.circle.slug}#polls`;
     if (notification.collab) return `/collab/${notification.collab.id}#polls`;
+  }
+  // A Circle event's "haven't replied yet" nudge: the event post, where the RSVP button and its bring list are. Its
+  // push uses this same URL (nudgeEventNonResponders in actions/circle-events.ts). Without a post (deleted since), the
+  // Circle's upcoming events.
+  if (notification.type === "EVENT_RSVP_NUDGE") {
+    if (notification.postId) return `/post/${notification.postId}`;
+    if (notification.circle) return `/circles/${notification.circle.slug}#events`;
   }
   if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;

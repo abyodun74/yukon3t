@@ -114,6 +114,7 @@ export const pages: typeof pagesEn = {
       COLLAB_SESSION_STARTED: "بدء جلسة تعاون مباشرة من قِبل {name}",
       POLL_CREATED: "أنشأ {name} استطلاع رأي",
       POLL_SCHEDULED: "حدّد {name} موعدًا من استطلاع رأي صوّتّ فيه",
+      EVENT_RSVP_NUDGE: "يسألك {name} إن كنت ستحضر فعالية",
     },
     notices: {
       videoFlagged:

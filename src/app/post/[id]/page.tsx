@@ -11,6 +11,8 @@ import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { loadPostComments } from "@/lib/comments-data";
 import { getDictionary } from "@/lib/i18n/server";
+import { CircleEventPanel } from "@/components/circle-event-panel";
+import { loadCircleEventPanel } from "@/lib/circle-events-data";
 
 export default async function PostDetailPage({
   params,
@@ -85,6 +87,9 @@ export default async function PostDetailPage({
     }
   }
 
+  // A Circle event: calendar, repeat, nudge and the bring list under the card (null for anything else).
+  const eventPanel = post.circleId && post.eventAt ? await loadCircleEventPanel(id, me) : null;
+
   const commentsText = (await getDictionary()).ui.comments;
 
   return (
@@ -93,6 +98,7 @@ export default async function PostDetailPage({
       <ScreenshotContextTracker context={{ type: "post", id }} />
 
       <PostCard post={postWithState} viewerId={me.id} viewerIsAdmin={me.isAdmin} />
+      {eventPanel && <CircleEventPanel data={eventPanel} />}
 
       <div className="mt-6">
         <h2
