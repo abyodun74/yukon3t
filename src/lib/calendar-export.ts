@@ -40,9 +40,11 @@ export function buildCollabIcs(params: {
   description: string;
   startAt: Date;
   location?: string | null;
+  /** RFC 5545 SEQUENCE: a re-import of the same UID with a higher one replaces the earlier version (a moved event). */
+  sequence?: number;
   now?: Date;
 }): string {
-  const { uid, title, description, startAt, location, now = new Date() } = params;
+  const { uid, title, description, startAt, location, sequence, now = new Date() } = params;
   const endAt = new Date(startAt.getTime() + SESSION_DURATION_MINUTES * 60_000);
   // CRLF line endings — RFC 5545 §3.1 requires them, and at least one real
   // calendar client (tested: Apple Calendar) silently drops an .ics using
@@ -54,6 +56,7 @@ export function buildCollabIcs(params: {
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${uid}`,
+    ...(sequence ? [`SEQUENCE:${sequence}`] : []),
     `DTSTAMP:${toIcsUtc(now)}`,
     `DTSTART:${toIcsUtc(startAt)}`,
     `DTEND:${toIcsUtc(endAt)}`,

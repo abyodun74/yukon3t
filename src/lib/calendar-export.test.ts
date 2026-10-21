@@ -5,6 +5,13 @@ const startAt = new Date("2026-10-13T18:00:00Z");
 const now = new Date("2026-10-07T12:00:00Z");
 
 describe("buildCollabIcs", () => {
+  it("writes SEQUENCE only when given one", () => {
+    expect(buildCollabIcs({ uid: "e", title: "t", description: "", startAt, now })).not.toContain("SEQUENCE");
+    expect(buildCollabIcs({ uid: "e", title: "t", description: "", startAt, now, sequence: 42 })).toContain(
+      "SEQUENCE:42",
+    );
+  });
+
   it("includes the required VEVENT fields in UTC form", () => {
     const ics = buildCollabIcs({ uid: "collab-1", title: "Weekly sync", description: "Progress check-in", startAt, now });
     expect(ics).toContain("BEGIN:VCALENDAR");

@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useTransition, type UIEvent } from "react";
 import Link from "next/link";
-import { Calendar, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
 import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
 import { toggleRsvp } from "@/app/actions/rsvp";
+import { CircleEventDetails } from "@/components/circle-event-details";
+import type { CircleEventChange } from "@/components/circle-event-panel";
+import { announceRsvp, useRsvpSync } from "@/lib/rsvp-sync";
 import { repost } from "@/app/actions/reposts";
 import { getPostComments } from "@/app/actions/comments";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
@@ -97,6 +100,14 @@ type EmbeddedPost = {
   linkUrl: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
+  // A Circle post's Circle (an event there gets "Event details"), and an organizer's cancel / reschedule of an event
+  // (actions/circle-events.ts). Optional: absent on rows that predate them, read as "none".
+  circleId?: string | null;
+  eventCancelledAt?: Date | null;
+  eventCancelReason?: string | null;
+  eventRescheduledAt?: Date | null;
+  eventRescheduleReason?: string | null;
+  eventPreviousAt?: Date | null;
   createdAt: Date;
   editedAt: Date | null;
   author: {
@@ -156,24 +167,106 @@ function PostVisibilityBadge({ visibility }: { visibility: PostCardData["visibil
   return null;
 }
 
+/** An event's start and any cancel / reschedule, as the card shows them (kept in state so a change made here shows). */
+type EventInfo = {
+  eventAt: Date | null;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
+  rescheduledAt: Date | null;
+  rescheduleReason: string | null;
+  previousAt: Date | null;
+};
+
+function eventInfoOf(post: EmbeddedPost): EventInfo {
+  return {
+    eventAt: post.eventAt,
+    cancelledAt: post.eventCancelledAt ?? null,
+    cancelReason: post.eventCancelReason ?? null,
+    rescheduledAt: post.eventRescheduledAt ?? null,
+    rescheduleReason: post.eventRescheduleReason ?? null,
+    previousAt: post.eventPreviousAt ?? null,
+  };
+}
+
+function applyEventChange(info: EventInfo, change: CircleEventChange): EventInfo {
+  if (change.kind === "cancelled") return { ...info, cancelledAt: change.at, cancelReason: change.reason };
+  return {
+    ...info,
+    eventAt: change.eventAt,
+    rescheduledAt: change.at,
+    rescheduleReason: change.reason,
+    previousAt: change.from,
+  };
+}
+
+const EVENT_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
+
 function EventBlock({
   post,
+  info,
   going,
   rsvpCount,
   isPending,
   onToggle,
+  detailsOpen,
+  onToggleDetails,
 }: {
   post: EmbeddedPost;
+  info: EventInfo;
   going: boolean;
   rsvpCount: number;
   isPending: boolean;
   onToggle: () => void;
+  /** Undefined when the card offers no "Event details" (not a Circle event, or the panel is already on the page). */
+  detailsOpen?: boolean;
+  onToggleDetails?: () => void;
 }) {
   const { t, locale } = useFeedText();
-  if (!post.eventAt) return null;
+  const { t: ui } = useUiText();
+  const ev = ui.events;
+  if (!info.eventAt) return null;
+  const cancelled = !!info.cancelledAt;
   return (
-    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-background px-3 py-2">
-      <div className="min-w-0 text-xs text-foreground-soft">
+    <div className="mt-2 rounded-lg border border-line bg-background px-3 py-2">
+      {cancelled ? (
+        <div className="mb-1.5">
+          <span className="inline-block rounded-full bg-danger px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-white rtl:tracking-normal">
+            {ev.cancelledBadge}
+          </span>
+          <p className="mt-1 text-xs font-medium text-danger">{ev.cancelledNote}</p>
+          {info.cancelReason && (
+            <p dir="auto" className="mt-0.5 whitespace-pre-wrap break-words text-xs text-foreground-soft">
+              {format(ev.reasonQuote, { reason: info.cancelReason })}
+            </p>
+          )}
+        </div>
+      ) : (
+        info.rescheduledAt && (
+          <div className="mb-1.5">
+            <span className="inline-block rounded-full bg-accent/15 px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-accent rtl:tracking-normal">
+              {ev.rescheduledBadge}
+            </span>
+            {info.previousAt && (
+              <p className="mt-1 text-xs text-foreground-soft" suppressHydrationWarning>
+                {format(ev.movedFrom, { when: info.previousAt.toLocaleString(intlLocale(locale) ?? [], EVENT_TIME_FORMAT) })}
+              </p>
+            )}
+            {info.rescheduleReason && (
+              <p dir="auto" className="mt-0.5 whitespace-pre-wrap break-words text-xs text-foreground-soft">
+                {format(ev.reasonQuote, { reason: info.rescheduleReason })}
+              </p>
+            )}
+          </div>
+        )
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className={cn("min-w-0 text-xs text-foreground-soft", cancelled && "line-through")}>
         <div className="flex items-center gap-1.5">
           <Calendar size={13} />
           {/* toLocaleString depends on the runtime's timezone, which differs
@@ -182,13 +275,7 @@ function EventBlock({
               rather than a real mismatch; the viewer's own local time
               (post-hydration) is what should win anyway. */}
           <span suppressHydrationWarning>
-            {post.eventAt.toLocaleString(intlLocale(locale) ?? [], {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            })}
+            {info.eventAt.toLocaleString(intlLocale(locale) ?? [], EVENT_TIME_FORMAT)}
           </span>
         </div>
         {post.eventLocation && (
@@ -198,19 +285,37 @@ function EventBlock({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={onToggle}
-        aria-pressed={going}
-        className={cn(
-          "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
-          going ? "bg-success text-white" : "bg-accent text-accent-ink",
-        )}
-      >
-        {going ? t.post.going : t.post.imGoing}
-        {rsvpCount > 0 && <span className="ml-1.5 opacity-80">{rsvpCount}</span>}
-      </button>
+      {cancelled ? (
+        rsvpCount > 0 && (
+          <span className="shrink-0 text-xs text-foreground-soft">{plural(locale, ev.goingCount, rsvpCount)}</span>
+        )
+      ) : (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={onToggle}
+          aria-pressed={going}
+          className={cn(
+            "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
+            going ? "bg-success text-white" : "bg-accent text-accent-ink",
+          )}
+        >
+          {going ? t.post.going : t.post.imGoing}
+          {rsvpCount > 0 && <span className="ms-1.5 opacity-80">{rsvpCount}</span>}
+        </button>
+      )}
+      </div>
+      {onToggleDetails && (
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          aria-expanded={detailsOpen}
+          className="mt-1.5 flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+        >
+          {detailsOpen ? <ChevronUp size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />}
+          {detailsOpen ? ev.hideDetails : ev.detailsLong}
+        </button>
+      )}
     </div>
   );
 }
@@ -705,10 +810,13 @@ export function PostCard({
   post,
   viewerId,
   viewerIsAdmin = false,
+  hideEventDetails = false,
 }: {
   post: PostCardData;
   viewerId: string;
   viewerIsAdmin?: boolean;
+  /** /post/[id] already renders the event panel under the card, so the card doesn't offer "Event details" there. */
+  hideEventDetails?: boolean;
 }) {
   const { t, locale } = useFeedText();
   const { t: shell } = useShellText();
@@ -742,6 +850,22 @@ export function PostCard({
   const [, startReactionTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
   const [isRsvpPending, startRsvpTransition] = useTransition();
+  // The event's time and cancel / reschedule state: from the post, replaced by a fresh one (router.refresh), and
+  // updated in place by a change made in "Event details" below.
+  const [eventInfo, setEventInfo] = useState(() => eventInfoOf(displayPost));
+  const [eventInfoSource, setEventInfoSource] = useState(displayPost);
+  if (eventInfoSource !== displayPost) {
+    setEventInfoSource(displayPost);
+    setEventInfo(eventInfoOf(displayPost));
+  }
+  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
+  const showEventDetails = !hideEventDetails && !!displayPost.eventAt && !!displayPost.circleId;
+  // "Coming up" on a Circle page shows the same event with its own RSVP button: keep the two in step.
+  const [rsvpSource] = useState(() => Symbol("post-card-rsvp"));
+  useRsvpSync(interactionTargetId, rsvpSource, (change) => {
+    setGoing(change.going);
+    setRsvpCount(change.rsvpCount);
+  });
 
   // Inline comments — expanding these fetches on demand (not server-
   // rendered as part of Home/Circles' own page data) so commenting or
@@ -883,6 +1007,11 @@ export function PostCard({
       if (result.error) {
         setGoing(!nextGoing);
         setRsvpCount((c) => c + (nextGoing ? -1 : 1));
+        return;
+      }
+      if (typeof result.rsvpCount === "number" && typeof result.going === "boolean") {
+        setRsvpCount(result.rsvpCount);
+        announceRsvp({ postId: interactionTargetId, going: result.going, rsvpCount: result.rsvpCount, source: rsvpSource });
       }
     });
   }
@@ -1033,11 +1162,20 @@ export function PostCard({
 
       <EventBlock
         post={displayPost}
+        info={eventInfo}
         going={going}
         rsvpCount={rsvpCount}
         isPending={isRsvpPending}
         onToggle={handleRsvp}
+        detailsOpen={showEventDetails ? eventDetailsOpen : undefined}
+        onToggleDetails={showEventDetails ? () => setEventDetailsOpen((open) => !open) : undefined}
       />
+      {showEventDetails && eventDetailsOpen && (
+        <CircleEventDetails
+          postId={interactionTargetId}
+          onEventChange={(change) => setEventInfo((info) => applyEventChange(info, change))}
+        />
+      )}
 
       <MediaBlock
         post={isQuoting ? displayPost : { ...displayPost, content }}

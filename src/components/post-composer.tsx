@@ -196,6 +196,9 @@ export function PostComposer({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  // Set synchronously the moment a submission starts and cleared when it settles: a second tap that lands before React
+  // has re-rendered the disabled Post button (isPending / status) is dropped instead of creating the post twice.
+  const submittingRef = useRef(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -763,6 +766,7 @@ export function PostComposer({
       ref={formRef}
       className="rounded-xl border border-line p-4"
       action={(fd) => {
+        if (submittingRef.current) return;
         const content = String(fd.get("content") ?? "").trim();
         if (!content && imageCount === 0 && !video && !nativeVideoUpload && !embedUrl && !pendingGif && !isEvent) {
           setStatus("error");
@@ -811,6 +815,15 @@ export function PostComposer({
         // timezone) if we sent it unconverted — silently shifting the
         // event time by the server/client UTC offset.
         if (isEvent && eventAt) fd.set("eventAt", new Date(eventAt).toISOString());
+        // One key per submission, kept by every retry of it (withRetry in submitPostFormData, the device-code resubmit):
+        // createPost answers a key it has already posted with success instead of a second post.
+        fd.set(
+          "clientRequestId",
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
+        );
+        submittingRef.current = true;
 
         // Optimistic path: a plain Home post (not a Circle post — Circle
         // pages don't render PostFeedSection/ProfilePostsList, nothing
@@ -861,6 +874,14 @@ export function PostComposer({
         }
 
         startTransition(async () => {
+          try {
+            await uploadAndSubmit();
+          } finally {
+            submittingRef.current = false;
+          }
+        });
+
+        async function uploadAndSubmit() {
           const media = await uploadAll();
           if ("error" in media) {
             const message = byCode(t.composer.errors, media.error);
@@ -879,7 +900,7 @@ export function PostComposer({
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
           await submitPostFormData(fd, optimisticId ?? undefined);
-        });
+        }
       }}
     >
       <textarea dir="auto"

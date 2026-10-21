@@ -52,10 +52,17 @@ export function canUnclaimBringItem(input: { viewerId: string; claimedById: stri
   return input.isOrganizer || input.claimedById === input.viewerId;
 }
 
-export type NudgeError = "past_event" | "too_soon";
+export type NudgeError = "past_event" | "too_soon" | "cancelled";
 
-/** Why an event can't be nudged right now: it has started, or the last nudge is under EVENT_NUDGE_COOLDOWN_MS old. */
-export function nudgeError(event: { eventAt: Date; eventNudgedAt: Date | null }, now: Date): NudgeError | null {
+/**
+ * Why an event can't be nudged right now: it was cancelled, it has started, or the last nudge is under
+ * EVENT_NUDGE_COOLDOWN_MS old.
+ */
+export function nudgeError(
+  event: { eventAt: Date; eventNudgedAt: Date | null; eventCancelledAt?: Date | null },
+  now: Date,
+): NudgeError | null {
+  if (event.eventCancelledAt) return "cancelled";
   if (event.eventAt.getTime() <= now.getTime()) return "past_event";
   if (event.eventNudgedAt && now.getTime() - event.eventNudgedAt.getTime() < EVENT_NUDGE_COOLDOWN_MS) return "too_soon";
   return null;
@@ -98,6 +105,81 @@ export function nudgeRecipients(
     if (out.length >= EVENT_NUDGE_MAX_RECIPIENTS) break;
   }
   return out;
+}
+
+/** A cancel / reschedule reason: optional, at most this long. Notifications about it go to at most this many people. */
+export const EVENT_CHANGE_REASON_MAX_LENGTH = 280;
+export const EVENT_CHANGE_MAX_RECIPIENTS = 500;
+/** The latest a rescheduled event may start, from now (createPost has no limit; a year keeps typos like 2062 out). */
+export const EVENT_RESCHEDULE_MAX_AHEAD_MS = 366 * 24 * 60 * 60 * 1000;
+
+/** Trims a reason and collapses runs of blank lines; null when empty, `false` when too long. */
+export function normalizeEventChangeReason(text: string | null | undefined): string | null | false {
+  const normalized = (text ?? "").replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  if (normalized.length === 0) return null;
+  if (normalized.length > EVENT_CHANGE_REASON_MAX_LENGTH) return false;
+  return normalized;
+}
+
+export type EventChangeError = "past_event" | "cancelled";
+
+/**
+ * Why an event can't be cancelled or rescheduled (or have its bring list, nudge or RSVPs changed) right now: it has
+ * started, or it was cancelled. Null when it can.
+ */
+export function eventChangeError(
+  event: { eventAt: Date; eventCancelledAt: Date | null },
+  now: Date,
+): EventChangeError | null {
+  if (event.eventCancelledAt) return "cancelled";
+  if (event.eventAt.getTime() <= now.getTime()) return "past_event";
+  return null;
+}
+
+export type RescheduleTimeError = "invalid_time" | "same_time";
+
+/** Whether `next` is an acceptable new start for an event now at `current`: in the future, within a year, changed. */
+export function rescheduleTimeError(current: Date, next: Date, now: Date): RescheduleTimeError | null {
+  if (Number.isNaN(next.getTime())) return "invalid_time";
+  if (next.getTime() <= now.getTime()) return "invalid_time";
+  if (next.getTime() > now.getTime() + EVENT_RESCHEDULE_MAX_AHEAD_MS) return "invalid_time";
+  // Same minute: nothing changed (datetime-local inputs have minute precision).
+  if (Math.floor(next.getTime() / 60_000) === Math.floor(current.getTime() / 60_000)) return "same_time";
+  return null;
+}
+
+/**
+ * Who hears that an event was cancelled or moved: the author, everyone going and everyone bringing something; never the
+ * organizer acting, nobody blocked either way with them; each once, at most EVENT_CHANGE_MAX_RECIPIENTS (the author
+ * first, then attendees and claimers in the order given).
+ */
+export function eventChangeRecipients(input: {
+  actorId: string;
+  authorId: string;
+  rsvpUserIds: readonly string[];
+  claimerIds: readonly (string | null)[];
+  blockedIds: ReadonlySet<string>;
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of [input.authorId, ...input.rsvpUserIds, ...input.claimerIds]) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    if (id === input.actorId || input.blockedIds.has(id)) continue;
+    out.push(id);
+    if (out.length >= EVENT_CHANGE_MAX_RECIPIENTS) break;
+  }
+  return out;
+}
+
+/**
+ * The SEQUENCE of an event's .ics: 0 until it is changed, then the second (since 2026) of its latest change, so it only
+ * grows and a calendar app re-importing the same UID takes the newer version. Fits a 32-bit integer for decades.
+ */
+export function eventIcsSequence(event: { eventRescheduledAt: Date | null; eventCancelledAt: Date | null }) {
+  const SINCE = Date.UTC(2026, 0, 1);
+  const latest = Math.max(event.eventRescheduledAt?.getTime() ?? 0, event.eventCancelledAt?.getTime() ?? 0);
+  return latest > SINCE ? Math.floor((latest - SINCE) / 1000) : 0;
 }
 
 /** The title a Circle event is listed under: its first non-empty line, shortened. Empty when the post has no text. */

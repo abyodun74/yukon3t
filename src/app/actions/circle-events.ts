@@ -8,15 +8,34 @@ import { moderateText } from "@/lib/moderation";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { captureError } from "@/lib/error-tracking";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
+import { sendFcmActivityToUsers } from "@/lib/fcm";
+import { eventChangePushBody, nameOrSomeone } from "@/lib/push-text";
 import { publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { bringItemTextSchema, circleEventIdSchema, circleEventListSchema } from "@/lib/validations";
-import { canAddBringItem, normalizeBringItemText, nudgeClaimCutoff, nudgeError, nudgeRecipients } from "@/lib/circle-events";
+import {
+  bringItemTextSchema,
+  circleEventIdSchema,
+  circleEventListSchema,
+  eventCancelSchema,
+  eventRescheduleSchema,
+} from "@/lib/validations";
+import {
+  canAddBringItem,
+  eventChangeError,
+  eventChangeRecipients,
+  normalizeBringItemText,
+  normalizeEventChangeReason,
+  nudgeClaimCutoff,
+  nudgeError,
+  nudgeRecipients,
+  rescheduleTimeError,
+} from "@/lib/circle-events";
 import {
   circleEventsScope,
   loadBringItems,
   loadCircleEventAccess,
   loadCircleEventPage,
+  loadCircleEventPanel,
   nudgeCandidates,
   type CircleEventAccess,
 } from "@/lib/circle-events-data";
@@ -40,7 +59,10 @@ type EventError =
   | "past_event"
   | "too_soon"
   | "nobody"
-  | "not_repeating";
+  | "not_repeating"
+  | "cancelled"
+  | "invalid_time"
+  | "same_time";
 
 function failure(error: EventError) {
   return { error } as const;
@@ -99,6 +121,7 @@ export async function addBringItem(postId: unknown, text: unknown) {
   const access = await eventFor(postId, user);
   if (!access) return failure("not_found");
   if (!access.isOrganizer) return failure("forbidden");
+  if (access.post.eventCancelledAt) return failure("cancelled");
 
   const moderation = await moderateText(normalized);
   if (!moderation.allowed) return failure("moderation");
@@ -133,6 +156,7 @@ export async function updateBringItem(itemId: unknown, text: unknown) {
   const found = await itemWithEvent(itemId, user);
   if (!found) return failure("not_found");
   if (!found.access.isOrganizer) return failure("forbidden");
+  if (found.access.post.eventCancelledAt) return failure("cancelled");
 
   const moderation = await moderateText(normalized);
   if (!moderation.allowed) return failure("moderation");
@@ -162,6 +186,7 @@ export async function claimBringItem(itemId: unknown) {
   const found = await itemWithEvent(itemId, user);
   if (!found) return failure("not_found");
   if (!found.access.isMember) return failure("forbidden");
+  if (found.access.post.eventCancelledAt) return failure("cancelled");
   const claimed = await prisma.eventBringItem.updateMany({
     where: { id: found.item.id, postId: found.access.post.id, claimedById: null },
     data: { claimedById: user.id, claimedAt: new Date() },
@@ -225,6 +250,7 @@ export async function nudgeEventNonResponders(postId: unknown) {
     where: {
       id: post.id,
       eventAt: { gt: now },
+      eventCancelledAt: null,
       OR: [{ eventNudgedAt: null }, { eventNudgedAt: { lte: nudgeClaimCutoff(now) } }],
     },
     data: { eventNudgedAt: now },
@@ -264,4 +290,165 @@ export async function stopEventSeries(postId: unknown) {
   await prisma.eventSeries.updateMany({ where: { id: seriesId, endedAt: null }, data: { endedAt: new Date() } });
   revalidateEvent(access.post);
   return { error: null } as const;
+}
+
+/**
+ * The event panel ("Event details" on an event card in a Circle, Home or a profile) for one event, loaded when opened:
+ * the same data /post/[id] renders under the post, with the same access rule (not_found otherwise).
+ */
+export async function loadCircleEventDetails(postId: unknown) {
+  const user = await requireVerifiedUser();
+  if (!(await checkRateLimit("circleEventList", user.id))) return failure("rate_limited");
+  const parsed = circleEventIdSchema.safeParse(postId);
+  if (!parsed.success) return failure("invalid");
+  const data = await loadCircleEventPanel(parsed.data, user);
+  if (!data) return failure("not_found");
+  return { error: null, data } as const;
+}
+
+/**
+ * Bell + FCM push to eventChangeRecipients (author, everyone going, everyone bringing something; never the organizer
+ * acting, nobody blocked either way with them), ACTIVE accounts only. Best-effort after the change is committed: a
+ * failure is logged, not retried, so nobody hears about one change twice.
+ */
+async function notifyEventChange(
+  post: { id: string; authorId: string; circle: { id: string } },
+  actor: { id: string; name: string | null },
+  type: "EVENT_CANCELLED" | "EVENT_RESCHEDULED",
+  details: { newAt?: Date; reason: string | null },
+) {
+  try {
+    const [rsvps, claims, blocked] = await Promise.all([
+      prisma.postRsvp.findMany({ where: { postId: post.id }, orderBy: { createdAt: "asc" }, select: { userId: true } }),
+      prisma.eventBringItem.findMany({
+        where: { postId: post.id, claimedById: { not: null } },
+        select: { claimedById: true },
+      }),
+      getBlockedEitherWayIds(actor.id),
+    ]);
+    const recipients = eventChangeRecipients({
+      actorId: actor.id,
+      authorId: post.authorId,
+      rsvpUserIds: rsvps.map((r) => r.userId),
+      claimerIds: claims.map((c) => c.claimedById),
+      blockedIds: blocked,
+    });
+    if (recipients.length === 0) return 0;
+    const active = (
+      await prisma.user.findMany({ where: { id: { in: recipients }, status: "ACTIVE" }, select: { id: true } })
+    ).map((u) => u.id);
+    if (active.length === 0) return 0;
+    await prisma.notification.createMany({
+      data: active.map((recipientId) => ({
+        recipientId,
+        actorId: actor.id,
+        type,
+        postId: post.id,
+        circleId: post.circle.id,
+      })),
+    });
+    await sendFcmActivityToUsers(active, (locale) => ({
+      title: nameOrSomeone(actor.name, locale),
+      body: eventChangePushBody(type, locale, details),
+      type,
+      url: `/post/${post.id}`,
+    }));
+    await publishEvents(active.map((id) => ({ channel: REALTIME_CHANNELS.navBadges(id), event: "changed" })));
+    return active.length;
+  } catch (err) {
+    console.error(`[circle-events] ${type} fan-out failed`, err);
+    await captureError(err, { action: "notifyEventChange", type, postId: post.id });
+    return 0;
+  }
+}
+
+/** A reason through normalizeEventChangeReason and moderateText: the text, null for none, or the error to answer. */
+async function checkedReason(raw: string | null | undefined): Promise<{ reason: string | null } | { error: EventError }> {
+  const reason = normalizeEventChangeReason(raw);
+  if (reason === false) return { error: "invalid" };
+  if (reason === null) return { reason: null };
+  const moderation = await moderateText(reason);
+  if (!moderation.allowed) return { error: "moderation" };
+  return { reason };
+}
+
+/**
+ * Organizer only, before the event starts: cancels it, with an optional reason. The post stays, marked cancelled; it
+ * leaves "Coming up", takes no RSVPs or bring-list changes and gets no reminder. The claim is a guarded updateMany
+ * (not cancelled, not started), so two organizers pressing at once cancel and notify once. Cancelling one date of a
+ * repeating event leaves the series running, unless `stopSeries` also stops it (only one date is ever ahead, so that is
+ * "cancel all future dates"). Notifies EVENT_CANCELLED (see notifyEventChange).
+ */
+export async function cancelCircleEvent(postId: unknown, input: unknown) {
+  const user = await requireVerifiedUser();
+  if (!(await checkRateLimit("eventOrganize", user.id))) return failure("rate_limited");
+  const parsed = eventCancelSchema.safeParse(input);
+  if (!parsed.success) return failure("invalid");
+  const access = await eventFor(postId, user);
+  if (!access) return failure("not_found");
+  if (!access.isOrganizer) return failure("forbidden");
+  const { post } = access;
+  const now = new Date();
+  const blocked = eventChangeError(post, now);
+  if (blocked) return failure(blocked);
+
+  const checked = await checkedReason(parsed.data.reason);
+  if ("error" in checked) return failure(checked.error);
+
+  const claimed = await prisma.post.updateMany({
+    where: { id: post.id, eventCancelledAt: null, eventAt: { gt: now } },
+    data: { eventCancelledAt: now, eventCancelReason: checked.reason },
+  });
+  if (claimed.count === 0) return failure("cancelled");
+
+  if (parsed.data.stopSeries && post.eventSeriesId) {
+    await prisma.eventSeries.updateMany({ where: { id: post.eventSeriesId, endedAt: null }, data: { endedAt: now } });
+  }
+  const notified = await notifyEventChange(post, user, "EVENT_CANCELLED", { reason: checked.reason });
+  revalidateEvent(post);
+  return { error: null, notified } as const;
+}
+
+/**
+ * Organizer only, before the event starts: moves it to a new future time (within a year), with an optional reason.
+ * RSVPs and the bring list stay; eventReminderSentAt is cleared so the "starting soon" reminder fires for the new time;
+ * the time it was moved from is kept for the "Moved from" note. Guarded on the start time read (and not cancelled), so
+ * of two simultaneous moves only one applies. A repeating event's next dates still come from the series rule
+ * (anchor + index in lib/event-recurrence.ts), not from this post's time, so moving one date shifts only that date.
+ * Notifies EVENT_RESCHEDULED with the new time and reason.
+ */
+export async function rescheduleCircleEvent(postId: unknown, input: unknown) {
+  const user = await requireVerifiedUser();
+  if (!(await checkRateLimit("eventOrganize", user.id))) return failure("rate_limited");
+  const parsed = eventRescheduleSchema.safeParse(input);
+  if (!parsed.success) return failure("invalid");
+  const access = await eventFor(postId, user);
+  if (!access) return failure("not_found");
+  if (!access.isOrganizer) return failure("forbidden");
+  const { post } = access;
+  const now = new Date();
+  const blocked = eventChangeError(post, now);
+  if (blocked) return failure(blocked);
+  const nextAt = new Date(parsed.data.eventAt);
+  const timeError = rescheduleTimeError(post.eventAt, nextAt, now);
+  if (timeError) return failure(timeError);
+
+  const checked = await checkedReason(parsed.data.reason);
+  if ("error" in checked) return failure(checked.error);
+
+  const claimed = await prisma.post.updateMany({
+    where: { id: post.id, eventCancelledAt: null, eventAt: post.eventAt },
+    data: {
+      eventAt: nextAt,
+      eventPreviousAt: post.eventAt,
+      eventRescheduledAt: now,
+      eventRescheduleReason: checked.reason,
+      eventReminderSentAt: null,
+    },
+  });
+  if (claimed.count === 0) return failure("not_found");
+
+  const notified = await notifyEventChange(post, user, "EVENT_RESCHEDULED", { newAt: nextAt, reason: checked.reason });
+  revalidateEvent(post);
+  return { error: null, notified } as const;
 }

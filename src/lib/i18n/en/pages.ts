@@ -118,6 +118,8 @@ export const pagesEn = {
       POLL_CREATED: "{name} started a poll",
       POLL_SCHEDULED: "{name} scheduled a time from a poll you voted in",
       EVENT_RSVP_NUDGE: "{name} asked whether you're going to an event",
+      EVENT_CANCELLED: "{name} cancelled an event you're part of",
+      EVENT_RESCHEDULED: "{name} moved an event you're part of to a new time",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into

@@ -2,9 +2,11 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Check, Package, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
+import { BellRing, CalendarClock, CalendarX, Check, Package, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import {
   addBringItem,
+  cancelCircleEvent,
+  rescheduleCircleEvent,
   claimBringItem,
   nudgeEventNonResponders,
   removeBringItem,
@@ -15,19 +17,38 @@ import {
 import { PollCalendarLinks } from "@/components/poll-time";
 import { formatEventTime } from "@/components/circle-events-section";
 import { useUiText } from "@/components/ui-text";
-import { EVENT_BRING_ITEMS_MAX, EVENT_BRING_ITEM_MAX_LENGTH } from "@/lib/circle-events";
+import { EVENT_BRING_ITEMS_MAX, EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/lib/circle-events";
 import type { BringItemView, CircleEventPanelData } from "@/lib/circle-events-data";
 import { byCode, format, plural } from "@/lib/i18n/locales";
 
 type ItemsResult = { error: string | null; items?: BringItemView[] };
 
+/** What a cancel or reschedule changed, for the event card showing this panel (post-card.tsx) to update in place. */
+export type CircleEventChange =
+  | { kind: "cancelled"; at: Date; reason: string | null }
+  | { kind: "rescheduled"; at: Date; reason: string | null; from: Date; eventAt: Date };
+
+/** A datetime-local input's value for an ISO instant, in the browser's own time. */
+function toLocalInputValue(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /**
- * Under a Circle event post on its own page (/post/[id]): add to calendar, the repeat it belongs to (and "Stop
- * repeating" for organizers), "Remind people who haven't replied" (organizers, upcoming events only) and "Who's
- * bringing what". The server decides every permission again (actions/circle-events.ts); these flags only choose what to
- * offer. Bring-list actions answer with the fresh list, which replaces the local one.
+ * A Circle event's panel: under the post on its own page (/post/[id]) and in "Event details" on its card in a Circle or
+ * feed (post-card.tsx). Add to calendar, the repeat it belongs to (and "Stop repeating" for organizers), "Remind people
+ * who haven't replied" (organizers, upcoming events only), "Who's bringing what", and for organizers "Reschedule" and
+ * "Cancel event" with an optional reason. The server decides every permission again (actions/circle-events.ts); these
+ * flags only choose what to offer. Bring-list actions answer with the fresh list, which replaces the local one.
  */
-export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
+export function CircleEventPanel({
+  data,
+  onEventChange,
+}: {
+  data: CircleEventPanelData;
+  onEventChange?: (change: CircleEventChange) => void;
+}) {
   const { locale, dir, t: ui } = useUiText();
   const t = ui.events;
   const router = useRouter();
@@ -43,6 +64,14 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Cancel / reschedule: which form is open, its fields, and whether this panel just cancelled the event.
+  const [changeMode, setChangeMode] = useState<"cancel" | "reschedule" | null>(null);
+  const [reason, setReason] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [stopSeriesToo, setStopSeriesToo] = useState(false);
+  const [cancelledHere, setCancelledHere] = useState(false);
+  const cancelled = cancelledHere || !!data.cancelled;
+  const live = data.upcoming && !cancelled;
 
   function runItems(action: () => Promise<ItemsResult>, after?: () => void) {
     setError(null);
@@ -111,18 +140,75 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
     });
   }
 
+  function openChange(mode: "cancel" | "reschedule") {
+    setError(null);
+    setNotice(null);
+    setReason("");
+    setStopSeriesToo(false);
+    setNewTime(mode === "reschedule" ? toLocalInputValue(data.startAt) : "");
+    setChangeMode(mode);
+  }
+
+  function submitChange(e: FormEvent) {
+    e.preventDefault();
+    if (isPending || !changeMode) return;
+    const mode = changeMode;
+    const trimmed = reason.trim() || null;
+    // The datetime-local value is the browser's own time; sent as an absolute instant (like the composer's eventAt).
+    const nextAt = mode === "reschedule" && newTime ? new Date(newTime) : null;
+    if (mode === "reschedule" && (!nextAt || Number.isNaN(nextAt.getTime()) || nextAt.getTime() <= Date.now())) {
+      setError(t.errors.invalid_time);
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      try {
+        if (mode === "cancel") {
+          const result = await cancelCircleEvent(data.postId, { reason: trimmed, stopSeries: stopSeriesToo });
+          if (result.error) {
+            setError(byCode(t.errors, result.error));
+            return;
+          }
+          setChangeMode(null);
+          setCancelledHere(true);
+          setNotice(plural(locale, t.cancelledDone, result.notified));
+          onEventChange?.({ kind: "cancelled", at: new Date(), reason: trimmed });
+        } else if (nextAt) {
+          const result = await rescheduleCircleEvent(data.postId, { eventAt: nextAt.toISOString(), reason: trimmed });
+          if (result.error) {
+            setError(byCode(t.errors, result.error));
+            return;
+          }
+          setChangeMode(null);
+          setNotice(plural(locale, t.rescheduledDone, result.notified));
+          onEventChange?.({
+            kind: "rescheduled",
+            at: new Date(),
+            reason: trimmed,
+            from: new Date(data.startAt),
+            eventAt: nextAt,
+          });
+        }
+        router.refresh();
+      } catch {
+        setError(t.errors.network);
+      }
+    });
+  }
+
   const repeatText = data.series
     ? data.series.active
       ? { WEEKLY: t.repeatsWeekly, BIWEEKLY: t.repeatsBiweekly, MONTHLY: t.repeatsMonthly }[data.series.frequency]
       : t.repeatEnded
     : null;
-  const showBring = items.length > 0 || (data.isOrganizer && data.upcoming);
+  const showBring = items.length > 0 || (data.isOrganizer && live);
   const buttonClass =
     "flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50";
 
   return (
     <section lang={locale} dir={dir} aria-label={data.title || t.untitled} className="mt-4 space-y-4">
-      {data.upcoming && (
+      {live && (
         <PollCalendarLinks
           title={data.title || t.untitled}
           description={data.description}
@@ -171,7 +257,7 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
         </div>
       )}
 
-      {data.isOrganizer && data.upcoming && (
+      {data.isOrganizer && live && (
         <div className="rounded-lg border border-line p-3">
           <button
             type="button"
@@ -261,7 +347,7 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        {!item.claimed && data.isMember && (
+                        {!item.claimed && data.isMember && !cancelled && (
                           <button
                             type="button"
                             disabled={isPending}
@@ -282,7 +368,7 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
                             {item.claimedByMe ? t.bringUnclaim : t.bringUnassign}
                           </button>
                         )}
-                        {data.isOrganizer && (
+                        {data.isOrganizer && !cancelled && (
                           <>
                             <button
                               type="button"
@@ -313,10 +399,10 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
               ))}
             </ul>
           )}
-          {!data.isMember && items.some((i) => !i.claimed) && (
+          {!data.isMember && !cancelled && items.some((i) => !i.claimed) && (
             <p className="mt-2 text-xs text-foreground-soft">{t.bringJoin}</p>
           )}
-          {data.isOrganizer && data.upcoming && items.length < EVENT_BRING_ITEMS_MAX && (
+          {data.isOrganizer && live && items.length < EVENT_BRING_ITEMS_MAX && (
             <form onSubmit={addItem} className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
               <input
                 value={draft}
@@ -331,6 +417,101 @@ export function CircleEventPanel({ data }: { data: CircleEventPanelData }) {
                 <Plus size={14} aria-hidden />
                 {t.bringAdd}
               </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {data.isOrganizer && live && (
+        <div className="rounded-lg border border-line p-3">
+          <h2 className="text-sm font-semibold">{t.manageHeading}</h2>
+          <p className="mt-0.5 text-xs text-foreground-soft">{t.manageHelp}</p>
+          {changeMode === null ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" disabled={isPending} onClick={() => openChange("reschedule")} className={buttonClass}>
+                <CalendarClock size={14} aria-hidden />
+                {t.rescheduleEvent}
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => openChange("cancel")}
+                className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger disabled:opacity-50"
+              >
+                <CalendarX size={14} aria-hidden />
+                {t.cancelEvent}
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={submitChange} className="mt-2 space-y-2">
+              {changeMode === "reschedule" && (
+                <div>
+                  <label
+                    htmlFor={`event-new-time-${data.postId}`}
+                    className="block text-xs font-medium text-foreground-soft"
+                  >
+                    {t.newTimeLabel}
+                  </label>
+                  <input
+                    id={`event-new-time-${data.postId}`}
+                    type="datetime-local"
+                    required
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                    className="mt-1 w-full max-w-xs rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
+                  />
+                </div>
+              )}
+              <div>
+                <label htmlFor={`event-reason-${data.postId}`} className="block text-xs font-medium text-foreground-soft">
+                  {t.reasonLabel}
+                </label>
+                <textarea
+                  id={`event-reason-${data.postId}`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={EVENT_CHANGE_REASON_MAX_LENGTH}
+                  rows={2}
+                  dir="auto"
+                  placeholder={t.reasonPlaceholder}
+                  className="mt-1 w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
+                />
+                <p className="text-end text-[0.6875rem] text-foreground-soft">
+                  {format(t.reasonCount, { count: reason.length, max: EVENT_CHANGE_REASON_MAX_LENGTH })}
+                </p>
+              </div>
+              {changeMode === "cancel" && data.series?.active && (
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={stopSeriesToo}
+                    onChange={(e) => setStopSeriesToo(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  {t.stopSeriesToo}
+                </label>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className={
+                    changeMode === "cancel"
+                      ? "rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                      : "rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
+                  }
+                >
+                  {changeMode === "cancel" ? t.confirmCancel : t.confirmReschedule}
+                </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setChangeMode(null)}
+                  className="rounded-md border border-line px-3 py-1.5 text-xs disabled:opacity-50"
+                >
+                  {changeMode === "cancel" ? t.keepEvent : t.back}
+                </button>
+              </div>
             </form>
           )}
         </div>

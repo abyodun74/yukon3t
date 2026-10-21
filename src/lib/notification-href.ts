@@ -58,7 +58,9 @@ export type NotificationData = {
     | "COLLAB_SESSION_STARTED"
     | "POLL_CREATED"
     | "POLL_SCHEDULED"
-    | "EVENT_RSVP_NUDGE";
+    | "EVENT_RSVP_NUDGE"
+    | "EVENT_CANCELLED"
+    | "EVENT_RESCHEDULED";
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -86,7 +88,13 @@ export function notificationHref(notification: NotificationData) {
   // A Circle event's "haven't replied yet" nudge: the event post, where the RSVP button and its bring list are. Its
   // push uses this same URL (nudgeEventNonResponders in actions/circle-events.ts). Without a post (deleted since), the
   // Circle's upcoming events.
-  if (notification.type === "EVENT_RSVP_NUDGE") {
+  // A cancelled / moved event: the post, which shows the change and its reason (cancelCircleEvent /
+  // rescheduleCircleEvent push the same URL).
+  if (
+    notification.type === "EVENT_RSVP_NUDGE" ||
+    notification.type === "EVENT_CANCELLED" ||
+    notification.type === "EVENT_RESCHEDULED"
+  ) {
     if (notification.postId) return `/post/${notification.postId}`;
     if (notification.circle) return `/circles/${notification.circle.slug}#events`;
   }

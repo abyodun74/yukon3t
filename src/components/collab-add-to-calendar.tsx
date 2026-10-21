@@ -5,6 +5,7 @@ import { formatScheduleDays, formatScheduleTime } from "@/lib/collab-schedule";
 import { buildGoogleCalendarUrl } from "@/lib/calendar-export";
 import { useCollabText } from "@/components/collab-text";
 import { useUiText } from "@/components/ui-text";
+import { useIsNativeApp } from "@/components/poll-time";
 import { format, intlLocale } from "@/lib/i18n/locales";
 
 /**
@@ -37,6 +38,8 @@ export function CollabAddToCalendar({
   const t = collab.calendar;
   const { t: ui } = useUiText();
   const googleUrl = buildGoogleCalendarUrl({ title, description, startAt });
+  // The native app's WebView can't download the .ics (see useIsNativeApp): only the Google link there.
+  const isNative = useIsNativeApp();
 
   return (
     <div className="rounded-lg border border-line p-3">
@@ -61,13 +64,16 @@ export function CollabAddToCalendar({
           <CalendarPlus size={14} />
           {t.google}
         </a>
-        <a
-          href={`/api/collab/${collabId}/calendar`}
-          className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
-        >
-          <Download size={14} />
-          {t.ics}
-        </a>
+        {!isNative && (
+          <a
+            href={`/api/collab/${collabId}/calendar`}
+            download
+            className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
+          >
+            <Download size={14} />
+            {t.ics}
+          </a>
+        )}
       </div>
     </div>
   );

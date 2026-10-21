@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { Capacitor } from "@capacitor/core";
 import { CalendarPlus, Download } from "lucide-react";
 import { useUiText } from "@/components/ui-text";
 import { buildGoogleCalendarUrl } from "@/lib/calendar-export";
@@ -19,6 +20,19 @@ export function useIsClient() {
   return useSyncExternalStore(
     subscribe,
     () => true,
+    () => false,
+  );
+}
+
+/**
+ * True inside the native app (the Capacitor WebView loading the site), false in a browser and during the server render.
+ * The WebView has no download handler: a link to an .ics file (same origin, so it isn't handed to the OS like an outside
+ * link) does nothing there, so the calendar-file download is offered only in a browser.
+ */
+export function useIsNativeApp() {
+  return useSyncExternalStore(
+    subscribe,
+    () => Capacitor.isNativePlatform(),
     () => false,
   );
 }
@@ -62,8 +76,9 @@ export function PollLocalTime({ iso }: { iso: string }) {
 }
 
 /**
- * Add-to-calendar: a Google Calendar link, and an .ics download when there is one. Used for anything scheduled from a
- * poll and for a Circle event post (circle-event-panel.tsx).
+ * Add-to-calendar: a Google Calendar link (an outside link, which the native app hands to the OS, so it opens the
+ * browser / Google Calendar app), and an .ics download when there is one, in a browser only (useIsNativeApp). Used for
+ * anything scheduled from a poll and for a Circle event post (circle-event-panel.tsx).
  */
 export function PollCalendarLinks({
   title,
@@ -79,6 +94,7 @@ export function PollCalendarLinks({
   icsHref?: string | null;
 }) {
   const { t } = useUiText();
+  const isNative = useIsNativeApp();
   const googleUrl = buildGoogleCalendarUrl({ title, description, startAt: new Date(startAt), location });
   return (
     <div className="mt-2 flex flex-wrap gap-2">
@@ -91,9 +107,10 @@ export function PollCalendarLinks({
         <CalendarPlus size={14} aria-hidden />
         {t.polls.addToGoogle}
       </a>
-      {icsHref && (
+      {icsHref && !isNative && (
         <a
           href={icsHref}
+          download
           className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"
         >
           <Download size={14} aria-hidden />

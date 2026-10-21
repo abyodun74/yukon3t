@@ -37,6 +37,12 @@ export const push: typeof pushEn = {
     COLLAB_SESSION_STARTED: "Começou uma sessão de colaboração ao vivo",
     POLL_SCHEDULED: "Agendou uma data a partir de uma enquete em que você votou",
     EVENT_RSVP_NUDGE: "Perguntou se você vai a um evento",
+    EVENT_CANCELLED: "Cancelou um evento de que você participa",
+    EVENT_RESCHEDULED: "Mudou o horário de um evento de que você participa",
+  },
+  eventChange: {
+    newTime: "Novo horário: {when}",
+    reason: "Motivo: {reason}",
   },
   reminders: {
     eventTitle: "Seu evento",

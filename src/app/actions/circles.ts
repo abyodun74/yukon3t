@@ -993,6 +993,15 @@ export async function confirmCircleCoverUpload(formData: FormData) {
 export async function createPost(formData: FormData) {
   const user = await requireVerifiedUser();
 
+  // Idempotency: the composer sends one key per submission and retries a failed call with the same FormData
+  // (withRetry in post-composer.tsx), which can reach the server after the first attempt already created the post (a
+  // dropped response, or a throw after the create). A key that already has a post is that submission's success, not a
+  // second post: answered before the rate limiter, like createCircle's double-submit guard.
+  const clientRequestId = parseClientRequestId(formData.get("clientRequestId"));
+  if (clientRequestId && (await postExistsForRequest(user.id, clientRequestId))) {
+    return { error: null };
+  }
+
   const allowed = await checkRateLimit("postCreate", user.id);
   if (!allowed) {
     return { error: "rate_limited" };
@@ -1301,43 +1310,54 @@ export async function createPost(formData: FormData) {
   };
 
   let post;
-  if (mediaType === "IMAGE" && mediaUrls.length > 1) {
-    // A multi-photo post: instead of one Post row carrying every image, each
-    // photo gets its own Post row — its own id, so it's independently
-    // likeable/commentable/reshareable/shareable via its own /post/[id],
-    // not sharing one engagement total across the whole set. All of them
-    // share a fresh albumId (just a grouping key, not a foreign key to
-    // another table) and are ordered by albumIndex; only index 0 (the
-    // "lead") carries the caption and is what a feed/search/profile listing
-    // ever surfaces (see LEAD_POST_ONLY) — the rest are reached from its
-    // carousel (PostCard's AlbumCarousel) and by tapping into it. moderateMedia
-    // above already checked the whole caption+image set together and would
-    // have rejected the post outright on a violation, so there's no
-    // per-sibling moderation status to compute here — every sibling is
-    // simply PUBLISHED (moderationStatus from sharedPostData, unchanged).
-    const albumId = randomUUID();
-    const albumPosts = await prisma.$transaction(
-      mediaUrls.map((url, i) =>
-        prisma.post.create({
-          data: {
-            ...sharedPostData,
-            content: i === 0 ? parsed.data.content : "",
-            mediaUrls: [url],
-            albumId,
-            albumIndex: i,
-          },
-        }),
-      ),
-    );
-    post = albumPosts[0];
-  } else {
-    post = await prisma.post.create({
-      data: {
-        ...sharedPostData,
-        content: parsed.data.content,
-        mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
-      },
-    });
+  try {
+    if (mediaType === "IMAGE" && mediaUrls.length > 1) {
+      // A multi-photo post: instead of one Post row carrying every image, each
+      // photo gets its own Post row — its own id, so it's independently
+      // likeable/commentable/reshareable/shareable via its own /post/[id],
+      // not sharing one engagement total across the whole set. All of them
+      // share a fresh albumId (just a grouping key, not a foreign key to
+      // another table) and are ordered by albumIndex; only index 0 (the
+      // "lead") carries the caption and is what a feed/search/profile listing
+      // ever surfaces (see LEAD_POST_ONLY) — the rest are reached from its
+      // carousel (PostCard's AlbumCarousel) and by tapping into it. moderateMedia
+      // above already checked the whole caption+image set together and would
+      // have rejected the post outright on a violation, so there's no
+      // per-sibling moderation status to compute here — every sibling is
+      // simply PUBLISHED (moderationStatus from sharedPostData, unchanged).
+      const albumId = randomUUID();
+      const albumPosts = await prisma.$transaction(
+        mediaUrls.map((url, i) =>
+          prisma.post.create({
+            data: {
+              ...sharedPostData,
+              content: i === 0 ? parsed.data.content : "",
+              mediaUrls: [url],
+              albumId,
+              albumIndex: i,
+              clientRequestId: i === 0 ? clientRequestId : null,
+            },
+          }),
+        ),
+      );
+      post = albumPosts[0];
+    } else {
+      post = await prisma.post.create({
+        data: {
+          ...sharedPostData,
+          content: parsed.data.content,
+          mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
+          clientRequestId,
+        },
+      });
+    }
+  } catch (err) {
+    // A concurrent attempt of the same submission won the (authorId, clientRequestId) unique: that one is the post.
+    // Its uploads are this attempt's too, so nothing is cleaned up.
+    if (clientRequestId && isUniqueConstraintError(err) && (await postExistsForRequest(user.id, clientRequestId))) {
+      return { error: null };
+    }
+    throw err;
   }
   // The series, linked to this (lead) post as occurrence 0. Only for a post that went live: a held one never repeats.
   // Later occurrences copy the text and location, not the media.
@@ -1381,6 +1401,19 @@ export async function createPost(formData: FormData) {
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
   return { error: null };
+}
+
+/** The composer's per-submission key (a UUID or similar), or null when absent or malformed. */
+function parseClientRequestId(value: FormDataEntryValue | null): string | null {
+  return typeof value === "string" && /^[A-Za-z0-9-]{8,64}$/.test(value) ? value : null;
+}
+
+async function postExistsForRequest(authorId: string, clientRequestId: string) {
+  const existing = await prisma.post.findUnique({
+    where: { authorId_clientRequestId: { authorId, clientRequestId } },
+    select: { id: true },
+  });
+  return !!existing;
 }
 
 /**

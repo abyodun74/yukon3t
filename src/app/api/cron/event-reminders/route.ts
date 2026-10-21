@@ -29,6 +29,9 @@ export async function GET(request: Request) {
       moderationStatus: "PUBLISHED",
       eventAt: { gte: now, lte: windowEnd },
       eventReminderSentAt: null,
+      // A cancelled event reminds nobody. A rescheduled one had eventReminderSentAt cleared, so it is reminded for its
+      // new time (rescheduleCircleEvent in actions/circle-events.ts).
+      eventCancelledAt: null,
     },
     select: { id: true, authorId: true, content: true, eventLocation: true },
   });
@@ -40,7 +43,7 @@ export async function GET(request: Request) {
     // Optimistic claim: if another run already grabbed this post between our
     // fetch above and here, count is 0 and we skip it rather than double-send.
     const claimed = await prisma.post.updateMany({
-      where: { id: post.id, eventReminderSentAt: null },
+      where: { id: post.id, eventReminderSentAt: null, eventCancelledAt: null, eventAt: { gte: now, lte: windowEnd } },
       data: { eventReminderSentAt: now },
     });
     if (claimed.count === 0) continue;

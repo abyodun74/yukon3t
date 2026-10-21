@@ -115,6 +115,8 @@ export const pages: typeof pagesEn = {
       POLL_CREATED: "أنشأ {name} استطلاع رأي",
       POLL_SCHEDULED: "حدّد {name} موعدًا من استطلاع رأي صوّتّ فيه",
       EVENT_RSVP_NUDGE: "يسألك {name} إن كنت ستحضر فعالية",
+      EVENT_CANCELLED: "ألغى {name} فعالية تشارك فيها",
+      EVENT_RESCHEDULED: "غيّر {name} موعد فعالية تشارك فيها",
     },
     notices: {
       videoFlagged:

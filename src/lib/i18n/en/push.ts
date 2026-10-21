@@ -43,6 +43,13 @@ export const pushEn = {
     COLLAB_SESSION_STARTED: "started a live collaboration session",
     POLL_SCHEDULED: "scheduled a time from a poll you voted in",
     EVENT_RSVP_NUDGE: "asked whether you're going to an event",
+    EVENT_CANCELLED: "cancelled an event you're part of",
+    EVENT_RESCHEDULED: "moved an event you're part of to a new time",
+  },
+  // Extra lines under EVENT_CANCELLED / EVENT_RESCHEDULED (eventChangePushBody). The time is in UTC, said by its zone name.
+  eventChange: {
+    newTime: "New time: {when}",
+    reason: "Reason: {reason}",
   },
   reminders: {
     eventTitle: "Your event",

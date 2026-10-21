@@ -35,6 +35,8 @@ export type CircleEventView = {
   rsvpCount: number;
   going: boolean;
   repeating: boolean;
+  /** An organizer moved it to its current time. */
+  rescheduled: boolean;
 };
 
 /**
@@ -77,6 +79,8 @@ export async function circleEventsWhere(
         circleId,
         moderationStatus: "PUBLISHED",
         eventAt: { gt: now },
+        // A cancelled event stays on the post (with its badge), not in "Coming up".
+        eventCancelledAt: null,
         OR: [{ channelId: null }, { channelId: { in: [...accessibleChannelIds] } }],
       },
       LEAD_POST_ONLY,
@@ -108,6 +112,7 @@ export async function loadCircleEventPage(
       rsvpCount: true,
       channel: { select: { name: true } },
       eventSeries: { select: { endedAt: true } },
+      eventRescheduledAt: true,
     },
   });
   const page = posts.slice(0, CIRCLE_EVENTS_PAGE_SIZE);
@@ -128,6 +133,7 @@ export async function loadCircleEventPage(
       rsvpCount: post.rsvpCount,
       going: going.has(post.id),
       repeating: !!post.eventSeries && !post.eventSeries.endedAt,
+      rescheduled: !!post.eventRescheduledAt,
     })),
     hasMore: posts.length > CIRCLE_EVENTS_PAGE_SIZE,
   };
@@ -144,6 +150,11 @@ const eventSelect = {
   moderationStatus: true,
   eventNudgedAt: true,
   eventSeriesId: true,
+  eventCancelledAt: true,
+  eventCancelReason: true,
+  eventRescheduledAt: true,
+  eventRescheduleReason: true,
+  eventPreviousAt: true,
   circle: { select: { id: true, slug: true, name: true, createdById: true, visibility: true } },
   channel: { select: { id: true, visibility: true } },
   eventSeries: {
@@ -229,7 +240,7 @@ export async function loadBringItems(postId: string, viewerId: string, isOrganiz
   }));
 }
 
-/** Everything the event panel on /post/[id] needs, or null when it isn't a Circle event the viewer may see. */
+/** Everything the event panel (under the post on /post/[id], and "Event details" on its card) needs, or null when it isn't a Circle event the viewer may see. */
 export type CircleEventPanelData = {
   postId: string;
   title: string;
@@ -237,6 +248,10 @@ export type CircleEventPanelData = {
   startAt: string;
   location: string | null;
   upcoming: boolean;
+  /** Set when an organizer cancelled it: ISO instant and the optional reason. */
+  cancelled: { at: string; reason: string | null } | null;
+  /** Set when an organizer moved it: when, the optional reason and the time it was moved from (ISO instants). */
+  rescheduled: { at: string; reason: string | null; from: string | null } | null;
   isMember: boolean;
   isOrganizer: boolean;
   /** ISO instant the next nudge is allowed at, when a recent one is still cooling down. */
@@ -259,6 +274,16 @@ export async function loadCircleEventPanel(postId: string, viewer: Viewer): Prom
     startAt: post.eventAt.toISOString(),
     location: post.eventLocation,
     upcoming: post.eventAt.getTime() > now.getTime(),
+    cancelled: post.eventCancelledAt
+      ? { at: post.eventCancelledAt.toISOString(), reason: post.eventCancelReason }
+      : null,
+    rescheduled: post.eventRescheduledAt
+      ? {
+          at: post.eventRescheduledAt.toISOString(),
+          reason: post.eventRescheduleReason,
+          from: post.eventPreviousAt?.toISOString() ?? null,
+        }
+      : null,
     isMember: access.isMember,
     isOrganizer: access.isOrganizer,
     nextNudgeAt: nextNudgeAt(post.eventNudgedAt, now)?.toISOString() ?? null,

@@ -747,6 +747,19 @@ model Post {
   // creating one occurrence twice. Set null if the series row is ever deleted; the occurrence stays.
   eventSeriesId       String?
   eventSeriesIndex    Int?
+  // An organizer cancelled this Circle event (cancelCircleEvent in actions/circle-events.ts): it stays visible with a
+  // "Cancelled" badge and the optional reason (moderated, at most EVENT_CHANGE_REASON_MAX_LENGTH), leaves "Coming up",
+  // takes no RSVPs and gets no reminder. Cancelling one date of a repeating event doesn't stop the series.
+  eventCancelledAt    DateTime?
+  eventCancelReason   String?
+  // An organizer moved this event to a new time (rescheduleCircleEvent): when, the optional reason, and the time it
+  // was moved from (shown as "Moved from ..."). RSVPs stay; eventReminderSentAt is cleared so the reminder fires again.
+  eventRescheduledAt    DateTime?
+  eventRescheduleReason String?
+  eventPreviousAt       DateTime?
+  // A per-submission key from the composer (createPost): a retried or double-sent submission with the same key resolves
+  // to the post already created instead of making a second one. Only the lead post of an album carries it.
+  clientRequestId     String?
   createdAt           DateTime         @default(now())
   editedAt            DateTime?
 
@@ -810,6 +823,7 @@ model Post {
 
   @@unique([authorId, repostOfId])
   @@unique([eventSeriesId, eventSeriesIndex])
+  @@unique([authorId, clientRequestId])
   @@index([circleId])
   @@index([authorId])
   @@index([repostOfId])
@@ -1272,6 +1286,11 @@ enum NotificationType {
   // actions/circle-events.ts) to the Circle's members who can see the event and haven't RSVP'd. Bell + FCM push, at
   // most EVENT_NUDGE_MAX_RECIPIENTS rows, once per event per EVENT_NUDGE_COOLDOWN_MS. postId is the link.
   EVENT_RSVP_NUDGE
+  // Sent when an organizer cancels / reschedules a Circle event (actions/circle-events.ts) to everyone going, everyone
+  // bringing something and the author, minus the organizer acting and anyone blocked either way with them. Bell + FCM
+  // push, at most EVENT_CHANGE_MAX_RECIPIENTS rows. postId is the link; the reason is shown on the post.
+  EVENT_CANCELLED
+  EVENT_RESCHEDULED
 }
 
 model Notification {

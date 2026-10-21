@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, Repeat } from "lucide-react";
+import { CalendarClock, CalendarDays, MapPin, Repeat } from "lucide-react";
 import { toggleRsvp } from "@/app/actions/rsvp";
 import { loadCircleEvents } from "@/app/actions/circle-events";
 import { useUiText } from "@/components/ui-text";
 import { appendCircleEventPage, circleEventCursorOf } from "@/lib/circle-events";
+import { announceRsvp, useRsvpSync } from "@/lib/rsvp-sync";
 import type { CircleEventView } from "@/lib/circle-events-data";
 import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { cn } from "@/lib/utils";
@@ -23,9 +24,12 @@ export function formatEventTime(iso: string, locale: Locale) {
 }
 
 /**
- * "Coming up" on a Circle page: the Circle's upcoming event posts the viewer may see (soonest first; the first page
- * from the server, "Load more" after it), each with its time in the viewer's own time, where, how many are going, and
- * a one-tap RSVP through the same toggleRsvp the event card uses. The `#events` anchor; each item is `#event-<id>`.
+ * "Coming up" on a Circle page: a compact agenda of the Circle's upcoming event posts the viewer may see (soonest
+ * first; the first page from the server, "Load more" after it), each with its time in the viewer's own time, where,
+ * how many are going, a one-tap RSVP through the same toggleRsvp the event card uses (kept in step with the card's own
+ * button, rsvp-sync.ts), and "Event details" to the post itself. The full event (bring list, calendar, organizer
+ * controls) is the post, in its channel's feed and on /post/[id]; this list doesn't repeat it. Cancelled events leave
+ * the list. The `#events` anchor; each item is `#event-<id>`.
  */
 export function CircleEventsSection({
   circleId,
@@ -123,6 +127,12 @@ function CircleEventItem({ event }: { event: CircleEventView }) {
   const [count, setCount] = useState(event.rsvpCount);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // A tap on the same event's card in the feed below updates this one too.
+  const [rsvpSource] = useState(() => Symbol("coming-up-rsvp"));
+  useRsvpSync(event.id, rsvpSource, (change) => {
+    setGoing(change.going);
+    setCount(change.rsvpCount);
+  });
 
   // Same optimistic toggle as the event card (post-card.tsx's handleRsvp), rolled back on any error.
   function toggle() {
@@ -139,7 +149,12 @@ function CircleEventItem({ event }: { event: CircleEventView }) {
           setError(byCode(t.errors, result.error));
           return;
         }
-        if (typeof result.rsvpCount === "number") setCount(result.rsvpCount);
+        if (typeof result.rsvpCount === "number") {
+          setCount(result.rsvpCount);
+          if (typeof result.going === "boolean") {
+            announceRsvp({ postId: event.id, going: result.going, rsvpCount: result.rsvpCount, source: rsvpSource });
+          }
+        }
       } catch {
         setGoing(!next);
         setCount((c) => c + (next ? -1 : 1));
@@ -186,6 +201,15 @@ function CircleEventItem({ event }: { event: CircleEventView }) {
               {t.repeating}
             </span>
           )}
+          {event.rescheduled && (
+            <span className="flex items-center gap-1 font-medium text-accent">
+              <CalendarClock size={11} aria-hidden />
+              {t.rescheduledBadge}
+            </span>
+          )}
+          <Link href={`/post/${event.id}`} className="font-medium text-accent hover:underline">
+            {t.details}
+          </Link>
         </p>
         {error && (
           <p role="alert" className="mt-1 text-xs text-danger">

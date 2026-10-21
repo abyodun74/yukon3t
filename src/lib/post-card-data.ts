@@ -20,6 +20,13 @@ type EmbeddedPostRow = {
   linkUrl: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
+  // Optional so a narrower select still fits; postCardInclude loads every scalar, so these are always present there.
+  circleId?: string | null;
+  eventCancelledAt?: Date | null;
+  eventCancelReason?: string | null;
+  eventRescheduledAt?: Date | null;
+  eventRescheduleReason?: string | null;
+  eventPreviousAt?: Date | null;
   createdAt: Date;
   editedAt: Date | null;
   likeCount: number;
@@ -172,6 +179,12 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       linkUrl: post.linkUrl,
       eventAt: post.eventAt,
       eventLocation: post.eventLocation,
+      circleId: post.circleId ?? null,
+      eventCancelledAt: post.eventCancelledAt ?? null,
+      eventCancelReason: post.eventCancelReason ?? null,
+      eventRescheduledAt: post.eventRescheduledAt ?? null,
+      eventRescheduleReason: post.eventRescheduleReason ?? null,
+      eventPreviousAt: post.eventPreviousAt ?? null,
       createdAt: post.createdAt,
       editedAt: post.editedAt,
       visibility: post.visibility,

@@ -10,7 +10,7 @@ import {
   POLL_OPTIONS_MAX,
   POLL_QUESTION_MAX,
 } from "@/lib/polls";
-import { EVENT_BRING_ITEM_MAX_LENGTH } from "@/lib/circle-events";
+import { EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/lib/circle-events";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 
 export const intentTagValues = [
@@ -802,6 +802,17 @@ export const circleEventListSchema = z.object({
 
 // A bring-list item's text before normalizeBringItemText (lib/circle-events.ts) trims it and enforces the real limit.
 export const bringItemTextSchema = z.string().max(EVENT_BRING_ITEM_MAX_LENGTH * 4);
+
+// Cancelling / rescheduling a Circle event: an optional reason (normalizeEventChangeReason in lib/circle-events.ts
+// trims it and enforces the real limit), the new start as an ISO instant, and whether a cancel also stops the repeat.
+export const eventCancelSchema = z.object({
+  reason: z.string().max(EVENT_CHANGE_REASON_MAX_LENGTH * 4).nullish(),
+  stopSeries: z.boolean().optional(),
+});
+export const eventRescheduleSchema = z.object({
+  eventAt: z.string().datetime(),
+  reason: z.string().max(EVENT_CHANGE_REASON_MAX_LENGTH * 4).nullish(),
+});
 
 // Repeat for a new Circle event (createPost): the frequency and exactly one end, either a number of occurrences or a
 // date. buildSeriesRule (lib/event-recurrence.ts) checks the limits; this only parses.

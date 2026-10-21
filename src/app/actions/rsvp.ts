@@ -31,6 +31,10 @@ export async function toggleRsvp(postId: string) {
   if (!post || post.moderationStatus !== "PUBLISHED" || !post.eventAt) {
     return { error: "not_found" };
   }
+  // A cancelled event (cancelCircleEvent) takes no more RSVPs, either way.
+  if (post.eventCancelledAt) {
+    return { error: "cancelled" };
+  }
   if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
   }

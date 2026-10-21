@@ -1,7 +1,7 @@
 import type { NotificationType } from "@/generated/prisma/client";
 import { dictionaryFor } from "@/lib/i18n/dictionaries";
 import type { pushEn } from "@/lib/i18n/en/push";
-import { DEFAULT_LOCALE, format, isLocale, type Locale } from "@/lib/i18n/locales";
+import { DEFAULT_LOCALE, format, intlLocale, isLocale, type Locale } from "@/lib/i18n/locales";
 import { HIDDEN_CALLER_NAME, hiddenPushPayload } from "@/lib/hidden-chats-rules";
 import { pushPreview } from "@/lib/e2ee/secret-chat";
 import { noticeText, type Notice } from "@/lib/notification-notice";
@@ -125,4 +125,32 @@ export function noticeLine(notice: Notice, locale: Locale): string {
 export function appUpdatePush(locale: Locale) {
   const t = pushText(locale).appUpdate;
   return { title: t.title, body: t.body, type: "APP_UPDATE", url: "/home" };
+}
+
+/**
+ * The push for a cancelled or moved Circle event (actions/circle-events.ts), under the organizer's name: what happened,
+ * then for a move the new start (in UTC: the server doesn't know the recipient's time zone; the post shows local
+ * time), then the reason when one was given.
+ */
+export function eventChangePushBody(
+  type: "EVENT_CANCELLED" | "EVENT_RESCHEDULED",
+  locale: Locale,
+  details: { newAt?: Date | null; reason?: string | null },
+): string {
+  const t = pushText(locale);
+  const lines = [t.activity[type]];
+  if (details.newAt) {
+    const when = new Intl.DateTimeFormat(intlLocale(locale) ?? "en", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }).format(details.newAt);
+    lines.push(format(t.eventChange.newTime, { when }));
+  }
+  if (details.reason) lines.push(format(t.eventChange.reason, { reason: details.reason.slice(0, 140) }));
+  return lines.join("\n");
 }

@@ -117,6 +117,8 @@ export const pages: typeof pagesEn = {
       POLL_CREATED: "{name} a lancé un sondage",
       POLL_SCHEDULED: "{name} a fixé une date à partir d'un sondage auquel vous avez participé",
       EVENT_RSVP_NUDGE: "{name} vous demande si vous venez à un événement",
+      EVENT_CANCELLED: "{name} a annulé un événement auquel vous participez",
+      EVENT_RESCHEDULED: "{name} a déplacé un événement auquel vous participez",
     },
     notices: {
       videoFlagged:

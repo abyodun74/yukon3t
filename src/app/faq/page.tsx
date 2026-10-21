@@ -1808,14 +1808,17 @@ const sections: Section[] = [
             lists what&apos;s <strong>coming up</strong>, soonest first, in your
             own time, with how many people are going and a button to say
             you&apos;re going. Each event also has <strong>add to
-            calendar</strong> (Google Calendar or a calendar file), and the
+            calendar</strong> (Google Calendar, or a calendar file when
+            you&apos;re using YuKon3t in a web browser), and the
             usual reminder shortly before it starts if you said you&apos;re
             going. A private Circle&apos;s events, and a private channel&apos;s,
             are visible only to the people who can see that Circle or channel.
             <br />
             <br />
-            On the event&apos;s own page, its organizer (whoever posted it, or
-            the Circle&apos;s creator and co-admins) can start a{" "}
+            Tap <strong>Event details</strong> on the event in the Circle (or
+            open the event&apos;s own page) for the calendar links and the
+            list. There its organizer (whoever posted it, or the Circle&apos;s
+            creator and co-admins) can start a{" "}
             <strong>who&apos;s bringing what</strong> list of up to 20 items.
             Any member who can see the event can claim an item (one person per
             item) and let it go again; the organizer can edit, remove or
@@ -1838,6 +1841,21 @@ const sections: Section[] = [
             notifying anyone, and the organizer can stop the repeat at any
             time. Dates follow UTC, so in places that change their clocks the
             local time can shift by an hour.
+            <br />
+            <br />
+            Before an event starts, its organizer can{" "}
+            <strong>reschedule</strong> it to a new date and time or{" "}
+            <strong>cancel</strong> it, with an optional short reason that is
+            shown on the event. Everyone going and everyone bringing something
+            is notified (the event&apos;s author too, if someone else made the
+            change). A rescheduled event keeps its replies and list, shows the
+            time it moved from, and sends its reminder again for the new time;
+            re-adding it to a calendar updates the entry instead of adding a
+            second one. A cancelled event stays visible marked
+            &quot;Cancelled&quot;, leaves the coming-up list and takes no more
+            replies or reminders. Cancelling one date of a repeating event
+            doesn&apos;t stop the repeat unless the organizer also chooses to
+            stop it.
           </>
         ),
       },

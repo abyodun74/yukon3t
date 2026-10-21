@@ -42,6 +42,12 @@ describe("notificationHref for polls", () => {
       "/circles/runners#events",
     );
   });
+  it("lands a cancelled or moved event on the post, and on the Circle's events without one", () => {
+    for (const type of ["EVENT_CANCELLED", "EVENT_RESCHEDULED"] as const) {
+      expect(notificationHref({ ...base, type, circle: { slug: "runners" }, postId: "p1" })).toBe("/post/p1");
+      expect(notificationHref({ ...base, type, circle: { slug: "runners" } })).toBe("/circles/runners#events");
+    }
+  });
   it("leaves other notifications alone", () => {
     expect(notificationHref({ ...base, type: "EVENT_RSVP", circle: { slug: "runners" }, postId: "p1" })).toBe(
       "/post/p1",
