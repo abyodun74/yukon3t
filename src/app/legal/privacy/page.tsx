@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 21, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 22, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -74,6 +74,7 @@ export default function PrivacyPage() {
         <li>To let the organizer or a co-admin of a private collaboration, when they start its live session, notify the collaboration&apos;s participants that the session is live and invite the members of Circles they created (the same collaboration invite described above, which you can decline).</li>
         <li>To let a private Circle&apos;s owner or co-admins invite you to join it: if you&apos;re connected with one of them, they can send you an invite to that Circle, which you can decline. A private Circle is shown only to its members: its name, picture, description, member list and everything posted in it are hidden from everyone else, except that a person with a pending invite sees its name, picture and description so they can decide. Our administrators can still review any Circle to enforce our Community Guidelines.</li>
         <li>To deliver push notifications you&apos;ve enabled, such as incoming calls, new messages, and event reminders.</li>
+        <li>To let people who use Discover know when someone new joins: shortly after you finish setting up your profile and verify your account, if your profile is shown in Discover and your posts are public, other users may get a notification with your name and profile picture saying you just joined, linking to your profile. This happens once, never to anyone you&apos;ve blocked or who has blocked you, and not at all if you turn off &ldquo;Show my profile in Discover&rdquo; first. You can stop receiving these notices about others under Settings &rarr; Notifications. We record when your profile was completed, whether you were announced, and when you were last sent such a notice.</li>
         <li>To automatically screen text, photos, and video — including ad creative — for policy violations before they are shown to others.</li>
         <li>To investigate reports, enforce our Community Guidelines, and maintain an audit trail of moderation decisions.</li>
         <li>To compute your trust score from account age, verification status, and report history.</li>

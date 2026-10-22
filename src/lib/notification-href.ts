@@ -1,3 +1,5 @@
+import { decodeNotice } from "@/lib/notification-notice";
+
 // Where a notification leads when opened. Shared by the notification list
 // (components/notification-row.tsx) and markReadByTarget
 // (app/actions/notifications.ts), which uses it to work out which unread
@@ -60,7 +62,8 @@ export type NotificationData = {
     | "POLL_SCHEDULED"
     | "EVENT_RSVP_NUDGE"
     | "EVENT_CANCELLED"
-    | "EVENT_RESCHEDULED";
+    | "EVENT_RESCHEDULED"
+    | "NEW_MEMBER_JOINED";
   // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
   recipientId: string;
   readAt: Date | null;
@@ -101,6 +104,14 @@ export function notificationHref(notification: NotificationData) {
   ) {
     if (notification.postId) return `/post/${notification.postId}`;
     if (notification.circle) return `/circles/${notification.circle.slug}#events`;
+  }
+  // "<name> just joined YuKon3t" opens the new member's profile; once coalesced into a digest ("<name> and 3 others
+  // just joined", a new_members notice) it opens Discover's newest people instead. The push uses the same URL
+  // (newMemberHref in new-member-alerts.ts).
+  if (notification.type === "NEW_MEMBER_JOINED") {
+    return decodeNotice(notification.messageData)?.kind === "new_members"
+      ? NEW_MEMBERS_DIGEST_HREF
+      : `/u/${notification.actor.id}`;
   }
   // Site admins' oversight notice about a new Circle. A PRIVATE Circle's page doesn't exist for a non-member, site
   // admins included (lib/circle-visibility.ts), so a private one opens the admin Circles list instead.
@@ -153,3 +164,6 @@ export function notificationHref(notification: NotificationData) {
 export function storyHref(ownerId: string, storyId: string | null | undefined) {
   return storyId ? `/u/${ownerId}?story=${storyId}` : `/u/${ownerId}`;
 }
+
+/** Where a coalesced NEW_MEMBER_JOINED digest leads: Discover, newest people first. */
+export const NEW_MEMBERS_DIGEST_HREF = "/discover?sort=recent";

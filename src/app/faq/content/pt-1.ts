@@ -44,6 +44,10 @@ export const pt1 = {
     q: "Por que algumas pessoas somem do Descobrir?",
     a: "O Descobrir só mostra pessoas com quem você ainda não teve nenhuma interação de conexão: assim que você envia ou recebe um pedido de conexão, a pessoa sai dos resultados do Descobrir (esteja o pedido pendente ou já aceito). Se um pedido for recusado, essa pessoa pode voltar a aparecer no Descobrir para uma nova tentativa.",
   },
+  "new-member-alerts": {
+    q: "Por que recebi uma notificação de que alguém acabou de entrar no YuKon3t?",
+    a: "Quando alguém novo termina de configurar o perfil e já verificou a conta, o YuKon3t avisa quem usa Descobrir, para que os recém-chegados encontrem pessoas com quem se conectar. Só são anunciadas as pessoas que aparecem em Descobrir: não quem desativou “Mostrar meu perfil em Descobrir”, não quem deixa as publicações visíveis só para as conexões, e nunca alguém que você bloqueou ou que bloqueou você. Cada pessoa é anunciada uma única vez, pouco depois de entrar. Seu celular recebe no máximo um desses avisos a cada 12 horas; quando mais pessoas entram, suas notificações as agrupam em uma única entrada (“Ada e mais 3 pessoas acabaram de entrar no YuKon3t”) que abre Descobrir com as pessoas mais novas primeiro. Para parar de recebê-los, desmarque Novos membros em Configurações → Notificações. Para não ser anunciado quando entrar, desative “Mostrar meu perfil em Descobrir” em Configurações → Privacidade logo depois de se cadastrar.",
+  },
   "home-split-into-sections-like": {
     q: "Por que o Início é dividido em seções como Trabalho, Entretenimento, Política e Esportes?",
     a: "As publicações são agrupadas pela seção do feed que o autor escolheu no editor (por padrão, Geral), para facilitar a navegação pelo que interessa a você. Enquanto você está na página, cada seção adiciona as publicações novas no topo automaticamente, em geral em poucos segundos e em cerca de meio minuto quando muita coisa é publicada ao mesmo tempo. Não é preciso atualizar.",

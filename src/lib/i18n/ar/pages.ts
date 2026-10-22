@@ -117,6 +117,7 @@ export const pages: typeof pagesEn = {
       EVENT_RSVP_NUDGE: "يسألك {name} إن كنت ستحضر فعالية",
       EVENT_CANCELLED: "ألغى {name} فعالية تشارك فيها",
       EVENT_RESCHEDULED: "غيّر {name} موعد فعالية تشارك فيها",
+      NEW_MEMBER_JOINED: "انضم {name} للتو إلى YuKon3t",
     },
     notices: {
       videoFlagged:
@@ -129,6 +130,8 @@ export const pages: typeof pagesEn = {
         "تعذّر نشر تسجيل بثك المباشر في خلاصة الرئيسية، لأن مراجعتنا الآلية رصدت فيه مخالفة. لا يزال التسجيل نفسه متاحًا للتنزيل من قائمة «التسجيلات» في صفحة البث.",
       recordingFlaggedReasons:
         "تعذّر نشر تسجيل بثك المباشر في خلاصة الرئيسية، لأن مراجعتنا الآلية رصدت فيه ما يلي: {reasons}. لا يزال التسجيل نفسه متاحًا للتنزيل من قائمة «التسجيلات» في صفحة البث.",
+      newMembersOne: "وشخص آخر انضما للتو إلى YuKon3t",
+      newMembersMany: "و{count} آخرون انضموا للتو إلى YuKon3t",
       categories: {
         sexual: "محتوى جنسي صريح",
         "sexual/minors": "محتوى جنسي يتعلق بقاصرين",

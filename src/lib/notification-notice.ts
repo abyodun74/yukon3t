@@ -10,11 +10,15 @@ type NoticeText = typeof pagesEn.notifications.notices;
 export type Notice =
   | { kind: "video_flagged"; categories: string[] }
   | { kind: "recording_failed" }
-  | { kind: "recording_flagged"; categories: string[] };
+  | { kind: "recording_flagged"; categories: string[] }
+  // A coalesced NEW_MEMBER_JOINED row (src/lib/new-member-alerts.ts): the actor and `others` more people just joined.
+  | { kind: "new_members"; others: number };
 
 // A category key is one token of video-review.ts's reasons ("sexual", "violence/graphic", "profanity"): never a comma.
 export function encodeNotice(notice: Notice): string {
-  return notice.kind === "recording_failed" ? notice.kind : `${notice.kind}:${notice.categories.join(",")}`;
+  if (notice.kind === "recording_failed") return notice.kind;
+  if (notice.kind === "new_members") return `${notice.kind}:${notice.others}`;
+  return `${notice.kind}:${notice.categories.join(",")}`;
 }
 
 /** Null for anything it doesn't recognise, so the row falls back to its stored English `message`. */
@@ -24,6 +28,10 @@ export function decodeNotice(data: string | null | undefined): Notice | null {
   const kind = colon === -1 ? data : data.slice(0, colon);
   const categories = colon === -1 ? [] : data.slice(colon + 1).split(",").filter(Boolean);
   if (kind === "recording_failed" && colon === -1) return { kind };
+  if (kind === "new_members") {
+    const others = colon === -1 ? NaN : Number(data.slice(colon + 1));
+    return Number.isSafeInteger(others) && others > 0 ? { kind, others } : null;
+  }
   if (kind === "video_flagged" || kind === "recording_flagged") return { kind, categories };
   return null;
 }
@@ -36,6 +44,9 @@ export function categoryName(key: string, t: NoticeText): string {
 /** The notice's sentence in the language `t` and `listSeparator` are in. */
 export function noticeText(notice: Notice, t: NoticeText, listSeparator: string): string {
   if (notice.kind === "recording_failed") return t.recordingFailed;
+  if (notice.kind === "new_members") {
+    return notice.others === 1 ? t.newMembersOne : format(t.newMembersMany, { count: String(notice.others) });
+  }
   const names = [...new Set(notice.categories.map((key) => categoryName(key, t)))];
   const reasons = names.join(listSeparator);
   if (notice.kind === "video_flagged") {

@@ -31,6 +31,7 @@ export const FAQ_IDS = [
   "search-app",
   "click-someones-name-almost-everywhere",
   "some-people-disappear-from-discover",
+  "new-member-alerts",
   "home-split-into-sections-like",
   "update-the-app",
   // The Android app

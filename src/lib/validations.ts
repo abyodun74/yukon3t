@@ -168,6 +168,10 @@ export const ringtoneSchema = z.object({
   ringtone: z.enum(ringtoneValues),
 });
 
+export const newMemberAlertsSchema = z.object({
+  newMemberAlerts: z.boolean(),
+});
+
 export const circleSchema = z.object({
   name: z.string().trim().min(3).max(60),
   description: z.string().trim().min(10).max(1000),

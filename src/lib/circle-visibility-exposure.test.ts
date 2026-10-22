@@ -94,7 +94,8 @@ describe("notification lists", () => {
       .filter((file) => !readFileSync(file, "utf8").includes("circleNotificationVisibleWhere("))
       .map(rel)
       .sort();
-    // markReadByTarget only marks rows read by their link; it returns nothing about them.
-    expect(offenders).toEqual(["app/actions/notifications.ts"]);
+    // markReadByTarget only marks rows read by their link; it returns nothing about them. announceNewMembers only
+    // finds the cron's own open NEW_MEMBER_JOINED rows (no circleId) to coalesce into; nothing is shown from them.
+    expect(offenders).toEqual(["app/actions/notifications.ts", "lib/new-member-alerts-data.ts"]);
   });
 });

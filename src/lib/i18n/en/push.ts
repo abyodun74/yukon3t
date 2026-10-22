@@ -45,6 +45,7 @@ export const pushEn = {
     EVENT_RSVP_NUDGE: "asked whether you're going to an event",
     EVENT_CANCELLED: "cancelled an event you're part of",
     EVENT_RESCHEDULED: "moved an event you're part of to a new time",
+    NEW_MEMBER_JOINED: "just joined YuKon3t",
   },
   // Extra lines under EVENT_CANCELLED / EVENT_RESCHEDULED (eventChangePushBody). The time is in UTC, said by its zone name.
   eventChange: {

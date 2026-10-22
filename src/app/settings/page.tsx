@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
-import { updatePrivacy, updateRingtone, setPassword } from "@/app/actions/profile";
+import { updatePrivacy, updateRingtone, updateNewMemberAlerts, setPassword } from "@/app/actions/profile";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { BlockButton } from "@/components/block-button";
@@ -147,6 +147,29 @@ export default async function SettingsPage({
         <div className="mt-4">
           <PushNotificationsToggle />
         </div>
+        <form action={updateNewMemberAlerts} className="mt-4 space-y-3">
+          <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              name="newMemberAlerts"
+              defaultChecked={user.newMemberAlerts}
+              aria-describedby="settings-new-member-alerts-hint"
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block font-medium">{t.notifications.newMembers}</span>
+              <span id="settings-new-member-alerts-hint" className="mt-0.5 block text-foreground-soft">
+                {t.notifications.newMembersHint}
+              </span>
+            </span>
+          </label>
+          <SubmitButton
+            label={t.notifications.save}
+            pendingLabel={t.saving}
+            offlineMessage={offlineMessage}
+            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+          />
+        </form>
       </div>
 
       <div>

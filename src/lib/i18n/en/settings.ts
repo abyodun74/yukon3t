@@ -43,6 +43,10 @@ export const settingsEn = {
     denied: "Notifications are blocked for this site in your browser settings — enable them there to turn this on.",
     turnOff: "Turn off notifications",
     enable: "Enable notifications",
+    newMembers: "New members",
+    newMembersHint:
+      "Let me know when someone new joins YuKon3t and shows up in Discover. Your phone gets at most one of these every 12 hours; the rest are grouped into one entry in your notifications.",
+    save: "Save",
   },
   language: {
     heading: "Language",

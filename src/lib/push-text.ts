@@ -154,3 +154,11 @@ export function eventChangePushBody(
   if (details.reason) lines.push(format(t.eventChange.reason, { reason: details.reason.slice(0, 140) }));
   return lines.join("\n");
 }
+
+/**
+ * The line under the new member's name in a NEW_MEMBER_JOINED push: "just joined YuKon3t", or for a digest "and 3
+ * others just joined YuKon3t" (the same new_members notice the bell row shows).
+ */
+export function newMemberPushBody(others: number, locale: Locale): string {
+  return others > 0 ? noticeLine({ kind: "new_members", others }, locale) : activityLine("NEW_MEMBER_JOINED", locale);
+}

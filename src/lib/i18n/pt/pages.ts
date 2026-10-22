@@ -116,6 +116,7 @@ export const pages: typeof pagesEn = {
       EVENT_RSVP_NUDGE: "{name} perguntou se você vai a um evento",
       EVENT_CANCELLED: "{name} cancelou um evento de que você participa",
       EVENT_RESCHEDULED: "{name} mudou o horário de um evento de que você participa",
+      NEW_MEMBER_JOINED: "{name} acabou de entrar no YuKon3t",
     },
     notices: {
       videoFlagged:
@@ -128,6 +129,8 @@ export const pages: typeof pagesEn = {
         "Não foi possível publicar a gravação da sua transmissão ao vivo no feed do Início porque nossa análise automática a sinalizou. A gravação continua disponível para download na lista de Gravações da transmissão.",
       recordingFlaggedReasons:
         "Não foi possível publicar a gravação da sua transmissão ao vivo no feed do Início porque nossa análise automática a sinalizou ({reasons}). A gravação continua disponível para download na lista de Gravações da transmissão.",
+      newMembersOne: "e mais 1 pessoa acabaram de entrar no YuKon3t",
+      newMembersMany: "e mais {count} pessoas acabaram de entrar no YuKon3t",
       categories: {
         sexual: "conteúdo sexual explícito",
         "sexual/minors": "conteúdo sexual envolvendo menores",

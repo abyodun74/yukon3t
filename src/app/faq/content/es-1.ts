@@ -44,6 +44,10 @@ export const es1 = {
     q: "¿Por qué algunas personas desaparecen de Descubrir?",
     a: "Descubrir solo muestra personas con las que todavía no has tenido ninguna interacción de contacto: en cuanto envías o recibes una solicitud de contacto, esa persona deja de aparecer en los resultados de Descubrir (siga pendiente o ya esté aceptada). Si una solicitud se rechaza, esa persona puede volver a aparecer en Descubrir para un nuevo intento.",
   },
+  "new-member-alerts": {
+    q: "¿Por qué recibí una notificación de que alguien acaba de unirse a YuKon3t?",
+    a: "Cuando alguien nuevo termina de configurar su perfil y ha verificado su cuenta, YuKon3t avisa a quienes usan Descubrir, para que los recién llegados encuentren personas con quienes conectar. Solo se anuncia a quienes aparecen en Descubrir: no a quien desactivó «Mostrar mi perfil en Descubrir», no a quien tiene sus publicaciones visibles solo para sus contactos, y nunca a nadie que hayas bloqueado o que te haya bloqueado. Cada persona se anuncia una sola vez, poco después de unirse. Tu teléfono recibe como máximo uno de estos avisos cada 12 horas; cuando se unen más personas, tus notificaciones las agrupan en una sola entrada («Ada y 3 personas más acaban de unirse a YuKon3t») que abre Descubrir con las personas más nuevas primero. Para dejar de recibirlos, desmarca Miembros nuevos en Ajustes → Notificaciones. Para que no te anuncien cuando te unas, desactiva «Mostrar mi perfil en Descubrir» en Ajustes → Privacidad justo después de registrarte.",
+  },
   "home-split-into-sections-like": {
     q: "¿Por qué Inicio está dividido en secciones como Trabajo, Entretenimiento, Política y Deportes?",
     a: "Las publicaciones se agrupan según la sección del feed que su autor eligió al escribirlas (por defecto, General), para que sea más fácil ver lo que te interesa. Mientras estás en la página, cada sección agrega las publicaciones nuevas arriba automáticamente, por lo general en unos segundos y en cerca de medio minuto cuando se publica mucho a la vez. No hace falta actualizar.",

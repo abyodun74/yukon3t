@@ -39,6 +39,10 @@ export const settings: typeof settingsEn = {
       "As notificações deste site estão bloqueadas nas configurações do seu navegador. Libere-as por lá para ativar esta opção.",
     turnOff: "Desativar notificações",
     enable: "Ativar notificações",
+    newMembers: "Novos membros",
+    newMembersHint:
+      "Me avise quando alguém novo entrar no YuKon3t e aparecer em Descobrir. Seu celular recebe no máximo um desses avisos a cada 12 horas; os demais ficam agrupados em uma única entrada nas suas notificações.",
+    save: "Salvar",
   },
   language: {
     heading: "Idioma",

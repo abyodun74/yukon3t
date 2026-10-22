@@ -280,6 +280,17 @@ model User {
 
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
+
+  // "New on YuKon3t" alerts (src/lib/new-member-alerts.ts, the announce-new-members cron). onboardedAt is when
+  // completeOnboarding first finished the profile (backfilled to createdAt for profiles complete before it existed).
+  // newMemberAnnouncedAt is the cron's once-only claim on announcing this account (backfilled for every account that
+  // existed when the feature shipped, so nobody old is announced). newMemberAlerts is the recipient's own switch in
+  // Settings -> Notifications, on by default like every other notice; newMemberPushAt is when they were last pushed
+  // one, which caps the phone push at one per NEW_MEMBER_PUSH_COOLDOWN_MS.
+  onboardedAt          DateTime?
+  newMemberAnnouncedAt DateTime?
+  newMemberAlerts      Boolean   @default(true)
+  newMemberPushAt      DateTime?
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -402,6 +413,7 @@ model User {
   // equality filters, lastSeenAt range + order).
   @@index([status, discoverable, lastSeenAt])
   @@index([status, discoverable, createdAt])
+  @@index([onboardedAt])
 }
 
 enum CircleVisibility {
@@ -1291,6 +1303,12 @@ enum NotificationType {
   // push, at most EVENT_CHANGE_MAX_RECIPIENTS rows. postId is the link; the reason is shown on the post.
   EVENT_CANCELLED
   EVENT_RESCHEDULED
+  // "<name> just joined YuKon3t": sent by the announce-new-members cron (src/lib/new-member-alerts.ts) when a new account
+  // finishes onboarding, is verified and is visible in Discover. actorId is the new member. Coalesced: a recipient has
+  // at most one unread row of this type per NEW_MEMBER_COALESCE_MS; later joiners update it into a digest whose
+  // messageData is a "new_members:<others>" notice ("<name> and 3 others just joined"), which opens Discover's newest
+  // people instead of one profile. Bell + FCM push, the push at most once per NEW_MEMBER_PUSH_COOLDOWN_MS per recipient.
+  NEW_MEMBER_JOINED
 }
 
 model Notification {

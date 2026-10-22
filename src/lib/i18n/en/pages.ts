@@ -120,6 +120,7 @@ export const pagesEn = {
       EVENT_RSVP_NUDGE: "{name} asked whether you're going to an event",
       EVENT_CANCELLED: "{name} cancelled an event you're part of",
       EVENT_RESCHEDULED: "{name} moved an event you're part of to a new time",
+      NEW_MEMBER_JOINED: "{name} just joined YuKon3t",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into
@@ -135,6 +136,8 @@ export const pagesEn = {
         "Your live stream recording couldn't be posted to the Home Feed — our automated review flagged it. The recording itself is still available to download from the stream's Recordings list.",
       recordingFlaggedReasons:
         "Your live stream recording couldn't be posted to the Home Feed — our automated review flagged it ({reasons}). The recording itself is still available to download from the stream's Recordings list.",
+      newMembersOne: "and 1 other person just joined YuKon3t",
+      newMembersMany: "and {count} others just joined YuKon3t",
       categories: {
         sexual: "sexually explicit content",
         "sexual/minors": "sexual content involving minors",

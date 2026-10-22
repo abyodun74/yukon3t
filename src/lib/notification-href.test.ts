@@ -158,6 +158,12 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
   EVENT_RSVP_NUDGE: [{ data: { ...circle, ...post }, href: "/post/p1" }],
   EVENT_CANCELLED: [{ data: { ...circle, ...post }, href: "/post/p1" }],
   EVENT_RESCHEDULED: [{ data: { ...circle, ...post }, href: "/post/p1" }],
+  // One new member: their profile. A coalesced digest ("and 3 others"): Discover's newest people.
+  NEW_MEMBER_JOINED: [
+    { data: {}, href: "/u/u1" },
+    { data: { messageData: "new_members:3" }, href: "/discover?sort=recent" },
+    { data: { messageData: "new_members:garbage" }, href: "/u/u1" },
+  ],
 };
 
 describe("notificationHref for every notification type", () => {

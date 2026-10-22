@@ -189,6 +189,28 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "new-member-alerts",
+        q: "Why did I get a notification that someone just joined YuKon3t?",
+        a: (
+          <>
+            When someone new finishes setting up their profile and has verified
+            their account, YuKon3t lets people who use Discover know, so
+            newcomers find people to connect with. Only people who show up in
+            Discover themselves are announced: not someone who turned off
+            &ldquo;Show my profile in Discover&rdquo;, not someone whose posts
+            are visible to their connections only, and never anyone you&apos;ve
+            blocked or who has blocked you. Each person is announced once, a
+            little after they join. Your phone gets at most one of these every
+            12 hours; when more people join, your notifications group them into
+            one entry (&ldquo;Ada and 3 others just joined YuKon3t&rdquo;) that
+            opens Discover with the newest people first. To stop them, untick
+            New members in Settings → Notifications. To not be announced when
+            you join, turn off &ldquo;Show my profile in Discover&rdquo; in
+            Settings → Privacy right after you sign up.
+          </>
+        ),
+      },
+      {
         id: "home-split-into-sections-like",
         q: "Why is Home split into sections like Occupational, Entertainment, Politics, and Sports?",
         a: (

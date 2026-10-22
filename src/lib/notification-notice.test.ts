@@ -13,6 +13,8 @@ describe("encodeNotice / decodeNotice", () => {
       { kind: "recording_failed" },
       { kind: "recording_flagged", categories: ["moderation_api_error"] },
       { kind: "recording_flagged", categories: [] },
+      { kind: "new_members", others: 1 },
+      { kind: "new_members", others: 42 },
     ];
     for (const notice of notices) expect(decodeNotice(encodeNotice(notice))).toEqual(notice);
   });
@@ -23,6 +25,10 @@ describe("encodeNotice / decodeNotice", () => {
     expect(decodeNotice("")).toBeNull();
     expect(decodeNotice("something_new:x")).toBeNull();
     expect(decodeNotice("recording_failed:x")).toBeNull();
+    expect(decodeNotice("new_members")).toBeNull();
+    expect(decodeNotice("new_members:0")).toBeNull();
+    expect(decodeNotice("new_members:-2")).toBeNull();
+    expect(decodeNotice("new_members:1.5")).toBeNull();
   });
 });
 
@@ -39,5 +45,12 @@ describe("noticeText", () => {
     expect(noticeText({ kind: "video_flagged", categories: ["some_new/category"] }, t, ", ")).toContain(
       "(some new category)",
     );
+  });
+});
+
+describe("noticeText for a new-members digest", () => {
+  it("says one other person, or how many others", () => {
+    expect(noticeText({ kind: "new_members", others: 1 }, t, ", ")).toBe("and 1 other person just joined YuKon3t");
+    expect(noticeText({ kind: "new_members", others: 7 }, t, ", ")).toBe("and 7 others just joined YuKon3t");
   });
 });

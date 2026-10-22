@@ -40,6 +40,7 @@ export const push: typeof pushEn = {
     EVENT_RSVP_NUDGE: "Vous demande si vous venez à un événement",
     EVENT_CANCELLED: "A annulé un événement auquel vous participez",
     EVENT_RESCHEDULED: "A déplacé un événement auquel vous participez",
+    NEW_MEMBER_JOINED: "Vient de rejoindre YuKon3t",
   },
   eventChange: {
     newTime: "Nouvel horaire : {when}",

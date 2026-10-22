@@ -8,6 +8,7 @@ import {
   profileUpdateSchema,
   privacySchema,
   ringtoneSchema,
+  newMemberAlertsSchema,
   setPasswordSchema,
   usernameSchema,
 } from "@/lib/validations";
@@ -66,6 +67,9 @@ export async function completeOnboarding(formData: FormData) {
       interestsLower: interests.map((i) => i.toLowerCase()),
       openToIntents,
       birthDate,
+      // When joining finished, kept from the first time: the announce-new-members cron (src/lib/new-member-alerts.ts)
+      // announces an account a little after this, once.
+      onboardedAt: user.onboardedAt ?? new Date(),
     },
   });
   await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
@@ -154,6 +158,24 @@ export async function updatePrivacy(formData: FormData) {
 export async function updateRingtone(formData: FormData) {
   const user = await requireUser();
   const parsed = ringtoneSchema.safeParse({ ringtone: formData.get("ringtone") });
+
+  if (!parsed.success) {
+    redirect("/settings?error=invalid");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: parsed.data,
+  });
+
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+/** Settings -> Notifications: whether this account hears about new members joining (NEW_MEMBER_JOINED). */
+export async function updateNewMemberAlerts(formData: FormData) {
+  const user = await requireUser();
+  const parsed = newMemberAlertsSchema.safeParse({ newMemberAlerts: formData.get("newMemberAlerts") === "on" });
 
   if (!parsed.success) {
     redirect("/settings?error=invalid");
