@@ -5,7 +5,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { getMembersHidingConversation, isMembershipLocked } from "@/lib/hidden-chats";
 import { hiddenPush, pushText } from "@/lib/push-text";
-import { format } from "@/lib/i18n/locales";
+import { format, type Locale } from "@/lib/i18n/locales";
 import { storySchema, messageSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
@@ -15,6 +15,8 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { sendPushToUser } from "@/lib/push";
+import { sendFcmActivityToUser } from "@/lib/fcm";
+import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
@@ -463,19 +465,19 @@ export async function replyToStory(storyId: string, formData: FormData) {
   // The author may have this DM hidden: then the push names nobody and quotes nothing.
   const authorHidesChat = (await getMembersHidingConversation(conversation.id, [story.authorId])).length > 0;
   const replyText = parsed.data.content.slice(0, 120);
-  await sendPushToUser(
-    story.authorId,
-    authorHidesChat
-      ? hiddenPush
-      : (locale) => {
-          const t = pushText(locale).storyReply;
-          return {
-            title: user.name ?? t.title,
-            body: format(t.body, { text: replyText }),
-            url: `/messages/${conversation.id}`,
-          };
-        },
-  );
+  const replyPush = (locale: Locale) => {
+    const t = pushText(locale).storyReply;
+    return {
+      title: user.name ?? t.title,
+      body: format(t.body, { text: replyText }),
+      url: `/messages/${conversation.id}`,
+    };
+  };
+  await sendPushToUser(story.authorId, authorHidesChat ? hiddenPush : replyPush);
+  // The phone apps too (web push never reaches them), opening the chat the reply landed in.
+  await sendFcmActivityToUser(story.authorId, (locale) =>
+    authorHidesChat ? { ...hiddenPush(locale), type: HIDDEN_PUSH_TYPE } : { ...replyPush(locale), type: "MESSAGE" },
+  ).catch(() => {});
 
   revalidatePath(`/messages/${conversation.id}`);
   return { error: null, conversationId: conversation.id };

@@ -10,6 +10,7 @@ import {
 } from "@/lib/error-recovery";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { hasSendingOptimisticPost } from "@/lib/optimistic-posts-store";
+import { pendingPushTap } from "@/lib/push-target";
 import {
   STALE_BUILD_RELOAD_KEY,
   holdReload,
@@ -117,7 +118,12 @@ function tryReload(trigger: ReloadTrigger): boolean {
     staleTarget = null;
     return false;
   }
-  window.location.reload();
+  // A push notification tapped just now (lib/push-target.ts) is where the user
+  // asked to go: reload onto that page rather than the one the tap's own
+  // in-app navigation was about to leave, which the reload would cut short.
+  const pushTarget = pendingPushTap();
+  if (pushTarget) window.location.replace(pushTarget);
+  else window.location.reload();
   return true;
 }
 

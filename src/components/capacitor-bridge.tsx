@@ -14,6 +14,13 @@ import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
 import { useCallSession } from "@/lib/call-session";
+import { clearPushTap, isAtPushTarget, pendingPushTap, rememberPushTap, safeInAppPath } from "@/lib/push-target";
+
+// How long the resume listener waits before sending a returning user to
+// /home. On iOS the notification-tap event can arrive just after "resume";
+// this gives it time to be recorded (lib/push-target.ts) so the reset stands
+// down instead of racing the tap's own navigation.
+const RESUME_HOME_RESET_DELAY_MS = 600;
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -70,6 +77,60 @@ export function CapacitorBridge() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+  // A tapped push notification (lib/push-target.ts): once the app is on its
+  // page the tap is done with, so a later resume resets to Home as usual. If
+  // it isn't there — the page was reloaded onto a new build before the tap's
+  // navigation finished, and the plugin doesn't hand the tap to the reloaded
+  // page again — go there now. Runs on mount and on every navigation.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const target = pendingPushTap();
+    if (!target) return;
+    if (isAtPushTarget(target, `${window.location.pathname}${window.location.search}`)) {
+      clearPushTap();
+    } else if (pathname === "/home" || pathname === "/") {
+      // Only from where a resume reset or a reload lands, never away from a page the user has since chosen.
+      router.replace(target);
+    }
+  }, [pathname, router]);
+
+  // Fires when the user taps a push notification — sendFcmActivityToUser
+  // (src/lib/fcm.ts) puts the notification's target path in the `url` data
+  // field, matching public/sw.js's own "notificationclick" handler for the
+  // web-push path. Capacitor retains this event (`notifyListeners(..., true)`)
+  // and replays it once this listener attaches, so a cold start from a tap is
+  // covered the same as a tap while the app is running. Attached on its own,
+  // straight away: it used to be attached only at the end of the permission
+  // check + getToken + server registration chain below, so a cold start
+  // waited on all of that (and never routed at all if any step stalled).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let listener: { remove: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+      if (cancelled) return;
+      const handle = await FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
+        const url = safeInAppPath((event.notification.data as Record<string, unknown> | undefined)?.url);
+        if (!url) return;
+        // Recorded before navigating, so the resume reset and a stale-build
+        // reload that run at this same moment go here too (push-target.ts).
+        rememberPushTap(url);
+        router.push(url);
+        // Tapping a push opens that one thing, so only the notifications
+        // leading there are marked read — the rest stay unread until they're
+        // opened too. Fire-and-forget: it must never block the navigation.
+        markReadByTarget(url).catch(() => {});
+      });
+      if (cancelled) handle.remove();
+      else listener = handle;
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+  }, [router]);
+
   // Same ref-mirror reasoning, for whether a call/live session is up right
   // now — also read by the resume listener below.
   const { session: callSession, outgoingRingRef } = useCallSession();
@@ -150,8 +211,8 @@ export function CapacitorBridge() {
     if (!Capacitor.isNativePlatform()) return;
 
     let tokenListener: { remove: () => void } | undefined;
-    let actionListener: { remove: () => void } | undefined;
     let resumeListener: { remove: () => void } | undefined;
+    let resumeResetTimer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
     async function setupNotifications(promptNow: boolean) {
@@ -198,29 +259,8 @@ export function CapacitorBridge() {
       tokenListener = await FirebaseMessaging.addListener("tokenReceived", (event) => {
         register(event.token);
       });
-
-      // Fires when the user taps a push notification — sendFcmActivityToUser
-      // (src/lib/fcm.ts) puts the notification's target path in the `url`
-      // data field, matching public/sw.js's own "notificationclick" handler
-      // for the web-push path. Capacitor retains this event (see the plugin's
-      // `notifyListeners(..., true)` on the Android side) and replays it once
-      // this listener attaches, so a cold start from a notification tap is
-      // covered the same as tapping while the app is already running.
-      actionListener?.remove();
-      actionListener = await FirebaseMessaging.addListener(
-        "notificationActionPerformed",
-        (event) => {
-          const url = (event.notification.data as Record<string, unknown> | undefined)?.url;
-          if (typeof url === "string" && url.startsWith("/") && !url.startsWith("//") && !url.includes("\\")) {
-            router.push(url);
-            // Tapping a push opens that one thing, so only the
-            // notifications leading there are marked read — the rest stay
-            // unread until they're opened too. Best-effort/fire-and-forget:
-            // a failure here shouldn't block navigating to the tapped target.
-            markReadByTarget(url).catch(() => {});
-          }
-        },
-      );
+      // The notification-tap listener is its own effect above, attached
+      // without waiting for any of this.
     }
 
     // Resets navigation to /home every time the app is brought to the
@@ -247,6 +287,12 @@ export function CapacitorBridge() {
     //
     // And skipped for the whole of a call or live session, and while an
     // outgoing call is ringing — see the guard inside the listener.
+    //
+    // And skipped when the app was opened by tapping a push notification:
+    // that tap's own navigation is where the user asked to go. On Android the
+    // tap event arrives before "resume", so this reset used to land last and
+    // send them to /home instead; on iOS it can arrive just after, which is
+    // what the short delay below is for (lib/push-target.ts).
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
       App.addListener("resume", () => {
@@ -274,11 +320,15 @@ export function CapacitorBridge() {
         // least wanted — and for the ringing case it was actively harmful:
         // the navigation unmounted the CallButton that owned the ring (see
         // outgoingRingRef on CallSessionContext).
-        if (callSessionActiveRef.current || outgoingRingRef.current) return;
-        const current = pathnameRef.current;
-        if (current === "/home") return;
-        if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
-        router.push("/home");
+        clearTimeout(resumeResetTimer);
+        resumeResetTimer = setTimeout(() => {
+          if (pendingPushTap()) return;
+          if (callSessionActiveRef.current || outgoingRingRef.current) return;
+          const current = pathnameRef.current;
+          if (current === "/home") return;
+          if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
+          router.push("/home");
+        }, RESUME_HOME_RESET_DELAY_MS);
       }).then((h) => {
         if (cancelled) h.remove();
         else resumeListener = h;
@@ -337,8 +387,8 @@ export function CapacitorBridge() {
       cancelled = true;
       requestPermissionNowRef.current = null;
       tokenListener?.remove();
-      actionListener?.remove();
       resumeListener?.remove();
+      clearTimeout(resumeResetTimer);
     };
     // outgoingRingRef is a ref object owned by CallSessionProvider — the
     // same identity for the life of the app, so listing it changes nothing.

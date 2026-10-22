@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { pushText } from "@/lib/push-text";
 import { format, type Locale } from "@/lib/i18n/locales";
-import { sendFcmEventReminderToUser } from "@/lib/fcm";
+import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
 import { filterCircleContentViewers } from "@/lib/circle-permissions";
@@ -89,7 +89,9 @@ export async function GET(request: Request) {
 
       for (const recipientId of recipientIds) {
         await sendPushToUser(recipientId, reminder);
-        await sendFcmEventReminderToUser(recipientId, { postId: post.id, title: titleFor });
+        // A visible notification that opens the event post, like the web push above. (It used to be a data-only
+        // message, which neither app ever displayed.)
+        await sendFcmActivityToUser(recipientId, (locale) => ({ ...reminder(locale), type: "EVENT_REMINDER" }));
       }
 
       remindersSent += recipientIds.size;

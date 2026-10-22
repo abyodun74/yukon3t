@@ -51,7 +51,7 @@ async function sendFcmDataToUser(userId: string, localizedData: Localized<Record
   if (tokens.length === 0) return;
 
   // Genuinely best-effort, matching sendPushToUser's contract: callers like
-  // startCall/endCall and the event-reminders cron must not fail (or, for
+  // startCall/endCall must not fail (or, for
   // startCall, roll back an otherwise-successful action) just because FCM
   // had a transient outage.
   let response;
@@ -309,16 +309,4 @@ async function sendFcmNotificationToTokens(
       // Best-effort — one failed chunk shouldn't stop the rest from sending.
     }
   }
-}
-
-export async function sendFcmEventReminderToUser(
-  userId: string,
-  payload: { postId: string; title: Localized<string> },
-) {
-  const titleFor = perLocale(payload.title);
-  await sendFcmDataToUser(userId, (locale) => ({
-    type: "event_reminder",
-    postId: payload.postId,
-    title: titleFor(locale),
-  }));
 }

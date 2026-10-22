@@ -267,15 +267,21 @@ const sections: Section[] = [
         q: "What shows up as a notification on my phone?",
         a: (
           <>
-            Incoming calls, missed calls (with the caller&apos;s name), likes,
-            comments, shares, and reshares on your posts and Muse videos,
-            connection requests, someone starting a live stream with just
-            you, a recurring collaboration session starting soon, and
+            Incoming calls, missed calls (with the caller&apos;s name),
+            messages (including replies to your story), likes, comments,
+            shares, and reshares on your posts and Muse videos, connection
+            requests, event reminders, someone starting a live stream with
+            just you, a recurring collaboration session starting soon, and
             app-wide announcements about new features — these arrive as real
             Android notifications even when the app isn&apos;t open, not
-            just the bell icon inside the app. Tapping one opens the
-            relevant post, Muse, comment thread, live stream, collaboration,
-            or Connections list. Opening the app (from a notification, the
+            just the bell icon inside the app. Tapping one (or a
+            notification in the in-app list) opens exactly what it&apos;s
+            about: the post, Muse, story, chat, event, Circle, live stream,
+            collaboration, or Connections list (for a missed call, the
+            caller&apos;s profile), even when the app was in the background
+            or reloads onto a newer version as it opens. If that thing has
+            since been deleted, or is in a private Circle you&apos;re no
+            longer in, you get a not-found page instead. Opening the app (from a notification, the
             launcher icon, or switching back from another app) automatically
             clears every notification of this kind from your notification
             shade — a ringing or missed call is the one exception, since

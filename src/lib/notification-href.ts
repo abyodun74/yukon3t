@@ -61,6 +61,8 @@ export type NotificationData = {
     | "EVENT_RSVP_NUDGE"
     | "EVENT_CANCELLED"
     | "EVENT_RESCHEDULED";
+  // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
+  recipientId: string;
   readAt: Date | null;
   createdAt: Date;
   actor: { id: string; name: string | null; avatarUrl?: string | null };
@@ -123,19 +125,19 @@ export function notificationHref(notification: NotificationData) {
       notification.type === "SUBSCRIPTION_MUSE" || notification.type === "VIDEO_FLAGGED_FOR_REVIEW") {
     return notification.museId ? `/muse/${notification.museId}` : "/muse";
   }
-  // Stories have no permalink route of their own — they only ever live
-  // inside the story ring on the author's profile. ?story=<id> tells
-  // ProfileStoryRing (see that component) to open the viewer straight to
-  // this one instead of just landing on the profile and making the reader
-  // find it themself. Falls back to a plain profile link if the story has
-  // since expired/been deleted (ProfileStoryRing won't find it in the
-  // list it fetches and just won't auto-open — same graceful "the thing
-  // this linked to is gone" fallback every other stale notification target
-  // in this app already gets).
-  if (notification.type === "STORY_COMMENT" || notification.type === "SUBSCRIPTION_STORY") {
-    return notification.storyId
-      ? `/u/${notification.actor.id}?story=${notification.storyId}`
-      : `/u/${notification.actor.id}`;
+  // Stories have no permalink route of their own: they live in the story ring on their author's profile, and
+  // ?story=<id> makes ProfileStoryRing open the viewer straight at that one. The profile is the story's *owner's*:
+  // the actor for SUBSCRIPTION_STORY (they posted it), the recipient for STORY_COMMENT and a story screenshot (someone
+  // commented on / screenshotted the reader's own story). STORY_COMMENT used to open the commenter's profile, where
+  // the story isn't, so the viewer never opened. An expired or deleted story just isn't in the ring, so the profile
+  // opens without the viewer.
+  if (
+    notification.type === "SUBSCRIPTION_STORY" ||
+    notification.type === "STORY_COMMENT" ||
+    (notification.type === "SCREENSHOT_TAKEN" && notification.storyId)
+  ) {
+    const ownerId = notification.type === "SUBSCRIPTION_STORY" ? notification.actor.id : notification.recipientId;
+    return storyHref(ownerId, notification.storyId);
   }
   // The post it'd otherwise link to no longer exists (removed by the
   // moderation review that triggered this) — nothing more specific to
@@ -145,4 +147,9 @@ export function notificationHref(notification: NotificationData) {
   // actions/review-prompt.ts.
   if (notification.type === "APP_FEEDBACK_SUBMITTED") return "/admin/feedback";
   return `/u/${notification.actor.id}`;
+}
+
+/** A story's place in the app: its owner's profile, with the story viewer opened at it (see notificationHref). */
+export function storyHref(ownerId: string, storyId: string | null | undefined) {
+  return storyId ? `/u/${ownerId}?story=${storyId}` : `/u/${ownerId}`;
 }

@@ -122,20 +122,59 @@ self.addEventListener("push", (event) => {
       body: payload.body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      data: { url: payload.url },
+      data: { url: notificationTarget(payload.url) },
     }),
   );
 });
 
+// The absolute URL a notification opens: its `url` (the exact post, Muse,
+// story, chat, event, Circle... — the same path the in-app bell row links
+// to, see src/lib/notification-href.ts) resolved against this site, or the
+// site root for anything that doesn't resolve to this same origin (a full
+// URL elsewhere, `//host`, `/\host`, `javascript:`...), so a push payload can
+// never open another site.
+function notificationTarget(raw) {
+  const home = new URL("/", self.location.origin).href;
+  if (typeof raw !== "string" || raw === "") return home;
+  try {
+    const url = new URL(raw, self.location.origin);
+    return url.origin === self.location.origin ? url.href : home;
+  } catch {
+    return home;
+  }
+}
+
+// Opens the notification's exact target. An app window that is already open
+// is reused: focused, then navigated to the target (a window already on that
+// exact URL is only focused). Only with no window of ours open, or when the
+// browser won't navigate the one there is (a window this worker doesn't
+// control yet), is a new one opened. Comparing whole URLs (path, query and
+// #fragment), not just the pathname: `/u/x?story=y` and `/u/x` are different
+// targets.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const target = notificationTarget(event.notification.data?.url);
 
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((c) => new URL(c.url).pathname === url);
-      if (existing && "focus" in existing) return existing.focus();
-      return self.clients.openWindow(url);
-    }),
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const ours = windows.filter((c) => new URL(c.url).origin === self.location.origin);
+      const exact = ours.find((c) => c.url === target);
+      if (exact) {
+        await exact.focus();
+        return;
+      }
+      const client = ours.find((c) => c.focused) ?? ours[0];
+      if (client) {
+        try {
+          const focused = await client.focus();
+          const navigated = await (focused ?? client).navigate(target);
+          if (navigated) return;
+        } catch {
+          // Not controlled by this worker (navigate rejects): open a window instead.
+        }
+      }
+      await self.clients.openWindow(target);
+    })(),
   );
 });

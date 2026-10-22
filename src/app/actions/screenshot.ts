@@ -10,6 +10,7 @@ import { sendFcmActivityToUser } from "@/lib/fcm";
 import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-chats";
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { hiddenPush } from "@/lib/push-text";
+import { storyHref } from "@/lib/notification-href";
 
 type ScreenshotTarget =
   | { type: "post"; id: string }
@@ -89,7 +90,8 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
     case "story": {
       const story = await prisma.story.findUnique({ where: { id: target.id }, select: { authorId: true } });
       if (!story) return { error: "not_found" };
-      await notifyOne(story.authorId, user.id, user.name, { storyId: target.id }, `/u/${story.authorId}`);
+      // The owner's story itself (the viewer opens at it), the same place the bell row leads.
+      await notifyOne(story.authorId, user.id, user.name, { storyId: target.id }, storyHref(story.authorId, target.id));
       return { error: null };
     }
     case "conversation": {

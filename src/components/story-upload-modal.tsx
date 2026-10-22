@@ -84,6 +84,42 @@ const TEXT_STORY_SIZE = { width: 1080, height: 1920 };
 const TEXT_STORY_MAX_CHARS = 500;
 
 /**
+ * Greedy word wrap for <canvas> text. A word wider than maxWidth on its own is
+ * split by character so nothing is ever drawn past the canvas edges.
+ */
+function wrapCanvasText(ctx: CanvasRenderingContext2D, words: string[], maxWidth: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  const pushWord = (word: string) => {
+    const attempt = current ? `${current} ${word}` : word;
+    if (ctx.measureText(attempt).width <= maxWidth) {
+      current = attempt;
+      return;
+    }
+    if (current) {
+      lines.push(current);
+      current = "";
+    }
+    if (ctx.measureText(word).width <= maxWidth) {
+      current = word;
+      return;
+    }
+    // Hard-break by code point (keeps emoji/surrogate pairs intact).
+    for (const ch of Array.from(word)) {
+      if (current && ctx.measureText(current + ch).width > maxWidth) {
+        lines.push(current);
+        current = ch;
+      } else {
+        current += ch;
+      }
+    }
+  };
+  for (const word of words) pushWord(word);
+  if (current) lines.push(current);
+  return lines;
+}
+
+/**
  * Rasterizes a text-only story into an <canvas>-drawn image — reuses the
  * entire existing image story pipeline (upload, moderation, feed rendering)
  * with zero schema/backend changes, rather than adding a new StoryMediaType
@@ -103,25 +139,32 @@ async function renderTextStoryImage(text: string, colors: { bg: string; fg: stri
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const maxWidth = canvas.width * 0.84;
-  const fontSize = text.length > 220 ? 56 : text.length > 100 ? 68 : 84;
-  ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  let fontSize = text.length > 220 ? 56 : text.length > 100 ? 68 : 84;
   ctx.fillStyle = colors.fg;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
+  // A single long unbroken string (a pasted URL) can't be word-wrapped, so it
+  // used to draw as one line far wider than the canvas and get cut off on both
+  // sides. Step the font down (to a readable floor) until the longest word
+  // fits, then hard-break whatever still doesn't (see wrapCanvasText).
   const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const attempt = current ? `${current} ${word}` : word;
-    if (ctx.measureText(attempt).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = attempt;
-    }
+  const setFont = (px: number) => {
+    ctx.font = `700 ${px}px system-ui, -apple-system, sans-serif`;
+  };
+  setFont(fontSize);
+  while (fontSize > 44 && words.some((w) => ctx.measureText(w).width > maxWidth)) {
+    fontSize -= 4;
+    setFont(fontSize);
   }
-  if (current) lines.push(current);
+  const lines = wrapCanvasText(ctx, words, maxWidth);
+  // Very long text: keep the whole block inside the frame (with margin).
+  const maxBlockHeight = canvas.height * 0.86;
+  while (fontSize > 28 && lines.length * fontSize * 1.3 > maxBlockHeight) {
+    fontSize -= 4;
+    setFont(fontSize);
+    lines.splice(0, lines.length, ...wrapCanvasText(ctx, words, maxWidth));
+  }
 
   const lineHeight = fontSize * 13 / 10;
   const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
@@ -538,7 +581,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                 placeholder={t.stories.upload.textPlaceholder}
                 maxLength={TEXT_STORY_MAX_CHARS}
                 autoFocus
-                className="h-full w-full resize-none bg-transparent text-center text-lg font-semibold outline-none placeholder:opacity-60"
+                className="h-full w-full min-w-0 max-w-full resize-none break-words bg-transparent text-center text-lg font-semibold outline-none [overflow-wrap:anywhere] placeholder:opacity-60"
                 style={{ color: TEXT_STORY_BACKGROUNDS[textBgIndex].fg }}
               />
             </div>

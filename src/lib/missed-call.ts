@@ -38,9 +38,14 @@ export async function notifyMissedCall(params: {
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
   await sendFcmMissedCallToUser(calleeId, callId, (locale) => nameOrSomeone(callerName, locale));
 
+  // Opens the caller's profile (call back / message from there), the same place the bell's missed-call row leads.
   await sendPushToUser(calleeId, (locale) => {
     const t = pushText(locale).call;
-    return { title: t.missedTitle, body: format(t.missed, { name: nameOrSomeone(callerName, locale) }), url: "/" };
+    return {
+      title: t.missedTitle,
+      body: format(t.missed, { name: nameOrSomeone(callerName, locale) }),
+      url: `/u/${callerId}`,
+    };
   });
 
   // In-app bell notification — same shape as every other notification type,

@@ -37,10 +37,12 @@ export async function notifyVideoFlaggedForReview(
   // code that predates messageData. The pushes are worded in the author's stored language.
   const notice = { kind: "video_flagged", categories: violationKeysFromReasons(reasons) } as const;
   const message = videoPendingReviewNoticeText(reasons);
+  // The held post or Muse itself (a comment's post), the same place the bell row leads (notificationHref).
+  const url = target.museId ? `/muse/${target.museId}` : target.postId ? `/post/${target.postId}` : "/notifications";
   const push = (locale: Locale) => ({
     title: pushText(locale).videoReviewTitle,
     body: noticeLine(notice, locale),
-    url: "/notifications",
+    url,
   });
 
   await sendPushToUser(authorId, push);

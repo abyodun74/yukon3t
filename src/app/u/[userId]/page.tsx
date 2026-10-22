@@ -178,6 +178,9 @@ export default async function PublicProfilePage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">
           <ProfileStoryRing
+            // A new ?story= deep link (a story notification tapped while already on this profile) must open the
+            // viewer again: the ring only reads initialStoryId when it mounts.
+            key={storyParam ?? ""}
             userId={user.id}
             avatarUrl={user.avatarUrl}
             name={user.name}

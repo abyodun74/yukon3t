@@ -683,17 +683,17 @@ export function StoryViewer({
               ))}
             </div>
           )}
-          {/* flex-wrap: six reactions plus three buttons stop fitting on one
-              line a little above the default text size; wrapping keeps
-              Comments and Share on screen. */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Tight gap/padding so six reactions plus + / comments / share fit on
+              one line at ~390px; flex-wrap stays as a fallback for narrower
+              screens or larger text so Comments and Share never leave it. */}
+          <div className="flex flex-wrap items-center gap-1">
             {QUICK_REACTIONS.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => handleReact(emoji)}
                 aria-pressed={myReaction === emoji}
-                className={`rounded-full px-2 py-1 text-lg ${
+                className={`rounded-full px-1.5 py-1 text-lg ${
                   myReaction === emoji ? "bg-white/30" : "bg-black/30 hover:bg-white/20"
                 }`}
               >
