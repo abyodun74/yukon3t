@@ -54,3 +54,17 @@ describe("notificationHref for polls", () => {
     );
   });
 });
+
+describe("notificationHref for a new Circle (site admins' oversight notice)", () => {
+  it("opens a public Circle's page, and the admin Circles list for a private one (its page doesn't exist for them)", () => {
+    const created = { ...base, type: "CIRCLE_CREATED" as const };
+    expect(notificationHref({ ...created, circle: { slug: "runners", visibility: "PUBLIC" } })).toBe("/circles/runners");
+    expect(notificationHref({ ...created, circle: { slug: "runners" } })).toBe("/circles/runners");
+    expect(notificationHref({ ...created, circle: { slug: "secret", visibility: "PRIVATE" } })).toBe("/admin/circles");
+  });
+  it("leaves every other private-Circle notice on the Circle (only members and invitees ever see one)", () => {
+    expect(
+      notificationHref({ ...base, type: "CIRCLE_INVITE", circle: { slug: "secret", visibility: "PRIVATE" } }),
+    ).toBe("/circles/secret");
+  });
+});

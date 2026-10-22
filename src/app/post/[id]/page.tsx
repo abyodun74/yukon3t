@@ -9,6 +9,7 @@ import { ScreenshotContextTracker } from "@/components/screenshot-context-tracke
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
+import { canSeeCircleContent } from "@/lib/circle-visibility";
 import { loadPostComments } from "@/lib/comments-data";
 import { getDictionary } from "@/lib/i18n/server";
 import { CircleEventPanel } from "@/components/circle-event-panel";
@@ -40,13 +41,25 @@ export default async function PostDetailPage({
   // connections and never verified Circle membership at all, letting anyone
   // signed in view a private Circle's posts (and their comments) just by
   // knowing the post id, e.g. from a notification or share link.
-  let canView = isOwnPost || me.isAdmin;
+  // Site admins keep their moderation view of any post (a reported one included). Everyone else, the author included,
+  // goes through getVisiblePostsWhere, which also hides a post in (or a repost of one in) a PRIVATE Circle the viewer
+  // isn't a member of: to a non-member that Circle and everything in it doesn't exist (lib/circle-visibility.ts). The
+  // author still sees their own post while moderation holds it, unless it's in a PRIVATE Circle they have left.
+  let canView = me.isAdmin;
   if (!canView) {
     const visible = await prisma.post.findFirst({
       where: { id, ...(await getVisiblePostsWhere(me.id)) },
       select: { id: true },
     });
     canView = Boolean(visible);
+  }
+  if (!canView && isOwnPost && post.moderationStatus !== "PUBLISHED") {
+    canView =
+      !post.circleId ||
+      canSeeCircleContent(
+        { visibility: post.circle?.visibility ?? "PRIVATE" },
+        !!(await getCircleMembership(post.circleId, me.id)),
+      );
   }
   if (!canView) notFound();
 

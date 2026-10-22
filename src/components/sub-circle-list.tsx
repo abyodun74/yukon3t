@@ -24,6 +24,9 @@ export type SubCircleSummary = {
  * touch membership in the main Circle or any other sub-circle. Its member
  * list lives on its own page, like any Circle.
  *
+ * `subCircles` must already be only the ones the viewer may see (lib/circle-visibility.ts): PUBLIC ones, PRIVATE ones
+ * they belong to, and PRIVATE ones with a standing invite for them. Any other PRIVATE sub-circle doesn't exist for them.
+ *
  * `canAdd` is true only for the main Circle's owner (see
  * checkSubCircleParent); it also decides whether an empty list is shown at
  * all — nobody else has any use for a "No sub-circles yet" box.
@@ -32,14 +35,12 @@ export async function SubCircleList({
   parentSlug,
   subCircles,
   viewerId,
-  pendingRequestCircleIds,
   pendingInviteCircleIds,
   canAdd,
 }: {
   parentSlug: string;
   subCircles: SubCircleSummary[];
   viewerId: string;
-  pendingRequestCircleIds: string[];
   /** Private sub-circles the viewer has a standing invite to (loadStandingCircleInvites): "Accept invite". */
   pendingInviteCircleIds: string[];
   canAdd: boolean;
@@ -47,7 +48,6 @@ export async function SubCircleList({
   if (subCircles.length === 0 && !canAdd) return null;
   const locale = await getLocale();
   const t = (await getDictionary()).circles.subCircles;
-  const pending = new Set(pendingRequestCircleIds);
   const invited = new Set(pendingInviteCircleIds);
 
   return (
@@ -111,7 +111,6 @@ export async function SubCircleList({
                     isMember={isMember}
                     isOwner={sub.createdById === viewerId}
                     visibility={sub.visibility}
-                    hasPendingRequest={pending.has(sub.id)}
                     hasPendingInvite={invited.has(sub.id)}
                   />
                 </div>

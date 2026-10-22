@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCircleAdmin } from "@/lib/circle-permissions";
+import { canSeeCircleContent } from "@/lib/circle-visibility";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { LEAD_POST_ONLY, canViewPost, getVisiblePostsWhere } from "@/lib/post-visibility";
 import {
@@ -17,7 +18,7 @@ import type { EventRepeatFrequency } from "@/lib/event-recurrence";
  * The server half of Circle events: which of a Circle's upcoming events a viewer sees ("Coming up"), and one event's
  * organizer panel (bring list, nudge, repeat). The rules themselves are in the pure lib/circle-events.ts.
  *
- * Visibility is the Circle page's: a PRIVATE Circle's events only for members (and admins), a PRIVATE channel's only
+ * Visibility is the Circle page's: a PRIVATE Circle's events only for members (no site-admin shortcut), a PRIVATE channel's only
  * for its allow-list and the Circle's admins, and on top of that getVisiblePostsWhere (blocked-either-way authors,
  * HIDDEN accounts, inactive authors), the same check toggleRsvp makes, so every listed event can be RSVP'd in one tap.
  */
@@ -53,8 +54,9 @@ export async function circleEventsScope(circleId: string, viewer: Viewer, now: D
     where: { userId_circleId: { userId: viewer.id, circleId } },
     select: { role: true },
   });
+  // A PRIVATE Circle doesn't exist for a non-member, site admins included (lib/circle-visibility.ts).
+  if (!canSeeCircleContent(circle, !!membership)) return null;
   const canModerate = isCircleAdmin(circle, membership, viewer);
-  if (circle.visibility === "PRIVATE" && !membership && !canModerate) return null;
   const channels = await prisma.channel.findMany({
     where: {
       circleId,

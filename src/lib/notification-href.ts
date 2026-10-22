@@ -68,7 +68,9 @@ export type NotificationData = {
   // The same notice as data, worded at read time (notification-notice.ts). Optional: rows from before it existed.
   messageData?: string | null;
   postId: string | null;
-  circle: { slug: string } | null;
+  // `visibility` is optional so a caller that only needs links to public places can leave it out; without it a
+  // CIRCLE_CREATED notice links to the Circle's page.
+  circle: { slug: string; visibility?: string } | null;
   conversationId: string | null;
   collab: { id: string } | null;
   liveStreamId: string | null;
@@ -98,6 +100,9 @@ export function notificationHref(notification: NotificationData) {
     if (notification.postId) return `/post/${notification.postId}`;
     if (notification.circle) return `/circles/${notification.circle.slug}#events`;
   }
+  // Site admins' oversight notice about a new Circle. A PRIVATE Circle's page doesn't exist for a non-member, site
+  // admins included (lib/circle-visibility.ts), so a private one opens the admin Circles list instead.
+  if (notification.type === "CIRCLE_CREATED" && notification.circle?.visibility === "PRIVATE") return "/admin/circles";
   if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.channel && notification.circle) {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
@@ -537,7 +538,10 @@ export async function schedulePollOption(pollId: string, optionId: string) {
   return { error: null, postId: scheduled.post?.id ?? null } as const;
 }
 
-/** POLL_SCHEDULED to everyone who voted (any option), minus the scheduler and anyone blocked either way: bell + push. */
+/**
+ * POLL_SCHEDULED to everyone who voted (any option) and can still see the poll's Circle, minus the scheduler and anyone
+ * blocked either way: bell + push.
+ */
 async function notifyPollScheduled(
   pollId: string,
   actor: { id: string; name: string | null },
@@ -548,8 +552,10 @@ async function notifyPollScheduled(
     distinct: ["userId"],
     select: { userId: true },
   });
+  // A PRIVATE Circle's voters who have since left no longer see it (lib/circle-visibility.ts), so they aren't told.
+  const voterIds = voters.map((v) => v.userId);
   const recipients = pollRecipients(
-    voters.map((v) => v.userId),
+    target.circleId ? await filterCircleContentViewers(target.circleId, voterIds) : voterIds,
     actor.id,
     await getBlockedEitherWayIds(actor.id),
   );

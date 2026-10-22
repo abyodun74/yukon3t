@@ -6,6 +6,7 @@ import { format, type Locale } from "@/lib/i18n/locales";
 import { sendFcmEventReminderToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 
 // How far ahead to look for events that are about to start. Matched to the
 // scheduled function's own run interval (every 15 minutes, see
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
       // new time (rescheduleCircleEvent in actions/circle-events.ts).
       eventCancelledAt: null,
     },
-    select: { id: true, authorId: true, content: true, eventLocation: true },
+    select: { id: true, authorId: true, circleId: true, content: true, eventLocation: true },
   });
 
   let remindersSent = 0;
@@ -56,7 +57,13 @@ export async function GET(request: Request) {
         where: { postId: post.id },
         select: { userId: true },
       });
-      const recipientIds = new Set([post.authorId, ...rsvps.map((r) => r.userId)]);
+      // A PRIVATE Circle's event reminds its current members only: someone who RSVP'd and has since left (or was
+      // removed, or RSVP'd while the Circle was public), and an author who left, no longer see it (lib/circle-visibility.ts).
+      const candidates = [...new Set([post.authorId, ...rsvps.map((r) => r.userId)])];
+      const recipientIds = new Set(
+        post.circleId ? await filterCircleContentViewers(post.circleId, candidates) : candidates,
+      );
+      if (recipientIds.size === 0) continue;
 
       const eventTitle = post.content.trim().slice(0, 80);
       const location = post.eventLocation;

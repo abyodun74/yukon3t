@@ -80,7 +80,7 @@ export async function markReadByTarget(url: string) {
     take: 200,
     include: {
       actor: { select: { id: true, name: true } },
-      circle: { select: { slug: true } },
+      circle: { select: { slug: true, visibility: true } },
       collab: { select: { id: true } },
       channel: { select: { slug: true } },
     },

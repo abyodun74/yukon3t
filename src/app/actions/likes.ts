@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { canViewPost } from "@/lib/post-visibility";
 import { isEmojiOnly } from "@/lib/emoji";
 import { pushActivityNotification } from "@/lib/notify-push";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import type { ReactionSummary } from "@/lib/reactions";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
@@ -61,7 +62,11 @@ export async function toggleLike(postId: string) {
     }),
   ]);
 
-  if (post.authorId !== user.id) {
+  // An author who has left the post's PRIVATE Circle no longer sees it (lib/circle-visibility.ts): no bell row, no push.
+  if (
+    post.authorId !== user.id &&
+    (!post.circleId || (await filterCircleContentViewers(post.circleId, [post.authorId])).length > 0)
+  ) {
     await prisma.notification.create({
       data: {
         recipientId: post.authorId,

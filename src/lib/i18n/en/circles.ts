@@ -15,7 +15,7 @@ export const circlesEn = {
     title: "Circles",
     intro: "Interest and identity communities. Free to create and join — no organizer fees, ever.",
     start: "Start a Circle",
-    privateHint: "Private — join by request",
+    privateHint: "Private — members only, by invite",
     owner: "Owner",
     coAdmin: "Co-admin",
     members: "one: # member | other: # members",
@@ -28,7 +28,7 @@ export const circlesEn = {
     intro: "Free forever. You become the owner and first moderator.",
     subIntro: "A sub-circle of {name}, with its own members. Anyone can join it on its own. You become its owner.",
     subIntroPrivate:
-      "A sub-circle of {name}, with its own members. Anyone can join it on its own, by request. You become its owner.",
+      "A sub-circle of {name}, with its own members. It's private: only its members can see it, and people join only by invite. You become its owner.",
     errors: {
       rate_limited: "You're creating Circles too fast — try again in an hour.",
       rate_limited_sub: "You're creating sub-circles too fast — try again in an hour.",
@@ -48,10 +48,12 @@ export const circlesEn = {
     themePlaceholder:
       "e.g. A space for first-gen university students abroad to swap advice on visas, housing, and homesickness.",
     privacy: "Privacy",
-    forcedPrivate: "Private — join by request only. “{name}” is private, so its sub-circles are too.",
-    forcedPrivateNoName: "Private — join by request only. The main Circle is private, so its sub-circles are too.",
+    forcedPrivate:
+      "Private — invite only, and hidden from everyone but its members. “{name}” is private, so its sub-circles are too.",
+    forcedPrivateNoName:
+      "Private — invite only, and hidden from everyone but its members. The main Circle is private, so its sub-circles are too.",
     public: "Public — anyone can find and join",
-    private: "Private — join by request only",
+    private: "Private — invite only, seen by members only",
     back: "Back",
     next: "Next",
     submit: "Create Circle",
@@ -67,7 +69,6 @@ export const circlesEn = {
     subCircleOf: "Sub-circle of {name}",
     privateCircle: "Private Circle",
     members: "one: # member | other: # members",
-    privateNotice: "This Circle is private. Request to join to see its channels and posts.",
     liveNow: "Live now",
     joinToPost: "Join this Circle to post.",
     noPosts: "No posts yet — be the first.",
@@ -77,9 +78,7 @@ export const circlesEn = {
   },
   membership: {
     owner: "You own this Circle",
-    pending: "Request pending",
     leave: "Leave",
-    request: "Request to Join",
     acceptInvite: "Accept invite",
     join: "Join",
   },
@@ -237,11 +236,11 @@ export const circlesEn = {
     publicHelp: "Anyone can find and join it, and its posts and live streams can appear on Home and in search.",
     private: "Private",
     privateHelp:
-      "People request to join. Its posts and live streams are visible only to members and never appear on Home or in search.",
+      "Invite only. Only its members can see it: its name, picture, description, members, posts, events, polls and live streams are hidden from everyone else, and it never appears in the Circles list, on Home or in search.",
     goingPrivate:
-      "Making this Circle private hides its existing posts and live streams from non-members right away. Anyone who is already a member stays a member.",
+      "Making this Circle private hides it right away from everyone who isn't a member: it leaves the Circles list and search, and its existing posts, events and live streams disappear for them. Members stay members; from now on people join only by invite.",
     goingPrivateSubs:
-      "Making this Circle private hides its existing posts and live streams from non-members right away, and makes its sub-circles private too. Anyone who is already a member stays a member.",
+      "Making this Circle private hides it right away from everyone who isn't a member: it leaves the Circles list and search, its existing posts, events and live streams disappear for them, and its sub-circles become private too. Members stay members; from now on people join only by invite.",
     saving: "Saving...",
     save: "Save changes",
     errors: {
@@ -257,7 +256,7 @@ export const circlesEn = {
     hint: "Join any of these on its own — each has its own members.",
     add: "Add a sub-circle",
     empty: "No sub-circles yet. Add one to give a part of this Circle its own space and its own members.",
-    privateHint: "Private — join by request",
+    privateHint: "Private — members only, by invite",
     members: "one: # member | other: # members",
   },
 };

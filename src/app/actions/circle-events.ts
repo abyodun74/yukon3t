@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { captureError } from "@/lib/error-tracking";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
 import { sendFcmActivityToUsers } from "@/lib/fcm";
 import { eventChangePushBody, nameOrSomeone } from "@/lib/push-text";
@@ -333,9 +334,12 @@ async function notifyEventChange(
       claimerIds: claims.map((c) => c.claimedById),
       blockedIds: blocked,
     });
-    if (recipients.length === 0) return 0;
+    // A PRIVATE Circle's change reaches its current members only (lib/circle-visibility.ts): not someone who RSVP'd or
+    // claimed an item and has since left, nor an author who left.
+    const viewers = await filterCircleContentViewers(post.circle.id, recipients);
+    if (viewers.length === 0) return 0;
     const active = (
-      await prisma.user.findMany({ where: { id: { in: recipients }, status: "ACTIVE" }, select: { id: true } })
+      await prisma.user.findMany({ where: { id: { in: viewers }, status: "ACTIVE" }, select: { id: true } })
     ).map((u) => u.id);
     if (active.length === 0) return 0;
     await prisma.notification.createMany({

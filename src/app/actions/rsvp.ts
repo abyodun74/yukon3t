@@ -5,7 +5,8 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { notifySubscribers } from "@/lib/notify-subscribers";
-import { canViewPost } from "@/lib/post-visibility";
+import { canViewPost, isMembersOnlyPost } from "@/lib/post-visibility";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 
 function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
   revalidatePath(`/post/${post.id}`);
@@ -63,7 +64,11 @@ export async function toggleRsvp(postId: string) {
     }),
   ]);
 
-  if (post.authorId !== user.id) {
+  // An author who has left the event's PRIVATE Circle no longer sees it (lib/circle-visibility.ts).
+  if (
+    post.authorId !== user.id &&
+    (!post.circleId || (await filterCircleContentViewers(post.circleId, [post.authorId])).length > 0)
+  ) {
     await prisma.notification.create({
       data: {
         recipientId: post.authorId,
@@ -73,7 +78,11 @@ export async function toggleRsvp(postId: string) {
       },
     });
   }
-  await notifySubscribers(user.id, "SUBSCRIPTION_RSVP", { postId: post.id });
+  // A members-only event (a PRIVATE Circle's, or a private channel's) isn't announced to the RSVPer's subscribers, who
+  // need not be members: to them it doesn't exist (lib/circle-visibility.ts).
+  if (!(await isMembersOnlyPost(post))) {
+    await notifySubscribers(user.id, "SUBSCRIPTION_RSVP", { postId: post.id });
+  }
 
   revalidatePostViews(post);
   return { error: null, going: true, rsvpCount: updated.rsvpCount };

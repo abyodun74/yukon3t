@@ -30,7 +30,7 @@ export function checkSubCircleParent(parent: ParentCircle | null, userId: string
 /**
  * A sub-circle can never be more open than the Circle it sits under: under a
  * PRIVATE main Circle, a PUBLIC sub-circle would let anyone bypass the main
- * Circle's join-by-request by walking in through the side door.
+ * Circle's invite-only membership by walking in through the side door.
  */
 export function subCircleVisibility(
   parentVisibility: "PUBLIC" | "PRIVATE",

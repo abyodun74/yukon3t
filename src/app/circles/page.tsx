@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { visibleCircleWhere } from "@/lib/circle-visibility";
 import { CirclesNewFab } from "@/components/circles-new-fab";
 import { vocabName } from "@/lib/i18n/language-names";
 import { plural } from "@/lib/i18n/locales";
@@ -15,8 +16,9 @@ export default async function CirclesPage() {
 
   const circles = await prisma.circle.findMany({
     // Main Circles only — a sub-circle is listed on its main Circle's page,
-    // so it doesn't appear here as a separate top-level entry.
-    where: { parentId: null },
+    // so it doesn't appear here as a separate top-level entry. A PRIVATE one
+    // only for its members: to anyone else it doesn't exist (lib/circle-visibility.ts).
+    where: { parentId: null, ...visibleCircleWhere(me.id) },
     orderBy: { createdAt: "desc" },
     take: 40,
     include: {

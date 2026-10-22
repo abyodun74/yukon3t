@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCircleAdmin } from "@/lib/circle-permissions";
+import { canSeeCircleContent } from "@/lib/circle-visibility";
 import { isCollabAdmin } from "@/lib/collab-permissions";
 import {
   POLLS_PAGE_SIZE,
@@ -36,7 +37,7 @@ export type PollParentAccess = {
 
 /**
  * A Circle's (or one of its channels') polls. Seen by whoever can see the Circle's posts: anyone for a PUBLIC Circle,
- * members (and admins) for a PRIVATE one; a PRIVATE channel's polls only by those who can open that channel (its
+ * members only for a PRIVATE one (no site-admin shortcut: the Circle doesn't exist for a non-member); a PRIVATE channel's polls only by those who can open that channel (its
  * allow-list, or a Circle admin), same as canAccessChannel. Voting needs membership, and channel access for a channel
  * poll.
  */
@@ -49,6 +50,10 @@ export async function getCirclePollAccess(
     where: { userId_circleId: { userId: viewer.id, circleId: circle.id } },
     select: { role: true },
   });
+  // A PRIVATE Circle doesn't exist for a non-member (lib/circle-visibility.ts), site admins included: no access at all.
+  if (!canSeeCircleContent(circle, !!membership)) {
+    return { canView: false, isMember: false, isParentAdmin: false, canCreate: false };
+  }
   const isParentAdmin = isCircleAdmin(circle, membership, viewer);
   let channelOk = true;
   if (channel && channel.visibility !== "PUBLIC" && !isParentAdmin) {
@@ -61,7 +66,7 @@ export async function getCirclePollAccess(
   }
   const isMember = !!membership && channelOk;
   return {
-    canView: (circle.visibility === "PUBLIC" || !!membership || isParentAdmin) && channelOk,
+    canView: channelOk,
     isMember,
     isParentAdmin,
     canCreate: channelOk && canCreatePoll(membership?.role ?? null, circle.createdById === viewer.id),
@@ -291,7 +296,7 @@ export function circlePollWhere(circleId: string, accessibleChannelIds: readonly
 
 /**
  * The viewer's access to a Circle's poll list and the condition selecting the polls they see, or null when they may not
- * see the list at all. The same rules as the Circle page: a PRIVATE Circle's polls are for members and admins only, and
+ * see the list at all. The same rules as the Circle page: a PRIVATE Circle's polls are for members only, and
  * a PRIVATE channel's for its allow-list and the Circle's admins.
  */
 export async function circlePollScope(circleId: string, viewer: Viewer) {

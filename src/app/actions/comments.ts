@@ -11,6 +11,7 @@ import type { ReactionSummary } from "@/lib/reactions";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { canViewPost } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
+import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { isGiphyUrl } from "@/lib/giphy";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import {
@@ -195,7 +196,14 @@ export async function createComment(formData: FormData) {
   });
 
   if (moderationStatus === "PUBLISHED") {
-    if (post.authorId !== user.id) {
+    // In a PRIVATE Circle, only people still in it hear about a comment: an author or commenter who has left no longer
+    // sees the post (lib/circle-visibility.ts), so they get neither the bell row nor the push.
+    const notifiable = new Set(
+      post.circleId
+        ? await filterCircleContentViewers(post.circleId, [post.authorId, ...(parentComment ? [parentComment.authorId] : [])])
+        : [post.authorId, ...(parentComment ? [parentComment.authorId] : [])],
+    );
+    if (post.authorId !== user.id && notifiable.has(post.authorId)) {
       await prisma.notification.create({
         data: {
           recipientId: post.authorId,
@@ -208,7 +216,12 @@ export async function createComment(formData: FormData) {
       await pushActivityNotification(post.authorId, "POST_COMMENT", user.name, `/post/${postId}`);
     }
 
-    if (parentComment && parentComment.authorId !== user.id && parentComment.authorId !== post.authorId) {
+    if (
+      parentComment &&
+      parentComment.authorId !== user.id &&
+      parentComment.authorId !== post.authorId &&
+      notifiable.has(parentComment.authorId)
+    ) {
       await prisma.notification.create({
         data: {
           recipientId: parentComment.authorId,

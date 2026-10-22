@@ -24,6 +24,7 @@ import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { isCircleAdmin } from "@/lib/circle-permissions";
+import { canSeeCircle, canSeeCircleContent, visibleOrInvitedCircleWhere } from "@/lib/circle-visibility";
 import { canInviteToCircle, eligibleCircleInvitees } from "@/lib/circle-invite";
 import {
   getAcceptedConnectionUsers,
@@ -69,12 +70,16 @@ export default async function CirclePage({
     prisma.circle.findUnique({
       where: { slug },
       include: {
-        _count: { select: { members: true } },
+        _count: { select: { members: true, subCircles: true } },
         members: { where: { userId: me.id } },
-        // Set only on a sub-circle: its main Circle, for the "Part of …" link.
-        parent: { select: { name: true, slug: true, visibility: true } },
-        // Set only on a main Circle: its sub-circles, listed on this page.
+        // Set only on a sub-circle: its main Circle, for the "Part of …" link (shown only if the viewer may see it).
+        parent: {
+          select: { name: true, slug: true, visibility: true, members: { where: { userId: me.id }, select: { id: true } } },
+        },
+        // Set only on a main Circle: its sub-circles, listed on this page. A PRIVATE one only for its members, and for
+        // someone it invited (a standing invite, checked below): to anyone else it doesn't exist.
         subCircles: {
+          where: visibleOrInvitedCircleWhere(me.id),
           orderBy: { createdAt: "asc" },
           include: {
             _count: { select: { members: true } },
@@ -93,12 +98,25 @@ export default async function CirclePage({
   if (!circle) notFound();
 
   const isMember = circle.members.length > 0;
-  const isOwner = circle.createdById === me.id;
-  const canModerate = isCircleAdmin(circle, circle.members[0] ?? null, me);
+  // A PRIVATE Circle doesn't exist for a non-member (lib/circle-visibility.ts): the same 404 as a Circle that was never
+  // created, site admins included (they have /admin/circles). The one exception is a standing invite, which shows the
+  // Circle's header and the Accept/Decline prompt, and nothing inside it.
+  const myInvite =
+    circle.visibility === "PRIVATE" && !isMember
+      ? ((await loadStandingCircleInvites(me.id, [circle])).get(circle.id) ?? null)
+      : null;
+  if (!canSeeCircle(circle, { isMember, hasStandingInvite: !!myInvite })) notFound();
 
-  const isPrivateNonMember = circle.visibility === "PRIVATE" && !isMember && !canModerate;
+  const isOwner = circle.createdById === me.id;
+  // Only someone who may see inside the Circle gets anything past its header; isCircleAdmin's site-admin shortcut never
+  // opens a PRIVATE Circle the admin isn't a member of.
+  const isPrivateNonMember = !canSeeCircleContent(circle, isMember);
+  const canModerate = !isPrivateNonMember && isCircleAdmin(circle, circle.members[0] ?? null, me);
   // Inviting is the owner's and co-admins' only, by membership role — no site-admin shortcut (see inviteToCircle).
   const canInvite = circle.visibility === "PRIVATE" && canInviteToCircle(circle, circle.members[0] ?? null, me.id);
+  // The main Circle, for the "Sub-circle of …" link and Back, only when the viewer may see it.
+  const visibleParent =
+    circle.parent && canSeeCircle(circle.parent, { isMember: circle.parent.members.length > 0 }) ? circle.parent : null;
 
   const accessibleChannels = circle.channels.filter(
     (c) => c.visibility === "PUBLIC" || canModerate || c.members.some((m) => m.userId === me.id),
@@ -114,20 +132,16 @@ export default async function CirclePage({
   const backHref =
     requestedSlug && activeChannel && activeChannel.id !== defaultChannel?.id
       ? `/circles/${circle.slug}`
-      : circle.parent
-        ? `/circles/${circle.parent.slug}`
+      : visibleParent
+        ? `/circles/${visibleParent.slug}`
         : "/circles";
 
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
-  const [myJoinRequest, pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, mySubCircleRequests, myInvites] = await Promise.all([
-    !isMember
-      ? prisma.circleJoinRequest.findUnique({
-          where: { circleId_userId: { circleId: circle.id, userId: me.id } },
-        })
-      : Promise.resolve(null),
-
+  const [pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, subCircleInvites] = await Promise.all([
+    // Join requests sent before PRIVATE Circles became invite-only: nobody can send a new one, but the admins can still
+    // answer these (the requester no longer sees the Circle).
     canModerate && circle.visibility === "PRIVATE"
       ? prisma.circleJoinRequest.findMany({
           where: { circleId: circle.id, status: "PENDING" },
@@ -145,7 +159,7 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
-    isMember || isOwner
+    !isPrivateNonMember && (isMember || isOwner)
       ? prisma.circleMembership.findMany({
           where: { circleId: circle.id },
           orderBy: { joinedAt: "asc" },
@@ -164,24 +178,20 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
-    // Which of this Circle's sub-circles the viewer has a pending join
-    // request to — so a private sub-circle's button reads "Request pending".
-    circle.subCircles.length > 0
-      ? prisma.circleJoinRequest.findMany({
-          where: { userId: me.id, status: "PENDING", circleId: { in: circle.subCircles.map((s) => s.id) } },
-          select: { circleId: true },
-        })
-      : Promise.resolve([]),
-
-    // Invites waiting on the viewer's answer, in one query: to this PRIVATE Circle (the accept/decline banner) and to
-    // any private sub-circle listed below (its button reads "Accept invite"). Only ones whose inviter can still invite.
-    loadStandingCircleInvites(me.id, [
-      ...(!isMember && circle.visibility === "PRIVATE" ? [circle] : []),
-      ...circle.subCircles.filter((s) => s.visibility === "PRIVATE" && s.members.length === 0),
-    ]),
+    // Invites waiting on the viewer's answer to a private sub-circle listed below (its button reads "Accept invite").
+    // Only ones whose inviter can still invite; a private sub-circle with none is dropped from the list.
+    !isPrivateNonMember
+      ? loadStandingCircleInvites(
+          me.id,
+          circle.subCircles.filter((s) => s.visibility === "PRIVATE" && s.members.length === 0),
+        )
+      : Promise.resolve(new Map<string, { id: string; inviterName: string | null }>()),
   ]);
-  const hasPendingRequest = myJoinRequest?.status === "PENDING";
-  const myInvite = myInvites.get(circle.id) ?? null;
+  const visibleSubCircles = isPrivateNonMember
+    ? []
+    : circle.subCircles.filter((s) =>
+        canSeeCircle(s, { isMember: s.members.length > 0, hasStandingInvite: subCircleInvites.has(s.id) }),
+      );
 
   // The invite manager: every invite, by name, to every admin; an accepted one only while the person is still a member
   // (after leaving or being removed they're simply invitable again). Candidates are the viewer's own connections,
@@ -241,11 +251,11 @@ export default async function CirclePage({
           on the "Add a sub-circle" form the Circle was just created from): a non-default channel → this Circle's own
           page; a sub-circle → its main Circle; a main Circle → the Circles page. */}
       <BackButton href={backHref} />
-      {circle.parent && (
+      {visibleParent && (
         <p className="text-xs text-foreground-soft">
           {subCircleOfBefore}
-          <Link href={`/circles/${circle.parent.slug}`} className="font-medium text-accent hover:underline">
-            <bdi>{circle.parent.name}</bdi>
+          <Link href={`/circles/${visibleParent.slug}`} className="font-medium text-accent hover:underline">
+            <bdi>{visibleParent.name}</bdi>
           </Link>
           {subCircleOfAfter}
         </p>
@@ -283,7 +293,7 @@ export default async function CirclePage({
               visibility={circle.visibility}
               // A sub-circle under a private main Circle can't be more open than it.
               visibilityLocked={circle.parent?.visibility === "PRIVATE"}
-              hasSubCircles={circle.subCircles.length > 0}
+              hasSubCircles={circle._count.subCircles > 0}
             />
           )}
         </div>
@@ -293,14 +303,14 @@ export default async function CirclePage({
             isMember={isMember}
             isOwner={isOwner}
             visibility={circle.visibility}
-            hasPendingRequest={hasPendingRequest}
             hasPendingInvite={!!myInvite}
           />
-          {(isOwner || me.isAdmin) && (
+          {(isOwner || (me.isAdmin && !isPrivateNonMember)) && (
             <DeleteCircleButton
               circleId={circle.id}
               isAdminOverride={!isOwner}
-              subCircleCount={circle.subCircles.length}
+              // Deleting cascades to every sub-circle, including any private one the viewer isn't in: counted, not named.
+              subCircleCount={circle._count.subCircles}
             />
           )}
         </div>
@@ -309,13 +319,8 @@ export default async function CirclePage({
       <p className="mt-1 text-xs text-foreground-soft">{plural(locale, t.members, circle._count.members)}</p>
 
       {isPrivateNonMember ? (
-        myInvite ? (
-          <CircleInviteResponse inviteId={myInvite.id} inviterName={myInvite.inviterName} />
-        ) : (
-          <p className="mt-8 rounded-xl border border-line p-4 text-sm text-foreground-soft">
-            {t.privateNotice}
-          </p>
-        )
+        // canSeeCircle above let a private non-member this far only with a standing invite.
+        myInvite && <CircleInviteResponse inviteId={myInvite.id} inviterName={myInvite.inviterName} />
       ) : (
         <>
           {canModerate && (
@@ -336,10 +341,9 @@ export default async function CirclePage({
 
           <SubCircleList
             parentSlug={circle.slug}
-            subCircles={circle.subCircles}
+            subCircles={visibleSubCircles}
             viewerId={me.id}
-            pendingRequestCircleIds={mySubCircleRequests.map((r) => r.circleId)}
-            pendingInviteCircleIds={circle.subCircles.filter((s) => myInvites.has(s.id)).map((s) => s.id)}
+            pendingInviteCircleIds={visibleSubCircles.filter((s) => subCircleInvites.has(s.id)).map((s) => s.id)}
             canAdd={isOwner && !circle.parentId}
           />
 

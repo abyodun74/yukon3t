@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
+import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
 import { rememberLocale } from "@/lib/user-locale";
 
 /**
@@ -61,7 +62,12 @@ export async function GET() {
       where: { targetId: user.id, status: "PENDING", requesterId: { notIn: hidden.peerIds } },
     }),
     prisma.notification.count({
-      where: { recipientId: user.id, readAt: null, AND: visibleNotificationWhere(hidden) },
+      // Same rows /notifications lists: none from a hidden chat, none about a PRIVATE Circle the reader isn't in.
+      where: {
+        recipientId: user.id,
+        readAt: null,
+        AND: [...visibleNotificationWhere(hidden), circleNotificationVisibleWhere(user.id)],
+      },
     }),
     prisma.announcement.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
   ]);

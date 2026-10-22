@@ -6,6 +6,7 @@ import { GroupedNotificationRow } from "@/components/grouped-notification-row";
 import { MarkAllReadButton } from "@/components/mark-all-read-button";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
+import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
 import { getDictionary } from "@/lib/i18n/server";
 
 export default async function NotificationsPage() {
@@ -24,12 +25,14 @@ export default async function NotificationsPage() {
     missedCallsFrom: t.missedCallsFrom,
   };
   const notifications = await prisma.notification.findMany({
-    where: { recipientId: me.id, AND: visibleNotificationWhere(hidden) },
+    // Also never a row about a PRIVATE Circle the reader isn't a member of (circleNotificationVisibleWhere): to them it
+    // doesn't exist, including rows from before they left or before it went private.
+    where: { recipientId: me.id, AND: [...visibleNotificationWhere(hidden), circleNotificationVisibleWhere(me.id)] },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: {
       actor: { select: { id: true, name: true, avatarUrl: true } },
-      circle: { select: { slug: true } },
+      circle: { select: { slug: true, visibility: true } },
       collab: { select: { id: true } },
       channel: { select: { slug: true } },
     },

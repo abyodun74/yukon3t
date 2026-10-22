@@ -34,6 +34,7 @@ import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
+import { canSeeCircle, canSeeCircleContent } from "@/lib/circle-visibility";
 import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import {
   circleCreateLockKey,
@@ -222,8 +223,9 @@ export async function createCircle(formData: FormData) {
   // A sub-circle isn't announced to the owner's subscribers: someone setting
   // up a main Circle's sub-circles would otherwise send them one "created a
   // Circle" notification per sub-circle. The main Circle's own creation
-  // already told them.
-  if (!parent) {
+  // already told them. Nor is a PRIVATE Circle: to anyone but its members it
+  // doesn't exist (lib/circle-visibility.ts), and a subscriber isn't one.
+  if (!parent && visibility === "PUBLIC") {
     await notifySubscribers(user.id, "SUBSCRIPTION_CIRCLE_CREATED", { circleId: circle.id });
   }
 
@@ -255,12 +257,11 @@ export async function joinCircle(circleId: string) {
   }
 
   if (circle.visibility === "PRIVATE") {
-    // Instant-join doesn't apply — create/refresh a CircleJoinRequest
-    // instead, same upsert-with-status-reset-on-DECLINED shape as
-    // requestToJoinGroup for private Conversations.
-    const existingRequest = await prisma.circleJoinRequest.findUnique({
-      where: { circleId_userId: { circleId, userId: user.id } },
-    });
+    // A PRIVATE Circle is invite-only and doesn't exist for a non-member (lib/circle-visibility.ts): the only way in is
+    // a pending invite, which "Accept invite" (this action) accepts. There is no request to join any more: without an
+    // invite this answers exactly like a Circle that doesn't exist, and no CircleJoinRequest is created. Requests made
+    // before this rule stay in the database and the Circle's admins can still answer them (respondToCircleJoinRequest),
+    // but the person who sent one no longer sees the Circle.
     const alreadyMember = await prisma.circleMembership.findUnique({
       where: { userId_circleId: { userId: user.id, circleId } },
     });
@@ -268,7 +269,7 @@ export async function joinCircle(circleId: string) {
       revalidatePath("/circles");
       return { error: null, requested: false };
     }
-    // Invited already: "Request to Join" (it reads "Accept invite" then) just accepts the invite.
+    // Invited: the button reads "Accept invite", and this accepts it.
     const pendingInvite = await prisma.circleInvite.findFirst({
       where: { circleId, inviteeId: user.id, status: "PENDING" },
       select: { id: true, inviterId: true },
@@ -279,40 +280,10 @@ export async function joinCircle(circleId: string) {
         revalidatePath("/circles");
         return { error: null, requested: false };
       }
-      // An invite whose inviter can no longer invite was just deleted: fall through and ask to join instead.
-      if (accepted.error !== "invite_expired") return { error: accepted.error, requested: false };
+      // Refused (invite_expired: its inviter can no longer invite, so it was deleted; a block; a race): answered as is.
+      return { error: accepted.error, requested: false };
     }
-    if (!existingRequest) {
-      try {
-        await prisma.circleJoinRequest.create({ data: { circleId, userId: user.id } });
-      } catch (err) {
-        // A fast double-click can race past the !existingRequest check above —
-        // @@unique([circleId, userId]) then rejects the second create. The
-        // request already exists either way, so this is a success, not an error.
-        if (!isUniqueConstraintError(err)) throw err;
-      }
-    } else if (existingRequest.status === "DECLINED") {
-      await prisma.circleJoinRequest.update({
-        where: { id: existingRequest.id },
-        data: { status: "PENDING", respondedAt: null },
-      });
-    }
-
-    const recipientIds = new Set([circle.createdById, ...circle.members.map((m) => m.userId)]);
-    recipientIds.delete(user.id);
-    if (recipientIds.size > 0 && !existingRequest) {
-      await prisma.notification.createMany({
-        data: [...recipientIds].map((recipientId) => ({
-          recipientId,
-          actorId: user.id,
-          type: "CIRCLE_JOIN_REQUEST" as const,
-          circleId,
-        })),
-      });
-    }
-
-    revalidatePath(`/circles`);
-    return { error: null, requested: true };
+    return { error: "not_found" as const, requested: false };
   }
 
   const existing = await prisma.circleMembership.findUnique({
@@ -1452,7 +1423,16 @@ export async function getMyCircles() {
   const memberships = await prisma.circleMembership.findMany({
     where: { userId: user.id },
     include: {
-      circle: { select: { id: true, name: true, slug: true, coverImageUrl: true, parent: { select: { name: true } } } },
+      circle: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          coverImageUrl: true,
+          // Only a main Circle the caller may see names it: a PRIVATE one they aren't in doesn't exist for them.
+          parent: { select: { name: true, visibility: true, members: { where: { userId: user.id }, select: { id: true } } } },
+        },
+      },
     },
     orderBy: { circle: { name: "asc" } },
   });
@@ -1461,7 +1441,10 @@ export async function getMyCircles() {
   // "Main › Sub" — two different main Circles can each have a sub-circle
   // called "General", and the bare name alone wouldn't tell them apart.
   return {
-    circles: memberships.map(({ circle: { parent, ...circle } }) => ({ ...circle, parentName: parent?.name ?? null })),
+    circles: memberships.map(({ circle: { parent, ...circle } }) => ({
+      ...circle,
+      parentName: parent && canSeeCircle(parent, { isMember: parent.members.length > 0 }) ? parent.name : null,
+    })),
   };
 }
 
@@ -1487,14 +1470,14 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
     return { items: [], hasMore: false };
   }
   const circleMembership = await getCircleMembership(channel.circleId, user.id);
+  // A private Circle hides its channels/posts from non-members entirely (site admins included), even a channel that's
+  // itself marked PUBLIC — the page's own gate (lib/circle-visibility.ts).
+  if (!canSeeCircleContent(channel.circle, !!circleMembership)) {
+    return { items: [], hasMore: false };
+  }
   const canModerate = isCircleAdmin(channel.circle, circleMembership, user);
-  // A private Circle hides its channels/posts from non-members entirely,
-  // even a channel that's itself marked PUBLIC — matches the page's own
-  // `isPrivateNonMember` gate.
-  const isPrivateNonMember = channel.circle.visibility === "PRIVATE" && !circleMembership && !canModerate;
   const canRead =
-    !isPrivateNonMember &&
-    (channel.visibility === "PUBLIC" || canModerate || channel.members.some((m) => m.userId === user.id));
+    channel.visibility === "PUBLIC" || canModerate || channel.members.some((m) => m.userId === user.id);
   if (!canRead) {
     return { items: [], hasMore: false };
   }

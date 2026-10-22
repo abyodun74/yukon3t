@@ -1462,14 +1462,19 @@ const sections: Section[] = [
             streams are public: they can appear on Home and in search, can be
             reposted or shared to a Story, Muse or another Circle, and
             notify subscribers like any public post. A{" "}
-            <strong>private</strong> Circle&apos;s (or sub-circle&apos;s)
-            posts, videos, channel conversations, voice rooms and live streams
-            are visible only to its members — never on Home, in search, or on
-            profiles, and they can&apos;t be reposted or shared out. A
+            <strong>private</strong> Circle (or sub-circle) is visible only to
+            its members: to everyone else it doesn&apos;t exist. It isn&apos;t
+            listed, can&apos;t be found in search, and its name, picture,
+            description, members, posts, videos, events, polls, channel
+            conversations, voice rooms and live streams are all hidden from
+            them. Its content never shows on Home, in search or on profiles,
+            and can&apos;t be reposted or shared out. People join a private
+            Circle only by invite: someone who has been invited sees its name,
+            picture and description, with the invite, until they answer. A
             private channel inside a public Circle is members-only in the same
             way. Each sub-circle has its own privacy and its own membership:
             being in the main Circle doesn&apos;t let you see a private
-            sub-circle&apos;s content, and vice versa.
+            sub-circle, and vice versa.
           </>
         ),
       },
@@ -1499,11 +1504,14 @@ const sections: Section[] = [
             creating it), its categories, and/or its privacy (public or
             private) at any time. Its URL never changes when you rename it, so
             existing links and bookmarks to it keep working. Making a Circle
-            private hides its posts and live streams from non-members right
-            away (and makes its sub-circles private too); existing members
-            stay. Making it public lets anyone join and see it, and clears any
-            pending join requests since they&apos;re no longer needed. A
-            sub-circle under a private Circle can&apos;t be made public.
+            private hides it right away from everyone who isn&apos;t a member:
+            it leaves the Circles list and search, and its posts, events and
+            live streams (and reposts of its posts) disappear for them. It also
+            makes its sub-circles private; existing members stay, and from then
+            on people join only by invite. Making it public lets anyone find,
+            join and see it, and clears any pending join requests and invites
+            since they&apos;re no longer needed. A sub-circle under a private
+            Circle can&apos;t be made public.
           </>
         ),
       },
@@ -1515,11 +1523,14 @@ const sections: Section[] = [
             A sub-circle is a smaller Circle that lives under a main Circle —
             for example a &ldquo;Design&rdquo; and a &ldquo;Marketing&rdquo;
             sub-circle under a &ldquo;Startup Founders&rdquo; Circle. Open the
-            main Circle and its sub-circles are listed right on its page.
-            Each one has its own members, its own channels and posts, and its
-            own member list on its own page, and you can join any of them on
-            its own — you don&apos;t have to join the main Circle first, and
-            joining one doesn&apos;t join you to the others. Only the main
+            main Circle and the sub-circles you can see are listed right on
+            its page: every public one, and a private one only if you&apos;re
+            a member or have been invited to it. Each one has its own members,
+            its own channels and posts, and its own member list on its own
+            page. You can join any public sub-circle on its own — you
+            don&apos;t have to join the main Circle first, and joining one
+            doesn&apos;t join you to the others — while a private one, like
+            any private Circle, is joined by invite only. Only the main
             Circle&apos;s owner can add sub-circles (tap &ldquo;Add a
             sub-circle&rdquo; on the main Circle&apos;s page). Sub-circles go
             one level deep, and a sub-circle under a private Circle is
@@ -1533,20 +1544,23 @@ const sections: Section[] = [
         q: "How do I invite people to a private Circle?",
         a: (
           <>
-            On a private Circle&apos;s page, its owner or a co-admin can tap
-            &ldquo;Invite people&rdquo; and pick from their own connections,
-            up to 50 at a time. Each person gets a notification and an
-            Accept/Decline prompt on the Circle&apos;s page (its button reads
-            &ldquo;Accept invite&rdquo; instead of &ldquo;Request to
-            Join&rdquo;); nobody becomes a member until they accept, and
-            declining doesn&apos;t notify anyone. Inviting someone who already
-            asked to join simply approves their request. Every admin sees the
-            &ldquo;Invited&rdquo; list with each invite&apos;s status and can
-            cancel one that&apos;s still pending. Invites don&apos;t expire,
-            but one can no longer be accepted once the person who sent it is
-            no longer an admin of the Circle; the list marks it, and inviting
-            that person again sends a fresh invite. Someone who declined, left
-            or was removed can be invited again.
+            A private Circle is invite-only: nobody else can find it or ask to
+            join it, so an invite is the only way in. On a private
+            Circle&apos;s page, its owner or a co-admin can tap &ldquo;Invite
+            people&rdquo; and pick from their own connections, up to 50 at a
+            time. Each person gets a notification, and on the Circle&apos;s
+            page an Accept/Decline prompt (the only part of the Circle they
+            can see until they accept); nobody becomes a member until they
+            accept, and declining doesn&apos;t notify anyone, after which the
+            Circle is hidden from them again. Inviting someone who asked to
+            join before private Circles became invite-only simply lets them
+            in. Every admin sees the &ldquo;Invited&rdquo; list with each
+            invite&apos;s status and can cancel one that&apos;s still pending.
+            Invites don&apos;t expire, but one can no longer be accepted once
+            the person who sent it is no longer an admin of the Circle; the
+            list marks it, and inviting that person again sends a fresh
+            invite. Someone who declined, left or was removed can be invited
+            again.
             A sub-circle is its own Circle, so invite people to it from its
             own page. Making the Circle public cancels pending invites, since
             anyone can join it then.

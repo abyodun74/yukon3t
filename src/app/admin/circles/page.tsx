@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { canSeeCircle } from "@/lib/circle-visibility";
 import { DeleteCircleButton } from "@/components/delete-circle-button";
 import { DeleteCollabButton } from "@/components/delete-collab-button";
 
@@ -27,6 +28,7 @@ export default async function AdminCirclesPage() {
       include: {
         _count: { select: { members: true, posts: true } },
         createdBy: { select: { name: true } },
+        members: { where: { userId: user.id }, select: { id: true } },
       },
     }),
     prisma.collabBoardPost.findMany({
@@ -72,9 +74,20 @@ export default async function AdminCirclesPage() {
                 }`}
               >
                 <div className="min-w-0">
-                  <Link href={`/circles/${circle.slug}`} className="break-words font-semibold hover:text-accent">
-                    {circle.name}
-                  </Link>
+                  {/* A PRIVATE Circle's page doesn't exist for a non-member, site admins included
+                      (lib/circle-visibility.ts): it is listed here, by name, for clean-up only. */}
+                  {canSeeCircle(circle, { isMember: circle.members.length > 0 }) ? (
+                    <Link href={`/circles/${circle.slug}`} className="break-words font-semibold hover:text-accent">
+                      {circle.name}
+                    </Link>
+                  ) : (
+                    <span className="break-words font-semibold">{circle.name}</span>
+                  )}
+                  {circle.visibility === "PRIVATE" && (
+                    <span className="ms-2 rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-accent">
+                      Private
+                    </span>
+                  )}
                   <p className="text-xs text-foreground-soft">
                     {circle.category.join(", ")} &middot; {circle._count.members} member
                     {circle._count.members === 1 ? "" : "s"} &middot; {circle._count.posts} post

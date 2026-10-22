@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { visibleCircleWhere } from "@/lib/circle-visibility";
 import { TrustBadge } from "@/components/trust-badge";
 import { PostCard } from "@/components/post-card";
 import { SearchPostsList } from "@/components/search-posts-list";
@@ -140,6 +141,8 @@ export default async function SearchPage({
             { description: { contains: q, mode: "insensitive" } },
             { category: { hasSome: matchingCategories } },
           ],
+          // A PRIVATE Circle is never found by anyone but its members (lib/circle-visibility.ts).
+          AND: [visibleCircleWhere(me.id)],
         },
         orderBy:
           sort === "recent" || sort === "current"

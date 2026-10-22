@@ -10,7 +10,7 @@ export const circles: typeof circlesEn = {
     title: "Circles",
     intro: "Comunidades em torno de interesses e identidades. Criar e participar é grátis: quem organiza nunca paga.",
     start: "Criar um Circle",
-    privateHint: "Privado: entrada mediante pedido",
+    privateHint: "Privado: só para membros, por convite",
     owner: "Seu",
     coAdmin: "Coadmin",
     members: "one: # membro | other: # membros",
@@ -24,7 +24,7 @@ export const circles: typeof circlesEn = {
     subIntro:
       "Um sub-Circle de {name}, com seus próprios membros. Qualquer pessoa pode entrar nele separadamente. Ele será seu.",
     subIntroPrivate:
-      "Um sub-Circle de {name}, com seus próprios membros. Qualquer pessoa pode entrar nele separadamente, mediante pedido. Ele será seu.",
+      "Um sub-Circle de {name}, com seus próprios membros. É privado: somente os membros podem vê-lo, e só se entra por convite. Ele será seu.",
     errors: {
       rate_limited: "Você está criando Circles rápido demais. Tente novamente em uma hora.",
       rate_limited_sub: "Você está criando sub-Circles rápido demais. Tente novamente em uma hora.",
@@ -45,11 +45,11 @@ export const circles: typeof circlesEn = {
       "ex.: Um espaço para universitários de primeira geração no exterior trocarem dicas sobre vistos, moradia e saudade de casa.",
     privacy: "Privacidade",
     forcedPrivate:
-      "Privado: entrada somente mediante pedido. “{name}” é privado, então seus sub-Circles também são.",
+      "Privado: somente por convite e oculto para todos, exceto os membros. “{name}” é privado, então seus sub-Circles também são.",
     forcedPrivateNoName:
-      "Privado: entrada somente mediante pedido. O Circle principal é privado, então seus sub-Circles também são.",
+      "Privado: somente por convite e oculto para todos, exceto os membros. O Circle principal é privado, então seus sub-Circles também são.",
     public: "Público: qualquer pessoa pode encontrar e entrar",
-    private: "Privado: entrada somente mediante pedido",
+    private: "Privado: somente por convite, visível só para os membros",
     back: "Voltar",
     next: "Avançar",
     submit: "Criar Circle",
@@ -65,7 +65,6 @@ export const circles: typeof circlesEn = {
     subCircleOf: "Sub-Circle de {name}",
     privateCircle: "Circle privado",
     members: "one: # membro | other: # membros",
-    privateNotice: "Este Circle é privado. Peça para entrar e ver seus canais e publicações.",
     liveNow: "Ao vivo agora",
     joinToPost: "Entre neste Circle para publicar.",
     noPosts: "Ainda não há publicações. Faça a primeira.",
@@ -75,9 +74,7 @@ export const circles: typeof circlesEn = {
   },
   membership: {
     owner: "Este Circle é seu",
-    pending: "Pedido pendente",
     leave: "Sair",
-    request: "Pedir para participar",
     acceptInvite: "Aceitar convite",
     join: "Participar",
   },
@@ -236,11 +233,11 @@ export const circles: typeof circlesEn = {
       "Qualquer pessoa pode encontrar e entrar, e as publicações e transmissões ao vivo dele podem aparecer no Início e na busca.",
     private: "Privado",
     privateHelp:
-      "As pessoas pedem para entrar. As publicações e transmissões ao vivo dele ficam visíveis somente para os membros e nunca aparecem no Início nem na busca.",
+      "Somente por convite. Só os membros podem vê-lo: o nome, a foto, a descrição, os membros, as publicações, os eventos, as enquetes e as transmissões ao vivo dele ficam ocultos para todas as outras pessoas, e ele nunca aparece na lista de Circles, no Início nem na busca.",
     goingPrivate:
-      "Ao tornar este Circle privado, as publicações e transmissões ao vivo já existentes deixam de aparecer imediatamente para quem não é membro. Quem já é membro continua sendo.",
+      "Ao tornar este Circle privado, ele deixa de aparecer imediatamente para quem não é membro: sai da lista de Circles e da busca, e as publicações, eventos e transmissões ao vivo já existentes somem para essas pessoas. Quem já é membro continua sendo; a partir de agora, só se entra por convite.",
     goingPrivateSubs:
-      "Ao tornar este Circle privado, as publicações e transmissões ao vivo já existentes deixam de aparecer imediatamente para quem não é membro, e os sub-Circles dele também passam a ser privados. Quem já é membro continua sendo.",
+      "Ao tornar este Circle privado, ele deixa de aparecer imediatamente para quem não é membro: sai da lista de Circles e da busca, as publicações, eventos e transmissões ao vivo já existentes somem para essas pessoas, e os sub-Circles dele também passam a ser privados. Quem já é membro continua sendo; a partir de agora, só se entra por convite.",
     saving: "Salvando...",
     save: "Salvar alterações",
     errors: {
@@ -257,7 +254,7 @@ export const circles: typeof circlesEn = {
     add: "Adicionar um sub-Circle",
     empty:
       "Ainda não há sub-Circles. Adicione um para dar a uma parte deste Circle seu próprio espaço e seus próprios membros.",
-    privateHint: "Privado: entrada mediante pedido",
+    privateHint: "Privado: só para membros, por convite",
     members: "one: # membro | other: # membros",
   },
 };

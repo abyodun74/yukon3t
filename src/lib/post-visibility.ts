@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 
 /**
- * The set of posts a viewer is allowed to see: their own; anything posted in
+ * The set of posts a viewer is allowed to see: their own (not in a PRIVATE Circle they have left); anything posted in
  * a Circle they belong to; anything posted in a PUBLIC Circle (circle posts are
  * always stored PUBLIC, see createPost — the Circle's own visibility is what
  * decides, so a PRIVATE Circle's posts, and a private channel's, stay
@@ -28,17 +28,46 @@ export async function getVisiblePostsWhere(viewerId: string) {
     getBlockedEitherWayIds(viewerId),
   ]);
 
-  const circleIds = circleMemberships.map((m) => m.circleId);
-  const connectionUserIds = connections.map((c) =>
-    c.requesterId === viewerId ? c.targetId : c.requesterId,
-  );
+  return buildVisiblePostsWhere({
+    viewerId,
+    circleIds: circleMemberships.map((m) => m.circleId),
+    connectionUserIds: connections.map((c) => (c.requesterId === viewerId ? c.targetId : c.requesterId)),
+    blockedIds,
+  });
+}
 
+/**
+ * The pure half of getVisiblePostsWhere, from what it loads: the Circles the viewer belongs to, their accepted
+ * connections and everyone blocked either way. Exported for its unit test.
+ *
+ * A PRIVATE Circle's posts reach its current members only (circleId in circleIds). That includes their own author once
+ * they have left or been removed: the author branch covers general posts and PUBLIC Circles' only. And a repost or
+ * share row (itself a plain PUBLIC post) whose original is in a PRIVATE Circle the viewer isn't in is dropped too, so a
+ * repost made while the Circle was public, or a share into another Circle, stops showing the original the moment the
+ * Circle goes private (lib/circle-visibility.ts).
+ */
+export function buildVisiblePostsWhere({
+  viewerId,
+  circleIds,
+  connectionUserIds,
+  blockedIds,
+}: {
+  viewerId: string;
+  circleIds: readonly string[];
+  connectionUserIds: readonly string[];
+  blockedIds: ReadonlySet<string>;
+}) {
+  // A post in a PRIVATE Circle this viewer is not a member of.
+  const hiddenCirclePost = {
+    circle: { visibility: "PRIVATE" as const },
+    ...(circleIds.length ? { circleId: { notIn: [...circleIds] } } : {}),
+  };
   return {
     moderationStatus: "PUBLISHED" as const,
     author: { status: "ACTIVE" as const },
     OR: [
-      ...(circleIds.length ? [{ circleId: { in: circleIds } }] : []),
-      { authorId: viewerId },
+      ...(circleIds.length ? [{ circleId: { in: [...circleIds] } }] : []),
+      { authorId: viewerId, OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" as const } }] },
       { circleId: null, visibility: "PUBLIC" as const },
       // A post in a PUBLIC Circle (and not in one of its private channels) is as public as a general post: circle posts
       // are always stored PUBLIC, and the Circle's own visibility is the boundary. Posts in a PRIVATE Circle reach only
@@ -49,7 +78,7 @@ export async function getVisiblePostsWhere(viewerId: string) {
         OR: [{ channelId: null }, { channel: { visibility: "PUBLIC" as const } }],
       },
       ...(connectionUserIds.length
-        ? [{ circleId: null, visibility: "CONNECTIONS_ONLY" as const, authorId: { in: connectionUserIds } }]
+        ? [{ circleId: null, visibility: "CONNECTIONS_ONLY" as const, authorId: { in: [...connectionUserIds] } }]
         : []),
     ],
     NOT: {
@@ -61,6 +90,8 @@ export async function getVisiblePostsWhere(viewerId: string) {
         // moderation override, not something a per-post choice can lift.
         { AND: [{ author: { postsVisibility: "HIDDEN" as const } }, { authorId: { not: viewerId } }] },
         ...(blockedIds.size ? [{ authorId: { in: [...blockedIds] } }] : []),
+        { repostOf: hiddenCirclePost },
+        { sharedPost: hiddenCirclePost },
       ],
     },
   };

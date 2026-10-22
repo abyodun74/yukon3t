@@ -23,6 +23,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEmbedding, toPgVector } from "@/lib/embeddings";
 import { getListablePostsWhere } from "@/lib/post-visibility";
+import { visibleCircleWhere } from "@/lib/circle-visibility";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 const CANDIDATE_LIMIT = 30;
@@ -213,7 +214,8 @@ export async function semanticSearch(
       : Promise.resolve([]),
     circleCandidates.length
       ? prisma.circle.findMany({
-          where: { id: { in: circleCandidates.map((c) => c.id) } },
+          // A PRIVATE Circle is never suggested to anyone but its members (lib/circle-visibility.ts).
+          where: { id: { in: circleCandidates.map((c) => c.id) }, ...visibleCircleWhere(viewerId) },
           include: { _count: { select: { members: true } } },
           take: CANDIDATE_LIMIT,
         })

@@ -33,11 +33,15 @@ export function CircleInviteResponse({
               ? t.acceptError
               : t.declineError,
         );
-        // not_found / invite_expired: answered, cancelled or withdrawn — the refresh shows the page as it now is.
-        if (result.error === "not_found" || result.error === "invite_expired") router.refresh();
+        // not_found: answered or cancelled meanwhile — the refresh shows the page as it now is (the Circle if they're in,
+        // otherwise the 404 a PRIVATE Circle is to a non-member). invite_expired keeps the message on screen instead:
+        // a refresh would replace it with that 404 and no explanation.
+        if (result.error === "not_found") router.refresh();
         return;
       }
-      router.refresh();
+      // Declined: the Circle no longer exists for them (lib/circle-visibility.ts), so back to the Circles list.
+      if (accept) router.refresh();
+      else router.push("/circles");
     });
   }
 
