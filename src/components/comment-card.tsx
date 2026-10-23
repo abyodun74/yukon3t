@@ -13,6 +13,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatTimeAgo } from "@/lib/format-date";
 import { useUiText } from "@/components/ui-text";
+import { useContentTranslation } from "@/components/content-translation";
 import type { CommentNode } from "@/lib/comment-tree";
 
 // Beyond this depth, replies stop indenting further (they'd otherwise run
@@ -58,6 +59,12 @@ export function CommentCard({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { locale, t: ui } = useUiText();
+  const translation = useContentTranslation({
+    kind: "comment",
+    id: comment.id,
+    text: content,
+    enabled: !editing && !removed && !deleted,
+  });
   const t = ui.comments;
 
   if (deleted) return null;
@@ -186,9 +193,10 @@ export function CommentCard({
               dir="auto"
               className={cn("mt-1 whitespace-pre-wrap break-words text-sm", isEmojiOnly(content) && "text-3xl leading-tight")}
             >
-              {content}
+              {translation.displayText}
             </p>
           )}
+          {content && translation.control}
           {comment.gifUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset
             <img src={comment.gifUrl} alt={t.gifAlt} loading="lazy" decoding="async" className="mt-1 max-h-52 rounded-lg object-contain" />

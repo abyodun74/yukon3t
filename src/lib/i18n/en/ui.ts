@@ -257,6 +257,17 @@ export const uiEn = {
   // Circle events: a Circle page's "Coming up" (circle-events-section.tsx) and the panel under a Circle event post
   // (circle-event-panel.tsx): add to calendar, repeat, "Remind people who haven't replied" and the bring list. Times
   // are shown in the reader's own time.
+  // "Translate" under a post, comment or message written in another language (content-translation.tsx). {language}
+  // is the language's name in the reader's language, from the browser.
+  translation: {
+    translate: "Translate",
+    showOriginal: "Show original",
+    translating: "Translating…",
+    translatedFrom: "Translated from {language}",
+    translated: "Translated",
+    unavailable: "Translation unavailable",
+    rateLimited: "Too many translations right now. Try again in a few minutes.",
+  },
   events: {
     heading: "Coming up",
     empty: "No upcoming events.",

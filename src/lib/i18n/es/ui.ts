@@ -240,6 +240,15 @@ export const ui: typeof uiEn = {
       other: "Algo salió mal. Inténtalo de nuevo.",
     },
   },
+  translation: {
+    translate: "Traducir",
+    showOriginal: "Ver original",
+    translating: "Traduciendo…",
+    translatedFrom: "Traducido del {language}",
+    translated: "Traducido",
+    unavailable: "Traducción no disponible",
+    rateLimited: "Demasiadas traducciones ahora mismo. Inténtalo de nuevo en unos minutos.",
+  },
   events: {
     heading: "Próximamente",
     empty: "No hay eventos próximos.",

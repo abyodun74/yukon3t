@@ -235,6 +235,10 @@ model User {
   // (src/lib/user-locale.ts), which writes only when it changes.
   locale String?
 
+  // Settings -> Language "Auto-translate posts, comments and messages into my language" (src/lib/translation.ts).
+  // Off by default: until then text is translated only when this person taps "Translate".
+  autoTranslate Boolean @default(false)
+
   // Set (by migration 20261011150000_force_password_reset) on every account whose password existed while other
   // users' password hashes could reach a browser (see SECURITY.md). While set, loginWithPassword refuses the
   // password and emails a reset link instead. Every writer of passwordHash must set this back to null. Omitted
@@ -814,6 +818,7 @@ model Post {
   reposts     Post[]   @relation("PostRepost")
   sharedPost  Post?    @relation("PostShare", fields: [sharedPostId], references: [id], onDelete: Cascade)
   shareEmbeds Post[]   @relation("PostShare")
+  translations ContentTranslation[]
 
   likes         Like[]
   reactions     PostReaction[]
@@ -937,6 +942,7 @@ model Comment {
   replies       Comment[]         @relation("CommentReplies")
   notifications Notification[]
   reactions     CommentReaction[]
+  translations  ContentTranslation[]
 
   @@index([postId, createdAt])
   @@index([parentId])
@@ -2554,6 +2560,7 @@ model Message {
   reactions    MessageReaction[]
   corrections  MessageCorrection[]
   viewOnceMedia ViewOnceMedia?
+  translations ContentTranslation[]
 
   // Every message query filters on conversationId and sorts/paginates on
   // createdAt together (getConversationMessages, the collab board, the
@@ -3152,4 +3159,34 @@ model UploadRecord {
   checkedAt DateTime?
 
   @@index([createdAt])
+}
+
+// Shared cache of machine translations of a post, comment or message (src/lib/translation.ts,
+// src/app/actions/translation.ts). Exactly one of postId/commentId/messageId is set (CHECK constraint in the
+// migration), and the row cascades with it, so deleting the content or its author's account deletes its
+// translations. One row per (content, text version, target language): contentHash is a hash of the text as stored
+// (plus the prompt version), so an edited text is never served an old translation; the edit actions also delete the
+// old rows. Nothing records who asked for a translation. translatedText is null when the model found the text already
+// in targetLang ("same language"), which is cached too so it is never asked again.
+model ContentTranslation {
+  id             String   @id @default(cuid())
+  postId         String?
+  commentId      String?
+  messageId      String?
+  contentHash    String
+  // One of SUPPORTED_LOCALES (src/lib/i18n/locales.ts).
+  targetLang     String
+  // What the model detected the text is written in (a lower-case ISO 639-1 code, or "und").
+  sourceLang     String
+  translatedText String?  @db.Text
+  model          String
+  createdAt      DateTime @default(now())
+
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, targetLang, contentHash])
+  @@unique([commentId, targetLang, contentHash])
+  @@unique([messageId, targetLang, contentHash])
 }

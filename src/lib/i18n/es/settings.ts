@@ -46,6 +46,10 @@ export const settings: typeof settingsEn = {
   language: {
     heading: "Idioma",
     body: "Toda la aplicación, las pantallas de inicio de sesión y las preguntas frecuentes están disponibles en estos idiomas, y las notificaciones que llegan a tu teléfono siguen el que elijas aquí. Las páginas legales están en inglés.",
+    autoTranslate: "Traducir automáticamente publicaciones, comentarios y mensajes a mi idioma",
+    autoTranslateHint: "Desactivado: verás un botón Traducir debajo del texto escrito en otro idioma. Activado: se traduce al aparecer en pantalla, y \"Ver original\" siempre está a un toque. Para traducirlo, el texto se envía a nuestro proveedor de IA (OpenAI). Los chats secretos nunca se traducen.",
+    autoTranslateUnavailable: "La traducción no está disponible en este momento.",
+    save: "Guardar",
   },
   emoji: {
     heading: "Estilo de emojis",

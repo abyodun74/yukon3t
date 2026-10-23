@@ -246,6 +246,15 @@ const limiterDefinitions = {
   eventBringClaim: makeLimiter(60, "1 m", "eventBringClaim"),
   eventNudge: makeLimiter(10, "1 h", "eventNudge"),
   circleEventList: makeLimiter(120, "1 m", "circleEventList"),
+  // Translating posts/comments/messages (actions/translation.ts, src/lib/translation-server.ts). Each one is a paid
+  // model call, so three layers: requests per user (a batch is at most TRANSLATION_BATCH_MAX items, cache hits
+  // included), model calls per user (cache misses only: what costs money; generous enough for auto-translate on a
+  // busy feed), and one ceiling across everyone (identifier "all") so a flood can't run up the bill. Like every
+  // limiter these fail open if Redis is down; the shared cache still means each text is translated at most once per
+  // language.
+  translateRequest: makeLimiter(120, "10 m", "translateRequest"),
+  translateModelCall: makeLimiter(200, "1 h", "translateModelCall"),
+  translateGlobal: makeLimiter(20000, "24 h", "translateGlobal"),
   // Private profile pictures (/api/avatar/…, per signed-in user): one request per distinct avatar a screen shows,
   // since the browser caches each redirect for ~50 minutes. A busy hour of feed, comments, search and lists stays well
   // under this; a scraper walking every profile doesn't. Over it, avatars fall back to initials, nothing else breaks.

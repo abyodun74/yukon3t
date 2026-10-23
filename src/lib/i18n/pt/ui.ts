@@ -241,6 +241,15 @@ export const ui: typeof uiEn = {
       other: "Algo deu errado. Tente de novo.",
     },
   },
+  translation: {
+    translate: "Traduzir",
+    showOriginal: "Ver original",
+    translating: "Traduzindo…",
+    translatedFrom: "Traduzido do {language}",
+    translated: "Traduzido",
+    unavailable: "Tradução indisponível",
+    rateLimited: "Traduções demais agora. Tente de novo em alguns minutos.",
+  },
   events: {
     heading: "Em breve",
     empty: "Nenhum evento próximo.",

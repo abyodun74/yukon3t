@@ -241,6 +241,15 @@ export const ui: typeof uiEn = {
       other: "Une erreur s'est produite. Réessayez.",
     },
   },
+  translation: {
+    translate: "Traduire",
+    showOriginal: "Voir l'original",
+    translating: "Traduction…",
+    translatedFrom: "Traduit de l'original en {language}",
+    translated: "Traduit",
+    unavailable: "Traduction indisponible",
+    rateLimited: "Trop de traductions pour le moment. Réessayez dans quelques minutes.",
+  },
   events: {
     heading: "À venir",
     empty: "Aucun événement à venir.",

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { deleteTranslationsOf } from "@/lib/translation-server";
 import {
   messageSchema,
   groupChatSchema,
@@ -739,6 +740,7 @@ export async function editMessage(messageId: string, formData: FormData) {
       replyTo: REPLY_TO_SELECT,
     },
   });
+  await deleteTranslationsOf("message", messageId);
 
   await publishEvent(REALTIME_CHANNELS.conversation(message.conversationId), "changed");
   revalidatePath(`/messages/${message.conversationId}`);
@@ -918,6 +920,8 @@ export async function deleteMessageForEveryone(messageId: string) {
     // tombstoned "This message was deleted" bubble.
     prisma.messageReaction.deleteMany({ where: { messageId } }),
     prisma.messageCorrection.deleteMany({ where: { messageId } }),
+    // Its translations are its text in other words: gone with it.
+    prisma.contentTranslation.deleteMany({ where: { messageId } }),
   ]);
 
   // A voice/video note's actual file otherwise keeps sitting in R2 forever,

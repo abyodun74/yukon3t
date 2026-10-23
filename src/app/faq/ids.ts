@@ -148,6 +148,7 @@ export const FAQ_IDS = [
   "set-interests-find-specific-job",
   "need-sign-up",
   "languages",
+  "translate-posts-messages",
   "sign-up-says-something-needs",
   "verify-account-after-signing-up",
   "why-verify-human-app",

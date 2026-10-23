@@ -50,6 +50,7 @@ import { announce } from "@/lib/announce";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { useMessagesText } from "@/components/messages-text";
 import { useUiText } from "@/components/ui-text";
+import { useContentTranslation } from "@/components/content-translation";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
 
@@ -423,6 +424,22 @@ function MessageBubble({
   // the server's real one.
   const sending = isSendingMessage(message);
   const bigEmoji = !deleted && !editing && message.moderationStatus === "PUBLISHED" && isEmojiOnly(message.content);
+  // "Translate" under someone else's message in another language. Never in a secret chat: its text exists in readable
+  // form only on this device, and translating means sending it to the server and our AI provider.
+  const translation = useContentTranslation({
+    kind: "message",
+    id: message.id,
+    text: message.content,
+    enabled:
+      !mine &&
+      !secretActive &&
+      !message.wasEncrypted &&
+      !deleted &&
+      !editing &&
+      !sending &&
+      !message.viewOnce &&
+      message.moderationStatus === "PUBLISHED",
+  });
   const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
 
   // Swipe-right-to-reply: a plain pointer-drag on the bubble itself, not a
@@ -839,9 +856,10 @@ function MessageBubble({
                     bigEmoji && "text-3xl leading-none",
                   )}
                 >
-                  {linkifyText(message.content)}
+                  {linkifyText(translation.displayText)}
                 </p>
               )}
+              {message.content && translation.control}
             </>
           )}
           <div

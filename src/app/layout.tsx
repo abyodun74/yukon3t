@@ -30,6 +30,9 @@ import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { ShellTextProvider, UiTextProvider } from "@/components/ui-text";
 import { CallsTextProvider } from "@/components/calls-text";
 import { localeDirection } from "@/lib/i18n/locales";
+import { ContentTranslationProvider } from "@/components/content-translation";
+import { isTranslationConfigured } from "@/lib/translation-server";
+import { prisma } from "@/lib/prisma";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
@@ -177,8 +180,19 @@ export default async function RootLayout({
   // The page is in the reader's language (src/lib/i18n), right-to-left in Arabic: <html> carries lang/dir. A part that
   // is still English says so on its own wrapper (EnglishOnly in src/components/english-only.tsx): the route segments
   // that stay English, through their layouts. The call wording is only sent to a signed-in reader.
-  const locale = await getLocale();
-  const dictionary = await getDictionary();
+  // Translating what people write (src/lib/translation.ts): offered only when a provider is configured, and
+  // automatic only for someone who turned it on in Settings. One primary-key read, alongside the dictionary.
+  const translationAvailable = Boolean(session?.user?.id) && isTranslationConfigured();
+  const [locale, dictionary, autoTranslate] = await Promise.all([
+    getLocale(),
+    getDictionary(),
+    translationAvailable && session?.user?.id
+      ? prisma.user
+          .findUnique({ where: { id: session.user.id }, select: { autoTranslate: true } })
+          .then((row) => row?.autoTranslate ?? false)
+          .catch(() => false)
+      : false,
+  ]);
   const footer = dictionary.shell.footer;
 
   return (
@@ -237,6 +251,7 @@ export default async function RootLayout({
           <ShellTextProvider locale={locale} text={dictionary.shell}>
           <CallsTextProvider locale={locale} text={session?.user ? dictionary.calls : undefined}>
           <CallSessionProvider>
+          <ContentTranslationProvider available={translationAvailable} autoTranslate={autoTranslate}>
             <AppSplash />
             <CapacitorBridge />
             <RegisterServiceWorker />
@@ -291,6 +306,7 @@ export default async function RootLayout({
               </div>
               <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
             </footer>
+          </ContentTranslationProvider>
           </CallSessionProvider>
           </CallsTextProvider>
           </ShellTextProvider>

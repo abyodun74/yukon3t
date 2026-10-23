@@ -9,6 +9,7 @@ import {
   privacySchema,
   ringtoneSchema,
   newMemberAlertsSchema,
+  autoTranslateSchema,
   setPasswordSchema,
   usernameSchema,
 } from "@/lib/validations";
@@ -187,6 +188,25 @@ export async function updateNewMemberAlerts(formData: FormData) {
   });
 
   revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+/** Settings -> Language: translate other people's posts, comments and messages automatically (src/lib/translation.ts). */
+export async function updateAutoTranslate(formData: FormData) {
+  const user = await requireUser();
+  const parsed = autoTranslateSchema.safeParse({ autoTranslate: formData.get("autoTranslate") === "on" });
+
+  if (!parsed.success) {
+    redirect("/settings?error=invalid");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: parsed.data,
+  });
+
+  // The root layout hands the setting to every page (ContentTranslationProvider), so refresh it everywhere.
+  revalidatePath("/", "layout");
   redirect("/settings?saved=1");
 }
 

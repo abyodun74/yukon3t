@@ -51,6 +51,10 @@ export const settingsEn = {
   language: {
     heading: "Language",
     body: "The whole app, the sign-in screens and the FAQ are available in these languages, and the notifications sent to your phone follow the one you choose here. The legal pages are in English.",
+    autoTranslate: "Auto-translate posts, comments and messages into my language",
+    autoTranslateHint: "Off: you'll see a Translate button under text written in another language. On: it's translated as it comes into view, and \"Show original\" is always one tap away. To translate, the text is sent to our AI provider (OpenAI). Secret chats are never translated.",
+    autoTranslateUnavailable: "Translation is unavailable right now.",
+    save: "Save",
   },
   emoji: {
     heading: "Emoji style",

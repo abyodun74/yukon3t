@@ -242,6 +242,15 @@ export const ui: typeof uiEn = {
       other: "حدث خطأ ما. حاول مرة أخرى.",
     },
   },
+  translation: {
+    translate: "ترجمة",
+    showOriginal: "عرض النص الأصلي",
+    translating: "جارٍ الترجمة…",
+    translatedFrom: "مترجم من {language}",
+    translated: "مترجم",
+    unavailable: "الترجمة غير متاحة",
+    rateLimited: "طلبات ترجمة كثيرة جدًا الآن. حاول مرة أخرى بعد بضع دقائق.",
+  },
   events: {
     heading: "قريبًا",
     empty: "لا توجد فعاليات قادمة.",

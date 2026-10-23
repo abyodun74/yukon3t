@@ -2,7 +2,8 @@ import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
-import { updatePrivacy, updateRingtone, updateNewMemberAlerts, setPassword } from "@/app/actions/profile";
+import { updatePrivacy, updateRingtone, updateNewMemberAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
+import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { BlockButton } from "@/components/block-button";
@@ -40,6 +41,7 @@ export default async function SettingsPage({
   const blocked = await listBlockedUsers();
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
+  const translationAvailable = isTranslationConfigured();
 
   const [signedInBefore, signedInAfter] = aroundPlaceholder(t.signedInAs, "email");
   const [profileBefore, profileAfter] = aroundPlaceholder(t.editProfile, "link");
@@ -177,6 +179,33 @@ export default async function SettingsPage({
         <p className="mt-1 text-sm text-foreground-soft">{t.language.body}</p>
         {/* The one place a signed-in person can change it: the other pickers are on the signed-out screens. */}
         <LanguagePicker locale={locale} label={dictionary.languagePicker.label} className="mt-4 justify-start" />
+        {/* Translating other people's text (src/lib/translation.ts). Without a provider configured it can't be turned on. */}
+        <form action={updateAutoTranslate} className="mt-4 space-y-3">
+          <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              name="autoTranslate"
+              defaultChecked={user.autoTranslate}
+              disabled={!translationAvailable}
+              aria-describedby="settings-auto-translate-hint"
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block font-medium">{t.language.autoTranslate}</span>
+              <span id="settings-auto-translate-hint" className="mt-0.5 block text-foreground-soft">
+                {translationAvailable ? t.language.autoTranslateHint : t.language.autoTranslateUnavailable}
+              </span>
+            </span>
+          </label>
+          {translationAvailable && (
+            <SubmitButton
+              label={t.language.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          )}
+        </form>
       </div>
 
       <div>

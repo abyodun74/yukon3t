@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRANSLATION_BATCH_MAX, TRANSLATION_KINDS } from "@/lib/translation";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
@@ -170,6 +171,28 @@ export const ringtoneSchema = z.object({
 
 export const newMemberAlertsSchema = z.object({
   newMemberAlerts: z.boolean(),
+});
+
+export const autoTranslateSchema = z.object({
+  autoTranslate: z.boolean(),
+});
+
+// translateContent (actions/translation.ts): which posts/comments/messages to translate, by id only; the server loads
+// the text itself after checking the viewer may read it.
+export const translateRequestSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        kind: z.enum(TRANSLATION_KINDS),
+        id: z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[A-Za-z0-9_-]+$/),
+      }),
+    )
+    .min(1)
+    .max(TRANSLATION_BATCH_MAX),
 });
 
 export const circleSchema = z.object({

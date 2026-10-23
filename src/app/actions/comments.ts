@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { deleteTranslationsOf } from "@/lib/translation-server";
 import { commentSchema, editCommentSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
@@ -291,6 +292,7 @@ export async function editComment(commentId: string, formData: FormData) {
     return { error: "not_found" as const };
   }
   const updated = { content, editedAt };
+  await deleteTranslationsOf("comment", commentId);
 
   revalidatePath(`/post/${comment.postId}`);
   return { error: null, comment: updated };

@@ -2061,8 +2061,38 @@ const sections: Section[] = [
             chose from a Language menu or, if you&apos;ve never chosen one, in
             your phone or browser&apos;s language (in English until you next
             open YuKon3t). A few older notices stay in English, as they were
-            written. What people write is never translated: a message,
-            post or comment appears in the language it was written in.
+            written. What people write appears in the language it was
+            written in, with a Translate button underneath when that
+            isn&apos;t your language (see &ldquo;Can I read posts and
+            messages written in another language?&rdquo;).
+          </>
+        ),
+      },
+      {
+        id: "translate-posts-messages",
+        q: "Can I read posts and messages written in another language?",
+        a: (
+          <>
+            Yes. When a post, comment or chat message is written in a
+            language other than the one you use YuKon3t in (English,
+            Spanish, French, Portuguese or Arabic), a Translate button
+            appears under it. Tap it to read it in your language; the
+            translation is labelled (for example &ldquo;Translated from
+            Spanish&rdquo;) and &ldquo;Show original&rdquo; switches back.
+            Nothing changes for anyone else: the person who wrote it, and
+            everyone else, still see exactly what was written. To translate
+            automatically instead of tapping each time, turn on Settings →
+            Language → &ldquo;Auto-translate posts, comments and messages
+            into my language&rdquo; (off by default); text is then
+            translated as it comes into view. Translations are made by an AI
+            service (OpenAI), which receives the text only when it is
+            translated, and may not be perfect; links, @mentions and
+            #hashtags are kept as written. A translation is saved and reused
+            for anyone else reading the same text in the same language, and
+            is deleted when the text is edited or deleted. Secret chats are
+            never translated (their text can only be read on your device),
+            and very short text, emoji, links on their own and very long
+            text (over 2,000 characters) don&apos;t offer a translation.
           </>
         ),
       },

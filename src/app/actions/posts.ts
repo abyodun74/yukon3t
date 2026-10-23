@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { deleteTranslationsOf } from "@/lib/translation-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { postSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
@@ -41,6 +42,8 @@ export async function editPost(postId: string, formData: FormData) {
     data: { content, moderationStatus, editedAt: new Date() },
     select: { content: true, editedAt: true },
   });
+  // Translations of the old wording are never served again (keyed by a hash of the text); drop them now too.
+  await deleteTranslationsOf("post", postId);
 
   revalidatePath("/circles", "layout");
   revalidatePath("/home");

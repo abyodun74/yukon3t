@@ -39,6 +39,7 @@ import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 import type { FlatComment } from "@/lib/comment-tree";
 import { useFeedText } from "@/components/feed-text";
+import { useContentTranslation } from "@/components/content-translation";
 import { format, plural, aroundPlaceholder, intlLocale } from "@/lib/i18n/locales";
 
 type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
@@ -543,6 +544,8 @@ function MediaBlock({
   // Mirrors the element's real state (onPlay/onPause below) rather than
   // tracking taps, since autoplay-on-view starts/stops it too.
   const [playing, setPlaying] = useState(false);
+  // "Translate" under the post's text when it's in another language than the reader's (not while editing it).
+  const translation = useContentTranslation({ kind: "post", id: post.id, text: post.content, enabled: !editing });
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   // The `muted` JSX prop only reliably applies at mount — once a WebView
   // video is already playing, toggling it doesn't flip the element's live
@@ -599,10 +602,13 @@ function MediaBlock({
         </div>
       ) : (
         post.content && (
-          <TruncatedText
-            text={post.content}
-            className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}
-          />
+          <>
+            <TruncatedText
+              text={translation.displayText}
+              className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}
+            />
+            {translation.control}
+          </>
         )
       )}
 
@@ -1032,6 +1038,8 @@ export function PostCard({
   }
 
   const isQuoting = Boolean(post.repostOf || post.sharedPost);
+  // The reposter's own caption is its own text, translated separately from the original below it.
+  const captionTranslation = useContentTranslation({ kind: "post", id: post.id, text: content, enabled: isQuoting && !editing });
   // Content-adaptive density: a plain text update carries far less visual
   // weight than a photo/video/event, so it gets a tighter card instead of
   // the same padding a media post needs to breathe. Reposts/shares keep
@@ -1153,10 +1161,13 @@ export function PostCard({
             </div>
           </div>
         ) : (
-          <TruncatedText
-            text={content}
-            className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft"
-          />
+          <>
+            <TruncatedText
+              text={captionTranslation.displayText}
+              className="mt-2 whitespace-pre-wrap text-sm italic text-foreground-soft"
+            />
+            {captionTranslation.control}
+          </>
         )
       )}
 
