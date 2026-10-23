@@ -117,6 +117,7 @@ export const pages: typeof pagesEn = {
       EVENT_RSVP_NUDGE: "يسألك {name} إن كنت ستحضر فعالية",
       EVENT_CANCELLED: "ألغى {name} فعالية تشارك فيها",
       EVENT_RESCHEDULED: "غيّر {name} موعد فعالية تشارك فيها",
+      EVENT_ANNOUNCEMENT: "نشر {name} تحديثًا عن فعالية ستحضرها",
       NEW_MEMBER_JOINED: "انضم {name} للتو إلى YuKon3t",
     },
     notices: {

@@ -29,6 +29,39 @@ export function translatableCommentsWhere(
 }
 
 /**
+ * Organizer updates on a Circle event: by an ACTIVE author the viewer hasn't blocked (or been blocked by), on an event
+ * post the viewer can see (the same post visibility as above), and for a PRIVATE channel's event only for its
+ * allow-list and the Circle's owner and co-admins, as loadCircleEventAccess shows the updates.
+ */
+export function translatableEventUpdatesWhere(
+  ids: string[],
+  visiblePostsWhere: Prisma.PostWhereInput,
+  blockedIds: ReadonlySet<string>,
+  viewerId: string,
+): Prisma.EventAnnouncementWhereInput {
+  return {
+    id: { in: ids },
+    deletedAt: null,
+    author: { status: "ACTIVE" },
+    ...(blockedIds.size ? { authorId: { notIn: [...blockedIds] } } : {}),
+    post: {
+      AND: [
+        visiblePostsWhere,
+        {
+          OR: [
+            { channelId: null },
+            { channel: { visibility: "PUBLIC" } },
+            { channel: { members: { some: { userId: viewerId } } } },
+            { circle: { createdById: viewerId } },
+            { circle: { members: { some: { userId: viewerId, role: { not: "MEMBER" } } } } },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
  * Messages: in a conversation the viewer is a member of, PUBLISHED, not deleted for everyone or for this viewer, and
  * not a view-once message (those have no text). The caller still drops secret-chat ciphertext (isTranslatable) and
  * messages in a hidden chat that isn't unlocked (`lockedConversationIds`).

@@ -13,6 +13,13 @@ import {
   type CircleEventCursor,
 } from "@/lib/circle-events";
 import type { EventRepeatFrequency } from "@/lib/event-recurrence";
+import type { RsvpStatus } from "@/lib/rsvp";
+import {
+  loadEventUpdates,
+  loadOrganizerTools,
+  type EventUpdateView,
+  type OrganizerToolsView,
+} from "@/lib/circle-event-organizer-data";
 
 /**
  * The server half of Circle events: which of a Circle's upcoming events a viewer sees ("Coming up"), and one event's
@@ -20,7 +27,7 @@ import type { EventRepeatFrequency } from "@/lib/event-recurrence";
  *
  * Visibility is the Circle page's: a PRIVATE Circle's events only for members (no site-admin shortcut), a PRIVATE channel's only
  * for its allow-list and the Circle's admins, and on top of that getVisiblePostsWhere (blocked-either-way authors,
- * HIDDEN accounts, inactive authors), the same check toggleRsvp makes, so every listed event can be RSVP'd in one tap.
+ * HIDDEN accounts, inactive authors), the same check setRsvp makes, so every listed event can be answered in one tap.
  */
 
 type Viewer = { id: string; isAdmin: boolean };
@@ -34,7 +41,9 @@ export type CircleEventView = {
   location: string | null;
   channelName: string | null;
   rsvpCount: number;
-  going: boolean;
+  maybeCount: number;
+  /** The viewer's own reply: Going, Maybe or none. */
+  myRsvp: RsvpStatus | null;
   repeating: boolean;
   /** An organizer moved it to its current time. */
   rescheduled: boolean;
@@ -112,6 +121,7 @@ export async function loadCircleEventPage(
       eventAt: true,
       eventLocation: true,
       rsvpCount: true,
+      maybeCount: true,
       channel: { select: { name: true } },
       eventSeries: { select: { endedAt: true } },
       eventRescheduledAt: true,
@@ -121,10 +131,10 @@ export async function loadCircleEventPage(
   const mine = page.length
     ? await prisma.postRsvp.findMany({
         where: { userId: viewerId, postId: { in: page.map((p) => p.id) } },
-        select: { postId: true },
+        select: { postId: true, status: true },
       })
     : [];
-  const going = new Set(mine.map((r) => r.postId));
+  const myReplies = new Map(mine.map((r) => [r.postId, r.status]));
   return {
     events: page.map((post) => ({
       id: post.id,
@@ -133,7 +143,8 @@ export async function loadCircleEventPage(
       location: post.eventLocation,
       channelName: post.channel?.name ?? null,
       rsvpCount: post.rsvpCount,
-      going: going.has(post.id),
+      maybeCount: post.maybeCount,
+      myRsvp: myReplies.get(post.id) ?? null,
       repeating: !!post.eventSeries && !post.eventSeries.endedAt,
       rescheduled: !!post.eventRescheduledAt,
     })),
@@ -260,6 +271,10 @@ export type CircleEventPanelData = {
   nextNudgeAt: string | null;
   series: { frequency: EventRepeatFrequency; active: boolean } | null;
   items: BringItemView[];
+  /** The latest organizer updates, pinned on the event for everyone who can see it (newest first). */
+  updates: EventUpdateView[];
+  /** The "Organizer tools" section (updates, check-in, export): organizers only, null for everyone else. */
+  organizer: OrganizerToolsView | null;
 };
 
 export async function loadCircleEventPanel(postId: string, viewer: Viewer): Promise<CircleEventPanelData | null> {
@@ -267,7 +282,11 @@ export async function loadCircleEventPanel(postId: string, viewer: Viewer): Prom
   if (!access) return null;
   const { post } = access;
   const now = new Date();
-  const items = await loadBringItems(postId, viewer.id, access.isOrganizer);
+  const [items, updates, organizer] = await Promise.all([
+    loadBringItems(postId, viewer.id, access.isOrganizer),
+    loadEventUpdates(postId, viewer.id, access.isOrganizer),
+    access.isOrganizer ? loadOrganizerTools(post, now) : Promise.resolve(null),
+  ]);
   const title = eventTitle(post.content);
   return {
     postId,
@@ -291,6 +310,8 @@ export async function loadCircleEventPanel(postId: string, viewer: Viewer): Prom
     nextNudgeAt: nextNudgeAt(post.eventNudgedAt, now)?.toISOString() ?? null,
     series: post.eventSeries ? { frequency: post.eventSeries.frequency, active: !post.eventSeries.endedAt } : null,
     items,
+    updates,
+    organizer,
   };
 }
 

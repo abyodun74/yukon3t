@@ -34,8 +34,6 @@ export const feed: typeof feedEn = {
   post: {
     friendsOnly: "للأصدقاء فقط",
     private: "خاص",
-    going: "سأحضر ✓",
-    imGoing: "سأحضر",
     openPhoto: "فتح الصورة {index} من {total}",
     editPost: "تعديل المنشور",
     editCaption: "تعديل الشرح",

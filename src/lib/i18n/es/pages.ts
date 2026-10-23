@@ -116,6 +116,7 @@ export const pages: typeof pagesEn = {
       EVENT_RSVP_NUDGE: "{name} te preguntó si vas a ir a un evento",
       EVENT_CANCELLED: "{name} canceló un evento en el que participas",
       EVENT_RESCHEDULED: "{name} cambió la hora de un evento en el que participas",
+      EVENT_ANNOUNCEMENT: "{name} publicó una novedad sobre un evento al que vas",
       NEW_MEMBER_JOINED: "{name} acaba de unirse a YuKon3t",
     },
     notices: {

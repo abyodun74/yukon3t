@@ -319,6 +319,9 @@ model User {
   pollVotes                   PollVote[]
   eventSeries                 EventSeries[]
   eventBringClaims            EventBringItem[]
+  eventAnnouncements          EventAnnouncement[]
+  eventAttendances            EventAttendance[] @relation("EventAttendee")
+  eventCheckIns               EventAttendance[] @relation("EventCheckedInBy")
   channelsCreated             Channel[]
   channelMemberships          ChannelMembership[]
   channelVoiceParticipations  ChannelVoiceParticipant[]
@@ -809,7 +812,9 @@ model Post {
   commentCount Int @default(0)
   repostCount  Int @default(0)
   shareCount   Int @default(0)
+  // People whose reply is Going (rsvpCount) or Maybe (maybeCount): see PostRsvp.
   rsvpCount    Int @default(0)
+  maybeCount   Int @default(0)
 
   author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   circle      Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -837,6 +842,8 @@ model Post {
   scheduledFromPolls Poll[] @relation("PollScheduledPost")
   eventSeries        EventSeries?     @relation(fields: [eventSeriesId], references: [id], onDelete: SetNull)
   bringItems         EventBringItem[]
+  eventAnnouncements EventAnnouncement[]
+  eventAttendances   EventAttendance[]
 
   @@unique([authorId, repostOfId])
   @@unique([eventSeriesId, eventSeriesIndex])
@@ -1016,20 +1023,30 @@ model PostReaction {
   @@index([userId])
 }
 
+/** An event reply: Going or Maybe (src/lib/rsvp.ts). No reply is no row. */
+enum RsvpStatus {
+  GOING
+  MAYBE
+}
+
 /**
- * Presence of a row = "going", same one-per-user-per-post shape as Like — no separate status enum.
+ * One person's reply to an event post (setRsvp in actions/rsvp.ts), one per user per post. status is GOING or MAYBE;
+ * rows from before Maybe existed are GOING. createdAt is when they first replied, updatedAt when they last changed it.
+ * Post.rsvpCount counts GOING rows and Post.maybeCount MAYBE rows, both recounted under a row lock on the post.
  */
 model PostRsvp {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   userId    String
   postId    String
-  createdAt DateTime @default(now())
+  status    RsvpStatus @default(GOING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
-  @@index([postId])
+  @@index([postId, status])
 }
 
 /**
@@ -1052,6 +1069,58 @@ model EventBringItem {
 
   @@index([postId, position])
   @@index([claimedById])
+}
+
+/**
+ * "Organizer update" on a Circle event (postEventAnnouncement in actions/circle-event-organizer.ts): a short text an
+ * organizer sends to everyone going (EVENT_ANNOUNCEMENT, bell + FCM push). The latest few are pinned on the event for
+ * anyone who can see it. Text passed moderateText (refused if flagged), at most EVENT_ANNOUNCEMENT_MAX_LENGTH; at most
+ * EVENT_ANNOUNCEMENTS_PER_DAY per event in any 24 hours (counted here under a row lock on the post). Deleted with the
+ * post or with the organizer's account. recipientCount is how many people were notified, for the organizers' view.
+ */
+model EventAnnouncement {
+  id             String   @id @default(cuid())
+  postId         String
+  authorId       String
+  text           String   @db.Text
+  recipientCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  // Set when its author edits it (re-moderated, never re-sent). deletedAt: removed by its author or an organizer; the
+  // text is erased and the row stays only so it still counts toward the event's daily cap.
+  editedAt       DateTime?
+  deletedAt      DateTime?
+
+  post         Post                 @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author       User                 @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  translations ContentTranslation[]
+
+  @@index([postId, createdAt])
+  @@index([authorId])
+}
+
+/**
+ * Attendance check-in on a Circle event (actions/circle-event-organizer.ts): a row means an organizer marked this person
+ * as having attended. Organizer-set only (no self check-in), from EVENT_CHECK_IN_OPENS_BEFORE_MS before the start to
+ * EVENT_CHECK_IN_CLOSES_AFTER_MS after it; unticking deletes the row. walkIn is true when the person hadn't RSVP'd and
+ * was added from the Circle's members. checkedInById/checkedInAt say who ticked it and when (checkedInById set null if
+ * that organizer's account is deleted). Shown to the event's organizers only (summary, check-in list, CSV export).
+ * Deleted with the event or the attendee's account.
+ */
+model EventAttendance {
+  id            String   @id @default(cuid())
+  postId        String
+  userId        String
+  walkIn        Boolean  @default(false)
+  checkedInById String?
+  checkedInAt   DateTime @default(now())
+
+  post        Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User  @relation("EventAttendee", fields: [userId], references: [id], onDelete: Cascade)
+  checkedInBy User? @relation("EventCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@index([checkedInById])
 }
 
 enum EventRepeatFrequency {
@@ -1309,6 +1378,11 @@ enum NotificationType {
   // push, at most EVENT_CHANGE_MAX_RECIPIENTS rows. postId is the link; the reason is shown on the post.
   EVENT_CANCELLED
   EVENT_RESCHEDULED
+  // An organizer's update about a Circle event (postEventAnnouncement in actions/circle-event-organizer.ts), sent to
+  // everyone going and the event's author: never the organizer sending it, nobody blocked either way with them or the
+  // author, only current members of the Circle who can open the event's channel. Bell + FCM push (the text under the
+  // organizer's name), at most EVENT_ANNOUNCEMENT_MAX_RECIPIENTS rows. postId is the link; the text is on the event.
+  EVENT_ANNOUNCEMENT
   // "<name> just joined YuKon3t": sent by the announce-new-members cron (src/lib/new-member-alerts.ts) when a new account
   // finishes onboarding, is verified and is visible in Discover. actorId is the new member. Coalesced: a recipient has
   // at most one unread row of this type per NEW_MEMBER_COALESCE_MS; later joiners update it into a digest whose
@@ -3173,6 +3247,8 @@ model ContentTranslation {
   postId         String?
   commentId      String?
   messageId      String?
+  // An organizer update on a Circle event (EventAnnouncement), translated like a comment.
+  eventAnnouncementId String?
   contentHash    String
   // One of SUPPORTED_LOCALES (src/lib/i18n/locales.ts).
   targetLang     String
@@ -3185,8 +3261,10 @@ model ContentTranslation {
   post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  eventAnnouncement EventAnnouncement? @relation(fields: [eventAnnouncementId], references: [id], onDelete: Cascade)
 
   @@unique([postId, targetLang, contentHash])
   @@unique([commentId, targetLang, contentHash])
   @@unique([messageId, targetLang, contentHash])
+  @@unique([eventAnnouncementId, targetLang, contentHash])
 }

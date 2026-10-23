@@ -39,8 +39,6 @@ export const feedEn = {
   post: {
     friendsOnly: "Friends only",
     private: "Private",
-    going: "Going ✓",
-    imGoing: "I'm going",
     openPhoto: "Open photo {index} of {total}",
     editPost: "Edit post",
     editCaption: "Edit caption",

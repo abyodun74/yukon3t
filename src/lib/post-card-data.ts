@@ -34,6 +34,7 @@ type EmbeddedPostRow = {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
+  maybeCount: number;
   author: {
     id: string;
     name: string | null;
@@ -115,7 +116,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
         }),
         prisma.postRsvp.findMany({
           where: { userId: viewerId, postId: { in: targetIds } },
-          select: { postId: true },
+          select: { postId: true, status: true },
         }),
         getAuthorEngagementStatus(viewerId, authorIds),
         // Aggregated in Postgres for the whole page of posts in one query —
@@ -143,7 +144,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
 
   const likedSet = new Set(likes.map((l) => l.postId));
   const repostedSet = new Set(myReposts.map((r) => r.repostOfId as string));
-  const rsvpGoingSet = new Set(myRsvps.map((r) => r.postId));
+  const myRsvpByPostId = new Map(myRsvps.map((r) => [r.postId, r.status]));
   const myReactionByPostId = new Map(myReactions.map((r) => [r.postId, r.emoji]));
   const reactionsByPostId = new Map<string, ReactionSummary[]>();
   for (const c of reactionCounts) {
@@ -195,10 +196,11 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       repostCount: target.repostCount,
       shareCount: target.shareCount,
       rsvpCount: target.rsvpCount,
+      maybeCount: target.maybeCount,
       reactions: reactionsByPostId.get(target.id) ?? [],
       likedByMe: likedSet.has(target.id),
       repostedByMe: repostedSet.has(target.id),
-      rsvpGoingByMe: rsvpGoingSet.has(target.id),
+      myRsvp: myRsvpByPostId.get(target.id) ?? null,
       repostOf: post.repostOf,
       sharedPost: post.sharedPost,
       connectionStatus: engagement.connectionStatus,

@@ -16,6 +16,8 @@ import {
 } from "@/app/actions/circle-events";
 import { PollCalendarLinks } from "@/components/poll-time";
 import { formatEventTime } from "@/components/circle-events-section";
+import { CircleEventUpdates } from "@/components/circle-event-updates";
+import { CircleEventOrganizerTools } from "@/components/circle-event-organizer-tools";
 import { useUiText } from "@/components/ui-text";
 import { EVENT_BRING_ITEMS_MAX, EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/lib/circle-events";
 import type { BringItemView, CircleEventPanelData } from "@/lib/circle-events-data";
@@ -37,9 +39,10 @@ function toLocalInputValue(iso: string) {
 
 /**
  * A Circle event's panel: under the post on its own page (/post/[id]) and in "Event details" on its card in a Circle or
- * feed (post-card.tsx). Add to calendar, the repeat it belongs to (and "Stop repeating" for organizers), "Remind people
- * who haven't replied" (organizers, upcoming events only), "Who's bringing what", and for organizers "Reschedule" and
- * "Cancel event" with an optional reason. The server decides every permission again (actions/circle-events.ts); these
+ * feed (post-card.tsx). The pinned "Organizer updates", add to calendar, the repeat it belongs to (and "Stop repeating"
+ * for organizers), "Remind people who haven't replied" (organizers, upcoming events only), "Who's bringing what", for
+ * organizers the "Organizer tools" (post an update, attendance, export; circle-event-organizer-tools.tsx), and
+ * "Reschedule" and "Cancel event" with an optional reason. The server decides every permission again (actions/circle-events.ts); these
  * flags only choose what to offer. Bring-list actions answer with the fresh list, which replaces the local one.
  */
 export function CircleEventPanel({
@@ -57,6 +60,12 @@ export function CircleEventPanel({
   if (source !== data.items) {
     setSource(data.items);
     setItems(data.items);
+  }
+  const [updates, setUpdates] = useState(data.updates);
+  const [updatesSource, setUpdatesSource] = useState(data.updates);
+  if (updatesSource !== data.updates) {
+    setUpdatesSource(data.updates);
+    setUpdates(data.updates);
   }
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -208,6 +217,8 @@ export function CircleEventPanel({
 
   return (
     <section lang={locale} dir={dir} aria-label={data.title || t.untitled} className="mt-4 space-y-4">
+      <CircleEventUpdates updates={updates} onUpdates={setUpdates} />
+
       {live && (
         <PollCalendarLinks
           title={data.title || t.untitled}
@@ -420,6 +431,10 @@ export function CircleEventPanel({
             </form>
           )}
         </div>
+      )}
+
+      {data.organizer && !cancelled && (
+        <CircleEventOrganizerTools postId={data.postId} tools={data.organizer} onUpdates={setUpdates} />
       )}
 
       {data.isOrganizer && live && (

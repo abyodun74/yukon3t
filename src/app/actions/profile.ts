@@ -433,6 +433,15 @@ export async function exportMyData() {
           option: { select: { id: true, text: true, startsAt: true } },
         },
       },
+      // Events: your own replies (Going / Maybe), the bring-list items you claimed, your attendance check-ins (not
+      // which organizer ticked you), and the organizer updates you wrote that are still up. Your own data only.
+      postRsvps: { select: { postId: true, status: true, createdAt: true, updatedAt: true } },
+      eventBringClaims: { select: { postId: true, text: true, claimedAt: true } },
+      eventAttendances: { select: { postId: true, walkIn: true, checkedInAt: true } },
+      eventAnnouncements: {
+        where: { deletedAt: null },
+        select: { postId: true, text: true, createdAt: true, editedAt: true, recipientCount: true },
+      },
       circleMemberships: { include: { circle: true } },
       sentConnections: { where: { targetId: { notIn: hidden.peerIds } } },
       receivedConnections: { where: { requesterId: { notIn: hidden.peerIds } } },

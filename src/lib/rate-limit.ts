@@ -246,6 +246,14 @@ const limiterDefinitions = {
   eventBringClaim: makeLimiter(60, "1 m", "eventBringClaim"),
   eventNudge: makeLimiter(10, "1 h", "eventNudge"),
   circleEventList: makeLimiter(120, "1 m", "circleEventList"),
+  // Organizer tools on a Circle event (actions/circle-event-organizer.ts). An update notifies up to
+  // EVENT_ANNOUNCEMENT_MAX_RECIPIENTS people, and each event also takes at most EVENT_ANNOUNCEMENTS_PER_DAY in any 24h
+  // (counted in the database, so it holds while Redis fails open); this one caps an organizer across all their events.
+  // Check-in is a tap per person (plus the list and the walk-in search). An export reads every RSVP of up to a whole
+  // series, so it is the tight one.
+  eventAnnounce: makeLimiter(10, "1 h", "eventAnnounce"),
+  eventCheckIn: makeLimiter(300, "10 m", "eventCheckIn"),
+  eventExport: makeLimiter(10, "1 h", "eventExport"),
   // Translating posts/comments/messages (actions/translation.ts, src/lib/translation-server.ts). Each one is a paid
   // model call, so three layers: requests per user (a batch is at most TRANSLATION_BATCH_MAX items, cache hits
   // included), model calls per user (cache misses only: what costs money; generous enough for auto-translate on a

@@ -53,6 +53,7 @@ export async function GET(request: Request) {
     // this post is never retried), so an unexpected error here must not
     // abort the loop and skip every other event still due in this run.
     try {
+      // Everyone who replied, Going or Maybe: a Maybe is still deciding and the reminder is what helps them (src/lib/rsvp.ts).
       const rsvps = await prisma.postRsvp.findMany({
         where: { postId: post.id },
         select: { userId: true },

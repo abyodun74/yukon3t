@@ -156,6 +156,17 @@ export function eventChangePushBody(
 }
 
 /**
+ * The push for an organizer update about a Circle event (actions/circle-event-organizer.ts), under the organizer's
+ * name: what happened, then the update itself, shortened (it is written by the organizer, in their language; the full
+ * text is pinned on the event, where it can be translated).
+ */
+export function eventAnnouncementPushBody(locale: Locale, text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const short = flat.length > 180 ? `${flat.slice(0, 179).trimEnd()}…` : flat;
+  return `${activityLine("EVENT_ANNOUNCEMENT", locale)}\n${short}`;
+}
+
+/**
  * The line under the new member's name in a NEW_MEMBER_JOINED push: "just joined YuKon3t", or for a digest "and 3
  * others just joined YuKon3t" (the same new_members notice the bell row shows).
  */

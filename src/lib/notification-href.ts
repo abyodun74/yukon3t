@@ -63,6 +63,7 @@ export type NotificationData = {
     | "EVENT_RSVP_NUDGE"
     | "EVENT_CANCELLED"
     | "EVENT_RESCHEDULED"
+    | "EVENT_ANNOUNCEMENT"
     | "NEW_MEMBER_JOINED";
   // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
   recipientId: string;
@@ -96,11 +97,13 @@ export function notificationHref(notification: NotificationData) {
   // push uses this same URL (nudgeEventNonResponders in actions/circle-events.ts). Without a post (deleted since), the
   // Circle's upcoming events.
   // A cancelled / moved event: the post, which shows the change and its reason (cancelCircleEvent /
-  // rescheduleCircleEvent push the same URL).
+  // rescheduleCircleEvent push the same URL). An organizer update: the post, where it is pinned under "Organizer
+  // updates" (postEventAnnouncement pushes the same URL).
   if (
     notification.type === "EVENT_RSVP_NUDGE" ||
     notification.type === "EVENT_CANCELLED" ||
-    notification.type === "EVENT_RESCHEDULED"
+    notification.type === "EVENT_RESCHEDULED" ||
+    notification.type === "EVENT_ANNOUNCEMENT"
   ) {
     if (notification.postId) return `/post/${notification.postId}`;
     if (notification.circle) return `/circles/${notification.circle.slug}#events`;

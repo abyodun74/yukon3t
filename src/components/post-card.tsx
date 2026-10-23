@@ -8,10 +8,11 @@ import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
 import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { editPost } from "@/app/actions/posts";
-import { toggleRsvp } from "@/app/actions/rsvp";
+import { EventRsvpButtons, useEventRsvp, useRsvpCountsLine } from "@/components/event-rsvp";
+import type { RsvpStatus } from "@/lib/rsvp";
+import { eventTitle } from "@/lib/circle-events";
 import { CircleEventDetails } from "@/components/circle-event-details";
 import type { CircleEventChange } from "@/components/circle-event-panel";
-import { announceRsvp, useRsvpSync } from "@/lib/rsvp-sync";
 import { repost } from "@/app/actions/reposts";
 import { getPostComments } from "@/app/actions/comments";
 import { cn, markImageLoadedIfComplete } from "@/lib/utils";
@@ -135,10 +136,12 @@ export type PostCardData = EmbeddedPost & {
   repostCount: number;
   shareCount: number;
   rsvpCount: number;
+  maybeCount: number;
   reactions: ReactionSummary[];
   likedByMe: boolean;
   repostedByMe: boolean;
-  rsvpGoingByMe: boolean;
+  /** The viewer's own reply to this event: Going, Maybe or none. */
+  myRsvp: RsvpStatus | null;
   repostOf: EmbeddedPost | null;
   sharedPost: EmbeddedPost | null;
   connectionStatus: ConnectionStatus;
@@ -211,27 +214,23 @@ const EVENT_TIME_FORMAT: Intl.DateTimeFormatOptions = {
 function EventBlock({
   post,
   info,
-  going,
-  rsvpCount,
-  isPending,
-  onToggle,
+  rsvp,
   detailsOpen,
   onToggleDetails,
 }: {
   post: EmbeddedPost;
   info: EventInfo;
-  going: boolean;
-  rsvpCount: number;
-  isPending: boolean;
-  onToggle: () => void;
+  rsvp: ReturnType<typeof useEventRsvp>;
   /** Undefined when the card offers no "Event details" (not a Circle event, or the panel is already on the page). */
   detailsOpen?: boolean;
   onToggleDetails?: () => void;
 }) {
-  const { t, locale } = useFeedText();
+  const { locale } = useFeedText();
   const { t: ui } = useUiText();
   const ev = ui.events;
+  const countsLine = useRsvpCountsLine(rsvp.counts);
   if (!info.eventAt) return null;
+  const replied = rsvp.counts.going + rsvp.counts.maybe > 0;
   const cancelled = !!info.cancelledAt;
   return (
     <div className="mt-2 rounded-lg border border-line bg-background px-3 py-2">
@@ -286,26 +285,25 @@ function EventBlock({
           </div>
         )}
       </div>
-      {cancelled ? (
-        rsvpCount > 0 && (
-          <span className="shrink-0 text-xs text-foreground-soft">{plural(locale, ev.goingCount, rsvpCount)}</span>
-        )
-      ) : (
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={onToggle}
-          aria-pressed={going}
-          className={cn(
-            "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
-            going ? "bg-success text-white" : "bg-accent text-accent-ink",
-          )}
-        >
-          {going ? t.post.going : t.post.imGoing}
-          {rsvpCount > 0 && <span className="ms-1.5 opacity-80">{rsvpCount}</span>}
-        </button>
+      {!cancelled && (
+        <EventRsvpButtons
+          status={rsvp.status}
+          isPending={rsvp.isPending}
+          onChoose={rsvp.choose}
+          title={eventTitle(post.content) || ev.untitled}
+        />
       )}
       </div>
+      {replied && (
+        <p className="mt-1 text-xs text-foreground-soft" aria-live="polite">
+          {countsLine}
+        </p>
+      )}
+      {rsvp.error && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {rsvp.error}
+        </p>
+      )}
       {onToggleDetails && (
         <button
           type="button"
@@ -835,8 +833,10 @@ export function PostCard({
   const [reposted, setReposted] = useState(post.repostedByMe);
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [shareCount, setShareCount] = useState(post.shareCount);
-  const [going, setGoing] = useState(post.rsvpGoingByMe);
-  const [rsvpCount, setRsvpCount] = useState(post.rsvpCount);
+  const rsvp = useEventRsvp(interactionTargetId, {
+    status: post.myRsvp,
+    counts: { going: post.rsvpCount, maybe: post.maybeCount },
+  });
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxVideo, setLightboxVideo] = useState(false);
@@ -855,7 +855,6 @@ export function PostCard({
   const [isLikePending, startLikeTransition] = useTransition();
   const [, startReactionTransition] = useTransition();
   const [isRepostPending, startRepostTransition] = useTransition();
-  const [isRsvpPending, startRsvpTransition] = useTransition();
   // The event's time and cancel / reschedule state: from the post, replaced by a fresh one (router.refresh), and
   // updated in place by a change made in "Event details" below.
   const [eventInfo, setEventInfo] = useState(() => eventInfoOf(displayPost));
@@ -866,12 +865,7 @@ export function PostCard({
   }
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const showEventDetails = !hideEventDetails && !!displayPost.eventAt && !!displayPost.circleId;
-  // "Coming up" on a Circle page shows the same event with its own RSVP button: keep the two in step.
-  const [rsvpSource] = useState(() => Symbol("post-card-rsvp"));
-  useRsvpSync(interactionTargetId, rsvpSource, (change) => {
-    setGoing(change.going);
-    setRsvpCount(change.rsvpCount);
-  });
+  // "Coming up" on a Circle page shows the same event with its own reply buttons: useEventRsvp keeps the two in step.
 
   // Inline comments — expanding these fetches on demand (not server-
   // rendered as part of Home/Circles' own page data) so commenting or
@@ -1000,24 +994,6 @@ export function PostCard({
         setReactions(previous);
       } else {
         setReactions(result.reactions);
-      }
-    });
-  }
-
-  function handleRsvp() {
-    const nextGoing = !going;
-    setGoing(nextGoing);
-    setRsvpCount((c) => c + (nextGoing ? 1 : -1));
-    startRsvpTransition(async () => {
-      const result = await toggleRsvp(interactionTargetId);
-      if (result.error) {
-        setGoing(!nextGoing);
-        setRsvpCount((c) => c + (nextGoing ? -1 : 1));
-        return;
-      }
-      if (typeof result.rsvpCount === "number" && typeof result.going === "boolean") {
-        setRsvpCount(result.rsvpCount);
-        announceRsvp({ postId: interactionTargetId, going: result.going, rsvpCount: result.rsvpCount, source: rsvpSource });
       }
     });
   }
@@ -1174,10 +1150,7 @@ export function PostCard({
       <EventBlock
         post={displayPost}
         info={eventInfo}
-        going={going}
-        rsvpCount={rsvpCount}
-        isPending={isRsvpPending}
-        onToggle={handleRsvp}
+        rsvp={rsvp}
         detailsOpen={showEventDetails ? eventDetailsOpen : undefined}
         onToggleDetails={showEventDetails ? () => setEventDetailsOpen((open) => !open) : undefined}
       />

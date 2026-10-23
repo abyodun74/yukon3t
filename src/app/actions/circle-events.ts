@@ -45,8 +45,9 @@ import {
  * Circle events: "Coming up" paging, "Who's bringing what", "Remind people who haven't replied" and stopping a
  * repeating event. Every action: the actor from the session, access from circle-events-data.ts (the event post must be
  * a published Circle event the actor can see, else not_found), input through Zod and the pure rules in
- * lib/circle-events.ts, then Prisma. Item text passes moderateText and is refused if flagged. RSVPs stay toggleRsvp
- * (actions/rsvp.ts).
+ * lib/circle-events.ts, then Prisma. Item text passes moderateText and is refused if flagged. Replies (Going / Maybe)
+ * are setRsvp (actions/rsvp.ts). Claiming a bring-list item needs no reply at all, as before: any member who can see
+ * the event may claim, whatever they answered.
  */
 
 type EventError =
@@ -235,6 +236,7 @@ export async function nudgeEventNonResponders(postId: unknown) {
 
   const [candidates, rsvps, blockedByActor, blockedByAuthor] = await Promise.all([
     nudgeCandidates({ circleId: post.circle.id, circleOwnerId: post.circle.createdById, channel: post.channel }),
+    // A Maybe has replied too: only people with no reply at all are nudged.
     prisma.postRsvp.findMany({ where: { postId: post.id }, select: { userId: true } }),
     getBlockedEitherWayIds(user.id),
     post.authorId === user.id ? Promise.resolve(new Set<string>()) : getBlockedEitherWayIds(post.authorId),
@@ -320,6 +322,7 @@ async function notifyEventChange(
 ) {
   try {
     const [rsvps, claims, blocked] = await Promise.all([
+      // Going and Maybe alike: anyone who replied hears that the event was cancelled or moved.
       prisma.postRsvp.findMany({ where: { postId: post.id }, orderBy: { createdAt: "asc" }, select: { userId: true } }),
       prisma.eventBringItem.findMany({
         where: { postId: post.id, claimedById: { not: null } },

@@ -1848,12 +1848,14 @@ const sections: Section[] = [
             Any member can post an <strong>event</strong> in a Circle by
             adding a date, time and place to a post. The Circle&apos;s page
             lists what&apos;s <strong>coming up</strong>, soonest first, in your
-            own time, with how many people are going and a button to say
-            you&apos;re going. Each event also has <strong>add to
-            calendar</strong> (Google Calendar, or a calendar file when
-            you&apos;re using YuKon3t in a web browser), and the
-            usual reminder shortly before it starts if you said you&apos;re
-            going. A private Circle&apos;s events, and a private channel&apos;s,
+            own time, with how many people are going (and how many said maybe)
+            and two buttons to answer: <strong>Going</strong> or{" "}
+            <strong>Maybe</strong> (tap your answer again to take it back).
+            Each event also has <strong>add to calendar</strong> (Google
+            Calendar, or a calendar file when you&apos;re using YuKon3t in a
+            web browser), and the usual reminder shortly before it starts if
+            you answered Going or Maybe. Bringing something from the list
+            doesn&apos;t depend on your answer. A private Circle&apos;s events, and a private channel&apos;s,
             are visible only to the people who can see that Circle or channel.
             <br />
             <br />
@@ -1870,7 +1872,7 @@ const sections: Section[] = [
             <br />
             The organizer can also <strong>remind people who haven&apos;t
             replied</strong>: members who can see the event and haven&apos;t
-            said they&apos;re going get one notification. This works only
+            answered at all (Going or Maybe) get one notification. This works only
             before the event starts and at most once every 12 hours.
             <br />
             <br />
@@ -1898,6 +1900,58 @@ const sections: Section[] = [
             replies or reminders. Cancelling one date of a repeating event
             doesn&apos;t stop the repeat unless the organizer also chooses to
             stop it.
+          </>
+        ),
+      },
+      {
+        id: "event-organizer-tools",
+        q: "What can an event's organizer do: updates, attendance and exports?",
+        a: (
+          <>
+            An event&apos;s organizers (whoever posted it, or the
+            Circle&apos;s creator and co-admins) see{" "}
+            <strong>Organizer tools</strong> in the event&apos;s details. Nobody
+            else does.
+            <br />
+            <br />
+            <strong>Post an update</strong> sends a short message (up to 500
+            characters) to everyone who answered Going or Maybe, and to the
+            event&apos;s author: a notification on their phone and in the app.
+            The latest updates are also pinned on the event under
+            &quot;Organizer updates&quot;, so anyone who can see the event, and
+            anyone who replies later, can read them, with a Translate button
+            when one is in another language. Only people who are still members
+            of the Circle and can see the event are notified, never anyone who
+            has blocked the organizer or been blocked by them. An event can get
+            at most 5 updates in any 24 hours, from before it starts until a day
+            after. To stop getting an event&apos;s updates, take your answer
+            back. Whoever wrote an update can edit it (it is marked
+            &quot;edited&quot; and nobody is notified again), and any organizer
+            can delete one; a deleted update disappears from the event, but
+            notifications already sent stay.
+            <br />
+            <br />
+            <strong>Attendance</strong>: from an hour before the event starts
+            until a day after, organizers can open a list of everyone who
+            answered (each marked Going or Maybe), tick who actually came, and
+            add a member who came without replying (a walk-in). The open list
+            refreshes every 20 seconds, so several organizers can check people
+            in together. They then see how many said they were going, how many
+            said maybe and how many attended, also after the event. Only organizers ever see who
+            attended; you can&apos;t mark yourself. We keep who ticked you and
+            when, and delete it when the event or your account is deleted.
+            <br />
+            <br />
+            <strong>Export</strong> lets organizers save a spreadsheet (CSV) of
+            one event, or of every date of a repeating one: for each person who
+            answered, attended or is bringing something, their display name,
+            username, their answer (Going or Maybe) and when they gave it,
+            whether they attended and what they&apos;re bringing. Nothing else about anyone is in it (no
+            email address or phone number), nor anyone blocked either way with
+            the organizer. In a web browser it downloads as a file; in the app,
+            where downloads don&apos;t work, it is shown as text to copy.
+            Once saved, a copy is outside YuKon3t and in the organizer&apos;s
+            hands.
           </>
         ),
       },

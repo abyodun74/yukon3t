@@ -120,6 +120,7 @@ export const pagesEn = {
       EVENT_RSVP_NUDGE: "{name} asked whether you're going to an event",
       EVENT_CANCELLED: "{name} cancelled an event you're part of",
       EVENT_RESCHEDULED: "{name} moved an event you're part of to a new time",
+      EVENT_ANNOUNCEMENT: "{name} posted an update about an event you're going to",
       NEW_MEMBER_JOINED: "{name} just joined YuKon3t",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see

@@ -8,6 +8,7 @@ import { isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { Locale } from "@/lib/i18n/locales";
 import {
   TRANSLATION_PROMPT_VERSION,
+  TRANSLATION_KINDS,
   TRANSLATION_RESPONSE_SCHEMA,
   buildTranslationMessages,
   isSameLanguageResult,
@@ -21,6 +22,7 @@ import {
 import {
   lockedConversationIds,
   translatableCommentsWhere,
+  translatableEventUpdatesWhere,
   translatableMessagesWhere,
   translatablePostsWhere,
 } from "@/lib/translation-access";
@@ -127,14 +129,15 @@ export async function loadTranslatableTexts(viewerId: string, items: Item[]): Pr
   const postIds = idsOf("post");
   const commentIds = idsOf("comment");
   const messageIds = idsOf("message");
+  const eventUpdateIds = idsOf("eventUpdate");
 
-  const needsVisibility = postIds.length > 0 || commentIds.length > 0;
+  const needsVisibility = postIds.length > 0 || commentIds.length > 0 || eventUpdateIds.length > 0;
   const [visibleWhere, blockedIds] = await Promise.all([
     needsVisibility ? getVisiblePostsWhere(viewerId) : null,
-    commentIds.length ? getBlockedEitherWayIds(viewerId) : new Set<string>(),
+    commentIds.length || eventUpdateIds.length ? getBlockedEitherWayIds(viewerId) : new Set<string>(),
   ]);
 
-  const [posts, comments, messages] = await Promise.all([
+  const [posts, comments, messages, eventUpdates] = await Promise.all([
     postIds.length && visibleWhere
       ? prisma.post.findMany({ where: translatablePostsWhere(postIds, visibleWhere), select: { id: true, content: true } })
       : [],
@@ -148,6 +151,12 @@ export async function loadTranslatableTexts(viewerId: string, items: Item[]): Pr
       ? prisma.message.findMany({
           where: translatableMessagesWhere(messageIds, viewerId),
           select: { id: true, content: true, conversationId: true },
+        })
+      : [],
+    eventUpdateIds.length && visibleWhere
+      ? prisma.eventAnnouncement.findMany({
+          where: translatableEventUpdatesWhere(eventUpdateIds, visibleWhere, blockedIds, viewerId),
+          select: { id: true, text: true },
         })
       : [],
   ]);
@@ -166,10 +175,16 @@ export async function loadTranslatableTexts(viewerId: string, items: Item[]): Pr
   for (const p of posts) texts.set(`post:${p.id}`, p.content);
   for (const c of comments) texts.set(`comment:${c.id}`, c.content);
   for (const m of messages) if (!locked.has(m.conversationId)) texts.set(`message:${m.id}`, m.content);
+  for (const u of eventUpdates) texts.set(`eventUpdate:${u.id}`, u.text);
   return texts;
 }
 
-const SOURCE_COLUMN = { post: "postId", comment: "commentId", message: "messageId" } as const;
+const SOURCE_COLUMN = {
+  post: "postId",
+  comment: "commentId",
+  message: "messageId",
+  eventUpdate: "eventAnnouncementId",
+} as const;
 
 type CachedRow = { sourceId: string; contentHash: string; sourceLang: string; translatedText: string | null };
 
@@ -178,7 +193,15 @@ async function loadCached(kind: TranslationKind, ids: string[], target: Locale):
   const column = SOURCE_COLUMN[kind];
   const rows = await prisma.contentTranslation.findMany({
     where: { [column]: { in: ids }, targetLang: target },
-    select: { postId: true, commentId: true, messageId: true, contentHash: true, sourceLang: true, translatedText: true },
+    select: {
+      postId: true,
+      commentId: true,
+      messageId: true,
+      eventAnnouncementId: true,
+      contentHash: true,
+      sourceLang: true,
+      translatedText: true,
+    },
   });
   return rows.map((r) => ({
     sourceId: (r[column] ?? "") as string,
@@ -248,7 +271,7 @@ export async function translateForViewer({
   for (const [key, text] of texts) if (isTranslatable(text)) hashes.set(key, translationContentHash(text));
 
   const cachedByKey = new Map<string, CachedRow>();
-  const kinds = ["post", "comment", "message"] as const;
+  const kinds = TRANSLATION_KINDS;
   const cachedLists = await Promise.all(
     kinds.map((kind) =>
       loadCached(

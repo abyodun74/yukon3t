@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CalendarClock, CalendarDays, MapPin, Repeat } from "lucide-react";
-import { toggleRsvp } from "@/app/actions/rsvp";
 import { loadCircleEvents } from "@/app/actions/circle-events";
 import { useUiText } from "@/components/ui-text";
 import { appendCircleEventPage, circleEventCursorOf } from "@/lib/circle-events";
-import { announceRsvp, useRsvpSync } from "@/lib/rsvp-sync";
+import { EventRsvpButtons, useEventRsvp, useRsvpCountsLine } from "@/components/event-rsvp";
 import type { CircleEventView } from "@/lib/circle-events-data";
-import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
-import { cn } from "@/lib/utils";
+import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
 
 /** An event's start in the reader's own time, the way an event card shows it (post-card.tsx's EventBlock). */
 export function formatEventTime(iso: string, locale: Locale) {
@@ -26,7 +24,7 @@ export function formatEventTime(iso: string, locale: Locale) {
 /**
  * "Coming up" on a Circle page: a compact agenda of the Circle's upcoming event posts the viewer may see (soonest
  * first; the first page from the server, "Load more" after it), each with its time in the viewer's own time, where,
- * how many are going, a one-tap RSVP through the same toggleRsvp the event card uses (kept in step with the card's own
+ * how many are going, one-tap Going / Maybe through the same setRsvp the event card uses (kept in step with the card's own
  * button, rsvp-sync.ts), and "Event details" to the post itself. The full event (bring list, calendar, organizer
  * controls) is the post, in its channel's feed and on /post/[id]; this list doesn't repeat it. Cancelled events leave
  * the list. The `#events` anchor; each item is `#event-<id>`.
@@ -123,45 +121,12 @@ export function CircleEventsSection({
 function CircleEventItem({ event }: { event: CircleEventView }) {
   const { locale, t: ui } = useUiText();
   const t = ui.events;
-  const [going, setGoing] = useState(event.going);
-  const [count, setCount] = useState(event.rsvpCount);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  // A tap on the same event's card in the feed below updates this one too.
-  const [rsvpSource] = useState(() => Symbol("coming-up-rsvp"));
-  useRsvpSync(event.id, rsvpSource, (change) => {
-    setGoing(change.going);
-    setCount(change.rsvpCount);
+  // Same reply state as the event card (post-card.tsx), kept in step with it by useEventRsvp.
+  const rsvp = useEventRsvp(event.id, {
+    status: event.myRsvp,
+    counts: { going: event.rsvpCount, maybe: event.maybeCount },
   });
-
-  // Same optimistic toggle as the event card (post-card.tsx's handleRsvp), rolled back on any error.
-  function toggle() {
-    const next = !going;
-    setGoing(next);
-    setCount((c) => c + (next ? 1 : -1));
-    setError(null);
-    startTransition(async () => {
-      try {
-        const result = await toggleRsvp(event.id);
-        if (result.error) {
-          setGoing(!next);
-          setCount((c) => c + (next ? -1 : 1));
-          setError(byCode(t.errors, result.error));
-          return;
-        }
-        if (typeof result.rsvpCount === "number") {
-          setCount(result.rsvpCount);
-          if (typeof result.going === "boolean") {
-            announceRsvp({ postId: event.id, going: result.going, rsvpCount: result.rsvpCount, source: rsvpSource });
-          }
-        }
-      } catch {
-        setGoing(!next);
-        setCount((c) => c + (next ? -1 : 1));
-        setError(t.errors.network);
-      }
-    });
-  }
+  const countsLine = useRsvpCountsLine(rsvp.counts);
 
   const title = event.title || t.untitled;
   return (
@@ -194,7 +159,7 @@ function CircleEventItem({ event }: { event: CircleEventView }) {
               {format(t.inChannel, { channel: event.channelName })}
             </span>
           )}
-          <span aria-live="polite">{plural(locale, t.goingCount, count)}</span>
+          <span aria-live="polite">{countsLine}</span>
           {event.repeating && (
             <span className="flex items-center gap-1">
               <Repeat size={11} aria-hidden />
@@ -211,25 +176,13 @@ function CircleEventItem({ event }: { event: CircleEventView }) {
             {t.details}
           </Link>
         </p>
-        {error && (
+        {rsvp.error && (
           <p role="alert" className="mt-1 text-xs text-danger">
-            {error}
+            {rsvp.error}
           </p>
         )}
       </div>
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={isPending}
-        aria-pressed={going}
-        aria-label={`${t.imGoing}: ${title}`}
-        className={cn(
-          "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50",
-          going ? "bg-success text-white" : "bg-accent text-accent-ink",
-        )}
-      >
-        {going ? t.going : t.imGoing}
-      </button>
+      <EventRsvpButtons status={rsvp.status} isPending={rsvp.isPending} onChoose={rsvp.choose} title={title} size="sm" />
     </article>
   );
 }

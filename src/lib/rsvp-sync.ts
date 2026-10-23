@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { RsvpStatus } from "@/lib/rsvp";
 
 /**
  * Keeps every RSVP button for one event on the page in step: a Circle page shows an upcoming event both in "Coming up"
@@ -10,7 +11,14 @@ import { useEffect, useRef } from "react";
 
 const EVENT_NAME = "yk:rsvp-changed";
 
-export type RsvpChange = { postId: string; going: boolean; rsvpCount: number; source: symbol };
+/** The caller's reply after a change, and the event's fresh Going / Maybe counts (from setRsvp). */
+export type RsvpChange = {
+  postId: string;
+  status: RsvpStatus | null;
+  rsvpCount: number;
+  maybeCount: number;
+  source: symbol;
+};
 
 export function announceRsvp(change: RsvpChange) {
   if (typeof window === "undefined") return;

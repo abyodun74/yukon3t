@@ -135,6 +135,7 @@ export const FAQ_IDS = [
   "co-admins-circle-collab-board",
   "polls-circle-collab-board",
   "circle-events-coming-up",
+  "event-organizer-tools",
   // Advertising
   "advertise-yukon3t",
   // Inviting friends

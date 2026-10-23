@@ -18,7 +18,8 @@ export const TRANSLATION_BATCH_MAX = 10;
 /** Bump when the prompt changes in a way that should invalidate cached translations (it is part of the cache key). */
 export const TRANSLATION_PROMPT_VERSION = 1;
 
-export const TRANSLATION_KINDS = ["post", "comment", "message"] as const;
+// "eventUpdate" is an organizer update pinned on a Circle event (EventAnnouncement, lib/circle-event-organizer.ts).
+export const TRANSLATION_KINDS = ["post", "comment", "message", "eventUpdate"] as const;
 export type TranslationKind = (typeof TRANSLATION_KINDS)[number];
 
 /** What the server answers for one item. Anything the viewer can't see is "unavailable", like an outage: never "not found". */

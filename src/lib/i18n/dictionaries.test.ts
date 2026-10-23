@@ -85,6 +85,8 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "feed.categories.GENERAL",
     "shell.viewer.videoLabel",
     "vocab.collabTypes.Networking",
+    // "No" (the export's answer to "Attended") is Spanish too.
+    "ui.eventTools.csv.no",
   ],
   // French puts a space before the colon, so its "{name} : {text}" differs.
   fr: [

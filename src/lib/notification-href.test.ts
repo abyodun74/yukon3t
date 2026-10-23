@@ -44,8 +44,8 @@ describe("notificationHref for polls", () => {
       "/circles/runners#events",
     );
   });
-  it("lands a cancelled or moved event on the post, and on the Circle's events without one", () => {
-    for (const type of ["EVENT_CANCELLED", "EVENT_RESCHEDULED"] as const) {
+  it("lands a cancelled or moved event, or an organizer update, on the post, and on the Circle's events without one", () => {
+    for (const type of ["EVENT_CANCELLED", "EVENT_RESCHEDULED", "EVENT_ANNOUNCEMENT"] as const) {
       expect(notificationHref({ ...base, type, circle: { slug: "runners" }, postId: "p1" })).toBe("/post/p1");
       expect(notificationHref({ ...base, type, circle: { slug: "runners" } })).toBe("/circles/runners#events");
     }
@@ -158,6 +158,11 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
   EVENT_RSVP_NUDGE: [{ data: { ...circle, ...post }, href: "/post/p1" }],
   EVENT_CANCELLED: [{ data: { ...circle, ...post }, href: "/post/p1" }],
   EVENT_RESCHEDULED: [{ data: { ...circle, ...post }, href: "/post/p1" }],
+  // An organizer update: the event post, where it is pinned; the Circle's events if the post is gone.
+  EVENT_ANNOUNCEMENT: [
+    { data: { ...circle, ...post }, href: "/post/p1" },
+    { data: circle, href: "/circles/runners#events" },
+  ],
   // One new member: their profile. A coalesced digest ("and 3 others"): Discover's newest people.
   NEW_MEMBER_JOINED: [
     { data: {}, href: "/u/u1" },

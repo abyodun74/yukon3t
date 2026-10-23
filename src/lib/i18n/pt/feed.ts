@@ -34,8 +34,6 @@ export const feed: typeof feedEn = {
   post: {
     friendsOnly: "Somente amigos",
     private: "Privada",
-    going: "Vou ✓",
-    imGoing: "Eu vou",
     openPhoto: "Abrir a foto {index} de {total}",
     editPost: "Editar publicação",
     editCaption: "Editar legenda",

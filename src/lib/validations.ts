@@ -12,6 +12,8 @@ import {
   POLL_QUESTION_MAX,
 } from "@/lib/polls";
 import { EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/lib/circle-events";
+import { EVENT_ANNOUNCEMENT_MAX_LENGTH } from "@/lib/circle-event-organizer";
+import { RSVP_STATUSES } from "@/lib/rsvp";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 
 export const intentTagValues = [
@@ -839,6 +841,31 @@ export const eventCancelSchema = z.object({
 export const eventRescheduleSchema = z.object({
   eventAt: z.string().datetime(),
   reason: z.string().max(EVENT_CHANGE_REASON_MAX_LENGTH * 4).nullish(),
+});
+
+// Organizer tools (actions/circle-event-organizer.ts). An update's text before normalizeAnnouncementText
+// (lib/circle-event-organizer.ts) trims it and enforces the real limit; who is checked in and whether; the walk-in
+// search as typed; what an export covers.
+export const eventAnnouncementSchema = z.object({
+  text: z.string().max(EVENT_ANNOUNCEMENT_MAX_LENGTH * 4),
+});
+export const eventAttendanceSchema = z.object({
+  userId: z.string().cuid(),
+  attended: z.boolean(),
+});
+export const eventWalkInSearchSchema = z.object({
+  query: z.string().max(200),
+});
+export const eventExportSchema = z.object({
+  scope: z.enum(["event", "series"]),
+});
+// Editing an organizer update: the same text rules as posting one.
+export const eventAnnouncementEditSchema = eventAnnouncementSchema;
+
+// setRsvp (actions/rsvp.ts): the event post and the caller's reply, or null to take it back.
+export const rsvpSetSchema = z.object({
+  postId: z.string().min(1).max(64),
+  status: z.enum(RSVP_STATUSES).nullable(),
 });
 
 // Repeat for a new Circle event (createPost): the frequency and exactly one end, either a number of occurrences or a
