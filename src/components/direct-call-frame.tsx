@@ -28,7 +28,8 @@ import { createCallObjectWhenReady, takePrewarmedCall, trackDailyDestroy } from 
 import { hapticSelection, hapticImpact } from "@/lib/haptics";
 import { UserAvatar } from "@/components/user-link";
 import { useCallsText } from "@/components/calls-text";
-import { callPeer, peerNotice, type CallPeer } from "@/lib/call-names";
+import { callLabel, callPeer, peerNotice, type CallPeer } from "@/lib/call-names";
+import { callPeerAvatarUrl } from "@/lib/call-avatar";
 import type { CallRoster } from "@/lib/use-call-roster";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
@@ -876,6 +877,19 @@ export function DirectCallFrame({
     return others.length === 1 ? callPeer(others[0].name) : { kind: "everyone" };
   }
   const peer = inGroupCall ? groupPeer() : callPeer(peerName);
+  // The other person's picture and name for whenever there's no video of them: the main view of an audio call or a
+  // camera that's off, the swapped tile, and "Connecting…" before they're in the room. In a 1:1 call the name is the
+  // session's label, so a hidden caller stays "Private call" (and pictureless, see call-avatar.ts) here too.
+  function peerFallback(participant: DailyParticipant | undefined, size: number) {
+    const name = inGroupCall && participant ? remoteName(participant) : callLabel(peerName, calls);
+    const avatarUrl = callPeerAvatarUrl(roster, { selfUserId, peerUserId: participant?.user_id, peerName });
+    return (
+      <>
+        <UserAvatar avatarUrl={avatarUrl} name={!inGroupCall && peer.kind === "private" ? null : name} size={size} />
+        <span dir="auto" className="max-w-full truncate text-sm text-white/80">{name}</span>
+      </>
+    );
+  }
   // Tap-to-swap only exists in the 1:1 layout; in the grid the tile is
   // always this side's own camera.
   const swapped = selfViewIsMain && !gridMode;
@@ -944,15 +958,23 @@ export function DirectCallFrame({
       ) : swapped && local ? (
         <SelfVideo participant={local} />
       ) : remote ? (
-        <RemoteVideo participant={remote} className="h-full w-full object-contain" pausedLabel={remoteCameraPausedLabel} />
+        <RemoteVideo
+          participant={remote}
+          className="h-full w-full object-contain"
+          pausedLabel={remoteCameraPausedLabel}
+          fallback={peerFallback(remote, 96)}
+        />
       ) : (
-        <div className="flex flex-col items-center gap-1 px-4 text-center text-sm text-white/60">
+        <div className="flex flex-col items-center gap-2 px-4 text-center text-sm text-white/60">
           {joinError ? (
             <span role="alert" className="text-danger">
               {t.errors[joinError]}
             </span>
           ) : (
-            !statusNotice && <span role="status">{t.connecting}</span>
+            <>
+              {!inGroupCall && peerFallback(undefined, 96)}
+              {!statusNotice && <span role="status">{t.connecting}</span>}
+            </>
           )}
         </div>
       )}
@@ -997,7 +1019,12 @@ export function DirectCallFrame({
           style={selfViewPosition ? { left: selfViewPosition.left, top: selfViewPosition.top } : { top: "calc(1rem + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px)))", left: "1rem" }}
         >
           {swapped ? (
-            <RemoteVideo participant={tileParticipant} className="h-full w-full object-cover" pausedLabel={remoteCameraPausedLabel} />
+            <RemoteVideo
+              participant={tileParticipant}
+              className="h-full w-full object-cover"
+              pausedLabel={remoteCameraPausedLabel}
+              fallback={peerFallback(tileParticipant, 48)}
+            />
           ) : (
             <SelfVideo participant={tileParticipant} />
           )}
@@ -1204,8 +1231,8 @@ function RemoteAudio({ participant, muted = false }: { participant: DailyPartici
  * their camera is stopped because their app is in the background (see
  * call-camera-pause.ts): the picture is hidden behind that text instead of
  * left frozen on its last frame. A screen share isn't affected. `fallback`
- * (a grid tile's avatar) replaces the plain name shown when there's no
- * picture.
+ * (the person's avatar, and in the 1:1 views their name) is what shows when
+ * there's no picture.
  */
 function RemoteVideo({
   participant,
@@ -1216,9 +1243,8 @@ function RemoteVideo({
   participant: DailyParticipant;
   className: string;
   pausedLabel?: string;
-  fallback?: ReactNode;
+  fallback: ReactNode;
 }) {
-  const { t: calls } = useCallsText();
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoTrack = participant.tracks.video;
   const screenTrack = participant.tracks.screenVideo;
@@ -1239,17 +1265,12 @@ function RemoteVideo({
   return (
     <>
       <video ref={videoRef} autoPlay playsInline className={`${className} ${hasVideo ? "" : "hidden"}`} />
-      {!hasVideo &&
-        (fallback ? (
-          <div className="absolute flex flex-col items-center gap-2 px-2 text-center text-xs text-white/60">
-            {fallback}
-            {cameraPaused && <span>{pausedLabel}</span>}
-          </div>
-        ) : (
-          <span className="absolute px-2 text-center text-sm text-white/60">
-            {cameraPaused ? pausedLabel : participant.user_name || calls.direct.connecting}
-          </span>
-        ))}
+      {!hasVideo && (
+        <div className="absolute flex max-w-full flex-col items-center gap-2 px-2 text-center text-xs text-white/60">
+          {fallback}
+          {cameraPaused && <span>{pausedLabel}</span>}
+        </div>
+      )}
     </>
   );
 }

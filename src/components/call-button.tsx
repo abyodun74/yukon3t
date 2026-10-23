@@ -7,6 +7,7 @@ import { useCallSession } from "@/lib/call-session";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { startRingback, stopRingback } from "@/lib/ringback";
 import { Sheet } from "@/components/sheet";
+import { UserAvatar } from "@/components/user-link";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isCallOverStatus } from "@/lib/call-resilience";
@@ -29,11 +30,14 @@ type OutgoingState =
 export function CallButton({
   calleeId,
   calleeName,
+  calleeAvatarUrl,
   currentUserId,
 }: {
   calleeId: string;
   /** Null for a connection the data has no name for. */
   calleeName: string | null;
+  /** Their stored User.avatarUrl, shown on the "Calling" sheet (null for no picture). */
+  calleeAvatarUrl: string | null;
   currentUserId: string;
 }) {
   const { t: calls } = useCallsText();
@@ -333,6 +337,9 @@ export function CallButton({
       >
         {displayState.phase === "ringing" && (
           <>
+            <div className="mb-3 flex justify-center">
+              <UserAvatar avatarUrl={calleeAvatarUrl} name={calleeName} size={72} />
+            </div>
             <p role="status" className="text-sm text-foreground-soft">{displayState.calleeRinging ? t.ringing : t.calling}</p>
             {calleeName && <p dir="auto" className="mt-1 break-words text-lg font-semibold">{calleeName}</p>}
             <button

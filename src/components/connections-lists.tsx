@@ -186,7 +186,12 @@ export function ConnectedList({
                 {labels.message}
               </Link>
             )}
-            <CallButton calleeId={c.other.id} calleeName={c.other.name} currentUserId={currentUserId} />
+            <CallButton
+              calleeId={c.other.id}
+              calleeName={c.other.name}
+              calleeAvatarUrl={c.other.avatarUrl}
+              currentUserId={currentUserId}
+            />
           </div>
         </div>
       ))}

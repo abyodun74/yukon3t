@@ -17,11 +17,13 @@ import { hapticNotification, hapticImpact } from "@/lib/haptics";
 import { useCallsText } from "@/components/calls-text";
 import { callLabel, isPrivateCaller } from "@/lib/call-names";
 import { aroundPlaceholder } from "@/lib/i18n/locales";
+import { UserAvatar } from "@/components/user-link";
 
 type IncomingCall = {
   id: string;
   type: "AUDIO" | "VIDEO";
-  caller: { id: string; name: string | null };
+  // avatarUrl is null for a caller with no picture and for one announced as "Private call" (see call-avatar.ts).
+  caller: { id: string; name: string | null; avatarUrl: string | null };
   // Both already minted/created at startCall time and present on the Call
   // row getIncomingCall() returns in full (see that action's own comment) —
   // just never read by this component until now. Nullable: a Call row
@@ -436,11 +438,18 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       {/* role="alert": an incoming call is the one thing here worth
           interrupting a screen reader for — without it the banner appears
           silently and the call rings out unanswered. */}
-      <p role="alert" className="text-sm">
-        {beforeName}
-        <bdi className="font-semibold">{isGroupRing ? `${shownName} + ${incoming.othersInCall}` : shownName}</bdi>
-        {afterName}
-      </p>
+      <div className="flex items-center gap-3">
+        <UserAvatar
+          avatarUrl={incoming.caller.avatarUrl}
+          name={isPrivateCaller(incoming.caller.name) ? null : incoming.caller.name}
+          size={40}
+        />
+        <p role="alert" className="text-sm">
+          {beforeName}
+          <bdi className="font-semibold">{isGroupRing ? `${shownName} + ${incoming.othersInCall}` : shownName}</bdi>
+          {afterName}
+        </p>
+      </div>
       <div className="mt-3 flex items-center justify-center gap-4">
         <button
           type="button"

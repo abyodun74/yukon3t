@@ -11,6 +11,7 @@ import { sendFcmCallToUser } from "@/lib/fcm";
 import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
+import { ringCallerAvatarUrl } from "@/lib/call-avatar";
 import { incomingCallPush, ringCallerName } from "@/lib/push-text";
 import type { Locale } from "@/lib/i18n/locales";
 import { track } from "@/lib/analytics";
@@ -221,7 +222,7 @@ export async function getIncomingCall() {
     const call = await prisma.call.findFirst({
       where: { calleeId: user.id, status: "RINGING" },
       orderBy: { createdAt: "desc" },
-      include: { caller: { select: { id: true, name: true } } },
+      include: { caller: { select: { id: true, name: true, avatarUrl: true } } },
     });
     // First time this callee's own client has observed the ring — flips the
     // caller's UI from "Calling" to "Ringing". Best-effort: a failed write
@@ -242,13 +243,18 @@ export async function getIncomingCall() {
     // requireVerifiedUser() already fetched the full row, so this is free —
     // the callee's own ringtone preference, for the UI to actually play it.
     if (call) {
+      const callerName = await maskHiddenCallerName(user.id, call.caller.id, call.caller.name);
       return {
         call: {
           id: call.id,
           type: call.type,
           roomUrl: call.roomUrl,
           calleeToken: call.calleeToken,
-          caller: { id: call.caller.id, name: await maskHiddenCallerName(user.id, call.caller.id, call.caller.name) },
+          caller: {
+            id: call.caller.id,
+            name: callerName,
+            avatarUrl: ringCallerAvatarUrl(callerName, call.caller.avatarUrl),
+          },
           othersInCall: 0,
         },
         ringtone: user.ringtone,
@@ -283,7 +289,11 @@ async function getIncomingInvite(userId: string) {
   });
   if (!invite) return null;
   const inviterId = invite.invitedById ?? invite.call.callerId;
-  const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { id: true, name: true } });
+  const inviter = await prisma.user.findUnique({
+    where: { id: inviterId },
+    select: { id: true, name: true, avatarUrl: true },
+  });
+  const inviterName = await maskHiddenCallerName(userId, inviterId, inviter?.name ?? null);
   return {
     id: invite.call.id,
     type: invite.call.type,
@@ -293,7 +303,7 @@ async function getIncomingInvite(userId: string) {
     // (call-prewarm.ts), and here the room has people in it who would see
     // that as someone arriving before they've answered.
     calleeToken: null,
-    caller: { id: inviterId, name: await maskHiddenCallerName(userId, inviterId, inviter?.name ?? null) },
+    caller: { id: inviterId, name: inviterName, avatarUrl: ringCallerAvatarUrl(inviterName, inviter?.avatarUrl ?? null) },
     othersInCall: invite.call.participants.filter((p) => p.userId !== inviterId).length,
   };
 }

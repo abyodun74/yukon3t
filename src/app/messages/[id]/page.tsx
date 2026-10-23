@@ -223,7 +223,7 @@ export default async function ConversationPage({
         )}
         <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {!conversation.isGroup && other && (
-            <CallButton calleeId={other.id} calleeName={other.name} currentUserId={me.id} />
+            <CallButton calleeId={other.id} calleeName={other.name} calleeAvatarUrl={other.avatarUrl} currentUserId={me.id} />
           )}
           <ChatOptionsMenu conversationId={id} isGroup={conversation.isGroup} hidden={hidden} />
           {conversation.isGroup && (
