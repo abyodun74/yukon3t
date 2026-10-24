@@ -31,6 +31,7 @@ import { ShellTextProvider, UiTextProvider } from "@/components/ui-text";
 import { CallsTextProvider } from "@/components/calls-text";
 import { localeDirection } from "@/lib/i18n/locales";
 import { ContentTranslationProvider } from "@/components/content-translation";
+import { LinkCopyMenu } from "@/components/link-copy-menu";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { prisma } from "@/lib/prisma";
 
@@ -257,6 +258,13 @@ export default async function RootLayout({
             <RegisterServiceWorker />
             <StaleBuildReload />
             <OfflineBanner />
+            {/* App-wide: long-press / context menu on any link offers "Copy link" instead of the native link menu
+                (src/lib/link-copy-menu.ts). Wording reuses the share sheet's existing strings. */}
+            <LinkCopyMenu
+              copyLabel={dictionary.feed.share.copyLink}
+              copiedLabel={dictionary.feed.share.linkCopied}
+              failedLabel={dictionary.muse.share.copyFailed}
+            />
             <Nav session={session} theme={theme} />
             {/* Native app only; renders nothing in a browser. Not session-gated: an "Update required" applies signed out too. */}
             <AppUpdateGate userId={session?.user?.id ?? null} />
