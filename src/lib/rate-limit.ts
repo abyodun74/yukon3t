@@ -284,6 +284,9 @@ const limiterDefinitions = {
   // since the browser caches each redirect for ~50 minutes. A busy hour of feed, comments, search and lists stays well
   // under this; a scraper walking every profile doesn't. Over it, avatars fall back to initials, nothing else breaks.
   avatarView: makeLimiter(600, "1 h", "avatarView"),
+  // "Send to a friend" in the share sheets to up to 5 chats at once (sendToConversations, shareMuseToConversations,
+  // shareStoryToConversations): per action, on top of messageSend per destination.
+  shareToChats: makeLimiter(20, "10 m", "shareToChats"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

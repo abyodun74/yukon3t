@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRANSLATION_BATCH_MAX, TRANSLATION_KINDS } from "@/lib/translation";
 import { CALL_CAPTION_MAX_CHARS, CALL_CAPTION_MAX_SDP_CHARS } from "@/lib/call-captions";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
+import { SHARE_MAX_RECIPIENTS } from "@/lib/share-to-chats";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
 import { CIRCLE_INVITE_MAX } from "@/lib/circle-invite";
@@ -902,3 +903,6 @@ export const eventRepeatSchema = z.object({
   count: z.coerce.number().int().optional(),
   until: z.coerce.date().optional(),
 });
+
+/** "Send to a friend" in the share sheets: which of the caller's chats (1 to SHARE_MAX_RECIPIENTS; duplicates are dropped later). */
+export const shareToChatsSchema = z.array(z.string().cuid()).min(1).max(SHARE_MAX_RECIPIENTS);

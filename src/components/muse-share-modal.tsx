@@ -2,16 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Link as LinkIcon, Share as ShareIcon, Send, CirclePlus, House } from "lucide-react";
-import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
 import { recordMuseShare, shareMuseToStory } from "@/app/actions/muse";
-import { getMyConversationsForShare, shareMuseToConversation } from "@/app/actions/messages";
+import { getMyConversationsForShare } from "@/app/actions/messages";
+import { shareMuseToConversations } from "@/app/actions/share-to-chats";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
-import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
-import { FriendSearchList } from "@/components/friend-search-list";
+import { SendToChatsPicker } from "@/components/send-to-chats-picker";
 import { useMuseText } from "@/components/muse-text";
 import { byCode } from "@/lib/i18n/locales";
 
@@ -74,7 +73,6 @@ export function MuseShareModal({
     if (open) setView("root");
   }
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
-  const [sentToId, setSentToId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [sharingViaDevice, setSharingViaDevice] = useState(false);
   const [sharingToStory, setSharingToStory] = useState(false);
@@ -176,18 +174,16 @@ export function MuseShareModal({
     });
   }
 
-  function sendToFriend(conversationId: string) {
+  // The video itself, to every ticked chat at once.
+  async function sendToFriends(conversationIds: string[]) {
     setNotice(null);
-    startTransition(async () => {
-      const result = await shareMuseToConversation(museId, conversationId);
-      if (result.error) {
-        setNotice(byCode(t.sendErrors, result.error));
-        return;
-      }
-      setSentToId(conversationId);
-      announce(feed.share.sent);
-      if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
-    });
+    const result = await shareMuseToConversations(museId, conversationIds);
+    if (result.error) {
+      // A Muse that is gone (or whose author is now blocked) reads as a plain "couldn't send"; the picker words the rest.
+      return { error: result.error, message: result.error === "not_found" ? t.sendErrors.other : undefined };
+    }
+    onShareCountChange(result.shareCount);
+    return { sent: result.sent, failed: result.failed };
   }
 
   return (
@@ -257,11 +253,12 @@ export function MuseShareModal({
             <button type="button" onClick={() => setView("root")} className="mb-1 text-xs text-accent hover:underline">
               {`${dir === "rtl" ? "→" : "←"} ${feed.share.back}`}
             </button>
-            <FriendSearchList
+            <SendToChatsPicker
               items={conversations}
               getKey={(c) => c.id}
               getName={(c) => c.label}
               getUsername={(c) => c.username}
+              getAvatarUrl={(c) => c.avatarUrl}
               listClassName="max-h-64"
               loading={
                 <>
@@ -274,18 +271,10 @@ export function MuseShareModal({
                 </>
               }
               texts={{ search: feed.share.searchFriends, clear: feed.share.clearSearch, noMatch: feed.share.noFriendMatch, empty: feed.share.noConversations }}
-              renderItem={(c) => (
-                <button
-                  type="button"
-                  disabled={sentToId === c.id}
-                  onClick={() => sendToFriend(c.id)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-60"
-                >
-                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                  <span dir="auto" className="min-w-0 flex-1 truncate">{c.label}</span>
-                  {sentToId === c.id && <span className="text-xs text-success">{feed.share.sent}</span>}
-                </button>
-              )}
+              onSend={sendToFriends}
+              onSent={({ failed }) => {
+                if (failed === 0) setTimeout(onClose, 1200);
+              }}
             />
           </div>
         )}

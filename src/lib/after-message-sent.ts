@@ -13,7 +13,7 @@ import { hiddenPush, messagePush } from "@/lib/push-text";
 
 /**
  * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
- * rows, badge counts and the realtime nudge. Shared by sendMessage, shareMuseToConversation and sendViewOnceMessage so a
+ * rows, badge counts and the realtime nudge. Shared by sendMessage, sendToConversations, shareMuseToConversations, forwardMessage and sendViewOnceMessage so a
  * message sent any of those ways reaches the recipient identically. In a lib file, not actions/messages.ts: every export
  * of a "use server" file is callable from the browser, and this trusts its `user` argument.
  */

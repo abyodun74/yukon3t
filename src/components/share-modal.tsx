@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus, Clapperboard } from "lucide-react";
-import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
-import { FriendSearchList } from "@/components/friend-search-list";
+import { SendToChatsPicker } from "@/components/send-to-chats-picker";
 import { recordShare, shareToCircle, shareToStory, shareToMuse } from "@/app/actions/shares";
-import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
+import { getMyConversationsForShare } from "@/app/actions/messages";
+import { sendToConversations } from "@/app/actions/share-to-chats";
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import { watermarkImageFile } from "@/lib/watermark";
@@ -245,18 +245,13 @@ export function ShareModal({
     navigator.share(shareData).then(bumpShareCount).catch(() => {});
   }
 
-  function sendToConversation(conversationId: string) {
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set("conversationId", conversationId);
-      fd.set("content", url);
-      const result = await sendMessage(fd);
-      if (!result.error) {
-        setSentToId(conversationId);
-        announce(t.share.sent);
-        bumpShareCount();
-      }
-    });
+  // The post's link, to every ticked chat at once. The share count goes up once per send, however many chats it reached.
+  async function sendLinkToChats(conversationIds: string[]) {
+    const fd = new FormData();
+    for (const id of conversationIds) fd.append("conversationIds", id);
+    fd.set("content", url);
+    const result = await sendToConversations(fd);
+    return result.error ? { error: result.error } : { sent: result.sent, failed: result.failed };
   }
 
   function shareToMyStory() {
@@ -372,27 +367,19 @@ export function ShareModal({
         )}
 
         {view === "friends" && (
-          <FriendSearchList
+          <SendToChatsPicker
             items={conversations}
             getKey={(c) => c.id}
             getName={(c) => c.label}
             getUsername={(c) => c.username}
+            getAvatarUrl={(c) => c.avatarUrl}
             loading={<RowSkeletons />}
             texts={{ search: t.share.searchFriends, clear: t.share.clearSearch, noMatch: t.share.noFriendMatch, empty: t.share.noConversations }}
-            renderItem={(c) => (
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => sendToConversation(c.id)}
-                className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                  <span dir="auto" className="truncate">{c.label}</span>
-                </span>
-                {sentToId === c.id && <span className="shrink-0 text-xs text-success">{t.share.sent}</span>}
-              </button>
-            )}
+            onSend={sendLinkToChats}
+            onSent={({ failed }) => {
+              bumpShareCount();
+              if (failed === 0) setTimeout(onClose, 1200);
+            }}
           />
         )}
 

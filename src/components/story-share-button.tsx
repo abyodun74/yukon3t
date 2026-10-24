@@ -2,19 +2,16 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Forward, X } from "lucide-react";
-import { getShareableConversations, shareStoryToConversation } from "@/app/actions/stories";
+import { getShareableConversations, shareStoryToConversations } from "@/app/actions/stories";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
-import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
-import { FriendSearchList } from "@/components/friend-search-list";
+import { SendToChatsPicker } from "@/components/send-to-chats-picker";
 
 /**
- * "Share" for a story — forwards it into one of the caller's own
- * conversations (DM or group), unlike StoryReplyBar which always replies
- * straight to the story's author. Tap-to-send, like a native share sheet:
- * no separate "confirm" step, since sending to more than one person just
- * means tapping more than one row before closing.
+ * "Share" for a story: sends it into up to SHARE_MAX_RECIPIENTS of the caller's own conversations (DMs or groups) at
+ * once, unlike StoryReplyBar which always replies straight to the story's author. Tick the chats, then Send
+ * (SendToChatsPicker, the same interaction as forwarding a chat message).
  */
 export function StoryShareButton({
   storyId,
@@ -28,8 +25,6 @@ export function StoryShareButton({
   const { t: shell } = useShellText();
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState<{ value: string; label: string; username: string | null }[] | null>(null);
-  const [sentTo, setSentTo] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
   const titleId = useId();
   // Unmounting with the sheet open (the viewer swapping panels or closing)
   // skips close(), which would leave the viewer paused — report it here,
@@ -55,22 +50,19 @@ export function StoryShareButton({
   async function openSheet() {
     setOpen(true);
     onOpenChange?.(true);
-    setError(null);
     if (conversations === null) {
       const result = await getShareableConversations();
       setConversations(result.conversations);
     }
   }
 
-  async function send(conversationId: string) {
-    setError(null);
-    const result = await shareStoryToConversation(storyId, conversationId);
+  async function send(conversationIds: string[]) {
+    const result = await shareStoryToConversations(storyId, conversationIds);
     if (result.error) {
-      setError(t.stories.shareSheet.failed);
-      return;
+      // An expired story (or one whose author is now blocked) reads as a plain "couldn't share"; the picker words the rest.
+      return { error: result.error, message: result.error === "not_found" ? t.stories.shareSheet.failed : undefined };
     }
-    setSentTo((prev) => new Set(prev).add(conversationId));
-    announce(t.stories.shareSheet.sent);
+    return { sent: result.sent, failed: result.failed };
   }
 
   const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
@@ -111,8 +103,7 @@ export function StoryShareButton({
                 <X size={16} />
               </button>
             </div>
-            {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
-            <FriendSearchList
+            <SendToChatsPicker
               items={conversations}
               getKey={(c) => c.value}
               getName={(c) => c.label}
@@ -125,19 +116,9 @@ export function StoryShareButton({
                 noMatch: t.stories.shareSheet.noFriendMatch,
                 empty: t.stories.shareSheet.empty,
               }}
-              renderItem={(c) => {
-                const sent = sentTo.has(c.value);
-                return (
-                  <button
-                    type="button"
-                    disabled={sent}
-                    onClick={() => send(c.value)}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm hover:bg-line disabled:opacity-60"
-                  >
-                    <span dir="auto" className="min-w-0 truncate">{c.label}</span>
-                    {sent && <span className="shrink-0 text-xs text-accent">{t.stories.shareSheet.sent}</span>}
-                  </button>
-                );
+              onSend={send}
+              onSent={({ failed }) => {
+                if (failed === 0) setTimeout(close, 1200);
               }}
             />
           </div>

@@ -92,7 +92,7 @@ export const pt1 = {
   },
   "share-post": {
     q: "Como compartilho uma publicação?",
-    a: "Toque no ícone de compartilhar de qualquer publicação para abrir um menu: copiar o link, compartilhar pelo menu de compartilhamento do seu dispositivo, adicionar ao seu story, compartilhar no Muse (apenas publicações com vídeo de até 5 minutos), enviar direto para um amigo como mensagem ou compartilhar em um Circle. O compartilhamento pelo dispositivo anexa a própria foto ou o próprio vídeo quando possível (não só um link), com um pequeno logo do yukon3t, para que aplicativos como o WhatsApp ou o Mensagens mostrem a publicação de verdade, com a marca de onde ela veio.",
+    a: "Toque no ícone de compartilhar de qualquer publicação para abrir um menu: copiar o link, compartilhar pelo menu de compartilhamento do seu dispositivo, adicionar ao seu story, compartilhar no Muse (apenas publicações com vídeo de até 5 minutos), enviar direto para um amigo como mensagem ou compartilhar em um Circle. O compartilhamento pelo dispositivo anexa a própria foto ou o próprio vídeo quando possível (não só um link), com um pequeno logo do yukon3t, para que aplicativos como o WhatsApp ou o Mensagens mostrem a publicação de verdade, com a marca de onde ela veio. Em “Enviar para um amigo”, você pode marcar até 5 conversas e enviar para todas de uma vez; o mesmo vale ao compartilhar um Muse, um story ou algo compartilhado de outro aplicativo.",
   },
   "share-photo-video-from-another": {
     q: "Posso compartilhar uma foto ou um vídeo de outro aplicativo (Instagram, TikTok, WhatsApp etc.) direto no YuKon3t?",

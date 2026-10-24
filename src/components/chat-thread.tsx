@@ -115,7 +115,7 @@ type MessageData = {
   reactions: { emoji: string; userId: string }[];
   corrections: CorrectionData[];
   // Only set for a message referencing a story — either a reply
-  // (replyToStory) or a forward (shareStoryToConversation), distinguished
+  // (replyToStory) or a forward (shareStoryToConversations), distinguished
   // by isForwardedStory below — null once the story itself has expired and
   // been swept by the cron.
   story: {

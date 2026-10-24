@@ -442,4 +442,19 @@ export const uiEn = {
       other: "Something went wrong. Try again.",
     },
   },
+  // The multi-select "Send to a friend" picker in the share sheets (send-to-chats-picker.tsx). sent/partial are plural
+  // forms (plural() in locales.ts).
+  sendToChats: {
+    selected: "{count} of {max} selected",
+    limit: "You can send to up to {max} chats at a time.",
+    send: "Send",
+    sending: "Sending…",
+    sent: "one: Sent to # chat | other: Sent to # chats",
+    partial: "one: Couldn't send to # chat | other: Couldn't send to # chats",
+    errors: {
+      rate_limited: "You're sending too fast. Try again in a few minutes.",
+      unavailable: "Couldn't send to those chats.",
+      other: "Couldn't send that. Try again.",
+    },
+  },
 };

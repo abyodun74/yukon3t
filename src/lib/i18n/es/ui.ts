@@ -420,4 +420,17 @@ export const ui: typeof uiEn = {
       network: serverUnreachable,
     },
   },
+  sendToChats: {
+    selected: "{count} de {max} seleccionados",
+    limit: "Puedes enviar a un máximo de {max} chats a la vez.",
+    send: "Enviar",
+    sending: "Enviando…",
+    sent: "one: Enviado a # chat | other: Enviado a # chats",
+    partial: "one: No se pudo enviar a # chat | other: No se pudo enviar a # chats",
+    errors: {
+      rate_limited: "Estás enviando demasiado rápido. Inténtalo de nuevo en unos minutos.",
+      unavailable: "No se pudo enviar a esos chats.",
+      other: "No se pudo enviar. Inténtalo de nuevo.",
+    },
+  },
 };

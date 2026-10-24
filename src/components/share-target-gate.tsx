@@ -6,13 +6,13 @@ import { Send, SquarePen, CirclePlus, Clapperboard, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { checkForPendingShare, type PendingShareMedia } from "@/lib/share-receiver";
 import { setPendingShareMedia } from "@/lib/share-target-store";
-import { getMyConversationsForShare, sendMessage } from "@/app/actions/messages";
+import { getMyConversationsForShare } from "@/app/actions/messages";
+import { sendToConversations } from "@/app/actions/share-to-chats";
 import { createPost } from "@/app/actions/circles";
 import { createStory } from "@/app/actions/stories";
 import { createMuse } from "@/app/actions/muse";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
-import { UserAvatar } from "@/components/user-link";
-import { FriendSearchList } from "@/components/friend-search-list";
+import { SendToChatsPicker, type SendToChatsOutcome } from "@/components/send-to-chats-picker";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useShellText } from "@/components/ui-text";
@@ -43,7 +43,7 @@ type Status = "idle" | "busy" | "done" | "error";
  * the actual photo/video Instagram/TikTok/etc. attached, not the bare link
  * those apps' own "Share" action often tacks on alongside it (or, for an
  * app that only ever shares a link with nothing attached, in place of real
- * media). Left untouched for a DM (sendToFriend below) — a link is normal,
+ * media). Left untouched for a DM (sendToFriends below) — a link is normal,
  * expected content there. Returns "" (not the original text) when nothing
  * but a link remains, so callers can tell "had a real caption" apart from
  * "was just a link" without a second check.
@@ -104,7 +104,7 @@ function probeVideoDuration(file: File): Promise<number | null> {
  * Picking a destination (Story / Muse / Feed / a friend) uploads the shared
  * media and publishes to it immediately — no separate "review in the
  * composer, then tap Post" step. The moderation gate each of
- * createStory/createMuse/createPost/sendMessage already runs server-side is
+ * createStory/createMuse/createPost/sendToConversations already runs server-side is
  * what's actually standing in for a manual review step here; picking the
  * destination is itself the user's explicit confirmation to publish there,
  * same as tapping "Post" always was, just merged into one action instead
@@ -340,37 +340,50 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     setTimeout(close, 500);
   }
 
-  async function sendToFriend(conversationId: string) {
+  // The shared text (links kept: a link is normal in a DM) and/or the uploaded photo/video, to every ticked chat at
+  // once. The picker shows the outcome; the gate only stays "busy" meanwhile so the dialog can't be dismissed mid-upload.
+  async function sendToFriends(conversationIds: string[]): Promise<SendToChatsOutcome> {
     setStatus("busy");
     setErrorText(null);
-    const uploaded = await ensureUploaded();
-    if (!uploaded.ok) {
-      setStatus("error");
-      setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
+    try {
+      const uploaded = await ensureUploaded();
+      if (!uploaded.ok) {
+        return { error: "upload", message: byCode(t.shareTarget.uploadErrors, uploaded.error) };
+      }
+      const fd = new FormData();
+      for (const id of conversationIds) fd.append("conversationIds", id);
+      fd.set("content", share!.text ?? "");
+      fd.set("mediaType", uploaded.media.mediaType);
+      // Messages take a single mediaUrl, not an array — a multi-image share
+      // only ever sends the first image to a DM, same one-attachment-per-
+      // message shape chat-thread.tsx's own composer already has.
+      if (uploaded.media.mediaType === "IMAGE" && uploaded.media.mediaUrls[0]) {
+        fd.set("mediaUrl", uploaded.media.mediaUrls[0]);
+      } else if (uploaded.media.mediaType === "VIDEO") {
+        fd.set("mediaUrl", uploaded.media.videoUrl);
+        if (uploaded.media.videoThumbnailUrl) fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
+      }
+      const result = await sendToConversations(fd);
+      if (result.error) {
+        // Content-level refusals keep this sheet's own wording; "unavailable"/"rate_limited" are the picker's.
+        const own = result.error === "moderation" || result.error === "too_large";
+        return { error: result.error, message: own ? publishError(result.error) : undefined };
+      }
+      return { sent: result.sent, failed: result.failed };
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  function afterSentToFriends({ sent, failed, conversationIds }: { sent: number; failed: number; conversationIds: string[] }) {
+    if (failed > 0) return;
+    // One chat: open it, as sending to a single friend always did. Several: the "Sent to N chats" line, then close.
+    if (sent === 1 && conversationIds.length === 1) {
+      router.push(`/messages/${conversationIds[0]}`);
+      setTimeout(close, 500);
       return;
     }
-    const fd = new FormData();
-    fd.set("conversationId", conversationId);
-    fd.set("content", share!.text ?? "");
-    fd.set("mediaType", uploaded.media.mediaType);
-    // Messages take a single mediaUrl, not an array — a multi-image share
-    // only ever sends the first image to a DM, same one-attachment-per-
-    // message shape chat-thread.tsx's own composer already has.
-    if (uploaded.media.mediaType === "IMAGE" && uploaded.media.mediaUrls[0]) {
-      fd.set("mediaUrl", uploaded.media.mediaUrls[0]);
-    } else if (uploaded.media.mediaType === "VIDEO") {
-      fd.set("mediaUrl", uploaded.media.videoUrl);
-      if (uploaded.media.videoThumbnailUrl) fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
-    }
-    const result = await sendMessage(fd);
-    if (result.error) {
-      setStatus("error");
-      setErrorText(publishError(result.error));
-      return;
-    }
-    setStatus("done");
-    router.push(`/messages/${conversationId}`);
-    setTimeout(close, 500);
+    setTimeout(close, 1200);
   }
 
   async function addToStory() {
@@ -568,24 +581,16 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {view === "friends" && (
           <>
-            <FriendSearchList
+            <SendToChatsPicker
               items={conversations}
               getKey={(c) => c.id}
               getName={(c) => c.label}
               getUsername={(c) => c.username}
+              getAvatarUrl={(c) => c.avatarUrl}
               loading={<li className="px-2 py-1 text-sm text-foreground-soft">{t.common.loading}</li>}
               texts={{ search: t.shareTarget.searchFriends, clear: t.shareTarget.clearSearch, noMatch: t.shareTarget.noFriendMatch, empty: t.shareTarget.noConversations }}
-              renderItem={(c) => (
-                <button
-                  type="button"
-                  onClick={() => sendToFriend(c.id)}
-                  disabled={busy}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-50"
-                >
-                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                  <span dir="auto" className="truncate">{c.label}</span>
-                </button>
-              )}
+              onSend={sendToFriends}
+              onSent={afterSentToFriends}
             />
             <button
               type="button"

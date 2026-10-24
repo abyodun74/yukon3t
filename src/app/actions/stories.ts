@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { getMembersHidingConversation, isMembershipLocked } from "@/lib/hidden-chats";
+import { getMembersHidingConversation } from "@/lib/hidden-chats";
 import { hiddenPush, pushText } from "@/lib/push-text";
 import { format, type Locale } from "@/lib/i18n/locales";
-import { storySchema, messageSchema } from "@/lib/validations";
+import { storySchema, messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
 import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
@@ -20,6 +20,8 @@ import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
+import { sendToEachChat } from "@/lib/share-to-chats-server";
+import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -568,49 +570,52 @@ export async function getStory(storyId: string) {
 }
 
 /**
- * Shares a story into a conversation the caller already belongs to (unlike
- * replyToStory, which always targets a DM with the story's author
- * specifically) — the story-viewer's own "Share" action, letting someone
- * forward a story to any of their DMs or groups. Reuses Message.storyId,
- * the exact same field replyToStory sets, so the recipient sees the same
- * inline story preview in chat-thread.tsx either way.
+ * Shares a story into 1-SHARE_MAX_RECIPIENTS of the caller's own conversations at once (unlike replyToStory, which
+ * always targets a DM with the story's author): the story-viewer's own "Share" action. Reuses Message.storyId, the
+ * exact same field replyToStory sets, so each recipient sees the same inline story preview in chat-thread.tsx. The
+ * story is checked once (unexpired, author not blocked either way); every destination on its own (sendToEachChat:
+ * member, hidden-chat lock, blocks either way, active peer, `messageSend` per copy). Like before, the copy carries no
+ * text of the sharer's and sends no push, and a secret chat may take it. Answers counts only.
  */
-export async function shareStoryToConversation(storyId: string, conversationId: string) {
+export async function shareStoryToConversations(storyId: string, conversationIds: string[]) {
   const user = await requireVerifiedUser();
 
-  const story = await prisma.story.findUnique({ where: { id: storyId } });
+  const ids = shareToChatsSchema.safeParse(conversationIds);
+  if (!ids.success || typeof storyId !== "string") {
+    return { error: "invalid" as const };
+  }
+  const targetIds = uniqueShareTargets(ids.data);
+
+  if (!(await checkRateLimit("shareToChats", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { id: true, authorId: true, expiresAt: true } });
   if (!story || story.expiresAt < new Date()) {
     return { error: "not_found" as const };
   }
   if (await isBlockedEitherWay(user.id, story.authorId)) {
-    return { error: "blocked" as const };
-  }
-
-  const membership = await prisma.conversationMember.findUnique({
-    where: { conversationId_userId: { conversationId, userId: user.id } },
-  });
-  // "not_found" for a hidden chat that isn't unlocked too: it isn't in the picker this is called from.
-  if (!membership || (await isMembershipLocked(membership, user.id))) {
     return { error: "not_found" as const };
   }
 
-  const allowed = await checkRateLimit("messageSend", user.id);
-  if (!allowed) {
-    return { error: "rate_limited" as const };
-  }
-
-  await prisma.message.create({
-    data: {
-      conversationId,
-      senderId: user.id,
-      content: "Shared a story",
-      storyId: story.id,
-      isForwardedStory: true,
+  const tally = await sendToEachChat({
+    userId: user.id,
+    targetIds,
+    allowSecret: true,
+    send: async (target) => {
+      await prisma.message.create({
+        data: {
+          conversationId: target.id,
+          senderId: user.id,
+          content: "Shared a story",
+          storyId: story.id,
+          isForwardedStory: true,
+        },
+      });
+      revalidatePath(`/messages/${target.id}`);
     },
   });
-
-  revalidatePath(`/messages/${conversationId}`);
-  return { error: null };
+  return shareToChatsResult(tally);
 }
 
 const STORY_COMMENTS_LIMIT = 50;

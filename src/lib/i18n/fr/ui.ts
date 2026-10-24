@@ -421,4 +421,17 @@ export const ui: typeof uiEn = {
       network: serverUnreachable,
     },
   },
+  sendToChats: {
+    selected: "{count} sur {max} sélectionnées",
+    limit: "Vous pouvez envoyer à {max} discussions au maximum à la fois.",
+    send: "Envoyer",
+    sending: "Envoi…",
+    sent: "one: Envoyé à # discussion | other: Envoyé à # discussions",
+    partial: "one: Impossible d'envoyer à # discussion | other: Impossible d'envoyer à # discussions",
+    errors: {
+      rate_limited: "Vous envoyez trop vite. Réessayez dans quelques minutes.",
+      unavailable: "Impossible d'envoyer à ces discussions.",
+      other: "Impossible d'envoyer. Réessayez.",
+    },
+  },
 };

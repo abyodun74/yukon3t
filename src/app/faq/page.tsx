@@ -401,7 +401,10 @@ const sections: Section[] = [
             Device sharing attaches the actual photo or video where
             possible (not just a bare link), stamped with a small yukon3t
             logo, so apps like WhatsApp or Messages show the real post
-            branded back to where it came from.
+            branded back to where it came from. In &ldquo;Send to a
+            friend&rdquo; you can tick up to 5 chats and send to all of them
+            at once; the same works when sharing a Muse, a Story, or
+            something shared in from another app.
           </>
         ),
       },
