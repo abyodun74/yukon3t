@@ -11,6 +11,7 @@ import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
 import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
+import { FriendSearchList } from "@/components/friend-search-list";
 import { useMuseText } from "@/components/muse-text";
 import { byCode } from "@/lib/i18n/locales";
 
@@ -18,7 +19,7 @@ import { byCode } from "@/lib/i18n/locales";
 // server-only); a longer Muse can still go to Home, a friend, or anywhere via the device share sheet.
 const MAX_STORY_VIDEO_SECONDS = 120;
 
-type Conversation = { id: string; label: string; avatarUrl: string | null };
+type Conversation = { id: string; label: string; avatarUrl: string | null; username: string | null };
 
 /** Fetches the video into a File the Web Share API can attach — best effort, never throws (null on any failure: CORS, network). */
 async function fetchAsFile(url: string, name: string): Promise<File | null> {
@@ -253,11 +254,16 @@ export function MuseShareModal({
 
         {view === "friends" && (
           <div className="mt-3">
-            <button type="button" onClick={() => setView("root")} className="mb-2 text-xs text-accent hover:underline">
+            <button type="button" onClick={() => setView("root")} className="mb-1 text-xs text-accent hover:underline">
               {`${dir === "rtl" ? "→" : "←"} ${feed.share.back}`}
             </button>
-            <ul className="max-h-64 overflow-y-auto">
-              {conversations === null && (
+            <FriendSearchList
+              items={conversations}
+              getKey={(c) => c.id}
+              getName={(c) => c.label}
+              getUsername={(c) => c.username}
+              listClassName="max-h-64"
+              loading={
                 <>
                   {Array.from({ length: 4 }).map((_, i) => (
                     <li key={i} className="flex items-center gap-2 px-2 py-2">
@@ -266,25 +272,21 @@ export function MuseShareModal({
                     </li>
                   ))}
                 </>
+              }
+              texts={{ search: feed.share.searchFriends, clear: feed.share.clearSearch, noMatch: feed.share.noFriendMatch, empty: feed.share.noConversations }}
+              renderItem={(c) => (
+                <button
+                  type="button"
+                  disabled={sentToId === c.id}
+                  onClick={() => sendToFriend(c.id)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-60"
+                >
+                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
+                  <span dir="auto" className="min-w-0 flex-1 truncate">{c.label}</span>
+                  {sentToId === c.id && <span className="text-xs text-success">{feed.share.sent}</span>}
+                </button>
               )}
-              {conversations?.length === 0 && (
-                <li className="px-2 py-3 text-sm text-foreground-soft">{feed.share.noConversations}</li>
-              )}
-              {conversations?.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    disabled={sentToId === c.id}
-                    onClick={() => sendToFriend(c.id)}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-60"
-                  >
-                    <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                    <span dir="auto" className="min-w-0 flex-1 truncate">{c.label}</span>
-                    {sentToId === c.id && <span className="text-xs text-success">{feed.share.sent}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            />
           </div>
         )}
       </Sheet>

@@ -501,20 +501,20 @@ export async function getShareableConversations() {
       id: true,
       isGroup: true,
       name: true,
-      members: { select: { userId: true, user: { select: { id: true, name: true } } } },
+      members: { select: { userId: true, user: { select: { id: true, name: true, username: true } } } },
     },
   });
 
-  const targets: { value: string; label: string }[] = [];
+  const targets: { value: string; label: string; username: string | null }[] = [];
   for (const conv of conversations) {
     if (conv.isGroup) {
-      targets.push({ value: conv.id, label: conv.name ?? "Group" });
+      targets.push({ value: conv.id, label: conv.name ?? "Group", username: null });
       continue;
     }
     const other = conv.members.find((m) => m.userId !== user.id)?.user;
     if (!other) continue;
     if (await isBlockedEitherWay(user.id, other.id)) continue;
-    targets.push({ value: conv.id, label: other.name ?? "Unknown" });
+    targets.push({ value: conv.id, label: other.name ?? "Unknown", username: other.username ?? null });
   }
   return { conversations: targets };
 }

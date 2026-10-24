@@ -132,6 +132,9 @@ export const shell: typeof shellEn = {
     toMuse: "Publier sur Muse",
     toFeed: "Publier dans le fil",
     noConversations: "Aucune discussion pour le moment.",
+    searchFriends: "Rechercher des amis",
+    clearSearch: "Effacer la recherche",
+    noFriendMatch: "Aucun ami ne correspond",
     storyNeedsMedia: "Une story nécessite une photo ou une vidéo.",
     museNeedsVideo: "Muse nécessite une vidéo.",
     uploadErrors: {

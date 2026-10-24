@@ -12,6 +12,7 @@ import { createStory } from "@/app/actions/stories";
 import { createMuse } from "@/app/actions/muse";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
 import { UserAvatar } from "@/components/user-link";
+import { FriendSearchList } from "@/components/friend-search-list";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useShellText } from "@/components/ui-text";
@@ -32,7 +33,7 @@ const EMBED_PROVIDER_LABEL: Record<string, string> = {
 const MAX_STORY_VIDEO_SECONDS = 120;
 const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
 
-type Conversation = { id: string; label: string; avatarUrl: string | null };
+type Conversation = { id: string; label: string; avatarUrl: string | null; username: string | null };
 type View = "root" | "friends";
 type Status = "idle" | "busy" | "done" | "error";
 
@@ -463,7 +464,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   return (
     <div
       ref={dialogRef}
-      className="animate-modal-backdrop-in fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 outline-none"
+      className="animate-modal-backdrop-in fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
       onClick={busy ? undefined : close}
       role="dialog"
       aria-modal="true"
@@ -471,7 +472,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       tabIndex={-1}
     >
       <div
-        className="animate-modal-panel-in w-full max-w-sm rounded-xl bg-surface p-4"
+        className="animate-modal-panel-in my-auto w-full max-w-sm rounded-xl bg-surface p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -567,25 +568,25 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {view === "friends" && (
           <>
-            <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-              {conversations === null && <li className="px-2 py-1 text-sm text-foreground-soft">{t.common.loading}</li>}
-              {conversations?.length === 0 && (
-                <li className="px-2 py-1 text-sm text-foreground-soft">{t.shareTarget.noConversations}</li>
+            <FriendSearchList
+              items={conversations}
+              getKey={(c) => c.id}
+              getName={(c) => c.label}
+              getUsername={(c) => c.username}
+              loading={<li className="px-2 py-1 text-sm text-foreground-soft">{t.common.loading}</li>}
+              texts={{ search: t.shareTarget.searchFriends, clear: t.shareTarget.clearSearch, noMatch: t.shareTarget.noFriendMatch, empty: t.shareTarget.noConversations }}
+              renderItem={(c) => (
+                <button
+                  type="button"
+                  onClick={() => sendToFriend(c.id)}
+                  disabled={busy}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60 disabled:opacity-50"
+                >
+                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
+                  <span dir="auto" className="truncate">{c.label}</span>
+                </button>
               )}
-              {conversations?.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => sendToFriend(c.id)}
-                    disabled={busy}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-                  >
-                    <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                    <span className="truncate">{c.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            />
             <button
               type="button"
               onClick={() => setView("root")}

@@ -10,6 +10,7 @@ import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useCallsText } from "@/components/calls-text";
 import type { callsEn } from "@/lib/i18n/en/calls";
 import { format } from "@/lib/i18n/locales";
+import { filterBySearch } from "@/lib/friend-search";
 
 type Connection = { id: string; name: string | null };
 
@@ -103,9 +104,8 @@ export function AddCallParticipantSheet({
 
   if (!open) return null;
 
-  const needle = query.trim().toLowerCase();
   const available = connections?.filter((c) => !excludeIds.has(c.id)) ?? null;
-  const matches = available?.filter((c) => (c.name ?? "").toLowerCase().includes(needle)) ?? null;
+  const matches = available ? filterBySearch(available, query, (c) => [c.name]) : null;
 
   return (
     <div

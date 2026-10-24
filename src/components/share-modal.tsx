@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Link as LinkIcon, Share as ShareIcon, Send, Users, CirclePlus, Clapperboard } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { Skeleton } from "@/components/skeleton";
+import { FriendSearchList } from "@/components/friend-search-list";
 import { recordShare, shareToCircle, shareToStory, shareToMuse } from "@/app/actions/shares";
 import { sendMessage, getMyConversationsForShare } from "@/app/actions/messages";
 import { getMyCircles } from "@/app/actions/circles";
@@ -21,7 +22,7 @@ import { format } from "@/lib/i18n/locales";
 // muse-composer.tsx's own MAX_MUSE_SECONDS duplicate.
 const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
 
-type Conversation = { id: string; label: string; avatarUrl: string | null };
+type Conversation = { id: string; label: string; avatarUrl: string | null; username: string | null };
 type Circle = { id: string; name: string; slug: string; coverImageUrl: string | null; parentName: string | null };
 
 /** Placeholder rows shown while the friends/circles list is being fetched — same shape/size as the real rows so nothing jumps once they land. */
@@ -371,28 +372,28 @@ export function ShareModal({
         )}
 
         {view === "friends" && (
-          <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-            {conversations === null && <RowSkeletons />}
-            {conversations?.length === 0 && (
-              <li className="px-2 py-1 text-sm text-foreground-soft">{t.share.noConversations}</li>
+          <FriendSearchList
+            items={conversations}
+            getKey={(c) => c.id}
+            getName={(c) => c.label}
+            getUsername={(c) => c.username}
+            loading={<RowSkeletons />}
+            texts={{ search: t.share.searchFriends, clear: t.share.clearSearch, noMatch: t.share.noFriendMatch, empty: t.share.noConversations }}
+            renderItem={(c) => (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => sendToConversation(c.id)}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-start text-sm hover:bg-line/60"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
+                  <span dir="auto" className="truncate">{c.label}</span>
+                </span>
+                {sentToId === c.id && <span className="shrink-0 text-xs text-success">{t.share.sent}</span>}
+              </button>
             )}
-            {conversations?.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => sendToConversation(c.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm hover:bg-line/60"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <UserAvatar avatarUrl={c.avatarUrl} name={c.label} size={26} />
-                    <span className="truncate">{c.label}</span>
-                  </span>
-                  {sentToId === c.id && <span className="shrink-0 text-xs text-success">{t.share.sent}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
+          />
         )}
 
         {view === "circles" && (

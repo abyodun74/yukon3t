@@ -137,6 +137,9 @@ export const shellEn = {
     toMuse: "Post to Muse",
     toFeed: "Post to Feed",
     noConversations: "No conversations yet.",
+    searchFriends: "Search friends",
+    clearSearch: "Clear search",
+    noFriendMatch: "No friends match",
     storyNeedsMedia: "Stories need a photo or video.",
     museNeedsVideo: "Muse needs a video.",
     uploadErrors: {

@@ -7,6 +7,7 @@ import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
+import { FriendSearchList } from "@/components/friend-search-list";
 
 /**
  * "Share" for a story — forwards it into one of the caller's own
@@ -26,7 +27,7 @@ export function StoryShareButton({
   const { t } = useFeedText();
   const { t: shell } = useShellText();
   const [open, setOpen] = useState(false);
-  const [conversations, setConversations] = useState<{ value: string; label: string }[] | null>(null);
+  const [conversations, setConversations] = useState<{ value: string; label: string; username: string | null }[] | null>(null);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const titleId = useId();
@@ -96,7 +97,7 @@ export function StoryShareButton({
           onClick={close}
         >
           <div
-            className="max-h-[70vh] w-full max-w-md overflow-hidden rounded-t-2xl bg-surface p-4 text-foreground"
+            className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-4 text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -111,30 +112,34 @@ export function StoryShareButton({
               </button>
             </div>
             {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
-            <ul className="mt-3 max-h-[50vh] space-y-1 overflow-y-auto">
-              {conversations === null && <li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
-              {conversations?.length === 0 && (
-                <li className="text-sm text-foreground-soft">
-                  {t.stories.shareSheet.empty}
-                </li>
-              )}
-              {conversations?.map((c) => {
+            <FriendSearchList
+              items={conversations}
+              getKey={(c) => c.value}
+              getName={(c) => c.label}
+              getUsername={(c) => c.username}
+              listClassName="max-h-[45dvh]"
+              loading={<li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
+              texts={{
+                search: t.stories.shareSheet.searchFriends,
+                clear: t.stories.shareSheet.clearSearch,
+                noMatch: t.stories.shareSheet.noFriendMatch,
+                empty: t.stories.shareSheet.empty,
+              }}
+              renderItem={(c) => {
                 const sent = sentTo.has(c.value);
                 return (
-                  <li key={c.value}>
-                    <button
-                      type="button"
-                      disabled={sent}
-                      onClick={() => send(c.value)}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm hover:bg-line disabled:opacity-60"
-                    >
-                      <span className="min-w-0 truncate">{c.label}</span>
-                      {sent && <span className="shrink-0 text-xs text-accent">{t.stories.shareSheet.sent}</span>}
-                    </button>
-                  </li>
+                  <button
+                    type="button"
+                    disabled={sent}
+                    onClick={() => send(c.value)}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm hover:bg-line disabled:opacity-60"
+                  >
+                    <span dir="auto" className="min-w-0 truncate">{c.label}</span>
+                    {sent && <span className="shrink-0 text-xs text-accent">{t.stories.shareSheet.sent}</span>}
+                  </button>
                 );
-              })}
-            </ul>
+              }}
+            />
           </div>
         </div>
       )}

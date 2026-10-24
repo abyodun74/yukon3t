@@ -974,7 +974,7 @@ export async function getMyConversationsForShare() {
       id: true,
       isGroup: true,
       name: true,
-      members: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+      members: { select: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } } },
     },
   });
 
@@ -985,6 +985,8 @@ export async function getMyConversationsForShare() {
         id: c.id,
         label: c.isGroup ? (c.name ?? "Group") : (other?.name ?? "Unknown"),
         avatarUrl: c.isGroup ? null : (other?.avatarUrl ?? null),
+        // The @handle shown on their profile, so the picker's search can find a friend by it too.
+        username: c.isGroup ? null : (other?.username ?? null),
       };
     }),
   };
