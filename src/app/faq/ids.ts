@@ -92,6 +92,7 @@ export const FAQ_IDS = [
   // Connecting, messaging, and calls
   "message-someone",
   "reply-specific-message",
+  "forward-message",
   "send-photos-videos-voice-notes",
   "send-photo-video-disappears-after",
   "see-photo-chat-full-screen",

@@ -11,13 +11,14 @@ import {
   groupNameSchema,
   addGroupMembersSchema,
   correctionSchema,
+  forwardMessageSchema,
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
-import { isBlockedEitherWay } from "@/lib/blocks";
+import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend, textForModeration } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
@@ -28,6 +29,13 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { afterMessageSent } from "@/lib/after-message-sent";
 import { destroyViewOnceMedia } from "@/lib/view-once-media";
 import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
+import {
+  forwardSourceRefusal,
+  forwardTargetRefusal,
+  forwardTargetsFor,
+  forwardedMessageData,
+  uniqueForwardTargets,
+} from "@/lib/message-forward";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -992,6 +1000,164 @@ export async function getMyConversationsForShare() {
   };
 }
 
+
+// What a forward reads about each chat: enough to apply forwardTargetRefusal and the hidden-chat rule, and to label
+// the picker's rows. Never returned as is (forwardTargetsFor picks the fields the picker shows).
+const FORWARD_TARGET_SELECT = {
+  id: true,
+  isGroup: true,
+  name: true,
+  members: {
+    select: {
+      userId: true,
+      e2eeEnabledAt: true,
+      hiddenAt: true,
+      user: { select: { id: true, name: true, username: true, avatarUrl: true, status: true } },
+    },
+  },
+} as const;
+
+/**
+ * The forward sheet's list of chats: the caller's conversations that can take a forward (forwardTargetRefusal: not a
+ * secret chat, not a 1:1 with someone blocked either way or inactive), most recently active first. Like every share
+ * picker, a hidden chat is never offered, unlocked or not.
+ */
+export async function getForwardTargets() {
+  const user = await requireVerifiedUser();
+  if (!(await checkRateLimit("messageForwardTargets", user.id))) {
+    return { error: "rate_limited" as const, targets: [] };
+  }
+
+  const [rows, blockedIds] = await Promise.all([
+    prisma.conversation.findMany({
+      where: { members: { some: { userId: user.id, hiddenAt: null } } },
+      select: {
+        ...FORWARD_TARGET_SELECT,
+        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      },
+    }),
+    getBlockedEitherWayIds(user.id),
+  ]);
+  const lastActive = (r: (typeof rows)[number]) => r.messages[0]?.createdAt.getTime() ?? 0;
+  const sorted = [...rows].sort((a, b) => lastActive(b) - lastActive(a));
+  return { error: null, targets: forwardTargetsFor(sorted, user.id, blockedIds) };
+}
+
+/**
+ * Forwards one of the caller's visible messages into up to FORWARD_MAX_RECIPIENTS of their chats. The browser sends
+ * the message id and the destination ids only: the server re-reads the message, checks the caller can see it (member
+ * of its chat, not deleted for them, hidden chat unlocked) and that it can be forwarded at all (forwardSourceRefusal;
+ * nothing from a secret chat), runs text moderation again, then writes one new message per destination as the
+ * caller's own, marked `forwarded`, with no trace of the original sender or chat. A media message reuses the same
+ * stored file (the shareMuseToConversation pattern): media-cleanup's reference check keeps the file while any copy
+ * points at it. Each destination gets the normal new-message notifications through afterMessageSent.
+ */
+export async function forwardMessage(messageId: string, conversationIds: string[]) {
+  const user = await requireVerifiedUser();
+
+  const parsed = forwardMessageSchema.safeParse({ messageId, conversationIds });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+  const targetIds = uniqueForwardTargets(parsed.data.conversationIds);
+
+  if (!(await checkRateLimit("messageForward", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const source = await prisma.message.findUnique({
+    where: { id: parsed.data.messageId },
+    select: {
+      conversationId: true,
+      senderId: true,
+      content: true,
+      mediaType: true,
+      mediaUrl: true,
+      mediaThumbnailUrl: true,
+      moderationStatus: true,
+      deletedForEveryoneAt: true,
+      deletedForUserIds: true,
+      viewOnce: true,
+      storyId: true,
+      conversation: { select: { isGroup: true, members: { select: { e2eeEnabledAt: true } } } },
+    },
+  });
+  // Someone who isn't in the source chat learns nothing, not even that the message exists.
+  if (!source || source.deletedForUserIds.includes(user.id)) {
+    return { error: "not_found" as const };
+  }
+  const sourceMembership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId: source.conversationId, userId: user.id } },
+    select: { hiddenAt: true },
+  });
+  if (!sourceMembership) {
+    return { error: "not_found" as const };
+  }
+  if (await isMembershipLocked(sourceMembership, user.id)) {
+    return { error: "hidden_locked" as const };
+  }
+  // A secret chat's messages never leave it this way: the server can't read them and must not be handed their text.
+  if (isSecretChat(source.conversation) || forwardSourceRefusal(source)) {
+    return { error: "not_forwardable" as const };
+  }
+  if (source.senderId !== user.id && (await isBlockedEitherWay(user.id, source.senderId))) {
+    return { error: "not_found" as const };
+  }
+
+  // Checked again here, not trusted from when it was first sent: forwarding is how a message spreads, so text that
+  // fails moderation now is refused outright rather than copied in as "under review". Links are part of the text.
+  // Media keeps its original verdict: the same file was checked when it was first sent (a GIF is Giphy's catalog).
+  if (source.content) {
+    const modResult = await moderateText(source.content);
+    if (!modResult.allowed) {
+      return { error: "moderation" as const };
+    }
+  }
+
+  const [targets, blockedIds] = await Promise.all([
+    prisma.conversation.findMany({ where: { id: { in: targetIds } }, select: FORWARD_TARGET_SELECT }),
+    getBlockedEitherWayIds(user.id),
+  ]);
+  const targetById = new Map(targets.map((t) => [t.id, t]));
+
+  let sent = 0;
+  let failed = 0;
+  let rateLimited = false;
+  for (const conversationId of targetIds) {
+    const target = targetById.get(conversationId);
+    const membership = target?.members.find((m) => m.userId === user.id);
+    if (!target || !membership || forwardTargetRefusal(target, user.id, blockedIds)) {
+      failed++;
+      continue;
+    }
+    if (await isMembershipLocked(membership, user.id)) {
+      failed++;
+      continue;
+    }
+    // Each copy is a message sent, and counts against the ordinary send limit too.
+    if (rateLimited || !(await checkRateLimit("messageSend", user.id))) {
+      rateLimited = true;
+      failed++;
+      continue;
+    }
+
+    await prisma.message.create({ data: forwardedMessageData(source, { conversationId, senderId: user.id }) });
+    await afterMessageSent({
+      user,
+      conversationId,
+      memberIds: target.members.map((m) => m.userId),
+      secret: false,
+      content: source.content,
+      mediaType: source.mediaType,
+    });
+    sent++;
+  }
+
+  if (sent === 0) {
+    return { error: rateLimited ? ("rate_limited" as const) : ("unavailable" as const) };
+  }
+  return { error: null, sent, failed };
+}
 
 /**
  * Sends a Muse to a friend or group as the actual VIDEO (a video message that plays in the chat), not a link.

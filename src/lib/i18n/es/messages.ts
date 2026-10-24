@@ -312,6 +312,28 @@ export const messages: typeof messagesEn = {
       moderation: "Eso infringe nuestras Normas de la comunidad y no se envió.",
       moderation_unavailable: "No pudimos revisarlo en este momento, así que no se envió. Inténtalo de nuevo en un momento.",
     },
+    // The "Forward" sheet (forward-message-sheet.tsx). sent/partial are plural forms (plural() in locales.ts).
+    forward: {
+      title: "Reenviar a",
+      search: "Buscar chats",
+      clear: "Borrar búsqueda",
+      noMatch: "Ningún chat coincide.",
+      empty: "Aún no tienes chats a los que reenviar.",
+      selected: "{count} de {max} seleccionados",
+      limit: "Puedes reenviar a un máximo de {max} chats a la vez.",
+      send: "Enviar",
+      sending: "Enviando…",
+      sent: "one: Enviado a # chat | other: Enviado a # chats",
+      partial: "one: No se pudo enviar a # chat | other: No se pudo enviar a # chats",
+      errors: {
+        rate_limited: "Estás reenviando demasiado rápido. Inténtalo de nuevo en unos minutos.",
+        not_forwardable: "Este mensaje no se puede reenviar.",
+        moderation: "Este mensaje no se puede reenviar porque infringe nuestras Normas de la comunidad.",
+        unavailable: "No se pudo reenviar a esos chats.",
+        load: "No se pudieron cargar tus chats.",
+        other: "No se pudo reenviar. Inténtalo de nuevo.",
+      },
+    },
     bubble: {
       deleted: "Este mensaje fue eliminado",
       underReview: "Este mensaje está en revisión.",
@@ -349,6 +371,8 @@ export const messages: typeof messagesEn = {
       storyShared: "Te compartió una historia. Toca para verla",
       storyRepliedMine: "Respondiste a su historia. Toca para verla",
       storyReplied: "Respondió a tu historia. Toca para verla",
+      forward: "Reenviar",
+      forwarded: "Reenviado",
     },
     receipts: {
       sending: "Enviando",

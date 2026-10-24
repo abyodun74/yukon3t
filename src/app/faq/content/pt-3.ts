@@ -11,6 +11,10 @@ export const pt3 = {
     q: "Como respondo a uma mensagem específica?",
     a: "Deslize uma mensagem para a direita (ou abra o menu «⋯» dela e toque em «Responder», se estiver no computador) para citá-la na sua resposta. A outra pessoa vê exatamente a qual mensagem você está respondendo, o que é útil quando a conversa já passou a tratar de vários assuntos ao mesmo tempo.",
   },
+  "forward-message": {
+    q: "Posso encaminhar uma mensagem para outra conversa?",
+    a: "Sim. Abra o menu «⋯» da mensagem e toque em «Encaminhar», escolha até 5 das suas conversas (pesquise por nome ou @usuário) e toque em «Enviar». Textos, links, fotos, vídeos, GIFs e mensagens de voz podem ser encaminhados. Cada conversa recebe uma cópia como uma nova mensagem sua, com uma pequena etiqueta «Encaminhada»; a etiqueta não diz quem a escreveu nem de qual conversa veio, e as pessoas dessa conversa são notificadas como em qualquer mensagem. A cópia é sua: apagar a original não a remove das outras conversas, e você pode apagar a sua cópia como qualquer mensagem que enviou. Algumas mensagens não podem ser encaminhadas: fotos e vídeos de visualização única, mensagens apagadas, mensagens em análise, respostas a stories e mensagens de uma conversa secreta. Conversas secretas, conversas ocultas e conversas com alguém que você bloqueou (ou que bloqueou você) não aparecem como destino. O texto encaminhado, incluindo links, é verificado de novo de acordo com nossas Diretrizes da comunidade antes de ser enviado.",
+  },
   "send-photos-videos-voice-notes": {
     q: "Posso enviar fotos, vídeos, mensagens de voz ou GIFs em uma conversa?",
     a: "Sim. A caixa de mensagem da conversa tem os botões «Adicionar uma foto» e «Adicionar um vídeo» (dispositivo, câmera ou gravação na hora), um botão de GIF e um ícone de microfone para gravar uma mensagem de voz. Qualquer mensagem que você enviar pode ser excluída para você, ou para todos se foi você quem enviou.",

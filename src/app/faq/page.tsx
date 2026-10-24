@@ -1080,6 +1080,30 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "forward-message",
+        q: "Can I forward a message to another chat?",
+        a: (
+          <>
+            Yes. Open the message&apos;s &ldquo;⋯&rdquo; menu and tap
+            &ldquo;Forward&rdquo;, pick up to 5 of your chats (search by name
+            or @username), then tap Send. Text, links, photos, videos, GIFs
+            and voice notes can be forwarded. Each chat gets a copy as a new
+            message from you, with a small &ldquo;Forwarded&rdquo; label; the
+            label doesn&apos;t say who wrote it or which chat it came from, and
+            the people there are notified as for any message. The copy is
+            yours: deleting the original doesn&apos;t remove it from the other
+            chats, and you can delete your copy like any message you sent.
+            Some messages can&apos;t be forwarded: view-once photos and videos,
+            deleted messages, messages under review, story replies and
+            messages in a secret chat. Secret chats, hidden chats and chats
+            with someone you&apos;ve blocked (or who blocked you) aren&apos;t
+            offered as places to forward to. Forwarded text, links included,
+            is checked against our Community Guidelines again before it&apos;s
+            sent.
+          </>
+        ),
+      },
+      {
         id: "send-photos-videos-voice-notes",
         q: "Can I send photos, videos, voice notes, or GIFs in a chat?",
         a: (

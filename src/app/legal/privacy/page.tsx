@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 23, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 24, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -232,6 +232,20 @@ export default function PrivacyPage() {
         chat are not told. Hiding changes where a chat is shown to you and
         what its notifications say. It does not change how the messages are
         stored, scanned or retained.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Forwarded messages.</b> When you forward a chat message, we store
+        a copy of it as a new message from you in each chat you picked, with
+        a mark that it was forwarded. We don&apos;t record who wrote the
+        original or which chat it came from. A forwarded photo, video or
+        voice note points at the same stored file as the original, so that
+        file is kept until no message (or post, story or Muse) uses it any
+        more. Your copy follows the same rules as any message you send: it is
+        included in your data export and deleted with your account or when
+        you delete it for everyone; deleting the original doesn&apos;t
+        delete the copies. Forwarded text is screened again before it is
+        sent. Messages from secret (end-to-end encrypted) chats and
+        view-once photos and videos can&apos;t be forwarded.
       </p>
 
       <h2 className="mt-8 font-semibold">8. Your rights</h2>

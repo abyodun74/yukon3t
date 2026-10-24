@@ -2628,6 +2628,10 @@ model Message {
   viewOnceOpenedAt  DateTime?
   viewOnceExpiresAt DateTime?
 
+  // Forwarded from another chat (forwardMessage in actions/messages.ts): the bubble shows a small "Forwarded" label.
+  // Nothing about where it came from or who wrote it is stored: the forwarded copy is the forwarder's own message.
+  forwarded Boolean @default(false)
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)

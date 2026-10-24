@@ -325,6 +325,28 @@ export const messagesEn = {
       moderation: "That violates our Community Guidelines and wasn't sent.",
       moderation_unavailable: "Couldn't check that right now, so it wasn't sent — try again in a moment.",
     },
+    // The "Forward" sheet (forward-message-sheet.tsx). sent/partial are plural forms (plural() in locales.ts).
+    forward: {
+      title: "Forward to",
+      search: "Search chats",
+      clear: "Clear search",
+      noMatch: "No chats match.",
+      empty: "No chats to forward to yet.",
+      selected: "{count} of {max} selected",
+      limit: "You can forward to up to {max} chats at a time.",
+      send: "Send",
+      sending: "Sending…",
+      sent: "one: Sent to # chat | other: Sent to # chats",
+      partial: "one: Couldn't send to # chat | other: Couldn't send to # chats",
+      errors: {
+        rate_limited: "You're forwarding too fast. Try again in a few minutes.",
+        not_forwardable: "This message can't be forwarded.",
+        moderation: "This message can't be forwarded because it goes against our Community Guidelines.",
+        unavailable: "Couldn't forward to those chats.",
+        load: "Couldn't load your chats.",
+        other: "Couldn't forward that. Try again.",
+      },
+    },
     bubble: {
       deleted: "This message was deleted",
       underReview: "This message is under review.",
@@ -362,6 +384,8 @@ export const messagesEn = {
       storyShared: "Shared a story — tap to view",
       storyRepliedMine: "You replied to their story — tap to view",
       storyReplied: "Replied to your story — tap to view",
+      forward: "Forward",
+      forwarded: "Forwarded",
     },
     receipts: {
       sending: "Sending",

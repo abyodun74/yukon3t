@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, Circle, Clock, Eye, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
+import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -51,6 +51,8 @@ import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { useMessagesText } from "@/components/messages-text";
 import { useUiText } from "@/components/ui-text";
 import { useContentTranslation } from "@/components/content-translation";
+import { ForwardMessageSheet } from "@/components/forward-message-sheet";
+import { canOfferForward } from "@/lib/message-forward";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
 
@@ -127,6 +129,8 @@ type MessageData = {
     caption: string | null;
   } | null;
   isForwardedStory: boolean;
+  // Forwarded from another chat (forwardMessage): shows a small "Forwarded" label, nothing about where it came from.
+  forwarded: boolean;
   // A "for your eyes only" photo/video: mediaUrl is always null (the file is in the private bucket and is fetched
   // once, through ViewOnceViewer), mediaType says which it is, and these say what the chip shows.
   viewOnce: boolean;
@@ -337,6 +341,7 @@ function MessageBubble({
   onReacted,
   onCorrected,
   onReply,
+  onForward,
   onViewOnceOpened,
   secretActive,
   encryptForEdit,
@@ -353,6 +358,8 @@ function MessageBubble({
   onReacted: (messageId: string, reactions: { emoji: string; userId: string }[]) => void;
   onCorrected: (messageId: string, corrections: CorrectionData[]) => void;
   onReply: (message: MessageData) => void;
+  /** Opens the thread's Forward sheet for this message. */
+  onForward: (message: MessageData) => void;
   /** The recipient's one open of a view-once message was claimed on the server. */
   onViewOnceOpened: (messageId: string) => void;
   /** This is a secret (end-to-end encrypted) chat: edits must be encrypted, and corrections aren't offered. */
@@ -441,6 +448,9 @@ function MessageBubble({
       message.moderationStatus === "PUBLISHED",
   });
   const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
+  // Not offered in a secret chat (hidden the same way as "Suggest a correction"), nor on view-once, deleted, held,
+  // story or still-sending messages: see canOfferForward / forwardSourceRefusal.
+  const forwardable = canOfferForward({ secretActive, wasEncrypted: message.wasEncrypted, sending, message });
 
   // Swipe-right-to-reply: a plain pointer-drag on the bubble itself, not a
   // library — the gesture is one axis, one direction, and needs to coexist
@@ -737,6 +747,17 @@ function MessageBubble({
             <p className="italic rtl:not-italic">{t.underReview}</p>
           ) : (
             <>
+              {message.forwarded && (
+                <p
+                  className={cn(
+                    "mb-1 flex items-center gap-1 text-[0.6875rem] italic rtl:not-italic",
+                    mine ? "text-accent-ink/70" : "text-foreground-soft",
+                  )}
+                >
+                  <Forward size={12} aria-hidden className="rtl:-scale-x-100" />
+                  {t.forwarded}
+                </p>
+              )}
               {message.story && (
                 <button
                   type="button"
@@ -971,6 +992,18 @@ function MessageBubble({
               >
                 {t.reply}
               </button>
+              {forwardable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onForward(message);
+                  }}
+                  className="block w-full px-3 py-2 text-start text-xs hover:bg-line"
+                >
+                  {t.forward}
+                </button>
+              )}
               {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && (
                 <button
                   type="button"
@@ -1107,6 +1140,9 @@ export function ChatThread({
   const [viewOnce, setViewOnce] = useState(false);
   const viewOnceOn = viewOnce && viewOnceAvailable && Boolean(pendingImage || pendingVideo);
   const [replyTarget, setReplyTarget] = useState<MessageData | null>(null);
+  // The message whose Forward sheet is open (forwardOpen), kept after closing so the sheet can animate out.
+  const [forwardMessageId, setForwardMessageId] = useState<string | null>(null);
+  const [forwardOpen, setForwardOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [showDictation, setShowDictation] = useState(false);
@@ -1464,6 +1500,7 @@ export function ChatThread({
       corrections: [],
       story: null,
       isForwardedStory: false,
+      forwarded: false,
       viewOnce: false,
       viewOnceOpenedAt: null,
       viewOnceExpiresAt: null,
@@ -1891,6 +1928,14 @@ export function ChatThread({
     // Identical (128px) at a 16px root.
     <div className="flex h-[calc(100dvh-var(--top-bar-height)-var(--tab-bar-height))] flex-col">
       {!isGroup && <SecretChatBar secret={secret} peerName={conversationLabel} />}
+      {forwardMessageId && (
+        <ForwardMessageSheet
+          messageId={forwardMessageId}
+          open={forwardOpen}
+          onClose={() => setForwardOpen(false)}
+          onHiddenLocked={promptHiddenUnlock}
+        />
+      )}
       {/* ph-no-capture: this is message text too, and session replay
           records the DOM, not just what's visible — see the bubble's own
           ph-no-capture comment. */}
@@ -1939,6 +1984,10 @@ export function ChatThread({
                   onReacted={handleReacted}
                   onCorrected={handleCorrected}
                   onReply={setReplyTarget}
+                  onForward={(message) => {
+                    setForwardMessageId(message.id);
+                    setForwardOpen(true);
+                  }}
                   onViewOnceOpened={handleViewOnceOpened}
                 />
               </div>

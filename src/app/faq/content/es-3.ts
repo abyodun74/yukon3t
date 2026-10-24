@@ -11,6 +11,10 @@ export const es3 = {
     q: "¿Cómo respondo a un mensaje en concreto?",
     a: "Desliza un mensaje hacia la derecha (o abre su menú «⋯» y toca «Responder» si estás en una computadora) para citarlo en tu respuesta. La otra persona ve exactamente a qué mensaje respondes, algo útil cuando un chat ya va por varios temas a la vez.",
   },
+  "forward-message": {
+    q: "¿Puedo reenviar un mensaje a otro chat?",
+    a: "Sí. Abre el menú «⋯» del mensaje y toca «Reenviar», elige hasta 5 de tus chats (busca por nombre o @usuario) y toca «Enviar». Se pueden reenviar textos, enlaces, fotos, videos, GIF y notas de voz. Cada chat recibe una copia como un mensaje nuevo tuyo, con una pequeña etiqueta «Reenviado»; la etiqueta no dice quién lo escribió ni de qué chat viene, y las personas de ese chat reciben la notificación como con cualquier mensaje. La copia es tuya: borrar el original no la quita de los otros chats, y puedes borrar tu copia como cualquier mensaje que enviaste. Algunos mensajes no se pueden reenviar: las fotos y los videos de visualización única, los mensajes eliminados, los mensajes en revisión, las respuestas a historias y los mensajes de un chat secreto. Los chats secretos, los chats ocultos y los chats con alguien a quien bloqueaste (o que te bloqueó) no aparecen como destino. El texto reenviado, enlaces incluidos, se vuelve a revisar según nuestras Normas de la comunidad antes de enviarse.",
+  },
   "send-photos-videos-voice-notes": {
     q: "¿Puedo enviar fotos, videos, notas de voz o GIF en un chat?",
     a: "Sí. El cuadro de mensaje del chat tiene los botones «Agregar una foto» y «Agregar un video» (dispositivo, cámara o grabación en el momento), un botón de GIF y un ícono de micrófono para grabar una nota de voz. Cualquier mensaje que envíes se puede eliminar para ti, o para todos si lo enviaste tú.",

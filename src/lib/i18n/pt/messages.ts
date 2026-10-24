@@ -313,6 +313,28 @@ export const messages: typeof messagesEn = {
       moderation_unavailable:
         "Não foi possível verificar isso agora, então nada foi enviado. Tente novamente em instantes.",
     },
+    // The "Forward" sheet (forward-message-sheet.tsx). sent/partial are plural forms (plural() in locales.ts).
+    forward: {
+      title: "Encaminhar para",
+      search: "Pesquisar conversas",
+      clear: "Limpar pesquisa",
+      noMatch: "Nenhuma conversa corresponde.",
+      empty: "Ainda não há conversas para onde encaminhar.",
+      selected: "{count} de {max} selecionadas",
+      limit: "Você pode encaminhar para no máximo {max} conversas por vez.",
+      send: "Enviar",
+      sending: "Enviando…",
+      sent: "one: Enviada para # conversa | other: Enviada para # conversas",
+      partial: "one: Não foi possível enviar para # conversa | other: Não foi possível enviar para # conversas",
+      errors: {
+        rate_limited: "Você está encaminhando rápido demais. Tente de novo em alguns minutos.",
+        not_forwardable: "Esta mensagem não pode ser encaminhada.",
+        moderation: "Esta mensagem não pode ser encaminhada porque viola nossas Diretrizes da comunidade.",
+        unavailable: "Não foi possível encaminhar para essas conversas.",
+        load: "Não foi possível carregar suas conversas.",
+        other: "Não foi possível encaminhar. Tente de novo.",
+      },
+    },
     bubble: {
       deleted: "Esta mensagem foi apagada",
       underReview: "Esta mensagem está em análise.",
@@ -350,6 +372,8 @@ export const messages: typeof messagesEn = {
       storyShared: "Compartilhou um story. Toque para ver",
       storyRepliedMine: "Você respondeu ao story. Toque para ver",
       storyReplied: "Respondeu ao seu story. Toque para ver",
+      forward: "Encaminhar",
+      forwarded: "Encaminhada",
     },
     receipts: {
       sending: "Enviando",

@@ -98,6 +98,10 @@ const limiterDefinitions = {
   passwordResetRequest: makeLimiter(5, "1 h"),
   call: makeLimiter(20, "10 m"),
   messageSend: makeLimiter(20, "1 m"),
+  // Forwarding a chat message (forwardMessage): per action, on top of messageSend per destination.
+  messageForward: makeLimiter(20, "10 m", "messageForward"),
+  // The forward picker's list of chats (getForwardTargets).
+  messageForwardTargets: makeLimiter(60, "10 m", "messageForwardTargets"),
   postCreate: makeLimiter(10, "5 m"),
   report: makeLimiter(10, "10 m"),
   connectionRequest: makeLimiter(20, "10 m"),

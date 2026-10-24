@@ -16,6 +16,7 @@ import { EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/l
 import { EVENT_ANNOUNCEMENT_MAX_LENGTH } from "@/lib/circle-event-organizer";
 import { RSVP_STATUSES } from "@/lib/rsvp";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
+import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
 
 export const intentTagValues = [
   "FRIENDSHIP",
@@ -589,6 +590,12 @@ export const messageSchema = z
     message: "A message needs text or a voice/video/photo attachment.",
     path: ["content"],
   });
+
+/** forwardMessage: which message, and which of the caller's chats (at most FORWARD_MAX_RECIPIENTS). Never the text. */
+export const forwardMessageSchema = z.object({
+  messageId: z.string().cuid(),
+  conversationIds: z.array(z.string().cuid()).min(1).max(FORWARD_MAX_RECIPIENTS),
+});
 
 export const groupChatSchema = z.object({
   name: z.string().trim().min(2).max(60),

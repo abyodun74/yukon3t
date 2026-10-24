@@ -316,6 +316,28 @@ export const messages: typeof messagesEn = {
       moderation_unavailable:
         "Impossible de vérifier ce contenu pour le moment : il n'a donc pas été envoyé. Réessayez dans un instant.",
     },
+    // The "Forward" sheet (forward-message-sheet.tsx). sent/partial are plural forms (plural() in locales.ts).
+    forward: {
+      title: "Transférer à",
+      search: "Rechercher des discussions",
+      clear: "Effacer la recherche",
+      noMatch: "Aucune discussion ne correspond.",
+      empty: "Aucune discussion vers laquelle transférer pour l'instant.",
+      selected: "{count} sur {max} sélectionnées",
+      limit: "Vous pouvez transférer vers {max} discussions au maximum à la fois.",
+      send: "Envoyer",
+      sending: "Envoi…",
+      sent: "one: Envoyé à # discussion | other: Envoyé à # discussions",
+      partial: "one: Impossible d'envoyer à # discussion | other: Impossible d'envoyer à # discussions",
+      errors: {
+        rate_limited: "Vous transférez trop vite. Réessayez dans quelques minutes.",
+        not_forwardable: "Ce message ne peut pas être transféré.",
+        moderation: "Ce message ne peut pas être transféré, car il enfreint nos Règles de la communauté.",
+        unavailable: "Impossible de transférer vers ces discussions.",
+        load: "Impossible de charger vos discussions.",
+        other: "Impossible de transférer. Réessayez.",
+      },
+    },
     bubble: {
       deleted: "Ce message a été supprimé",
       underReview: "Ce message est en cours d'examen.",
@@ -353,6 +375,8 @@ export const messages: typeof messagesEn = {
       storyShared: "A partagé une story. Touchez pour la voir",
       storyRepliedMine: "Vous avez répondu à sa story. Touchez pour la voir",
       storyReplied: "A répondu à votre story. Touchez pour la voir",
+      forward: "Transférer",
+      forwarded: "Transféré",
     },
     receipts: {
       sending: "Envoi en cours",
