@@ -99,6 +99,7 @@ export const FAQ_IDS = [
   "voice-video-calls-work",
   "add-more-people-call",
   "put-call-hold",
+  "live-translated-captions-call",
   "happens-call-switch-apps-lock",
   "happens-connection-drops-during-call",
   "there-limit-long-call-last",

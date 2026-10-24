@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRANSLATION_BATCH_MAX, TRANSLATION_KINDS } from "@/lib/translation";
+import { CALL_CAPTION_MAX_CHARS, CALL_CAPTION_MAX_SDP_CHARS } from "@/lib/call-captions";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
 import { HIDDEN_PIN_PATTERN } from "@/lib/hidden-chats-rules";
 import { COLLAB_CIRCLE_IDS_MAX } from "@/lib/collab-circle-invite";
@@ -195,6 +196,25 @@ export const translateRequestSchema = z.object({
     )
     .min(1)
     .max(TRANSLATION_BATCH_MAX),
+});
+
+// Live translated captions in 1:1 calls (actions/call-captions.ts).
+const captionId = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
+export const callCaptionCallSchema = z.object({ callId: captionId });
+export const callCaptionConsentSchema = z.object({ callId: captionId, on: z.boolean() });
+export const callCaptionStartSchema = z.object({
+  callId: captionId,
+  sdp: z.string().min(1).max(CALL_CAPTION_MAX_SDP_CHARS).startsWith("v=0"),
+});
+export const callCaptionSessionSchema = z.object({ sessionId: captionId });
+// The raw sentence may be a little longer than what is shown (spaces are collapsed before the cap).
+export const callCaptionTranslateSchema = z.object({
+  callId: captionId,
+  text: z.string().min(1).max(CALL_CAPTION_MAX_CHARS * 2),
 });
 
 export const circleSchema = z.object({

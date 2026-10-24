@@ -263,6 +263,19 @@ const limiterDefinitions = {
   translateRequest: makeLimiter(120, "10 m", "translateRequest"),
   translateModelCall: makeLimiter(200, "1 h", "translateModelCall"),
   translateGlobal: makeLimiter(20000, "24 h", "translateGlobal"),
+  // Live translated captions in 1:1 calls (actions/call-captions.ts). The hard money cap is the per-user monthly
+  // count of seconds in the database (CALL_CAPTION_MONTHLY_SECONDS), which holds while Redis fails open; these only
+  // slow down abuse. Turning captions on/off and the state checks; starting a transcription session (each one is an
+  // OpenAI client secret + call); its heartbeats; one ceiling on sessions + heartbeats across everyone (each is about
+  // CALL_CAPTION_HEARTBEAT_MS of someone's microphone, so 40000 a day is roughly 500 hours); and the translation of
+  // each received sentence, per user and across everyone.
+  callCaptionConsent: makeLimiter(30, "10 m", "callCaptionConsent"),
+  callCaptionState: makeLimiter(240, "10 m", "callCaptionState"),
+  callCaptionStart: makeLimiter(20, "1 h", "callCaptionStart"),
+  callCaptionHeartbeat: makeLimiter(200, "1 h", "callCaptionHeartbeat"),
+  callCaptionGlobal: makeLimiter(40000, "24 h", "callCaptionGlobal"),
+  callCaptionTranslate: makeLimiter(600, "1 h", "callCaptionTranslate"),
+  callCaptionTranslateGlobal: makeLimiter(100000, "24 h", "callCaptionTranslateGlobal"),
   // Private profile pictures (/api/avatar/…, per signed-in user): one request per distinct avatar a screen shows,
   // since the browser caches each redirect for ~50 minutes. A busy hour of feed, comments, search and lists stays well
   // under this; a scraper walking every profile doesn't. Over it, avatars fall back to initials, nothing else breaks.

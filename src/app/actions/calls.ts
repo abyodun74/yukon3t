@@ -11,6 +11,7 @@ import { sendFcmCallToUser } from "@/lib/fcm";
 import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
+import { stopCaptionsForCall } from "@/lib/call-captions-server";
 import { ringCallerAvatarUrl } from "@/lib/call-avatar";
 import { incomingCallPush, ringCallerName } from "@/lib/push-text";
 import type { Locale } from "@/lib/i18n/locales";
@@ -552,6 +553,8 @@ export async function inviteToCall(callId: string, inviteeId: string) {
   if (outcome.error !== null) {
     return { error: outcome.error };
   }
+  // Live captions are for 1:1 calls only: adding someone turns them off for both and hangs their sessions up.
+  await stopCaptionsForCall(callId);
 
   try {
     // The same three rings startCall sends, with this call's id and the
@@ -753,6 +756,8 @@ export async function endCall(callId: string) {
     }
   }
   await deleteCallRoom(call.roomName);
+  // Any live-caption transcription still running in this call is hung up now rather than when its lease runs out.
+  await stopCaptionsForCall(callId);
 
   // Tells whichever side didn't call this to tear down immediately, rather
   // than waiting on Daily's own room-ejection (which this app's own

@@ -188,6 +188,7 @@ export function GlobalCallFrame() {
             prewarmKey={session.key}
             roster={roster}
             selfUserId={callInfo?.currentUserId}
+            callId={callInfo?.callId}
             onCallObject={setDailyCall}
             isCallOver={session.isOver}
             onLeave={() => {

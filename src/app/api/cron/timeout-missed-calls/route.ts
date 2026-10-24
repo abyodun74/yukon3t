@@ -6,6 +6,7 @@ import { notifyMissedCall } from "@/lib/missed-call";
 import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { sweepStaleCaptionSessions } from "@/lib/call-captions-server";
 import { CALL_RING_TIMEOUT_MS, CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
 import {
   closeParticipantRows,
@@ -46,13 +47,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const [missed, ended, missedInvites] = await Promise.all([
+  const [missed, ended, missedInvites, captionSessions] = await Promise.all([
     timeOutRinging(),
     sweepStaleAccepted(),
     timeOutRingingParticipants(),
+    // Live-caption transcription sessions whose paid lease ran out without a heartbeat (src/lib/call-captions.ts).
+    sweepStaleCaptionSessions().catch(() => 0),
   ]);
 
-  return NextResponse.json({ error: null, missed, ended, missedInvites });
+  return NextResponse.json({ error: null, missed, ended, missedInvites, captionSessions });
 }
 
 async function timeOutRinging() {

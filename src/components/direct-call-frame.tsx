@@ -31,6 +31,9 @@ import { useCallsText } from "@/components/calls-text";
 import { callLabel, callPeer, peerNotice, type CallPeer } from "@/lib/call-names";
 import { callPeerAvatarUrl } from "@/lib/call-avatar";
 import type { CallRoster } from "@/lib/use-call-roster";
+import { useCallSession } from "@/lib/call-session";
+import { useCallCaptions } from "@/lib/use-call-captions";
+import { CallCaptionsButton, CallCaptionsLayer } from "@/components/call-captions";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
@@ -126,6 +129,7 @@ export function DirectCallFrame({
   prewarmKey,
   roster,
   selfUserId,
+  callId,
 }: {
   roomUrl: string;
   token: string;
@@ -142,10 +146,16 @@ export function DirectCallFrame({
   /** Who is in the call server-side (see useCallRoster) — names and avatars for the tiles of a call people were added to, and whether someone is still being rung. Null until it has loaded. */
   roster?: CallRoster | null;
   selfUserId?: string;
+  /** The 1:1 call's id, for live translated captions (src/lib/use-call-captions.ts). Omitted = no captions. */
+  callId?: string;
 }) {
   const callRef = useRef<DailyCall | null>(null);
+  // The same call object as callRef, as state, for the hooks below that subscribe to its events.
+  const [callObject, setCallObject] = useState<DailyCall | null>(null);
+  const { minimized } = useCallSession();
+  const [confirmingCaptions, setConfirmingCaptions] = useState(false);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
-  const { t: calls } = useCallsText();
+  const { t: calls, locale } = useCallsText();
   const t = calls.direct;
   const controls = calls.controls;
   // Which failure, not its sentence: worded in the reader's language where it is shown.
@@ -548,6 +558,7 @@ export function DirectCallFrame({
           }
           call = c;
           callRef.current = c;
+          setCallObject(c);
           attach(c);
 
           c.join({ url: roomUrl, token, startVideoOff: type === "AUDIO" })
@@ -599,6 +610,7 @@ export function DirectCallFrame({
           }
           call = c;
           callRef.current = c;
+          setCallObject(c);
           attach(c);
           // Already joined — no join() call here (Daily doesn't support
           // joining twice; see call-session.tsx's reconnectingRef comment
@@ -662,6 +674,7 @@ export function DirectCallFrame({
         void trackDailyDestroy(c.destroy());
         callRef.current = null;
       }
+      setCallObject(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomUrl, token]);
@@ -793,6 +806,17 @@ export function DirectCallFrame({
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
   const localScreenSharing = Boolean(local && trackIsOn(local.tracks.screenVideo.state));
+
+  // Live translated captions: 1:1 only (never once people were added), and only this side's own mic, and only while
+  // it is on and the call isn't on hold.
+  const captions = useCallCaptions({
+    callId,
+    call: callObject,
+    enabled: Boolean(callId) && !inGroupCall && !gridMode,
+    micTrack: local?.tracks.audio.persistentTrack ?? null,
+    micLive: localAudioOn && !isOnHold,
+    locale,
+  });
 
   function toggleAudio() {
     hapticSelection();
@@ -1031,6 +1055,15 @@ export function DirectCallFrame({
         </div>
       )}
 
+      {!minimized && (
+        <CallCaptionsLayer
+          captions={captions}
+          peer={peer}
+          confirming={confirmingCaptions}
+          onCloseConfirm={() => setConfirmingCaptions(false)}
+        />
+      )}
+
       {/* Fills the same bottom-tray footprint Daily's Prebuilt tray used to
           — GlobalCallFrame's own Leave/Minimize bar (bottom-right, z-[80])
           sits above this, same as it does over CallFrame's iframe. Falls
@@ -1092,6 +1125,11 @@ export function DirectCallFrame({
           >
             {isOnHold ? <Play size={16} /> : <Pause size={16} />}
           </button>
+          <CallCaptionsButton
+            captions={captions}
+            disabled={reconnecting}
+            onRequestOn={() => setConfirmingCaptions(true)}
+          />
           <button
             type="button"
             onClick={toggleScreenShare}

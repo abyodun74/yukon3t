@@ -389,6 +389,8 @@ model User {
   callsMade     Call[] @relation("CallCaller")
   callsReceived Call[] @relation("CallCallee")
   callParticipations CallParticipant[] @relation("CallParticipantUser")
+  callCaptionSessions CallCaptionSession[]
+  callCaptionUsage    CallCaptionUsage[]
 
   blocksMade        Block[]            @relation("Blocker")
   blocksReceived    Block[]            @relation("Blocked")
@@ -2890,6 +2892,12 @@ model Call {
   // say who is in the call (see CallParticipant).
   participants CallParticipant[]
 
+  // Live translated captions (src/lib/call-captions.ts): each person's agreement for THIS call, null = not agreed.
+  // Captions run only while both are set; either person turning them off clears both. 1:1 calls only.
+  captionsCallerConsentAt DateTime?
+  captionsCalleeConsentAt DateTime?
+  captionSessions         CallCaptionSession[]
+
   @@index([calleeId, status])
   @@index([callerId, status])
   @@index([status, createdAt])
@@ -2929,6 +2937,42 @@ model CallParticipant {
   @@unique([callId, userId])
   @@index([userId, status])
   @@index([status, createdAt])
+}
+
+/**
+ * One open (or recently closed) live-caption transcription session: one person's microphone being transcribed by
+ * OpenAI's realtime API during a 1:1 call (src/lib/call-captions-server.ts). Holds ids and times only, never audio or
+ * text. leaseUntil is how far ahead it has been paid for (CallCaptionUsage); a session past its lease is hung up by
+ * the timeout-missed-calls cron.
+ */
+model CallCaptionSession {
+  id             String    @id @default(cuid())
+  callId         String
+  userId         String
+  // OpenAI's realtime call id (from the Location header when the session was created), used to hang it up.
+  providerCallId String?
+  startedAt      DateTime  @default(now())
+  leaseUntil     DateTime
+  endedAt        DateTime?
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([callId, endedAt])
+  @@index([userId, endedAt])
+  @@index([endedAt, leaseUntil])
+}
+
+/** Seconds of live-caption transcription per user per UTC month ("2026-10"), against CALL_CAPTION_MONTHLY_SECONDS. */
+model CallCaptionUsage {
+  userId    String
+  month     String
+  seconds   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, month])
 }
 
 /**

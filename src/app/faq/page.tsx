@@ -1201,6 +1201,36 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "live-translated-captions-call",
+        q: "Can I get live translated captions during a call?",
+        a: (
+          <>
+            Yes, in a 1:1 voice or video call. Tap the captions button in
+            the call controls. You&apos;ll see what happens before anything
+            starts: your speech is sent to an AI service (OpenAI) to be
+            turned into text and translated. YuKon3t doesn&apos;t store the audio
+            or the text; OpenAI may keep what it processes for a limited time
+            under its own terms. The other
+            person is then asked whether to allow it, and captions only start
+            once both of you have agreed. While they&apos;re on, both of you
+            keep hearing each other&apos;s real voice, each of you sees
+            subtitles of what the other says in the language you use
+            YuKon3t in (English, Spanish, French, Portuguese or Arabic), and
+            &ldquo;Live captions on&rdquo; shows at the top of both screens;
+            &ldquo;Show original&rdquo; switches to the words as they were
+            said. Either of you can turn them off at any time with the same
+            button, which stops them for both of you at once; they are off
+            again for the next call, and turn themselves off after an hour.
+            Your microphone is only captioned while it&apos;s on: muting or
+            putting the call on hold pauses it. Each person has 120 minutes
+            of their own speech captioned per month. Captions aren&apos;t
+            available in calls with more than two people, can lag a second
+            or two behind, and may be inaccurate, especially for languages
+            the service recognises less well (for example Yoruba).
+          </>
+        ),
+      },
+      {
         id: "happens-call-switch-apps-lock",
         q: "What happens to a call if I switch apps or lock my phone?",
         a: (
