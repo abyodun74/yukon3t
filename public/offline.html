@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>You're offline — YuKon3t</title>
+<!-- Tries the page again every 20 seconds, so it opens by itself once the
+     connection is back. While still offline the service worker answers
+     straight from its cache, so each try costs nothing. -->
+<meta http-equiv="refresh" content="20" />
 <style>
   :root {
     color-scheme: light dark;
@@ -77,10 +81,13 @@
   <div class="wrap">
     <h1>You&rsquo;re offline</h1>
     <p>
-      This page needs an internet connection. Check your connection and try again —
-      anything you already had open should still be there.
+      This page needs an internet connection. It will open by itself when you're back
+      online, or check your connection and try again — anything you already had open
+      should still be there.
     </p>
-    <a class="retry" href="/">Try again</a>
+    <!-- Empty href = this same URL: the service worker serves this page in place
+         of the one that failed, so retrying reloads what was asked for, not Home. -->
+    <a class="retry" href="">Try again</a>
   </div>
 </body>
 </html>

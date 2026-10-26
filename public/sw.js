@@ -10,7 +10,10 @@
 // app is session/DB-driven, so caching dynamic responses would risk
 // serving stale or wrong-user content. Everything dynamic falls
 // through to the network exactly as if this service worker didn't
-// exist.
+// exist. That includes every private thing: messages (secret chats
+// included), avatars (/api/avatar, presigned), view-once media and all
+// user media on other origins (R2) — only same-origin GETs of the paths
+// below are ever answered from, or written to, a cache.
 //
 // The offline fallback (OFFLINE_URL) is a plain static HTML file, not
 // a Next.js page: Next's rendered pages pull in framework bootstrap
@@ -28,8 +31,13 @@
 // in SHELL_ASSETS, bump these version strings too — otherwise every
 // browser with this SW already installed keeps serving the stale
 // precached content forever, even after a new deploy.
-const SHELL_CACHE = "yk3-shell-v5";
-const STATIC_CACHE = "yk3-static-v5";
+const SHELL_CACHE = "yk3-shell-v6";
+const STATIC_CACHE = "yk3-static-v6";
+// Every deploy adds a new set of hashed chunks and the old ones are never
+// requested again, so without a cap this cache only ever grows (a phone that
+// has seen dozens of deploys keeps every one of them). A few deploys' worth;
+// the oldest entries go first.
+const STATIC_CACHE_MAX_ENTRIES = 400;
 const OFFLINE_URL = "/offline.html";
 const SHELL_ASSETS = [
   "/manifest.webmanifest",
@@ -57,11 +65,21 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Cache keys come back in insertion order, so the first ones are the oldest.
+async function trimCache(name, maxEntries) {
+  const cache = await caches.open(name);
+  const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  await Promise.all(keys.slice(0, keys.length - maxEntries).map((key) => cache.delete(key)));
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return; // let the browser handle it normally
 
   const url = new URL(request.url);
+  // Other origins (R2 media, Daily, PostHog, embeds): never ours to cache.
+  if (url.origin !== self.location.origin) return;
 
   // Full-page navigations: network-first, offline-page fallback. Online
   // behavior is completely unchanged — the cache is only ever consulted
@@ -86,7 +104,13 @@ self.addEventListener("fetch", (event) => {
           fetch(request).then((response) => {
             if (response.ok) {
               const copy = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+              event.waitUntil(
+                caches
+                  .open(STATIC_CACHE)
+                  .then((cache) => cache.put(request, copy))
+                  .then(() => trimCache(STATIC_CACHE, STATIC_CACHE_MAX_ENTRIES))
+                  .catch(() => {}),
+              );
             }
             return response;
           }),

@@ -133,6 +133,26 @@ export const settings: typeof settingsEn = {
     submit: "Confirmar cambio de contraseña",
     cancel: "Cancelar",
   },
+  dataSaver: {
+    heading: "Ahorro de datos",
+    intro: "Usa menos datos móviles y mantiene YuKon3t ágil con conexiones lentas o inestables: los videos del feed esperan a que toques reproducir, los videos cercanos de Muse no se precargan, el feed carga menos publicaciones a la vez y no se graba la sesión para las estadísticas.",
+    options: {
+      auto: "Automático",
+      on: "Activado",
+      off: "Desactivado",
+    },
+    hints: {
+      auto: "Se activa solo cuando tu conexión es lenta o el ahorro de datos de tu teléfono está activado.",
+      on: "Siempre activado en este dispositivo.",
+      off: "Nunca se activa, ni siquiera con una conexión lenta.",
+    },
+    status: {
+      good: "Ahora mismo: tu conexión se ve bien.",
+      slow: "Ahora mismo: el ahorro de datos está activado.",
+      offline: "Ahora mismo: no tienes conexión.",
+    },
+    device: "Este ajuste se guarda solo en este dispositivo.",
+  },
   ambient: {
     heading: "Ambient",
     intro:

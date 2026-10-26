@@ -5,11 +5,13 @@ import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
+import { parseFeedPageSize } from "@/lib/network-quality";
 
 const LATEST_PAGE_SIZE = 10;
-// Matches Home's own PAGE_SIZE (src/app/home/page.tsx) so a "Load more"
-// click pulls in the same number of posts the old full-page pagination did.
-const LOAD_MORE_PAGE_SIZE = 20;
+// Load-more pages are FEED_PAGE_SIZE (20), Home's own PAGE_SIZE
+// (src/app/home/page.tsx), unless the client asks for a smaller one via
+// `limit` (a slow connection, see feedPageSize) — parseFeedPageSize clamps
+// it to 5..20.
 
 /**
  * Fetched by PostFeedSection (src/components/post-feed-section.tsx) whenever
@@ -55,6 +57,7 @@ export async function GET(
   // query param alone, only branch when the signed-in user is actually an
   // admin (see src/app/home/page.tsx).
   const allPostsScope = searchParams.get("scope") === "all" && user.isAdmin;
+  const pageSize = before ? parseFeedPageSize(searchParams.get("limit")) : LATEST_PAGE_SIZE;
 
   const where = allPostsScope
     ? {
@@ -78,12 +81,12 @@ export async function GET(
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: before ? LOAD_MORE_PAGE_SIZE : LATEST_PAGE_SIZE,
+    take: pageSize,
     ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     include: postCardInclude,
   });
 
   const posts = await attachViewerState(rawPosts, user.id);
-  const hasMore = before ? rawPosts.length === LOAD_MORE_PAGE_SIZE : undefined;
+  const hasMore = before ? rawPosts.length === pageSize : undefined;
   return NextResponse.json({ posts, hasMore });
 }

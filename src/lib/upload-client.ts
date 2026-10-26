@@ -13,6 +13,7 @@ import type { UploadKind } from "@/lib/storage";
 import { isStaleDeploymentError } from "@/lib/stale-deployment";
 import { holdReload } from "@/lib/stale-build";
 import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
+import { backoffDelayMs, isRetryableStatus } from "@/lib/fetch-retry";
 
 export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -152,8 +153,10 @@ function waitForForeground(): Promise<void> {
  * uploadFileDirect's two network calls had any resilience to that: one
  * dropped packet meant the whole upload failed with "couldn't reach the
  * server," even though a retry would have gone through. Delay grows with
- * each attempt (backoff) rather than staying fixed, giving a flaky
- * connection more time to recover before the next try. When
+ * each attempt (exponential, capped at 8s, with random jitter so clients
+ * that failed together don't retry together — see backoffDelayMs) rather
+ * than staying fixed, giving a flaky connection more time to recover
+ * before the next try. When
  * waitForVisible is set, each retry also waits for the page to be in the
  * foreground first — see waitForForeground above.
  */
@@ -174,7 +177,7 @@ export async function withRetry<T>(
     } catch (err) {
       if (attempt >= attempts || !shouldRetry(err)) throw err;
       if (waitForVisible) await waitForForeground();
-      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      await new Promise((resolve) => setTimeout(resolve, backoffDelayMs(attempt, { baseMs: delayMs })));
     }
   }
 }
@@ -194,7 +197,10 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
   "ad-video",
   "muse-video",
 ]);
-const PUT_ATTEMPTS_DEFAULT = 2;
+// 3, not 2: a photo PUT is cheap to resend (same presigned URL, same key) and
+// a single retry wasn't enough to ride out a weak-signal patch or a Wi-Fi to
+// cellular handoff.
+const PUT_ATTEMPTS_DEFAULT = 3;
 const PUT_ATTEMPTS_VIDEO = 6;
 
 // A connection that gets established but then stalls (no bytes flowing —
@@ -476,8 +482,8 @@ async function uploadToStorage(
     const putAttempts = isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
     const timeoutMs = attemptTimeoutMs(uploadFile.size);
     putRes = await withRetry(
-      () =>
-        fetchWithTimeout(
+      async () => {
+        const res = await fetchWithTimeout(
           uploadUrl,
           {
             method: "PUT",
@@ -485,7 +491,12 @@ async function uploadToStorage(
             body: putBody,
           },
           timeoutMs,
-        ),
+        );
+        // A storage-side 5xx/429 is as transient as a dropped connection;
+        // anything else (403 expired URL, 400) is final and returned as is.
+        if (isRetryableStatus(res.status)) throw new Error(`PUT ${res.status}`);
+        return res;
+      },
       putAttempts,
       800,
       isVideo,

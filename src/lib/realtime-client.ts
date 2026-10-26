@@ -346,6 +346,10 @@ function addResyncSource(source: ResyncSource) {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") resync.trigger();
     });
+    // Coming back online is the same situation as coming back to the app:
+    // any signal sent while the connection was down was missed. Same
+    // scheduler, so the jitter and the 10s minimum interval apply as well.
+    window.addEventListener("online", () => resync.trigger());
   }
   return resync.add(source);
 }
@@ -361,7 +365,8 @@ function addResyncSource(source: ResyncSource) {
  * live behind the poll tick — this hook is the trigger, not the data
  * source.
  *
- * Also calls `handler(null)` once whenever the tab regains visibility — a
+ * Also calls `handler(null)` once whenever the tab regains visibility (or
+ * the device comes back online) — a
  * one-shot resync, not a repeating timer — as a safety net against an
  * event missed while the WebSocket was disconnected (backgrounded mobile
  * WebView, a brief network drop). Callers can tell "a real event, with a

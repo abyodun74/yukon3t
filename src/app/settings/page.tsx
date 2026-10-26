@@ -15,6 +15,7 @@ import { PushNotificationsToggle } from "@/components/push-notifications-toggle"
 import { PhoneVerificationForm } from "@/components/phone-verification-form";
 import { getRequestCountry } from "@/lib/request-country";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
+import { DataSaverSetting } from "@/components/data-saver-setting";
 import { LanguagePicker } from "@/components/language-picker";
 import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -213,6 +214,14 @@ export default async function SettingsPage({
         <p className="mt-1 text-sm text-foreground-soft">{t.emoji.intro}</p>
         <div className="mt-4">
           <EmojiStyleSetting />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">{t.dataSaver.heading}</h2>
+        <p className="mt-1 text-sm text-foreground-soft">{t.dataSaver.intro}</p>
+        <div className="mt-4">
+          <DataSaverSetting />
         </div>
       </div>
 

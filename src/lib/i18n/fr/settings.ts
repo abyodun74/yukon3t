@@ -138,6 +138,26 @@ export const settings: typeof settingsEn = {
     submit: "Confirmer le changement de mot de passe",
     cancel: "Annuler",
   },
+  dataSaver: {
+    heading: "Économiseur de données",
+    intro: "Consomme moins de données mobiles et garde YuKon3t réactif sur une connexion lente ou instable : les vidéos du fil attendent que vous appuyiez sur lecture, les vidéos Muse voisines ne sont pas préchargées, le fil charge moins de publications à la fois et l’enregistrement de session pour les statistiques est désactivé.",
+    options: {
+      auto: "Automatique",
+      on: "Activé",
+      off: "Désactivé",
+    },
+    hints: {
+      auto: "S’active tout seul quand votre connexion est lente ou que l’économiseur de données de votre téléphone est activé.",
+      on: "Toujours activé sur cet appareil.",
+      off: "Jamais activé, même sur une connexion lente.",
+    },
+    status: {
+      good: "En ce moment : votre connexion semble correcte.",
+      slow: "En ce moment : l’économiseur de données est activé.",
+      offline: "En ce moment : vous êtes hors ligne.",
+    },
+    device: "Ce réglage est enregistré sur cet appareil uniquement.",
+  },
   ambient: {
     heading: "Ambient",
     intro:

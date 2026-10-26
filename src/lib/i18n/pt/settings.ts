@@ -136,6 +136,26 @@ export const settings: typeof settingsEn = {
     submit: "Confirmar mudança de senha",
     cancel: "Cancelar",
   },
+  dataSaver: {
+    heading: "Economia de dados",
+    intro: "Usa menos dados móveis e mantém o YuKon3t rápido em conexões lentas ou instáveis: os vídeos do feed esperam você tocar em reproduzir, os vídeos próximos do Muse não são pré-carregados, o feed carrega menos publicações por vez e a gravação de sessão para estatísticas é desativada.",
+    options: {
+      auto: "Automático",
+      on: "Ativada",
+      off: "Desativada",
+    },
+    hints: {
+      auto: "Liga sozinha quando sua conexão está lenta ou a economia de dados do celular está ativada.",
+      on: "Sempre ativada neste dispositivo.",
+      off: "Nunca ativada, nem em conexão lenta.",
+    },
+    status: {
+      good: "Agora: sua conexão parece boa.",
+      slow: "Agora: a economia de dados está ativada.",
+      offline: "Agora: você está offline.",
+    },
+    device: "Esta configuração fica salva só neste dispositivo.",
+  },
   ambient: {
     heading: "Ambient",
     intro:

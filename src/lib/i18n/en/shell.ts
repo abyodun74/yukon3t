@@ -11,6 +11,7 @@ export const shellEn = {
   common: {
     loading: "Loading…",
     loadingMore: "Loading more...",
+    loadMoreFailed: "Couldn't load more posts. Check your connection.",
     back: "Back",
     cancel: "Cancel",
     save: "Save",
@@ -61,6 +62,8 @@ export const shellEn = {
   },
   theme: { light: "Light theme", dark: "Dark theme", system: "System theme" },
   offline: "You're offline — some actions won't work until you're back online.",
+  // A small pill while a request the reader is waiting on is being retried.
+  slowRetrying: "Slow connection — retrying…",
   error: {
     title: "Something went wrong",
     body: "That didn't load right. Try again, or head back home.",

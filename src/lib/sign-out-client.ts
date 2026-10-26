@@ -31,6 +31,6 @@ export async function signOutThisDevice(userId: string | null | undefined) {
   // Same reasoning — clears the identified user from PostHog so the next
   // signed-in session on this device isn't recorded/attributed under the
   // account that just signed out.
-  resetPostHog();
+  await resetPostHog();
   await signOutAction();
 }

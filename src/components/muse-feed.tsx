@@ -29,6 +29,7 @@ import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useMuseText } from "@/components/muse-text";
 import { useUiText } from "@/components/ui-text";
 import { formatShortAge } from "@/lib/format-date";
+import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 
 // How far before the actual end of the loaded list to start fetching more —
@@ -455,6 +456,11 @@ function MuseCard({
   // the observer below has fired even once) doesn't flash a placeholder for
   // whichever card starts on screen.
   const [isNearby, setIsNearby] = useState(true);
+  // On a slow connection or with Data saver on, the cards around the one
+  // playing keep their poster but don't start buffering their own video
+  // until they become the active card — the active one keeps all the
+  // bandwidth there is.
+  const lowData = useNetworkQuality() === "slow";
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const isOwner = item.author.id === currentUserId;
@@ -609,6 +615,7 @@ function MuseCard({
           aria-label={item.author.name ? format(t.videoLabel, { name: item.author.name }) : t.videoLabelUnnamed}
           src={item.videoUrl ?? undefined}
           poster={item.videoThumbnailUrl ?? undefined}
+          preload={lowData && !isVisible ? "none" : undefined}
           // Always muted when a separate audioUrl is replacing the video's
           // own sound (playing both would double up), otherwise follows the
           // shared mute toggle — same source either way, never both at once.
@@ -633,7 +640,15 @@ function MuseCard({
       ) : (
         <div className="absolute inset-0 bg-black" />
       )}
-      {item.audioUrl && isNearby && <audio ref={audioRef} src={item.audioUrl} muted={muted || soundBlocked} loop />}
+      {item.audioUrl && isNearby && (
+        <audio
+          ref={audioRef}
+          src={item.audioUrl}
+          preload={lowData && !isVisible ? "none" : undefined}
+          muted={muted || soundBlocked}
+          loop
+        />
+      )}
 
       {!isEmbed && soundBlocked && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">

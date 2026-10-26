@@ -5,6 +5,7 @@ export const shell: typeof shellEn = {
   common: {
     loading: "Chargement…",
     loadingMore: "Chargement de la suite...",
+    loadMoreFailed: "Impossible de charger plus de publications. Vérifiez votre connexion.",
     back: "Retour",
     cancel: "Annuler",
     save: "Enregistrer",
@@ -54,6 +55,7 @@ export const shell: typeof shellEn = {
   },
   theme: { light: "Thème clair", dark: "Thème sombre", system: "Thème du système" },
   offline: "Vous êtes hors ligne. Certaines actions ne fonctionneront pas tant que la connexion ne sera pas rétablie.",
+  slowRetrying: "Connexion lente. Nouvelle tentative…",
   error: {
     title: "Une erreur s'est produite",
     body: "Le chargement a échoué. Réessayez ou revenez à l'accueil.",

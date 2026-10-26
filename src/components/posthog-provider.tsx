@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import posthog from "posthog-js";
-import { initPostHog, identifyPostHogUser } from "@/lib/posthog-client";
+import { initPostHog, identifyPostHogUser, capturePostHogPageview } from "@/lib/posthog-client";
 
 /**
  * Mounted once in the root layout, unconditionally — inits PostHog
@@ -20,8 +19,17 @@ import { initPostHog, identifyPostHogUser } from "@/lib/posthog-client";
 export function PostHogProvider({ userId }: { userId?: string }) {
   const pathname = usePathname();
 
+  // Once the page is idle (or after 4s at the latest), so the SDK's download
+  // never competes with the page's own first requests — on a slow link
+  // those are what the reader is waiting for. identify/pageview calls made
+  // before then are queued and sent once it has loaded.
   useEffect(() => {
-    initPostHog();
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => initPostHog(), { timeout: 4_000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(() => initPostHog(), 2_000);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -39,7 +47,7 @@ export function PostHogProvider({ userId }: { userId?: string }) {
   // string PostHog's own URL-based reports don't need.
   useEffect(() => {
     if (!pathname) return;
-    posthog.capture("$pageview", { $current_url: pathname });
+    capturePostHogPageview(pathname);
   }, [pathname]);
 
   return null;

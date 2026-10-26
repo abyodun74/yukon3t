@@ -62,6 +62,11 @@ const geistMono = localFont({
   src: "./fonts/GeistMono-Variable.woff2",
   weight: "100 900",
   variable: "--font-geist-mono",
+  // Only a few rare screens use the mono face (a verification code, an admin
+  // confirm): not worth a <link rel=preload> on every page, competing with
+  // the page's own first requests on a slow link. It still loads (swap) the
+  // moment something on screen uses it.
+  preload: false,
 });
 
 const fraunces = localFont({

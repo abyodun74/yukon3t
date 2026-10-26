@@ -14,8 +14,12 @@ const VISIBILITY_THRESHOLD = 0.6;
  * autoplay at all when the element is also `muted` (and `playsInline` on
  * iOS/mobile WebViews), so callers must set both on the element itself;
  * this hook only drives play()/pause(), not those attributes.
+ *
+ * `autoplay: false` (a slow connection or Data saver, see
+ * useNetworkQuality) keeps the scroll-out pause but never starts playback
+ * on its own: the viewer taps play, and only then is the video downloaded.
  */
-export function useAutoplayOnView<T extends HTMLVideoElement>() {
+export function useAutoplayOnView<T extends HTMLVideoElement>({ autoplay = true }: { autoplay?: boolean } = {}) {
   const ref = useRef<T>(null);
 
   useEffect(() => {
@@ -25,6 +29,7 @@ export function useAutoplayOnView<T extends HTMLVideoElement>() {
       ([entry]) => {
         if (!entry) return;
         if (entry.isIntersecting) {
+          if (!autoplay) return;
           // Autoplay can still legitimately reject (e.g. a user's browser
           // setting overriding the muted-autoplay allowance) — never let
           // that surface as an unhandled rejection.
@@ -37,7 +42,7 @@ export function useAutoplayOnView<T extends HTMLVideoElement>() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [autoplay]);
 
   return ref;
 }

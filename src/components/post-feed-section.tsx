@@ -8,6 +8,8 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { hasSendingOptimisticPost, useOptimisticPosts } from "@/lib/optimistic-posts-store";
 import { OptimisticPostCard } from "@/components/optimistic-post-card";
 import { useShellText } from "@/components/ui-text";
+import { fetchWithRetryClient, getNetworkQuality } from "@/lib/network-quality-client";
+import { feedPageSize } from "@/lib/network-quality";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -96,13 +98,19 @@ export function PostFeedSection({
   const [posts, setPosts] = useState(initialPosts);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
+  // The last load-more failed even after its retries (offline, or a link too
+  // weak to finish): shows a Retry button instead of silently stopping at
+  // the bottom of the feed. Cleared by the next attempt.
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
 
   const refetchNewer = useCallback(async () => {
     const latest = posts[0]?.createdAt;
     if (!latest) return;
     try {
-      const res = await fetch(
+      const res = await fetchWithRetryClient(
         `/api/feed/${category}/latest?after=${encodeURIComponent(new Date(latest).toISOString())}`,
+        {},
+        { attempts: 2, silent: true },
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -167,11 +175,18 @@ export function PostFeedSection({
     const last = posts[posts.length - 1];
     if (!last) return;
     setLoadingMore(true);
+    setLoadMoreFailed(false);
     try {
-      const res = await fetch(
-        `/api/feed/${category}/latest?before=${encodeURIComponent(last.id)}${allPostsScope ? "&scope=all" : ""}`,
+      // Half-size pages on a slow connection: the first posts arrive sooner,
+      // and the next page is only fetched once the reader gets near it.
+      const limit = feedPageSize(getNetworkQuality());
+      const res = await fetchWithRetryClient(
+        `/api/feed/${category}/latest?before=${encodeURIComponent(last.id)}&limit=${limit}${allPostsScope ? "&scope=all" : ""}`,
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        setLoadMoreFailed(true);
+        return;
+      }
       const data = await res.json();
       const older: PostCardData[] = (data.posts ?? []).map(reviveDates);
       setPosts((prev) => {
@@ -181,7 +196,9 @@ export function PostFeedSection({
       });
       setHasMore(Boolean(data.hasMore));
     } catch {
-      // Leave hasMore as-is so the button stays put and can be retried.
+      // Leave hasMore as-is so it can be retried (the button below, scrolling
+      // again, or the connection coming back).
+      setLoadMoreFailed(true);
     } finally {
       setLoadingMore(false);
     }
@@ -194,6 +211,15 @@ export function PostFeedSection({
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
+
+  // Back online after a failed load-more: pick up where it stopped without
+  // waiting for a tap.
+  useEffect(() => {
+    if (!loadMoreFailed) return;
+    const resume = () => loadMoreRef.current();
+    window.addEventListener("online", resume);
+    return () => window.removeEventListener("online", resume);
+  }, [loadMoreFailed]);
 
   // Shown on every category tab regardless of `category` — the server hasn't
   // classified this post yet (classifyPostCategory runs inside createPost),
@@ -311,6 +337,18 @@ export function PostFeedSection({
       </div>
       {loadingMore && (
         <p className="animate-loading-pulse flex justify-center py-4 text-xs text-foreground-soft">{shell.common.loadingMore}</p>
+      )}
+      {!loadingMore && loadMoreFailed && hasMore && (
+        <div role="status" className="flex flex-col items-center gap-2 py-4 text-center text-xs text-foreground-soft">
+          <p>{shell.common.loadMoreFailed}</p>
+          <button
+            type="button"
+            onClick={() => loadMoreRef.current()}
+            className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-foreground hover:border-accent hover:text-accent"
+          >
+            {shell.common.retry}
+          </button>
+        </div>
       )}
     </div>
   );

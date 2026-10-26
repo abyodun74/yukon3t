@@ -34,6 +34,7 @@ export const FAQ_IDS = [
   "new-member-alerts",
   "home-split-into-sections-like",
   "update-the-app",
+  "slow-connection-data-saver",
   // The Android app
   "app-opens-chrome-instead-full",
   "still-get-calls-phone-asleep",

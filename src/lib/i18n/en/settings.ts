@@ -140,6 +140,27 @@ export const settingsEn = {
     submit: "Confirm password change",
     cancel: "Cancel",
   },
+  // Settings → Data saver (data-saver-setting.tsx): a per-device preference, see src/lib/network-quality.ts.
+  dataSaver: {
+    heading: "Data saver",
+    intro: "Uses less mobile data and keeps YuKon3t responsive on slow or patchy connections: feed videos wait for you to tap play, nearby Muse videos don't preload, the feed loads fewer posts at a time and session recording for analytics is skipped.",
+    options: {
+      auto: "Automatic",
+      on: "On",
+      off: "Off",
+    },
+    hints: {
+      auto: "Turns on by itself when your connection is slow or your phone's data saver is on.",
+      on: "Always on, on this device.",
+      off: "Never on, even on a slow connection.",
+    },
+    status: {
+      good: "Right now: your connection looks fine.",
+      slow: "Right now: data saver is on.",
+      offline: "Right now: you're offline.",
+    },
+    device: "This setting is saved on this device only.",
+  },
   ambient: {
     heading: "Ambient",
     intro:

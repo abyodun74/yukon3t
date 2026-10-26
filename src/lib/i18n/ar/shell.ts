@@ -5,6 +5,7 @@ export const shell: typeof shellEn = {
   common: {
     loading: "جارٍ التحميل…",
     loadingMore: "جارٍ تحميل المزيد...",
+    loadMoreFailed: "تعذّر تحميل المزيد من المنشورات. تحقّق من اتصالك.",
     back: "رجوع",
     cancel: "إلغاء",
     save: "حفظ",
@@ -54,6 +55,7 @@ export const shell: typeof shellEn = {
   },
   theme: { light: "المظهر الفاتح", dark: "المظهر الداكن", system: "مظهر النظام" },
   offline: "أنت غير متصل بالإنترنت. بعض الإجراءات لن تعمل حتى يعود الاتصال.",
+  slowRetrying: "الاتصال بطيء. جارٍ إعادة المحاولة…",
   error: {
     title: "حدث خطأ ما",
     body: "تعذّر تحميل هذه الصفحة كما ينبغي. حاول مرة أخرى أو عُد إلى الرئيسية.",

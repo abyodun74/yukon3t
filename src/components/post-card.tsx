@@ -36,6 +36,7 @@ import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useUiText, useShellText } from "@/components/ui-text";
 import { useAutoplayOnView } from "@/lib/use-autoplay-on-view";
+import { useNetworkQuality } from "@/lib/network-quality-client";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useFeedVideoMuted } from "@/lib/feed-video-mute";
 import type { FlatComment } from "@/lib/comment-tree";
@@ -416,6 +417,7 @@ function ZoomableAlbumPhoto({
         alt={alt}
         draggable={false}
         loading="lazy"
+        decoding="async"
         // h-full/w-full, not a fixed aspect box: the carousel wrapper
         // (AlbumCarousel) now sizes itself to *this specific photo's* own
         // ratio and resizes as you swipe, so each photo fills that
@@ -528,7 +530,11 @@ function MediaBlock({
 }) {
   const { t } = useFeedText();
   const { t: shell } = useShellText();
-  const videoRef = useAutoplayOnView<HTMLVideoElement>();
+  // On a slow connection or with Data saver on, a feed video waits for a tap
+  // (play button below) and downloads nothing before it — its poster frame
+  // is all that loads while scrolling past.
+  const lowData = useNetworkQuality() === "slow";
+  const videoRef = useAutoplayOnView<HTMLVideoElement>({ autoplay: !lowData });
   // Computed unconditionally (not inside the {mediaType === "EMBED" && ...}
   // JSX branch below) because hooks can't be called conditionally — an
   // empty string when there's no embed just makes useStopEmbedOnScrollOut
@@ -664,6 +670,7 @@ function MediaBlock({
                       : "aspect-square object-cover",
                   )}
                   loading="lazy"
+                  decoding="async"
                   ref={markImageLoadedIfComplete}
                   onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
                 />
@@ -681,6 +688,7 @@ function MediaBlock({
             alt={post.content || format(t.post.gifBy, { name: post.author.name ?? t.post.someone })}
             className="max-h-96 w-full rounded-lg object-cover"
             loading="lazy"
+            decoding="async"
           />
         </button>
       )}
@@ -692,7 +700,7 @@ function MediaBlock({
             muted={muted}
             loop
             playsInline
-            preload="metadata"
+            preload={lowData ? "none" : "metadata"}
             poster={post.videoThumbnailUrl ?? undefined}
             aria-label={format(t.post.videoBy, { name: post.author.name ?? t.post.someone })}
             onPlay={() => setPlaying(true)}
@@ -772,6 +780,10 @@ function MediaBlock({
             // page — the active call's own Daily Prebuilt iframe in
             // particular must never be selected by that guard.
             data-video-embed-pause="true"
+            // A provider's player is a page of its own (scripts, a poster,
+            // often the first seconds of video): don't fetch it for a card
+            // the virtualizer's overscan renders below the fold.
+            loading="lazy"
             scrolling="no"
             className="h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

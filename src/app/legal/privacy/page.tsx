@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 24, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 26, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -283,6 +283,19 @@ export default function PrivacyPage() {
         cookies on YuKon3t. If you complete a paid ad booking, Stripe&apos;s
         hosted checkout page (on stripe.com, outside YuKon3t) may set its own
         cookies under Stripe&apos;s own privacy policy.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        The app also keeps some device-only preferences in your
+        browser&apos;s local storage, such as your Data saver setting, which
+        is saved on that device only. To load faster on slow connections, the
+        app saves a copy of YuKon3t&apos;s own app files (code, fonts and
+        icons) and a &ldquo;You&apos;re offline&rdquo; page on your device;
+        that copy never includes your messages, posts, photos, profile
+        pictures or other personal content. To decide whether to use less
+        data, the app reads the connection information your browser provides
+        (such as whether your device&apos;s data saver is on) and how long
+        its own recent requests took; this is worked out on your device and
+        is not sent to us.
       </p>
 
       <h2 className="mt-8 font-semibold">11. Data security</h2>

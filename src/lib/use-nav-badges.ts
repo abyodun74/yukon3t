@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { fetchWithRetryClient } from "@/lib/network-quality-client";
 
 export type NavBadgeCounts = {
   unreadMessages: number;
@@ -36,7 +37,9 @@ export function useNavBadges(userId: string | null | undefined): NavBadgeCounts 
 
   const refetch = useCallback(async () => {
     try {
-      const res = await fetch("/api/badge-counts");
+      // One retry on a dropped request: a badge left stale until the next
+      // signal is exactly what a weak connection would otherwise cause.
+      const res = await fetchWithRetryClient("/api/badge-counts", {}, { attempts: 2, silent: true });
       if (!res.ok) return;
       const data = (await res.json()) as Partial<NavBadgeCounts>;
       setCounts({

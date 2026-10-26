@@ -246,6 +246,34 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "slow-connection-data-saver",
+        q: "Does YuKon3t work on a slow or patchy connection?",
+        a: (
+          <>
+            Yes. When your connection is slow (3G, weak 4G or 5G, busy
+            Wi-Fi) or your phone&apos;s own data saver is on, YuKon3t
+            adapts on its own: feed videos wait for you to tap play instead
+            of starting as you scroll, Muse only loads the video you&apos;re
+            watching, the feed loads fewer posts at a time, and the session
+            isn&apos;t recorded for analytics. You can also choose it
+            yourself in Settings → <strong>Data saver</strong>: Automatic
+            (the default), On, or Off. The setting is saved on that device
+            only.
+            <br />
+            <br />
+            If something doesn&apos;t load, YuKon3t tries again on its own
+            and shows a small &ldquo;Slow connection — retrying…&rdquo; note
+            while it does. When you&apos;re offline you&apos;ll see a
+            banner, and whatever didn&apos;t load picks up again once
+            you&apos;re back online. Some things are outside YuKon3t&apos;s
+            control and can still be slow: your carrier&apos;s signal,
+            videos embedded from other sites, and call quality on a very
+            weak connection (calls adjust their own video quality to the
+            connection).
+          </>
+        ),
+      },
     ],
   },
   {
