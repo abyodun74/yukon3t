@@ -162,10 +162,12 @@ export const feedEn = {
     codeLabel: "6-digit code",
     confirm: "Confirm and post",
     confirming: "Confirming...",
+    heldForReview: "Your post is saved and waiting for a review by our team before others can see it. No need to upload it again.",
     errors: {
       not_configured: "Media uploads aren't set up yet — you can still post text.",
       too_large: "That file is too large.",
       moderation: "That media didn't pass our content guidelines and wasn't posted.",
+      upload_check_failed: "We couldn't confirm your upload because of a problem on our side. Nothing is wrong with your post — please try again in a moment.",
       not_a_member: "Join this Circle first.",
       rate_limited: "You're posting too fast — slow down a little.",
       invalid: "That link isn't valid — check it starts with http:// or https://.",

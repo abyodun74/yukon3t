@@ -21,8 +21,10 @@ export type OptimisticPost = {
   authorName: string;
   authorAvatarUrl: string | null;
   createdAt: Date;
-  status: "sending" | "error";
+  /** "held": the post was stored but is hidden until an admin reviews it (createPost's `held`); not a failure. */
+  status: "sending" | "error" | "held";
   errorMessage?: string;
+  noticeMessage?: string;
 };
 
 // Same plain-module-state-plus-listeners shape as share-target-store.ts —
@@ -52,6 +54,12 @@ export function removeOptimisticPost(localId: string) {
 
 export function markOptimisticPostError(localId: string, message: string) {
   posts = posts.map((p) => (p.localId === localId ? { ...p, status: "error", errorMessage: message } : p));
+  emit();
+}
+
+/** The post exists but the automated screen held it for review: shown as a calm notice, not a failure. */
+export function markOptimisticPostHeld(localId: string, message: string) {
+  posts = posts.map((p) => (p.localId === localId ? { ...p, status: "held", noticeMessage: message } : p));
   emit();
 }
 

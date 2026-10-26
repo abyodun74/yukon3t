@@ -87,8 +87,8 @@ export const fr1 = {
     a: "MP4, WebM et QuickTime (.mov, ce qu'enregistre un iPhone), jusqu'à 2 Go. Un fichier .mov est réencodé en arrière-plan en MP4 standard afin d'être lisible dans tous les navigateurs, et pas seulement dans Safari. Cela prend généralement quelques minutes et, en attendant, l'original est lu pour toute personne dont le navigateur le prend en charge. Si une vidéo ne peut pas être convertie, l'original reste tel quel.",
   },
   "was-photo-video-rejected": {
-    q: "Pourquoi ma photo ou ma vidéo a-t-elle été refusée ?",
-    a: "Chaque fichier importé est contrôlé automatiquement avant d'être visible par qui que ce soit d'autre. Les contenus qui enfreignent nos [Règles de la communauté](/legal/guidelines) (le plus souvent des contenus sexuellement explicites) sont refusés et ne sont jamais publiés.",
+    q: "Pourquoi ma photo ou ma vidéo a-t-elle été refusée ou mise en attente de vérification ?",
+    a: "Chaque fichier importé est contrôlé automatiquement avant d'être visible par qui que ce soit d'autre, et les contenus qui enfreignent nos [Règles de la communauté](/legal/guidelines) (le plus souvent des contenus sexuellement explicites) ne sont jamais publiés. Lorsque le contrôle signale une publication avec photo ou vidéo, elle est enregistrée mais masquée pour tout le monde sauf vous, et nos modérateurs l'examinent : ils la publient telle que vous l'avez publiée ou la suppriment. Une note vous indique qu'elle attend une vérification, et vous n'avez pas besoin de l'importer à nouveau. Une publication retenue que personne n'a examinée sous 14 jours est supprimée, avec ses photos ou sa vidéo. Les fichiers relevant des catégories les plus graves (comme les contenus sexuels impliquant des mineurs) sont refusés et supprimés immédiatement, sans jamais être conservés pour examen. Si un import échoue à cause d'un problème de notre côté, l'application l'indique et il suffit de réessayer.",
   },
   "delete-post-report-someone-elses": {
     q: "Comment supprimer une publication ou signaler celle de quelqu'un d'autre ?",

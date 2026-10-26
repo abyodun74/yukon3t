@@ -324,7 +324,22 @@ export function keyBelongsToOwner(key: string, ownerId: string) {
  * one place ownership of a client-supplied key is enforced before any R2
  * call is made for it.
  */
-export async function verifyUploadedSize({
+export async function verifyUploadedSize(input: { key: string; maxBytes: number; ownerId: string }) {
+  return (await checkUploadedSize(input)) === "ok";
+}
+
+/**
+ * verifyUploadedSize's answer with the reason kept, for a caller that must not tell someone their file was too large
+ * (or broke a rule) when the real cause was on our side:
+ *  - "ok": present, non-empty, within the limit.
+ *  - "too_large": over the limit, or empty. Deleted, as verifyUploadedSize always did.
+ *  - "not_owner": the key isn't the caller's. No R2 call was made.
+ *  - "missing": R2 has no such object (the upload never finished, or it was already cleaned up).
+ *  - "unavailable": R2 couldn't be asked (outage, timeout, credentials). Nothing was deleted: the file may be fine.
+ */
+export type UploadedSizeCheck = "ok" | "too_large" | "not_owner" | "missing" | "unavailable";
+
+export async function checkUploadedSize({
   key,
   maxBytes,
   ownerId,
@@ -332,9 +347,9 @@ export async function verifyUploadedSize({
   key: string;
   maxBytes: number;
   ownerId: string;
-}) {
+}): Promise<UploadedSizeCheck> {
   if (!keyBelongsToOwner(key, ownerId)) {
-    return false;
+    return "not_owner";
   }
 
   const bucket = process.env.R2_BUCKET_NAME!;
@@ -348,16 +363,26 @@ export async function verifyUploadedSize({
       await c.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
         console.error(`[storage] failed to delete oversized object ${key}`, err);
       });
-      return false;
+      return "too_large";
     }
-    return true;
+    return "ok";
   } catch (err) {
     // A transient R2 outage here shouldn't turn into a 500 on an otherwise
-    // normal upload confirmation — fail closed (treat as unverifiable, same
-    // as "too large") rather than letting the exception propagate.
+    // normal upload confirmation — fail closed (the upload is not accepted)
+    // rather than letting the exception propagate.
+    const status = (err as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata?.httpStatusCode;
+    if (status === 404 || (err as { name?: string } | null)?.name === "NotFound") {
+      return "missing";
+    }
     console.error(`[storage] failed to verify uploaded size for ${key}`, err);
-    return false;
+    return "unavailable";
   }
+}
+
+/** The worst of several checks of one submission's files: a size problem outranks a missing file, which outranks an R2 failure. */
+export function worstUploadedSizeCheck(checks: UploadedSizeCheck[]): UploadedSizeCheck {
+  const order: UploadedSizeCheck[] = ["too_large", "not_owner", "missing", "unavailable"];
+  return order.find((outcome) => checks.includes(outcome)) ?? "ok";
 }
 
 /**

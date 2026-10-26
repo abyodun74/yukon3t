@@ -36,13 +36,15 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
                   {t.post.posting}
                 </span>
+              ) : post.status === "held" ? (
+                <span role="status">{post.noticeMessage}</span>
               ) : (
                 <span role="alert" className="text-danger">{post.errorMessage ?? t.post.postFailed}</span>
               )}
             </p>
           </div>
         </div>
-        {post.status === "error" && (
+        {post.status !== "sending" && (
           <button
             type="button"
             onClick={() => removeOptimisticPost(post.localId)}

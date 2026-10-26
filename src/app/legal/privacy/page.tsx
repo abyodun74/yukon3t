@@ -176,7 +176,15 @@ export default function PrivacyPage() {
         Moderation records (reports and audit log entries) tied to
         enforcement actions may be retained separately for a limited period
         to maintain platform safety and legal compliance, even after an
-        associated account is deleted. Ad campaign records, including
+        associated account is deleted. A photo or video post that our
+        automated screening flags when you post it is kept, hidden from
+        everyone except you and our moderators, until a moderator publishes
+        or removes it; if nobody has reviewed it within 14 days, it is
+        deleted together with its media. Uploads in the most serious
+        categories (such as sexual content involving minors) are deleted
+        straight away and not kept for review; a record that the upload was
+        rejected, when, and the screening categories involved is kept with
+        our moderation records. Ad campaign records, including
         advertiser contact details and creative, are retained after a
         campaign ends for our accounting and audit purposes. Recordings of
         Collab live sessions are retained by Daily.co until the host or an

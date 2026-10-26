@@ -130,6 +130,7 @@ export const shell: typeof shellEn = {
       "one: Un élément n'a pas pu être inclus (trop volumineux ou type de photo ou de vidéo non pris en charge). | other: # éléments n'ont pas pu être inclus (trop volumineux ou type de photo ou de vidéo non pris en charge).",
     posting: "Publication…",
     posted: "Publié !",
+    postHeld: "Votre publication est enregistrée et attend une vérification par notre équipe avant d'être visible par les autres. Inutile de l'importer à nouveau.",
     toStory: "Ajouter à votre story",
     toMuse: "Publier sur Muse",
     toFeed: "Publier dans le fil",
@@ -147,6 +148,7 @@ export const shell: typeof shellEn = {
     },
     postErrors: {
       moderation: "Ce contenu ne respecte pas nos règles de contenu et n'a pas été publié.",
+      upload_check_failed: "Nous n'avons pas pu confirmer votre fichier à cause d'un problème de notre côté. Votre publication n'a rien d'anormal : réessayez dans un instant.",
       too_large: "Ce fichier est trop volumineux.",
       rate_limited: "Vous publiez trop vite. Ralentissez un peu.",
       send_failed: "Impossible d'envoyer dans cette discussion.",

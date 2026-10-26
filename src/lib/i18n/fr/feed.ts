@@ -159,10 +159,12 @@ export const feed: typeof feedEn = {
     codeLabel: "Code à 6 chiffres",
     confirm: "Confirmer et publier",
     confirming: "Confirmation...",
+    heldForReview: "Votre publication est enregistrée et attend une vérification par notre équipe avant d'être visible par les autres. Inutile de l'importer à nouveau.",
     errors: {
       not_configured: "L'envoi de médias n'est pas encore disponible. Vous pouvez toujours publier du texte.",
       too_large: "Ce fichier est trop volumineux.",
       moderation: "Ce média ne respecte pas nos règles de contenu et n'a pas été publié.",
+      upload_check_failed: "Nous n'avons pas pu confirmer votre fichier à cause d'un problème de notre côté. Votre publication n'a rien d'anormal : réessayez dans un instant.",
       not_a_member: "Rejoignez d'abord ce Circle.",
       rate_limited: "Vous publiez trop vite. Ralentissez un peu.",
       invalid: "Ce lien n'est pas valide. Vérifiez qu'il commence par http:// ou https://.",

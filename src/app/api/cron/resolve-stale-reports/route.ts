@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { UNRESOLVED_REPORT_CLEAR_AFTER_MS } from "@/lib/report-queue";
 import { isCronAuthorized } from "@/lib/cron-auth";
+import { sweepExpiredMediaHolds } from "@/lib/media-moderation-hold-sweep";
 
 /**
  * Triggered on a schedule (Netlify Scheduled Function), not by a user
@@ -16,6 +17,11 @@ import { isCronAuthorized } from "@/lib/cron-auth";
  * only clears queue noise. Each dismissal still writes an AuditLog entry
  * when a reportedUser is on record, same as a human dismissal via
  * resolveReport in actions/reports.ts, so it stays explainable/appealable.
+ *
+ * Also expires photo/video posts held by the automated screen at posting
+ * that no admin reviewed within MEDIA_HOLD_REVIEW_WINDOW_MS (14 days):
+ * those are deleted with their media (sweepExpiredMediaHolds), because the
+ * retention promise is that held uploads aren't kept indefinitely.
  */
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -56,5 +62,10 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ error: null, dismissedCount: staleReports.length });
+  // Same hourly queue hygiene for photo/video posts the automated screen held
+  // at posting and no admin reviewed in time (src/lib/media-moderation-hold.ts):
+  // deleted with their media, so a held upload isn't kept indefinitely.
+  const { expired: expiredMediaHolds } = await sweepExpiredMediaHolds();
+
+  return NextResponse.json({ error: null, dismissedCount: staleReports.length, expiredMediaHolds });
 }

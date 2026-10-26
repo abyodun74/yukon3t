@@ -393,16 +393,25 @@ const sections: Section[] = [
       },
       {
         id: "was-photo-video-rejected",
-        q: "Why was my photo or video rejected?",
+        q: "Why was my photo or video rejected, or held for review?",
         a: (
           <>
             Every upload is screened automatically before it&apos;s visible
-            to anyone else. Content that violates our{" "}
+            to anyone else, and content that violates our{" "}
             <a href="/legal/guidelines" className="text-accent hover:underline">
               Community Guidelines
             </a>{" "}
-            (most commonly sexually explicit material) is rejected and never
-            published.
+            (most commonly sexually explicit material) is never published.
+            When the screen flags a photo or video post, the post is saved
+            but hidden from everyone except you, and our moderators review
+            it: they either publish it as you posted it or remove it. You
+            see a note that it&apos;s waiting for review, and you don&apos;t
+            need to upload it again. A held post nobody has reviewed within
+            14 days is deleted, together with its photos or video. Uploads
+            in the most serious categories (such as sexual content involving
+            minors) are rejected and deleted straight away and never kept
+            for review. If an upload fails because of a problem on our side,
+            the app says so, and you can simply try again.
           </>
         ),
       },

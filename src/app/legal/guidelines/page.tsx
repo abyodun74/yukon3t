@@ -27,7 +27,7 @@ export default function GuidelinesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Community Guidelines</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: September 13, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 26, 2026</p>
       <p className="mt-4 text-foreground-soft">
         YuKon3t exists to connect people honestly across borders, cultures,
         and interests. These rules are enforced consistently, and every
@@ -109,6 +109,13 @@ export default function GuidelinesPage() {
         is recorded in your account history. A suspension is temporary; a
         ban is permanent. You can appeal by replying to the notification
         email — moderation decisions are never sealed from you.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        Photos and videos are also screened automatically when you post them.
+        A post the screen flags isn&apos;t published straight away: it stays
+        hidden, visible only to you, until a moderator reviews it and either
+        publishes it or removes it. A problem on our side while checking an
+        upload is never treated as a rule violation.
       </p>
     </div>
   );

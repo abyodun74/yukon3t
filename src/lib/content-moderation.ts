@@ -31,10 +31,23 @@ export async function removeModeratedContent(
       const post = await tx.post.findUnique({ where: { id: targetId } });
       if (!post) return null;
 
+      // A multi-photo post is one Post row per photo (albumId); removing it
+      // removes every photo, as deletePost does — otherwise the rest of a
+      // held album would stay behind, hidden, with nobody able to reach it.
+      const siblings = post.albumId
+        ? await tx.post.findMany({
+            where: { albumId: post.albumId, id: { not: targetId } },
+            select: { id: true, mediaUrls: true },
+          })
+        : [];
+      if (siblings.length > 0) {
+        await tx.post.deleteMany({ where: { id: { in: siblings.map((s) => s.id) } } });
+      }
       await tx.post.delete({ where: { id: targetId } });
 
       const mediaUrls = [
         ...post.mediaUrls,
+        ...siblings.flatMap((s) => s.mediaUrls),
         ...(post.videoUrl ? [post.videoUrl] : []),
         ...(post.videoThumbnailUrl ? [post.videoThumbnailUrl] : []),
       ];

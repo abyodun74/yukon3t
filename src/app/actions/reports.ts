@@ -206,7 +206,10 @@ export async function approveFlaggedContent(formData: FormData) {
 
   if (contentType === "POST") {
     reviewCopyUid = await prisma.$transaction(async (tx) => {
-      const before = await tx.post.findUnique({ where: { id: contentId }, select: { videoStreamUid: true } });
+      const before = await tx.post.findUnique({
+        where: { id: contentId },
+        select: { videoStreamUid: true, albumId: true },
+      });
       await tx.post.update({
         where: { id: contentId },
         data: {
@@ -216,6 +219,14 @@ export async function approveFlaggedContent(formData: FormData) {
           videoStreamUid: null,
         },
       });
+      // A held multi-photo post is one hidden row per photo (createPost holds
+      // them together): publishing the album's lead publishes all of them.
+      if (before?.albumId) {
+        await tx.post.updateMany({
+          where: { albumId: before.albumId, moderationStatus: "FLAGGED" },
+          data: { moderationStatus: "PUBLISHED" },
+        });
+      }
       await tx.post.updateMany({
         where: { id: contentId, videoUrl: { not: null } },
         data: { videoModeratedAt: new Date() },

@@ -13,7 +13,12 @@ import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { consumePendingShareMedia, subscribePendingShareMedia } from "@/lib/share-target-store";
-import { addOptimisticPost, removeOptimisticPost, markOptimisticPostError } from "@/lib/optimistic-posts-store";
+import {
+  addOptimisticPost,
+  removeOptimisticPost,
+  markOptimisticPostError,
+  markOptimisticPostHeld,
+} from "@/lib/optimistic-posts-store";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
@@ -159,6 +164,8 @@ export function PostComposer({
   const [pendingGif, setPendingGif] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "error" | "uploading">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+  // A neutral note after a successful submit: the automated screen held the post for a review (createPost `held`).
+  const [noticeText, setNoticeText] = useState<string | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const [isEvent, setIsEvent] = useState(false);
   const [eventAt, setEventAt] = useState("");
@@ -699,8 +706,17 @@ export function PostComposer({
         setErrorText(message);
       }
     } else {
-      if (optimisticId) removeOptimisticPost(optimisticId);
-      announce(t.composer.posted);
+      // Stored, but hidden until an admin looks at it: say so instead of a silent "posted" (or, as before this,
+      // a refusal), so the person knows it isn't lost and doesn't need re-uploading.
+      const held = "held" in result && result.held;
+      if (held) {
+        if (optimisticId) markOptimisticPostHeld(optimisticId, t.composer.heldForReview);
+        else setNoticeText(t.composer.heldForReview);
+        announce(t.composer.heldForReview);
+      } else {
+        if (optimisticId) removeOptimisticPost(optimisticId);
+        announce(t.composer.posted);
+      }
       setStatus("idle");
       setImages([]);
       setUrlImages([]);
@@ -872,6 +888,7 @@ export function PostComposer({
           setStatus("uploading");
           setErrorText(null);
         }
+        setNoticeText(null);
 
         startTransition(async () => {
           try {
@@ -1433,6 +1450,12 @@ export function PostComposer({
           }}
           onDone={() => setShowDictation(false)}
         />
+      )}
+
+      {noticeText && status !== "error" && (
+        <p role="status" className="mt-1 text-xs text-foreground-soft">
+          {noticeText}
+        </p>
       )}
 
       {status === "error" && errorText && (

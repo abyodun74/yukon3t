@@ -1,6 +1,6 @@
 import { captureError } from "@/lib/error-tracking";
 
-type ModerationResult = {
+export type ModerationResult = {
   allowed: boolean;
   flaggedCategories: string[];
   // Set when the check itself didn't run. "rejected": OpenAI refused this
@@ -111,8 +111,15 @@ export async function moderateImage(url: string): Promise<ModerationResult> {
   return callModerationApi([{ type: "image_url", image_url: { url } }]);
 }
 
-/** Combines a post's text with any attached images/thumbnail into one verdict. */
-export async function moderateMedia({
+/** One labelled check out of moderateMediaChecks: which part of the upload it was ("caption", "photo 2", "video frame"). */
+export type MediaModerationCheck = { source: string; result: ModerationResult };
+
+/**
+ * The caption and each attached image/video frame checked separately, each result labelled with what it was. Lets a
+ * caller tell a flagged caption from a flagged picture and tell an API failure apart from a verdict
+ * (decideMediaModeration in src/lib/media-moderation-hold.ts) instead of collapsing everything into one boolean.
+ */
+export async function moderateMediaChecks({
   text,
   imageUrls = [],
   thumbnailUrl,
@@ -120,12 +127,26 @@ export async function moderateMedia({
   text: string;
   imageUrls?: string[];
   thumbnailUrl?: string | null;
+}): Promise<MediaModerationCheck[]> {
+  const labelled: Array<{ source: string; run: () => Promise<ModerationResult> }> = [
+    { source: "caption", run: () => moderateText(text) },
+    ...imageUrls.map((url, i) => ({
+      source: imageUrls.length > 1 ? `photo ${i + 1}` : "photo",
+      run: () => moderateImage(url),
+    })),
+    ...(thumbnailUrl ? [{ source: "video frame", run: () => moderateImage(thumbnailUrl) }] : []),
+  ];
+  const results = await Promise.all(labelled.map((check) => check.run()));
+  return labelled.map((check, i) => ({ source: check.source, result: results[i] }));
+}
+
+/** Combines a post's text with any attached images/thumbnail into one verdict. */
+export async function moderateMedia(input: {
+  text: string;
+  imageUrls?: string[];
+  thumbnailUrl?: string | null;
 }): Promise<ModerationResult> {
-  const urls = [...imageUrls, ...(thumbnailUrl ? [thumbnailUrl] : [])];
-  const results = await Promise.all([
-    moderateText(text),
-    ...urls.map((url) => moderateImage(url)),
-  ]);
+  const results = (await moderateMediaChecks(input)).map((check) => check.result);
 
   const flaggedCategories = results.flatMap((r) => r.flaggedCategories);
   return {

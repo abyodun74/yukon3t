@@ -87,8 +87,8 @@ export const es1 = {
     a: "MP4, WebM y QuickTime (.mov, lo que graba un iPhone), de hasta 2 GB. Un .mov se vuelve a codificar en segundo plano como un MP4 estándar para que se reproduzca en todos los navegadores, no solo en Safari. Suele tardar unos minutos y, hasta que termina, el original se reproduce para quienes usen un navegador compatible. Si un video no se puede convertir, el original se queda como está.",
   },
   "was-photo-video-rejected": {
-    q: "¿Por qué rechazaron mi foto o mi video?",
-    a: "Todo lo que se sube pasa por una revisión automática antes de que lo vea nadie más. El contenido que incumple nuestras [Normas de la comunidad](/legal/guidelines) (lo más habitual es el material sexualmente explícito) se rechaza y nunca se publica.",
+    q: "¿Por qué rechazaron mi foto o mi video, o por qué está en revisión?",
+    a: "Todo lo que se sube pasa por una revisión automática antes de que lo vea nadie más, y el contenido que incumple nuestras [Normas de la comunidad](/legal/guidelines) (lo más habitual es el material sexualmente explícito) nunca se publica. Cuando la revisión marca una publicación con foto o video, la publicación se guarda pero queda oculta para todos menos para ti, y nuestros moderadores la revisan: la publican tal como la publicaste o la eliminan. Verás un aviso de que está pendiente de revisión y no hace falta que la vuelvas a subir. Una publicación retenida que nadie haya revisado en 14 días se elimina junto con sus fotos o su video. Lo que entra en las categorías más graves (como el contenido sexual que involucra a menores) se rechaza y se elimina de inmediato, y nunca se guarda para revisión. Si una subida falla por un problema de nuestra parte, la aplicación lo indica y basta con volver a intentarlo.",
   },
   "delete-post-report-someone-elses": {
     q: "¿Cómo elimino una publicación o reporto la de otra persona?",

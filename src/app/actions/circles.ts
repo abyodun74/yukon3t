@@ -16,7 +16,14 @@ import {
 } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText, moderateMedia, moderateImage } from "@/lib/moderation";
+import { moderateText, moderateMediaChecks, moderateImage } from "@/lib/moderation";
+import {
+  decideMediaModeration,
+  mediaHoldAuditReason,
+  mediaRejectAuditReason,
+  MEDIA_HOLD_PERFORMED_BY,
+  MEDIA_REJECT_PERFORMED_BY,
+} from "@/lib/media-moderation-hold";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { isGiphyUrl } from "@/lib/giphy";
 import {
@@ -24,6 +31,9 @@ import {
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
   VIDEO_INSTANT_PUBLISH_MAX_SECONDS,
   verifyUploadedSize,
+  checkUploadedSize,
+  worstUploadedSizeCheck,
+  type UploadedSizeCheck,
   deleteObject,
   deleteOwnedObject,
   keyFromPublicUrl,
@@ -1113,40 +1123,39 @@ export async function createPost(formData: FormData) {
     );
   }
 
+  // Size/ownership of every uploaded file. Only a real size problem is
+  // reported as "too_large": R2 being unreachable, or the object not being
+  // there (an upload that never finished), used to be answered "That file is
+  // too large" and deleted the upload, for a file that was fine. Those now get
+  // "upload_check_failed" (a try-again message) and nothing is deleted (an
+  // upload no post ever references is removed by sweep-abandoned-uploads).
+  async function checkOne(url: string | undefined, maxBytes: number): Promise<UploadedSizeCheck> {
+    const key = url ? keyFromPublicUrl(url) : null;
+    return key ? checkUploadedSize({ key, maxBytes, ownerId: user.id }) : "not_owner";
+  }
+  let sizeChecks: UploadedSizeCheck[] = [];
   if (mediaType === "IMAGE") {
     // Each HEAD check hits R2 independently — running them in sequence was
     // adding one round trip per image to every multi-image post.
-    const checks = await Promise.all(
-      mediaUrls.map(async (url) => {
-        const key = keyFromPublicUrl(url);
-        return key && (await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS["post-image"], ownerId: user.id }));
-      }),
-    );
-    if (checks.some((ok) => !ok)) {
-      await cleanupUploads();
-      return { error: "too_large" };
-    }
-  }
-
-  if (mediaType === "VIDEO") {
+    sizeChecks = await Promise.all(mediaUrls.map((url) => checkOne(url, MEDIA_LIMITS["post-image"])));
+  } else if (mediaType === "VIDEO") {
     // The video and its thumbnail are unrelated objects — verifying them
     // one after the other was the single biggest source of "posting a video
     // feels slow" on the server side, adding a whole extra round trip.
-    const [videoOk, thumbOk] = await Promise.all([
-      (async () => {
-        const videoKey = videoUrl ? keyFromPublicUrl(videoUrl) : null;
-        return videoKey && (await verifyUploadedSize({ key: videoKey, maxBytes: MEDIA_LIMITS["post-video"], ownerId: user.id }));
-      })(),
-      (async () => {
-        if (!videoThumbnailUrl) return true;
-        const thumbKey = keyFromPublicUrl(videoThumbnailUrl);
-        return thumbKey && (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"], ownerId: user.id }));
-      })(),
+    sizeChecks = await Promise.all([
+      checkOne(videoUrl, MEDIA_LIMITS["post-video"]),
+      videoThumbnailUrl ? checkOne(videoThumbnailUrl, MEDIA_LIMITS["video-thumb"]) : Promise.resolve("ok" as const),
     ]);
-    if (!videoOk || !thumbOk) {
-      await cleanupUploads();
-      return { error: "too_large" };
-    }
+  }
+  const sizeOutcome = worstUploadedSizeCheck(sizeChecks);
+  if (sizeOutcome === "too_large" || sizeOutcome === "not_owner") {
+    await cleanupUploads();
+    // not_owner: a URL that isn't this person's own upload (a hand-made request); the generic "couldn't post".
+    return { error: sizeOutcome === "too_large" ? "too_large" : "other" };
+  }
+  if (sizeOutcome === "missing" || sizeOutcome === "unavailable") {
+    console.error(`[createPost] upload check ${sizeOutcome} for ${mediaType} post by ${user.id}`);
+    return { error: "upload_check_failed" };
   }
 
   if (mediaType === "GIF") {
@@ -1189,6 +1198,10 @@ export async function createPost(formData: FormData) {
   const embedTitlePromise = mediaType === "EMBED" && embed ? fetchEmbedTitle(embed) : Promise.resolve(null);
 
   let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
+  // Set when the automated screen held this photo/video post for an admin
+  // (src/lib/media-moderation-hold.ts): the reasons go into the audit row the
+  // admin queue reads.
+  let mediaHoldReasons: string[] | null = null;
 
   if (mediaType === "NONE" || mediaType === "EMBED" || mediaType === "LINK" || mediaType === "GIF") {
     // Pure text (and embeds/links, which carry no media file of ours to
@@ -1200,17 +1213,41 @@ export async function createPost(formData: FormData) {
     const modResult = await moderateText(parsed.data.content);
     moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   } else {
-    // Media is held to the strict no-sexual-content policy: any violation
-    // rejects the post outright and the uploaded files are deleted, rather
-    // than being stored in a hidden, pending state.
-    const modResult = await moderateMedia({
-      text: parsed.data.content,
-      imageUrls: mediaType === "IMAGE" ? mediaUrls : [],
-      thumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
-    });
-    if (!modResult.allowed) {
+    // Photos and videos: the caption, each photo and the video's still frame
+    // are checked separately (decideMediaModeration). Nothing flagged goes
+    // public either way, but only a must-delete category (sexual content
+    // involving minors) is still rejected and deleted on the spot. Anything
+    // else flagged — which used to be rejected and deleted the same way,
+    // leaving an admin nothing to review and the poster no recourse when the
+    // screen was wrong — is stored hidden and goes to /admin/moderation's
+    // flagged queue. An API failure is not a flag (fails open, as before).
+    const decision = decideMediaModeration(
+      await moderateMediaChecks({
+        text: parsed.data.content,
+        imageUrls: mediaType === "IMAGE" ? mediaUrls : [],
+        thumbnailUrl: mediaType === "VIDEO" ? videoThumbnailUrl : undefined,
+      }),
+    );
+    if (decision.kind === "reject") {
       await cleanupUploads();
-      return { error: "moderation", categories: modResult.flaggedCategories };
+      // The record of it, without the media (nothing of it is kept): the
+      // admin page lists these under "Rejected automatically".
+      await prisma.auditLog.create({
+        data: {
+          targetId: user.id,
+          action: "CONTENT_REMOVED",
+          performedBy: MEDIA_REJECT_PERFORMED_BY,
+          reason: mediaRejectAuditReason(mediaType, decision.reasons),
+        },
+      });
+      console.warn(`[createPost] ${mediaType} post by ${user.id} rejected: ${decision.reasons.join("; ")}`);
+      revalidatePath("/admin/moderation");
+      return { error: "moderation" };
+    }
+    if (decision.kind === "hold") {
+      moderationStatus = "FLAGGED";
+      mediaHoldReasons = decision.reasons;
+      console.warn(`[createPost] ${mediaType} post by ${user.id} held for review: ${decision.reasons.join("; ")}`);
     }
     if (videoNeedsHold) {
       moderationStatus = "FLAGGED";
@@ -1228,8 +1265,11 @@ export async function createPost(formData: FormData) {
   // (video-review.ts) creates its own copy on the cron's first pass if this
   // one never lands — so a failure here just falls back to the old timing,
   // never blocks or fails the post itself.
+  // A post the screen held (mediaHoldReasons) waits for an admin instead: the
+  // long-video review's "clean" verdict would publish it on its own.
+  const runLongReview = videoNeedsLongReview && !mediaHoldReasons;
   const streamUidPromise =
-    videoNeedsLongReview && videoUrl && isStreamConfigured() ? createStreamCopy(videoUrl) : Promise.resolve(null);
+    runLongReview && videoUrl && isStreamConfigured() ? createStreamCopy(videoUrl) : Promise.resolve(null);
 
   // Feed section is auto-assigned from the post's own content instead of
   // the manual picker post-composer.tsx used to show — classifyPostCategory
@@ -1271,13 +1311,15 @@ export async function createPost(formData: FormData) {
     // `mediaType VIDEO, videoModeratedAt IS NULL` scan from picking them
     // up and wasting/failing a Hive call on something it was never going
     // to handle.
-    videoModeratedAt: videoNeedsLongReview ? new Date() : undefined,
+    // A held post (mediaHoldReasons) is stamped too: an admin decides it,
+    // and approveFlaggedContent re-stamps this anyway.
+    videoModeratedAt: videoNeedsLongReview || (mediaType === "VIDEO" && mediaHoldReasons) ? new Date() : undefined,
     videoStreamUid: streamUid ?? undefined,
     // Independent of moderationStatus (see schema.prisma) — true for both
     // the FLAGGED-hold tier and the new instant-publish-but-still-review
     // tier, so moderate-long-videos picks either up regardless of whether
     // this post is already visible.
-    videoLongReviewNeeded: videoNeedsLongReview,
+    videoLongReviewNeeded: runLongReview,
   };
 
   let post;
@@ -1371,6 +1413,29 @@ export async function createPost(formData: FormData) {
   revalidatePath("/circles", "layout");
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
+
+  if (mediaHoldReasons) {
+    // What /admin/moderation shows next to the held post (reasons, when it
+    // was held, when it expires) and what the expiry sweep keys on. Written
+    // after the post exists so it can name it; a failure here must not turn
+    // a stored post into an error (the composer would offer a retry that the
+    // clientRequestId would answer with success anyway), so it is logged.
+    try {
+      await prisma.auditLog.create({
+        data: {
+          targetId: user.id,
+          action: "CONTENT_FLAGGED_FOR_REVIEW",
+          performedBy: MEDIA_HOLD_PERFORMED_BY,
+          reason: mediaHoldAuditReason(post.id, mediaType, mediaHoldReasons),
+        },
+      });
+    } catch (err) {
+      console.error(`[createPost] couldn't record the review hold for post ${post.id}`, err);
+    }
+    revalidatePath("/admin/moderation");
+    // Not an error: the post exists, hidden, and an admin will look at it.
+    return { error: null, held: true as const };
+  }
   return { error: null };
 }
 

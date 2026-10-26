@@ -129,6 +129,7 @@ export const shell: typeof shellEn = {
       "one: No se pudo incluir un elemento (es demasiado grande o no es un tipo de foto o video compatible). | other: No se pudieron incluir # elementos (son demasiado grandes o no son un tipo de foto o video compatible).",
     posting: "Publicando…",
     posted: "¡Publicado!",
+    postHeld: "Tu publicación se guardó y está pendiente de revisión por nuestro equipo antes de que otros puedan verla. No hace falta que la vuelvas a subir.",
     toStory: "Agregar a tu historia",
     toMuse: "Publicar en Muse",
     toFeed: "Publicar en el feed",
@@ -146,6 +147,7 @@ export const shell: typeof shellEn = {
     },
     postErrors: {
       moderation: "Eso no cumple nuestras normas de contenido y no se publicó.",
+      upload_check_failed: "No pudimos confirmar tu archivo por un problema de nuestra parte. Tu publicación no tiene nada mal; vuelve a intentarlo en un momento.",
       too_large: "Ese archivo es demasiado grande.",
       rate_limited: "Estás publicando muy rápido. Ve un poco más despacio.",
       send_failed: "No se pudo enviar a esa conversación.",

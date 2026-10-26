@@ -15,6 +15,17 @@ import { AdminResendVerificationButton } from "@/components/admin-resend-verific
 import { AdminDeletePostButton } from "@/components/admin-delete-post-button";
 import { AdminDeleteConversationButton } from "@/components/admin-delete-conversation-button";
 import { STUCK_UNVERIFIED_AFTER_MS, RESOLVED_LOGIN_ISSUE_VISIBLE_MS } from "@/lib/login-issues";
+import { LEAD_POST_ONLY } from "@/lib/post-visibility";
+import { violationLabelsFromReasons } from "@/lib/moderation-labels";
+import {
+  MEDIA_HOLD_PERFORMED_BY,
+  MEDIA_REJECT_PERFORMED_BY,
+  MEDIA_HOLD_EXPIRED_PERFORMED_BY,
+  mediaHoldExpiresAt,
+  mediaTypeFromMediaAuditReason,
+  postIdFromMediaAuditReason,
+  reasonsFromMediaAuditReason,
+} from "@/lib/media-moderation-hold";
 
 // How many of this page's queries may be in flight at once, across all of
 // its sections. One below the Prisma pool's default of 5 connections per
@@ -73,6 +84,12 @@ function SectionFallback({ title }: { title?: string }) {
  *  - Flagged content queue: content our automated moderation (see
  *    src/lib/moderation.ts) held back at creation time, before anyone
  *    reported it. An admin reviews it and either publishes it or removes it.
+ *    A photo/video post held by the screen at posting (src/lib/media-
+ *    moderation-hold.ts) shows what was flagged, when, a link to open it and
+ *    when it is deleted if nobody reviews it.
+ *  - Rejected automatically: uploads deleted at posting because they matched
+ *    a must-delete category, and held posts that expired unreviewed. A record
+ *    only (who, when, why): the media is gone, so there is nothing to open.
  *  - Login issues: accounts locked out, racking up failed passwords, or
  *    stuck unverified — surfaced proactively (not just reachable by
  *    searching /admin/users) so support doesn't depend on the member
@@ -106,6 +123,9 @@ export default async function ModerationQueuePage() {
       </Suspense>
       <Suspense fallback={<SectionFallback title="Flagged content" />}>
         <FlaggedContentSection limit={limit} />
+      </Suspense>
+      <Suspense fallback={<SectionFallback title="Rejected automatically" />}>
+        <AutoRejectedMediaSection limit={limit} />
       </Suspense>
       <Suspense fallback={<SectionFallback title="Hidden comments" />}>
         <HiddenCommentsSection limit={limit} />
@@ -403,12 +423,21 @@ async function LoginIssuesSection({ limit }: SectionProps) {
 async function FlaggedContentSection({ limit }: SectionProps) {
   const data = await loadSection("flagged content", () =>
     Promise.all([
+      // Lead posts only: a held multi-photo post is one row per photo, and
+      // publishing or removing the lead acts on the whole album.
       limit(() =>
         prisma.post.findMany({
-          where: { moderationStatus: "FLAGGED" },
+          where: { moderationStatus: "FLAGGED", ...LEAD_POST_ONLY },
           orderBy: { createdAt: "asc" },
           take: 20,
-          select: { id: true, content: true, author: { select: { name: true } } },
+          select: {
+            id: true,
+            content: true,
+            mediaType: true,
+            createdAt: true,
+            albumId: true,
+            author: { select: { name: true, username: true } },
+          },
         }),
       ),
       limit(() =>
@@ -465,6 +494,32 @@ async function FlaggedContentSection({ limit }: SectionProps) {
   const [flaggedPosts, flaggedComments, flaggedMessages, flaggedMuses] = data;
   const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length + flaggedMuses.length;
 
+  // Why each held photo/video post was held: the audit row createPost wrote,
+  // which names the post (AuditLog rows point at the author, not the post).
+  const oldestPost = flaggedPosts[0]?.createdAt;
+  const holdRows = oldestPost
+    ? ((await loadSection("flagged content hold reasons", () =>
+        limit(() =>
+          prisma.auditLog.findMany({
+            where: {
+              action: "CONTENT_FLAGGED_FOR_REVIEW",
+              performedBy: MEDIA_HOLD_PERFORMED_BY,
+              createdAt: { gte: oldestPost },
+            },
+            orderBy: { createdAt: "asc" },
+            take: 500,
+            select: { reason: true, createdAt: true },
+          }),
+        ),
+      )) ?? [])
+    : [];
+  const holdByPostId = new Map(
+    holdRows.flatMap((row) => {
+      const postId = postIdFromMediaAuditReason(row.reason);
+      return postId ? [[postId, { reasons: reasonsFromMediaAuditReason(row.reason), heldAt: row.createdAt }] as const] : [];
+    }),
+  );
+
   return (
     <>
       <h2 className={SECTION_HEADING}>
@@ -475,13 +530,36 @@ async function FlaggedContentSection({ limit }: SectionProps) {
         they failed our content screen. Review and publish or remove.
       </p>
       <div className="mt-3 space-y-3">
-        {flaggedPosts.map((post) => (
-          <div key={post.id} className="rounded-lg border border-line p-3">
-            <p className="text-xs text-foreground-soft">Post by {post.author.name}</p>
-            <p className="mt-1 break-words text-sm">{post.content || "(media post, no caption)"}</p>
-            <FlaggedContentActions contentType="POST" contentId={post.id} />
-          </div>
-        ))}
+        {flaggedPosts.map((post) => {
+          const hold = holdByPostId.get(post.id);
+          return (
+            <div key={post.id} className="rounded-lg border border-line p-3">
+              <p className="text-xs text-foreground-soft">
+                Post by {post.author.name ?? post.author.username ?? "Unknown"} · {post.mediaType}
+                {post.albumId ? " (album)" : ""} · posted {post.createdAt.toLocaleString()}
+              </p>
+              <p className="mt-1 break-words text-sm">{post.content || "(media post, no caption)"}</p>
+              {hold && (
+                <div className="mt-2 rounded-md border border-line bg-surface p-2 text-xs">
+                  <p>
+                    <span className="font-medium">Held by the automated screen at posting:</span>{" "}
+                    {violationLabelsFromReasons(hold.reasons).join(", ") || "flagged"}
+                  </p>
+                  <p className="mt-0.5 text-foreground-soft">Detail: {hold.reasons.join("; ")}</p>
+                  <p className="mt-0.5 text-foreground-soft">
+                    Not visible to anyone but the author. Publish posts it as they intended; Remove deletes it
+                    and its media. Deleted automatically if not reviewed by{" "}
+                    {mediaHoldExpiresAt(hold.heldAt).toLocaleString()}.
+                  </p>
+                </div>
+              )}
+              <Link href={`/post/${post.id}`} className="mt-2 inline-block text-xs text-accent hover:underline">
+                Open the post to review it
+              </Link>
+              <FlaggedContentActions contentType="POST" contentId={post.id} />
+            </div>
+          );
+        })}
         {flaggedComments.map((comment) => (
           <div key={comment.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
@@ -513,6 +591,79 @@ async function FlaggedContentSection({ limit }: SectionProps) {
         {flaggedCount === 0 && (
           <p className="text-sm text-foreground-soft">Nothing flagged right now.</p>
         )}
+      </div>
+    </>
+  );
+}
+
+// How far back the record of automatic rejections reaches on this page.
+const AUTO_REJECTED_VISIBLE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Photo/video uploads the automated screen deleted at posting (a must-delete
+ * category, src/lib/media-moderation-hold.ts) and held posts that expired
+ * unreviewed. The media no longer exists, so there's no preview and nothing
+ * to publish: this is the record of who, when and why.
+ */
+async function AutoRejectedMediaSection({ limit }: SectionProps) {
+  const rows = await loadSection("rejected automatically", () =>
+    limit(() =>
+      prisma.auditLog.findMany({
+        where: {
+          action: "CONTENT_REMOVED",
+          performedBy: { in: [MEDIA_REJECT_PERFORMED_BY, MEDIA_HOLD_EXPIRED_PERFORMED_BY] },
+          createdAt: { gte: new Date(Date.now() - AUTO_REJECTED_VISIBLE_MS) },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: {
+          id: true,
+          reason: true,
+          performedBy: true,
+          createdAt: true,
+          target: { select: { id: true, name: true, username: true } },
+        },
+      }),
+    ),
+  );
+  if (!rows) {
+    return (
+      <>
+        <h2 className={SECTION_HEADING}>Rejected automatically</h2>
+        <SectionUnavailable />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2 className={SECTION_HEADING}>Rejected automatically ({rows.length})</h2>
+      <p className="mt-1 text-xs text-foreground-soft">
+        Last 30 days. Uploads deleted at posting because the screen matched a category we never keep, and held posts
+        nobody reviewed in time. The media is gone, so there&apos;s nothing to open or restore.
+      </p>
+      <div className="mt-3 space-y-2">
+        {rows.map((row) => {
+          const expired = row.performedBy === MEDIA_HOLD_EXPIRED_PERFORMED_BY;
+          const reasons = reasonsFromMediaAuditReason(row.reason);
+          return (
+            <div key={row.id} className="rounded-lg border border-line p-3 text-xs">
+              <p className="text-foreground-soft">
+                <Link href={`/u/${row.target.id}`} className="text-accent hover:underline">
+                  {row.target.name ?? row.target.username ?? "Unknown"}
+                </Link>{" "}
+                · {expired ? "held post expired unreviewed" : `${mediaTypeFromMediaAuditReason(row.reason) ?? "media"} rejected`}{" "}
+                · {row.createdAt.toLocaleString()}
+              </p>
+              <p className="mt-1">
+                {expired
+                  ? row.reason
+                  : `${violationLabelsFromReasons(reasons).join(", ") || "flagged"} (${reasons.join("; ")})`}
+              </p>
+            </div>
+          );
+        })}
+        {rows.length === 0 && <p className="text-sm text-foreground-soft">Nothing here.</p>}
       </div>
     </>
   );

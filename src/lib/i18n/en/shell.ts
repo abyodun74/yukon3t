@@ -136,6 +136,7 @@ export const shellEn = {
       "one: One item couldn't be included (too large, or not a supported photo/video type). | other: # items couldn't be included (too large, or not a supported photo/video type).",
     posting: "Posting…",
     posted: "Posted!",
+    postHeld: "Your post is saved and waiting for a review by our team before others can see it. No need to upload it again.",
     toStory: "Add to your story",
     toMuse: "Post to Muse",
     toFeed: "Post to Feed",
@@ -153,6 +154,7 @@ export const shellEn = {
     },
     postErrors: {
       moderation: "That didn't pass our content guidelines and wasn't posted.",
+      upload_check_failed: "We couldn't confirm your upload because of a problem on our side. Nothing is wrong with your post — please try again in a moment.",
       too_large: "That file is too large.",
       rate_limited: "You're posting too fast — slow down a little.",
       send_failed: "Couldn't send to that conversation.",

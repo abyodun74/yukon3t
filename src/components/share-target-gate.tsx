@@ -134,6 +134,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     byCode(t.shareTarget.postErrors, code === "not_a_member" || code === "blocked" ? "send_failed" : code);
   const router = useRouter();
   const [share, setShare] = useState<PendingShareMedia | null>(null);
+  const [heldNotice, setHeldNotice] = useState(false);
   const [view, setView] = useState<View>("root");
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -216,6 +217,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     setConversations(null);
     setStatus("idle");
     setErrorText(null);
+    setHeldNotice(false);
     setVideoDurationSeconds(null);
     uploadCacheRef.current = null;
   }
@@ -334,6 +336,14 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       setErrorText(publishError(result.error));
       return;
     }
+    if ("held" in result && result.held) {
+      // Stored but hidden until an admin reviews it: say so, and leave it on screen long enough to read.
+      setHeldNotice(true);
+      setStatus("done");
+      router.refresh();
+      setTimeout(close, 6000);
+      return;
+    }
     setStatus("done");
     router.push("/home");
     router.refresh();
@@ -422,6 +432,14 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     if (result.error) {
       setStatus("error");
       setErrorText(publishError(result.error));
+      return;
+    }
+    if ("held" in result && result.held) {
+      // Stored but hidden until an admin reviews it: say so, and leave it on screen long enough to read.
+      setHeldNotice(true);
+      setStatus("done");
+      router.refresh();
+      setTimeout(close, 6000);
       return;
     }
     setStatus("done");
@@ -530,7 +548,12 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {errorText && <p role="alert" className="mt-3 text-xs text-danger">{errorText}</p>}
         {status === "busy" && <p className="mt-3 text-xs text-foreground-soft">{t.shareTarget.posting}</p>}
-        {status === "done" && <p role="status" className="mt-3 text-xs text-success">{t.shareTarget.posted}</p>}
+        {status === "done" &&
+          (heldNotice ? (
+            <p role="status" className="mt-3 text-xs text-foreground-soft">{t.shareTarget.postHeld}</p>
+          ) : (
+            <p role="status" className="mt-3 text-xs text-success">{t.shareTarget.posted}</p>
+          ))}
 
         {view === "root" && (
           <div className="mt-3 space-y-1">
