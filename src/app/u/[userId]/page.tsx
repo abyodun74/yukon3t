@@ -28,6 +28,7 @@ import { countryName } from "@/lib/i18n/country-names";
 import { interestName, languageName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, format, plural, type Locale } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 /** "3 subscribers" with the number in bold, wherever the language's plural form puts it. */
 function BoldCount({ locale, forms, count }: { locale: Locale; forms: string; count: number }) {
@@ -66,6 +67,12 @@ export default async function PublicProfilePage({
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
+  // The shared guest-preview identity (src/lib/guest-preview.ts) has no profile: a guest opening their own Profile tab
+  // is told why; for everyone else it doesn't exist.
+  if (user.isGuestPreview) {
+    if (me.isGuestPreview) return <GuestGatedScreen kind="profile" />;
+    notFound();
+  }
   const isOwnProfile = user.id === me.id;
   // Site admins are invisible platform-wide — see the same guard on
   // /u/[userId]/subscribers and /subscribing, and the isAdmin exclusions

@@ -25,7 +25,7 @@ export const NEW_MEMBER_RECIPIENT_ACTIVE_MS = 30 * 24 * 60 * 60_000;
  * Who may be announced: finished onboarding between NEW_MEMBER_MAX_AGE_MS and NEW_MEMBER_MIN_AGE_MS ago, not yet
  * announced, verified (email or phone, the isAccountVerified rule), ACTIVE (not suspended/banned/deactivated), and
  * visible in Discover exactly as /discover lists people (discoverable, named, not a site admin) with public posts.
- * The App Review demo account is never announced.
+ * The App Review demo account and the shared guest-preview identity (src/lib/guest-preview.ts) are never announced.
  */
 export function newMemberCandidateWhere(now: Date): Prisma.UserWhereInput {
   return {
@@ -40,6 +40,7 @@ export function newMemberCandidateWhere(now: Date): Prisma.UserWhereInput {
     name: { not: null },
     isAdmin: false,
     isAppReviewDemo: false,
+    isGuestPreview: false,
     OR: [{ emailVerified: { not: null } }, { phoneVerifiedAt: { not: null } }],
   };
 }
@@ -47,13 +48,14 @@ export function newMemberCandidateWhere(now: Date): Prisma.UserWhereInput {
 /**
  * Who hears about new members: anyone with the alert switched on (Settings -> Notifications, on by default), ACTIVE,
  * with a finished profile (the isProfileComplete rule, so they can open Discover), seen in the app within
- * NEW_MEMBER_RECIPIENT_ACTIVE_MS. Not the App Review demo account. Blocks are applied per pair by planNewMemberAlerts.
+ * NEW_MEMBER_RECIPIENT_ACTIVE_MS. Not the App Review demo account, nor the guest-preview identity. Blocks are applied per pair by planNewMemberAlerts.
  */
 export function newMemberRecipientWhere(now: Date): Prisma.UserWhereInput {
   return {
     newMemberAlerts: true,
     status: "ACTIVE",
     isAppReviewDemo: false,
+    isGuestPreview: false,
     name: { not: null },
     country: { not: null },
     interests: { isEmpty: false },

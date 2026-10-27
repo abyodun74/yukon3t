@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer, viewerRateLimitKey } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
@@ -101,8 +101,8 @@ async function itemsResult(access: CircleEventAccess, viewerId: string) {
 
 /** "Load more" on a Circle's "Coming up": the page after `cursor`, with the same visibility as the page itself. */
 export async function loadCircleEvents(input: unknown) {
-  const user = await requireVerifiedUser();
-  if (!(await checkRateLimit("circleEventList", user.id))) return failure("rate_limited");
+  const user = await requireVerifiedViewer();
+  if (!(await checkRateLimit("circleEventList", await viewerRateLimitKey(user)))) return failure("rate_limited");
   const parsed = circleEventListSchema.safeParse(input);
   if (!parsed.success) return failure("invalid");
   const scope = await circleEventsScope(parsed.data.circleId, user, new Date());
@@ -300,8 +300,8 @@ export async function stopEventSeries(postId: unknown) {
  * the same data /post/[id] renders under the post, with the same access rule (not_found otherwise).
  */
 export async function loadCircleEventDetails(postId: unknown) {
-  const user = await requireVerifiedUser();
-  if (!(await checkRateLimit("circleEventList", user.id))) return failure("rate_limited");
+  const user = await requireVerifiedViewer();
+  if (!(await checkRateLimit("circleEventList", await viewerRateLimitKey(user)))) return failure("rate_limited");
   const parsed = circleEventIdSchema.safeParse(postId);
   if (!parsed.success) return failure("invalid");
   const data = await loadCircleEventPanel(parsed.data, user);

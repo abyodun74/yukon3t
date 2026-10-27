@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import {
   createCollabRoom,
@@ -261,7 +261,7 @@ export async function leaveCollabSession(collabId: string) {
 /** Polled every few seconds by the Collab page to show who's already in the session before joining. */
 export async function getCollabSessionParticipants(collabId: string) {
   try {
-    await requireVerifiedUser();
+    await requireVerifiedViewer();
 
     const participants = await prisma.collabSessionParticipant.findMany({
       where: { collabId, joinedAt: { gt: new Date(Date.now() - COLLAB_SESSION_STALE_AFTER_MS) } },

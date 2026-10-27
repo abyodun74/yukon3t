@@ -1,14 +1,14 @@
 "use server";
 
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedViewer, viewerRateLimitKey } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { checkLinkSafety, type LinkSafetyResult } from "@/lib/link-safety";
 
 /** Called from LinkSafetyModal right before a shared link is followed. */
 export async function checkLinkBeforeOpen(url: string): Promise<LinkSafetyResult> {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
-  const allowed = await checkRateLimit("linkSafetyCheck", user.id);
+  const allowed = await checkRateLimit("linkSafetyCheck", await viewerRateLimitKey(user));
   if (!allowed) {
     return { status: "unknown" };
   }

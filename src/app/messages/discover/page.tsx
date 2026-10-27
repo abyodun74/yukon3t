@@ -83,7 +83,7 @@ export default async function DiscoverGroupsPage({
         </Link>
       </div>
 
-      <form className="mt-6 flex items-center gap-2">
+      <form data-guest-ok className="mt-6 flex items-center gap-2">
         <input
           aria-label={t.searchLabel}
           type="text"

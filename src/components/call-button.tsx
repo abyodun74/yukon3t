@@ -309,7 +309,7 @@ export function CallButton({
   return (
     <>
       <div className="flex items-center gap-2">
-        <button
+        <button data-guest-block
           type="button"
           onClick={() => call("AUDIO")}
           title={voiceCallLabel}
@@ -318,7 +318,7 @@ export function CallButton({
         >
           <Phone size={16} />
         </button>
-        <button
+        <button data-guest-block
           type="button"
           onClick={() => call("VIDEO")}
           title={videoCallLabel}

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { canViewPost } from "@/lib/post-visibility";
@@ -150,7 +150,7 @@ const LIKERS_LIMIT = 100;
  * pass to toggleLike (see interactionTargetId in post-card.tsx).
  */
 export async function getPostLikers(postId: string) {
-  await requireVerifiedUser();
+  await requireVerifiedViewer();
 
   const likes = await prisma.like.findMany({
     where: { postId },

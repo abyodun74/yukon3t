@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
@@ -481,7 +481,7 @@ export async function cancelStageRequest(liveStreamId: string) {
  * role) without forcing a full rejoin of the room.
  */
 export async function getMyLiveStreamStatus(liveStreamId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const [request, viewer] = await Promise.all([
     prisma.liveStreamStageRequest.findUnique({
@@ -521,7 +521,7 @@ export async function leaveLiveStream(liveStreamId: string) {
  */
 export async function getActiveLiveStreams() {
   try {
-    await requireVerifiedUser();
+    await requireVerifiedViewer();
 
     const streams = await prisma.liveStream.findMany({
       where: {
@@ -557,7 +557,7 @@ export async function getActiveLiveStreams() {
  */
 export async function getLiveStreamViewerCount(liveStreamId: string) {
   try {
-    const user = await requireVerifiedUser();
+    const user = await requireVerifiedViewer();
 
     const liveStream = await prisma.liveStream.findUnique({
       where: { id: liveStreamId },
@@ -588,7 +588,7 @@ export async function getLiveStreamViewerCount(liveStreamId: string) {
  * joinLiveStream's doc comment for why this can't be baked into a token).
  */
 export async function getLiveStreamStageUserIds(liveStreamId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
@@ -781,7 +781,7 @@ export async function sendLiveStreamComment(liveStreamId: string, formData: Form
  */
 export async function getLiveStreamComments(liveStreamId: string, afterId?: string) {
   try {
-    const user = await requireVerifiedUser();
+    const user = await requireVerifiedViewer();
 
     // Same rule as joining: without this anyone signed in who had a restricted stream's id (Circle- or person-scoped) could read its chat.
     const liveStream = await prisma.liveStream.findUnique({

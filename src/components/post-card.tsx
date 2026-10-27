@@ -1227,7 +1227,7 @@ export function PostCard({
         )}
       >
         <span className={cn("flex items-center gap-1.5", liked && "text-danger")}>
-          <button
+          <button data-guest-block
             type="button"
             disabled={isLikePending}
             onClick={handleLike}
@@ -1253,7 +1253,9 @@ export function PostCard({
           )}
         </span>
 
-        <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
+        <span data-guest-block className="contents">
+          <EmojiPickerButton onSelect={toggleReaction} quickReactions={QUICK_REACTIONS} />
+        </span>
 
         <button
           type="button"
@@ -1276,7 +1278,7 @@ export function PostCard({
             plain post and a repost/share card alike. A Circle post is stored
             PUBLIC but is members-only, so it is never reposted/shared out. */}
         {post.visibility === "PUBLIC" && !post.membersOnly && (
-          <button
+          <button data-guest-block
             type="button"
             disabled={isRepostPending}
             onClick={handleRepost}
@@ -1293,7 +1295,7 @@ export function PostCard({
         )}
 
         {post.visibility === "PUBLIC" && !post.membersOnly && (
-          <button
+          <button data-guest-block
             type="button"
             onClick={() => setShareModalOpen(true)}
             aria-label={shareCount > 0 ? format(t.post.shareCount, { count: shareCount }) : t.post.share}

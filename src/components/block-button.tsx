@@ -80,7 +80,7 @@ export function BlockButton({
   }
 
   return (
-    <button
+    <button data-guest-block
       type="button"
       onClick={() => setConfirming(true)}
       lang={locale}

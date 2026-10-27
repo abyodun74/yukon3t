@@ -21,7 +21,7 @@ export function ReactionBar({
   return (
     <div className={cn("mt-1 flex flex-wrap gap-1", mine ? "justify-end" : "justify-start")}>
       {reactions.map(({ emoji, count, reactedByMe }) => (
-        <button
+        <button data-guest-block
           key={emoji}
           type="button"
           onClick={() => onToggle(emoji)}

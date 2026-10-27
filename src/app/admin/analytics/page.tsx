@@ -24,6 +24,7 @@ const EVENT_LABELS: Record<AnalyticsEventType, string> = {
   REVIEW_PROMPT_DECLINED: "Review prompt: \"Could be better\"",
   REVIEW_PROMPT_SNOOZED: "Review prompt: \"Maybe later\"",
   APP_ATTESTATION: "App device checks (sign-in, sign-up and other bot-gated forms)",
+  GUEST_PREVIEW_STARTED: "Guest previews started (/try, no account)",
 };
 
 async function countsSince(daysAgo: number) {
@@ -44,8 +45,9 @@ export default async function AdminAnalyticsPage() {
     countsSince(1),
     countsSince(7),
     countsSince(30),
-    prisma.user.count(),
-    prisma.user.count({ where: { emailVerified: { not: null } } }),
+    // The shared guest-preview row (/try) is not an account anyone signed up for.
+    prisma.user.count({ where: { isGuestPreview: false } }),
+    prisma.user.count({ where: { emailVerified: { not: null }, isGuestPreview: false } }),
   ]);
 
   const eventTypes = Object.keys(EVENT_LABELS) as AnalyticsEventType[];

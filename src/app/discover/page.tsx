@@ -97,6 +97,8 @@ export default async function DiscoverPage({
       // Site admins are invisible platform-wide, not just opted out of
       // discoverable suggestions — see actions/discover.ts and search/page.tsx.
       isAdmin: false,
+      // So is the shared guest-preview identity (src/lib/guest-preview.ts).
+      isGuestPreview: false,
       ...(intent ? { openToIntents: { has: intent as never } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
       ...(sort === "online" ? { lastSeenAt: { gt: onlineSince() } } : {}),
@@ -180,7 +182,7 @@ export default async function DiscoverPage({
           locale-driven label length), eating an unpredictable amount of
           vertical space above the actual results. A fixed 2-column grid is
           exactly 2 rows on mobile, every time. */}
-      <form className="mt-6 grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+      <form data-guest-ok className="mt-6 grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <select
           name="intent"
           aria-label={t.intentLabel}

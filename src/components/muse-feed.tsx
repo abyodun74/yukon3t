@@ -27,6 +27,7 @@ import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useMuseText } from "@/components/muse-text";
+import { useGuestPreview } from "@/components/guest-preview";
 import { useUiText } from "@/components/ui-text";
 import { formatShortAge } from "@/lib/format-date";
 import { useNetworkQuality } from "@/lib/network-quality-client";
@@ -113,6 +114,8 @@ export function MuseFeed({
 }) {
   const router = useRouter();
   const { t } = useMuseText();
+  // A guest preview session (src/lib/guest-preview.ts) can watch, not react, repost, comment or count as a view.
+  const { isGuest, promptSignUp } = useGuestPreview();
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
   // Muse opens playing WITH sound; the speaker button mutes it. `muted` is the viewer's own choice, shared by every
@@ -168,6 +171,10 @@ export function MuseFeed({
   }, [loadMore]);
 
   async function toggleReaction(museId: string, emoji: string) {
+    if (isGuest) {
+      promptSignUp();
+      return undefined;
+    }
     const result = await toggleMuseReaction(museId, emoji);
     if (result.reactions) {
       const total = result.reactions.reduce((sum, r) => sum + r.count, 0);
@@ -184,6 +191,10 @@ export function MuseFeed({
   }
 
   async function postComment(museId: string, content: string): Promise<boolean> {
+    if (isGuest) {
+      promptSignUp();
+      return false;
+    }
     const fd = new FormData();
     fd.set("content", content);
     const result = await createMuseComment(museId, fd);
@@ -209,6 +220,10 @@ export function MuseFeed({
 
   /** Optimistic toggle-with-revert, same shape as toggleReaction/SubscribeButton's own toggle. */
   async function toggleRepost(museId: string) {
+    if (isGuest) {
+      promptSignUp();
+      return;
+    }
     const current = items.find((it) => it.id === museId);
     if (!current) return;
     const nextReposted = !current.isReposted;
@@ -262,7 +277,7 @@ export function MuseFeed({
 
   const viewedRef = useRef(new Set<string>());
   function recordView(museId: string) {
-    if (viewedRef.current.has(museId)) return;
+    if (isGuest || viewedRef.current.has(museId)) return;
     viewedRef.current.add(museId);
     recordMuseView(museId).then((result) => {
       if (!result.error) {
@@ -794,7 +809,7 @@ function MuseCard({
                   download for an EMBED item, which has no file of ours at
                   all. Reshare-to-Home/Story above already cover it. */}
               {!isEmbed && (
-                <button
+                <button data-guest-block
                   type="button"
                   onClick={onShare}
                   aria-label={format(t.shareCount, { count: item.shareCount })}

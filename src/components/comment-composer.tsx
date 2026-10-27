@@ -191,7 +191,7 @@ export function CommentComposer({
         });
       }}
     >
-      <textarea
+      <textarea data-guest-block
         ref={textareaRef}
         value={content}
         onChange={(e) => setContent(e.target.value)}

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
@@ -128,7 +128,7 @@ export async function deletePost(postId: string) {
  * single private post's — visibility.
  */
 export async function loadMoreProfilePosts(profileUserId: string, cursor: string) {
-  const viewer = await requireUser();
+  const viewer = await requireViewer();
 
   const profileUser = await prisma.user.findUnique({ where: { id: profileUserId } });
   if (!profileUser || profileUser.status !== "ACTIVE") {

@@ -22,7 +22,9 @@ export type AnalyticsEventType =
   | "REVIEW_PROMPT_DECLINED"
   | "REVIEW_PROMPT_SNOOZED"
   // Native-app device attestation outcome on a bot-gated action (src/lib/bot-gate.ts).
-  | "APP_ATTESTATION";
+  | "APP_ATTESTATION"
+  // A guest preview session started from /try (src/app/actions/guest-preview.ts). userId is the shared guest row.
+  | "GUEST_PREVIEW_STARTED";
 
 /**
  * First-party, privacy-minimal product-usage log — a handful of key

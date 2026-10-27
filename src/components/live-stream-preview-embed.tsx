@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import { joinLiveStream, leaveLiveStream } from "@/app/actions/live-streams";
 import { useFeedText } from "@/components/feed-text";
+import { useGuestPreview } from "@/components/guest-preview";
 import { trackDailyDestroy } from "@/lib/call-prewarm";
 
 /**
@@ -41,11 +42,13 @@ export function LiveStreamPreviewEmbed({
   active: boolean;
 }) {
   const { t } = useFeedText();
+  // Members only (joining makes a viewer token): a guest preview session (src/lib/guest-preview.ts) sees no live picture.
+  const { isGuest } = useGuestPreview();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hostTrack, setHostTrack] = useState<MediaStreamTrack | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || isGuest) return;
 
     let cancelled = false;
     let call: DailyCall | null = null;
@@ -141,7 +144,7 @@ export function LiveStreamPreviewEmbed({
       cancelled = true;
       teardown();
     };
-  }, [active, liveStreamId, hostId]);
+  }, [active, liveStreamId, hostId, isGuest]);
 
   // Manual MediaStreamTrack attachment — createCallObject() mode renders
   // nothing of its own, same pattern as LiveVideoFrame's ParticipantTile.

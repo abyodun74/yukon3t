@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import { commentSchema, editCommentSchema } from "@/lib/validations";
@@ -486,7 +486,7 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
  * more than the comment itself could be.
  */
 export async function getPostComments(postId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   // The slow part of this used to be entirely sequential — the post
   // lookup, then canViewPost (its own separate post query plus 3 more

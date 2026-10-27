@@ -49,7 +49,7 @@ export async function requestConnection(formData: FormData) {
   // invisible platform-wide (see /u/[userId] and the search/discover
   // exclusions), so no one should even learn an admin account exists by
   // getting a *different* error here.
-  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
+  if (!target || target.status !== "ACTIVE" || target.isAdmin || target.isGuestPreview) {
     return { error: "not_found" };
   }
   // Deliberately indistinguishable from "not_found" — a request shouldn't
@@ -213,7 +213,7 @@ export async function startDirectMessage(targetId: string) {
   // Same as requestConnection above (this action creates a Connection row
   // too, further down) — admins are invisible platform-wide, so this stays
   // indistinguishable from an inactive/nonexistent target.
-  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
+  if (!target || target.status !== "ACTIVE" || target.isAdmin || target.isGuestPreview) {
     return { error: "not_found" as const };
   }
   if (await isBlockedEitherWay(user.id, targetId)) {

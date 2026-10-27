@@ -83,7 +83,7 @@ export default async function CollabPage({
         </Link>
       </div>
 
-      <form className="mt-6 flex items-center gap-3 text-sm">
+      <form data-guest-ok className="mt-6 flex items-center gap-3 text-sm">
         <select
           name="sort"
           aria-label={t.sortLabel}

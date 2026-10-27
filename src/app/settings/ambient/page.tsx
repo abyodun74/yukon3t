@@ -13,6 +13,7 @@ import { AmbientMomentComposer } from "@/components/ambient-moment-composer";
 import { AmbientWidgetTokenPanel } from "@/components/ambient-widget-token-panel";
 import { AmbientFeedPreview } from "@/components/ambient-feed-preview";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 const title = "Ambient | YuKon3t";
 
@@ -30,7 +31,9 @@ export const metadata: Metadata = {
  * entirely inside the app.
  */
 export default async function AmbientSettingsPage() {
-  await getSessionUserOrRedirect();
+  const viewer = await getSessionUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (viewer.isGuestPreview) return <GuestGatedScreen kind="settings" />;
   const dictionary = await getDictionary();
   const t = dictionary.settings.ambient;
 

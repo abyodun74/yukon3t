@@ -20,6 +20,7 @@ import { rememberLocale } from "@/lib/user-locale";
 import { providerVerifiedEmail } from "@/lib/oauth-email-verification";
 import { captureError } from "@/lib/error-tracking";
 import { recomputeTrustScore } from "@/lib/trust";
+import { isGuestPreviewEnabled, isGuestSessionLive } from "@/lib/guest-preview";
 
 const providers: Provider[] = [
   Resend({
@@ -83,6 +84,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token,
           sessionTokenClaims(user as { isAdmin?: boolean; trustBand?: string }),
         );
+        // A real sign-in never carries the guest claims, even if a guest cookie was present before it.
+        delete token.guest;
+        delete token.guestSid;
+      }
+      // A guest preview session (src/lib/guest-preview.ts) ends for good once its fixed lifetime is over or the
+      // feature is switched off: returning null makes auth() answer "signed out" everywhere (pages, actions, the
+      // avatar route) and clears the cookie wherever Auth.js can write it. No database read.
+      if (
+        token.guest === true &&
+        !isGuestSessionLive({ issuedAt: token.issuedAt, nowMs: Date.now(), enabled: isGuestPreviewEnabled() })
+      ) {
+        return null;
       }
       return token;
     },
@@ -91,16 +104,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.sub!;
         session.user.isAdmin = Boolean(token.isAdmin);
         session.user.trustBand = token.trustBand as string | undefined;
+        session.user.isGuest = token.guest === true;
       }
       session.issuedAt = token.issuedAt;
+      if (token.guest === true) session.guestSessionId = token.guestSid;
       return session;
     },
     async signIn({ user }) {
       if (!user?.email) return false;
       const existing = await prisma.user.findUnique({
         where: { email: user.email },
-        select: { id: true, status: true, isAppReviewDemo: true, locale: true },
+        select: { id: true, status: true, isAppReviewDemo: true, isGuestPreview: true, locale: true },
       });
+      // The shared guest-preview identity is only ever entered through /try (issueGuestSessionCookie), never signed in to.
+      if (existing?.isGuestPreview) return false;
       if (
         existing?.status === "SUSPENDED" ||
         existing?.status === "BANNED" ||

@@ -19,6 +19,7 @@ import { DataSaverSetting } from "@/components/data-saver-setting";
 import { LanguagePicker } from "@/components/language-picker";
 import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 // Server Actions inherit the page's maxDuration (set at the page level, not
 // the action file — see Next.js docs). AccountDangerZone's exportMyData is
@@ -34,6 +35,8 @@ export default async function SettingsPage({
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const user = await getSessionUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (user.isGuestPreview) return <GuestGatedScreen kind="settings" />;
   const locale = await getLocale();
   const dictionary = await getDictionary();
   const t = dictionary.settings;

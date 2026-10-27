@@ -3,9 +3,12 @@ import { BackButton } from "@/components/back-button";
 import { InvitePanel } from "@/components/invite-panel";
 import { getRequestCountry } from "@/lib/request-country";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function InvitePage() {
-  await getOnboardedUserOrRedirect();
+  const viewer = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (viewer.isGuestPreview) return <GuestGatedScreen kind="create" />;
   const dictionary = await getDictionary();
   const t = dictionary.invite;
 

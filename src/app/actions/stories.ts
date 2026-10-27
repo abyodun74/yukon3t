@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { getMembersHidingConversation } from "@/lib/hidden-chats";
 import { hiddenPush, pushText } from "@/lib/push-text";
@@ -31,7 +31,7 @@ import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
  * (most-recently-posted first), then fully-seen authors.
  */
 export async function getConnectionsStories() {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const connections = await prisma.connection.findMany({
     where: {
@@ -353,7 +353,7 @@ async function reactionSummary(storyId: string, viewerId: string) {
 }
 
 export async function getStoryReactionSummary(storyId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
   const result = await reactionSummary(storyId, user.id);
   return { error: null, ...result };
 }
@@ -532,7 +532,7 @@ export async function getShareableConversations() {
  * own connection to whoever it reached.
  */
 export async function getStory(storyId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const story = await prisma.story.findUnique({
     where: { id: storyId },
@@ -631,7 +631,7 @@ const STORY_COMMENTS_LIMIT = 50;
  * toggleStoryReaction's own equally minimal checks.
  */
 export async function getStoryComments(storyId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const story = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true, expiresAt: true } });
   if (!story || story.expiresAt < new Date()) {

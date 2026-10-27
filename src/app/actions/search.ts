@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser } from "@/lib/auth-guards";
+import { requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getListablePostsWhere } from "@/lib/post-visibility";
@@ -24,7 +24,7 @@ export async function loadMoreSearchPosts(
   cursor: string,
   filters: { q: string; sort?: string },
 ) {
-  const user = await requireUser();
+  const user = await requireViewer();
   const q = filters.q.trim();
   if (q.length < 2) {
     return { items: [], hasMore: false };

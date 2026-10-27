@@ -6,6 +6,7 @@ import { ConnectionsFindPeopleFab } from "@/components/connections-find-people-f
 import { BackButton } from "@/components/back-button";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 // Each of the three lists below is its own unbounded query — a long-time
 // user with dozens/hundreds of connections would otherwise turn this into
@@ -17,6 +18,8 @@ const PAGE_SIZE = 20;
 
 export default async function ConnectionsPage() {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="connections" />;
   const t = (await getDictionary()).pages.connections;
 
   // People whose 1:1 chat I've hidden don't appear in any of my three lists or their counts.

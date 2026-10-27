@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { initPostHog, identifyPostHogUser, capturePostHogPageview } from "@/lib/posthog-client";
+import { initPostHog, identifyPostHogUser, capturePostHogPageview, setPostHogNoRecording } from "@/lib/posthog-client";
 
 /**
  * Mounted once in the root layout, unconditionally — inits PostHog
@@ -16,8 +16,14 @@ import { initPostHog, identifyPostHogUser, capturePostHogPageview } from "@/lib/
  * a beat too late to stop that account's identity leaking into whatever
  * the now-signed-out page itself records first.
  */
-export function PostHogProvider({ userId }: { userId?: string }) {
+export function PostHogProvider({ userId, guest = false }: { userId?: string; guest?: boolean }) {
   const pathname = usePathname();
+
+  // A guest preview session (src/lib/guest-preview.ts): never recorded and never identified (every guest shares one
+  // account id, so identifying would merge strangers into one PostHog person). Runs before the init effect below.
+  useEffect(() => {
+    if (guest) setPostHogNoRecording();
+  }, [guest]);
 
   // Once the page is idle (or after 4s at the latest), so the SDK's download
   // never competes with the page's own first requests — on a slow link
@@ -33,8 +39,8 @@ export function PostHogProvider({ userId }: { userId?: string }) {
   }, []);
 
   useEffect(() => {
-    if (userId) identifyPostHogUser(userId);
-  }, [userId]);
+    if (userId && !guest) identifyPostHogUser(userId);
+  }, [userId, guest]);
 
   // Manual pageview capture (capture_pageview: false in posthog-client.ts)
   // — posthog-js's own automatic history-API patching doesn't reliably see

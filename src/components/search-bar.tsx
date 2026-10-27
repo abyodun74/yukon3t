@@ -25,7 +25,7 @@ export function SearchBar({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={className ?? "relative w-full"}>
+    <form data-guest-ok onSubmit={handleSubmit} className={className ?? "relative w-full"}>
       <Search
         size={14}
         className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-foreground-soft"

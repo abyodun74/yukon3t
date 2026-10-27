@@ -67,6 +67,33 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "try-without-signing-up",
+        q: "Can I try YuKon3t without signing up?",
+        a: (
+          <>
+            When guest preview is switched on, yes: the yukon3t.com/try page
+            has an &ldquo;Explore YuKon3t as a guest&rdquo; button, with no
+            email and no password. A guest sees what a brand-new member sees:
+            posts their authors set to Everyone, public Circles and their
+            public channels, Muse videos, Collab Boards, Discover, and
+            people&apos;s profiles (name, profile picture, bio,
+            country and their Everyone posts), along with the comments, like
+            counts and who-liked lists on those posts. A guest never sees
+            anything a new member couldn&apos;t: no posts limited to
+            connections, no private Circles or private channels, no messages,
+            and no Stories (those are for connections). Guests can&apos;t
+            post, comment, like or react, connect, subscribe, message, call,
+            join or watch a live stream, vote, reply to events or report
+            anything; tapping any of those offers to create a free account.
+            A guest visit lasts at most 2 hours and then ends on its own.
+            Guests never appear in search, Discover, member lists or
+            &ldquo;who&apos;s online&rdquo;, and nobody is told that a guest
+            looked at their profile or posts. What a guest visit stores is
+            explained in the Privacy Policy.
+          </>
+        ),
+      },
+      {
         id: "where-find-everything",
         q: "Where do I find everything?",
         a: (

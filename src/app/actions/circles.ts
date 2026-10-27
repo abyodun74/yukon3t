@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { buildSeriesRule, type EventSeriesRule } from "@/lib/event-recurrence";
 import {
@@ -1483,7 +1483,7 @@ export async function confirmPostDeviceChallenge(challengeId: string, code: stri
 
 /** Circles the caller is a member of — backs the "Share to a Circle" picker. */
 export async function getMyCircles() {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const memberships = await prisma.circleMembership.findMany({
     where: { userId: user.id },
@@ -1525,7 +1525,7 @@ export async function getMyCircles() {
  * one, and a public Circle's public channels are readable by non-members.
  */
 export async function loadMoreCirclePosts(channelId: string, cursor: string) {
-  const user = await requireUser();
+  const user = await requireViewer();
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },

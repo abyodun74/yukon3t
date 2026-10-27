@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser, AuthError } from "@/lib/auth-guards";
+import { requireViewer, AuthError } from "@/lib/auth-guards";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
@@ -20,7 +20,7 @@ import { rememberLocale } from "@/lib/user-locale";
 export async function GET() {
   let user;
   try {
-    user = await requireUser();
+    user = await requireViewer();
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json(
@@ -29,6 +29,11 @@ export async function GET() {
       );
     }
     throw err;
+  }
+  // A guest preview session (src/lib/guest-preview.ts) has no inbox, requests or bell: always zero, nothing written
+  // (no rememberLocale), and nothing anyone sends to the shared guest identity can ever surface here.
+  if (user.isGuestPreview) {
+    return NextResponse.json({ unreadMessages: 0, pendingConnections: 0, unreadNotifications: 0, hasNewAnnouncement: false });
   }
 
   // The language notifications are written in follows the one this device uses (src/lib/user-locale.ts). Writes only

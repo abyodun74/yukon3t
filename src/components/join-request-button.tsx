@@ -32,7 +32,7 @@ export function JoinRequestButton({
       {status === "DECLINED" && (
         <p className="text-sm text-foreground-soft">{t.requestDeclined}</p>
       )}
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={submit}

@@ -225,6 +225,11 @@ model User {
   // account always signs in cleanly regardless of device history.
   isAppReviewDemo Boolean @default(false)
 
+  // Marks the one shared, read-only identity behind "Explore as a guest" (/try, src/lib/guest-preview.ts). Every
+  // visitor gets their own short-lived session cookie for it, but nobody can sign in to it, and requireUser() (and so
+  // every write) refuses it: only requireViewer() reads let it through. Never announced, listed or searchable.
+  isGuestPreview Boolean @default(false)
+
   // Set whenever an active session should be forced to re-authenticate
   // (e.g. password reset) even though the JWT itself hasn't expired yet.
   sessionInvalidatedAt DateTime?
@@ -3110,6 +3115,8 @@ enum AnalyticsEventType {
   REVIEW_PROMPT_SNOOZED
   // Native-app device attestation outcome on a bot-gated action (src/lib/bot-gate.ts).
   APP_ATTESTATION
+  // A guest preview session started from /try (src/app/actions/guest-preview.ts); metadata.ref is the link's ?ref= tag.
+  GUEST_PREVIEW_STARTED
 }
 
 enum SecurityChallengePurpose {

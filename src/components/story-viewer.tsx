@@ -26,6 +26,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useFeedText } from "@/components/feed-text";
+import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText } from "@/components/ui-text";
 import { format, plural, byCode, intlLocale, type Locale } from "@/lib/i18n/locales";
 
@@ -142,6 +143,8 @@ export function StoryViewer({
 }) {
   const { t, locale, dir } = useFeedText();
   const { t: shell } = useShellText();
+  // A guest preview session (src/lib/guest-preview.ts) can look, not react, comment, reply or count as a viewer.
+  const { isGuest, promptSignUp } = useGuestPreview();
   const [index, setIndex] = useState(startIndex);
   const [progress, setProgress] = useState(0);
   // One flag per reason the story can be paused, with the real paused state
@@ -234,11 +237,11 @@ export function StoryViewer({
   useEffect(() => {
     if (!story) return;
     elapsedRef.current = 0;
-    if (!seenRef.current.has(story.id)) {
+    if (!isGuest && !seenRef.current.has(story.id)) {
       seenRef.current.add(story.id);
       viewStory(story.id);
     }
-  }, [story]);
+  }, [story, isGuest]);
 
   // Loads this story's reaction counts fresh each time it becomes current —
   // an async fetch resolved in a .then(), not a synchronous reset, so it
@@ -346,6 +349,10 @@ export function StoryViewer({
 
   async function handleReact(emoji: string) {
     if (!story) return;
+    if (isGuest) {
+      promptSignUp();
+      return;
+    }
     const result = await toggleStoryReaction(story.id, emoji);
     if (!result.error) {
       setReactionCounts(result.summary);
@@ -371,6 +378,10 @@ export function StoryViewer({
 
   async function handlePostComment(content: string) {
     if (!story) return false;
+    if (isGuest) {
+      promptSignUp();
+      return false;
+    }
     const fd = new FormData();
     fd.set("content", content);
     const result = await createStoryComment(story.id, fd);
@@ -864,6 +875,7 @@ function StoryReplyBar({
   onFocusChange: (focused: boolean) => void;
 }) {
   const { t } = useFeedText();
+  const { isGuest, promptSignUp } = useGuestPreview();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -879,6 +891,10 @@ function StoryReplyBar({
   async function send() {
     const trimmed = text.trim();
     if (!trimmed || status === "sending") return;
+    if (isGuest) {
+      promptSignUp();
+      return;
+    }
     setStatus("sending");
     setErrorMsg(null);
     const fd = new FormData();

@@ -8,6 +8,7 @@ import { COLLAB_TYPES } from "@/lib/collab-types";
 import { vocabName } from "@/lib/i18n/language-names";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function NewCollabPostPage({
   searchParams,
@@ -15,6 +16,8 @@ export default async function NewCollabPostPage({
   searchParams: Promise<{ error?: string; fields?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="create" />;
   const { error, fields } = await searchParams;
   const dictionary = await getDictionary();
   const locale = await getLocale();

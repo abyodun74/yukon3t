@@ -22,6 +22,7 @@ import { HiddenRelock } from "@/components/hidden-relock";
 import { getHiddenPeerIds, isMembershipLocked } from "@/lib/hidden-chats";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function ConversationPage({
   params,
@@ -29,6 +30,8 @@ export default async function ConversationPage({
   params: Promise<{ id: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="messages" />;
   const { id } = await params;
   const t = (await getDictionary()).messages;
 

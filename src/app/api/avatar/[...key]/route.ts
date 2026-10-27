@@ -53,7 +53,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     return refuse(503);
   }
-  if (!(await checkRateLimit("avatarView", viewerId))) return refuse(429);
+  // A guest preview session counts under its own session id: every guest shares one user id (src/lib/guest-preview.ts).
+  const limiterKey = session?.user?.isGuest ? `guest:${session.guestSessionId ?? "unknown"}` : viewerId;
+  if (!(await checkRateLimit("avatarView", limiterKey))) return refuse(429);
 
   const wantFull = request.nextUrl.searchParams.get("size") === "full";
   const isOwner = viewerId === target.ownerId;

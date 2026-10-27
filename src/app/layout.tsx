@@ -23,6 +23,8 @@ import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { TextScaleScript } from "@/components/text-scale-script";
 import { auth } from "@/lib/auth";
+import { GuestPreviewProvider } from "@/components/guest-preview";
+import { guestFeedbackUrl } from "@/lib/guest-preview";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
@@ -181,6 +183,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  // A guest preview session (/try, src/lib/guest-preview.ts): read-only, so none of the member-only background parts
+  // (calls, push registration, presence, share target, review prompt, translation) are mounted for it.
+  const isGuest = Boolean(session?.user?.isGuest);
+  const member = session?.user && !isGuest ? session.user : null;
   const iosApp = isLikelyIosAppUserAgent((await headers()).get("user-agent"));
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   // The page is in the reader's language (src/lib/i18n), right-to-left in Arabic: <html> carries lang/dir. A part that
@@ -188,7 +194,7 @@ export default async function RootLayout({
   // that stay English, through their layouts. The call wording is only sent to a signed-in reader.
   // Translating what people write (src/lib/translation.ts): offered only when a provider is configured, and
   // automatic only for someone who turned it on in Settings. One primary-key read, alongside the dictionary.
-  const translationAvailable = Boolean(session?.user?.id) && isTranslationConfigured();
+  const translationAvailable = Boolean(member) && isTranslationConfigured();
   const [locale, dictionary, autoTranslate] = await Promise.all([
     getLocale(),
     getDictionary(),
@@ -238,7 +244,7 @@ export default async function RootLayout({
             iPhone's text size setting — see src/lib/text-scale.ts. */}
         <TextScaleScript />
         <AnalyticsScripts />
-        <PostHogProvider userId={session?.user?.id} />
+        <PostHogProvider userId={session?.user?.id} guest={isGuest} />
         <div className="aurora-bg" aria-hidden>
           <div className="aurora-blob" />
           <div className="aurora-blob" />
@@ -270,15 +276,17 @@ export default async function RootLayout({
             <Nav session={session} theme={theme} />
             {/* Native app only; renders nothing in a browser. Not session-gated: an "Update required" applies signed out too. */}
             <AppUpdateGate userId={session?.user?.id ?? null} />
-            {session?.user && <IncomingCallListener currentUserId={session.user.id} />}
-            {session?.user && <GlobalCallFrame />}
-            {session?.user && <FcmTokenBridge />}
-            {session?.user && <PresenceHeartbeat />}
-            {session?.user && <ScreenshotGuard />}
+            {member && <IncomingCallListener currentUserId={member.id} />}
+            {member && <GlobalCallFrame />}
+            {member && <FcmTokenBridge />}
+            {member && <PresenceHeartbeat />}
+            {member && <ScreenshotGuard />}
             {session?.user && <FeedVideoVolumeSync />}
-            {session?.user && <ShareTargetGate userId={session.user.id} />}
-            {session?.user && <ReviewPromptGate />}
-            <main className="flex-1">{children}</main>
+            {member && <ShareTargetGate userId={member.id} />}
+            {member && <ReviewPromptGate />}
+            <GuestPreviewProvider isGuest={isGuest} feedbackUrl={guestFeedbackUrl()}>
+              <main className="flex-1">{children}</main>
+            </GuestPreviewProvider>
             {/* Signed-in mobile users already have a dedicated bottom tab bar
                 (nav.tsx's `md:hidden` nav, reserved for via body's pb-16
                 above) covering navigation — this marketing-site-style footer

@@ -162,4 +162,41 @@ export const shellEn = {
       other: "Couldn't post — try again.",
     },
   },
+  // Guest preview (/try, src/lib/guest-preview.ts): the banner, the "create a free account" sheet, the gated screens
+  // and the /try page itself.
+  guest: {
+    banner: "You're exploring as a guest.",
+    bannerSignUp: "Sign up free",
+    feedback: "Give feedback",
+    sheetTitle: "Create a free account to do this",
+    sheetBody: "As a guest you can look around, but liking, commenting, posting, messaging, connecting, joining and calling are for members. Signing up is free.",
+    signUp: "Sign up",
+    signIn: "Sign in",
+    keepExploring: "Keep exploring",
+    gatedTitle: "This part is for members",
+    gated: {
+      messages: "Chats and calls are for members. Create a free account to message people.",
+      connections: "Connections are for members. Create a free account to connect with people.",
+      notifications: "Guests don't get notifications. Create a free account to hear when people reply, connect or message you.",
+      settings: "Guests don't have settings. Create a free account to set up your profile and privacy.",
+      profile: "Guests don't have a profile. Create a free account to set up yours.",
+      create: "Creating things is for members. Create a free account to start your own.",
+    },
+    try: {
+      title: "Explore YuKon3t as a guest",
+      intro: "Look around before you sign up. No email, no password.",
+      canDo: "You'll see the same public posts, Circles, Muse videos and profiles a brand-new member sees.",
+      cantDo: "Guests can't post, comment, like, connect, message, call or join anything.",
+      expires: "A guest visit lasts up to 2 hours, then ends on its own.",
+      button: "Explore YuKon3t as a guest",
+      pending: "Opening…",
+      haveAccount: "Already a member?",
+      orSignUp: "Or create a free account",
+      errors: {
+        unavailable: "Guest preview isn't available right now. You can still create a free account.",
+        rate_limited: "Too many guest visits from this network. Try again later, or create a free account.",
+        captcha: "Tap “Verify you're human”, then try again.",
+      },
+    },
+  },
 };

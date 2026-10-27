@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isGuestPreviewEnabled } from "@/lib/guest-preview";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { isBackupConfigured, listBackups } from "@/lib/db-backup";
@@ -118,6 +119,21 @@ export default async function AdminSystemPage() {
           {process.env.SENTRY_DSN
             ? "Sentry is configured — crashes report automatically."
             : "SENTRY_DSN isn't set — crashes anywhere in the app currently report to no one."}
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-line p-5">
+        <h2 className="text-sm font-semibold">Guest preview (/try)</h2>
+        <p
+          className={`mt-2 rounded-lg px-3 py-2 text-sm ${isGuestPreviewEnabled() ? "bg-success/10 text-success" : "bg-line/40 text-foreground-soft"}`}
+        >
+          {isGuestPreviewEnabled()
+            ? "On on this deployment: /try lets anyone look around read-only for up to 2 hours without an account."
+            : "Off on this deployment: /try answers 404 and any guest session ends at its next request."}
+        </p>
+        <p className="mt-3 text-xs text-foreground-soft">
+          Switch with <code className="rounded bg-background px-1 py-0.5">GUEST_PREVIEW_ENABLED=1</code> (unset = off) on
+          both Vercel and Netlify, then redeploy. Starts are counted on Analytics (&ldquo;Guest previews started&rdquo;).
         </p>
       </div>
 

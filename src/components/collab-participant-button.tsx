@@ -41,7 +41,7 @@ export function CollabParticipantButton({
 
   return (
     <div>
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={() =>

@@ -391,7 +391,8 @@ export async function loginWithPassword(formData: FormData) {
     if (loose.length === 1) user = loose[0];
   }
 
-  if (!user || !user.passwordHash) {
+  // The shared guest-preview identity (/try) has no password and is never signed in to; refused here as well.
+  if (!user || !user.passwordHash || user.isGuestPreview) {
     redirect("/sign-in?error=invalid_credentials");
   }
   if (user.status !== "ACTIVE" && user.status !== "DEACTIVATED") {

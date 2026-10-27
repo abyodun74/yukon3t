@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser, AuthError } from "@/lib/auth-guards";
+import { requireViewer, AuthError } from "@/lib/auth-guards";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { feedCategoryValues } from "@/lib/validations";
@@ -32,7 +32,8 @@ export async function GET(
 ) {
   let user;
   try {
-    user = await requireUser();
+    // Read-only, so a guest preview session may use it (src/lib/guest-preview.ts).
+    user = await requireViewer();
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ posts: [] }, { status: 401 });

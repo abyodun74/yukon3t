@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 
 const APP = join("src", "app");
 const AVATAR_IDENTIFIERS = /\b(avatarUrl|UserAvatar|UserLink|ProfileStoryRing|StoryTray|authorAvatarUrl)\b/;
-const SESSION_GUARDS = /\b(getOnboardedUserOrRedirect|getSessionUserOrRedirect|requireUser|requireVerifiedUser)\b/;
+// requireViewer/requireVerifiedViewer need a session too: a member's, or a guest preview session (src/lib/guest-preview.ts),
+// which sees avatars exactly as a signed-in member does.
+const SESSION_GUARDS = /\b(getOnboardedUserOrRedirect|getSessionUserOrRedirect|requireUser|requireVerifiedUser|requireViewer|requireVerifiedViewer)\b/;
 
 // Every page.tsx that may render for a signed-out visitor. Keep it in step with sitemap.ts / robots.ts.
 const PUBLIC_PAGES = [
@@ -29,6 +31,8 @@ const PUBLIC_PAGES = [
   "sign-in/verify-device/page.tsx",
   "sign-up/page.tsx",
   "sign-up/verify-phone/page.tsx",
+  // "Explore YuKon3t as a guest": an explanation and one button, no avatars.
+  "try/page.tsx",
   "verify-email/page.tsx",
 ].sort();
 

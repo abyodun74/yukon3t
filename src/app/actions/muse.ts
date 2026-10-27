@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { museSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -239,7 +239,7 @@ const MUSE_FEED_PAGE_SIZE = 10;
  * used to filter Discover.
  */
 export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
   const blockedIds = await getBlockedEitherWayIds(user.id);
 
   const items = await prisma.muse.findMany({
@@ -299,7 +299,7 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
 
 /** Single Muse fetch backing the /muse/[id] permalink page (shared/deep links) — same shape as one getMuseFeed item. */
 export async function getMuseById(id: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const m = await prisma.muse.findUnique({
     where: { id },
@@ -405,7 +405,7 @@ async function museReactionSummary(museId: string, viewerId: string): Promise<Re
 
 /** The full per-emoji breakdown for one Muse — fetched lazily, only for whichever item is currently on-screen in the feed (see MuseFeed), not for every item in a fetched page. */
 export async function getMuseReactionSummary(museId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
   const reactions = await museReactionSummary(museId, user.id);
   return { error: null, reactions };
 }
@@ -465,7 +465,7 @@ const MUSE_COMMENTS_LIMIT = 50;
  * is public by design; blocked-either-way is still excluded).
  */
 export async function getMuseComments(museId: string) {
-  const user = await requireVerifiedUser();
+  const user = await requireVerifiedViewer();
 
   const muse = await prisma.muse.findUnique({ where: { id: museId }, select: { authorId: true, moderationStatus: true } });
   if (!muse || muse.moderationStatus !== "PUBLISHED") {

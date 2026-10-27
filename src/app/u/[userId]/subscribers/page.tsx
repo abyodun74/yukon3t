@@ -21,7 +21,8 @@ export default async function SubscribersPage({
   const t = dictionary.profile.page;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || user.status !== "ACTIVE" || !user.name) notFound();
+  // The shared guest-preview identity (src/lib/guest-preview.ts) has no profile and no lists.
+  if (!user || user.status !== "ACTIVE" || !user.name || user.isGuestPreview) notFound();
   // Site admins are invisible platform-wide — see the same guard on
   // /u/[userId] itself.
   if (user.isAdmin && user.id !== me.id) notFound();

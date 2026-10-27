@@ -54,6 +54,7 @@ export default function PrivacyPage() {
         <li><b>Call &amp; live session data</b>: metadata needed to connect a 1:1 call or a Collab live session (who&apos;s in the room, timing). If a live session&apos;s host turns on cloud recording, the recording itself is stored as described in Section 4.</li>
         <li><b>Product usage events</b>: a small number of key lifecycle events tied to your account — for example sign-up, sign-in, a post created, a connection requested or accepted, a message sent, a call started, or a circle joined or created — used to keep the service reliable and to understand how features are used.</li>
         <li><b>Technical data</b>: IP address and basic request metadata (used for rate limiting and abuse prevention), session cookies, and your theme preference cookie. Our product analytics are configured not to use your IP address to determine your location. If enabled, our product analytics provider (see PostHog in Section 4) also receives usage data and screen recordings of how you use YuKon3t.</li>
+        <li><b>Guest preview</b>: if you use &ldquo;Explore YuKon3t as a guest&rdquo; (yukon3t.com/try) without an account, we create no profile for you and ask for no email, password or other details. Your browser gets a temporary session cookie that ends on its own after at most 2 hours (or sooner, if we switch guest preview off). Every guest uses the same shared, read-only guest identity, so nothing a guest does is tied to them personally, and a guest can&apos;t post, message, react or change anything. To stop abuse, your IP address is used for rate limiting exactly as described under Technical data (counters that expire on their own; the guest start counter after 1 hour), and the Cloudflare Turnstile check may run. We record that a guest visit started, with the short tag in the link you followed (for example &ldquo;reddit&rdquo;) but not your IP address; these counts are kept like our other usage counts. Guest visits are never screen-recorded by our product analytics provider and are not identified to it; it may still receive the pages a guest opens, as it does for signed-out visitors.</li>
         <li><b>Communications</b>: if you contact us for support or to appeal a moderation decision.</li>
         <li><b>Advertiser information</b>: if you book a paid ad placement, we collect the company name, contact name, and contact email you submit, along with the ad creative (headline, body text, image or video, and destination link).</li>
         <li><b>Device contacts</b>: only if you use the &quot;Invite from contacts&quot; feature — read from your device to show which of your contacts to invite. This list is never uploaded to or stored on our servers; it&apos;s discarded the moment you leave that screen.</li>
@@ -168,6 +169,11 @@ export default function PrivacyPage() {
       </p>
 
       <h2 className="mt-8 font-semibold">7. Data retention</h2>
+      <p className="mt-2 text-foreground-soft">
+        A guest preview session (see Section 1) lasts at most 2 hours; the
+        record that a guest visit started (with its link tag, without an IP
+        address) is kept with our other usage counts.
+      </p>
       <p className="mt-2 text-foreground-soft">
         We retain your account and content data for as long as your account
         is active. If you delete your account, your profile, posts,
@@ -285,8 +291,9 @@ export default function PrivacyPage() {
 
       <h2 className="mt-8 font-semibold">10. Cookies</h2>
       <p className="mt-2 text-foreground-soft">
-        We use a session cookie to keep you signed in and a small,
-        non-sensitive cookie to remember your light/dark/system theme
+        We use a session cookie to keep you signed in (for a guest preview,
+        a temporary session cookie that expires after at most 2 hours) and a
+        small, non-sensitive cookie to remember your light/dark/system theme
         preference. We do not use third-party advertising or tracking
         cookies on YuKon3t. If you complete a paid ad booking, Stripe&apos;s
         hosted checkout page (on stripe.com, outside YuKon3t) may set its own

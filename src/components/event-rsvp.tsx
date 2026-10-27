@@ -86,7 +86,7 @@ export function EventRsvpButtons({
   );
   return (
     <div role="group" aria-label={`${t.replyGroup}: ${title}`} className="flex shrink-0 items-center gap-1.5">
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={() => onChoose("GOING")}
@@ -96,7 +96,7 @@ export function EventRsvpButtons({
         {status === "GOING" && <Check size={12} aria-hidden />}
         {status === "GOING" ? t.going : t.imGoing}
       </button>
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={() => onChoose("MAYBE")}

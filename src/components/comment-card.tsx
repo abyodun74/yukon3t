@@ -219,14 +219,16 @@ export function CommentCard({
       {!removed && !editing && (
         <>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <button
+            <button data-guest-block
               type="button"
               onClick={() => setReplying((v) => !v)}
               className="text-xs text-foreground-soft hover:text-accent"
             >
               {t.reply}
             </button>
-            <EmojiPickerButton onSelect={toggleReaction} />
+            <span data-guest-block className="contents">
+              <EmojiPickerButton onSelect={toggleReaction} />
+            </span>
             {canEdit && (
               <button
                 type="button"

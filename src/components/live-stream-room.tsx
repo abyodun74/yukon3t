@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, Users, X } from "lucide-react";
 import { useCallSession } from "@/lib/call-session";
+import { useGuestPreview } from "@/components/guest-preview";
 import {
   joinLiveStream,
   leaveLiveStream,
@@ -131,6 +132,7 @@ export function LiveStreamRoom({
   initialRole?: Role;
 }) {
   const { locale, t } = useLiveText();
+  const { isGuest, promptSignUp } = useGuestPreview();
   const [phase, setPhase] = useState<"choosing" | "joining" | "active" | "error">(
     initiallyEnded ? "error" : isHost || initialRole ? "joining" : "choosing",
   );
@@ -202,6 +204,12 @@ export function LiveStreamRoom({
   // rule wants.
   const requestJoin = useCallback(
     (selectedRole?: StageRole) => {
+      // Watching a live stream joins its video room (a viewer token, a viewer count): members only. A guest preview
+      // session (src/lib/guest-preview.ts) gets the sign-up sheet instead.
+      if (isGuest) {
+        promptSignUp();
+        return;
+      }
       joinLiveStream(liveStreamId, selectedRole)
         .then((result) => {
           if (result.error || !result.roomUrl || !result.token) {
@@ -236,7 +244,7 @@ export function LiveStreamRoom({
           setPhase("error");
         });
     },
-    [liveStreamId],
+    [liveStreamId, isGuest, promptSignUp],
   );
 
   function doJoin(selectedRole?: StageRole) {

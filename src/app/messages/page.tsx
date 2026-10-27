@@ -7,9 +7,12 @@ import { MessagesQuickActions } from "@/components/messages-quick-actions";
 import { MessagesHeading } from "@/components/messages-heading";
 import { getInboxItems } from "@/lib/inbox-items";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function MessagesPage() {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="messages" />;
 
   const t = (await getDictionary()).messages;
   const items = await getInboxItems(me.id, "visible", t.fallback);

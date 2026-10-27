@@ -22,8 +22,9 @@ export async function setLocale(locale: string) {
     maxAge: LOCALE_COOKIE_MAX_AGE_SECONDS,
   });
   try {
-    const userId = (await auth())?.user?.id;
-    if (userId) await writeLocale(userId, locale);
+    const sessionUser = (await auth())?.user;
+    // A guest preview session (src/lib/guest-preview.ts) is read-only: the cookie is all it gets.
+    if (sessionUser?.id && !sessionUser.isGuest) await writeLocale(sessionUser.id, locale);
   } catch (err) {
     // The cookie is set either way; the account catches up on the next sign-in or badge fetch.
     await captureError(err, { where: "setLocale" });

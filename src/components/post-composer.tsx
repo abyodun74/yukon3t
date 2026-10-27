@@ -920,7 +920,7 @@ export function PostComposer({
         }
       }}
     >
-      <textarea dir="auto"
+      <textarea data-guest-block dir="auto"
         ref={contentRef}
         name="content"
         maxLength={50000}

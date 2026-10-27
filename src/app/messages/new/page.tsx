@@ -5,6 +5,7 @@ import { MultiSelect } from "@/components/multi-select";
 import { BackButton } from "@/components/back-button";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function NewGroupChatPage({
   searchParams,
@@ -12,6 +13,8 @@ export default async function NewGroupChatPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="messages" />;
   const { error } = await searchParams;
   const messages = (await getDictionary()).messages;
   const t = messages.newGroup;

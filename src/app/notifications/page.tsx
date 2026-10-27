@@ -8,9 +8,12 @@ import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function NotificationsPage() {
   const me = await getSessionUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="notifications" />;
 
   // Rows from a hidden chat, or private ones (message, missed call, screenshot) from a hidden 1:1 peer, are never
   // listed here, including rows created before the chat was hidden. They reappear if the chat is unhidden.

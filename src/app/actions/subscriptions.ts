@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -44,7 +44,7 @@ export async function toggleSubscription(targetId: string) {
   // Same "not_found" as a blocked/inactive target below — admins are
   // invisible platform-wide (see requestConnection/startDirectMessage in
   // actions/connections.ts), so this stays indistinguishable too.
-  if (!target || target.status !== "ACTIVE" || target.isAdmin) {
+  if (!target || target.status !== "ACTIVE" || target.isAdmin || target.isGuestPreview) {
     return { error: "not_found" };
   }
   // Deliberately indistinguishable from "not_found" — same reasoning as
@@ -76,7 +76,7 @@ export async function toggleSubscription(targetId: string) {
 
 /** Auto-load-more for /u/[userId]/subscribers, called via useInfiniteScroll. */
 export async function loadMoreSubscribers(profileUserId: string, cursor: string) {
-  const viewer = await requireUser();
+  const viewer = await requireViewer();
   const rows = await prisma.subscription.findMany({
     // Admins are invisible platform-wide — excluded from the *listed* rows
     // here, not just when they're the profile being viewed (see the
@@ -101,7 +101,7 @@ export async function loadMoreSubscribers(profileUserId: string, cursor: string)
 
 /** Auto-load-more for /u/[userId]/subscribing, called via useInfiniteScroll. */
 export async function loadMoreSubscribing(profileUserId: string, cursor: string) {
-  const viewer = await requireUser();
+  const viewer = await requireViewer();
   const rows = await prisma.subscription.findMany({
     // Same admin exclusion as loadMoreSubscribers above.
     where: { subscriberId: profileUserId, subscribedTo: { isAdmin: false } },

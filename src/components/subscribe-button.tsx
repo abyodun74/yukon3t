@@ -37,7 +37,7 @@ export function SubscribeButton({
 
   if (variant === "pill") {
     return (
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={toggle}
@@ -54,7 +54,7 @@ export function SubscribeButton({
   }
 
   return (
-    <button
+    <button data-guest-block
       type="button"
       disabled={isPending}
       onClick={toggle}

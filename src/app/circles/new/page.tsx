@@ -8,6 +8,7 @@ import { BackButton } from "@/components/back-button";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function NewCirclePage({
   searchParams,
@@ -15,6 +16,8 @@ export default async function NewCirclePage({
   searchParams: Promise<{ error?: string; parent?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="create" />;
   const { error, parent: parentSlug } = await searchParams;
   const dictionary = await getDictionary();
   const t = dictionary.circles.create;

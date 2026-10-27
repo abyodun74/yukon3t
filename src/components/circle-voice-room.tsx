@@ -13,6 +13,7 @@ import {
 import { CallFrame } from "@/components/call-frame";
 import { UserAvatar } from "@/components/user-link";
 import { useRealtimeEvent } from "@/lib/realtime-client";
+import { useGuestPreview } from "@/components/guest-preview";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { useCirclesText } from "@/components/circles-text";
 import { useUiText } from "@/components/ui-text";
@@ -81,7 +82,14 @@ export function CircleVoiceRoom({
   }, [channelId, active]);
   useRealtimeEvent(!active ? REALTIME_CHANNELS.voiceChannel(channelId) : null, "changed", refetch);
 
+  // Members only: a guest preview session (src/lib/guest-preview.ts) gets the sign-up sheet instead.
+  const guestPreview = useGuestPreview();
+
   async function join() {
+    if (guestPreview.isGuest) {
+      guestPreview.promptSignUp();
+      return;
+    }
     setError(null);
     const result = await joinCircleVoiceRoom(channelId);
     if (result.error || !result.roomUrl || !result.token) {

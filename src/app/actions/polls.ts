@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer, viewerRateLimitKey } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -408,8 +408,8 @@ export async function votePoll(pollId: string, optionIds: unknown) {
  * collabPollScope): not_found for anyone who may not see the list, so an id says nothing about whether it exists.
  */
 export async function loadPolls(input: unknown) {
-  const user = await requireVerifiedUser();
-  if (!(await checkRateLimit("pollList", user.id))) return failure("rate_limited");
+  const user = await requireVerifiedViewer();
+  if (!(await checkRateLimit("pollList", await viewerRateLimitKey(user)))) return failure("rate_limited");
   const parsed = pollListSchema.safeParse(input);
   if (!parsed.success || pollParentError(parsed.data)) return failure("invalid");
   const { circleId, collabId, cursor, mode } = parsed.data;

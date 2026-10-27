@@ -12,6 +12,7 @@ import { COLLAB_TYPES } from "@/lib/collab-types";
 import { vocabName } from "@/lib/i18n/language-names";
 import { byCode } from "@/lib/i18n/locales";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function EditCollabPostPage({
   params,
@@ -21,6 +22,8 @@ export default async function EditCollabPostPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="create" />;
   const { id } = await params;
   const { error } = await searchParams;
   const dictionary = await getDictionary();

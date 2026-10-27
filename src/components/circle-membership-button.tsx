@@ -40,7 +40,7 @@ export function CircleMembershipButton({
   if (!isMember && visibility === "PRIVATE" && !hasPendingInvite) return null;
 
   return (
-    <button
+    <button data-guest-block
       type="button"
       disabled={isPending}
       onClick={() =>

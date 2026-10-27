@@ -14,6 +14,7 @@ import {
 import { shareCollabMaterial } from "@/lib/collab-material";
 import { useCallSession } from "@/lib/call-session";
 import { useRealtimeEvent } from "@/lib/realtime-client";
+import { useGuestPreview } from "@/components/guest-preview";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
@@ -165,7 +166,14 @@ export function CollabSessionRoom({
   // everyone's since left" — either one means there's something to join.
   const sessionActive = participants.length > 0 || hasSessionRoom;
 
+  // Members only: a guest preview session (src/lib/guest-preview.ts) gets the sign-up sheet instead.
+  const guestPreview = useGuestPreview();
+
   async function doJoin() {
+    if (guestPreview.isGuest) {
+      guestPreview.promptSignUp();
+      return;
+    }
     setError(null);
     const result = await joinCollabSession(collabId);
     if (result.error || !result.roomUrl || !result.token) {

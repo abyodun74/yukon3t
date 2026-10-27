@@ -106,6 +106,8 @@ export default async function SearchPage({
           // algorithmic suggestions — see the same exclusion in discover.ts/
           // search-embeddings.ts and the isAdmin check on /u/[userId] itself.
           isAdmin: false,
+          // Never the shared guest-preview identity (src/lib/guest-preview.ts), searched for by name or not.
+          isGuestPreview: false,
           // Deliberately not gated on `discoverable` — that flag opts someone
           // out of *passive* algorithmic suggestions (see /discover), not out
           // of being found by someone who already knows their name and
@@ -277,7 +279,7 @@ export default async function SearchPage({
       </div>
 
       {q.length >= 2 && (
-        <form className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+        <form data-guest-ok className="mt-4 flex flex-wrap items-center gap-3 text-sm">
           <input type="hidden" name="q" value={q} />
           <select
             name="sort"

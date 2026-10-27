@@ -22,6 +22,7 @@ export const FAQ_SECTION_IDS = [
 export const FAQ_IDS = [
   // Getting around
   "who-join-yukon3t",
+  "try-without-signing-up",
   "where-find-everything",
   "swipe-between-tabs-instead-tapping",
   "difference-between-home-discover-connections",

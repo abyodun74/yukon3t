@@ -164,7 +164,7 @@ export function LiveStreamStrip() {
     <div>
       {hasStreams ? (
         <div className="flex items-center gap-3 overflow-x-auto pb-1">
-          <button
+          <button data-guest-block
             type="button"
             onClick={() => setComposing(true)}
             className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"
@@ -190,7 +190,7 @@ export function LiveStreamStrip() {
           ))}
         </div>
       ) : (
-        <button
+        <button data-guest-block
           type="button"
           onClick={() => setComposing(true)}
           className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-danger hover:border-danger"

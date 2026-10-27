@@ -18,6 +18,9 @@ const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 // wait on `loaded` and run in order once it resolves — they don't start the
 // download themselves, initPostHog does.
 let loading: Promise<PostHog | null> | null = null;
+// A guest preview session (src/lib/guest-preview.ts) is never recorded: set by setPostHogNoRecording before init, and
+// it also stops a recording already running (a member who signed out into a guest visit on the same page load).
+let noRecording = false;
 let resolveLoaded: (posthog: PostHog) => void = () => {};
 const loaded = new Promise<PostHog>((resolve) => {
   resolveLoaded = resolve;
@@ -77,7 +80,7 @@ function init(posthog: PostHog) {
     // enrichment. Set in init, so nothing is ever sent without it. See
     // posthog-geoip.ts for why there's no `ip: false` here.
     before_send: disablePostHogGeoIp,
-    disable_session_recording: lowData,
+    disable_session_recording: lowData || noRecording,
     session_recording: {
       // Two independent layers, deliberately not left at their SDK
       // defaults — this app has a real secret (end-to-end encrypted) chat
@@ -95,6 +98,14 @@ function init(posthog: PostHog) {
       maskTextClass: "ph-mask",
       maskAllInputs: true,
     },
+  });
+}
+
+/** Guest preview: no session recording on this page load (see `noRecording`). Call before initPostHog. */
+export function setPostHogNoRecording() {
+  noRecording = true;
+  void loaded.then((posthog) => {
+    if (posthog.sessionRecordingStarted()) posthog.stopSessionRecording();
   });
 }
 

@@ -23,7 +23,7 @@ function MessageRequestButton({ targetId }: { targetId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={() => {
@@ -124,7 +124,7 @@ export function ConnectButton({
           </option>
         ))}
       </select>
-      <button
+      <button data-guest-block
         type="button"
         disabled={isPending}
         onClick={() => {

@@ -208,6 +208,7 @@ export async function semanticSearch(
             // Site admins are invisible platform-wide — see the same
             // exclusion in search/page.tsx's exact-match query.
             isAdmin: false,
+            isGuestPreview: false,
           },
           take: CANDIDATE_LIMIT,
         })

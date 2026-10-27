@@ -12,7 +12,7 @@ export function PostMuseButton() {
 
   return (
     <>
-      <button
+      <button data-guest-block
         type="button"
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent"

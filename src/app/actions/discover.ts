@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser } from "@/lib/auth-guards";
+import { requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
@@ -48,11 +48,11 @@ const discoverPersonSelect = {
  * specific person's likely friends-of-friends with mutual-connection
  * counts: a real signal about their private connections graph, not
  * something Discover/search otherwise exposes about an arbitrary user.
- * requireUser() now establishes whose suggestions this returns; the caller
+ * requireViewer() now establishes whose suggestions this returns; the caller
  * can no longer choose.
  */
 export async function getPeopleYouMayKnow() {
-  const user = await requireUser();
+  const user = await requireViewer();
   const userId = user.id;
   const myConnections = await prisma.connection.findMany({
     where: { status: "ACCEPTED", OR: [{ requesterId: userId }, { targetId: userId }] },
@@ -107,6 +107,8 @@ export async function getPeopleYouMayKnow() {
       discoverable: true,
       // Site admins are invisible platform-wide — see /discover/page.tsx.
       isAdmin: false,
+      // So is the shared guest-preview identity (src/lib/guest-preview.ts).
+      isGuestPreview: false,
     },
     select: {
       id: true,
@@ -136,7 +138,7 @@ export async function loadMoreDiscoverPeople(
   cursor: string,
   filters: { intent?: string; country?: string; sort?: string },
 ) {
-  const me = await requireUser();
+  const me = await requireViewer();
   const page = Math.max(2, Number.parseInt(cursor, 10) || 2);
   const sort: SortOption = SORT_OPTIONS.includes(filters.sort as SortOption)
     ? (filters.sort as SortOption)
@@ -157,6 +159,8 @@ export async function loadMoreDiscoverPeople(
       discoverable: true,
       // Site admins are invisible platform-wide — see /discover/page.tsx.
       isAdmin: false,
+      // So is the shared guest-preview identity (src/lib/guest-preview.ts).
+      isGuestPreview: false,
       ...(intent ? { openToIntents: { has: intent as (typeof intentTagValues)[number] } } : {}),
       ...(country ? { country: { equals: country, mode: "insensitive" } } : {}),
       ...(sort === "online" ? { lastSeenAt: { gt: onlineSince() } } : {}),

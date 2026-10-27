@@ -128,6 +128,8 @@ export function StoryTray({
   return (
     <>
       <div className="flex gap-4 overflow-x-auto pb-1">
+        {/* Adding a story is members-only: a guest preview session gets the sign-up sheet (src/components/guest-preview.tsx). */}
+        <span data-guest-block className="contents">
         <Ring
           avatarUrl={myGroup?.authorAvatarUrl ?? meAvatarUrl}
           label={t.stories.yourStory}
@@ -143,6 +145,7 @@ export function StoryTray({
           }}
           onAdd={() => setUploadOpen(true)}
         />
+        </span>
         {others.map((group) => (
           <Ring
             key={group.authorId}

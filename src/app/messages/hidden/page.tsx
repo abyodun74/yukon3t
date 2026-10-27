@@ -7,6 +7,7 @@ import { getHiddenPinState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import { safeHiddenNext } from "@/lib/hidden-chats-rules";
 import { getInboxItems } from "@/lib/inbox-items";
 import { getDictionary } from "@/lib/i18n/server";
+import { GuestGatedScreen } from "@/components/guest-preview";
 
 export default async function HiddenChatsPage({
   searchParams,
@@ -14,6 +15,8 @@ export default async function HiddenChatsPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
+  // Members only: a guest preview session (src/lib/guest-preview.ts) sees why, and how to join.
+  if (me.isGuestPreview) return <GuestGatedScreen kind="messages" />;
   const { next } = await searchParams;
 
   const hasPin = Boolean((await getHiddenPinState(me.id)).hiddenChatsPinHash);

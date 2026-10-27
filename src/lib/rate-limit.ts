@@ -86,6 +86,11 @@ function buildLimiter(
 const limiterDefinitions = {
   signIn: makeLimiter(5, "10 m"),
   passwordSignUp: makeLimiter(5, "1 h"),
+  // Starting a guest preview from /try (actions/guest-preview.ts), per client IP. Loose enough for a household or a
+  // carrier NAT sharing one address (each start is one cookie, nothing is created), tight enough that a script can't
+  // mint sessions in bulk; a second, global ceiling bounds a distributed run.
+  guestPreviewStart: makeLimiter(10, "1 h"),
+  guestPreviewStartGlobal: makeLimiter(3000, "1 h"),
   passwordLogin: makeLimiter(10, "10 m"),
   // Per-IP ceiling across ALL accounts, on top of passwordLogin's per-IP+
   // account bucket above — that one alone lets a single IP try unlimited

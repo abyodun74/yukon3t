@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { createCallRoom, createMeetingToken, isCallingConfigured } from "@/lib/daily";
 import { canAccessChannel } from "@/lib/channel-permissions";
@@ -104,7 +104,7 @@ export async function leaveCircleVoiceRoom(channelId: string) {
  */
 export async function getCircleVoiceParticipants(channelId: string) {
   try {
-    const user = await requireVerifiedUser();
+    const user = await requireVerifiedViewer();
 
     // Who's in a PRIVATE Circle's (or a private channel's) voice room is members-only information, same as the room.
     const channel = await prisma.channel.findUnique({
