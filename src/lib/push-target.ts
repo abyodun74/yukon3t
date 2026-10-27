@@ -43,6 +43,49 @@ export function safeInAppPath(raw: unknown): string | null {
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
+/**
+ * A notification the Android app builds itself (today: the native "Missed call" one, CallForegroundService) can't
+ * raise `notificationActionPerformed`, so its tap opens MainActivity with `yukon3t://open?path=<in-app path>&n=<id>`
+ * instead, which reaches the page as App's launch URL (cold start) or `appUrlOpen` (app already running). This is the
+ * in-app path such a link opens, or null for anything else (including the `yukon3t://call` ring links, handled by
+ * incoming-call-listener.tsx). The path goes through safeInAppPath like a push's `url`.
+ */
+export function notificationDeepLinkPath(raw: unknown): string | null {
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > 1000) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "yukon3t:" || parsed.hostname !== "open") return null;
+  return safeInAppPath(parsed.searchParams.get("path"));
+}
+
+/** sessionStorage key of the last native launch URL already acted on (App.getLaunchUrl repeats it after a reload). */
+export const HANDLED_LAUNCH_URL_KEY = "yukon3t:handled-launch-url";
+
+let memoryHandledLaunchUrl: string | null = null;
+
+/**
+ * True the first time a given launch URL is seen in this app session, false after: App.getLaunchUrl keeps returning
+ * the URL that started the Activity for its whole life, so without this every later full reload (a stale-build
+ * reload hours later) would jump back to that old notification's page. Each native link carries its own id, so a new
+ * notification is always new. Remembered in sessionStorage (survives a reload) and memory (storage blocked).
+ */
+export function claimLaunchUrl(url: string): boolean {
+  let handled = memoryHandledLaunchUrl;
+  try {
+    handled = sessionStorage.getItem(HANDLED_LAUNCH_URL_KEY) ?? handled;
+  } catch {}
+  if (handled === url) return false;
+  memoryHandledLaunchUrl = url;
+  try {
+    sessionStorage.setItem(HANDLED_LAUNCH_URL_KEY, url);
+  } catch {}
+  return true;
+}
+
 export type PushTap = { url: string; at: number };
 
 export function parsePushTap(raw: string | null): PushTap | null {

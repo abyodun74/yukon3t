@@ -31,7 +31,7 @@ import type { ReactionSummary } from "@/lib/reactions";
 import { CommentComposer } from "@/components/comment-composer";
 import { CommentList } from "@/components/comment-list";
 import { LinkSafetyModal } from "@/components/link-safety-modal";
-import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
+import { embedPublicUrl, embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatDateTime } from "@/lib/format-date";
 import { useUiText, useShellText } from "@/components/ui-text";
@@ -544,6 +544,11 @@ function MediaBlock({
       ? embedSrc({ provider: post.embedProvider, id: post.embedId })
       : "";
   const embedRef = useStopEmbedOnScrollOut<HTMLIFrameElement>(embedIframeSrc);
+  const embedPageUrl =
+    post.mediaType === "EMBED" && post.embedProvider && post.embedId
+      ? embedPublicUrl({ provider: post.embedProvider, id: post.embedId })
+      : null;
+  const [embedLinkOpen, setEmbedLinkOpen] = useState(false);
   const [muted, setMuted] = useFeedVideoMuted();
   // Mirrors the element's real state (onPlay/onPause below) rather than
   // tracking taps, since autoplay-on-view starts/stops it too.
@@ -804,12 +809,33 @@ function MediaBlock({
           />
         </div>
       )}
+      {embedPageUrl && (
+        <>
+          {/* The video's own page on its provider. Touches inside the player's cross-origin frame never reach the
+              app, so this line is where press-and-hold "Copy link" copies the original external link (never the
+              yukon3t post URL); a tap opens it through the same safety sheet as a LINK post. */}
+          <button
+            type="button"
+            onClick={() => setEmbedLinkOpen(true)}
+            data-copy-url={embedPageUrl}
+            className="mt-1.5 flex max-w-full items-center gap-1.5 text-xs text-foreground-soft hover:text-accent"
+          >
+            <ExternalLink size={12} className="shrink-0" aria-hidden />
+            <span dir="ltr" className="truncate">
+              {embedPageUrl.replace(/^https:\/\/(www\.)?/, "")}
+            </span>
+          </button>
+          <LinkSafetyModal url={embedPageUrl} open={embedLinkOpen} onClose={() => setEmbedLinkOpen(false)} />
+        </>
+      )}
 
       {post.mediaType === "LINK" && post.linkUrl && (
         <>
           <button
             type="button"
             onClick={() => setLinkModalOpen(true)}
+            // Press-and-hold "Copy link" copies this link itself (src/lib/link-copy-menu.ts), not the post's URL.
+            data-copy-url={post.linkUrl}
             className="mt-3 flex w-full items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-accent hover:bg-line/40"
           >
             <ExternalLink size={14} className="shrink-0" />

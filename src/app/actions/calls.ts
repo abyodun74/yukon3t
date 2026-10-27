@@ -13,6 +13,7 @@ import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
 import { stopCaptionsForCall } from "@/lib/call-captions-server";
 import { ringCallerAvatarUrl } from "@/lib/call-avatar";
+import { nativeRingCallerAvatarUrl } from "@/lib/call-avatar-server";
 import { incomingCallPush, ringCallerName } from "@/lib/push-text";
 import type { Locale } from "@/lib/i18n/locales";
 import { track } from "@/lib/analytics";
@@ -153,6 +154,8 @@ export async function startCall(formData: FormData) {
       callId: call.id,
       callerName,
       callType: call.type,
+      // The Android ring's picture: none for a "Private call" (call-avatar-server.ts). Never throws.
+      callerAvatarUrl: await nativeRingCallerAvatarUrl(maskedName, user.avatarUrl),
     });
     // iOS-only: wakes a fully terminated/backgrounded app via PushKit and
     // shows the system-level CallKit incoming-call UI (Accept/Decline),
@@ -566,6 +569,7 @@ export async function inviteToCall(callId: string, inviteeId: string) {
       callId,
       callerName,
       callType: call.type,
+      callerAvatarUrl: await nativeRingCallerAvatarUrl(maskedName, user.avatarUrl),
     });
     await sendVoipCallToUser(inviteeId, {
       callId,

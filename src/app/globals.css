@@ -809,13 +809,46 @@ button:not(:disabled):active {
 }
 
 /* Press-and-hold never shows a URL: no native long-press callout on links, images or video (iOS link preview /
-   image sheet) and no drag-out. Links and media get the app's own "Copy link" menu instead
-   (src/components/link-copy-menu.tsx); a tap still navigates. Text selection is untouched (no user-select here). */
+   image sheet) and no drag-out. Photos and links get the app's own "Copy photo" / "Copy link" menu instead
+   (src/components/link-copy-menu.tsx); a tap still navigates. Text selection is untouched (no user-select on text);
+   images aren't selectable, so holding a photo doesn't paint the browser's selection over it. */
 a[href],
 img,
-video {
+video,
+[data-copy-url] {
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
+}
+
+img {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The photo / link a press-and-hold menu is acting on (set by link-copy-menu.tsx while the menu is open). The ring
+   is drawn inside the element (negative offset) so a photo in an overflow-hidden, rounded container still shows it;
+   outlines follow border-radius. Colours are theme tokens, so dark mode and every theme follow. */
+[data-press-highlight] {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  transition: filter 120ms ease;
+}
+
+img[data-press-highlight] {
+  filter: brightness(0.82);
+}
+
+[data-press-highlight="link"] {
+  outline-offset: 1px;
+  background-color: var(--accent-soft);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-press-highlight] {
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

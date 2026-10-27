@@ -27,7 +27,8 @@ export async function AmbientFeedPreview({ moments }: { moments: FeedMoment[] })
   return (
     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {moments.map((moment) => (
-        <li key={moment.id} className="overflow-hidden rounded-xl border border-line bg-black">
+        // Ephemeral moments, like stories: not copyable by press-and-hold (src/lib/link-copy-menu.ts).
+        <li key={moment.id} className="overflow-hidden rounded-xl border border-line bg-black" data-no-copy-media>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={moment.imageUrl} alt={moment.caption ?? ""} className="aspect-square w-full object-cover" />
           <div className="flex items-center gap-1.5 p-2">

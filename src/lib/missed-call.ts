@@ -34,17 +34,19 @@ export async function notifyMissedCall(params: {
   // The callee has hidden their chat with this caller: the ring is still cleared (above, by call id alone), but
   // nothing that names the caller is left behind: no "Missed call from X" push and no bell row.
   if ((await getHiddenPeerIds(calleeId)).includes(callerId)) return;
+  // Both pushes open the caller's profile (call back / message from there), the same place the bell's missed-call
+  // row leads (notificationHref).
+  const url = `/u/${callerId}`;
   // Leaves a proper "Missed call from X" notification behind on Android —
   // separate data message from the cancel above, see sendFcmMissedCallToUser.
-  await sendFcmMissedCallToUser(calleeId, callId, (locale) => nameOrSomeone(callerName, locale));
+  await sendFcmMissedCallToUser(calleeId, callId, (locale) => nameOrSomeone(callerName, locale), url);
 
-  // Opens the caller's profile (call back / message from there), the same place the bell's missed-call row leads.
   await sendPushToUser(calleeId, (locale) => {
     const t = pushText(locale).call;
     return {
       title: t.missedTitle,
       body: format(t.missed, { name: nameOrSomeone(callerName, locale) }),
-      url: `/u/${callerId}`,
+      url,
     };
   });
 

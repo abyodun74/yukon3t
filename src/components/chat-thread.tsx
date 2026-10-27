@@ -646,6 +646,8 @@ function MessageBubble({
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          // Secret chat: its photos can't be copied by press-and-hold (src/lib/link-copy-menu.ts), like forwarding.
+          data-no-copy-media={secretActive || message.wasEncrypted ? "" : undefined}
           style={{
             transform: dragX ? `translateX(${dragX * swipeSign}px)` : undefined,
             transition: isDragging ? "none" : "transform 150ms ease",
@@ -768,7 +770,8 @@ function MessageBubble({
                     mine ? "bg-black/10 hover:bg-black/15" : "bg-black/5 hover:bg-black/10",
                   )}
                 >
-                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black">
+                  {/* A story's picture isn't saveable anywhere, so its preview isn't copyable either. */}
+                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black" data-no-copy-media>
                     {(message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl) && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

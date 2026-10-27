@@ -2366,11 +2366,16 @@ const sections: Section[] = [
             Not from within YuKon3t. Profile pictures have no save, download,
             or share option, including when you tap one to enlarge it, and
             the long-press, right-click, and drag-to-save shortcuts are
-            turned off for them. This is a deterrent, not a lock: YuKon3t
-            can&apos;t prevent a screenshot or stop someone determined to
-            copy what&apos;s on their screen, so use a profile picture
-            you&apos;re comfortable with others seeing. Posts, stories, and
-            Muse keep their own save and share options.
+            turned off for them. In the Android app, screenshots and screen
+            recordings come out black while someone else&apos;s enlarged
+            profile picture is open; that isn&apos;t possible on iPhone or
+            on the web, and the small pictures shown elsewhere in the app
+            aren&apos;t covered. This is a deterrent, not a lock: YuKon3t
+            can&apos;t prevent every screenshot or stop someone determined to
+            copy what&apos;s on their screen (with another camera, for
+            example), so use a profile picture you&apos;re comfortable with
+            others seeing. Posts, stories, and Muse keep their own save and
+            share options.
           </>
         ),
       },

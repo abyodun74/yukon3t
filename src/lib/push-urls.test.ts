@@ -8,6 +8,7 @@ import { notificationHref, type NotificationData } from "@/lib/notification-href
 const webPush = vi.fn();
 const fcmActivity = vi.fn();
 const notificationCreate = vi.fn();
+const fcmMissedCall = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: { notification: { create: (...a: unknown[]) => notificationCreate(...a) } },
@@ -16,7 +17,7 @@ vi.mock("@/lib/push", () => ({ sendPushToUser: (...a: unknown[]) => webPush(...a
 vi.mock("@/lib/fcm", () => ({
   sendFcmActivityToUser: (...a: unknown[]) => fcmActivity(...a),
   sendFcmCallCancelToUser: vi.fn(),
-  sendFcmMissedCallToUser: vi.fn(),
+  sendFcmMissedCallToUser: (...a: unknown[]) => fcmMissedCall(...a),
 }));
 vi.mock("@/lib/apns-voip", () => ({ sendVoipCallCancelToUser: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/hidden-chats", () => ({ getHiddenPeerIds: vi.fn().mockResolvedValue([]) }));
@@ -52,13 +53,19 @@ describe("push URL = bell row href", () => {
     webPush.mockReset();
     fcmActivity.mockReset();
     notificationCreate.mockReset();
+    fcmMissedCall.mockReset();
   });
 
-  it("a missed call opens the caller's profile", async () => {
+  it("a missed call opens the caller's profile, from the web push and the native Android notification alike", async () => {
     await notifyMissedCall({ callId: "call1", callerId: "caller", callerName: "Ada", calleeId: "me" });
     const url = (webPush.mock.calls[0][1] as Payload)("en").url;
     expect(url).toBe("/u/caller");
     expect(notificationHref(rowFrom(notificationCreate.mock.calls[0]))).toBe(url);
+    // sendFcmMissedCallToUser(userId, callId, callerName, url)
+    expect(fcmMissedCall).toHaveBeenCalledTimes(1);
+    expect(fcmMissedCall.mock.calls[0][0]).toBe("me");
+    expect(fcmMissedCall.mock.calls[0][1]).toBe("call1");
+    expect(fcmMissedCall.mock.calls[0][3]).toBe(url);
   });
 
   it.each([

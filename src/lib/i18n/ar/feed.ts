@@ -354,4 +354,17 @@ export const feed: typeof feedEn = {
       "zero: لا جهات اتصال مشتركة | one: جهة اتصال مشتركة واحدة | two: جهتا اتصال مشتركتان | few: # جهات اتصال مشتركة | many: # جهة اتصال مشتركة | other: # جهة اتصال مشتركة",
     unknownLocation: "الموقع غير معروف",
   },
+  pressMenu: {
+    label: "نسخ",
+    copyLink: "نسخ الرابط",
+    linkCopied: "تم نسخ الرابط",
+    copyLinkFailed: "تعذّر نسخ الرابط.",
+    copyPhoto: "نسخ الصورة",
+    copyingPhoto: "جارٍ النسخ…",
+    photoCopied: "تم نسخ الصورة",
+    copyPhotoFailed: "تعذّر نسخ الصورة. حاول مرة أخرى.",
+    photoCopyUnsupported: "لا يمكن لهذا المتصفح نسخ الصور.",
+    sharePhoto: "مشاركة الصورة",
+    photoCopyUseShare: "لا يمكن نسخ الصور في تطبيق أندرويد بعد. شاركها بدلاً من ذلك.",
+  },
 };

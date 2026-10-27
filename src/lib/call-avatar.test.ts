@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { callPeerAvatarUrl, ringCallerAvatarUrl } from "@/lib/call-avatar";
+import {
+  callPeerAvatarUrl,
+  isNativeRingAvatarUrl,
+  NATIVE_RING_AVATAR_URL_MAX_LENGTH,
+  ringCallerAvatarUrl,
+} from "@/lib/call-avatar";
 import { HIDDEN_CALLER_NAME } from "@/lib/hidden-chats-rules";
 import { isAvatarRouteUrl } from "@/lib/avatar-url";
 import type { CallRoster } from "@/lib/use-call-roster";
@@ -54,6 +59,26 @@ describe("ringCallerAvatarUrl", () => {
 
   it("withholds the picture of a caller announced as Private call", () => {
     expect(ringCallerAvatarUrl(HIDDEN_CALLER_NAME, ANA_AVATAR)).toBeNull();
+  });
+});
+
+describe("isNativeRingAvatarUrl", () => {
+  it("accepts an absolute https link (a presigned thumbnail or a legacy public avatar)", () => {
+    expect(isNativeRingAvatarUrl("https://acct.r2.cloudflarestorage.com/b/avatar/a/x-t.jpg?X-Amz-Signature=1")).toBe(true);
+    expect(isNativeRingAvatarUrl("https://media.example.com/avatar/ana1/x.jpg")).toBe(true);
+  });
+
+  it("refuses the relative route form, other schemes, whitespace/control characters and oversized links", () => {
+    expect(isNativeRingAvatarUrl(ANA_AVATAR)).toBe(false);
+    expect(isNativeRingAvatarUrl("http://media.example.com/a.jpg")).toBe(false);
+    expect(isNativeRingAvatarUrl("file:///sdcard/a.jpg")).toBe(false);
+    expect(isNativeRingAvatarUrl("//evil.example/a.jpg")).toBe(false);
+    expect(isNativeRingAvatarUrl("https://x.example/a b.jpg")).toBe(false);
+    expect(isNativeRingAvatarUrl("https://x.example/a\n.jpg")).toBe(false);
+    expect(isNativeRingAvatarUrl(`https://x.example/${"a".repeat(NATIVE_RING_AVATAR_URL_MAX_LENGTH)}`)).toBe(false);
+    expect(isNativeRingAvatarUrl("")).toBe(false);
+    expect(isNativeRingAvatarUrl(null)).toBe(false);
+    expect(isNativeRingAvatarUrl(undefined)).toBe(false);
   });
 });
 

@@ -263,13 +263,10 @@ export default async function RootLayout({
             <RegisterServiceWorker />
             <StaleBuildReload />
             <OfflineBanner />
-            {/* App-wide: long-press / context menu on any link offers "Copy link" instead of the native link menu
-                (src/lib/link-copy-menu.ts). Wording reuses the share sheet's existing strings. */}
-            <LinkCopyMenu
-              copyLabel={dictionary.feed.share.copyLink}
-              copiedLabel={dictionary.feed.share.linkCopied}
-              failedLabel={dictionary.muse.share.copyFailed}
-            />
+            {/* App-wide: press-and-hold / context menu on a photo or link highlights it and offers "Copy photo" /
+                "Copy link" (the picture itself / the link's real destination) instead of the native menu
+                (src/lib/link-copy-menu.ts). */}
+            <LinkCopyMenu labels={dictionary.feed.pressMenu} />
             <Nav session={session} theme={theme} />
             {/* Native app only; renders nothing in a browser. Not session-gated: an "Update required" applies signed out too. */}
             <AppUpdateGate userId={session?.user?.id ?? null} />

@@ -2,33 +2,48 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Check, Link2 } from "lucide-react";
+import { Check, Image as ImageIcon, Link2, Share2 } from "lucide-react";
 import { hapticSelection } from "@/lib/haptics";
+import { canShareNatively, shareNative } from "@/lib/native-share";
+import {
+  copyImageNatively,
+  copyImageToClipboard,
+  copyTextToClipboard,
+  detectImageClipboardSupport,
+} from "@/lib/copy-image";
+import type { feedEn } from "@/lib/i18n/en/feed";
 import {
   LONG_PRESS_DELAY_MS,
   LONG_PRESS_IDLE,
   classifyPressTarget,
   longPressReducer,
   placeLinkMenu,
+  type CopyTarget,
   type LongPressEvent,
   type LongPressState,
 } from "@/lib/link-copy-menu";
 
 /**
- * App-wide long-press rule: no URL is ever shown on press-and-hold. The WebView's / browser's own link and image
- * menus (URL header, link preview, "open in new tab", image address) are blocked everywhere; pressing and holding
- * (or right-clicking / the context-menu key on) a link, photo or video shows this small menu instead, with one
- * action, "Copy link" (the link, or the page for a photo/video; the URL itself is never displayed). Plain text keeps
- * native selection and its Copy / Select all toolbar; inputs, textareas and contenteditable keep native
- * Cut/Copy/Paste untouched. A normal tap still navigates. Mounted once in the root layout; all detection is on
- * `document` in the capture phase, so the whole app is covered without per-component wiring. Rules live in the pure
- * `src/lib/link-copy-menu.ts`. A component that handles a link/media long-press itself adds `data-no-link-menu`.
+ * App-wide press-and-hold rule: no URL is ever shown. The WebView's / browser's own link and image menus (URL
+ * header, link preview, "open in new tab", image address) are blocked everywhere; pressing and holding (or
+ * right-clicking / the context-menu key on) a photo or link highlights it and shows this small menu instead:
+ * "Copy photo" puts the picture itself on the clipboard (pasted as a photo into a chat or another app), "Copy link"
+ * copies the link's real destination (the URL is never displayed). The Android app copies the photo through its
+ * native `ImageClipboard` plugin (Android WebView's own clipboard drops pictures, see `imageClipboardSupport`); an
+ * older installed Android build without that plugin offers the native share sheet for the photo instead, and any
+ * other device that can't put a picture on the clipboard says so. Profile pictures, secret-chat media, videos and full-screen viewers are
+ * not copyable (rules in the pure `src/lib/link-copy-menu.ts`). Plain text keeps native selection and its Copy /
+ * Select all toolbar; inputs, textareas and contenteditable keep native Cut/Copy/Paste untouched. A normal tap
+ * still navigates. Mounted once in the root layout; all detection is on `document` in the capture phase. A
+ * component that handles a link/media long-press itself adds `data-no-link-menu`.
  */
+
+type Labels = typeof feedEn.pressMenu;
 
 type OpenMenu = {
   x: number;
   y: number;
-  copyText: string;
+  copy: CopyTarget;
   anchor: Element;
   /** Opened from the keyboard: focus goes back to the link on close. */
   fromKeyboard: boolean;
@@ -39,51 +54,31 @@ type OpenMenu = {
   focusItem: boolean;
 };
 
+type Status = "idle" | "working" | "done" | "failed" | "unsupported";
+
 /** After a long-press opened the menu, the tap/click the browser may still synthesize on release must not navigate. */
 const SUPPRESS_CLICK_MS = 800;
-const COPIED_CLOSE_MS = 1200;
+const DONE_CLOSE_MS = 1200;
+/** The pressed element carries this attribute (value "image" or "link") while the menu is open; styled in globals.css. */
+const HIGHLIGHT_ATTR = "data-press-highlight";
 
-async function writeClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through: some WebViews refuse the async clipboard API; the legacy path below still works there.
-  }
-  try {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.top = "0";
-    area.style.left = "-9999px";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    const previous = document.activeElement as HTMLElement | null;
-    area.select();
-    area.setSelectionRange(0, text.length);
-    const ok = document.execCommand("copy");
-    area.remove();
-    previous?.focus?.({ preventScroll: true });
-    return ok;
-  } catch {
-    return false;
-  }
+/**
+ * What the photo action is on this device: copy it natively (Android app with the plugin), copy it through the
+ * web clipboard, share it (older Android app build without the plugin), or nothing but an honest message.
+ */
+type PhotoMode = "copy-native" | "copy-web" | "share" | "none";
+
+function photoMode(): PhotoMode {
+  const support = detectImageClipboardSupport();
+  if (support === "native") return "copy-native";
+  if (support === "web") return "copy-web";
+  return canShareNatively() ? "share" : "none";
 }
 
-export function LinkCopyMenu({
-  copyLabel,
-  copiedLabel,
-  failedLabel,
-}: {
-  copyLabel: string;
-  copiedLabel: string;
-  failedLabel: string;
-}) {
+export function LinkCopyMenu({ labels }: { labels: Labels }) {
   const [menu, setMenu] = useState<OpenMenu | null>(null);
-  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [status, setStatus] = useState<Status>("idle");
+  const [mode, setMode] = useState<PhotoMode>("copy-web");
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const itemRef = useRef<HTMLButtonElement | null>(null);
@@ -105,6 +100,7 @@ export function LinkCopyMenu({
     menuStateRef.current = next;
     setStatus("idle");
     setPosition(null);
+    if (next.copy.type === "image") setMode(photoMode());
     setMenu(next);
   }, []);
 
@@ -113,7 +109,7 @@ export function LinkCopyMenu({
     let lp: LongPressState = LONG_PRESS_IDLE;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pressId = 0;
-    let pending: { anchor: Element; copyText: string | null } | null = null;
+    let pending: { anchor: Element; copy: CopyTarget } | null = null;
     let suppressClick: { anchor: Element; until: number } | null = null;
     let lastTouchAt = 0;
 
@@ -126,14 +122,14 @@ export function LinkCopyMenu({
       const result = longPressReducer(lp, event);
       lp = result.state;
       if (lp.phase !== "pressing") clearTimer();
-      if (result.fire && lp.phase === "fired" && pending?.copyText) {
+      if (result.fire && lp.phase === "fired" && pending) {
         suppressClick = { anchor: pending.anchor, until: Date.now() + SUPPRESS_CLICK_MS };
         window.getSelection()?.removeAllRanges();
         void hapticSelection();
         open({
           x: lp.x,
           y: lp.y,
-          copyText: pending.copyText,
+          copy: pending.copy,
           anchor: pending.anchor,
           fromKeyboard: false,
           focusItem: false,
@@ -149,12 +145,12 @@ export function LinkCopyMenu({
       if (inMenu(e.target)) return;
       const target = classifyPressTarget(e.target instanceof Element ? e.target : null, window.location.href);
       if (target.kind !== "menu") {
-        // Only links and media get our menu; everything else keeps its native long-press (text selection, inputs).
+        // Only links and photos get our menu; everything else keeps its native long-press (text selection, inputs).
         pending = null;
         dispatch({ type: "cancel" });
         return;
       }
-      pending = { anchor: target.element, copyText: target.copyText };
+      pending = { anchor: target.element, copy: target.copy };
       const touch = e.touches[0];
       pressId += 1;
       const id = pressId;
@@ -225,7 +221,7 @@ export function LinkCopyMenu({
       open({
         x,
         y,
-        copyText: target.copyText,
+        copy: target.copy,
         anchor: target.element,
         fromKeyboard,
         focusItem: fromKeyboard || !fromTouch,
@@ -273,6 +269,14 @@ export function LinkCopyMenu({
     };
   }, [open, close]);
 
+  // Highlight the pressed photo/link while the menu is open; cleared on close (or when another one opens).
+  useEffect(() => {
+    if (!menu) return;
+    const el = menu.anchor;
+    el.setAttribute(HIGHLIGHT_ATTR, menu.copy.type);
+    return () => el.removeAttribute(HIGHLIGHT_ATTR);
+  }, [menu]);
+
   // While open: tap/click outside, Escape, Tab, resize, or navigating away closes it.
   useEffect(() => {
     if (!menu) return;
@@ -318,27 +322,79 @@ export function LinkCopyMenu({
   }, [menu]);
 
   useEffect(() => {
-    if (status !== "copied") return;
-    const t = setTimeout(() => close(true), COPIED_CLOSE_MS);
+    if (status !== "done") return;
+    const t = setTimeout(() => close(true), DONE_CLOSE_MS);
     return () => clearTimeout(t);
   }, [status, close]);
 
   if (!menu) return null;
+  const copy = menu.copy;
+  const isPhoto = copy.type === "image";
 
-  async function copy() {
-    if (!menu) return;
-    const ok = await writeClipboard(menu.copyText);
-    setStatus(ok ? "copied" : "failed");
-    if (ok) void hapticSelection();
+  async function act() {
+    if (status === "working") return;
+    if (copy.type === "link") {
+      const ok = await copyTextToClipboard(copy.text);
+      setStatus(ok ? "done" : "failed");
+      if (ok) void hapticSelection();
+      return;
+    }
+    if (mode === "none") {
+      setStatus("unsupported");
+      return;
+    }
+    setStatus("working");
+    if (mode === "copy-web" || mode === "copy-native") {
+      // Web: called straight from the tap, so the clipboard write keeps the user gesture (see copyImageToClipboard).
+      const ok = mode === "copy-native" ? await copyImageNatively(copy.src) : await copyImageToClipboard(copy.src);
+      setStatus(ok ? "done" : "failed");
+      if (ok) void hapticSelection();
+      return;
+    }
+    // Older Android app build without the ImageClipboard plugin: its WebView clipboard can't carry a picture, so
+    // hand the photo to the system share sheet, branded like every other photo shared out of the app (share-modal.tsx).
+    const ext = copy.src.match(/\.(png|webp|jpe?g)(?:[?#]|$)/i)?.[1]?.toLowerCase() ?? "jpg";
+    const result = await shareNative({
+      sources: [{ src: copy.src, fileName: `yukon3t-photo-${Date.now()}.${ext}`, watermark: true }],
+    });
+    if (result.canceled) {
+      setStatus("idle");
+      return;
+    }
+    if (result.attachedFiles && !result.warning) close(false);
+    else setStatus("failed");
   }
+
+  const actionLabel = !isPhoto
+    ? labels.copyLink
+    : mode === "share"
+      ? labels.sharePhoto
+      : status === "working"
+        ? labels.copyingPhoto
+        : labels.copyPhoto;
+  const statusText =
+    status === "done"
+      ? isPhoto
+        ? labels.photoCopied
+        : labels.linkCopied
+      : status === "failed"
+        ? isPhoto
+          ? labels.copyPhotoFailed
+          : labels.copyLinkFailed
+        : status === "unsupported"
+          ? labels.photoCopyUnsupported
+          : "";
+  // In the Android app the photo row is "Share photo"; say why up front rather than after a tap.
+  const note = isPhoto && mode === "share" && status === "idle" ? labels.photoCopyUseShare : "";
+  const Icon = status === "done" ? Check : !isPhoto ? Link2 : mode === "share" ? Share2 : ImageIcon;
 
   return (
     <div
       ref={menuRef}
       role="menu"
-      aria-label={copyLabel}
+      aria-label={labels.label}
       data-no-link-menu
-      className="link-copy-menu fixed z-[300] min-w-40 max-w-[calc(100vw-24px)] rounded-xl border border-line bg-surface p-1 text-sm text-foreground shadow-[var(--shadow-md)]"
+      className="link-copy-menu fixed z-[300] min-w-40 max-w-[min(18rem,calc(100vw-24px))] rounded-xl border border-line bg-surface p-1 text-sm text-foreground shadow-[var(--shadow-md)]"
       style={{
         left: position?.left ?? 0,
         top: position?.top ?? 0,
@@ -350,22 +406,20 @@ export function LinkCopyMenu({
         ref={itemRef}
         type="button"
         role="menuitem"
-        onClick={copy}
+        onClick={act}
+        aria-busy={status === "working" || undefined}
         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start font-medium hover:bg-accent-soft focus-visible:bg-accent-soft focus-visible:outline-none"
       >
-        {status === "copied" ? (
-          <Check size={16} className="shrink-0 text-success" aria-hidden />
-        ) : (
-          <Link2 size={16} className="shrink-0 text-accent" aria-hidden />
-        )}
-        <span>{copyLabel}</span>
+        <Icon size={16} className={status === "done" ? "shrink-0 text-success" : "shrink-0 text-accent"} aria-hidden />
+        <span>{actionLabel}</span>
       </button>
+      {note && <p className="px-3 pb-1.5 pt-0.5 text-xs text-foreground-soft">{note}</p>}
       <p
         role="status"
         aria-live="polite"
-        className={status === "idle" ? "sr-only" : "px-3 pb-1.5 pt-0.5 text-xs text-foreground-soft"}
+        className={statusText ? "px-3 pb-1.5 pt-0.5 text-xs text-foreground-soft" : "sr-only"}
       >
-        {status === "copied" ? copiedLabel : status === "failed" ? failedLabel : ""}
+        {statusText}
       </p>
     </div>
   );

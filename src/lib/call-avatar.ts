@@ -17,6 +17,28 @@ export function ringCallerAvatarUrl(maskedName: string | null, avatarUrl: string
   return isPrivateCaller(maskedName) ? null : avatarUrl;
 }
 
+/** The longest picture URL a native ring push carries (an FCM data message is capped at 4KB in all). */
+export const NATIVE_RING_AVATAR_URL_MAX_LENGTH = 2048;
+
+/**
+ * Whether `url` may go into the native ring push (`callerAvatarUrl`, read by the Android app's
+ * CallMessagingService, which downloads it with no cookies): an absolute https URL of bounded length only. A relative
+ * same-origin /api/avatar/... route URL would need the signed-in WebView's session cookie, so it never qualifies;
+ * the server signs it first (call-avatar-server.ts).
+ */
+export function isNativeRingAvatarUrl(url: string | null | undefined): url is string {
+  if (typeof url !== "string" || url.length === 0 || url.length > NATIVE_RING_AVATAR_URL_MAX_LENGTH) return false;
+  for (let i = 0; i < url.length; i++) {
+    const code = url.charCodeAt(i);
+    if (code <= 0x20 || code === 0x7f) return false;
+  }
+  try {
+    return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The picture for the other person in the call screen's main view. `peerUserId` is the Daily participant's user id
  * when they are in the room; without one (still connecting) it is whoever else the roster lists, if that's exactly

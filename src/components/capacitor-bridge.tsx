@@ -14,7 +14,15 @@ import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
 import { useCallSession } from "@/lib/call-session";
-import { clearPushTap, isAtPushTarget, pendingPushTap, rememberPushTap, safeInAppPath } from "@/lib/push-target";
+import {
+  claimLaunchUrl,
+  clearPushTap,
+  isAtPushTarget,
+  notificationDeepLinkPath,
+  pendingPushTap,
+  rememberPushTap,
+  safeInAppPath,
+} from "@/lib/push-target";
 
 // How long the resume listener waits before sending a returning user to
 // /home. On iOS the notification-tap event can arrive just after "resume";
@@ -106,28 +114,55 @@ export function CapacitorBridge() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     let listener: { remove: () => void } | undefined;
+    let urlOpenListener: { remove: () => void } | undefined;
     let cancelled = false;
+
+    function openTapped(url: string) {
+      // Recorded before navigating, so the resume reset and a stale-build
+      // reload that run at this same moment go here too (push-target.ts).
+      rememberPushTap(url);
+      router.push(url);
+      // Tapping a push opens that one thing, so only the notifications
+      // leading there are marked read — the rest stay unread until they're
+      // opened too. Fire-and-forget: it must never block the navigation.
+      markReadByTarget(url).catch(() => {});
+    }
+
     (async () => {
       const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
       if (cancelled) return;
       const handle = await FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
         const url = safeInAppPath((event.notification.data as Record<string, unknown> | undefined)?.url);
-        if (!url) return;
-        // Recorded before navigating, so the resume reset and a stale-build
-        // reload that run at this same moment go here too (push-target.ts).
-        rememberPushTap(url);
-        router.push(url);
-        // Tapping a push opens that one thing, so only the notifications
-        // leading there are marked read — the rest stay unread until they're
-        // opened too. Fire-and-forget: it must never block the navigation.
-        markReadByTarget(url).catch(() => {});
+        if (url) openTapped(url);
       });
       if (cancelled) handle.remove();
       else listener = handle;
     })().catch(() => {});
+
+    // Notifications the Android app builds itself (the native "Missed call"
+    // one) open MainActivity with yukon3t://open?path=... instead of raising
+    // notificationActionPerformed (notificationDeepLinkPath, push-target.ts).
+    // Cold start: the launch URL (once per app session, claimLaunchUrl);
+    // app already running (foreground or background): appUrlOpen, which
+    // Android delivers through onNewIntent before onResume, like a push tap.
+    (async () => {
+      const { App } = await import("@capacitor/app");
+      if (cancelled) return;
+      const launch = await App.getLaunchUrl().catch(() => undefined);
+      const launchPath = notificationDeepLinkPath(launch?.url);
+      if (!cancelled && launch?.url && launchPath && claimLaunchUrl(launch.url)) openTapped(launchPath);
+      const handle = await App.addListener("appUrlOpen", (event) => {
+        const path = notificationDeepLinkPath(event.url);
+        if (path) openTapped(path);
+      });
+      if (cancelled) handle.remove();
+      else urlOpenListener = handle;
+    })().catch(() => {});
+
     return () => {
       cancelled = true;
       listener?.remove();
+      urlOpenListener?.remove();
     };
   }, [router]);
 

@@ -58,6 +58,31 @@ export async function avatarUrlForExternalClient(url: string | null): Promise<st
   }
 }
 
+/** How long the picture link in a native incoming-call push stays valid: the phone fetches it as the ring starts. */
+export const RING_AVATAR_PRESIGN_TTL_SECONDS = 300;
+
+/**
+ * For the Android app's native ring notification (the caller's picture as its large icon, fetched by native code
+ * with no session cookie): like avatarUrlForExternalClient, but the presigned thumbnail link is signed now and lives
+ * only RING_AVATAR_PRESIGN_TTL_SECONDS, since it is used once, seconds after the push arrives. Only ever the
+ * thumbnail, never the full-size image. Any other URL (a still-public avatar) is returned unchanged. Null when a
+ * private avatar can't be signed. Never throws.
+ */
+export async function avatarUrlForRing(url: string | null): Promise<string | null> {
+  const target = parseAvatarRouteUrl(url);
+  if (!target) return url;
+  if (!isAvatarBucketConfigured()) return null;
+  try {
+    return await presignAvatarGet(target.thumbKey, {
+      expiresIn: RING_AVATAR_PRESIGN_TTL_SECONDS,
+      cacheControl: AVATAR_IMAGE_CACHE_CONTROL,
+    });
+  } catch (err) {
+    console.error("[avatar] failed to sign an avatar for a ring push", err);
+    return null;
+  }
+}
+
 /** For a file the user keeps (their data export): a route-form avatar becomes an absolute link on the site. */
 export function absoluteAvatarUrl(url: string | null): string | null {
   if (!url || !parseAvatarRouteUrl(url)) return url;

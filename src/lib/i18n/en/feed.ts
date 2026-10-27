@@ -354,4 +354,18 @@ export const feedEn = {
     mutual: "one: # mutual connection | other: # mutual connections",
     unknownLocation: "Unknown location",
   },
+  // App-wide press-and-hold menu on a photo or link (src/components/link-copy-menu.tsx).
+  pressMenu: {
+    label: "Copy",
+    copyLink: "Copy link",
+    linkCopied: "Link copied",
+    copyLinkFailed: "Couldn't copy the link.",
+    copyPhoto: "Copy photo",
+    copyingPhoto: "Copying…",
+    photoCopied: "Photo copied",
+    copyPhotoFailed: "Couldn't copy the photo. Try again.",
+    photoCopyUnsupported: "This browser can't copy photos.",
+    sharePhoto: "Share photo",
+    photoCopyUseShare: "Photos can't be copied in the Android app yet. Share it instead.",
+  },
 };

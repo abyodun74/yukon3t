@@ -8,6 +8,7 @@ import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { cn } from "@/lib/utils";
 import { blockImageSave, PROTECTED_IMAGE_CLASS } from "@/lib/protected-image";
+import { useSecureWindow } from "@/lib/secure-window";
 import { useShellText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
 
@@ -71,6 +72,7 @@ export function Lightbox({
   onClose,
   alt,
   protect = false,
+  blockScreenCapture = false,
 }: {
   images?: string[];
   index?: number;
@@ -79,8 +81,14 @@ export function Lightbox({
   onClose: () => void;
   alt?: string;
   protect?: boolean;
+  /**
+   * Someone else's profile picture: in the Android app, screenshots and screen recordings come out black while this
+   * viewer is open (FLAG_SECURE via src/lib/secure-window.ts). No effect on the web, iOS or older app builds.
+   */
+  blockScreenCapture?: boolean;
 }) {
   const { t } = useShellText();
+  useSecureWindow(blockScreenCapture);
   const isGallery = Boolean(images && images.length > 0 && index !== undefined && onIndexChange);
   const currentMediaUrl = isGallery && images && index !== undefined ? images[index] : video;
 

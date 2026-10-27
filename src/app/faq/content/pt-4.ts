@@ -164,7 +164,7 @@ export const pt4 = {
   },
   "save-someones-profile-picture": {
     q: "Posso salvar a foto de perfil de outra pessoa?",
-    a: "Não pelo YuKon3t. As fotos de perfil não têm opção de salvar, baixar ou compartilhar, nem quando você toca em uma para ampliá-la, e os atalhos de tocar e segurar, clicar com o botão direito e arrastar para salvar ficam desativados para elas. É uma medida para desencorajar, não um bloqueio: o YuKon3t não consegue impedir uma captura de tela nem deter alguém decidido a copiar o que aparece na própria tela, então use uma foto de perfil que você não se importe que outras pessoas vejam. Publicações, stories e Muse mantêm as próprias opções de salvar e compartilhar.",
+    a: "Não pelo YuKon3t. As fotos de perfil não têm opção de salvar, baixar ou compartilhar, nem quando você toca em uma para ampliá-la, e os atalhos de tocar e segurar, clicar com o botão direito e arrastar para salvar ficam desativados para elas. No app para Android, capturas e gravações de tela saem pretas enquanto a foto de perfil ampliada de outra pessoa estiver aberta; isso não é possível no iPhone nem na web, e as fotos pequenas mostradas em outras partes do app não estão cobertas. É uma medida para desencorajar, não um bloqueio: o YuKon3t não consegue impedir todas as capturas de tela nem deter alguém decidido a copiar o que aparece na própria tela (com outra câmera, por exemplo), então use uma foto de perfil que você não se importe que outras pessoas vejam. Publicações, stories e Muse mantêm as próprias opções de salvar e compartilhar.",
   },
   "report-someone-something": {
     q: "Como denuncio alguém ou alguma coisa?",

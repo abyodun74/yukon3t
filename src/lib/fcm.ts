@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
+import { incomingCallData, missedCallData } from "@/lib/call-push-data";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
@@ -18,6 +19,9 @@ export type IncomingCallPayload = {
   // The caller as the ring shows them, in the callee's language (ringCallerName in push-text.ts).
   callerName: Localized<string>;
   callType: "AUDIO" | "VIDEO";
+  // Absolute, short-lived https link to the caller's thumbnail for the Android ring's large icon, or null for no
+  // picture (none set, or announced as "Private call"). See call-avatar-server.ts.
+  callerAvatarUrl?: string | null;
 };
 
 /**
@@ -123,12 +127,14 @@ async function sendFcmDataToUser(userId: string, localizedData: Localized<Record
 
 export async function sendFcmCallToUser(userId: string, payload: IncomingCallPayload) {
   const callerName = perLocale(payload.callerName);
-  await sendFcmDataToUser(userId, (locale) => ({
-    type: "incoming_call",
-    callId: payload.callId,
-    callerName: callerName(locale),
-    callType: payload.callType,
-  }));
+  await sendFcmDataToUser(userId, (locale) =>
+    incomingCallData({
+      callId: payload.callId,
+      callerName: callerName(locale),
+      callType: payload.callType,
+      callerAvatarUrl: payload.callerAvatarUrl,
+    }),
+  );
 }
 
 /**
@@ -145,12 +151,17 @@ export async function sendFcmCallCancelToUser(userId: string, callId: string) {
  * Distinct from call_cancelled above: that one only clears the ringing
  * notification, this one leaves a "Missed call from X" notification behind
  * — same data-message path, handled by CallMessagingService.java on the
- * Android side (a no-op there until that's updated and shipped in a new
- * Play Store release, per CLAUDE.md's native-code note).
+ * Android side. `url` is where tapping it leads (the bell row's href); builds
+ * before that field was read just open the app.
  */
-export async function sendFcmMissedCallToUser(userId: string, callId: string, callerName: Localized<string>) {
+export async function sendFcmMissedCallToUser(
+  userId: string,
+  callId: string,
+  callerName: Localized<string>,
+  url: string,
+) {
   const nameFor = perLocale(callerName);
-  await sendFcmDataToUser(userId, (locale) => ({ type: "missed_call", callId, callerName: nameFor(locale) }));
+  await sendFcmDataToUser(userId, (locale) => missedCallData({ callId, callerName: nameFor(locale), url }));
 }
 
 /**

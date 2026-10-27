@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  HANDLED_LAUNCH_URL_KEY,
   PUSH_TAP_KEY,
   PUSH_TAP_TTL_MS,
+  claimLaunchUrl,
   clearPushTap,
+  notificationDeepLinkPath,
   isAtPushTarget,
   isPushTapPending,
   parsePushTap,
@@ -35,6 +38,66 @@ describe("safeInAppPath", () => {
     ]) {
       expect(safeInAppPath(raw)).toBeNull();
     }
+  });
+});
+
+describe("notificationDeepLinkPath", () => {
+  it("opens the in-app path of a native notification's yukon3t://open link", () => {
+    expect(notificationDeepLinkPath("yukon3t://open?path=%2Fu%2Fcaller&n=call1")).toBe("/u/caller");
+    expect(notificationDeepLinkPath("yukon3t://open?path=%2Fmessages%2Fc1%3Fx%3D1&n=1")).toBe("/messages/c1?x=1");
+  });
+
+  it("ignores the ring links and anything else", () => {
+    for (const raw of [
+      "yukon3t://call?callId=c1",
+      "yukon3t://call?callId=c1&action=accept",
+      "https://yukon3t.com/open?path=%2Fu%2Fx",
+      "yukon3t://other?path=%2Fu%2Fx",
+      "yukon3t://open",
+      "yukon3t://open?path=",
+      "not a url",
+      "",
+      null,
+      undefined,
+    ]) {
+      expect(notificationDeepLinkPath(raw)).toBeNull();
+    }
+  });
+
+  it("refuses a path that could leave the site, same as a push's url", () => {
+    for (const path of ["https://evil.example/x", "//evil.example/x", "/\\evil.example", "javascript:alert(1)", "u/x"]) {
+      expect(notificationDeepLinkPath(`yukon3t://open?path=${encodeURIComponent(path)}&n=1`)).toBeNull();
+    }
+  });
+});
+
+describe("claimLaunchUrl", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("acts on a launch URL once per app session, across reloads, and on each new one", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    expect(claimLaunchUrl("yukon3t://open?path=%2Fu%2Fa&n=c1")).toBe(true);
+    expect(claimLaunchUrl("yukon3t://open?path=%2Fu%2Fa&n=c1")).toBe(false);
+    expect(store.get(HANDLED_LAUNCH_URL_KEY)).toBe("yukon3t://open?path=%2Fu%2Fa&n=c1");
+    expect(claimLaunchUrl("yukon3t://open?path=%2Fu%2Fa&n=c2")).toBe(true);
+  });
+
+  it("still dedupes in memory when storage is blocked", () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    });
+    expect(claimLaunchUrl("yukon3t://open?path=%2Fu%2Fb&n=c9")).toBe(true);
+    expect(claimLaunchUrl("yukon3t://open?path=%2Fu%2Fb&n=c9")).toBe(false);
   });
 });
 

@@ -149,6 +149,30 @@ export function embedSrc({ provider, id }: ParsedEmbed): string {
   }
 }
 
+/**
+ * The public page for a provider+id pair (what someone would open or paste: the YouTube watch page, the TikTok
+ * video, ...), rebuilt from the validated id like `embedSrc` — the pasted URL itself is never stored. Used by the
+ * embed card's source line, so opening or long-press copying an embedded video gives the original external link,
+ * never the yukon3t post URL or the player URL. TikTok's canonical path needs the uploader's handle, which isn't
+ * kept, so its handle-less `/@/video/<id>` form is used (TikTok resolves it to the right video).
+ */
+export function embedPublicUrl({ provider, id }: ParsedEmbed): string {
+  switch (provider) {
+    case "YOUTUBE":
+      return `https://www.youtube.com/watch?v=${id}`;
+    case "VIMEO":
+      return `https://vimeo.com/${id}`;
+    case "TIKTOK":
+      return `https://www.tiktok.com/@/video/${id}`;
+    case "DAILYMOTION":
+      return `https://www.dailymotion.com/video/${id}`;
+    case "INSTAGRAM":
+      return `https://www.instagram.com/${id}/`;
+    case "FACEBOOK":
+      return `https://www.facebook.com/${id}`;
+  }
+}
+
 const OEMBED_TIMEOUT_MS = 4000;
 
 // Builds the public, unauthenticated oEmbed request URL for a provider+id —

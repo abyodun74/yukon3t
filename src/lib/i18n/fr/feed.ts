@@ -355,4 +355,17 @@ export const feed: typeof feedEn = {
     mutual: "one: # relation en commun | other: # relations en commun",
     unknownLocation: "Lieu inconnu",
   },
+  pressMenu: {
+    label: "Copier",
+    copyLink: "Copier le lien",
+    linkCopied: "Lien copié",
+    copyLinkFailed: "Impossible de copier le lien.",
+    copyPhoto: "Copier la photo",
+    copyingPhoto: "Copie…",
+    photoCopied: "Photo copiée",
+    copyPhotoFailed: "Impossible de copier la photo. Réessayez.",
+    photoCopyUnsupported: "Ce navigateur ne peut pas copier de photos.",
+    sharePhoto: "Partager la photo",
+    photoCopyUseShare: "Les photos ne peuvent pas encore être copiées dans l'app Android. Partagez-la plutôt.",
+  },
 };

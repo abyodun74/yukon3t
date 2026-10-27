@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseVideoEmbedUrl, embedSrc } from "@/lib/video-embed";
+import { parseVideoEmbedUrl, embedSrc, embedPublicUrl } from "@/lib/video-embed";
 
 describe("parseVideoEmbedUrl", () => {
   it("parses a standard YouTube watch URL", () => {
@@ -122,5 +122,34 @@ describe("embedSrc", () => {
     expect(embedSrc({ provider: "FACEBOOK", id: "someuser/videos/1234567890" })).toBe(
       "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsomeuser%2Fvideos%2F1234567890&show_text=false&autoplay=true&mute=1",
     );
+  });
+});
+
+describe("embedPublicUrl", () => {
+  it("rebuilds the provider's public page (what long-press Copy link copies), never a player or yukon3t URL", () => {
+    expect(embedPublicUrl({ provider: "YOUTUBE", id: "dQw4w9WgXcQ" })).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(embedPublicUrl({ provider: "VIMEO", id: "76979871" })).toBe("https://vimeo.com/76979871");
+    expect(embedPublicUrl({ provider: "TIKTOK", id: "7106594312292453675" })).toBe(
+      "https://www.tiktok.com/@/video/7106594312292453675",
+    );
+    expect(embedPublicUrl({ provider: "DAILYMOTION", id: "x7tgad0" })).toBe("https://www.dailymotion.com/video/x7tgad0");
+    expect(embedPublicUrl({ provider: "INSTAGRAM", id: "reel/DAbc123" })).toBe("https://www.instagram.com/reel/DAbc123/");
+    expect(embedPublicUrl({ provider: "FACEBOOK", id: "watch?v=123" })).toBe("https://www.facebook.com/watch?v=123");
+  });
+
+  it("round-trips through parseVideoEmbedUrl to the same provider and id", () => {
+    for (const raw of [
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://vimeo.com/76979871",
+      "https://www.tiktok.com/@someone/video/7106594312292453675",
+      "https://www.dailymotion.com/video/x7tgad0",
+      "https://www.instagram.com/p/DAbc123/",
+      "https://www.facebook.com/somepage/videos/456",
+    ]) {
+      const parsed = parseVideoEmbedUrl(raw)!;
+      expect(parsed).not.toBeNull();
+      const back = parsed.provider === "TIKTOK" ? null : parseVideoEmbedUrl(embedPublicUrl(parsed));
+      if (back) expect(back).toEqual(parsed);
+    }
   });
 });

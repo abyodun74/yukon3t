@@ -1,9 +1,16 @@
 /**
  * Pure rules for the app-wide long-press behaviour (`LinkCopyMenu`, mounted once in the root layout). The owner's
- * rule: pressing and holding anywhere in the app must never show a URL (the WebView's / browser's link or image
- * menu, link preview, "open in new tab"); only copy/paste style actions. So: links and media get our own small menu
- * with a single "Copy link" action (the URL is copied, never displayed); plain text keeps native selection; editable
- * fields keep native Cut/Copy/Paste. A normal tap still navigates.
+ * rules: pressing and holding anywhere in the app must never show a URL (the WebView's / browser's link or image
+ * menu, link preview, "open in new tab"); the pressed photo or link is highlighted and our own small menu copies
+ * *what was pressed*:
+ * - a photo copies the picture itself (image data, pasted as a photo), never a yukon3t page URL or the file's URL;
+ * - a link copies its real destination (an external link's own URL; an in-app link's own address); a card that
+ *   stands for an external link without being an `<a>` (a LINK post, an embedded video's source line) says what it
+ *   points to with `data-copy-url`, which is copied instead.
+ * Not copyable (native menu still blocked, no menu of ours, or the surrounding link's menu): profile pictures
+ * (`.protected-image`), media marked `data-no-copy-media` (secret chats, story previews), videos/audio, anything in
+ * a full-screen viewer (lightbox, story, view-once, Muse). Plain text keeps native selection; editable fields keep
+ * native Cut/Copy/Paste. A normal tap still navigates.
  *
  * Kept free of `window`/`document` so it can be unit-tested in Vitest's node environment: the DOM-facing parts
  * (`classifyPressTarget`) only use `closest` / `getAttribute` / `tagName`, which tests stub.
@@ -33,6 +40,14 @@ export const MODAL_SELECTOR = '[aria-modal="true"]';
 export const OPT_OUT_SELECTOR = "[data-no-link-menu]";
 /** App chrome: tab bars / top nav. Native menu blocked, but "Copy link" on a tab would just be noise. */
 export const CHROME_SELECTOR = 'nav, [role="tablist"], [role="tab"]';
+/**
+ * Pictures that must never be copied: profile pictures (`protectedImageProps`, see src/lib/protected-image.ts) and
+ * anything a component marks `data-no-copy-media` (secret-chat media, story previews). A press on one falls through
+ * to the link around it, if any (an avatar inside a profile link still offers that link), never the picture.
+ */
+export const NO_COPY_MEDIA_SELECTOR = ".protected-image, [data-no-copy-media]";
+/** A non-`<a>` element that stands for an external link (LINK post card, embed source line): copies this URL. */
+export const COPY_URL_SELECTOR = "[data-copy-url]";
 
 /** The subset of `Element` these rules read. */
 export interface ElementLike {
@@ -40,6 +55,9 @@ export interface ElementLike {
   getAttribute(name: string): string | null;
   readonly tagName: string;
 }
+
+/** What the menu copies: link text, or the picture at `src` (fetched and put on the clipboard as image data). */
+export type CopyTarget = { type: "link"; text: string } | { type: "image"; src: string };
 
 export type PressTarget<E extends ElementLike = ElementLike> =
   /** Editable field or embedded frame: leave every native behaviour alone (Cut/Copy/Paste stays). */
@@ -51,8 +69,46 @@ export type PressTarget<E extends ElementLike = ElementLike> =
   | { kind: "plain" }
   /** Link or media whose native menu must not show, but which gets no menu of ours either. */
   | { kind: "suppress"; element: E }
-  /** Link or media: block the native menu and offer our own "Copy link" (copies `copyText`, never displayed). */
-  | { kind: "menu"; element: E; copyText: string };
+  /** Link or photo: block the native menu, highlight `element` and offer our own menu copying `copy`. */
+  | { kind: "menu"; element: E; copy: CopyTarget };
+
+/**
+ * Hosts whose images are animated GIFs from Giphy. A clipboard can only carry a still PNG, so for these the GIF's
+ * own public Giphy link is copied instead (most chat apps show it animated when pasted).
+ */
+const GIPHY_HOST = /(^|\.)giphy\.com$/i;
+
+/**
+ * The picture an `<img src>` should copy, or `null` when it must not / cannot be copied: only http(s) images
+ * (never `blob:`/`data:`, which are local previews or decrypted content), never a profile picture's address
+ * (`/api/avatar/...` for private ones, the public bucket's `avatar/...` keys) even if a component forgot to protect it.
+ */
+export function imageCopyTarget(src: string | null | undefined, baseUrl: string): CopyTarget | null {
+  const raw = (src ?? "").trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw, baseUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (/^\/(api\/avatar|avatar)\//i.test(url.pathname)) return null;
+  if (GIPHY_HOST.test(url.hostname)) return { type: "link", text: url.href };
+  return { type: "image", src: url.href };
+}
+
+/** A `data-copy-url` value: absolute http(s) only (it names an external destination), else `null`. */
+export function externalCopyUrl(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What the text copied for a link's `href` should be: the absolute URL for web links (relative ones resolved
@@ -89,34 +145,99 @@ export function linkCopyText(href: string | null | undefined, baseUrl: string): 
 
 /**
  * Decides what a long-press / context menu on `target` should do. `target` is the event target (the deepest
- * element under the finger / the focused element for the keyboard menu key); `pageUrl` is the current page,
- * which is what "Copy link" copies for a photo/video that isn't itself inside a link (never the media file's URL).
+ * element under the finger / the focused element for the keyboard menu key); `pageUrl` resolves relative
+ * addresses. A photo wins over a link around it (pressing an album photo copies the photo, not its post page);
+ * media that can't be copied falls through to the surrounding link, or is suppressed when there is none.
  */
 export function classifyPressTarget<E extends ElementLike>(target: E | null, pageUrl: string): PressTarget<E> {
   if (!target || typeof target.closest !== "function") return { kind: "plain" };
   if (target.closest(EDITABLE_SELECTOR)) return { kind: "native" };
   if (target.closest(FRAME_SELECTOR)) return { kind: "native" };
 
-  const anchor = target.closest("a[href]") as E | null;
-  if (anchor) {
-    if (anchor.closest(OPT_OUT_SELECTOR)) return { kind: "suppress", element: anchor };
-    // An <a> acting as a button (role="button") is a control, not a link.
-    if ((anchor.getAttribute("role") ?? "").toLowerCase() === "button") return { kind: "suppress", element: anchor };
-    if (anchor.closest(CHROME_SELECTOR)) return { kind: "suppress", element: anchor };
-    const copyText = linkCopyText(anchor.getAttribute("href"), pageUrl);
-    if (!copyText) return { kind: "suppress", element: anchor };
-    return { kind: "menu", element: anchor, copyText };
-  }
-
   const media = target.closest(MEDIA_SELECTOR) as E | null;
   if (media) {
-    if (media.closest(OPT_OUT_SELECTOR) || media.closest(MODAL_SELECTOR)) return { kind: "suppress", element: media };
-    const copyText = linkCopyText(pageUrl, pageUrl);
-    if (!copyText) return { kind: "suppress", element: media };
-    return { kind: "menu", element: media, copyText };
+    if (media.closest(OPT_OUT_SELECTOR)) return { kind: "suppress", element: media };
+    const copyable =
+      media.tagName.toUpperCase() === "IMG" &&
+      !media.closest(MODAL_SELECTOR) &&
+      !media.closest(CHROME_SELECTOR) &&
+      !media.closest(NO_COPY_MEDIA_SELECTOR);
+    const copy = copyable ? imageCopyTarget(media.getAttribute("src"), pageUrl) : null;
+    if (copy) return { kind: "menu", element: media, copy };
+    // Not copyable (profile picture, secret-chat media, video/audio, viewer): the link around it, if any, or nothing.
+    const around = linkTarget(media, pageUrl);
+    return around ?? { kind: "suppress", element: media };
   }
 
-  return { kind: "plain" };
+  return linkTarget(target, pageUrl) ?? { kind: "plain" };
+}
+
+/** The link `target` is in (a `data-copy-url` card or an `<a href>`), or `null` when it isn't in one. */
+function linkTarget<E extends ElementLike>(target: E, pageUrl: string): PressTarget<E> | null {
+  const card = target.closest(COPY_URL_SELECTOR) as E | null;
+  if (card) {
+    if (card.closest(OPT_OUT_SELECTOR)) return { kind: "suppress", element: card };
+    const text = externalCopyUrl(card.getAttribute("data-copy-url"));
+    return text ? { kind: "menu", element: card, copy: { type: "link", text } } : { kind: "suppress", element: card };
+  }
+
+  const anchor = target.closest("a[href]") as E | null;
+  if (!anchor) return null;
+  if (anchor.closest(OPT_OUT_SELECTOR)) return { kind: "suppress", element: anchor };
+  // An <a> acting as a button (role="button") is a control, not a link.
+  if ((anchor.getAttribute("role") ?? "").toLowerCase() === "button") return { kind: "suppress", element: anchor };
+  if (anchor.closest(CHROME_SELECTOR)) return { kind: "suppress", element: anchor };
+  const text = linkCopyText(anchor.getAttribute("href"), pageUrl);
+  if (!text) return { kind: "suppress", element: anchor };
+  return { kind: "menu", element: anchor, copy: { type: "link", text } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Can this device put a picture on the clipboard? The async Clipboard API (`navigator.clipboard.write` with a
+// `ClipboardItem`) carries `image/png` in current Chrome/Edge, Firefox and Safari (macOS and iOS, including
+// WKWebView). Android System WebView is the exception: the call resolves, but Chromium's Android clipboard drops
+// the picture unless the embedding app installed an image file provider (`ClipboardImpl.setImage` returns early
+// when `mImageFileProvider` is null; only Chrome sets one), so a "Photo copied" there would be a lie. The Capacitor
+// Android app copies through its own native plugin instead (`ImageClipboardPlugin.java`, first shipped in the Android
+// build after 1.26 / versionCode 29); older installed Android builds lack it, and they and other Android in-app browsers report
+// "unsupported" instead of pretending.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Android System WebView marks its user agent with "; wv)" (e.g. "Linux; Android 14; Pixel 8 Build/...; wv)"). */
+export function isAndroidWebViewUserAgent(userAgent: string): boolean {
+  return /\bAndroid\b/i.test(userAgent) && /;\s*wv\)/i.test(userAgent);
+}
+
+/**
+ * How this device can put a picture on the clipboard: `"native"` through the app's `ImageClipboard` plugin,
+ * `"web"` through `navigator.clipboard.write`, or `"unsupported"`.
+ */
+export type ImageClipboardSupport = "native" | "web" | "unsupported";
+
+export function imageClipboardSupport(env: {
+  /** The native `ImageClipboard` plugin is in this installed app build (`Capacitor.isPluginAvailable`). */
+  nativePlugin: boolean;
+  hasClipboardWrite: boolean;
+  hasClipboardItem: boolean;
+  /** `ClipboardItem.supports("image/png")` where the browser has it, otherwise `undefined`. */
+  supportsPng: boolean | undefined;
+  androidWebView: boolean;
+}): ImageClipboardSupport {
+  if (env.nativePlugin) return "native";
+  if (env.androidWebView) return "unsupported";
+  if (!env.hasClipboardWrite || !env.hasClipboardItem) return "unsupported";
+  if (env.supportsPng === false) return "unsupported";
+  return "web";
+}
+
+/** Largest side (px) of a picture put on the clipboard; bigger ones are scaled down (PNG of a huge photo is tens of MB). */
+export const CLIPBOARD_IMAGE_MAX_SIDE = 4096;
+
+export function clipboardImageSize(width: number, height: number, maxSide = CLIPBOARD_IMAGE_MAX_SIDE) {
+  const longest = Math.max(width, height);
+  if (longest <= maxSide || longest === 0) return { width, height };
+  const scale = maxSide / longest;
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

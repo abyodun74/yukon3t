@@ -156,6 +156,8 @@ export function ProfileStoryRing({
           alt={format(ui.profilePhoto, { name })}
           // Profile picture: no Save button, no context menu/drag/callout.
           protect
+          // Someone else's picture: screenshots/recordings come out black in the Android app while it's open.
+          blockScreenCapture={!isOwner}
         />
       )}
     </>
