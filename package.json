@@ -45,7 +45,7 @@
     "@daily-co/daily-js": "^0.91.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "@sentry/nextjs": "^10.69.0",
+    "@sentry/nextjs": "^10.75.2",
     "@supabase/supabase-js": "^2.116.0",
     "@tanstack/react-virtual": "^3.14.13",
     "@upstash/ratelimit": "^2.0.8",
