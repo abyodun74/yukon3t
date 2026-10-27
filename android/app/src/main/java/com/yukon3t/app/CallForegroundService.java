@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
@@ -87,6 +88,21 @@ public class CallForegroundService extends Service {
     private String activeCallId;
     private Mode mode = Mode.NONE;
 
+    // What the caller's picture (CallAvatarLoader, which finishes at some
+    // unknown later moment) may still be added to. Guarded by
+    // NOTIFICATION_LOCK, which every path that posts or cancels a call
+    // notification by call id also takes — CallMessagingService's
+    // call_cancelled handling runs on the FCM thread, not the main thread —
+    // so a late picture can never re-post a notification that was just
+    // cancelled, or overwrite a "Missed call" one posted under the same id.
+    private static final Object NOTIFICATION_LOCK = new Object();
+    private static String ringingCallId;
+    private static String ringingCallerName;
+    private static boolean ringingIsVideo;
+    private static String activeCallKey;
+    private static String activeLabel;
+    private static boolean activeIsVideo;
+
     public static void startRinging(Context context, String callId, String callerName, boolean isVideo) {
         Intent intent = new Intent(context, CallForegroundService.class)
             .setAction(ACTION_START_RINGING)
@@ -125,6 +141,18 @@ public class CallForegroundService extends Service {
     }
 
     /**
+     * Removes the ringing notification posted under this call's own id
+     * (call_cancelled, or Accept/Decline tapped) and stops a late caller
+     * picture from bringing it back. Safe from any thread.
+     */
+    static void cancelRingingNotification(Context context, String callId) {
+        synchronized (NOTIFICATION_LOCK) {
+            if (callId.equals(ringingCallId)) ringingCallId = null;
+            NotificationManagerCompat.from(context).cancel(notificationId(callId));
+        }
+    }
+
+    /**
      * Posted directly via NotificationManagerCompat rather than going through
      * the foreground-service start/stop machinery above — unlike ringing/
      * active-call, a missed call isn't an ongoing state that needs to keep
@@ -132,11 +160,32 @@ public class CallForegroundService extends Service {
      * notification, same as a real phone app. Reuses the ringing
      * notification's id (notificationId(callId)) so if that's somehow still
      * showing for this call, this replaces it instead of stacking.
+     *
+     * A tap opens `url` — the same in-app page as the bell's missed-call row
+     * (the caller's profile, sent by src/lib/missed-call.ts) — via
+     * yukon3t://open?path=..., which the web layer picks up as the launch URL
+     * (app was killed) or an appUrlOpen event (app running), see
+     * notificationDeepLinkPath in src/lib/push-target.ts. Without a usable
+     * url it just opens the app.
      */
-    static void showMissedCallNotification(Context context, String callId, String callerName) {
+    static void showMissedCallNotification(Context context, String callId, String callerName, String url) {
         ensureMissedCallChannel(context);
 
-        Intent viewIntent = new Intent(context, MainActivity.class);
+        Intent viewIntent;
+        if (url != null && url.startsWith("/") && !url.startsWith("//") && url.length() <= 500) {
+            Uri link = new Uri.Builder()
+                .scheme("yukon3t")
+                .authority("open")
+                .appendQueryParameter("path", url)
+                // Makes each notification's link distinct, so the web layer
+                // can tell a new tap from the same launch URL seen again
+                // after a reload (claimLaunchUrl).
+                .appendQueryParameter("n", callId)
+                .build();
+            viewIntent = new Intent(Intent.ACTION_VIEW, link, context, MainActivity.class);
+        } else {
+            viewIntent = new Intent(context, MainActivity.class);
+        }
         viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(
             context,
@@ -145,17 +194,64 @@ public class CallForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Notification notification = new NotificationCompat.Builder(context, MISSED_CALL_CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, MISSED_CALL_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle("Missed call")
             .setContentText(callerName + " called you")
             .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .setContentIntent(contentIntent)
-            .build();
+            .setContentIntent(contentIntent);
+        // The picture fetched while this call rang, if any (none for a
+        // "Private call": the server never sends one).
+        Bitmap avatar = CallAvatarLoader.cached(callId);
+        if (avatar != null) builder.setLargeIcon(avatar);
 
-        NotificationManagerCompat.from(context).notify(notificationId(callId), notification);
+        synchronized (NOTIFICATION_LOCK) {
+            if (callId.equals(ringingCallId)) ringingCallId = null;
+            NotificationManagerCompat.from(context).notify(notificationId(callId), builder.build());
+        }
+    }
+
+    /**
+     * CallAvatarLoader has the caller's picture for `callId` (main thread).
+     * Adds it to that call's notification if the call is still ringing or
+     * in progress; otherwise it only stays cached for a later "Missed call".
+     */
+    static void onCallerAvatarReady(Context context, String callId) {
+        Bitmap avatar = CallAvatarLoader.cached(callId);
+        if (avatar == null) return;
+        try {
+            synchronized (NOTIFICATION_LOCK) {
+                NotificationManagerCompat manager = NotificationManagerCompat.from(context);
+                if (callId.equals(ringingCallId)) {
+                    Notification updated = buildRingingNotification(
+                        context, callId, ringingCallerName, ringingIsVideo, avatar, true
+                    );
+                    manager.notify(FOREGROUND_NOTIFICATION_ID, updated);
+                    manager.notify(notificationId(callId), updated);
+                } else if (activeCallKey != null && activeCallKey.equals(activeCallKeyFor(callId))) {
+                    manager.notify(
+                        ACTIVE_CALL_NOTIFICATION_ID,
+                        buildActiveCallNotification(context, activeLabel, activeIsVideo, avatar)
+                    );
+                }
+            }
+        } catch (Throwable t) {
+            // Best-effort decoration: the call notification itself stays as it was.
+            Log.e(TAG, "adding the caller picture failed", t);
+        }
+    }
+
+    /** call-session.tsx keys a 1:1 call's session `call:<callId>` (call-button.tsx / incoming-call-listener.tsx). */
+    private static String activeCallKeyFor(String callId) {
+        return "call:" + callId;
+    }
+
+    @Nullable
+    private static Bitmap avatarForActiveKey(@Nullable String key) {
+        if (key == null || !key.startsWith("call:")) return null;
+        return CallAvatarLoader.cached(key.substring("call:".length()));
     }
 
     private static void ensureMissedCallChannel(Context context) {
@@ -226,6 +322,8 @@ public class CallForegroundService extends Service {
             if (mode == Mode.ACTIVE_CALL) {
                 stopSelfCleanly();
             }
+            // The call is over: no later notification needs its picture.
+            CallAvatarLoader.clear();
             return START_NOT_STICKY;
         }
 
@@ -240,7 +338,13 @@ public class CallForegroundService extends Service {
             activeCallId = callId;
             String label = intent.getStringExtra(EXTRA_LABEL);
             boolean isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, false);
-            showActiveCallNotification(label != null ? label : "Call", isVideo);
+            synchronized (NOTIFICATION_LOCK) {
+                ringingCallId = null;
+                activeCallKey = callId;
+                activeLabel = label != null ? label : "Call";
+                activeIsVideo = isVideo;
+            }
+            showActiveCallNotification(label != null ? label : "Call", isVideo, avatarForActiveKey(callId));
             return START_NOT_STICKY;
         }
 
@@ -253,7 +357,14 @@ public class CallForegroundService extends Service {
         activeCallId = callId;
         String callerName = intent.getStringExtra(EXTRA_CALLER_NAME);
         boolean isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, false);
-        showRingingNotification(callId, callerName != null ? callerName : "Someone", isVideo);
+        String shownName = callerName != null ? callerName : "Someone";
+        synchronized (NOTIFICATION_LOCK) {
+            ringingCallId = callId;
+            ringingCallerName = shownName;
+            ringingIsVideo = isVideo;
+            activeCallKey = null;
+        }
+        showRingingNotification(callId, shownName, isVideo);
         startRingtone();
 
         handler.removeCallbacks(timeoutRunnable);
@@ -265,24 +376,59 @@ public class CallForegroundService extends Service {
     private void showRingingNotification(String callId, String callerName, boolean isVideo) {
         ensureChannel();
 
+        // No picture yet on a first ring: CallAvatarLoader adds it in place
+        // once downloaded (onCallerAvatarReady), so the ring is never held up
+        // waiting for the network.
+        Notification notification = buildRingingNotification(
+            this, callId, callerName, isVideo, CallAvatarLoader.cached(callId), false
+        );
+
+        startForegroundSafely(FOREGROUND_NOTIFICATION_ID, notification);
+        // Also posted under its own (callId-derived) id so MainActivity's
+        // deep-link handler and CallMessagingService's cancel-on-
+        // call_cancelled path can target this specific call's notification
+        // directly.
+        synchronized (NOTIFICATION_LOCK) {
+            if (callId.equals(ringingCallId)) {
+                NotificationManagerCompat.from(this).notify(notificationId(callId), notification);
+            }
+        }
+    }
+
+    /**
+     * The ringing notification. `avatar` (the caller's circular picture, or
+     * null) becomes the large icon. `isUpdate` marks a re-post of the same
+     * call's notification to add the picture: setOnlyAlertOnce keeps that
+     * re-post silent (no second sound/vibration/heads-up), the ringtone loop
+     * carries on as it was.
+     */
+    private static Notification buildRingingNotification(
+        Context context,
+        String callId,
+        String callerName,
+        boolean isVideo,
+        @Nullable Bitmap avatar,
+        boolean isUpdate
+    ) {
+        Context app = context.getApplicationContext();
         Intent viewIntent = new Intent(
             Intent.ACTION_VIEW,
             Uri.parse("yukon3t://call?callId=" + Uri.encode(callId)),
-            this,
+            app,
             MainActivity.class
         );
         viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(
-            this,
+            app,
             notificationId(callId),
             viewIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        PendingIntent acceptIntent = actionIntent(callId, "accept");
-        PendingIntent declineIntent = actionIntent(callId, "decline");
+        PendingIntent acceptIntent = actionIntent(app, callId, "accept");
+        PendingIntent declineIntent = actionIntent(app, callId, "decline");
 
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(app, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(isVideo ? "Incoming video call" : "Incoming call")
             .setContentText(callerName + " is calling you")
@@ -290,18 +436,13 @@ public class CallForegroundService extends Service {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setOnlyAlertOnce(isUpdate)
             .setContentIntent(contentIntent)
             .setFullScreenIntent(contentIntent, true)
             .addAction(0, "Decline", declineIntent)
-            .addAction(0, "Accept", acceptIntent)
-            .build();
-
-        startForegroundSafely(FOREGROUND_NOTIFICATION_ID, notification);
-        // Also posted under its own (callId-derived) id so MainActivity's
-        // deep-link handler and CallMessagingService's cancel-on-
-        // call_cancelled path can target this specific call's notification
-        // directly.
-        NotificationManagerCompat.from(this).notify(notificationId(callId), notification);
+            .addAction(0, "Accept", acceptIntent);
+        if (avatar != null) builder.setLargeIcon(avatar);
+        return builder.build();
     }
 
     /**
@@ -328,23 +469,38 @@ public class CallForegroundService extends Service {
         }
     }
 
-    private void showActiveCallNotification(String label, boolean isVideo) {
+    private void showActiveCallNotification(String label, boolean isVideo, @Nullable Bitmap avatar) {
         ensureActiveCallChannel();
+        startForegroundSafely(ACTIVE_CALL_NOTIFICATION_ID, buildActiveCallNotification(this, label, isVideo, avatar));
+    }
 
+    /**
+     * "Call in progress". `avatar` is the other person's picture when this
+     * phone fetched it while the same call rang (the callee side); the
+     * caller's own outgoing call has none, as the ring push is what carries
+     * the picture.
+     */
+    private static Notification buildActiveCallNotification(
+        Context context,
+        String label,
+        boolean isVideo,
+        @Nullable Bitmap avatar
+    ) {
+        Context app = context.getApplicationContext();
         // Plain "bring the app to the foreground" tap target — unlike the
         // ringing notification, there's no specific deep-link payload to
         // carry (the call is already joined; call-session.tsx/
         // global-call-frame.tsx already hold the live session state).
-        Intent viewIntent = new Intent(this, MainActivity.class);
+        Intent viewIntent = new Intent(app, MainActivity.class);
         viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(
-            this,
+            app,
             ACTIVE_CALL_NOTIFICATION_ID,
             viewIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Notification notification = new NotificationCompat.Builder(this, ACTIVE_CALL_CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(app, ACTIVE_CALL_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(isVideo ? "Video call in progress" : "Call in progress")
             .setContentText(label)
@@ -352,10 +508,10 @@ public class CallForegroundService extends Service {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setAutoCancel(false)
-            .setContentIntent(contentIntent)
-            .build();
-
-        startForegroundSafely(ACTIVE_CALL_NOTIFICATION_ID, notification);
+            .setOnlyAlertOnce(true)
+            .setContentIntent(contentIntent);
+        if (avatar != null) builder.setLargeIcon(avatar);
+        return builder.build();
     }
 
     private void ensureActiveCallChannel() {
@@ -393,13 +549,13 @@ public class CallForegroundService extends Service {
      * immediate stop-ringing/cancel-notification work CallActionReceiver
      * used to do, so behavior is otherwise unchanged.
      */
-    private PendingIntent actionIntent(String callId, String action) {
+    private static PendingIntent actionIntent(Context context, String callId, String action) {
         Uri uri = Uri.parse("yukon3t://call?callId=" + Uri.encode(callId) + "&action=" + action);
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri, this, MainActivity.class);
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri, context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int requestCode = (callId + action).hashCode();
         return PendingIntent.getActivity(
-            this,
+            context,
             requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
@@ -474,6 +630,10 @@ public class CallForegroundService extends Service {
     private void stopSelfCleanly() {
         handler.removeCallbacks(timeoutRunnable);
         stopRingtone();
+        synchronized (NOTIFICATION_LOCK) {
+            ringingCallId = null;
+            activeCallKey = null;
+        }
         activeCallId = null;
         mode = Mode.NONE;
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);

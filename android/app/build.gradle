@@ -217,8 +217,13 @@ android {
         // attestation Phase 1, docs/plans/app-attestation.md. No new
         // permission, no manifest change, no new Play Console declaration.
         // Also the first Android build with Capacitor 8.5.2.
-        versionCode 29
-        versionName "1.26"
+        // 30: adds ImageClipboardPlugin (copy a photo to the clipboard), SecureWindowPlugin
+        // (FLAG_SECURE while another user's enlarged profile picture is open),
+        // missed-call notification tap deep link (yukon3t://open) and the caller
+        // picture in the incoming-call notification (CallAvatarLoader). No new
+        // permission, no manifest change, no new Play Console declaration.
+        versionCode 30
+        versionName "1.27"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

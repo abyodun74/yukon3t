@@ -3,7 +3,6 @@ package com.yukon3t.app;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.core.app.NotificationManagerCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -84,12 +83,18 @@ public class CallMessagingService extends FirebaseMessagingService {
                 callerName != null ? callerName : "Someone",
                 "VIDEO".equals(callType)
             );
+            // The caller's picture, if the server sent one (never for a
+            // "Private call"): fetched in the background AFTER the ring has
+            // started, and added to the notification only if it arrives
+            // while this call is still ringing — see CallAvatarLoader.
+            CallAvatarLoader.load(this, callId, data.get("callerAvatarUrl"));
         } else if ("call_cancelled".equals(type)) {
             // Defensive: stopping the service already removes its
             // notification, but cancel directly too in case the service
             // somehow isn't running for this call (e.g. process was killed
-            // and restarted between the two pushes).
-            NotificationManagerCompat.from(this).cancel(CallForegroundService.notificationId(callId));
+            // and restarted between the two pushes). Goes through the
+            // service's lock so a picture still downloading can't re-post it.
+            CallForegroundService.cancelRingingNotification(this, callId);
             CallForegroundService.stopRinging(this, callId);
         } else if ("missed_call".equals(type)) {
             // Distinct from call_cancelled: that one only clears the ringing
@@ -100,7 +105,10 @@ public class CallMessagingService extends FirebaseMessagingService {
             CallForegroundService.showMissedCallNotification(
                 this,
                 callId,
-                callerName != null ? callerName : "Someone"
+                callerName != null ? callerName : "Someone",
+                // Where a tap leads: the bell row's page (the caller's
+                // profile), see src/lib/missed-call.ts.
+                data.get("url")
             );
         }
     }

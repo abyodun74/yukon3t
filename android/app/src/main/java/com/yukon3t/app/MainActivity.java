@@ -14,7 +14,6 @@ import android.view.KeyEvent;
 import android.view.WindowManager;
 
 import androidx.activity.EdgeToEdge;
-import androidx.core.app.NotificationManagerCompat;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
@@ -52,6 +51,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VolumeButtonPlugin.class);
         registerPlugin(ShareReceiverPlugin.class);
         registerPlugin(GalleryPickerPlugin.class);
+        registerPlugin(ImageClipboardPlugin.class);
+        registerPlugin(SecureWindowPlugin.class);
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
         handleShareIntent(getIntent());
@@ -181,7 +182,7 @@ public class MainActivity extends BridgeActivity {
         if (action == null) return;
         if (!"accept".equals(action) && !"decline".equals(action)) return;
 
-        NotificationManagerCompat.from(this).cancel(CallForegroundService.notificationId(callId));
+        CallForegroundService.cancelRingingNotification(this, callId);
         CallForegroundService.stopRinging(this, callId);
     }
 
