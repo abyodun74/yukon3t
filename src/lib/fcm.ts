@@ -1,10 +1,10 @@
 import type { App } from "firebase-admin/app";
-import { getMessaging } from "firebase-admin/messaging";
+import { getMessaging, type ApnsConfig } from "firebase-admin/messaging";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
-import { incomingCallData, missedCallData } from "@/lib/call-push-data";
+import { SILENT_CALL_APNS, incomingCallData, missedCallApns, missedCallData } from "@/lib/call-push-data";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
@@ -39,7 +39,12 @@ export type IncomingCallPayload = {
  * the call action that triggered it. No-op until the Firebase project env
  * vars above are set.
  */
-async function sendFcmDataToUser(userId: string, localizedData: Localized<Record<string, string>>) {
+async function sendFcmDataToUser(
+  userId: string,
+  localizedData: Localized<Record<string, string>>,
+  // The iOS half (see the apns field below). Defaults to a silent background push.
+  localizedApns: Localized<ApnsConfig> = SILENT_CALL_APNS,
+) {
   const dataFor = perLocale(localizedData);
   // TEMPORARY diagnostic logging — remove once the missing-ringtone
   // intermittency is root-caused. See src/lib/fcm.ts history/PR for context.
@@ -50,7 +55,8 @@ async function sendFcmDataToUser(userId: string, localizedData: Localized<Record
 
   const tokens: Token[] = await prisma.fcmToken.findMany({ where: { userId }, select: TOKEN_SELECT });
   // Every token here is the same person's, so one language.
-  const data = dataFor(storedLocale(tokens[0]?.user.locale));
+  const locale = storedLocale(tokens[0]?.user.locale);
+  const data = dataFor(locale);
   console.log("[fcm-debug] tokens found", { userId, type: data.type, count: tokens.length });
   if (tokens.length === 0) return;
 
@@ -68,29 +74,14 @@ async function sendFcmDataToUser(userId: string, localizedData: Localized<Record
         // notification arriving minutes late defeats the point.
         priority: "high",
       },
-      // iOS's counterpart to the android block above: content-available
-      // marks this a silent background push (there's no notification
-      // payload — the app's own JS decides how to surface it, same as
-      // Android), and priority 5 is what APNs requires for that push type
-      // (10 is reserved for alert pushes with a visible banner/sound).
-      // Note this is still a best-effort background push, not a true VoIP
-      // push — iOS can throttle/delay these more than Android's FCM
-      // high-priority delivery, especially once the app is fully
-      // terminated. Matching Android's instant-wake reliability for calls
-      // specifically would need PushKit (apns-push-type: voip) + CallKit,
-      // which is native Swift work beyond what a Capacitor plugin covers
-      // out of the box.
-      apns: {
-        headers: {
-          "apns-priority": "5",
-          "apns-push-type": "background",
-        },
-        payload: {
-          aps: {
-            contentAvailable: true,
-          },
-        },
-      },
+      // iOS's counterpart to the android block above. Android ignores it and
+      // reads only the data fields; iOS has no native code for these messages,
+      // so this block alone decides what an iPhone does with one: nothing
+      // visible for incoming_call/call_cancelled (SILENT_CALL_APNS; the ring
+      // and its cancellation are the VoIP/CallKit path's job, apns-voip.ts),
+      // a visible alert for missed_call (missedCallApns). Same message, one
+      // send, so it doesn't depend on FcmToken.platform (null on old rows).
+      apns: perLocale(localizedApns)(locale),
     });
   } catch (err) {
     console.log("[fcm-debug] sendEachForMulticast threw", { userId, type: data.type, err: String(err) });
@@ -151,17 +142,28 @@ export async function sendFcmCallCancelToUser(userId: string, callId: string) {
  * Distinct from call_cancelled above: that one only clears the ringing
  * notification, this one leaves a "Missed call from X" notification behind
  * — same data-message path, handled by CallMessagingService.java on the
- * Android side. `url` is where tapping it leads (the bell row's href); builds
+ * Android side, and shown by iOS itself from the message's alert
+ * (missedCallApns: `alert` is the title/body in the recipient's language).
+ * `url` is where tapping it leads (the bell row's href); Android builds
  * before that field was read just open the app.
  */
 export async function sendFcmMissedCallToUser(
   userId: string,
-  callId: string,
-  callerName: Localized<string>,
-  url: string,
+  call: {
+    callId: string;
+    callerId: string;
+    callerName: Localized<string>;
+    alert: Localized<{ title: string; body: string }>;
+    url: string;
+  },
 ) {
-  const nameFor = perLocale(callerName);
-  await sendFcmDataToUser(userId, (locale) => missedCallData({ callId, callerName: nameFor(locale), url }));
+  const nameFor = perLocale(call.callerName);
+  const alertFor = perLocale(call.alert);
+  await sendFcmDataToUser(
+    userId,
+    (locale) => missedCallData({ callId: call.callId, callerName: nameFor(locale), url: call.url }),
+    (locale) => missedCallApns({ callerId: call.callerId, ...alertFor(locale) }),
+  );
 }
 
 /**

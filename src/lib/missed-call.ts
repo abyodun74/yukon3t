@@ -4,7 +4,7 @@ import { sendFcmCallCancelToUser, sendFcmMissedCallToUser } from "@/lib/fcm";
 import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { nameOrSomeone, pushText } from "@/lib/push-text";
-import { format } from "@/lib/i18n/locales";
+import { format, type Locale } from "@/lib/i18n/locales";
 
 /**
  * Tells the callee a call went unanswered — shared by endCall (the caller
@@ -37,18 +37,22 @@ export async function notifyMissedCall(params: {
   // Both pushes open the caller's profile (call back / message from there), the same place the bell's missed-call
   // row leads (notificationHref).
   const url = `/u/${callerId}`;
-  // Leaves a proper "Missed call from X" notification behind on Android —
-  // separate data message from the cancel above, see sendFcmMissedCallToUser.
-  await sendFcmMissedCallToUser(calleeId, callId, (locale) => nameOrSomeone(callerName, locale), url);
-
-  await sendPushToUser(calleeId, (locale) => {
+  // "Missed call" / "<name> called you" in the callee's language: the web push, and the iOS alert below.
+  const text = (locale: Locale) => {
     const t = pushText(locale).call;
-    return {
-      title: t.missedTitle,
-      body: format(t.missed, { name: nameOrSomeone(callerName, locale) }),
-      url,
-    };
+    return { title: t.missedTitle, body: format(t.missed, { name: nameOrSomeone(callerName, locale) }) };
+  };
+  // Leaves a proper "Missed call from X" notification behind on Android (native, from the data fields) and on iOS
+  // (an alert push) — separate message from the cancel above, see sendFcmMissedCallToUser.
+  await sendFcmMissedCallToUser(calleeId, {
+    callId,
+    callerId,
+    callerName: (locale) => nameOrSomeone(callerName, locale),
+    alert: text,
+    url,
   });
+
+  await sendPushToUser(calleeId, (locale) => ({ ...text(locale), url }));
 
   // In-app bell notification — same shape as every other notification type,
   // no dedup/throttling (see MESSAGE in actions/messages.ts for the same

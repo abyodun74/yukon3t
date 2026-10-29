@@ -56,16 +56,16 @@ describe("push URL = bell row href", () => {
     fcmMissedCall.mockReset();
   });
 
-  it("a missed call opens the caller's profile, from the web push and the native Android notification alike", async () => {
+  it("a missed call opens the caller's profile, from the web push and the native Android/iOS notification alike", async () => {
     await notifyMissedCall({ callId: "call1", callerId: "caller", callerName: "Ada", calleeId: "me" });
     const url = (webPush.mock.calls[0][1] as Payload)("en").url;
     expect(url).toBe("/u/caller");
     expect(notificationHref(rowFrom(notificationCreate.mock.calls[0]))).toBe(url);
-    // sendFcmMissedCallToUser(userId, callId, callerName, url)
+    // sendFcmMissedCallToUser(userId, { callId, callerId, callerName, alert, url }): one FCM message for both
+    // platforms (Android's data fields and iOS's alert both carry this url).
     expect(fcmMissedCall).toHaveBeenCalledTimes(1);
     expect(fcmMissedCall.mock.calls[0][0]).toBe("me");
-    expect(fcmMissedCall.mock.calls[0][1]).toBe("call1");
-    expect(fcmMissedCall.mock.calls[0][3]).toBe(url);
+    expect(fcmMissedCall.mock.calls[0][1]).toMatchObject({ callId: "call1", callerId: "caller", url });
   });
 
   it.each([
