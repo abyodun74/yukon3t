@@ -350,7 +350,7 @@ const sections: Section[] = [
             requests, event reminders, someone starting a live stream with
             just you, a recurring collaboration session starting soon, and
             app-wide announcements about new features — these arrive as real
-            Android notifications even when the app isn&apos;t open, not
+            phone notifications (Android and iPhone) even when the app isn&apos;t open, not
             just the bell icon inside the app. Tapping one (or a
             notification in the in-app list) opens exactly what it&apos;s
             about: the post, Muse, story, chat, event, Circle, live stream,
