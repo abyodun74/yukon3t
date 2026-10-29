@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { verifyTurnstile } from "@/lib/turnstile";
+import type { BotCheck } from "@/lib/turnstile-shared";
 import { parseAppMeta, verifyAppAttestation, type AttestResult } from "@/lib/app-attest";
 import { track } from "@/lib/analytics";
 import {
@@ -44,35 +45,35 @@ async function attest(formData: FormData): Promise<AttestResult> {
  *
  * Trust rule: the ONLY way to pass without Turnstile is mode "enforce" AND a
  * valid, unconsumed App Check token from an allowlisted app. Every other path
- * returns exactly `verifyTurnstile(formData, ip)`. In "observe" the
+ * returns exactly `verifyTurnstile(formData, ip, action)`. In "observe" the
  * attestation result is recorded and never changes the decision. `yk-app-meta`,
  * the user agent and the fallback cookie are untrusted and never pass anything.
  */
-export async function passesBotGate(formData: FormData, ip: string | undefined, action: string): Promise<boolean> {
+export async function passesBotGate(formData: FormData, ip: string | undefined, action: string): Promise<BotCheck> {
   const mode = appAttestMode();
-  if (mode === "off") return verifyTurnstile(formData, ip);
+  if (mode === "off") return verifyTurnstile(formData, ip, action);
 
   const hasToken = isPresent(formData.get(APP_ATTEST_FIELD));
   const hasMeta = isPresent(formData.get(APP_META_FIELD));
-  if (!hasToken && !hasMeta) return verifyTurnstile(formData, ip);
+  if (!hasToken && !hasMeta) return verifyTurnstile(formData, ip, action);
 
   let attestation: AttestResult;
-  let turnstile: boolean | undefined;
+  let turnstile: BotCheck;
   if (mode === "enforce") {
     attestation = hasToken ? await attest(formData) : { outcome: "absent" };
     if (attestation.outcome === "ok") {
       await record(formData, action, mode, attestation, "skipped");
-      return true;
+      return { ok: true };
     }
     if (hasToken) await setFallbackCookie();
-    turnstile = await verifyTurnstile(formData, ip);
+    turnstile = await verifyTurnstile(formData, ip, action);
   } else {
     [attestation, turnstile] = await Promise.all([
       hasToken ? attest(formData) : Promise.resolve<AttestResult>({ outcome: "absent" }),
-      verifyTurnstile(formData, ip),
+      verifyTurnstile(formData, ip, action),
     ]);
   }
-  await record(formData, action, mode, attestation, turnstile ? "pass" : "fail");
+  await record(formData, action, mode, attestation, turnstile.ok ? "pass" : "fail", turnstile.ok ? null : turnstile.reason);
   return turnstile;
 }
 
@@ -82,6 +83,7 @@ async function record(
   mode: "observe" | "enforce",
   attestation: AttestResult,
   turnstile: "pass" | "fail" | "skipped",
+  turnstileReason: string | null = null,
 ) {
   try {
     await track("APP_ATTESTATION", null, {
@@ -91,6 +93,7 @@ async function record(
       platform: attestation.platform ?? null,
       meta: parseAppMeta(formData),
       turnstile,
+      turnstileReason,
     });
   } catch {
     // Telemetry never affects the request.

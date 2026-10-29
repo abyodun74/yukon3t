@@ -1,5 +1,6 @@
 import type { advertiseEn } from "@/lib/i18n/en/advertise";
-import { serverUnreachable } from "@/lib/i18n/pt/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/pt/common";
+import { shared } from "@/lib/i18n/pt/shared";
 
 export const advertise: typeof advertiseEn = {
   page: {
@@ -44,6 +45,8 @@ export const advertise: typeof advertiseEn = {
       "O pagamento é feito com segurança pela Stripe. Os anúncios vão ao ar depois de uma análise rápida, normalmente em até um dia útil.",
     oneTime:
       "one: Cobrança única por apenas # dia, sem renovação automática nem cobrança recorrente. Para veicular outra campanha depois, é preciso fazer uma nova reserva e um novo pagamento. | other: Cobrança única por apenas # dias, sem renovação automática nem cobrança recorrente. Para veicular outra campanha depois, é preciso fazer uma nova reserva e um novo pagamento.",
+    // The bot check's own button and status lines (TurnstileWidget), the same sentences as the account screens.
+    turnstile: shared.turnstile,
     errors: {
       too_large: "Esse arquivo é grande demais.",
       moderation: "Esse anúncio não está de acordo com nossas diretrizes de conteúdo.",
@@ -53,6 +56,7 @@ export const advertise: typeof advertiseEn = {
       invalid: "Confira os dados informados.",
       network: serverUnreachable,
       captcha: "Não foi possível concluir a verificação de segurança. Aguarde um momento e tente novamente.",
+      captcha_unavailable: captchaUnavailable,
       other: "Não foi possível enviar essa reserva. Tente novamente.",
       imageType: "Use uma imagem JPEG, PNG ou WebP.",
       imageTooLarge: "As imagens devem ter no máximo 25 MB.",
@@ -62,9 +66,6 @@ export const advertise: typeof advertiseEn = {
       details: "Preencha os dados da sua empresa e de contato.",
       adFields: "Preencha o título, o texto e o link do seu anúncio.",
       media: "Adicione uma foto ou um vídeo ao seu anúncio.",
-      securityWait: "Toque em “Confirme que você é humano” para concluir a verificação de segurança e tente novamente.",
-      securityVerify: "Confirme que você é humano",
-      securityExpired: "A verificação de segurança expirou. Aguarde um momento e tente novamente.",
     },
   },
 };

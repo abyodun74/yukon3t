@@ -4,7 +4,9 @@
 // ("Descobrir", "Configurações"), even while the screen itself is still English.
 
 export const captchaFailed =
-  "Não foi possível concluir a verificação de segurança. Aguarde um momento e tente novamente. Se continuar acontecendo, desative bloqueadores de conteúdo ou tente outra rede.";
+  "A verificação de segurança não terminou. Toque em “Confirme que você é humano” de novo e espere ela terminar antes de continuar. Em uma conexão lenta, isso pode levar até um minuto.";
+export const captchaUnavailable =
+  "Nosso serviço de verificação de segurança não está respondendo agora, então não podemos continuar. Não é um problema do seu celular nem da sua conexão — tente novamente em alguns minutos.";
 export const phoneInvalid = "Esse número não é válido para o país selecionado. Confira o país e os dígitos.";
 export const emailPlaceholder = "voce@exemplo.com";
 

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const ERROR_KEYS = ["unavailable", "rate_limited", "captcha"] as const;
+const ERROR_KEYS = ["unavailable", "rate_limited", "captcha", "captcha_unavailable"] as const;
 
 export default async function TryPage({
   searchParams,

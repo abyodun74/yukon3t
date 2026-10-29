@@ -30,9 +30,9 @@ export default async function ForgotPasswordPage({
           {t.common.invalidEmail}
         </p>
       )}
-      {error === "captcha" && (
+      {(error === "captcha" || error === "captcha_unavailable") && (
         <p role="alert" className="mt-4 w-full rounded-lg bg-danger/10 px-4 py-2 text-center text-sm text-danger">
-          {t.common.captchaFailed}
+          {error === "captcha" ? t.common.captchaFailed : t.common.captchaUnavailable}
         </p>
       )}
       {error === "expired" && (

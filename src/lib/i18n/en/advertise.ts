@@ -1,4 +1,5 @@
-import { serverUnreachable } from "@/lib/i18n/en/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/en/common";
+import { sharedEn } from "@/lib/i18n/en/shared";
 
 /**
  * The public Advertise pages (/advertise, /advertise/success) and the booking form, which AdvertiseTextProvider (the
@@ -45,6 +46,8 @@ export const advertiseEn = {
     stripeNote: "You'll pay securely via Stripe. Ads go live after a quick review, usually within one business day.",
     oneTime:
       "one: One-time charge for # day only — this does not auto-renew or recur. Running another campaign later requires a separate booking and a separate charge. | other: One-time charge for # days only — this does not auto-renew or recur. Running another campaign later requires a separate booking and a separate charge.",
+    // The bot check's own button and status lines (TurnstileWidget), the same sentences as the account screens.
+    turnstile: sharedEn.turnstile,
     errors: {
       too_large: "That file is too large.",
       moderation: "That creative didn't pass our content guidelines.",
@@ -54,6 +57,7 @@ export const advertiseEn = {
       invalid: "Please check your inputs.",
       network: serverUnreachable,
       captcha: "We couldn't complete the security check — wait a moment and try again.",
+      captcha_unavailable: captchaUnavailable,
       other: "Couldn't submit that booking — try again.",
       imageType: "Use a JPEG, PNG, or WebP image.",
       imageTooLarge: "Images must be 25MB or smaller.",
@@ -63,9 +67,6 @@ export const advertiseEn = {
       details: "Fill in your company and contact details.",
       adFields: "Fill in your ad's headline, copy, and link.",
       media: "Add a photo or video for your ad.",
-      securityWait: "Tap “Verify you're human” to finish the security check, then try again.",
-      securityVerify: "Verify you're human",
-      securityExpired: "The security check expired — wait a moment and try again.",
     },
   },
 };

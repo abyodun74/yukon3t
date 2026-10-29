@@ -13,10 +13,11 @@ import { getDictionary, getLocale } from "@/lib/i18n/server";
  * in the request's language, like the two pages it sits on.
  */
 export async function AppleSignInButton({
-  showCaptchaError,
+  captchaError,
   returnPath = "/sign-in",
 }: {
-  showCaptchaError: boolean;
+  /** The page's `?error=` value; only `apple_captcha` / `apple_captcha_unavailable` (actions/apple-auth.ts) show here. */
+  captchaError: string | undefined;
   /** Where a Turnstile failure should redirect back to — this button is shared by /sign-in and /sign-up. */
   returnPath?: "/sign-in" | "/sign-up";
 }) {
@@ -26,9 +27,9 @@ export async function AppleSignInButton({
   return (
     <form action={startAppleSignIn} className="mt-4 w-full">
       <input type="hidden" name="returnPath" value={returnPath} />
-      {showCaptchaError && (
+      {(captchaError === "apple_captcha" || captchaError === "apple_captcha_unavailable") && (
         <p role="alert" className="mb-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {t.common.captchaFailed}
+          {captchaError === "apple_captcha" ? t.common.captchaFailed : t.common.captchaUnavailable}
         </p>
       )}
       <TurnstileWidget locale={locale} strings={t.shared.turnstile} />

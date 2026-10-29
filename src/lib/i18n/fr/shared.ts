@@ -4,7 +4,21 @@ import { phoneInvalid, passwordInput, multiSelect } from "@/lib/i18n/fr/common";
 export const shared: typeof sharedEn = {
   passwordInput,
   submitButton: { offline: "Vous êtes hors ligne. Vérifiez votre connexion, puis réessayez." },
-  turnstile: { verify: "Confirmez que vous êtes humain", wait: "Touchez « Confirmez que vous êtes humain » pour terminer la vérification de sécurité, puis réessayez.", checkingDevice: "Vérification de votre appareil…" },
+  turnstile: {
+    verify: "Confirmez que vous êtes humain",
+    wait: "Touchez « Confirmez que vous êtes humain » pour terminer la vérification de sécurité, puis réessayez.",
+    checkingDevice: "Vérification de votre appareil…",
+    stillChecking: "La vérification de sécurité est toujours en cours. Attendez qu'elle se termine, puis réessayez.",
+    slow: "Vérification en cours… cela peut prendre jusqu'à une minute avec une connexion lente.",
+    retry: "Réessayer",
+    blocked: "La vérification de sécurité n'a pas pu se charger. Un bloqueur de contenu, un DNS privé anti-pub, un VPN ou le réseau bloque peut-être challenges.cloudflare.com. Désactivez-le ou passez du Wi‑Fi aux données mobiles (ou l'inverse), puis touchez Réessayer.",
+    stalled: "La vérification de sécurité ne s'est pas terminée. Touchez Réessayer. Si cela continue, passez du Wi‑Fi aux données mobiles (ou l'inverse), ou désactivez tout VPN, DNS privé ou bloqueur de contenu.",
+    network: "La vérification de sécurité n'a pas pu joindre Cloudflare. Vérifiez votre connexion, puis touchez Réessayer. Un VPN, un DNS privé ou un bloqueur de contenu peut aussi en être la cause.",
+    config: "La vérification de sécurité ne fonctionne pas pour le moment à cause d'un problème de notre côté. Réessayez plus tard.",
+    unsupported: "Ce navigateur ne peut pas effectuer la vérification de sécurité. Mettez à jour Chrome et Android System WebView (ou votre navigateur), ou essayez un autre navigateur.",
+    clock: "La date et l'heure de votre téléphone semblent incorrectes, la vérification ne peut donc pas aboutir. Activez la date et l'heure automatiques dans les réglages, puis touchez Réessayer.",
+    failed: "La vérification de sécurité a échoué. Touchez Réessayer.",
+  },
   phoneField: { countryCode: "Indicatif du pays", placeholder: "Numéro de téléphone" },
   phoneInvalid,
   birthDate: {

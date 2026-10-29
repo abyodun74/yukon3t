@@ -26,6 +26,7 @@ import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-chall
 import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import { getClientIp } from "@/lib/client-ip";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
@@ -316,8 +317,9 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
   const challengeId = String(formData.get("challengeId") ?? "");
   const code = String(formData.get("code") ?? "").trim();
 
-  if (!(await passesBotGate(formData, await getClientIp(), "confirmPasswordChangeDeviceChallenge"))) {
-    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
+  const botCheck = await passesBotGate(formData, await getClientIp(), "confirmPasswordChangeDeviceChallenge");
+  if (!botCheck.ok) {
+    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=${captchaErrorCode(botCheck.reason)}`);
   }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${user.id}`);
   if (!allowed) {
@@ -350,8 +352,9 @@ export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
   const user = await requireUser();
   const challengeId = String(formData.get("challengeId") ?? "");
 
-  if (!(await passesBotGate(formData, await getClientIp(), "resendPasswordChangeDeviceChallenge"))) {
-    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=captcha`);
+  const botCheck = await passesBotGate(formData, await getClientIp(), "resendPasswordChangeDeviceChallenge");
+  if (!botCheck.ok) {
+    redirect(`/settings/verify-device?challengeId=${encodeURIComponent(challengeId)}&error=${captchaErrorCode(botCheck.reason)}`);
   }
 
   const existing = await prisma.securityChallenge.findUnique({ where: { id: challengeId } });

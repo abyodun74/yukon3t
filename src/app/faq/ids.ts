@@ -157,6 +157,7 @@ export const FAQ_IDS = [
   "sign-up-says-something-needs",
   "verify-account-after-signing-up",
   "why-verify-human-app",
+  "security-check-keeps-loading",
   "says-account-locked-happened",
   // Privacy, safety, and trust
   "who-see-posts-profile",

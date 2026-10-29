@@ -119,7 +119,7 @@ export function PhoneVerificationForm({
                 formData.set("phone", pendingPhone);
                 startTransition(async () => {
                   if (!(await captcha.attach(formData))) {
-                    setError(shared.turnstile.wait);
+                    setError(captcha.holdMessage());
                     return;
                   }
                   const result = await requestPhoneVerification(formData);
@@ -151,7 +151,7 @@ export function PhoneVerificationForm({
           setError(null);
           startTransition(async () => {
             if (!(await captcha.attach(formData))) {
-              setError(shared.turnstile.wait);
+              setError(captcha.holdMessage());
               return;
             }
             const result = await requestPhoneVerification(formData);

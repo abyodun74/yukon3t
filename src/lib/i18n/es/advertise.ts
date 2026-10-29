@@ -1,5 +1,6 @@
 import type { advertiseEn } from "@/lib/i18n/en/advertise";
-import { serverUnreachable } from "@/lib/i18n/es/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/es/common";
+import { shared } from "@/lib/i18n/es/shared";
 
 export const advertise: typeof advertiseEn = {
   page: {
@@ -43,6 +44,8 @@ export const advertise: typeof advertiseEn = {
       "Pagarás de forma segura con Stripe. Los anuncios se publican tras una revisión rápida, normalmente en un día hábil.",
     oneTime:
       "one: Cargo único por # día. No se renueva ni se repite automáticamente. Para publicar otra campaña más adelante necesitas una reserva nueva y un cargo aparte. | other: Cargo único por # días. No se renueva ni se repite automáticamente. Para publicar otra campaña más adelante necesitas una reserva nueva y un cargo aparte.",
+    // The bot check's own button and status lines (TurnstileWidget), the same sentences as the account screens.
+    turnstile: shared.turnstile,
     errors: {
       too_large: "Ese archivo es demasiado grande.",
       moderation: "Ese anuncio no cumple nuestras normas de contenido.",
@@ -52,6 +55,7 @@ export const advertise: typeof advertiseEn = {
       invalid: "Revisa los datos que ingresaste.",
       network: serverUnreachable,
       captcha: "No pudimos completar la verificación de seguridad. Espera un momento e inténtalo de nuevo.",
+      captcha_unavailable: captchaUnavailable,
       other: "No pudimos enviar la reserva. Inténtalo de nuevo.",
       imageType: "Usa una imagen JPEG, PNG o WebP.",
       imageTooLarge: "Las imágenes deben pesar 25 MB o menos.",
@@ -61,9 +65,6 @@ export const advertise: typeof advertiseEn = {
       details: "Completa los datos de tu empresa y de contacto.",
       adFields: "Completa el título, el texto y el enlace de tu anuncio.",
       media: "Agrega una foto o un video a tu anuncio.",
-      securityWait: "Toca «Verifica que eres humano» para completar la verificación de seguridad y vuelve a intentarlo.",
-      securityVerify: "Verifica que eres humano",
-      securityExpired: "La verificación de seguridad venció. Espera un momento e inténtalo de nuevo.",
     },
   },
 };

@@ -1,5 +1,5 @@
 import type { shellEn } from "@/lib/i18n/en/shell";
-import { serverUnreachable } from "@/lib/i18n/ar/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/ar/common";
 
 export const shell: typeof shellEn = {
   common: {
@@ -184,6 +184,7 @@ export const shell: typeof shellEn = {
         unavailable: "تصفّح الضيف غير متاح الآن. لا يزال بإمكانك إنشاء حساب مجاني.",
         rate_limited: "زيارات ضيف كثيرة جدًا من هذه الشبكة. حاول لاحقًا أو أنشئ حسابًا مجانيًا.",
         captcha: "اضغط «تحقّق من أنك إنسان» ثم حاول مرة أخرى.",
+        captcha_unavailable: captchaUnavailable,
       },
     },
   },

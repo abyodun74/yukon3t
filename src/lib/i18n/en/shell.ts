@@ -1,4 +1,4 @@
-import { serverUnreachable } from "@/lib/i18n/en/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/en/common";
 
 /**
  * The app shell and the overlays any screen can open: the nav and footer, the error boundary, the offline banner, the
@@ -196,6 +196,7 @@ export const shellEn = {
         unavailable: "Guest preview isn't available right now. You can still create a free account.",
         rate_limited: "Too many guest visits from this network. Try again later, or create a free account.",
         captcha: "Tap “Verify you're human”, then try again.",
+        captcha_unavailable: captchaUnavailable,
       },
     },
   },

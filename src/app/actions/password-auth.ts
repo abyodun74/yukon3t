@@ -17,6 +17,7 @@ import { passwordSignInOutcome } from "@/lib/password-sign-in";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBotSubmission } from "@/lib/bot-protection";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { sendEmail } from "@/lib/email";
 import { passwordResetEmail, verificationCodeEmail } from "@/lib/account-emails";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
@@ -144,8 +145,9 @@ export async function signUpWithPassword(_prev: SignUpState, formData: FormData)
   const ip = await clientIp();
   // A real user can hit this (widget blocked or still loading), so unlike the
   // honeypot above it gets its own message telling them what to do.
-  if (!(await passesBotGate(formData, ip, "signUpWithPassword"))) {
-    return { fieldErrors: {}, formError: "captcha" };
+  const botCheck = await passesBotGate(formData, ip, "signUpWithPassword");
+  if (!botCheck.ok) {
+    return { fieldErrors: {}, formError: captchaErrorCode(botCheck.reason) };
   }
   const allowed = await checkRateLimit("passwordSignUp", `signup:${ip}`);
   if (!allowed) {
@@ -278,8 +280,9 @@ export async function resendEmailOtp(formData: FormData) {
   }
 
   // Each resend is a real outbound email.
-  if (!(await passesBotGate(formData, ip, "resendEmailOtp"))) {
-    redirect("/verify-email?error=captcha");
+  const botCheck = await passesBotGate(formData, ip, "resendEmailOtp");
+  if (!botCheck.ok) {
+    redirect(`/verify-email?error=${captchaErrorCode(botCheck.reason)}`);
   }
 
   const { userId } = pending;
@@ -344,8 +347,9 @@ export async function switchToEmailVerification() {
 
 export async function loginWithPassword(formData: FormData) {
   const ip = await clientIp();
-  if (!(await passesBotGate(formData, ip, "loginWithPassword"))) {
-    redirect("/sign-in?error=captcha");
+  const botCheck = await passesBotGate(formData, ip, "loginWithPassword");
+  if (!botCheck.ok) {
+    redirect(`/sign-in?error=${captchaErrorCode(botCheck.reason)}`);
   }
   // Skipped when the IP couldn't be determined: every such request would
   // otherwise share one "unknown" bucket and throttle everyone together.
@@ -531,8 +535,9 @@ export async function confirmLoginDeviceChallenge(formData: FormData) {
   }
 
   const ip = await clientIp();
-  if (!(await passesBotGate(formData, ip, "confirmLoginDeviceChallenge"))) {
-    redirect("/sign-in/verify-device?error=captcha");
+  const botCheck = await passesBotGate(formData, ip, "confirmLoginDeviceChallenge");
+  if (!botCheck.ok) {
+    redirect(`/sign-in/verify-device?error=${captchaErrorCode(botCheck.reason)}`);
   }
   const allowed = await checkRateLimit("deviceChallengeCheck", `devchallenge:${ip}:${pending.sub}`);
   if (!allowed) {
@@ -569,8 +574,9 @@ export async function resendLoginDeviceChallenge(formData: FormData) {
     redirect("/sign-in");
   }
 
-  if (!(await passesBotGate(formData, await clientIp(), "resendLoginDeviceChallenge"))) {
-    redirect("/sign-in/verify-device?error=captcha");
+  const botCheck = await passesBotGate(formData, await clientIp(), "resendLoginDeviceChallenge");
+  if (!botCheck.ok) {
+    redirect(`/sign-in/verify-device?error=${captchaErrorCode(botCheck.reason)}`);
   }
 
   const allowed = await checkRateLimit("deviceChallengeSend", `devchallenge:send:${pending.sub}`);
@@ -610,8 +616,9 @@ export async function requestPasswordReset(formData: FormData) {
   }
 
   const ip = await clientIp();
-  if (!(await passesBotGate(formData, ip, "requestPasswordReset"))) {
-    redirect("/forgot-password?error=captcha");
+  const botCheck = await passesBotGate(formData, ip, "requestPasswordReset");
+  if (!botCheck.ok) {
+    redirect(`/forgot-password?error=${captchaErrorCode(botCheck.reason)}`);
   }
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {

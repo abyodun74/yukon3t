@@ -10,6 +10,7 @@ import { PasswordSignInForm } from "@/components/password-sign-in-form";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { isAppleSignInConfigured } from "@/lib/apple-client-secret";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 import { isIosUserAgent } from "@/lib/ios-app";
@@ -50,8 +51,9 @@ async function sendMagicLink(formData: FormData) {
   // most worth gating — a script rotating addresses would otherwise use it
   // to email-bomb strangers and burn the sender's reputation. Its own error
   // code so the message lands in this form's box, not the password one.
-  if (!(await passesBotGate(formData, ip, "sendMagicLink"))) {
-    redirect("/sign-in?error=magic_captcha");
+  const botCheck = await passesBotGate(formData, ip, "sendMagicLink");
+  if (!botCheck.ok) {
+    redirect(`/sign-in?error=magic_${captchaErrorCode(botCheck.reason)}`);
   }
   const allowed = await checkRateLimit("signIn", `signin:${ip}:${email}`);
   if (!allowed) {
@@ -70,6 +72,8 @@ function passwordErrorMessage(error: string | undefined, t: Awaited<ReturnType<t
       return t.signIn.errors.rate_limited;
     case "captcha":
       return t.common.captchaFailed;
+    case "captcha_unavailable":
+      return t.common.captchaUnavailable;
     case "locked":
       return t.signIn.errors.locked;
     default:
@@ -95,7 +99,7 @@ export default async function SignInPage({
       <h1 className="font-display text-3xl font-semibold">{t.signIn.title}</h1>
 
       {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (
-        <AppleSignInButton showCaptchaError={error === "apple_captcha"} />
+        <AppleSignInButton captchaError={error} />
       )}
 
       <div className="mt-6 w-full rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
@@ -164,9 +168,9 @@ export default async function SignInPage({
             {t.common.invalidEmail}
           </p>
         )}
-        {error === "magic_captcha" && (
+        {(error === "magic_captcha" || error === "magic_captcha_unavailable") && (
           <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-            {t.common.captchaFailed}
+            {error === "magic_captcha" ? t.common.captchaFailed : t.common.captchaUnavailable}
           </p>
         )}
 

@@ -122,6 +122,16 @@ export function capturePostHogPageview(pathname: string) {
 }
 
 /**
+ * One custom product event (e.g. `turnstile_failed`). Properties must be coarse, non-personal values (reason codes,
+ * buckets, booleans) — never text a person typed, tokens or identifiers. Queued until the SDK has loaded, like the
+ * other calls here; dropped when PostHog isn't configured.
+ */
+export function capturePostHogEvent(event: string, properties: Record<string, string | number | boolean | null>) {
+  if (!KEY || !HOST) return;
+  void loaded.then((posthog) => posthog.capture(event, properties));
+}
+
+/**
  * Clears the identified user so a shared/public device's next signed-in
  * session doesn't inherit the previous account's identity — call on sign
  * out (nav.tsx's handleSignOut), same reasoning as that function's existing

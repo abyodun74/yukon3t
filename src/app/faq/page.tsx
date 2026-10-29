@@ -2327,6 +2327,50 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "security-check-keeps-loading",
+        q: "The security check keeps saying “Verifying…” and I can't sign in or sign up. What can I do?",
+        a: (
+          <>
+            Before you sign in, sign up, reset a password or start a guest
+            visit, you tap &ldquo;Verify you&apos;re human&rdquo; and a check
+            from our security provider, Cloudflare, runs. It usually takes a
+            few seconds, but on a slow connection it can take up to a
+            minute: after a few seconds you&apos;ll see &ldquo;Still
+            verifying…&rdquo; and a <strong>Try again</strong> button, and
+            if it can&apos;t finish we tell you what went wrong instead of
+            leaving it spinning. Tapping Try again doesn&apos;t clear what
+            you typed. If it keeps failing, try these in order:
+            <br />
+            <br />
+            1. Tap <strong>Try again</strong>, or switch between Wi-Fi and
+            mobile data.
+            <br />
+            <br />
+            2. Turn off any VPN, ad blocker or content blocker, and set
+            Android&apos;s <strong>Private DNS</strong> to Off or Automatic
+            (Settings → Network &amp; internet → Private DNS). Some of these
+            block challenges.cloudflare.com, which the check needs.
+            <br />
+            <br />
+            3. Make sure your phone&apos;s date and time are set
+            automatically.
+            <br />
+            <br />
+            4. Update Chrome and <strong>Android System WebView</strong> from
+            Google Play (the YuKon3t Android app runs on WebView), or your
+            browser, then try again.
+            <br />
+            <br />
+            Every way of signing in (password, email link, Apple) uses the
+            same check, so switching method won&apos;t get around it. If the
+            message says our security check isn&apos;t responding on our
+            side, the problem isn&apos;t your phone: wait a few minutes and
+            try again. Still stuck? Contact support and tell us what the
+            message said.
+          </>
+        ),
+      },
+      {
         id: "says-account-locked-happened",
         q: "It says my account is locked — what happened?",
         a: (

@@ -5,6 +5,7 @@ import { verifyPhoneCodeSchema } from "@/lib/validations";
 import { validPhoneSchema } from "@/lib/phone-number";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { getClientIp } from "@/lib/client-ip";
 import { recomputeTrustScore } from "@/lib/trust";
 import {
@@ -36,7 +37,8 @@ export async function requestSignupPhoneVerification(formData: FormData) {
   // Every SMS send — first send, resend and the automatic resend on revisit — costs real money and this form has no
   // login in front of it, so it needs the same bot check as sign-in (before the rate limit, so a failed challenge
   // doesn't burn the account's own quota).
-  if (!(await passesBotGate(formData, await getClientIp(), "requestSignupPhoneVerification"))) return { error: "captcha" as const };
+  const botCheck = await passesBotGate(formData, await getClientIp(), "requestSignupPhoneVerification");
+  if (!botCheck.ok) return { error: captchaErrorCode(botCheck.reason) };
 
   const parsed = validPhoneSchema.safeParse(formData.get("phone"));
   if (!parsed.success) return { error: "invalid" as const };

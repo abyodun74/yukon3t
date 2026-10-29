@@ -1,5 +1,5 @@
 import type { accountEn } from "@/lib/i18n/en/account";
-import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/pt/common";
+import { captchaFailed, captchaUnavailable, phoneInvalid, emailPlaceholder } from "@/lib/i18n/pt/common";
 
 export const account: typeof accountEn = {
   languagePicker: { label: "Idioma" },
@@ -41,6 +41,7 @@ export const account: typeof accountEn = {
   common: {
     signIn: "Entrar",
     captchaFailed,
+    captchaUnavailable,
     somethingWentWrong: "Algo deu errado. Tente novamente.",
     invalidEmail: "Digite um e-mail válido.",
     emailLabel: "E-mail",
@@ -153,6 +154,7 @@ export const account: typeof accountEn = {
       formErrors: {
         rate_limited: "Muitas tentativas. Aguarde um pouco e tente novamente.",
         captcha: captchaFailed,
+        captcha_unavailable: captchaUnavailable,
         invalid: "Algo deu errado. Tente novamente.",
       },
     },
@@ -174,6 +176,7 @@ export const account: typeof accountEn = {
         send_failed: "Não foi possível enviar o código. Tente novamente em instantes.",
         no_session: "Este link expirou. Cadastre-se novamente.",
         captcha: "Não foi possível concluir a verificação de segurança. Tente novamente.",
+        captcha_unavailable: captchaUnavailable,
       },
       somethingWentWrong: "Algo deu errado. Tente novamente.",
       confirmedTitle: "Telefone confirmado",

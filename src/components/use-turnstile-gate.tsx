@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { INITIAL_TURNSTILE_STATE, heldSubmitMessage, type TurnstileState, type TurnstileStrings } from "@/lib/turnstile-lifecycle";
 import { APP_ATTEST_FIELD, APP_META_FIELD, appAttestMode } from "@/lib/app-attest-shared";
 import { basicAppMeta, canAttest, getAppMeta, getAttestationToken } from "@/lib/app-attest-client";
 import { sharedEn } from "@/lib/i18n/en/shared";
@@ -18,15 +19,13 @@ const subscribeToNothing = () => () => {};
  * is the widget (a "Verify you're human" button) to render OUTSIDE any <form> (see TurnstileWidget's
  * non-form mode).
  *
- * Same stance as the rest of the Turnstile wiring: only the server enforces
- * (src/lib/turnstile.ts). This client side just avoids a wasted round trip
- * while there's no token yet, and never locks anyone out on its own —
- * if the widget gives up (script blocked, error, timeout) `attach` lets the call
- * through and the server decides.
+ * Same stance as the rest of the Turnstile wiring: only the server enforces (src/lib/turnstile.ts), and a call without
+ * a token would only be rejected there, so `attach` resolves false while there's no token and `holdMessage()` says why
+ * (not tapped yet / still running / what failed), the same sentence the in-form widget shows.
  *
  * No token is fetched automatically: the person must tap the widget's verify button first, so `ready` becomes
- * true only after a tap produces a token (or the widget gives up). A token is single-use, so every successful
- * `attach` spends it and the next send needs another tap.
+ * true only after a tap produces a token. A token is single-use, so every successful `attach` spends it and the next
+ * send needs another tap.
  *
  * Device attestation (native app only, docs/plans/app-attestation.md): `attach` is async. It always adds
  * `yk-app-meta` in the app. With NEXT_PUBLIC_APP_ATTEST_MODE=enforce and the plugin present there is no button:
@@ -34,14 +33,15 @@ const subscribeToNothing = () => () => {};
  * appears. With "observe", a token fetched after the tap rides along with the Turnstile token when ready.
  *
  * `locale` is the widget's language on the account screens (see TurnstileWidget); omit it elsewhere.
- * `strings` is the button label and the hold-back notice in that language; omit it for English.
+ * `strings` is `shared.turnstile` in that language; omit it for English.
  */
-export function useTurnstileGate(locale?: Locale, strings?: { verify: string; wait: string; checkingDevice?: string }) {
+export function useTurnstileGate(locale?: Locale, strings: TurnstileStrings = sharedEn.turnstile) {
   const enabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const tokenRef = useRef<string | null>(null);
-  const gaveUpRef = useRef(false);
+  const widgetStateRef = useRef<TurnstileState>(INITIAL_TURNSTILE_STATE);
+  const stringsRef = useRef(strings);
   const [resetSignal, setResetSignal] = useState(0);
-  // True once a call could go out right now: no Turnstile configured, a token in hand, or the widget gave up.
+  // True once a call could go out right now: no Turnstile configured, or a token in hand.
   const [turnstileReady, setTurnstileReady] = useState(!enabled);
 
   const attestCapable = useSyncExternalStore(subscribeToNothing, canAttest, () => false);
@@ -52,6 +52,10 @@ export function useTurnstileGate(locale?: Locale, strings?: { verify: string; wa
   const metaRef = useRef<string | null>(null);
 
   useEffect(() => {
+    stringsRef.current = strings;
+  });
+
+  useEffect(() => {
     void getAppMeta()?.then((meta) => {
       metaRef.current = meta;
     });
@@ -60,26 +64,20 @@ export function useTurnstileGate(locale?: Locale, strings?: { verify: string; wa
   const onToken = useCallback(
     (token: string | null) => {
       tokenRef.current = token;
-      if (token) {
-        gaveUpRef.current = false;
-        setTurnstileReady(true);
-        if (appAttestMode() === "observe" && canAttest()) {
-          void getAttestationToken().then((attestToken) => {
-            observedTokenRef.current = attestToken;
-          });
-        }
-      } else {
-        setTurnstileReady(!enabled || gaveUpRef.current);
+      setTurnstileReady(!enabled || Boolean(token));
+      if (token && appAttestMode() === "observe" && canAttest()) {
+        void getAttestationToken().then((attestToken) => {
+          observedTokenRef.current = attestToken;
+        });
       }
     },
     [enabled],
   );
-  const onGiveUp = useCallback(() => {
-    gaveUpRef.current = true;
-    setTurnstileReady(true);
+  const onStateChange = useCallback((state: TurnstileState) => {
+    widgetStateRef.current = state;
   }, []);
 
-  /** Adds the token to `formData`. Resolves false while there's no token yet — the caller should ask the user to tap the verify button and try again. */
+  /** Adds the token to `formData`. Resolves false while there's no token yet — show `holdMessage()`. */
   const attach = useCallback(
     async (formData: FormData) => {
       if (!enabled) return true;
@@ -97,35 +95,39 @@ export function useTurnstileGate(locale?: Locale, strings?: { verify: string; wa
       }
 
       const token = tokenRef.current;
-      if (token) {
-        formData.set(TURNSTILE_RESPONSE_FIELD, token);
-        tokenRef.current = null; // spent by this call
-        setResetSignal((n) => n + 1);
-        if (observedTokenRef.current) {
-          formData.set(APP_ATTEST_FIELD, observedTokenRef.current);
-          observedTokenRef.current = null;
-        }
-        return true;
+      if (!token) return false;
+      formData.set(TURNSTILE_RESPONSE_FIELD, token);
+      tokenRef.current = null; // spent by this call
+      setResetSignal((n) => n + 1);
+      if (observedTokenRef.current) {
+        formData.set(APP_ATTEST_FIELD, observedTokenRef.current);
+        observedTokenRef.current = null;
       }
-      return gaveUpRef.current; // stopped waiting: let the server decide
+      return true;
     },
     [enabled, enforcing],
   );
 
+  /** Why `attach` just resolved false, in the person's language. */
+  const holdMessage = useCallback(
+    () => (enforcing ? stringsRef.current.wait : heldSubmitMessage(widgetStateRef.current, stringsRef.current)),
+    [enforcing],
+  );
+
   const widget = enforcing ? (
     <p role="status" className="mt-3 text-center text-xs text-foreground-soft">
-      {strings?.checkingDevice ?? sharedEn.turnstile.checkingDevice}
+      {strings.checkingDevice ?? sharedEn.turnstile.checkingDevice}
     </p>
   ) : (
     <TurnstileWidget
       className="mt-3"
       onToken={onToken}
-      onGiveUp={onGiveUp}
+      onStateChange={onStateChange}
       resetSignal={resetSignal}
       locale={locale}
       strings={strings}
       attest={false}
     />
   );
-  return { attach, ready: enforcing || turnstileReady, widget };
+  return { attach, holdMessage, ready: enforcing || turnstileReady, widget };
 }

@@ -14,6 +14,7 @@ import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } 
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { INITIAL_TURNSTILE_STATE, heldSubmitMessage, type TurnstileState } from "@/lib/turnstile-lifecycle";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { useAdvertiseText } from "@/components/advertise-text";
 import { aroundPlaceholder, byCode, plural } from "@/lib/i18n/locales";
@@ -47,6 +48,7 @@ const RESULT_CODES = [
   "invalid",
   "network",
   "captcha",
+  "captcha_unavailable",
 ] as const;
 
 // This never actually calls uploadFileDirect with "kind" pointed at requestUploadUrl
@@ -87,10 +89,8 @@ export function AdBookingForm() {
   // Bumping turnstileReset discards the spent token after each attempt.
   const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const turnstileTokenRef = useRef<string | null>(null);
-  // Set once the widget stops waiting for a token after the tap (timeout / widget error).
-  // The server is the only enforcer, so past that point this form submits
-  // anyway rather than trapping the advertiser — see TurnstileWidget.
-  const turnstileGaveUpRef = useRef(false);
+  // The widget's lifecycle, so a hold-back can say why there's no token (not tapped / still running / what failed).
+  const turnstileStateRef = useRef<TurnstileState>(INITIAL_TURNSTILE_STATE);
   const [turnstileReset, setTurnstileReset] = useState(0);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -183,8 +183,8 @@ export function AdBookingForm() {
       setError(t.errors.media);
       return;
     }
-    if (turnstileRequired && !turnstileTokenRef.current && !turnstileGaveUpRef.current) {
-      setError(t.errors.securityWait);
+    if (turnstileRequired && !turnstileTokenRef.current) {
+      setError(heldSubmitMessage(turnstileStateRef.current, t.turnstile));
       return;
     }
     setError(null);
@@ -228,14 +228,11 @@ export function AdBookingForm() {
         // Read now, after the uploads above — a long video upload can outlive
         // a token, and the widget refreshes it in the background.
         const token = turnstileTokenRef.current;
-        if (token) {
-          fd.set(TURNSTILE_RESPONSE_FIELD, token);
-        } else if (!turnstileGaveUpRef.current) {
-          setError(t.errors.securityExpired);
+        if (!token) {
+          setError(heldSubmitMessage(turnstileStateRef.current, t.turnstile));
           return;
         }
-        // No token and the widget gave up: submit without one and let the
-        // server decide (it rejects with "captcha" only if it's enforcing).
+        fd.set(TURNSTILE_RESPONSE_FIELD, token);
       }
 
       try {
@@ -505,15 +502,14 @@ export function AdBookingForm() {
       <TurnstileWidget
         className="mt-4"
         locale={locale}
-        strings={{ verify: t.errors.securityVerify, wait: t.errors.securityWait }}
+        strings={t.turnstile}
         attest={false}
         resetSignal={turnstileReset}
         onToken={(token) => {
           turnstileTokenRef.current = token;
-          if (token) turnstileGaveUpRef.current = false;
         }}
-        onGiveUp={() => {
-          turnstileGaveUpRef.current = true;
+        onStateChange={(state) => {
+          turnstileStateRef.current = state;
         }}
       />
 

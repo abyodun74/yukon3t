@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ShieldCheck } from "lucide-react";
+import { RotateCw, ShieldCheck } from "lucide-react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
+import {
+  INITIAL_TURNSTILE_STATE,
+  SCRIPT_LOAD_ATTEMPTS,
+  SCRIPT_RETRY_DELAY_MS,
+  SCRIPT_TIMEOUT_MS,
+  SLOW_AFTER_MS,
+  STALLED_AFTER_MS,
+  autoRetryDelay,
+  durationBucket,
+  heldSubmitMessage,
+  nextTurnstileState,
+  turnstileStatus,
+  type TurnstileEvent,
+  type TurnstileProblem,
+  type TurnstileState,
+  type TurnstileStrings,
+} from "@/lib/turnstile-lifecycle";
 import { APP_ATTEST_FIELD, APP_META_FIELD, appAttestMode } from "@/lib/app-attest-shared";
 import {
   basicAppMeta,
@@ -14,6 +31,8 @@ import {
   noteLateAttestation,
   withAttestReason,
 } from "@/lib/app-attest-client";
+import { capturePostHogEvent } from "@/lib/posthog-client";
+import { captureError } from "@/lib/error-tracking";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -28,10 +47,14 @@ type TurnstileApi = {
       appearance?: "always" | "execute" | "interaction-only";
       execution?: "render" | "execute";
       language?: string;
+      retry?: "auto" | "never";
+      "refresh-expired"?: "auto" | "manual" | "never";
+      "refresh-timeout"?: "auto" | "manual" | "never";
       callback?: (token: string) => void;
       "error-callback"?: (errorCode?: string) => boolean | void;
       "expired-callback"?: () => void;
       "timeout-callback"?: () => void;
+      "unsupported-callback"?: () => void;
     },
   ) => string;
   execute: (widgetId: string) => void;
@@ -45,81 +68,103 @@ declare global {
   }
 }
 
-// How long after the tap a submit is held back waiting for a token before
-// the widget stops standing in the way — see the "give up" note below.
-const GIVE_UP_AFTER_MS = 10_000;
-
 // Cloudflare's own codes for the languages the account screens come in.
 const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br", ar: "ar" };
+
+const SCRIPT_URL = `${TURNSTILE_ORIGIN}/turnstile/v0/api.js?render=explicit`;
 
 let scriptPromise: Promise<void> | null = null;
 
 const subscribeToNothing = () => () => {};
 
-// Loaded once per page, on demand. Appended from a script that already
-// carries the CSP nonce, so 'strict-dynamic' (src/proxy.ts) lets it load.
+// One attempt at downloading api.js, capped at SCRIPT_TIMEOUT_MS. Appended from a script that already carries the
+// CSP nonce, so 'strict-dynamic' (src/proxy.ts) lets it load.
+function appendScriptOnce(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = SCRIPT_URL;
+    script.async = true;
+    let settled = false;
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (loaded && window.turnstile) {
+        resolve();
+      } else {
+        script.remove();
+        reject(new Error("Turnstile script failed to load"));
+      }
+    };
+    const timer = setTimeout(() => finish(false), SCRIPT_TIMEOUT_MS);
+    script.onload = () => finish(true);
+    script.onerror = () => finish(false);
+    document.head.appendChild(script);
+  });
+}
+
+// Loaded once per page (shared by every widget on it), with one automatic retry. A failed load is forgotten so the
+// next "Try again" downloads it afresh.
 function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
-  if (!scriptPromise) {
-    scriptPromise = new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = `${TURNSTILE_ORIGIN}/turnstile/v0/api.js?render=explicit`;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => {
-        scriptPromise = null; // let a later mount retry
-        reject(new Error("Turnstile script failed to load"));
-      };
-      document.head.appendChild(script);
-    });
-  }
+  scriptPromise ??= (async () => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await appendScriptOnce();
+        return;
+      } catch (err) {
+        if (window.turnstile) return; // a timed-out attempt finished late
+        if (attempt >= SCRIPT_LOAD_ATTEMPTS) throw err;
+        await new Promise((resolve) => setTimeout(resolve, SCRIPT_RETRY_DELAY_MS));
+      }
+    }
+  })().catch((err: unknown) => {
+    scriptPromise = null;
+    throw err;
+  });
   return scriptPromise;
 }
 
 /**
- * Cloudflare Turnstile bot check, gated on a real tap. Renders nothing at all
- * until NEXT_PUBLIC_TURNSTILE_SITE_KEY is set (see src/lib/turnstile.ts).
+ * Cloudflare Turnstile bot check, gated on a real tap. Renders nothing at all until NEXT_PUBLIC_TURNSTILE_SITE_KEY is
+ * set (see src/lib/turnstile.ts). Every Turnstile-gated screen uses this one component (sign-in password + email link,
+ * sign-up, Apple, forgot password, verify email/device, /try, phone verification via useTurnstileGate, ad booking).
  *
- * Nothing is checked on page load: the widget is rendered with Cloudflare's
- * `execution: "execute"`, so no challenge runs — and no token exists — until
- * the person taps "Verify you're human". Only then does Cloudflare run (and
- * show its own checkbox if it decides it wants one). Every token is
- * single-use, so once it's spent or expires the button comes back and the
- * next attempt needs another tap.
+ * Nothing is checked on page load (api.js is only downloaded, so the tap is quick): the widget is rendered with
+ * `execution: "execute"`, and the check runs when the person taps "Verify you're human". Lifecycle rules live in
+ * src/lib/turnstile-lifecycle.ts:
+ *  - api.js gets two download attempts of 20s each; if it never loads (content blocker, Private DNS, VPN, ISP), the
+ *    person is told exactly that, with a Try again button.
+ *  - Cloudflare's own retry is off (`retry: "never"`): its "auto" retry loops forever, which is what showed people an
+ *    endless "Verifying…". Instead a retriable error is re-run here at most twice (2s, 5s), then shown.
+ *  - After 8s without a token: "Still verifying… can take up to a minute on a slow connection" + Try again.
+ *    After 60s: stop, and say what to try.
+ *  - An expired token / timed-out interactive challenge is refreshed by Cloudflare itself (`refresh-*: "auto"`).
+ *  - Config errors (unknown hostname 110200, bad site key) and unsupported browsers get their own message and are
+ *    reported (Sentry for config, PostHog `turnstile_failed` for everything; `turnstile_verified` with a duration
+ *    bucket for the success rate).
  *
  * Two ways to consume the token:
- *  - Inside a <form>: Cloudflare writes it into a hidden
- *    `cf-turnstile-response` input, so a server-action form needs nothing
- *    else. This component also guards that form: a submit with no token yet
- *    is held back with `strings.wait` instead of reaching the server just to
- *    be rejected.
- *  - Outside a form (ad-booking-form.tsx builds its own FormData): pass
- *    `onToken`, which fires with the token, and with null once it's spent or
- *    expired; `onGiveUp` fires if none arrives (see below).
+ *  - Inside a <form>: Cloudflare writes it into a hidden `cf-turnstile-response` input, so a server-action form needs
+ *    nothing else. This component also guards that form: a submit with no token is held back with a sentence saying
+ *    why (not tapped yet / still running / what failed), instead of reaching the server just to be rejected.
+ *  - Outside a form (useTurnstileGate, ad-booking-form.tsx): pass `onToken`, which fires with the token, and with null
+ *    once it's spent or expired; `onStateChange` reports the lifecycle so the caller can explain a hold-back too.
  *
- * The server is the ONLY thing that enforces (src/lib/turnstile.ts). This
- * client guard exists purely to spare people a wasted round trip, so it must
- * never be able to lock anyone out by itself: if no token has arrived
- * GIVE_UP_AFTER_MS after the tap, or the widget reports an error (script
- * blocked, bad hostname config, network), it stops holding submits back and
- * lets them through. If the server is enforcing, it rejects the tokenless
- * submit with a clear message; if it isn't (only the site key is configured),
- * sign-in just works. Without this, a half-configured deploy — site key baked
- * into the client bundle, secret not set — would block every sign-in in the
- * browser while enforcing nothing on the server.
+ * The server is the only thing that enforces (src/lib/turnstile.ts); a tokenless submit never gets through it. Note
+ * this means a site key set WITHOUT the secret (server not enforcing) plus a widget that can't produce a token would
+ * hold submits back in the browser; turnstile.ts logs that half-configuration loudly at startup.
  *
- * Device attestation (in-form mode only, native app only — see
- * docs/plans/app-attestation.md and src/lib/bot-gate.ts): every native submit
- * carries `yk-app-meta`. With NEXT_PUBLIC_APP_ATTEST_MODE=observe and the
- * attestation plugin present, the tap also fetches a single-use App Check token
- * that rides along if it's ready by submit. With "enforce", there is no button:
- * a submit is held while a token is fetched, then re-submitted with it; if no
- * token comes back the button appears and the person taps it as on the web.
- * Renders nothing until mounted, since the server can't know it's in the app.
+ * Device attestation (in-form mode only, native app only — see docs/plans/app-attestation.md and
+ * src/lib/bot-gate.ts): every native submit carries `yk-app-meta`. With NEXT_PUBLIC_APP_ATTEST_MODE=observe and the
+ * attestation plugin present, the tap also fetches a single-use App Check token that rides along if it's ready by
+ * submit. With "enforce", there is no button: a submit is held while a token is fetched, then re-submitted with it; if
+ * no token comes back the button appears and the person taps it as on the web. Renders nothing until mounted, since
+ * the server can't know it's in the app.
  */
 export function TurnstileWidget({
   onToken,
-  onGiveUp,
+  onStateChange,
   resetSignal = 0,
   className,
   locale,
@@ -127,8 +172,8 @@ export function TurnstileWidget({
   attest = true,
 }: {
   onToken?: (token: string | null) => void;
-  /** Called when no token arrived in time after the tap, or the widget errored — stop waiting for one. */
-  onGiveUp?: () => void;
+  /** Every lifecycle change (see turnstile-lifecycle.ts) — for callers outside a form that hold submits themselves. */
+  onStateChange?: (state: TurnstileState) => void;
   /** Bump this to discard the current token; the next attempt needs a fresh tap. */
   resetSignal?: number;
   className?: string;
@@ -137,8 +182,8 @@ export function TurnstileWidget({
    * by the browser's language as it always has.
    */
   locale?: Locale;
-  /** The button label, and the notice shown when a submit is held back, in that same language. */
-  strings?: { verify: string; wait: string; checkingDevice?: string };
+  /** The button labels and status sentences, in that same language (`shared.turnstile`). */
+  strings?: TurnstileStrings;
   /** False for consumers that handle (or skip) device attestation themselves — every non-form consumer. */
   attest?: boolean;
 }) {
@@ -146,19 +191,16 @@ export function TurnstileWidget({
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const tokenRef = useRef<string | null>(null);
-  // True once we've stopped waiting for a token (timeout or widget error).
-  // A ref, not state: handleSubmit below is a native listener created once
-  // per mount, so it has to read the *current* value when a submit arrives.
-  const gaveUpRef = useRef(false);
+  // The lifecycle state, as a ref too: handleSubmit below is a native listener created once per mount, so it has to
+  // read the *current* value when a submit arrives.
+  const stateRef = useRef<TurnstileState>(INITIAL_TURNSTILE_STATE);
+  const [state, setState] = useState<TurnstileState>(INITIAL_TURNSTILE_STATE);
   const onTokenRef = useRef(onToken);
-  const onGiveUpRef = useRef(onGiveUp);
-  const waitMessageRef = useRef(strings.wait);
-  // Lets the button and the resetSignal effect reach the mount effect's own helpers.
+  const onStateChangeRef = useRef(onStateChange);
+  const stringsRef = useRef(strings);
+  // Lets the buttons and the resetSignal effect reach the mount effect's own helpers.
   const startCheckRef = useRef<(() => void) | null>(null);
   const discardTokenRef = useRef<(() => void) | null>(null);
-  // "idle": waiting for the tap. "checking": tapped — Cloudflare's widget is
-  // running or has passed. "off": gave up on the widget (error / script blocked).
-  const [phase, setPhase] = useState<"idle" | "checking" | "off">("idle");
   const [notice, setNotice] = useState<string | null>(null);
 
   const mounted = useSyncExternalStore(subscribeToNothing, () => true, () => false);
@@ -173,8 +215,8 @@ export function TurnstileWidget({
 
   useEffect(() => {
     onTokenRef.current = onToken;
-    onGiveUpRef.current = onGiveUp;
-    waitMessageRef.current = strings.wait;
+    onStateChangeRef.current = onStateChange;
+    stringsRef.current = strings;
     attestingRef.current = attesting;
   });
 
@@ -194,93 +236,232 @@ export function TurnstileWidget({
     let attestInFlight = false;
     let metaValue: string | null = null;
     if (attest) void getAppMeta()?.then((meta) => (metaValue = meta));
-    let graceTimer: ReturnType<typeof setTimeout> | undefined;
-    // Tapped before the script finished loading — run as soon as it renders.
-    let executeWhenRendered = false;
 
-    function giveUp() {
-      clearTimeout(graceTimer);
-      if (cancelled || tokenRef.current) return;
-      gaveUpRef.current = true;
-      setNotice(null);
-      setPhase("off");
-      onGiveUpRef.current?.();
+    let slowTimer: ReturnType<typeof setTimeout> | undefined;
+    let stalledTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let startedAt = 0;
+    // Whether execute() has run on this widget since it was rendered: later runs reset it first.
+    let executed = false;
+    let widgetPromise: Promise<string | null> | null = null;
+
+    function clearTimers() {
+      clearTimeout(slowTimer);
+      clearTimeout(stalledTimer);
+      clearTimeout(retryTimer);
     }
 
-    function setToken(token: string) {
-      tokenRef.current = token;
-      onTokenRef.current?.(token);
-      clearTimeout(graceTimer);
-      gaveUpRef.current = false;
-      setNotice(null);
+    function apply(event: TurnstileEvent): { prev: TurnstileState; next: TurnstileState } {
+      const prev = stateRef.current;
+      const next = nextTurnstileState(prev, event);
+      if (next !== prev && !cancelled) {
+        stateRef.current = next;
+        setState(next);
+        setNotice(null);
+        onStateChangeRef.current?.(next);
+      }
+      return { prev, next };
     }
 
-    // Spent, expired or timed-out token: drop it and wait for another tap.
-    function discardToken() {
-      clearTimeout(graceTimer);
-      executeWhenRendered = false;
+    function report(problem: TurnstileProblem, code: string | null) {
+      clearTimers();
+      try {
+        capturePostHogEvent("turnstile_failed", {
+          reason: problem,
+          code,
+          retries: stateRef.current.autoRetries,
+          duration: startedAt ? durationBucket(Date.now() - startedAt) : null,
+          native: isNativeApp(),
+          online: navigator.onLine,
+          path: window.location.pathname,
+        });
+        // Our own setup is wrong (e.g. 110200: this hostname isn't on the site key's allowed list): owner action.
+        if (problem === "config") {
+          void captureError(new Error(`Turnstile widget configuration error ${code ?? ""}`.trim()), {
+            code,
+            hostname: window.location.hostname,
+          });
+        }
+      } catch {
+        // Telemetry never affects the check.
+      }
+    }
+
+    function armTimers() {
+      clearTimeout(slowTimer);
+      clearTimeout(stalledTimer);
+      slowTimer = setTimeout(() => apply({ type: "slow" }), SLOW_AFTER_MS);
+      stalledTimer = setTimeout(() => {
+        const { next } = apply({ type: "stalled" });
+        if (next.phase === "error") {
+          resetWidget();
+          report("stalled", null);
+        }
+      }, STALLED_AFTER_MS);
+    }
+
+    function resetWidget() {
+      const id = widgetIdRef.current;
+      if (!id) return;
+      try {
+        window.turnstile?.reset(id);
+      } catch {
+        // A widget Cloudflare already tore down: nothing to reset.
+      }
+    }
+
+    function fail(problem: TurnstileProblem, code: string | null) {
+      resetWidget();
+      report(problem, code);
+    }
+
+    function onWidgetError(code: string | null) {
       tokenRef.current = null;
       onTokenRef.current?.(null);
-      gaveUpRef.current = false;
-      if (widgetIdRef.current) window.turnstile?.reset(widgetIdRef.current);
-      setPhase("idle");
+      const { prev, next } = apply({ type: "error", code });
+      if (next.autoRetries > prev.autoRetries) {
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => {
+          if (!cancelled && stateRef.current.phase === "checking") runWidget();
+        }, autoRetryDelay(prev.autoRetries) ?? 0);
+      } else if (next.phase === "error" && prev.phase !== "error" && next.problem) {
+        fail(next.problem, code);
+      }
+    }
+
+    function renderWidget(): string | null {
+      if (cancelled || !window.turnstile || !container) return null;
+      if (widgetIdRef.current) return widgetIdRef.current;
+      const widgetId = window.turnstile.render(container, {
+        sitekey: siteKey!,
+        theme: "auto",
+        size: "flexible",
+        appearance: "execute",
+        execution: "execute",
+        retry: "never",
+        "refresh-expired": "auto",
+        "refresh-timeout": "auto",
+        ...(locale ? { language: WIDGET_LANGUAGES[locale] } : {}),
+        callback: (token) => {
+          if (cancelled) return;
+          tokenRef.current = token;
+          onTokenRef.current?.(token);
+          clearTimers();
+          const { prev } = apply({ type: "token" });
+          if (prev.phase === "checking") {
+            try {
+              capturePostHogEvent("turnstile_verified", {
+                duration: durationBucket(Date.now() - startedAt),
+                retries: prev.autoRetries,
+                native: isNativeApp(),
+              });
+            } catch {
+              // Telemetry never affects the check.
+            }
+          }
+        },
+        "error-callback": (code) => {
+          if (!cancelled) onWidgetError(code ?? null);
+          return true; // handled here: no retry loop of Cloudflare's own
+        },
+        // Cloudflare refreshes these itself; until a new token arrives there is none to submit.
+        "expired-callback": () => {
+          if (cancelled) return;
+          tokenRef.current = null;
+          onTokenRef.current?.(null);
+          if (stateRef.current.phase === "verified") {
+            startedAt = Date.now();
+            apply({ type: "refreshing" });
+            armTimers();
+          }
+        },
+        "timeout-callback": () => {
+          if (cancelled) return;
+          tokenRef.current = null;
+          onTokenRef.current?.(null);
+          apply({ type: "refreshing" });
+        },
+        "unsupported-callback": () => {
+          if (!cancelled) onWidgetError("110500");
+        },
+      });
+      widgetIdRef.current = widgetId;
+      executed = false;
+      return widgetId;
+    }
+
+    // Downloads api.js if needed and renders the (not yet running) widget. Shared by the page-load preload and the tap.
+    function ensureWidget(): Promise<string | null> {
+      if (widgetIdRef.current) return Promise.resolve(widgetIdRef.current);
+      widgetPromise ??= loadTurnstileScript()
+        .then(renderWidget)
+        .finally(() => {
+          widgetPromise = null;
+        });
+      return widgetPromise;
+    }
+
+    // Runs (or re-runs) the check on the rendered widget.
+    function runWidget() {
+      ensureWidget()
+        .then((widgetId) => {
+          if (cancelled || !widgetId || stateRef.current.phase !== "checking") return;
+          try {
+            if (executed) window.turnstile!.reset(widgetId);
+            window.turnstile!.execute(widgetId);
+            executed = true;
+          } catch {
+            onWidgetError(null);
+          }
+        })
+        .catch(() => {
+          if (cancelled || stateRef.current.phase !== "checking") return;
+          const { next } = apply({ type: "scriptFailed" });
+          if (next.phase === "error") report("blocked", null);
+        });
+    }
+
+    // Spent token (or a non-form consumer's reset): drop it and wait for another tap.
+    function discardToken() {
+      clearTimers();
+      tokenRef.current = null;
+      onTokenRef.current?.(null);
+      resetWidget();
+      apply({ type: "spent" });
     }
     discardTokenRef.current = discardToken;
 
-    // The tap: only now does Cloudflare run its check.
+    // The tap ("Verify you're human" or "Try again"): only now does Cloudflare run its check.
     function startCheck() {
       if (observing && canAttest()) {
-        const startedAt = Date.now();
+        const attestStartedAt = Date.now();
         observePending = true;
         submittedWhilePending = false;
         void getAttestationToken().then((token) => {
           observePending = false;
           if (cancelled) return;
           observedToken = token;
-          if (token && submittedWhilePending) noteLateAttestation(Date.now() - startedAt);
+          if (token && submittedWhilePending) noteLateAttestation(Date.now() - attestStartedAt);
         });
       }
+      clearTimers();
+      tokenRef.current = null;
+      startedAt = Date.now();
+      apply({ type: "start" });
       setNotice(null);
-      setPhase("checking");
-      clearTimeout(graceTimer);
-      gaveUpRef.current = false;
-      graceTimer = setTimeout(giveUp, GIVE_UP_AFTER_MS);
-      if (widgetIdRef.current) window.turnstile?.execute(widgetIdRef.current);
-      else executeWhenRendered = true;
+      armTimers();
+      runWidget();
     }
     startCheckRef.current = startCheck;
 
-    loadTurnstileScript()
-      .then(() => {
-        if (cancelled || !window.turnstile || !container) return;
-        const widgetId = window.turnstile.render(container, {
-          sitekey: siteKey,
-          theme: "auto",
-          size: "flexible",
-          appearance: "execute",
-          execution: "execute",
-          ...(locale ? { language: WIDGET_LANGUAGES[locale] } : {}),
-          callback: (token) => setToken(token),
-          "expired-callback": () => discardToken(),
-          "timeout-callback": () => discardToken(),
-          "error-callback": () => {
-            tokenRef.current = null;
-            onTokenRef.current?.(null);
-            giveUp();
-          },
-        });
-        widgetIdRef.current = widgetId;
-        if (executeWhenRendered) {
-          executeWhenRendered = false;
-          window.turnstile.execute(widgetId);
-        }
-      })
-      .catch(() => giveUp());
+    // Preload: download api.js and render the idle widget now, so the tap doesn't wait for it. A failure here
+    // is silent; the tap retries the download and reports it then.
+    ensureWidget().catch(() => {});
 
     function switchToTurnstile() {
       attestingRef.current = false;
       setAttestFailed(true);
-      setNotice(waitMessageRef.current);
+      setNotice(stringsRef.current.wait);
     }
 
     // Single-use: deferred so the form's FormData is captured with it first.
@@ -338,11 +519,9 @@ export function TurnstileWidget({
       }
 
       if (!tokenRef.current) {
-        if (!gaveUpRef.current) {
-          e.preventDefault();
-          setNotice(waitMessageRef.current);
-        }
-        // else: we've stopped waiting — let the server decide.
+        // Never sent without a token: the server would only reject it. Say why instead.
+        e.preventDefault();
+        setNotice(heldSubmitMessage(stateRef.current, stringsRef.current));
         return;
       }
       if (observedToken && attestInput) {
@@ -359,16 +538,23 @@ export function TurnstileWidget({
 
     return () => {
       cancelled = true;
-      clearTimeout(graceTimer);
+      clearTimers();
       startCheckRef.current = null;
       discardTokenRef.current = null;
       form?.removeEventListener("submit", handleSubmit);
       form?.removeEventListener("focusin", handleFocus);
       if (widgetIdRef.current) {
-        window.turnstile?.remove(widgetIdRef.current);
+        try {
+          window.turnstile?.remove(widgetIdRef.current);
+        } catch {
+          // Already gone.
+        }
         widgetIdRef.current = null;
       }
       tokenRef.current = null;
+      // A remount (locale change, Strict Mode) starts from the button again.
+      stateRef.current = INITIAL_TURNSTILE_STATE;
+      setState(INITIAL_TURNSTILE_STATE);
     };
   }, [siteKey, locale, mounted, attest]);
 
@@ -381,30 +567,51 @@ export function TurnstileWidget({
 
   if (!siteKey || !mounted) return null;
 
+  const status = turnstileStatus(state, strings);
+  const message = notice ?? status.text;
+  const isError = Boolean(notice) || status.tone === "error";
+
   return (
     <div className={className}>
-      {attest && native && <input ref={metaInputRef} type="hidden" name={APP_META_FIELD} defaultValue="" />}
-      {attest && attestCapable && <input ref={attestInputRef} type="hidden" name={APP_ATTEST_FIELD} defaultValue="" />}
-      {attesting ? (
-        <p role="status" className="text-center text-xs text-foreground-soft">
-          {strings.checkingDevice ?? sharedEn.turnstile.checkingDevice}
-        </p>
-      ) : phase === "idle" && (
-        <button
-          type="button"
-          onClick={() => startCheckRef.current?.()}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent"
-        >
-          <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
-          {strings.verify}
-        </button>
-      )}
-      <div ref={containerRef} className="flex justify-center" />
-      {notice && (
-        <p role="status" className="mt-2 text-center text-xs text-danger">
-          {notice}
-        </p>
-      )}
+      <div className="w-full">
+        {attest && native && <input ref={metaInputRef} type="hidden" name={APP_META_FIELD} defaultValue="" />}
+        {attest && attestCapable && <input ref={attestInputRef} type="hidden" name={APP_ATTEST_FIELD} defaultValue="" />}
+        {attesting ? (
+          <p role="status" className="text-center text-xs text-foreground-soft">
+            {strings.checkingDevice ?? sharedEn.turnstile.checkingDevice}
+          </p>
+        ) : (
+          state.phase === "idle" && (
+            <button
+              type="button"
+              onClick={() => startCheckRef.current?.()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent"
+            >
+              <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
+              {strings.verify}
+            </button>
+          )
+        )}
+        <div ref={containerRef} className="flex justify-center" />
+        {message && (
+          <p
+            role={isError ? "alert" : "status"}
+            className={`mt-2 text-center text-xs ${isError ? "text-danger" : "text-foreground-soft"}`}
+          >
+            {message}
+          </p>
+        )}
+        {status.retry && !attesting && (
+          <button
+            type="button"
+            onClick={() => startCheckRef.current?.()}
+            className="mx-auto mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent"
+          >
+            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+            {strings.retry}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

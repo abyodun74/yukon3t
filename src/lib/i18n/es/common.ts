@@ -6,7 +6,9 @@
 // gendered participle.
 
 export const captchaFailed =
-  "No pudimos completar la verificación de seguridad. Espera un momento e inténtalo de nuevo. Si sigue pasando, desactiva cualquier bloqueador de contenido o prueba con otra red.";
+  "La verificación de seguridad no terminó. Toca «Verifica que eres humano» otra vez y espera a que termine antes de continuar. Con una conexión lenta puede tardar hasta un minuto.";
+export const captchaUnavailable =
+  "Nuestro servicio de verificación de seguridad no responde en este momento, así que no podemos continuar. No es un problema de tu teléfono ni de tu conexión: inténtalo de nuevo en unos minutos.";
 export const phoneInvalid = "Ese número no es válido para el país seleccionado. Revisa el país y los dígitos.";
 export const emailPlaceholder = "tu@ejemplo.com";
 

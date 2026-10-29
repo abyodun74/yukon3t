@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
 import { getClientIp } from "@/lib/client-ip";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 
 /**
  * Shared by both /sign-in and /sign-up — Apple's own OAuth flow doesn't
@@ -28,8 +29,9 @@ export async function startAppleSignIn(formData: FormData) {
   // names this as the intended way to add an OAuth button: a
   // Turnstile-verified server action calling signIn(), not the raw
   // NextAuth HTTP route directly.
-  if (!(await passesBotGate(formData, ip, "startAppleSignIn"))) {
-    redirect(`${returnPath}?error=apple_captcha`);
+  const botCheck = await passesBotGate(formData, ip, "startAppleSignIn");
+  if (!botCheck.ok) {
+    redirect(`${returnPath}?error=apple_${captchaErrorCode(botCheck.reason)}`);
   }
   await signIn("apple", { redirectTo: "/home" });
 }

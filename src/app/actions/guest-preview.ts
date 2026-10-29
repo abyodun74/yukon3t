@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { isBotSubmission } from "@/lib/bot-protection";
 import { passesBotGate } from "@/lib/bot-gate";
+import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { track } from "@/lib/analytics";
 import { clearHiddenUnlockCookie } from "@/lib/hidden-chats";
 import { isGuestPreviewEnabled, safeGuestExitDestination, sanitizeGuestRef } from "@/lib/guest-preview";
@@ -29,7 +30,8 @@ export async function startGuestPreview(formData: FormData) {
 
   if (isBotSubmission(formData)) tryPageWithError("rate_limited", ref);
   const ip = await getClientIp();
-  if (!(await passesBotGate(formData, ip, "startGuestPreview"))) tryPageWithError("captcha", ref);
+  const botCheck = await passesBotGate(formData, ip, "startGuestPreview");
+  if (!botCheck.ok) tryPageWithError(captchaErrorCode(botCheck.reason), ref);
   const [perIp, global] = await Promise.all([
     checkRateLimit("guestPreviewStart", `guest:${ip}`),
     checkRateLimit("guestPreviewStartGlobal", "guest:all"),

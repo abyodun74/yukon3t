@@ -83,8 +83,8 @@ describe("passesBotGate", () => {
       validToken();
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": '{"p":"android"}' }), IP, "test")).toBe(false);
-      expect(await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).toBe(true);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": '{"p":"android"}' }), IP, "test")).ok).toBe(false);
+      expect((await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(true);
       expect(mocks.verifyToken).not.toHaveBeenCalled();
       expect(mocks.track).not.toHaveBeenCalled();
       expect(mocks.cookieSet).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe("passesBotGate", () => {
       validToken();
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
       expect(mocks.verifyToken).not.toHaveBeenCalled();
     });
 
@@ -103,7 +103,7 @@ describe("passesBotGate", () => {
       vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
       vi.stubEnv("TURNSTILE_SECRET_KEY", "");
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form(), IP, "test")).toBe(true);
+      expect((await passesBotGate(form(), IP, "test")).ok).toBe(true);
     });
   });
 
@@ -115,7 +115,7 @@ describe("passesBotGate", () => {
       stubCloudflare(true);
       const { passesBotGate } = await load();
       const meta = JSON.stringify({ p: "android", b: "29", plugin: true });
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": meta }), IP, "loginWithPassword")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": meta }), IP, "loginWithPassword")).ok).toBe(false);
       expect(mocks.verifyToken).toHaveBeenCalledWith(ATTEST, expect.anything(), expect.any(AbortSignal));
       expect(recorded()).toEqual({
         action: "loginWithPassword",
@@ -124,6 +124,7 @@ describe("passesBotGate", () => {
         platform: "android",
         meta: { p: "android", b: "29", plugin: true },
         turnstile: "fail",
+        turnstileReason: "missing",
       });
       expect(mocks.cookieSet).not.toHaveBeenCalled();
     });
@@ -132,13 +133,13 @@ describe("passesBotGate", () => {
       mocks.verifyToken.mockRejectedValue(Object.assign(new Error("bad"), { code: "app-check/invalid-argument" }));
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).toBe(true);
+      expect((await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(true);
       expect(recorded()).toMatchObject({ outcome: "invalid", turnstile: "pass" });
     });
 
     it("records native meta without a token as absent", async () => {
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-meta": '{"p":"ios","b":"7","plugin":false}' }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-meta": '{"p":"ios","b":"7","plugin":false}' }), IP, "test")).ok).toBe(false);
       expect(recorded()).toMatchObject({ outcome: "absent", meta: { p: "ios", b: "7", plugin: false } });
       expect(mocks.verifyToken).not.toHaveBeenCalled();
     });
@@ -152,8 +153,8 @@ describe("passesBotGate", () => {
         const withE = '{"p":"ios","b":"1","plugin":true,"e":"reject:boom"}';
         const a = await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-meta": plain }), IP, "test");
         const b = await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-meta": withE }), IP, "test");
-        expect(a).toBe(turnstileOk);
-        expect(b).toBe(a);
+        expect(a.ok).toBe(turnstileOk);
+        expect(b).toEqual(a);
         expect(mocks.track).toHaveBeenCalledTimes(2);
         expect(mocks.track.mock.calls[1][2]).toMatchObject({ outcome: "absent", meta: { p: "ios", plugin: true, e: "reject:boom" } });
       }
@@ -162,7 +163,7 @@ describe("passesBotGate", () => {
     it("records nothing for a plain browser submit", async () => {
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "cf-turnstile-response": "tok" }), IP, "test")).toBe(true);
+      expect((await passesBotGate(form({ "cf-turnstile-response": "tok" }), IP, "test")).ok).toBe(true);
       expect(mocks.track).not.toHaveBeenCalled();
     });
 
@@ -171,7 +172,7 @@ describe("passesBotGate", () => {
       vi.stubEnv("FIREBASE_PRIVATE_KEY", "");
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": "{}" }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST, "yk-app-meta": "{}" }), IP, "test")).ok).toBe(false);
       expect(recorded()).toMatchObject({ outcome: "not_configured", turnstile: "fail" });
     });
 
@@ -180,8 +181,8 @@ describe("passesBotGate", () => {
       stubCloudflare(true);
       mocks.track.mockRejectedValue(new Error("db down"));
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).toBe(true);
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "cf-turnstile-response": "tok", "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(true);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
     });
   });
 
@@ -192,7 +193,7 @@ describe("passesBotGate", () => {
       validToken();
       const fetchMock = stubCloudflare(false);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "signUpWithPassword")).toBe(true);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "signUpWithPassword")).ok).toBe(true);
       expect(fetchMock).not.toHaveBeenCalled();
       expect(recorded()).toMatchObject({ action: "signUpWithPassword", mode: "enforce", outcome: "ok", turnstile: "skipped" });
       expect(mocks.cookieSet).not.toHaveBeenCalled();
@@ -207,7 +208,7 @@ describe("passesBotGate", () => {
       arrange();
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
       expect(mocks.cookieSet).toHaveBeenCalledWith(
         "yk-attest-fallback",
         "1",
@@ -216,7 +217,7 @@ describe("passesBotGate", () => {
       expect(recorded()).toMatchObject({ outcome, turnstile: "fail" });
 
       mocks.track.mockClear();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST, "cf-turnstile-response": "tok" }), IP, "test")).toBe(true);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST, "cf-turnstile-response": "tok" }), IP, "test")).ok).toBe(true);
     });
 
     it("never passes when App Check is unreachable: reports it and falls to Turnstile", async () => {
@@ -224,7 +225,7 @@ describe("passesBotGate", () => {
       mocks.verifyToken.mockRejectedValue(new Error("getaddrinfo ENOTFOUND"));
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
       expect(mocks.captureError).toHaveBeenCalledTimes(1);
       expect(mocks.cookieSet).toHaveBeenCalled();
       expect(recorded()).toMatchObject({ outcome: "unavailable" });
@@ -238,13 +239,13 @@ describe("passesBotGate", () => {
       const { passesBotGate } = await load();
       const result = passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test");
       await vi.advanceTimersByTimeAsync(5000);
-      expect(await result).toBe(false);
+      expect((await result).ok).toBe(false);
       expect(mocks.captureError).toHaveBeenCalledTimes(1);
     });
 
     it("rejects an oversized token without a network call", async () => {
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": `${"a".repeat(4096)}.b.c` }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": `${"a".repeat(4096)}.b.c` }), IP, "test")).ok).toBe(false);
       expect(mocks.verifyToken).not.toHaveBeenCalled();
       expect(recorded()).toMatchObject({ outcome: "malformed" });
     });
@@ -253,7 +254,7 @@ describe("passesBotGate", () => {
       const fetchMock = stubCloudflare(true);
       const { passesBotGate } = await load();
       const spoof = form({ "yk-app-meta": JSON.stringify({ p: "android", b: "999", plugin: true }) });
-      expect(await passesBotGate(spoof, IP, "loginWithPassword")).toBe(false);
+      expect((await passesBotGate(spoof, IP, "loginWithPassword")).ok).toBe(false);
       expect(mocks.verifyToken).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(mocks.cookieSet).not.toHaveBeenCalled();
@@ -261,7 +262,7 @@ describe("passesBotGate", () => {
 
       mocks.track.mockClear();
       const fakeToken = form({ "yk-app-attest": "", "yk-app-meta": JSON.stringify({ p: "android", b: "999" }), "user-agent": "YuKon3t Android" });
-      expect(await passesBotGate(fakeToken, IP, "loginWithPassword")).toBe(false);
+      expect((await passesBotGate(fakeToken, IP, "loginWithPassword")).ok).toBe(false);
     });
 
     it("half-configured: inert, every token falls to Turnstile", async () => {
@@ -270,8 +271,8 @@ describe("passesBotGate", () => {
       validToken();
       stubCloudflare(true);
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(false);
       expect(mocks.verifyToken).not.toHaveBeenCalled();
       expect(err.mock.calls.filter(([msg]) => String(msg).includes("[app-attest]"))).toHaveLength(1);
     });
@@ -281,8 +282,8 @@ describe("passesBotGate", () => {
       vi.stubEnv("TURNSTILE_SECRET_KEY", "");
       mocks.verifyToken.mockResolvedValue({ appId: ANDROID, token: {}, alreadyConsumed: true });
       const { passesBotGate } = await load();
-      expect(await passesBotGate(form(), IP, "test")).toBe(true);
-      expect(await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).toBe(true);
+      expect((await passesBotGate(form(), IP, "test")).ok).toBe(true);
+      expect((await passesBotGate(form({ "yk-app-attest": ATTEST }), IP, "test")).ok).toBe(true);
     });
   });
 });

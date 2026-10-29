@@ -1,5 +1,6 @@
 import type { advertiseEn } from "@/lib/i18n/en/advertise";
-import { serverUnreachable } from "@/lib/i18n/ar/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/ar/common";
+import { shared } from "@/lib/i18n/ar/shared";
 
 // A price ("$49.00") is a Latin-script token and is shown left-to-right inside the sentence.
 export const advertise: typeof advertiseEn = {
@@ -43,6 +44,8 @@ export const advertise: typeof advertiseEn = {
     stripeNote: "ستدفع بأمان عبر Stripe. تُنشر الإعلانات بعد مراجعة سريعة، خلال يوم عمل واحد في العادة.",
     oneTime:
       "zero: رسوم تُدفع مرة واحدة فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة. | one: رسوم تُدفع مرة واحدة مقابل يوم واحد فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة. | two: رسوم تُدفع مرة واحدة مقابل يومين فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة. | few: رسوم تُدفع مرة واحدة مقابل # أيام فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة. | many: رسوم تُدفع مرة واحدة مقابل # يومًا فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة. | other: رسوم تُدفع مرة واحدة مقابل # يوم فقط، بلا تجديد تلقائي ولا تكرار. ولنشر حملة أخرى لاحقًا يلزم حجز جديد ورسوم منفصلة.",
+    // The bot check's own button and status lines (TurnstileWidget), the same sentences as the account screens.
+    turnstile: shared.turnstile,
     errors: {
       too_large: "هذا الملف كبير جدًا.",
       moderation: "هذا الإعلان لا يتوافق مع إرشادات المحتوى لدينا.",
@@ -52,6 +55,7 @@ export const advertise: typeof advertiseEn = {
       invalid: "يُرجى التحقق من البيانات التي أدخلتها.",
       network: serverUnreachable,
       captcha: "تعذّر إكمال التحقق الأمني. انتظر لحظة ثم حاول مرة أخرى.",
+      captcha_unavailable: captchaUnavailable,
       other: "تعذّر إرسال هذا الحجز. حاول مرة أخرى.",
       imageType: "استخدم صورة بصيغة JPEG أو PNG أو WebP.",
       imageTooLarge: "يجب ألا يتجاوز حجم الصورة 25 ميغابايت.",
@@ -62,9 +66,6 @@ export const advertise: typeof advertiseEn = {
       details: "أدخل بيانات شركتك وبيانات التواصل.",
       adFields: "أدخل عنوان إعلانك ونصه ورابطه.",
       media: "أضف صورة أو فيديو لإعلانك.",
-      securityWait: "اضغط على «تحقّق من أنك إنسان» لإكمال التحقق الأمني، ثم حاول مرة أخرى.",
-      securityVerify: "تحقّق من أنك إنسان",
-      securityExpired: "انتهت صلاحية التحقق الأمني. انتظر لحظة ثم حاول مرة أخرى.",
     },
   },
 };

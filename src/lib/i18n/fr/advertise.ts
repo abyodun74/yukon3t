@@ -1,5 +1,6 @@
 import type { advertiseEn } from "@/lib/i18n/en/advertise";
-import { serverUnreachable } from "@/lib/i18n/fr/common";
+import { captchaUnavailable, serverUnreachable } from "@/lib/i18n/fr/common";
+import { shared } from "@/lib/i18n/fr/shared";
 
 export const advertise: typeof advertiseEn = {
   page: {
@@ -45,6 +46,8 @@ export const advertise: typeof advertiseEn = {
       "Le paiement est sécurisé par Stripe. Les annonces sont mises en ligne après un examen rapide, généralement sous un jour ouvré.",
     oneTime:
       "one: Paiement unique pour # jour seulement, sans renouvellement automatique ni prélèvement récurrent. Lancer une autre campagne plus tard nécessite une nouvelle réservation et un paiement distinct. | other: Paiement unique pour # jours seulement, sans renouvellement automatique ni prélèvement récurrent. Lancer une autre campagne plus tard nécessite une nouvelle réservation et un paiement distinct.",
+    // The bot check's own button and status lines (TurnstileWidget), the same sentences as the account screens.
+    turnstile: shared.turnstile,
     errors: {
       too_large: "Ce fichier est trop volumineux.",
       moderation: "Ce visuel ne respecte pas nos règles de contenu.",
@@ -54,6 +57,7 @@ export const advertise: typeof advertiseEn = {
       invalid: "Veuillez vérifier les informations saisies.",
       network: serverUnreachable,
       captcha: "Nous n'avons pas pu terminer la vérification de sécurité. Patientez un instant, puis réessayez.",
+      captcha_unavailable: captchaUnavailable,
       other: "Impossible d'envoyer cette réservation. Réessayez.",
       imageType: "Utilisez une image JPEG, PNG ou WebP.",
       imageTooLarge: "Les images doivent faire 25 Mo au maximum.",
@@ -64,9 +68,6 @@ export const advertise: typeof advertiseEn = {
       details: "Renseignez les informations sur votre entreprise et votre contact.",
       adFields: "Renseignez le titre, le texte et le lien de votre annonce.",
       media: "Ajoutez une photo ou une vidéo à votre annonce.",
-      securityWait: "Touchez « Confirmez que vous êtes humain » pour terminer la vérification de sécurité, puis réessayez.",
-      securityVerify: "Confirmez que vous êtes humain",
-      securityExpired: "La vérification de sécurité a expiré. Patientez un instant, puis réessayez.",
     },
   },
 };

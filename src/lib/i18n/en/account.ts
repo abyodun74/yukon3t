@@ -1,4 +1,4 @@
-import { captchaFailed, phoneInvalid, emailPlaceholder } from "@/lib/i18n/en/common";
+import { captchaFailed, captchaUnavailable, phoneInvalid, emailPlaceholder } from "@/lib/i18n/en/common";
 
 /**
  * The landing page, the account screens (sign in, sign up, verify, password recovery, onboarding) and their emails.
@@ -44,6 +44,7 @@ export const accountEn = {
   common: {
     signIn: "Sign in",
     captchaFailed,
+    captchaUnavailable,
     somethingWentWrong: "Something went wrong — try again.",
     invalidEmail: "Enter a valid email address.",
     emailLabel: "Email address",
@@ -156,6 +157,7 @@ export const accountEn = {
       formErrors: {
         rate_limited: "Too many attempts. Please wait a bit and try again.",
         captcha: captchaFailed,
+        captcha_unavailable: captchaUnavailable,
         invalid: "Something went wrong — please try again.",
       },
     },
@@ -177,6 +179,7 @@ export const accountEn = {
         send_failed: "Couldn't send the code — try again in a moment.",
         no_session: "This link expired — please sign up again.",
         captcha: "We couldn't complete the security check — please try again.",
+        captcha_unavailable: captchaUnavailable,
       },
       somethingWentWrong: "Something went wrong — try again.",
       confirmedTitle: "Phone confirmed",

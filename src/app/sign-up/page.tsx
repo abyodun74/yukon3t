@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
 };
 
-// The only thing still sent here in the URL is ?error=apple_captcha (actions/apple-auth.ts). The password form's own
+// The only thing still sent here in the URL is ?error=apple_captcha / apple_captcha_unavailable (actions/apple-auth.ts). The password form's own
 // errors come back through its action's state (SignUpForm), never as a redirect.
 export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -48,7 +48,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
 
       {isAppleSignInConfigured() && isIosUserAgent(userAgent) && (
         <>
-          <AppleSignInButton showCaptchaError={error === "apple_captcha"} returnPath="/sign-up" />
+          <AppleSignInButton captchaError={error} returnPath="/sign-up" />
           <div className="my-6 flex w-full items-center gap-3 text-xs text-foreground-soft">
             <div className="h-px flex-1 bg-line" />
             {t.signUp.appleDivider}

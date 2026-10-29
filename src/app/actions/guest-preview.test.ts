@@ -9,7 +9,7 @@ class Redirect extends Error {
 }
 let session: { user: { id: string; isGuest?: boolean } } | null = null;
 const limits: Record<string, boolean> = {};
-let botGate = true;
+let botGate: { ok: true } | { ok: false; reason: "missing" | "unavailable" } = { ok: true };
 let isBot = false;
 let guestId: string | null = "guest";
 const issueGuestSessionCookie = vi.fn();
@@ -61,7 +61,7 @@ afterEach(() => {
   vi.clearAllMocks();
   session = null;
   for (const k of Object.keys(limits)) delete limits[k];
-  botGate = true;
+  botGate = { ok: true };
   isBot = false;
   guestId = "guest";
 });
@@ -89,8 +89,11 @@ describe("startGuestPreview", () => {
     isBot = true;
     expect(await redirectOf(startGuestPreview(form()))).toBe("/try?error=rate_limited");
     isBot = false;
-    botGate = false;
+    botGate = { ok: false, reason: "missing" };
     expect(await redirectOf(startGuestPreview(form({ ref: "reddit" })))).toBe("/try?error=captcha&ref=reddit");
+    // Cloudflare unreachable: its own message, not "do the check again".
+    botGate = { ok: false, reason: "unavailable" };
+    expect(await redirectOf(startGuestPreview(form()))).toBe("/try?error=captcha_unavailable");
     expect(issueGuestSessionCookie).not.toHaveBeenCalled();
   });
 

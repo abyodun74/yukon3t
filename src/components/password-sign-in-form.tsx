@@ -5,6 +5,7 @@ import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import type { Locale } from "@/lib/i18n/locales";
+import type { TurnstileStrings } from "@/lib/turnstile-lifecycle";
 import type { Dictionary } from "@/lib/i18n/en";
 
 /**
@@ -28,7 +29,7 @@ export function PasswordSignInForm({
   locale: Locale;
   t: Pick<Dictionary["signIn"], "identifier" | "password" | "submit" | "submitting">;
   shared: Pick<Dictionary["shared"], "passwordInput" | "submitButton">;
-  turnstileStrings: { verify: string; wait: string; checkingDevice?: string };
+  turnstileStrings: TurnstileStrings;
 }) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);

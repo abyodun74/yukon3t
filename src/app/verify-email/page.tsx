@@ -24,7 +24,7 @@ export default async function VerifyEmailPage({
   const locale = await getLocale();
   const t = await getDictionary();
   // The actions redirect back with an error code; this is the sentence for each, in the request's language.
-  const errorMessages: Record<string, string> = { ...t.verifyEmail.errors, captcha: t.common.captchaFailed };
+  const errorMessages: Record<string, string> = { ...t.verifyEmail.errors, captcha: t.common.captchaFailed, captcha_unavailable: t.common.captchaUnavailable };
   const offlineMessage = t.shared.submitButton.offline;
   const picker = <LanguagePicker locale={locale} label={t.languagePicker.label} />;
 

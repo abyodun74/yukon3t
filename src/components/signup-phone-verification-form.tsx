@@ -152,7 +152,7 @@ export function SignupPhoneVerificationForm({
                 formData.set("phone", pendingPhone);
                 startTransition(async () => {
                   if (!(await attach(formData))) {
-                    setError(shared.turnstile.wait);
+                    setError(captcha.holdMessage());
                     return;
                   }
                   const result = await requestSignupPhoneVerification(formData);
@@ -184,7 +184,7 @@ export function SignupPhoneVerificationForm({
           setError(null);
           startTransition(async () => {
             if (!(await attach(formData))) {
-              setError(shared.turnstile.wait);
+              setError(captcha.holdMessage());
               return;
             }
             const result = await requestSignupPhoneVerification(formData);

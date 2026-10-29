@@ -6,7 +6,9 @@
 // or with a named person: "Abonnement actif", "{name} vous invite…", not a past participle.
 
 export const captchaFailed =
-  "Nous n'avons pas pu terminer la vérification de sécurité. Patientez un instant, puis réessayez. Si le problème persiste, désactivez tout bloqueur de contenu ou essayez un autre réseau.";
+  "La vérification de sécurité ne s'est pas terminée. Touchez de nouveau « Confirmez que vous êtes humain » et attendez qu'elle se termine avant de continuer. Avec une connexion lente, cela peut prendre jusqu'à une minute.";
+export const captchaUnavailable =
+  "Notre service de vérification de sécurité ne répond pas pour le moment, nous ne pouvons donc pas continuer. Le problème ne vient pas de votre téléphone ni de votre connexion : réessayez dans quelques minutes.";
 export const phoneInvalid = "Ce numéro n'est pas valide pour le pays sélectionné. Vérifiez le pays et les chiffres.";
 export const emailPlaceholder = "vous@exemple.com";
 

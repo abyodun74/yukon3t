@@ -4,7 +4,21 @@ import { phoneInvalid, passwordInput, multiSelect } from "@/lib/i18n/es/common";
 export const shared: typeof sharedEn = {
   passwordInput,
   submitButton: { offline: "No tienes conexión. Revisa tu conexión e inténtalo de nuevo." },
-  turnstile: { verify: "Verifica que eres humano", wait: "Toca «Verifica que eres humano» para completar la verificación de seguridad y vuelve a intentarlo.", checkingDevice: "Verificando tu dispositivo…" },
+  turnstile: {
+    verify: "Verifica que eres humano",
+    wait: "Toca «Verifica que eres humano» para completar la verificación de seguridad y vuelve a intentarlo.",
+    checkingDevice: "Verificando tu dispositivo…",
+    stillChecking: "La verificación de seguridad sigue en curso. Espera a que termine y vuelve a intentarlo.",
+    slow: "Seguimos verificando… con una conexión lenta puede tardar hasta un minuto.",
+    retry: "Reintentar",
+    blocked: "No se pudo cargar la verificación de seguridad. Puede que un bloqueador de contenido, un DNS privado que bloquea anuncios, una VPN o la red estén bloqueando challenges.cloudflare.com. Desactívalo o cambia entre wifi y datos móviles, y toca Reintentar.",
+    stalled: "La verificación de seguridad no terminó. Toca Reintentar. Si sigue pasando, cambia entre wifi y datos móviles, o desactiva cualquier VPN, DNS privado o bloqueador de contenido.",
+    network: "La verificación de seguridad no pudo conectar con Cloudflare. Revisa tu conexión y toca Reintentar. Una VPN, un DNS privado o un bloqueador de contenido también pueden causarlo.",
+    config: "La verificación de seguridad no funciona ahora mismo por un problema nuestro. Inténtalo de nuevo más tarde.",
+    unsupported: "Este navegador no puede ejecutar la verificación de seguridad. Actualiza Chrome y Android System WebView (o tu navegador), o prueba con otro navegador.",
+    clock: "La fecha y la hora de tu teléfono parecen incorrectas, por eso la verificación no puede terminar. Activa la fecha y hora automáticas en los ajustes y toca Reintentar.",
+    failed: "La verificación de seguridad no se superó. Toca Reintentar.",
+  },
   phoneField: { countryCode: "Código de país", placeholder: "Número de teléfono" },
   phoneInvalid,
   birthDate: {

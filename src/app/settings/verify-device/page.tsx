@@ -20,6 +20,7 @@ export default async function VerifyDeviceSettingsPage({
   const errorMessages: Record<string, string> = {
     ...dictionary.verifyDevice.errors,
     captcha: dictionary.common.captchaFailed,
+    captcha_unavailable: dictionary.common.captchaUnavailable,
   };
   const turnstile = { locale, strings: dictionary.shared.turnstile };
   const offlineMessage = dictionary.shared.submitButton.offline;
