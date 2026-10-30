@@ -28,19 +28,20 @@ export type ShareTargetRow = {
 /**
  * Why `row` can't take a share from `userId`, or null when it can. Checked for every destination on its own, so one
  * bad id never stops the others. Refused: a chat the caller isn't in (or that doesn't exist), a 1:1 with someone
- * blocked either way or whose account isn't active, and a secret chat unless `allowSecret` (a share that carries no
- * text, like a Muse video, may go into one; plaintext never does). The hidden-chat lock is checked by the caller
- * (it needs the unlock cookie). Every refusal is the same "unavailable", so the result never says which it was.
+ * blocked either way or whose account isn't active, and a secret chat, whatever the share carries (a link, a Muse
+ * video, a Story, a photo from another app): a share is written by the server, never encrypted on a device, so it
+ * never goes into one (createNonE2eeMessage in src/lib/non-e2ee-message.ts refuses it again at the insert). The
+ * hidden-chat lock is checked by the caller (it needs the unlock cookie). Every refusal is the same "unavailable", so
+ * the result never says which it was.
  */
 export function shareTargetRefusal(
   row: ShareTargetRow | undefined,
   userId: string,
   blockedIds: ReadonlySet<string>,
-  options: { allowSecret: boolean },
 ): "unavailable" | null {
   if (!row || !row.members.some((m) => m.userId === userId)) return "unavailable";
   if (row.isGroup) return null;
-  if (!options.allowSecret && isSecretChat(row)) return "unavailable";
+  if (isSecretChat(row)) return "unavailable";
   const other = row.members.find((m) => m.userId !== userId);
   if (!other) return "unavailable";
   if (blockedIds.has(other.userId)) return "unavailable";

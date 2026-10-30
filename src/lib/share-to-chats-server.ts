@@ -19,21 +19,21 @@ const SHARE_TARGET_SELECT = {
 
 /**
  * Tries every destination on its own and calls `send` for each one that may take the share: the caller is a member,
- * the chat isn't hidden-and-locked for them, shareTargetRefusal passes (blocks either way, inactive peer, secret chat
- * unless `allowSecret`), and the ordinary per-message send limit (`messageSend`) still has room, since each copy is a
- * message sent. Once that limit says no, every destination left counts as failed. A `send` that throws counts as
- * failed too (reported, not rethrown), so the ones already sent stand. Returns counts only.
+ * the chat isn't hidden-and-locked for them, shareTargetRefusal passes (blocks either way, inactive peer, any secret
+ * chat), and the ordinary per-message send limit (`messageSend`) still has room, since each copy is a message sent.
+ * Once that limit says no, every destination left counts as failed. `send` writes through createNonE2eeMessage
+ * (src/lib/non-e2ee-message.ts) and answers "secret_chat" when that refused the insert (the chat became secret after
+ * it was read): counted as failed like any other refusal. A `send` that throws counts as failed too (reported, not
+ * rethrown), so the ones already sent stand. Returns counts only.
  */
 export async function sendToEachChat({
   userId,
   targetIds,
-  allowSecret,
   send,
 }: {
   userId: string;
   targetIds: readonly string[];
-  allowSecret: boolean;
-  send: (target: ShareTargetRow) => Promise<void>;
+  send: (target: ShareTargetRow) => Promise<"secret_chat" | null>;
 }): Promise<{ sent: number; failed: number; rateLimited: boolean }> {
   const [targets, blockedIds] = await Promise.all([
     prisma.conversation.findMany({ where: { id: { in: [...targetIds] } }, select: SHARE_TARGET_SELECT }),
@@ -47,7 +47,7 @@ export async function sendToEachChat({
   for (const conversationId of targetIds) {
     const target = targetById.get(conversationId);
     const membership = target?.members.find((m) => m.userId === userId);
-    if (!target || !membership || shareTargetRefusal(target, userId, blockedIds, { allowSecret })) {
+    if (!target || !membership || shareTargetRefusal(target, userId, blockedIds)) {
       failed++;
       continue;
     }
@@ -61,7 +61,10 @@ export async function sendToEachChat({
       continue;
     }
     try {
-      await send(target);
+      if ((await send(target)) === "secret_chat") {
+        failed++;
+        continue;
+      }
       sent++;
     } catch (err) {
       console.error("[share-to-chats] send to one chat failed", err);

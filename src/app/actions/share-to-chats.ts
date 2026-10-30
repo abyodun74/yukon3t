@@ -9,10 +9,11 @@ import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storag
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { isSecretChat, checkSecretSend } from "@/lib/e2ee/secret-chat";
+import { checkSecretSend } from "@/lib/e2ee/secret-chat";
 import { isGiphyUrl } from "@/lib/giphy";
 import { afterMessageSent } from "@/lib/after-message-sent";
 import { sendToEachChat } from "@/lib/share-to-chats-server";
+import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
 
 /**
@@ -20,9 +21,10 @@ import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
  * the photo/video just uploaded), to 1-SHARE_MAX_RECIPIENTS of the caller's chats at once. The same message goes to
  * each: the same checks as sendMessage run once on the content (upload ownership and size, the Giphy host, media
  * moderation that refuses, text moderation that holds it as FLAGGED), then every destination is checked on its own
- * (sendToEachChat: member, hidden-chat lock, blocks either way, active peer, `messageSend` limit). Plaintext never goes
- * into a secret chat (checkSecretSend's rule): a share with text counts a secret chat as failed, a media-only share
- * may go in. Each copy is a normal message of the caller and gets the usual notifications (afterMessageSent).
+ * (sendToEachChat: member, hidden-chat lock, blocks either way, active peer, `messageSend` limit). Nothing shared ever
+ * goes into a secret chat, text or not: a secret chat counts as failed (shareTargetRefusal, and createNonE2eeMessage
+ * again at the insert). Each copy is a normal message of the caller and gets the usual notifications
+ * (afterMessageSent).
  *
  * FormData: `conversationIds` (repeated), `content`, `mediaType`, `mediaUrl`, `mediaThumbnailUrl`. Answers counts
  * only (`sent`/`failed`), never which chat failed or why; nothing sent is "unavailable" or "rate_limited".
@@ -107,27 +109,26 @@ export async function sendToConversations(formData: FormData) {
   const tally = await sendToEachChat({
     userId: user.id,
     targetIds,
-    allowSecret: content === "",
     send: async (target) => {
-      await prisma.message.create({
-        data: {
-          conversationId: target.id,
-          senderId: user.id,
-          content,
-          mediaType,
-          mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
-          mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
-          moderationStatus,
-        },
+      const created = await createNonE2eeMessage({
+        conversationId: target.id,
+        senderId: user.id,
+        content,
+        mediaType,
+        mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
+        mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
+        moderationStatus,
       });
+      if (created.error) return created.error;
       await afterMessageSent({
         user,
         conversationId: target.id,
         memberIds: target.members.map((m) => m.userId),
-        secret: isSecretChat(target),
+        secret: false,
         content,
         mediaType,
       });
+      return null;
     },
   });
 
@@ -141,7 +142,7 @@ export async function sendToConversations(formData: FormData) {
  * chat), not a link. Reuses the Muse's already-moderated file, so there is no upload or size check, and no ownership
  * check either, which sendMessage rightly demands of a fresh upload (the file belongs to the Muse's author). The Muse is
  * checked once (published, not an embed, author not blocked either way), every destination on its own (sendToEachChat;
- * a secret chat may take it, since the message has no text). One share is counted, and the author notified once, per
+ * a secret chat never takes it). One share is counted, and the author notified once, per
  * send that reached at least one chat, however many chats it reached.
  */
 export async function shareMuseToConversations(museId: string, conversationIds: string[]) {
@@ -182,28 +183,27 @@ export async function shareMuseToConversations(museId: string, conversationIds: 
   const tally = await sendToEachChat({
     userId: user.id,
     targetIds,
-    allowSecret: true,
     send: async (target) => {
-      await prisma.message.create({
-        data: {
-          conversationId: target.id,
-          senderId: user.id,
-          // Empty text is what a plain video message carries (in a secret chat too: nothing to encrypt).
-          content: "",
-          mediaType: "VIDEO",
-          mediaUrl: muse.videoUrl,
-          mediaThumbnailUrl: muse.videoThumbnailUrl,
-          moderationStatus: "PUBLISHED",
-        },
+      const created = await createNonE2eeMessage({
+        conversationId: target.id,
+        senderId: user.id,
+        // Empty text is what a plain video message carries.
+        content: "",
+        mediaType: "VIDEO",
+        mediaUrl: muse.videoUrl,
+        mediaThumbnailUrl: muse.videoThumbnailUrl,
+        moderationStatus: "PUBLISHED",
       });
+      if (created.error) return created.error;
       await afterMessageSent({
         user,
         conversationId: target.id,
         memberIds: target.members.map((m) => m.userId),
-        secret: isSecretChat(target),
+        secret: false,
         content: "",
         mediaType: "VIDEO",
       });
+      return null;
     },
   });
 

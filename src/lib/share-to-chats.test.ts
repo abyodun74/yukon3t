@@ -59,33 +59,32 @@ describe("uniqueShareTargets", () => {
 
 describe("shareTargetRefusal", () => {
   it("accepts a 1:1 with an active, unblocked friend", () => {
-    expect(shareTargetRefusal(dm(), ME, none, { allowSecret: false })).toBeNull();
+    expect(shareTargetRefusal(dm(), ME, none)).toBeNull();
   });
 
   it("refuses a chat that doesn't exist or that the caller isn't in", () => {
-    expect(shareTargetRefusal(undefined, ME, none, { allowSecret: true })).toBe("unavailable");
-    expect(shareTargetRefusal(dm(), "someone-else", none, { allowSecret: true })).toBe("unavailable");
+    expect(shareTargetRefusal(undefined, ME, none)).toBe("unavailable");
+    expect(shareTargetRefusal(dm(), "someone-else", none)).toBe("unavailable");
   });
 
   it("refuses a 1:1 blocked either way, or with an inactive account", () => {
-    expect(shareTargetRefusal(dm(), ME, new Set([PEER]), { allowSecret: true })).toBe("unavailable");
-    expect(shareTargetRefusal(dm({ peerStatus: "SUSPENDED" }), ME, none, { allowSecret: true })).toBe("unavailable");
+    expect(shareTargetRefusal(dm(), ME, new Set([PEER]))).toBe("unavailable");
+    expect(shareTargetRefusal(dm({ peerStatus: "SUSPENDED" }), ME, none)).toBe("unavailable");
   });
 
-  it("refuses a secret chat unless the share carries no text", () => {
-    expect(shareTargetRefusal(dm({ e2ee: true }), ME, none, { allowSecret: false })).toBe("unavailable");
-    expect(shareTargetRefusal(dm({ e2ee: true }), ME, none, { allowSecret: true })).toBeNull();
+  it("refuses a secret chat, whatever the share carries", () => {
+    expect(shareTargetRefusal(dm({ e2ee: true }), ME, none)).toBe("unavailable");
   });
 
   it("refuses a 1:1 with nobody else left in it", () => {
-    expect(shareTargetRefusal({ id: "c1", isGroup: false, members: [member(ME)] }, ME, none, { allowSecret: true })).toBe(
+    expect(shareTargetRefusal({ id: "c1", isGroup: false, members: [member(ME)] }, ME, none)).toBe(
       "unavailable",
     );
   });
 
   it("accepts a group the caller is in, whoever else is in it", () => {
     const group: ShareTargetRow = { id: "g", isGroup: true, members: [member(ME), member(PEER, { status: "BANNED" })] };
-    expect(shareTargetRefusal(group, ME, new Set([PEER]), { allowSecret: false })).toBeNull();
+    expect(shareTargetRefusal(group, ME, new Set([PEER]))).toBeNull();
   });
 });
 

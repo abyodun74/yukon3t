@@ -22,7 +22,7 @@ import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
-import { isSecretChat, checkSecretSend, textForModeration } from "@/lib/e2ee/secret-chat";
+import { isSecretChat, checkSecretSend, textForModeration, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
@@ -30,6 +30,7 @@ import { isGiphyUrl } from "@/lib/giphy";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { afterMessageSent } from "@/lib/after-message-sent";
+import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { destroyViewOnceMedia } from "@/lib/view-once-media";
 import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
 import {
@@ -997,20 +998,26 @@ export async function markMessagesDelivered() {
   });
 }
 
-/** Lightweight conversation list backing the post Share modal's "Send to a friend" picker — only threads the caller is already a member of. */
+/**
+ * Lightweight conversation list backing the "Send to a friend" pickers of the post, Muse and share-target sheets: only
+ * threads the caller is already a member of. Never a hidden chat (unlocked or not: this picker opens on top of public
+ * pages) and never a secret chat (shares never go into one; the send refuses it too, see shareTargetRefusal).
+ */
 export async function getMyConversationsForShare() {
   const user = await requireVerifiedUser();
 
-  const conversations = await prisma.conversation.findMany({
-    // A hidden chat is never offered as a share target, unlocked or not: this picker opens on top of public pages.
+  const rows = await prisma.conversation.findMany({
     where: { members: { some: { userId: user.id, hiddenAt: null } } },
     select: {
       id: true,
       isGroup: true,
       name: true,
-      members: { select: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } } },
+      members: {
+        select: { e2eeEnabledAt: true, user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
+      },
     },
   });
+  const conversations = withoutSecretChats(rows);
 
   return {
     conversations: conversations.map((c) => {
@@ -1166,7 +1173,12 @@ export async function forwardMessage(messageId: string, conversationIds: string[
       continue;
     }
 
-    await prisma.message.create({ data: forwardedMessageData(source, { conversationId, senderId: user.id }) });
+    // The destination is read again at the insert: a chat that became secret since it was read above refuses it.
+    const created = await createNonE2eeMessage(forwardedMessageData(source, { conversationId, senderId: user.id }));
+    if (created.error) {
+      failed++;
+      continue;
+    }
     await afterMessageSent({
       user,
       conversationId,

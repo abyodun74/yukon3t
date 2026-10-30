@@ -18,6 +18,17 @@ export function isSecretChat(conversation: { isGroup: boolean; members: { e2eeEn
 }
 
 /**
+ * `conversations` minus the secret chats, for every share/forward picker: shares and forwards are written by the
+ * server, never encrypted on a device, so a secret chat is never offered as a destination (and the send refuses it
+ * too, see createNonE2eeMessage in src/lib/non-e2ee-message.ts). Order is kept.
+ */
+export function withoutSecretChats<T extends { isGroup: boolean; members: { e2eeEnabledAt: Date | null }[] }>(
+  conversations: readonly T[],
+): T[] {
+  return conversations.filter((c) => !isSecretChat(c));
+}
+
+/**
  * The gate every message write goes through — in BOTH directions:
  *  - In a secret chat, non-empty text MUST be ciphertext. A client that
  *    forgets (or is tricked, or a race turned secret mode on mid-send) is

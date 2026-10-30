@@ -15,7 +15,8 @@ import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { isSecretChat } from "@/lib/e2ee/secret-chat";
+import { isSecretChat, withoutSecretChats } from "@/lib/e2ee/secret-chat";
+import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
@@ -458,15 +459,17 @@ export async function replyToStory(storyId: string, formData: FormData) {
   const modResult = await moderateText(parsed.data.content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
-  await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      senderId: user.id,
-      content: parsed.data.content,
-      moderationStatus,
-      storyId: story.id,
-    },
+  // Checked again at the insert (createNonE2eeMessage): the chat may have become secret since it was read above.
+  const created = await createNonE2eeMessage({
+    conversationId: conversation.id,
+    senderId: user.id,
+    content: parsed.data.content,
+    moderationStatus,
+    storyId: story.id,
   });
+  if (created.error) {
+    return { error: "secret_chat" as const };
+  }
 
   // The author may have this DM hidden: then the push names nobody and quotes nothing.
   const authorHidesChat = (await getMembersHidingConversation(conversation.id, [story.authorId])).length > 0;
@@ -494,22 +497,25 @@ export async function replyToStory(storyId: string, formData: FormData) {
  * for shareStoryToConversations below — same shape MultiSelect's options
  * expect. A DM's label is the other member's name; a group's is its name.
  * Excludes a DM with someone now blocked either way, same trust boundary
- * replyToStory enforces for its own single fixed recipient.
+ * replyToStory enforces for its own single fixed recipient, and, like every
+ * share picker, hidden chats and secret chats (a share never goes into one).
  */
 export async function getShareableConversations() {
   const user = await requireVerifiedUser();
 
-  const conversations = await prisma.conversation.findMany({
-    // Hidden chats are never offered as a share target (same as getMyConversationsForShare).
+  const rows = await prisma.conversation.findMany({
     where: { members: { some: { userId: user.id, hiddenAt: null } } },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       isGroup: true,
       name: true,
-      members: { select: { userId: true, user: { select: { id: true, name: true, username: true } } } },
+      members: {
+        select: { userId: true, e2eeEnabledAt: true, user: { select: { id: true, name: true, username: true } } },
+      },
     },
   });
+  const conversations = withoutSecretChats(rows);
 
   const targets: { value: string; label: string; username: string | null }[] = [];
   for (const conv of conversations) {
@@ -578,8 +584,8 @@ export async function getStory(storyId: string) {
  * always targets a DM with the story's author): the story-viewer's own "Share" action. Reuses Message.storyId, the
  * exact same field replyToStory sets, so each recipient sees the same inline story preview in chat-thread.tsx. The
  * story is checked once (unexpired, author not blocked either way); every destination on its own (sendToEachChat:
- * member, hidden-chat lock, blocks either way, active peer, `messageSend` per copy). Like before, the copy carries no
- * text of the sharer's and sends no push, and a secret chat may take it. Answers counts only.
+ * member, hidden-chat lock, blocks either way, active peer, `messageSend` per copy; never a secret chat). Like before,
+ * the copy carries no text of the sharer's and sends no push. Answers counts only.
  */
 export async function shareStoryToConversations(storyId: string, conversationIds: string[]) {
   const user = await requireVerifiedUser();
@@ -605,18 +611,17 @@ export async function shareStoryToConversations(storyId: string, conversationIds
   const tally = await sendToEachChat({
     userId: user.id,
     targetIds,
-    allowSecret: true,
     send: async (target) => {
-      await prisma.message.create({
-        data: {
-          conversationId: target.id,
-          senderId: user.id,
-          content: "Shared a story",
-          storyId: story.id,
-          isForwardedStory: true,
-        },
+      const created = await createNonE2eeMessage({
+        conversationId: target.id,
+        senderId: user.id,
+        content: "Shared a story",
+        storyId: story.id,
+        isForwardedStory: true,
       });
+      if (created.error) return created.error;
       revalidatePath(`/messages/${target.id}`);
+      return null;
     },
   });
   return shareToChatsResult(tally);

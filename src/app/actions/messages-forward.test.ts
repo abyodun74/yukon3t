@@ -44,6 +44,8 @@ function member(userId: string, over: Partial<Member> = {}): Member {
 
 let conversations: Conv[] = [];
 let source: Record<string, unknown> | null = null;
+// Chats that turned secret after forwardMessage read them: only the insert's own re-read (createNonE2eeMessage) sees it.
+let secretAtInsert = new Set<string>();
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -80,8 +82,8 @@ vi.mock("@/lib/latest-messages", () => ({
   latestMessageAtByConversation: async (ids: string[]) =>
     new Map(ids.map((id) => [id, new Date(1000 * conversations.findIndex((c) => c.id === id))])),
 }));
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const prisma = {
     message: {
       findUnique: async () => source,
       create: (...a: unknown[]) => messageCreate(...a),
@@ -101,10 +103,20 @@ vi.mock("@/lib/prisma", () => ({
       },
     },
     notification: { createMany: (...a: unknown[]) => notificationCreateMany(...a) },
-  },
-}));
+    // createNonE2eeMessage's locked re-read of the destination's members (the only interpolated value is its id).
+    $queryRaw: async (_sql: TemplateStringsArray, conversationId: string) => {
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (!conv) return [];
+      const nowSecret = secretAtInsert.has(conversationId);
+      return conv.members.map((m) => ({ isGroup: conv.isGroup, e2eeEnabledAt: nowSecret ? new Date() : m.e2eeEnabledAt }));
+    },
+    $transaction: async (arg: unknown): Promise<unknown> =>
+      typeof arg === "function" ? arg(prisma) : Promise.all(arg as unknown[]),
+  };
+  return { prisma };
+});
 
-import { forwardMessage, getForwardTargets } from "@/app/actions/messages";
+import { forwardMessage, getForwardTargets, getMyConversationsForShare } from "@/app/actions/messages";
 
 function baseSource(over: Record<string, unknown> = {}) {
   return {
@@ -129,6 +141,7 @@ beforeEach(() => {
   for (const k of Object.keys(limits)) delete limits[k];
   blocked = new Set();
   unlocked = false;
+  secretAtInsert = new Set();
   moderateText.mockResolvedValue({ allowed: true });
   messageCreate.mockResolvedValue({ id: "new" });
   conversations = [
@@ -244,6 +257,13 @@ describe("forwardMessage: destinations", () => {
     expect(await forwardMessage(MSG, [D1, SECRET, HIDDEN])).toEqual({ error: null, sent: 1, failed: 2 });
   });
 
+  it("refuses a chat that became secret after it was read, at the insert itself", async () => {
+    secretAtInsert = new Set([D2]);
+    expect(await forwardMessage(MSG, [D1, D2])).toEqual({ error: null, sent: 1, failed: 1 });
+    expect(messageCreate.mock.calls.map((c) => (c[0] as { data: { conversationId: string } }).data.conversationId)).toEqual([D1]);
+    expect(notificationCreateMany).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses more than five destinations and de-duplicates repeats", async () => {
     const ids = [1, 2, 3, 4, 5, 6].map((n) => `cxx${String(n).padStart(11, "0")}`);
     expect(await forwardMessage(MSG, ids)).toEqual({ error: "invalid" });
@@ -294,6 +314,29 @@ describe("forwardMessage: destinations", () => {
     expect(JSON.stringify(push)).not.toContain(SRC);
     const fcmPayload = (fcm.mock.calls[0][1] as (l: "en") => { url: string; type: string })("en");
     expect(fcmPayload).toMatchObject({ url: `/messages/${D1}`, type: "MESSAGE" });
+  });
+});
+
+describe("getMyConversationsForShare (post, Muse and share-target pickers)", () => {
+  it("never offers a secret chat or a hidden one", async () => {
+    conversations.push(
+      { id: "csec0000000001", isGroup: false, name: null, members: [member(ME, { e2eeEnabledAt: new Date() }), member(CY, { e2eeEnabledAt: new Date() })] },
+      { id: "chid0000000001", isGroup: false, name: null, members: [member(ME, { hiddenAt: new Date() }), member(CY)] },
+      // Only one side opted in: not a secret chat, still offered.
+      { id: "chalf000000001", isGroup: false, name: null, members: [member(ME, { e2eeEnabledAt: new Date() }), member(BO)] },
+    );
+    const ids = (await getMyConversationsForShare()).conversations.map((c) => c.id);
+    expect(ids).not.toContain("csec0000000001");
+    expect(ids).not.toContain("chid0000000001");
+    expect(ids).toContain("chalf000000001");
+    expect(ids).toContain(GROUP);
+  });
+
+  it("answers an empty list when the only chats are secret (the picker's 'no chats' state)", async () => {
+    conversations = [
+      { id: "csec0000000001", isGroup: false, name: null, members: [member(ME, { e2eeEnabledAt: new Date() }), member(CY, { e2eeEnabledAt: new Date() })] },
+    ];
+    expect(await getMyConversationsForShare()).toEqual({ conversations: [] });
   });
 });
 

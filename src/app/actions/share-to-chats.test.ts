@@ -40,6 +40,8 @@ let blocked = new Set<string>();
 let unlocked = false;
 let muse: Record<string, unknown> | null = null;
 let story: Record<string, unknown> | null = null;
+// Chats that turned secret after the action read them: only the insert's own re-read (createNonE2eeMessage) sees it.
+let secretAtInsert = new Set<string>();
 
 type Member = { userId: string; e2eeEnabledAt: Date | null; hiddenAt: Date | null; user: { status: string } };
 type Conv = { id: string; isGroup: boolean; members: Member[] };
@@ -76,11 +78,14 @@ vi.mock("@/lib/hidden-chats", () => ({
   isMembershipLocked: async (m: { hiddenAt: Date | null }) => m.hiddenAt !== null && !unlocked,
   getMembersHidingConversation: async () => [],
 }));
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const prisma = {
     conversation: {
-      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
-        conversations.filter((c) => where.id.in.includes(c.id)),
+      findMany: async ({ where }: { where: { id?: { in: string[] } } }) =>
+        where.id
+          ? conversations.filter((c) => where.id!.in.includes(c.id))
+          : // getShareableConversations: the caller's chats it hasn't hidden.
+            conversations.filter((c) => c.members.some((m) => m.userId === ME && m.hiddenAt === null)),
     },
     message: { create: (...a: unknown[]) => messageCreate(...a) },
     muse: {
@@ -90,12 +95,24 @@ vi.mock("@/lib/prisma", () => ({
     museShare: { create: (...a: unknown[]) => museShareCreate(...a) },
     notification: { create: (...a: unknown[]) => notificationCreate(...a) },
     story: { findUnique: async () => story },
-    $transaction: async (ops: unknown[]) => Promise.all(ops),
-  },
-}));
+    // createNonE2eeMessage's locked re-read of the destination's members (the only interpolated value is its id).
+    $queryRaw: async (_sql: TemplateStringsArray, conversationId: string) => {
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (!conv) return [];
+      const nowSecret = secretAtInsert.has(conversationId);
+      return conv.members.map((m) => ({
+        isGroup: conv.isGroup,
+        e2eeEnabledAt: nowSecret ? new Date() : m.e2eeEnabledAt,
+      }));
+    },
+    $transaction: async (arg: unknown): Promise<unknown> =>
+      typeof arg === "function" ? arg(prisma) : Promise.all(arg as unknown[]),
+  };
+  return { prisma };
+});
 
 import { sendToConversations, shareMuseToConversations } from "@/app/actions/share-to-chats";
-import { shareStoryToConversations } from "@/app/actions/stories";
+import { getShareableConversations, shareStoryToConversations } from "@/app/actions/stories";
 
 function form(ids: string[], fields: Record<string, string> = {}) {
   const fd = new FormData();
@@ -110,6 +127,7 @@ beforeEach(() => {
   for (const k of Object.keys(limits)) delete limits[k];
   blocked = new Set();
   unlocked = false;
+  secretAtInsert = new Set();
   moderateText.mockResolvedValue({ allowed: true });
   moderateMedia.mockResolvedValue({ allowed: true });
   verifyUploadedSize.mockResolvedValue(true);
@@ -166,14 +184,27 @@ describe("sendToConversations: each destination on its own", () => {
     expect(sentTo()).toEqual([D1, GROUP]);
   });
 
-  it("never puts text into a secret chat, but a media-only share may go in", async () => {
+  it("never puts anything into a secret chat: a link, text or a media-only share", async () => {
     expect(await sendToConversations(form([SECRET]))).toEqual({ error: "unavailable" });
     expect(
       await sendToConversations(
         form([SECRET], { content: "", mediaType: "IMAGE", mediaUrl: "https://media.example/u/k.jpg" }),
       ),
-    ).toEqual({ error: null, sent: 1, failed: 0 });
-    expect(afterMessageSent).toHaveBeenCalledWith(expect.objectContaining({ conversationId: SECRET, secret: true }));
+    ).toEqual({ error: "unavailable" });
+    expect(messageCreate).not.toHaveBeenCalled();
+    expect(afterMessageSent).not.toHaveBeenCalled();
+  });
+
+  it("counts a secret chat as one more generic failure in a partial success", async () => {
+    expect(await sendToConversations(form([D1, SECRET, D2]))).toEqual({ error: null, sent: 2, failed: 1 });
+    expect(sentTo()).toEqual([D1, D2]);
+  });
+
+  it("refuses a chat that became secret after it was read, at the insert itself", async () => {
+    secretAtInsert = new Set([D2]);
+    expect(await sendToConversations(form([D1, D2]))).toEqual({ error: null, sent: 1, failed: 1 });
+    expect(sentTo()).toEqual([D1]);
+    expect(afterMessageSent).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a hidden chat unless its PIN unlock is live", async () => {
@@ -253,10 +284,10 @@ describe("sendToConversations: rate limits", () => {
 });
 
 describe("shareMuseToConversations", () => {
-  it("sends the video to every allowed chat, a secret chat included, and counts one share", async () => {
+  it("sends the video to every allowed chat, never a secret chat, and counts one share", async () => {
     const result = await shareMuseToConversations(MUSE, [D1, SECRET, OTHERS]);
-    expect(result).toEqual({ error: null, sent: 2, failed: 1, shareCount: 7 });
-    expect(sentTo()).toEqual([D1, SECRET]);
+    expect(result).toEqual({ error: null, sent: 1, failed: 2, shareCount: 7 });
+    expect(sentTo()).toEqual([D1]);
     expect(messageCreate.mock.calls[0][0]).toMatchObject({
       data: { content: "", mediaType: "VIDEO", mediaUrl: "https://media.example/m.mp4" },
     });
@@ -267,6 +298,10 @@ describe("shareMuseToConversations", () => {
 
   it("counts nothing and notifies nobody when no chat took it", async () => {
     expect(await shareMuseToConversations(MUSE, [OTHERS])).toEqual({ error: "unavailable" });
+    expect(await shareMuseToConversations(MUSE, [SECRET])).toEqual({ error: "unavailable" });
+    secretAtInsert = new Set([D1]);
+    expect(await shareMuseToConversations(MUSE, [D1])).toEqual({ error: "unavailable" });
+    expect(messageCreate).not.toHaveBeenCalled();
     expect(museShareCreate).not.toHaveBeenCalled();
     expect(notificationCreate).not.toHaveBeenCalled();
   });
@@ -304,6 +339,13 @@ describe("shareStoryToConversations", () => {
     expect(afterMessageSent).not.toHaveBeenCalled();
   });
 
+  it("never puts a story into a secret chat, even one that became secret after it was read", async () => {
+    expect(await shareStoryToConversations(STORY, [SECRET])).toEqual({ error: "unavailable" });
+    secretAtInsert = new Set([D2]);
+    expect(await shareStoryToConversations(STORY, [D1, D2, SECRET])).toEqual({ error: null, sent: 1, failed: 2 });
+    expect(sentTo()).toEqual([D1]);
+  });
+
   it("refuses an expired story or a blocked author's", async () => {
     story = { id: STORY, authorId: AUTHOR, expiresAt: new Date(Date.now() - 1) };
     expect(await shareStoryToConversations(STORY, [D1])).toEqual({ error: "not_found" });
@@ -318,5 +360,20 @@ describe("shareStoryToConversations", () => {
     expect(await shareStoryToConversations(STORY, [D1, D2])).toEqual({ error: null, sent: 1, failed: 1 });
     limits.shareToChats = false;
     expect(await shareStoryToConversations(STORY, [D1])).toEqual({ error: "rate_limited" });
+  });
+});
+
+describe("getShareableConversations (the Story share picker)", () => {
+  it("never offers a secret chat or a hidden one", async () => {
+    const ids = (await getShareableConversations()).conversations.map((c) => c.value);
+    expect(ids).not.toContain(SECRET);
+    expect(ids).not.toContain(HIDDEN);
+    expect(ids).not.toContain(OTHERS);
+    expect(ids).toEqual(expect.arrayContaining([D1, D2, GROUP]));
+  });
+
+  it("answers an empty list when the only chats are secret (the picker's 'no chats' state)", async () => {
+    conversations = conversations.filter((c) => c.id === SECRET);
+    expect(await getShareableConversations()).toEqual({ conversations: [] });
   });
 });

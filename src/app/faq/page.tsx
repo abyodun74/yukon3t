@@ -469,7 +469,9 @@ const sections: Section[] = [
             branded back to where it came from. In &ldquo;Send to a
             friend&rdquo; you can tick up to 5 chats and send to all of them
             at once; the same works when sharing a Muse, a Story, or
-            something shared in from another app. The share icon only shows
+            something shared in from another app. Secret chats aren&apos;t on
+            that list: a share never goes into a secret chat, because it
+            can&apos;t be encrypted on your phone. The share icon only shows
             on posts shared with Everyone: a Friends-only or Private post
             can&apos;t be reposted, added to someone else&apos;s Story, or
             shared to Muse or a Circle.
@@ -1171,7 +1173,8 @@ const sections: Section[] = [
             deleted messages, messages under review, story replies and
             messages in a secret chat. Secret chats, hidden chats and chats
             with someone you&apos;ve blocked (or who blocked you) aren&apos;t
-            offered as places to forward to. Forwarded text, links included,
+            offered as places to forward to, and nothing forwarded ever goes
+            into a secret chat. Forwarded text, links included,
             is checked against our Community Guidelines again before it&apos;s
             sent.
           </>
@@ -1450,6 +1453,11 @@ const sections: Section[] = [
             message <em>text</em> is encrypted — photos, videos, voice notes
             and GIFs are still uploaded and checked like everywhere else, and
             messages sent before you both turned it on weren&apos;t encrypted.
+            Posts, Muses, Stories, things shared in from other apps and
+            forwarded messages never go into a secret chat (they can&apos;t be
+            encrypted on your phone), so secret chats aren&apos;t offered when
+            you share or forward; to send a link there, paste it into the chat
+            yourself.
             Once it&apos;s on, nothing on screen marks the chat as secret:
             there&apos;s no label or lock in the chat or your inbox, and
             notifications just say &ldquo;New message&rdquo; — the same
