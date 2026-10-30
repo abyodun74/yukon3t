@@ -8,7 +8,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { BirthDateSelect } from "@/components/birth-date-select";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { VerifyMethodFields } from "@/components/verify-method-fields";
-import { MIN_AGE } from "@/lib/validations";
+import { MIN_AGE } from "@/lib/validation-constants";
 import { cn } from "@/lib/utils";
 import {
   INITIAL_SIGN_UP_STATE,

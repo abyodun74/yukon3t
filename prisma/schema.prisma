@@ -968,6 +968,9 @@ model Comment {
   // FLAGGED long comment videos; that scan keys on videoLongReviewNeeded
   // now (see that field), and this index was left as it was.
   @@index([moderationStatus, videoLongReviewClaimedAt])
+  // Backs that scan as it is now: videoLongReviewNeeded = true, oldest
+  // first (claimCommentCandidates, every minute).
+  @@index([videoLongReviewNeeded, createdAt])
   // Backs /admin/moderation's FLAGGED (oldest first) and REMOVED (newest
   // first) comment lists.
   @@index([moderationStatus, createdAt])
@@ -2197,6 +2200,9 @@ model Muse {
   // FLAGGED long Muses; that scan keys on videoLongReviewNeeded now (see
   // that field), and this index was left as it was.
   @@index([moderationStatus, videoLongReviewClaimedAt])
+  // Backs that scan as it is now: videoLongReviewNeeded = true, oldest
+  // first (claimMuseCandidates, every minute).
+  @@index([videoLongReviewNeeded, createdAt])
   @@index([sharedPostId])
   @@index([videoUrl])
   @@index([videoThumbnailUrl])

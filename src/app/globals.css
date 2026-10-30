@@ -244,6 +244,17 @@ body {
   font-optical-sizing: auto;
 }
 
+/* The landing page's italic headline. Fraunces Italic is its own font (frauncesItalic in src/app/page.tsx, which sets
+   --font-fraunces-italic on the element), so its 45KB file loads and preloads on that page only instead of every
+   route. Right-to-left the headline is upright (rtl:not-italic), so it keeps the regular Fraunces there. */
+.font-display-italic {
+  font-family: var(--font-fraunces-italic), var(--font-sans), Georgia, serif;
+  font-optical-sizing: auto;
+}
+[dir="rtl"] .font-display-italic {
+  font-family: var(--font-fraunces), var(--font-sans), Georgia, serif;
+}
+
 /* Size-dependent tracking/leading for the app's two dominant heading
    idioms (grep-verified against every `<h1>`/`<h2>` in the app: `text-2xl`
    or larger for page titles, `text-sm`/`text-base` for modal/dialog

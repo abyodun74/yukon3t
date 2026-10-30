@@ -5,7 +5,7 @@ import { ConnectionResponseButtons } from "@/components/connection-response-butt
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { CallButton } from "@/components/call-button";
-import { intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validation-constants";
 import { useFeedText } from "@/components/feed-text";
 import type { pagesEn } from "@/lib/i18n/en/pages";
 import { format } from "@/lib/i18n/locales";

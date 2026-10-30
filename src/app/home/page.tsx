@@ -25,9 +25,8 @@ export default async function HomePage({
   searchParams: Promise<{ scope?: string; category?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const dictionary = await getDictionary();
+  const [dictionary, { scope, category: categoryParam }] = await Promise.all([getDictionary(), searchParams]);
   const t = dictionary.pages.home;
-  const { scope, category: categoryParam } = await searchParams;
   // Admin-only "include private posts" view — never trust the query param
   // alone, only branch the query when the signed-in user is actually an
   // admin. See src/lib/post-visibility.ts: everyone already sees everyone
@@ -39,43 +38,49 @@ export default async function HomePage({
     ? (categoryParam as (typeof feedCategoryValues)[number])
     : null;
 
-  // getConnectionsStories throws for an account that hasn't verified its email or phone (requireVerifiedUser), which
-  // would take the whole page down with it. Password sign-in never lets such an account in, but an OAuth sign-up can
-  // arrive with neither (Auth.js stores emailVerified as null for OAuth), so the tray is simply empty for it instead.
-  const { groups: storyGroups } = isAccountVerified(me) ? await getConnectionsStories() : { groups: [] };
+  // The Story tray and the post feed don't depend on each other: both are loaded at once.
+  const loadFeed = async () => {
+    // Everything here only reads posts the viewer is normally allowed to see
+    // (getConnectionsStories is untouched by allPostsScope) — admins get a
+    // wider post feed, never wider Story or profile access.
+    const [baseWhere, categoryFilter] = await Promise.all([
+      allPostsScope
+        ? {
+            moderationStatus: "PUBLISHED" as const,
+            author: { status: "ACTIVE" as const },
+            // Still respects the HIDDEN ("invisible to everyone") tier — an
+            // admin's own HIDDEN posts don't leak into another admin's view
+            // either.
+            NOT: { author: { postsVisibility: "HIDDEN" as const } },
+            // Even an admin's wider feed never lists members-only (private Circle / private channel) posts,
+            // and never lists a multi-photo post's non-lead siblings as their own separate cards.
+            AND: [NOT_MEMBERS_ONLY, LEAD_POST_ONLY],
+          }
+        : getListablePostsWhere(me.id),
+      // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter
+      // for why this can't just be spread onto baseWhere (it may carry its own
+      // top-level OR, which spreading would silently clobber baseWhere's
+      // visibility OR instead of combining with it).
+      buildCategoryFilter(category),
+    ]);
+    const where = categoryFilter ? { AND: [baseWhere, categoryFilter] } : baseWhere;
 
-  // Everything below this point only reads posts/stories the viewer is
-  // normally allowed to see (getConnectionsStories above is untouched by
-  // allPostsScope) — admins get a wider post feed, never wider Story or
-  // profile access.
-  const baseWhere = allPostsScope
-    ? {
-        moderationStatus: "PUBLISHED" as const,
-        author: { status: "ACTIVE" as const },
-        // Still respects the HIDDEN ("invisible to everyone") tier — an
-        // admin's own HIDDEN posts don't leak into another admin's view
-        // either.
-        NOT: { author: { postsVisibility: "HIDDEN" as const } },
-        // Even an admin's wider feed never lists members-only (private Circle / private channel) posts,
-        // and never lists a multi-photo post's non-lead siblings as their own separate cards.
-        AND: [NOT_MEMBERS_ONLY, LEAD_POST_ONLY],
-      }
-    : await getListablePostsWhere(me.id);
-  // A smart hybrid filter, not a strict tag lookup — see buildCategoryFilter
-  // for why this can't just be spread onto baseWhere (it may carry its own
-  // top-level OR, which spreading would silently clobber baseWhere's
-  // visibility OR instead of combining with it).
-  const categoryFilter = await buildCategoryFilter(category);
-  const where = categoryFilter ? { AND: [baseWhere, categoryFilter] } : baseWhere;
+    const rawPosts = await prisma.post.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+      include: postCardInclude,
+    });
+    return { posts: await attachViewerState(rawPosts, me.id), hasMore: rawPosts.length === PAGE_SIZE };
+  };
 
-  const rawPosts = await prisma.post.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: PAGE_SIZE,
-    include: postCardInclude,
-  });
-  const posts = await attachViewerState(rawPosts, me.id);
-  const hasMore = rawPosts.length === PAGE_SIZE;
+  const [{ groups: storyGroups }, { posts, hasMore }] = await Promise.all([
+    // getConnectionsStories throws for an account that hasn't verified its email or phone (requireVerifiedUser), which
+    // would take the whole page down with it. Password sign-in never lets such an account in, but an OAuth sign-up can
+    // arrive with neither (Auth.js stores emailVerified as null for OAuth), so the tray is simply empty for it instead.
+    isAccountVerified(me) ? getConnectionsStories() : { groups: [] },
+    loadFeed(),
+  ]);
 
   const categoryQuery = category ? `&category=${category}` : "";
 

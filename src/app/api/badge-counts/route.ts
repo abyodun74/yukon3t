@@ -5,6 +5,10 @@ import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
 import { rememberLocale } from "@/lib/user-locale";
+import { countConversationsWithUnread } from "@/lib/latest-messages";
+
+/** Most unread notifications counted; see the count query below. */
+const UNREAD_NOTIFICATIONS_COUNT_CAP = 100;
 
 /**
  * Combines what used to be 4 separately-polled endpoints (messages/
@@ -44,25 +48,16 @@ export async function GET() {
   // An unread message in a hidden chat must leave every badge exactly as it was.
   const hidden = await getHiddenState(user.id);
 
-  const [conversations, pendingConnections, unreadNotifications, latestAnnouncement] = await Promise.all([
+  const [unreadMessages, pendingConnections, unreadNotifications, latestAnnouncement] = await Promise.all([
     // Count conversations with an unread message, not total unread messages —
     // matches the per-conversation dot already shown on /messages. Based on
     // the caller's own ConversationMember.lastReadAt rather than
     // Message.readAt: readAt is a single field shared by every recipient,
     // which can't represent "read by some but not all" once a conversation
-    // has more than one other member (group chats).
-    prisma.conversation.findMany({
-      where: { members: { some: { userId: user.id, hiddenAt: null } } },
-      select: {
-        members: { where: { userId: user.id }, select: { lastReadAt: true } },
-        messages: {
-          where: { senderId: { not: user.id }, NOT: { deletedForUserIds: { has: user.id } } },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { createdAt: true },
-        },
-      },
-    }),
+    // has more than one other member (group chats). One EXISTS per
+    // non-hidden membership in the database (src/lib/latest-messages.ts),
+    // never a load of the chats' messages.
+    countConversationsWithUnread(user.id),
     prisma.connection.count({
       where: { targetId: user.id, status: "PENDING", requesterId: { notIn: hidden.peerIds } },
     }),
@@ -73,15 +68,12 @@ export async function GET() {
         readAt: null,
         AND: [...visibleNotificationWhere(hidden), circleNotificationVisibleWhere(user.id)],
       },
+      // The bell shows "9+" past 9 (its aria-label says the number, so it reads at most 100): capping lets Postgres
+      // stop there instead of evaluating the visibility filters on every unread row.
+      take: UNREAD_NOTIFICATIONS_COUNT_CAP,
     }),
     prisma.announcement.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
   ]);
-
-  const unreadMessages = conversations.filter((c) => {
-    const last = c.messages[0];
-    const lastReadAt = c.members[0]?.lastReadAt;
-    return last && (!lastReadAt || last.createdAt > lastReadAt);
-  }).length;
 
   const hasNewAnnouncement =
     Boolean(latestAnnouncement) &&

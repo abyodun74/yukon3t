@@ -135,6 +135,33 @@ export async function classifyPostCategory(
   return { category: best.category, embedding };
 }
 
+// The semantic half of a category tab is an exact scan of every Post's embedding (nearestPostIds), and it used to run
+// on every /home?category= render, every "Load more" and every signal-driven /api/feed/<category>/latest call. The
+// result is the same for every viewer (the whole Post table against a fixed anchor; each viewer's visibility is ANDed
+// on by the caller, in the query that uses it), so it is reused for CATEGORY_CANDIDATES_TTL_MS per server instance.
+// A post newer than that still shows at once through the exact feedCategory branch of the OR; one that is only a
+// semantic match joins the tab when the entry expires. A failed scan is not kept (the next call retries).
+const CATEGORY_CANDIDATES_TTL_MS = 90_000;
+const categoryCandidateCache = new Map<FeedCategory, { expiresAt: number; ids: Promise<string[]> }>();
+
+function getCategoryCandidateIds(category: FeedCategory, embedding: number[]): Promise<string[]> {
+  const now = Date.now();
+  const cached = categoryCandidateCache.get(category);
+  if (cached && cached.expiresAt > now) return cached.ids;
+  const ids = nearestPostIds(toPgVector(embedding), { limit: 500, maxDistance: CATEGORY_MAX_DISTANCE });
+  const entry = { expiresAt: now + CATEGORY_CANDIDATES_TTL_MS, ids };
+  categoryCandidateCache.set(category, entry);
+  ids.catch(() => {
+    if (categoryCandidateCache.get(category) === entry) categoryCandidateCache.delete(category);
+  });
+  return ids;
+}
+
+/** Test hook: forgets every cached category candidate set. */
+export function clearCategoryCandidateCache() {
+  categoryCandidateCache.clear();
+}
+
 /**
  * Returns the Prisma Post where-fragment for a Home feed category tab, or
  * undefined for the "All" tab (no filter). Combine with other where
@@ -156,10 +183,7 @@ export async function buildCategoryFilter(
   const embedding = await getCategoryAnchorEmbedding(category);
   if (!embedding) return exact;
 
-  const candidateIds = await nearestPostIds(toPgVector(embedding), {
-    limit: 500,
-    maxDistance: CATEGORY_MAX_DISTANCE,
-  });
+  const candidateIds = await getCategoryCandidateIds(category, embedding);
   if (candidateIds.length === 0) return exact;
 
   return { OR: [exact, { id: { in: candidateIds } }] };

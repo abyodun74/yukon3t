@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { latestMessageAtByConversation } from "@/lib/latest-messages";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import {
   messageSchema,
@@ -591,6 +592,9 @@ export async function sendMessage(formData: FormData) {
   return { error: null, message };
 }
 
+/** How far before a member's lastReadAt getConversationMessages still looks for unmarked messages (see there). */
+const READ_MARK_MARGIN_MS = 10 * 60 * 1000;
+
 /**
  * Polled every few seconds by the open conversation thread. Being here
  * means the user is actively viewing this conversation, so any of the
@@ -613,25 +617,43 @@ export async function getConversationMessages(conversationId: string) {
   }
 
   const now = new Date();
-  const [deliveredResult, readResult] = await Promise.all([
+  // Only messages from READ_MARK_MARGIN_MS before the caller's own lastReadAt onwards can still be undelivered or
+  // unread: lastReadAt is written only here, in the same transaction as the two updates, so every earlier run already
+  // marked everything older than it. The margin covers a message whose createdAt (set when its insert was built) lies
+  // before a lastReadAt written while that insert was still in flight, and clock skew between server instances. With
+  // no lastReadAt yet (never opened) the whole conversation is scanned once. This keeps both updates on the
+  // (conversationId, createdAt) index instead of reading every message of the chat on each refetch.
+  const markFrom = new Date((membership.lastReadAt?.getTime() ?? 0) - READ_MARK_MARGIN_MS);
+  const unmarkedScope = { conversationId, senderId: { not: user.id }, createdAt: { gte: markFrom } };
+  const [deliveredResult, readResult] = await prisma.$transaction([
     prisma.message.updateMany({
-      where: { conversationId, senderId: { not: user.id }, deliveredAt: null },
+      where: { ...unmarkedScope, deliveredAt: null },
       data: { deliveredAt: now },
     }),
     prisma.message.updateMany({
-      where: { conversationId, senderId: { not: user.id }, readAt: null },
+      where: { ...unmarkedScope, readAt: null },
       data: { readAt: now },
     }),
     // Member-level "I've seen up to here" marker — drives read-receipt
     // display and unread detection for groups, where a single shared
     // readAt on the message can't represent partial read status across
-    // N people. Independent of the two updates above, so it runs alongside
-    // them instead of after — this fires every time this conversation is
-    // fetched at all.
-    prisma.conversationMember.update({
-      where: { conversationId_userId: { conversationId, userId: user.id } },
-      data: { lastReadAt: now },
-    }),
+    // N people. Written only when someone else's message is newer than it
+    // (or it was never set while there is one): every reader compares it
+    // with other members' messages only (unread dots and the badge with
+    // messages not sent by this member, "Seen by" with the other side's
+    // own messages), so leaving it where it is when nothing newer from
+    // anyone else exists changes no answer and saves a write per refetch.
+    prisma.$executeRaw`
+      UPDATE "ConversationMember" cm
+      SET "lastReadAt" = ${now}
+      WHERE cm."conversationId" = ${conversationId}
+        AND cm."userId" = ${user.id}
+        AND EXISTS (
+          SELECT 1 FROM "Message" m
+          WHERE m."conversationId" = cm."conversationId"
+            AND m."senderId" <> cm."userId"
+            AND (cm."lastReadAt" IS NULL OR m."createdAt" > cm."lastReadAt")
+        )`,
   ]);
   // Tells the other member(s)' already-open thread to refetch so their
   // checkmarks update live — gated on something actually changing so
@@ -1041,14 +1063,13 @@ export async function getForwardTargets() {
   const [rows, blockedIds] = await Promise.all([
     prisma.conversation.findMany({
       where: { members: { some: { userId: user.id, hiddenAt: null } } },
-      select: {
-        ...FORWARD_TARGET_SELECT,
-        messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-      },
+      select: FORWARD_TARGET_SELECT,
     }),
     getBlockedEitherWayIds(user.id),
   ]);
-  const lastActive = (r: (typeof rows)[number]) => r.messages[0]?.createdAt.getTime() ?? 0;
+  // Newest message per chat, one index probe each (src/lib/latest-messages.ts).
+  const lastMessageAt = await latestMessageAtByConversation(rows.map((r) => r.id));
+  const lastActive = (r: (typeof rows)[number]) => lastMessageAt.get(r.id)?.getTime() ?? 0;
   const sorted = [...rows].sort((a, b) => lastActive(b) - lastActive(a));
   return { error: null, targets: forwardTargetsFor(sorted, user.id, blockedIds) };
 }

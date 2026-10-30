@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { fileReport } from "@/app/actions/reports";
 import { hapticNotification } from "@/lib/haptics";
-import { reportReasonCategoryValues } from "@/lib/validations";
+import { reportReasonCategoryValues } from "@/lib/validation-constants";
 import { Sheet } from "@/components/sheet";
 import { useUiText } from "@/components/ui-text";
 

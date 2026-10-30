@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAccountVerified } from "@/lib/account-verification";
@@ -22,8 +23,13 @@ export class GuestReadOnlyError extends AuthError {
  * sessions are stateless JWTs, so a ban/suspend or password reset can't delete them server-side, and any token issued
  * before sessionInvalidatedAt is treated as signed out. A guest session must carry the guest claim, still be inside
  * its lifetime and the feature must still be on; a guest claim on a non-guest row (or the reverse) is refused.
+ *
+ * Memoised per request with React `cache` (like getHiddenState): a page render calls this from its guard, from the
+ * root layout and from the helpers it renders (stories, circles, Muse...), and they now share one User read and one
+ * verdict, thrown errors included. `cache` only memoises inside a React server render; a Server Action or route handler
+ * runs it fresh on every call, so a write followed by a re-check there still sees the new row.
  */
-async function resolveSessionUser() {
+const resolveSessionUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) {
     throw new AuthError("Sign in required.");
@@ -49,7 +55,7 @@ async function resolveSessionUser() {
     throw new AuthError("Guest preview ended.");
   }
   return user;
-}
+});
 
 /**
  * Throws unless there's a signed-in, active member (never a guest preview session: GuestReadOnlyError). Returns the
@@ -72,6 +78,20 @@ export async function requireUser() {
  */
 export async function requireViewer() {
   return resolveSessionUser();
+}
+
+/**
+ * The signed-in member's "Translate automatically" setting, for the root layout: read from the same per-request User
+ * row the page's guard loads, not a query of its own. False for a guest, when signed out, or when the session is not
+ * valid (the page itself then redirects).
+ */
+export async function sessionAutoTranslate(): Promise<boolean> {
+  try {
+    const user = await resolveSessionUser();
+    return !user.isGuestPreview && user.autoTranslate;
+  } catch {
+    return false;
+  }
 }
 
 /**

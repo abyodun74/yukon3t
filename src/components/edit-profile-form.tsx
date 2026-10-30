@@ -7,7 +7,7 @@ import { AvatarUpload } from "@/components/avatar-upload";
 import { MultiSelect } from "@/components/multi-select";
 import { useFeedText } from "@/components/feed-text";
 import { useProfileText } from "@/components/profile-text";
-import { intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validation-constants";
 import type { sharedEn } from "@/lib/i18n/en/shared";
 
 type Option = { value: string; label: string };

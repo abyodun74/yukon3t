@@ -25,7 +25,8 @@ export default async function PostDetailPage({
 
   const post = await prisma.post.findUnique({
     where: { id },
-    include: { ...postCardInclude, author: true },
+    // postCardInclude's author select: exactly the fields the card shows, never the whole User row.
+    include: postCardInclude,
   });
 
   if (!post) notFound();
@@ -63,47 +64,31 @@ export default async function PostDetailPage({
   }
   if (!canView) notFound();
 
-  const [postWithState] = await attachViewerState(
-    [
-      {
-        ...post,
-        author: {
-          id: post.author.id,
-          name: post.author.name,
-          username: post.author.username,
-          avatarUrl: post.author.avatarUrl,
-          trustBand: post.author.trustBand,
-          openToIntents: post.author.openToIntents,
-        },
-      },
-    ],
-    me.id,
-  );
-
-  // Flat, not one level deep — chain comments nest to arbitrary depth, so
-  // the tree is built client-side (buildCommentTree) from this list rather
-  // than via a fixed-depth Prisma include. REMOVED (hidden) comments are
-  // still fetched so their placeholder can hold the thread together; FLAGGED
-  // ones (pending automated-moderation review) are excluded, same as before.
-  const { comments } = await loadPostComments(id, me.id);
-
-  let canModerate = false;
-  if (post.circleId) {
+  // Everything below only needs the post itself (already checked visible above), so it is loaded at once.
+  const loadCanModerate = async () => {
+    if (!post.circleId) return false;
     // Independent of each other — membership doesn't need circle, only
     // isCircleAdmin below does — so fetched together instead of in sequence.
     const [circle, membership] = await Promise.all([
       prisma.circle.findUnique({ where: { id: post.circleId }, select: { createdById: true } }),
       getCircleMembership(post.circleId, me.id),
     ]);
-    if (circle) {
-      canModerate = isCircleAdmin(circle, membership, me);
-    }
-  }
-
-  // A Circle event: calendar, repeat, nudge and the bring list under the card (null for anything else).
-  const eventPanel = post.circleId && post.eventAt ? await loadCircleEventPanel(id, me) : null;
-
-  const commentsText = (await getDictionary()).ui.comments;
+    return circle ? isCircleAdmin(circle, membership, me) : false;
+  };
+  const [[postWithState], { comments }, canModerate, eventPanel, dictionary] = await Promise.all([
+    attachViewerState([post], me.id),
+    // Flat, not one level deep — chain comments nest to arbitrary depth, so
+    // the tree is built client-side (buildCommentTree) from this list rather
+    // than via a fixed-depth Prisma include. REMOVED (hidden) comments are
+    // still fetched so their placeholder can hold the thread together; FLAGGED
+    // ones (pending automated-moderation review) are excluded, same as before.
+    loadPostComments(id, me.id),
+    loadCanModerate(),
+    // A Circle event: calendar, repeat, nudge and the bring list under the card (null for anything else).
+    post.circleId && post.eventAt ? loadCircleEventPanel(id, me) : null,
+    getDictionary(),
+  ]);
+  const commentsText = dictionary.ui.comments;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">

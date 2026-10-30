@@ -35,7 +35,7 @@ import { localeDirection } from "@/lib/i18n/locales";
 import { ContentTranslationProvider } from "@/components/content-translation";
 import { LinkCopyMenu } from "@/components/link-copy-menu";
 import { isTranslationConfigured } from "@/lib/translation-server";
-import { prisma } from "@/lib/prisma";
+import { sessionAutoTranslate } from "@/lib/auth-guards";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
 
@@ -71,11 +71,10 @@ const geistMono = localFont({
   preload: false,
 });
 
+// Upright only: the one italic use (the landing page's headline) loads Fraunces Italic itself (src/app/page.tsx), so
+// its 45KB file isn't preloaded on every route.
 const fraunces = localFont({
-  src: [
-    { path: "./fonts/Fraunces-Variable.woff2", weight: "500 700", style: "normal" },
-    { path: "./fonts/Fraunces-Italic-Variable.woff2", weight: "500 700", style: "italic" },
-  ],
+  src: [{ path: "./fonts/Fraunces-Variable.woff2", weight: "500 700", style: "normal" }],
   variable: "--font-fraunces",
 });
 
@@ -193,17 +192,13 @@ export default async function RootLayout({
   // is still English says so on its own wrapper (EnglishOnly in src/components/english-only.tsx): the route segments
   // that stay English, through their layouts. The call wording is only sent to a signed-in reader.
   // Translating what people write (src/lib/translation.ts): offered only when a provider is configured, and
-  // automatic only for someone who turned it on in Settings. One primary-key read, alongside the dictionary.
+  // automatic only for someone who turned it on in Settings.
   const translationAvailable = Boolean(member) && isTranslationConfigured();
   const [locale, dictionary, autoTranslate] = await Promise.all([
     getLocale(),
     getDictionary(),
-    translationAvailable && session?.user?.id
-      ? prisma.user
-          .findUnique({ where: { id: session.user.id }, select: { autoTranslate: true } })
-          .then((row) => row?.autoTranslate ?? false)
-          .catch(() => false)
-      : false,
+    // The same per-request (React cache) User read the page's own guard uses, not a second query.
+    translationAvailable ? sessionAutoTranslate() : false,
   ]);
   const footer = dictionary.shell.footer;
 

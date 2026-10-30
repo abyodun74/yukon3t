@@ -193,56 +193,65 @@ export default async function CirclePage({
         canSeeCircle(s, { isMember: s.members.length > 0, hasStandingInvite: subCircleInvites.has(s.id) }),
       );
 
+  // The four loads below (invite manager, polls, "Coming up", the posts' viewer state) only need what is already
+  // resolved above, not one another, so they run together instead of one after another.
+  //
   // The invite manager: every invite, by name, to every admin; an accepted one only while the person is still a member
   // (after leaving or being removed they're simply invitable again). Candidates are the viewer's own connections,
   // filtered exactly as inviteToCircle filters them, minus anyone with an invite already pending — except a stale one
   // (its inviter is no longer an admin, so it can't be accepted): inviting them again re-sends it from the viewer.
-  const { circleInvites, inviteCandidates } = canInvite
-    ? await (async () => {
-        const [invites, connections] = await Promise.all([
-          loadCircleInvitesForAdmins(circle),
-          getAcceptedConnectionUsers(me.id),
-        ]);
-        const memberIds = new Set(allMembers.map((m) => m.userId));
-        const pendingIds = new Set(
-          invites.filter((i) => i.status === "PENDING" && !i.stale).map((i) => i.inviteeId),
-        );
-        const connectionIds = connections.map((u) => u.id);
-        const eligible = new Set(
-          eligibleCircleInvitees(
-            connectionIds,
-            await loadCircleInviteExclusions(circle, me.id, connectionIds, connectionIds),
-          ),
-        );
-        return {
-          circleInvites: invites.filter((i) => i.status !== "ACCEPTED" || memberIds.has(i.inviteeId)),
-          inviteCandidates: connections
-            .filter((u) => eligible.has(u.id) && !pendingIds.has(u.id))
-            .map((u) => ({ value: u.id, label: u.name ?? dictionary.circles.voice.unknown })),
-        };
-      })()
-    : { circleInvites: [], inviteCandidates: [] };
+  const loadInviteManager = async () => {
+    if (!canInvite) return { circleInvites: [], inviteCandidates: [] };
+    const [invites, connections] = await Promise.all([
+      loadCircleInvitesForAdmins(circle),
+      getAcceptedConnectionUsers(me.id),
+    ]);
+    const memberIds = new Set(allMembers.map((m) => m.userId));
+    const pendingIds = new Set(invites.filter((i) => i.status === "PENDING" && !i.stale).map((i) => i.inviteeId));
+    const connectionIds = connections.map((u) => u.id);
+    const eligible = new Set(
+      eligibleCircleInvitees(
+        connectionIds,
+        await loadCircleInviteExclusions(circle, me.id, connectionIds, connectionIds),
+      ),
+    );
+    return {
+      circleInvites: invites.filter((i) => i.status !== "ACCEPTED" || memberIds.has(i.inviteeId)),
+      inviteCandidates: connections
+        .filter((u) => eligible.has(u.id) && !pendingIds.has(u.id))
+        .map((u) => ({ value: u.id, label: u.name ?? dictionary.circles.voice.unknown })),
+    };
+  };
   // Polls: Circle-wide ones and those in channels this viewer can open (a private channel's stay with its members).
-  const pollAccess = isPrivateNonMember ? null : await getCirclePollAccess(circle, null, me);
-  // circlePollWhere is shared with loadPolls (actions/polls.ts, via circlePollScope), so "Load more" and the live
-  // refresh see exactly the polls this page does.
-  const pollPage = pollAccess?.canView
-    ? await loadPollPage(circlePollWhere(circle.id, accessibleChannels.map((c) => c.id)), me, pollAccess)
-    : { polls: [], hasMore: false };
+  const loadPolls = async () => {
+    const pollAccess = isPrivateNonMember ? null : await getCirclePollAccess(circle, null, me);
+    // circlePollWhere is shared with loadPolls (actions/polls.ts, via circlePollScope), so "Load more" and the live
+    // refresh see exactly the polls this page does.
+    const pollPage = pollAccess?.canView
+      ? await loadPollPage(circlePollWhere(circle.id, accessibleChannels.map((c) => c.id)), me, pollAccess)
+      : { polls: [], hasMore: false };
+    return { pollAccess, pollPage };
+  };
   // "Coming up": the upcoming events in the channels this viewer can open, under the same visibility rules as the
   // posts (circleEventsWhere, shared with "Load more" in actions/circle-events.ts).
-  const eventPage = isPrivateNonMember
-    ? { events: [], hasMore: false }
-    : await loadCircleEventPage(
-        await circleEventsWhere(
-          circle.id,
-          accessibleChannels.filter((c) => c.type === "TEXT").map((c) => c.id),
+  const loadEvents = async () =>
+    isPrivateNonMember
+      ? { events: [], hasMore: false }
+      : loadCircleEventPage(
+          await circleEventsWhere(
+            circle.id,
+            accessibleChannels.filter((c) => c.type === "TEXT").map((c) => c.id),
+            me.id,
+            new Date(),
+          ),
           me.id,
-          new Date(),
-        ),
-        me.id,
-      );
-  const posts = await attachViewerState(rawPosts, me.id);
+        );
+  const [{ circleInvites, inviteCandidates }, { pollAccess, pollPage }, eventPage, posts] = await Promise.all([
+    loadInviteManager(),
+    loadPolls(),
+    loadEvents(),
+    attachViewerState(rawPosts, me.id),
+  ]);
   const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
 
   return (

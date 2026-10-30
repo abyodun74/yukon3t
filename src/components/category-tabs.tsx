@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { feedCategoryValues } from "@/lib/validations";
+import { feedCategoryValues } from "@/lib/validation-constants";
 import { cn } from "@/lib/utils";
 import { useFeedText } from "@/components/feed-text";
 

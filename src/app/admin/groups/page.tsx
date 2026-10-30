@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
+import { latestMessageAtByConversation } from "@/lib/latest-messages";
 import { DeleteGroupButton } from "@/components/delete-group-button";
 
 /**
@@ -25,9 +26,10 @@ export default async function AdminGroupsPage() {
     include: {
       createdBy: { select: { name: true } },
       _count: { select: { members: true } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
     },
   });
+  // Newest message per group, one index probe each (src/lib/latest-messages.ts), not every message of every group.
+  const lastMessageAt = await latestMessageAtByConversation(groups.map((g) => g.id));
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -43,7 +45,7 @@ export default async function AdminGroupsPage() {
 
       <div className="mt-8 space-y-3">
         {groups.map((group) => {
-          const lastActivity = group.messages[0]?.createdAt ?? group.createdAt;
+          const lastActivity = lastMessageAt.get(group.id) ?? group.createdAt;
           return (
             <div
               key={group.id}

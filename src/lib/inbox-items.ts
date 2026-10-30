@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isOnline } from "@/lib/presence";
+import { latestMessagesByConversation } from "@/lib/latest-messages";
 import { inboxPreview } from "@/lib/e2ee/secret-chat";
 import type { InboxItem } from "@/components/messages-inbox-list";
 import { messagesEn } from "@/lib/i18n/en/messages";
@@ -15,27 +16,26 @@ export async function getInboxItems(
   /** What a row is called when the data has no name for it, in the reader's language. */
   names: Pick<typeof messagesEn.fallback, "group" | "unknown" | "message"> = messagesEn.fallback,
 ): Promise<InboxItem[]> {
-  const conversations = await prisma.conversation.findMany({
+  const rows = await prisma.conversation.findMany({
     where: { members: { some: { userId, hiddenAt: which === "hidden" ? { not: null } : null } } },
     include: {
       members: {
         include: { user: { select: { id: true, name: true, avatarUrl: true, lastSeenAt: true } } },
       },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { content: true, mediaType: true, moderationStatus: true, createdAt: true, senderId: true },
-      },
     },
   });
+  // The newest message of each chat, one index probe per chat (never a nested `messages: { take: 1 }`, which Prisma
+  // runs without a LIMIT: see src/lib/latest-messages.ts).
+  const latest = await latestMessagesByConversation(rows.map((c) => c.id));
+  const conversations = rows.map((c) => ({ ...c, lastMessage: latest.get(c.id) }));
 
   // Ordering by conversation.createdAt (when the thread was first created)
   // would leave an old thread pinned near the bottom even after a fresh
   // reply just landed in it — sort by the most recent activity instead,
   // falling back to the thread's own createdAt for a still-empty one.
   conversations.sort((a, b) => {
-    const aTime = (a.messages[0]?.createdAt ?? a.createdAt).getTime();
-    const bTime = (b.messages[0]?.createdAt ?? b.createdAt).getTime();
+    const aTime = (a.lastMessage?.createdAt ?? a.createdAt).getTime();
+    const bTime = (b.lastMessage?.createdAt ?? b.createdAt).getTime();
     return bTime - aTime;
   });
 
@@ -43,7 +43,7 @@ export async function getInboxItems(
     const myMembership = c.members.find((m) => m.user.id === userId);
     const other = c.members.find((m) => m.user.id !== userId)?.user;
     const label = c.isGroup ? (c.name ?? names.group) : (other?.name ?? names.unknown);
-    const last = c.messages[0];
+    const last = c.lastMessage;
     const unread = Boolean(
       last &&
         last.senderId !== userId &&

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { IncomingRequestsList, SentRequestsList, ConnectedList } from "@/components/connections-lists";
 import { cn } from "@/lib/utils";
-import type { intentTagValues } from "@/lib/validations";
+import type { intentTagValues } from "@/lib/validation-constants";
 import type { pagesEn } from "@/lib/i18n/en/pages";
 import { format } from "@/lib/i18n/locales";
 

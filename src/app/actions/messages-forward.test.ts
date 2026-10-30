@@ -75,6 +75,11 @@ vi.mock("@/lib/hidden-chats", () => ({
   isConversationLocked: vi.fn(async () => false),
   getMembersHidingConversation: async () => [],
 }));
+// Each chat's newest message is as recent as its position in `conversations` (later = more recent).
+vi.mock("@/lib/latest-messages", () => ({
+  latestMessageAtByConversation: async (ids: string[]) =>
+    new Map(ids.map((id) => [id, new Date(1000 * conversations.findIndex((c) => c.id === id))])),
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     message: {
@@ -92,9 +97,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: async ({ where }: { where: { id?: { in: string[] }; members?: unknown } }) => {
         if (where.id) return conversations.filter((c) => where.id!.in.includes(c.id));
         // getForwardTargets: the caller's chats it hasn't hidden.
-        return conversations
-          .filter((c) => c.members.some((m) => m.userId === ME && m.hiddenAt === null))
-          .map((c, i) => ({ ...c, messages: [{ createdAt: new Date(1000 * i) }] }));
+        return conversations.filter((c) => c.members.some((m) => m.userId === ME && m.hiddenAt === null));
       },
     },
     notification: { createMany: (...a: unknown[]) => notificationCreateMany(...a) },

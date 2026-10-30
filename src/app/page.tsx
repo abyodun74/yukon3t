@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
 import { LanguagePicker } from "@/components/language-picker";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+
+// Only this page's headline is italic: loading the face here (not in the root layout) keeps it off every other route.
+// See .font-display-italic in globals.css.
+const frauncesItalic = localFont({
+  src: "./fonts/Fraunces-Italic-Variable.woff2",
+  weight: "500 700",
+  style: "italic",
+  variable: "--font-fraunces-italic",
+});
 
 const title = "YuKon3t — Verified Global Friendships, No Fake Profiles";
 const description =
@@ -68,7 +78,7 @@ export default async function Home() {
           <p className="text-xs font-semibold uppercase tracking-widest text-accent rtl:text-sm rtl:tracking-normal">
             {t.landing.eyebrow}
           </p>
-          <h1 className="font-display mt-4 text-4xl font-semibold italic tracking-tight text-balance sm:text-6xl rtl:not-italic rtl:leading-snug rtl:tracking-normal sm:rtl:leading-snug">
+          <h1 className={`${frauncesItalic.variable} font-display-italic mt-4 text-4xl font-semibold italic tracking-tight text-balance sm:text-6xl rtl:not-italic rtl:leading-snug rtl:tracking-normal sm:rtl:leading-snug`}>
             {t.landing.title}
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-foreground-soft">

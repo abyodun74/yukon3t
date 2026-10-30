@@ -3,7 +3,7 @@
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { UserLink } from "@/components/user-link";
-import { intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validation-constants";
 import { countryName } from "@/lib/i18n/country-names";
 import { isOnline } from "@/lib/presence";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";

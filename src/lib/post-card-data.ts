@@ -61,20 +61,55 @@ type PostRow = EmbeddedPostRow & {
 // Shared `include` shape for any `prisma.post.findMany`/`findUnique` call
 // that will be rendered through `<PostCard>` — keeps every call site's
 // selection in sync with what attachViewerState()/PostCard actually need.
+const postCardAuthorSelect = {
+  id: true,
+  name: true,
+  username: true,
+  avatarUrl: true,
+  trustBand: true,
+  openToIntents: true,
+} as const;
+
+// A repost's / share's embedded original: exactly EmbeddedPostRow's columns. attachViewerState hands this object to
+// the browser as is (PostCard's repostOf/sharedPost), so it is a `select`, never an `include` of the whole Post row
+// (which carried ~45 columns such as clientRequestId, videoStreamUid and the moderation-review bookkeeping).
+const embeddedPostSelect = {
+  id: true,
+  content: true,
+  mediaType: true,
+  mediaUrls: true,
+  albumId: true,
+  videoUrl: true,
+  videoThumbnailUrl: true,
+  videoDurationSeconds: true,
+  embedProvider: true,
+  embedId: true,
+  linkUrl: true,
+  eventAt: true,
+  eventLocation: true,
+  circleId: true,
+  eventCancelledAt: true,
+  eventCancelReason: true,
+  eventRescheduledAt: true,
+  eventRescheduleReason: true,
+  eventPreviousAt: true,
+  createdAt: true,
+  editedAt: true,
+  likeCount: true,
+  commentCount: true,
+  repostCount: true,
+  shareCount: true,
+  rsvpCount: true,
+  maybeCount: true,
+  author: { select: postCardAuthorSelect },
+} as const;
+
 export const postCardInclude = {
   circle: { select: { visibility: true } },
   channel: { select: { visibility: true } },
-  author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-  repostOf: {
-    include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-    },
-  },
-  sharedPost: {
-    include: {
-      author: { select: { id: true, name: true, username: true, avatarUrl: true, trustBand: true, openToIntents: true } },
-    },
-  },
+  author: { select: postCardAuthorSelect },
+  repostOf: { select: embeddedPostSelect },
+  sharedPost: { select: embeddedPostSelect },
 } as const;
 
 /**

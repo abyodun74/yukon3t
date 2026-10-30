@@ -1,7 +1,7 @@
 import { UserLink } from "@/components/user-link";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
-import { intentTagValues } from "@/lib/validations";
+import { intentTagValues } from "@/lib/validation-constants";
 import { plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 

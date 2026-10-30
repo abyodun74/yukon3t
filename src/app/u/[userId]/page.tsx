@@ -59,13 +59,16 @@ export default async function PublicProfilePage({
 }) {
   const me = await getOnboardedUserOrRedirect();
   const { userId } = await params;
-  const { error, saved, story: storyParam } = await searchParams;
-  const locale = await getLocale();
-  const dictionary = await getDictionary();
+  // Independent reads run together; each later stage only waits for what it actually depends on.
+  const [{ error, saved, story: storyParam }, locale, dictionary, user] = await Promise.all([
+    searchParams,
+    getLocale(),
+    getDictionary(),
+    prisma.user.findUnique({ where: { id: userId } }),
+  ]);
   const t = dictionary.profile.page;
   const [beforeName, afterName] = aroundPlaceholder(t.connectionsOnly, "name");
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || user.status !== "ACTIVE" || !user.name) notFound();
   // The shared guest-preview identity (src/lib/guest-preview.ts) has no profile: a guest opening their own Profile tab
   // is told why; for everyone else it doesn't exist.
@@ -81,41 +84,28 @@ export default async function PublicProfilePage({
   if (user.isAdmin && !isOwnProfile) notFound();
   const online = isOnline(user.lastSeenAt);
 
-  const iBlockedThem = isOwnProfile
-    ? false
-    : !!(await prisma.block.findUnique({
-        where: { blockerId_blockedId: { blockerId: me.id, blockedId: user.id } },
-      }));
-
-  const connection = isOwnProfile
-    ? null
-    : await prisma.connection.findFirst({
-        where: {
-          OR: [
-            { requesterId: me.id, targetId: user.id },
-            { requesterId: user.id, targetId: me.id },
-          ],
-        },
-      });
-
-  const conversationId =
-    connection?.status === "ACCEPTED"
-      ? (
-          await prisma.conversation.findFirst({
-            where: {
-              AND: [
-                { members: { some: { userId: me.id } } },
-                { members: { some: { userId: user.id } } },
-              ],
-            },
-            select: { id: true },
-          })
-        )?.id ?? null
-      : null;
-
-  const [subscriberCount, subscribingCount] = await Promise.all([
+  // Whether the posts could be visible before the block and connection are known: the visibility filter is only built
+  // when they might be (the same set of cases canSeePosts below can say yes in, never more).
+  const mightSeePosts = isOwnProfile || user.postsVisibility !== "HIDDEN";
+  const [iBlockedThem, connection, subscriberCount, subscribingCount, visiblePostsWhere] = await Promise.all([
+    isOwnProfile
+      ? false
+      : prisma.block
+          .findUnique({ where: { blockerId_blockedId: { blockerId: me.id, blockedId: user.id } } })
+          .then((row) => !!row),
+    isOwnProfile
+      ? null
+      : prisma.connection.findFirst({
+          where: {
+            OR: [
+              { requesterId: me.id, targetId: user.id },
+              { requesterId: user.id, targetId: me.id },
+            ],
+          },
+        }),
     prisma.subscription.count({ where: { subscribedToId: user.id } }),
     prisma.subscription.count({ where: { subscriberId: user.id } }),
+    mightSeePosts ? getVisiblePostsWhere(me.id) : null,
   ]);
 
   const canSeePosts =
@@ -128,31 +118,49 @@ export default async function PublicProfilePage({
   // entirely for a blocked/HIDDEN author); getVisiblePostsWhere is what
   // actually enforces each individual post's own Everyone/Friends only/
   // Private choice underneath that.
-  const rawPosts = canSeePosts
-    ? await prisma.post.findMany({
-        // AND, not a flat spread — see loadMoreProfilePosts (actions/posts.ts)'s
-        // identical query for why getVisiblePostsWhere and LEAD_POST_ONLY
-        // can't both be spread into the same object.
-        where: {
-          authorId: user.id,
-          circleId: null,
-          AND: [await getVisiblePostsWhere(me.id), LEAD_POST_ONLY],
-        },
-        orderBy: { createdAt: "desc" },
-        take: POSTS_PAGE_SIZE,
-        include: postCardInclude,
-      })
-    : [];
-  const posts = await attachViewerState(rawPosts, me.id);
-  const postsHaveMore = rawPosts.length === POSTS_PAGE_SIZE;
+  const loadPosts = async () => {
+    const rawPosts =
+      canSeePosts && visiblePostsWhere
+        ? await prisma.post.findMany({
+            // AND, not a flat spread — see loadMoreProfilePosts (actions/posts.ts)'s
+            // identical query for why getVisiblePostsWhere and LEAD_POST_ONLY
+            // can't both be spread into the same object.
+            where: {
+              authorId: user.id,
+              circleId: null,
+              AND: [visiblePostsWhere, LEAD_POST_ONLY],
+            },
+            orderBy: { createdAt: "desc" },
+            take: POSTS_PAGE_SIZE,
+            include: postCardInclude,
+          })
+        : [];
+    return { posts: await attachViewerState(rawPosts, me.id), postsHaveMore: rawPosts.length === POSTS_PAGE_SIZE };
+  };
 
-  const activeStories = canSeePosts
-    ? await prisma.story.findMany({
-        where: { authorId: user.id, expiresAt: { gt: new Date() } },
-        orderBy: { createdAt: "asc" },
-        include: { _count: { select: { views: true } } },
-      })
-    : [];
+  const [conversationId, { posts, postsHaveMore }, activeStories] = await Promise.all([
+    connection?.status === "ACCEPTED"
+      ? prisma.conversation
+          .findFirst({
+            where: {
+              AND: [
+                { members: { some: { userId: me.id } } },
+                { members: { some: { userId: user.id } } },
+              ],
+            },
+            select: { id: true },
+          })
+          .then((row) => row?.id ?? null)
+      : null,
+    loadPosts(),
+    canSeePosts
+      ? prisma.story.findMany({
+          where: { authorId: user.id, expiresAt: { gt: new Date() } },
+          orderBy: { createdAt: "asc" },
+          include: { _count: { select: { views: true } } },
+        })
+      : [],
+  ]);
   const storiesForRing = activeStories.map((s) => ({
     id: s.id,
     mediaType: s.mediaType,

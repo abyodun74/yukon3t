@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues } from "@/lib/validation-constants";
 import { TRANSLATION_BATCH_MAX, TRANSLATION_KINDS } from "@/lib/translation";
 import { CALL_CAPTION_MAX_CHARS, CALL_CAPTION_MAX_SDP_CHARS } from "@/lib/call-captions";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
@@ -19,13 +20,9 @@ import { RSVP_STATUSES } from "@/lib/rsvp";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
 
-export const intentTagValues = [
-  "FRIENDSHIP",
-  "CULTURAL_EXCHANGE",
-  "PROFESSIONAL",
-  "COMMUNITY",
-  "TRAVEL_TIPS",
-] as const;
+// The plain constants live in the zod-free src/lib/validation-constants.ts so client components can import them
+// without bundling zod; re-exported here for server code that reads them alongside the schemas.
+export { MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues };
 
 export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
   FRIENDSHIP: "Friendship",
@@ -34,8 +31,6 @@ export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
   COMMUNITY: "Community",
   TRAVEL_TIPS: "Travel Tips",
 };
-
-export const MIN_AGE = 16;
 
 /** True when someone born on `birthDate` is at least `minAge` years old today. */
 export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {
@@ -267,23 +262,6 @@ export const updateChannelSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
 
-// Mirrors the Prisma FeedCategory enum — which Home feed section a post is
-// filed under (src/app/home/page.tsx). Both the composer's category picker
-// and Home's filter tabs read from these two constants, so adding a
-// category here is the only change needed to surface it in both places.
-export const feedCategoryValues = [
-  "OCCUPATIONAL",
-  "ENTERTAINMENT",
-  "POLITICS",
-  "SPORTS",
-  "EDUCATIONAL",
-  "NEWS",
-  "RELIGIOUS_SPIRITUAL",
-  "FINANCIAL_TIPS",
-  "HEALTH_WELLNESS",
-  "MOTIVATIONAL",
-  "GENERAL",
-] as const;
 export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], string> = {
   OCCUPATIONAL: "Occupational",
   ENTERTAINMENT: "Entertainment",
@@ -631,16 +609,6 @@ export const addGroupMembersSchema = z.object({
 export const correctionSchema = z.object({
   correctedText: z.string().trim().min(1).max(4000),
 });
-
-export const reportReasonCategoryValues = [
-  "SPAM",
-  "SCAM_OR_FRAUD",
-  "PHISHING",
-  "HARASSMENT",
-  "FAKE_ACCOUNT",
-  "INAPPROPRIATE_CONTENT",
-  "OTHER",
-] as const;
 
 export const reportReasonCategoryLabels: Record<(typeof reportReasonCategoryValues)[number], string> = {
   SPAM: "Spam",

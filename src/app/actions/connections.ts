@@ -10,6 +10,7 @@ import { track } from "@/lib/analytics";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { latestMessageAtByConversation } from "@/lib/latest-messages";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
 const CONNECTIONS_PAGE_SIZE = 20;
@@ -337,8 +338,8 @@ export async function loadMoreSentConnections(cursor: string) {
  * the two callers below once they know which ids belong on their page.
  *
  * Recomputed on every call rather than backed by a denormalized column —
- * the two lightweight queries here (connection rows, then just the id +
- * latest-message-timestamp of each shared conversation) are cheap even for
+ * the lightweight queries here (connection rows, the shared conversations'
+ * ids, then one indexed latest-message timestamp per conversation) are cheap even for
  * a user with hundreds of connections, and this avoids adding a
  * lastMessageAt column that every message send would need to keep in sync.
  */
@@ -360,15 +361,14 @@ async function getAcceptedConnectionIdsByActivity(userId: string): Promise<strin
       isGroup: false,
       AND: [{ members: { some: { userId } } }, { members: { some: { userId: { in: otherIds } } } }],
     },
-    include: {
-      members: { select: { userId: true } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-    },
+    select: { id: true, members: { select: { userId: true } } },
   });
+  // One index probe per chat for its newest message (src/lib/latest-messages.ts), not every message of every chat.
+  const lastMessageAtById = await latestMessageAtByConversation(conversations.map((c) => c.id));
   const lastActivityByOtherId = new Map<string, Date>();
   for (const conv of conversations) {
     const other = conv.members.find((m) => m.userId !== userId);
-    const lastMessageAt = conv.messages[0]?.createdAt;
+    const lastMessageAt = lastMessageAtById.get(conv.id);
     if (other && lastMessageAt) lastActivityByOtherId.set(other.userId, lastMessageAt);
   }
 
