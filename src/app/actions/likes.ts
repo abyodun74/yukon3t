@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -9,15 +8,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import type { ReactionSummary } from "@/lib/reactions";
-
-function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
-  revalidatePath(`/post/${post.id}`);
-  revalidatePath(`/u/${post.authorId}`);
-  revalidatePath("/home");
-  if (post.circle) {
-    revalidatePath(`/circles/${post.circle.slug}`);
-  }
-}
+import { revalidatePostViews } from "@/lib/revalidate-post";
 
 export async function toggleLike(postId: string) {
   const user = await requireVerifiedUser();

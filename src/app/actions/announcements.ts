@@ -8,7 +8,8 @@ import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 
 /**
  * Admin-only: posts a new "what's new" announcement. Visible to every user
@@ -47,15 +48,8 @@ export async function createAnnouncement(formData: FormData) {
   // upload-then-confirm shape every other composer in this app uses) —
   // called on every rejection path below so a failed post never leaves an
   // orphaned object behind.
-  async function cleanupUploads() {
-    if (!mediaUrl) return;
-    await Promise.all(
-      [mediaUrl, ...(mediaThumbnailUrl ? [mediaThumbnailUrl] : [])].map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, admin.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () =>
+    deleteOwnedUploads(mediaUrl ? [mediaUrl, ...(mediaThumbnailUrl ? [mediaThumbnailUrl] : [])] : [], admin.id);
 
   if (mediaType && mediaUrl) {
     const key = keyFromPublicUrl(mediaUrl);

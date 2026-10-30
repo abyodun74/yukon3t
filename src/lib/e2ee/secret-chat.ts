@@ -6,8 +6,7 @@
 // and (3) never put message text — or ciphertext — anywhere it shouldn't go.
 
 import { isEncryptedContent, isWellFormedEncryptedContent } from "./constants";
-
-type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
+import type { MessageMediaType as MediaType } from "@/generated/prisma/enums";
 
 /**
  * A conversation is a secret chat only while BOTH people in a 1:1 have opted

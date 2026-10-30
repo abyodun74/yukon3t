@@ -3,8 +3,7 @@ import { isMembersOnly } from "@/lib/post-visibility";
 import { getAuthorEngagementStatus, engagementStatusFor } from "@/lib/engagement-status";
 import type { EmbedProvider } from "@/lib/video-embed";
 import type { ReactionSummary } from "@/lib/reactions";
-
-type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
+import type { PostMediaType as MediaType } from "@/generated/prisma/enums";
 
 type EmbeddedPostRow = {
   id: string;

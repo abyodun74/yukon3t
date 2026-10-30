@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -9,15 +8,7 @@ import { canViewPost, isMembersOnlyPost } from "@/lib/post-visibility";
 import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { rsvpSetSchema } from "@/lib/validations";
 import { rsvpNotifiesAuthor, type RsvpStatus } from "@/lib/rsvp";
-
-function revalidatePostViews(post: { id: string; authorId: string; circle: { slug: string } | null }) {
-  revalidatePath(`/post/${post.id}`);
-  revalidatePath(`/u/${post.authorId}`);
-  revalidatePath("/home");
-  if (post.circle) {
-    revalidatePath(`/circles/${post.circle.slug}`);
-  }
-}
+import { revalidatePostViews } from "@/lib/revalidate-post";
 
 type RsvpResult =
   | { error: "rate_limited" | "invalid" | "not_found" | "cancelled" }

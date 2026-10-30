@@ -5,7 +5,7 @@ import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { fetchWithRetryClient } from "@/lib/network-quality-client";
 
-export type NavBadgeCounts = {
+type NavBadgeCounts = {
   unreadMessages: number;
   pendingConnections: number;
   unreadNotifications: number;
@@ -55,10 +55,9 @@ export function useNavBadges(userId: string | null | undefined): NavBadgeCounts 
   }, []);
 
   // Ref indirection (rather than calling refetch directly) so the effect
-  // below reads as a plain property access to React's own static analysis —
-  // same pattern usePolling.ts uses for its own pollRef, avoiding a
-  // "setState synchronously within an effect" lint false-positive for what
-  // is actually an async fetch-then-setState.
+  // below reads as a plain property access to React's own static analysis,
+  // avoiding a "setState synchronously within an effect" lint false-positive
+  // for what is actually an async fetch-then-setState.
   const refetchRef = useRef(refetch);
   useEffect(() => {
     refetchRef.current = refetch;

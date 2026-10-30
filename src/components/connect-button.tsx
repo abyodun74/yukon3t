@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestConnection, startDirectMessage } from "@/app/actions/connections";
 import { useFeedText } from "@/components/feed-text";
-
-type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
+import type { ConnectionStatus } from "@/lib/engagement-status";
 
 /**
  * Starts (or jumps straight to) a DM with someone the caller isn't

@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { parseBuild, parseMarketingVersion, parsePlatform, type AppPlatform } from "@/lib/app-version";
 
-export type NativeAppInfo = { platform: AppPlatform; build: number | null; version: string | null };
+type NativeAppInfo = { platform: AppPlatform; build: number | null; version: string | null };
 
 /**
  * The installed native app's platform, store build number and marketing version, from @capacitor/app's

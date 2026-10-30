@@ -7,7 +7,7 @@ import { reportReasonCategoryValues } from "@/lib/validation-constants";
 import { Sheet } from "@/components/sheet";
 import { useUiText } from "@/components/ui-text";
 
-export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
+type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
 
 /**
  * The report dialog itself — shared by the per-post "⋯" menu and the

@@ -5,7 +5,7 @@ import { ConnectionResponseButtons } from "@/components/connection-response-butt
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { CallButton } from "@/components/call-button";
-import { intentTagValues } from "@/lib/validation-constants";
+import type { IntentTag } from "@/lib/validation-constants";
 import { useFeedText } from "@/components/feed-text";
 import type { pagesEn } from "@/lib/i18n/en/pages";
 import { format } from "@/lib/i18n/locales";
@@ -18,8 +18,6 @@ import {
   loadMoreSentConnections,
   loadMoreAcceptedConnections,
 } from "@/app/actions/connections";
-
-type IntentTag = (typeof intentTagValues)[number];
 
 type ConnectionUser = {
   id: string;

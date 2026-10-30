@@ -6,6 +6,7 @@ import { useSettingsText } from "@/components/settings-text";
 import { useUiText } from "@/components/ui-text";
 import { formatTimeAgo } from "@/lib/format-date";
 import { format } from "@/lib/i18n/locales";
+import { copyTextToClipboard } from "@/lib/copy-image";
 
 type Status = { active: true; createdAt: Date; lastUsedAt: Date | null } | { active: false };
 
@@ -44,13 +45,11 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
 
   async function handleCopy() {
     if (!revealedToken) return;
-    try {
-      await navigator.clipboard.writeText(revealedToken);
+    // Clipboard access can fail (permissions, insecure context) — the
+    // token is still shown on screen either way, nothing more to do.
+    if (await copyTextToClipboard(revealedToken)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can fail (permissions, insecure context) — the
-      // token is still shown on screen either way, nothing more to do.
     }
   }
 

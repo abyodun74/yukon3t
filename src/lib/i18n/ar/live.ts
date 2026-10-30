@@ -1,4 +1,5 @@
 import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/ar/common";
 
 // A live stream is "بث مباشر", its host "مقدّم البث", a co-host "مقدّم مشارك" and a guest "ضيف" (as on the Home
 // strip); the stage is "المنصة". What happens to the reader's request is said in the passive ("رُفض طلبك"), so no
@@ -11,7 +12,7 @@ export const live: typeof liveEn = {
     rate_limited: "تمهّل قليلًا ثم حاول مرة أخرى.",
     unavailable: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
     network: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
-    stale_deployment: "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.",
+    stale_deployment: newVersionAvailable,
     other: "تعذّر الانضمام إلى البث. حاول مرة أخرى.",
   },
   refresh: "تحديث",

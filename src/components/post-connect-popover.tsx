@@ -6,8 +6,7 @@ import { ConnectButton } from "@/components/connect-button";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
-
-type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
+import type { ConnectionStatus } from "@/lib/engagement-status";
 
 /**
  * Icon-triggered wrapper around the existing ConnectButton (used as-is on

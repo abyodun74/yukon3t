@@ -12,7 +12,7 @@ import { localeDirection, type Locale } from "@/lib/i18n/locales";
 // messages-text.tsx), so a page's bundle carries the default wording of the areas it renders and nothing else.
 // Never import dictionaries.ts in a client component: that would ship every language to the browser.
 
-export type AreaText<T> = { locale: Locale; dir: "ltr" | "rtl"; t: T };
+type AreaText<T> = { locale: Locale; dir: "ltr" | "rtl"; t: T };
 
 /** A provider and its hook for one area of the dictionary, falling back to `english`. */
 export function createAreaText<T>(english: T) {

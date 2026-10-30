@@ -1,7 +1,5 @@
 import type { feedEn } from "@/lib/i18n/en/feed";
-import { serverUnreachable } from "@/lib/i18n/es/common";
-
-const staleDeployment = "Hay una nueva versión de la aplicación. Actualiza la página para continuar.";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/es/common";
 
 export const feed: typeof feedEn = {
   categories: {
@@ -169,7 +167,7 @@ export const feed: typeof feedEn = {
       rate_limited: "Estás publicando muy rápido. Ve un poco más despacio.",
       invalid: "Ese enlace no es válido. Comprueba que empiece por http:// o https://.",
       network: serverUnreachable,
-      stale_deployment: staleDeployment,
+      stale_deployment: newVersionAvailable,
       unavailable: "No pudimos transcribir esa grabación. Inténtalo de nuevo.",
       other: "No se pudo publicar. Inténtalo de nuevo.",
       imageFormat: "Ese formato de imagen no es compatible. Prueba con JPEG, PNG, WebP o GIF.",
@@ -245,7 +243,7 @@ export const feed: typeof feedEn = {
         rate_limited: "Estás publicando historias muy rápido. Ve un poco más despacio.",
         not_configured: "La subida de historias aún no está disponible.",
         network: serverUnreachable,
-        stale_deployment: staleDeployment,
+        stale_deployment: newVersionAvailable,
         frame_required: "No pudimos leer un fotograma de vista previa de ese video, así que no se publicó. Prueba con otro video o guárdalo primero como MP4.",
         server_error: "Tu video se subió, pero no se pudo publicar. Inténtalo de nuevo en un momento.",
         other: "No se pudo publicar esa historia. Inténtalo de nuevo.",

@@ -18,10 +18,10 @@ import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import {
   verifyUploadedSize,
   keyFromPublicUrl,
-  deleteOwnedObject,
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
 } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { loadPostComments } from "@/lib/comments-data";
 import { countPublishedInThread } from "@/lib/comment-count";
@@ -58,14 +58,7 @@ export async function createComment(formData: FormData) {
   // Uploaded objects for this attempt — cleaned up on any rejection below so
   // nothing rejected lingers in storage, same pattern createPost uses.
   const uploadedUrls = [audioUrl, videoUrl, videoThumbnailUrl].filter((url): url is string => Boolean(url));
-  async function cleanupUploads() {
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // audioUrl IS a real upload to this app's own bucket (unlike gifUrl) —
   // verify ownership + the actual object size server-side, same pattern

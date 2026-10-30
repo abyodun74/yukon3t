@@ -71,7 +71,7 @@ export function GuestPreviewProvider({
 }
 
 /** The sheet's and the gated screens' two buttons: end the guest session, then open sign-up or sign-in. */
-export function GuestExitButtons({ className }: { className?: string }) {
+function GuestExitButtons({ className }: { className?: string }) {
   const { t } = useShellText();
   return (
     <div className={className ?? "flex flex-wrap gap-2"} data-guest-ok>

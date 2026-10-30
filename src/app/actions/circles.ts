@@ -35,10 +35,10 @@ import {
   worstUploadedSizeCheck,
   type UploadedSizeCheck,
   deleteObject,
-  deleteOwnedObject,
   keyFromPublicUrl,
   publicUrlForKey,
 } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isCircleCoverKey, isOwnedUploadKey } from "@/lib/media-keys";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
@@ -1122,17 +1122,9 @@ export async function createPost(formData: FormData) {
     ...(mediaType === "VIDEO" && videoThumbnailUrl ? [videoThumbnailUrl] : []),
   ];
 
-  async function cleanupUploads() {
-    // Independent deletes to independent keys — no reason to wait on them
-    // one at a time. Ownership-checked per key so a foreign URL slipped
-    // into mediaUrls/videoUrl can't get deleted via this cleanup path.
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  // Ownership-checked per key (deleteOwnedUploads) so a foreign URL slipped
+  // into mediaUrls/videoUrl can't get deleted via this cleanup path.
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // Size/ownership of every uploaded file. Only a real size problem is
   // reported as "too_large": R2 being unreachable, or the object not being

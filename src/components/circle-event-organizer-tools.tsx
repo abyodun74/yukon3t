@@ -27,6 +27,7 @@ import type {
 } from "@/lib/circle-event-organizer-data";
 import { csvFileContent } from "@/lib/csv";
 import { byCode, format, plural, type Locale } from "@/lib/i18n/locales";
+import { copyTextToClipboard } from "@/lib/copy-image";
 
 type Messages = ReturnType<typeof useUiText>["t"]["eventTools"];
 
@@ -538,12 +539,8 @@ function ExportTool({ postId, canExportSeries }: { postId: string; canExportSeri
 
   async function copy() {
     if (copyText === null) return;
-    try {
-      await navigator.clipboard.writeText(copyText);
-      setNotice(t.exportCopied);
-    } catch {
-      setError(t.errors.other);
-    }
+    if (await copyTextToClipboard(copyText)) setNotice(t.exportCopied);
+    else setError(t.errors.other);
   }
 
   return (

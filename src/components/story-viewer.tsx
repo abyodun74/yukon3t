@@ -19,7 +19,7 @@ import {
 } from "@/app/actions/stories";
 import { StoryShareButton } from "@/components/story-share-button";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, formatShortAge } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -28,7 +28,7 @@ import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText } from "@/components/ui-text";
-import { format, plural, byCode, intlLocale, type Locale } from "@/lib/i18n/locales";
+import { format, plural, byCode } from "@/lib/i18n/locales";
 
 type StoryComment = {
   id: string;
@@ -92,16 +92,6 @@ export type StoryData = {
  * core's SystemBars plugin injects straight from Android's real
  * WindowInsets. No-op (0px) anywhere neither is set, including iOS/web.
  */
-/** "5m" / "3h" for a story or its comment, in the reader's own short form ("5 min", "5 د"). */
-function timeAgo(date: Date, locale: Locale) {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const hours = Math.floor(diffMs / 3_600_000);
-  const short = (value: number, unit: "minute" | "hour") =>
-    new Intl.NumberFormat(intlLocale(locale) ?? "en", { style: "unit", unit, unitDisplay: "narrow" }).format(value);
-  if (hours < 1) return short(Math.max(1, Math.floor(diffMs / 60_000)), "minute");
-  return short(hours, "hour");
-}
-
 function SafeAreaBottomSpacer() {
   return <div aria-hidden style={{ height: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))" }} />;
 }
@@ -509,7 +499,7 @@ export function StoryViewer({
               className="text-sm font-medium text-white hover:text-white/80"
             />
             <span className="shrink-0 text-xs text-white/70" title={formatDateTime(story.createdAt)}>
-              {timeAgo(story.createdAt, locale)}
+              {formatShortAge(story.createdAt, locale)}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -811,7 +801,7 @@ function StoryCommentsPanel({
                 <span className="font-medium">{c.author.name ?? shell.common.someone}</span>{" "}
                 <span dir="auto">{c.content}</span>
               </p>
-              <p className="text-[0.6875rem] text-foreground-soft">{timeAgo(c.createdAt, locale)}</p>
+              <p className="text-[0.6875rem] text-foreground-soft">{formatShortAge(c.createdAt, locale)}</p>
             </div>
             {(c.author.id === currentUserId || isStoryOwner) && (
               <button

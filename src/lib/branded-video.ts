@@ -39,7 +39,7 @@ export const MAX_BRANDING_ATTEMPTS = 3;
 /** Same ceiling as VideoConversion — the largest MP4 this will copy into R2. */
 export const MAX_BRANDED_BYTES = 2048 * 1024 * 1024;
 
-export type BrandingState = {
+type BrandingState = {
   sourceUrl: string;
   streamUid: string | null;
   attempts: number;
@@ -57,7 +57,7 @@ export type BrandingDeps = {
   watermarkUid: string;
 };
 
-export type BrandingStep =
+type BrandingStep =
   | { kind: "waiting"; patch: Partial<BrandingState> }
   | { kind: "done"; outputUrl: string }
   | { kind: "failed"; reason: string; terminal: boolean; patch: Partial<BrandingState> };

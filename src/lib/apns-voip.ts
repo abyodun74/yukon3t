@@ -183,7 +183,7 @@ async function sendVoipPushRaw(deviceToken: string, payload: Record<string, unkn
   return sendVoipPushOnce(APNS_HOST_SANDBOX, deviceToken, payload);
 }
 
-export type VoipIncomingCallPayload = {
+type VoipIncomingCallPayload = {
   callId: string;
   // What CallKit shows as the caller, in the callee's language (ringCallerName in push-text.ts).
   callerName: Localized<string>;

@@ -1,5 +1,5 @@
 import type { uiEn } from "@/lib/i18n/en/ui";
-import { serverUnreachable } from "@/lib/i18n/ar/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/ar/common";
 
 export const ui: typeof uiEn = {
   listSeparator: "، ",
@@ -80,7 +80,7 @@ export const ui: typeof uiEn = {
       unavailable: "تعذّر تحويل هذا التسجيل إلى نص. حاول مرة أخرى.",
       network: serverUnreachable,
       upload_failed: "تعذّر رفع هذا التسجيل. حاول مرة أخرى.",
-      stale_deployment: "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.",
+      stale_deployment: newVersionAvailable,
     },
   },
   report: {

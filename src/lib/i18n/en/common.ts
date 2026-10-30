@@ -8,3 +8,4 @@ export const phoneInvalid = "That number isn't valid for the selected country �
 export const emailPlaceholder = "you@example.com";
 
 export const serverUnreachable = "Couldn't reach the server — check your connection and try again.";
+export const newVersionAvailable = "A new version of the app is available — refresh the page to continue.";

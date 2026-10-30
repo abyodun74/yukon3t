@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend } from "@/lib/e2ee/secret-chat";
@@ -50,14 +51,7 @@ export async function sendToConversations(formData: FormData) {
     ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
     ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
   ];
-  async function cleanupUploads() {
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // Ciphertext-looking text is refused outright: these destinations are written by the server, never encrypted on a
   // device, so it could only be an attempt to dodge text moderation (see checkSecretSend).

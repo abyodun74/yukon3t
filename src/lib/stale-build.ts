@@ -48,9 +48,14 @@ function errorParts(error: unknown) {
 }
 
 /**
- * A Server Action id the serving build no longer has. Retrying the call is
- * pointless — the old id will never be found — so callers that retry on
- * ordinary network flakiness check this first (see lib/stale-deployment.ts).
+ * A Server Action id the serving build no longer has. Server Actions are
+ * identified by a content hash baked into the JS bundle at build time, so a
+ * tab open since before a deploy still holds the old id and its next action
+ * call fails (confirmed live via Netlify function logs: this was the entire
+ * cause of a burst of "couldn't reach the server" reports during a run of
+ * back-to-back deploys). Retrying the call is pointless — the old id will
+ * never be found — so callers that retry on ordinary network flakiness check
+ * this first and show the "new version available" message instead.
  */
 export function looksLikeStaleServerActionError(error: unknown): boolean {
   if (error == null) return false;

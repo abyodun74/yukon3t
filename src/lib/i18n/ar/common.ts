@@ -21,6 +21,7 @@ export const emailPlaceholder = "name@example.com";
 export const underage = "يجب ألا يقل عمرك عن {age} عامًا لاستخدام YuKon3t.";
 
 export const serverUnreachable = "تعذّر الاتصال بالخادم. تحقق من اتصالك ثم حاول مرة أخرى.";
+export const newVersionAvailable = "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.";
 // Also under messages.controls: the screens under /messages render these two controls as well.
 export const passwordInput = { show: "إظهار كلمة المرور", hide: "إخفاء كلمة المرور" };
 export const multiSelect = {

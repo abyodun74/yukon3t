@@ -251,14 +251,11 @@ export async function recordLiveStreamHeartbeat(liveStreamId: string) {
  * watching, until the host explicitly approves it via respondToStageRequest.
  * Once approved (or immediately, for someone re-joining who was already
  * GUEST/COHOST from an earlier approval on this same stream), their
- * LiveStreamViewer row records the role, and the host's client (see
- * live-stream-room.tsx + getLiveStreamStageUserIds below) polls for who's on
- * stage and grants them camera/mic access via call.updateParticipant() once
- * they're in the Daily room. That grant can only come from the actual room
- * owner acting live — Daily's meeting-tokens API has no per-participant
- * permissions override a joiner's own token can carry (its `permissions`
- * property is rejected outright by their API), so nothing here can encode
- * the role directly into the token itself. The host's own join (isHost)
+ * LiveStreamViewer row records the role, and the guest's own client
+ * (live-stream-room.tsx) notices the approval and reconnects with a fresh
+ * token from this action, which carries is_owner for an approved GUEST/COHOST
+ * (see the reconnect-on-approval comment in live-stream-room.tsx for why
+ * only is_owner lifts Daily's viewer gate). The host's own join (isHost)
  * always ignores the requested role — they're identified by
  * LiveStream.hostId, not by their LiveStreamViewer row, and are excluded
  * from both the viewer and stage tallies below.
@@ -391,8 +388,8 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
 
 /**
  * Host-only: pending GUEST/COHOST requests waiting on a decision, oldest
- * first (so the host works through them in the order they came in). Polled
- * by live-stream-room.tsx alongside getLiveStreamStageUserIds.
+ * first (so the host works through them in the order they came in). Fetched
+ * by live-stream-room.tsx's fetchStage.
  */
 export async function getLiveStreamStageRequests(liveStreamId: string) {
   const user = await requireVerifiedUser();

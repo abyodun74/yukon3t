@@ -11,6 +11,7 @@ export const phoneInvalid = "Esse número não é válido para o país seleciona
 export const emailPlaceholder = "voce@exemplo.com";
 
 export const serverUnreachable = "Não foi possível conectar ao servidor. Confira sua conexão e tente novamente.";
+export const newVersionAvailable = "Há uma nova versão do aplicativo. Atualize a página para continuar.";
 // Also under messages.controls: the screens under /messages render these two controls as well.
 export const passwordInput = { show: "Mostrar senha", hide: "Ocultar senha" };
 export const multiSelect = {

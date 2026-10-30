@@ -6,9 +6,7 @@ import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getConnectedOrPendingIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
-
-const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
-type SortOption = (typeof SORT_OPTIONS)[number];
+import { DISCOVER_SORT_OPTIONS, type DiscoverSortOption } from "@/lib/sort-options";
 
 // Matches /discover/page.tsx's own PAGE_SIZE (src/app/discover/page.tsx) —
 // same offset pagination there for the same reason (non-unique trustScore
@@ -140,8 +138,8 @@ export async function loadMoreDiscoverPeople(
 ) {
   const me = await requireViewer();
   const page = Math.max(2, Number.parseInt(cursor, 10) || 2);
-  const sort: SortOption = SORT_OPTIONS.includes(filters.sort as SortOption)
-    ? (filters.sort as SortOption)
+  const sort: DiscoverSortOption = DISCOVER_SORT_OPTIONS.includes(filters.sort as DiscoverSortOption)
+    ? (filters.sort as DiscoverSortOption)
     : "recent";
   const intent = filters.intent;
   const country = filters.country;

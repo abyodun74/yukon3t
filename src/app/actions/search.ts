@@ -4,9 +4,7 @@ import { requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getListablePostsWhere } from "@/lib/post-visibility";
-
-const SORT_OPTIONS = ["relevant", "recent", "oldest", "current"] as const;
-type SortOption = (typeof SORT_OPTIONS)[number];
+import { SEARCH_SORT_OPTIONS, type SearchSortOption } from "@/lib/sort-options";
 
 const CURRENT_AFFAIRS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -29,8 +27,8 @@ export async function loadMoreSearchPosts(
   if (q.length < 2) {
     return { items: [], hasMore: false };
   }
-  const sort: SortOption = SORT_OPTIONS.includes(filters.sort as SortOption)
-    ? (filters.sort as SortOption)
+  const sort: SearchSortOption = SEARCH_SORT_OPTIONS.includes(filters.sort as SearchSortOption)
+    ? (filters.sort as SearchSortOption)
     : "relevant";
 
   const postsWhere = await getListablePostsWhere(user.id);

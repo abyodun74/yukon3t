@@ -1,5 +1,5 @@
 import type { uiEn } from "@/lib/i18n/en/ui";
-import { serverUnreachable } from "@/lib/i18n/pt/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/pt/common";
 
 export const ui: typeof uiEn = {
   listSeparator: ", ",
@@ -79,7 +79,7 @@ export const ui: typeof uiEn = {
       unavailable: "Não foi possível transcrever esse áudio. Tente novamente.",
       network: serverUnreachable,
       upload_failed: "Não foi possível enviar esse áudio. Tente novamente.",
-      stale_deployment: "Há uma nova versão do aplicativo. Atualize a página para continuar.",
+      stale_deployment: newVersionAvailable,
     },
   },
   report: {

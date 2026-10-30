@@ -73,7 +73,7 @@ export async function expandCircleInvites(
  * The inviter fields collabInviteStillStands needs (a CollabInviterStanding), with their participation in `collabId`
  * only. Server-side input to the rule; strip it before anything reaches a browser.
  */
-export function collabInviterStandingSelect(collabId: string) {
+function collabInviterStandingSelect(collabId: string) {
   return {
     select: {
       id: true,

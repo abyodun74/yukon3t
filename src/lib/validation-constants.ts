@@ -10,6 +10,7 @@ export const intentTagValues = [
   "COMMUNITY",
   "TRAVEL_TIPS",
 ] as const;
+export type IntentTag = (typeof intentTagValues)[number];
 
 export const MIN_AGE = 16;
 

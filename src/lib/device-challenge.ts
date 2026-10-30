@@ -50,7 +50,7 @@ export async function createDeviceChallenge(params: {
   return challenge;
 }
 
-export type DeviceChallengeResult =
+type DeviceChallengeResult =
   | {
       ok: true;
       challenge: {

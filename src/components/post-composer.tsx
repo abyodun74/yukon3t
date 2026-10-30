@@ -8,7 +8,7 @@ import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry, probeVideoDuration } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
-import { isStaleDeploymentError } from "@/lib/stale-deployment";
+import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -34,6 +34,7 @@ import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
 import { EVENT_SERIES_MAX_OCCURRENCES, EVENT_SERIES_MIN_OCCURRENCES, type EventRepeatFrequency } from "@/lib/event-recurrence";
+import { normalizeVideoFile } from "@/lib/video-file";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -55,22 +56,6 @@ const MAX_UPLOAD_VIDEO_SECONDS = 3600;
 const VIDEO_INSTANT_PUBLISH_MAX_SECONDS = 600;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
-
-// Same content:// URI MIME-type gap as ad-booking-form.tsx's and
-// story-upload-modal.tsx's pickVideo — a mobile picker (confirmed live via
-// Android's system Photo Picker/Google Photos) often hands back an empty or
-// wrong File.type even for a normal .mp4, so the strict VIDEO_TYPES.includes
-// check below silently rejected every video picked that way: pickVideo bailed
-// out before ever calling setVideo/setStatus/setErrorText, which is exactly
-// why nothing appeared to happen — no error banner, no attached video.
-function normalizeVideoFile(f: File): File | null {
-  if (VIDEO_TYPES.includes(f.type)) return f;
-  const ext = f.name.split(".").pop()?.toLowerCase();
-  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
-  if (!detectedType) return null;
-  return new File([f], f.name, { type: detectedType });
-}
 
 const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
   YOUTUBE: "YouTube",
@@ -663,19 +648,19 @@ export function PostComposer({
       // a moment's retry would have gotten past. Same retry helper
       // uploadFileDirect already uses for exactly this reason. A
       // stale Server Action id (this tab open since before a
-      // redeploy) is excluded from retrying — see isStaleDeploymentError.
+      // redeploy) is excluded from retrying — see looksLikeStaleServerActionError.
       result = await withRetry(
         () => createPost(fd),
         3,
         1000,
         false,
-        (err) => !isStaleDeploymentError(err),
+        (err) => !looksLikeStaleServerActionError(err),
       );
     } catch (err) {
       // A rejected server-action call (e.g. no connectivity) would
       // otherwise be an uncaught exception that crashes the whole
       // page instead of showing a normal composer error.
-      const message = isStaleDeploymentError(err) ? t.composer.errors.stale_deployment : byCode(t.composer.errors, "network");
+      const message = looksLikeStaleServerActionError(err) ? t.composer.errors.stale_deployment : byCode(t.composer.errors, "network");
       if (optimisticId) markOptimisticPostError(optimisticId, message);
       else {
         setStatus("error");
@@ -935,7 +920,7 @@ export function PostComposer({
 
       {(images.length > 0 || urlImages.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {images.map((file, i) => (
+          {images.map((_, i) => (
             <div key={`local-${i}`} className="relative h-16 w-16 overflow-hidden rounded-lg border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

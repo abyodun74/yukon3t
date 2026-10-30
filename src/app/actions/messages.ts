@@ -17,7 +17,8 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
@@ -481,14 +482,7 @@ export async function sendMessage(formData: FormData) {
     ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
     ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
   ];
-  async function cleanupUploads() {
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // Refuse plaintext text in a secret chat rather than store it: a client that
   // forgot to encrypt, or one caught by secret mode switching on mid-send,
@@ -1080,7 +1074,7 @@ export async function getForwardTargets() {
  * of its chat, not deleted for them, hidden chat unlocked) and that it can be forwarded at all (forwardSourceRefusal;
  * nothing from a secret chat), runs text moderation again, then writes one new message per destination as the
  * caller's own, marked `forwarded`, with no trace of the original sender or chat. A media message reuses the same
- * stored file (the shareMuseToConversation pattern): media-cleanup's reference check keeps the file while any copy
+ * stored file (the shareMuseToConversations pattern): media-cleanup's reference check keeps the file while any copy
  * points at it. Each destination gets the normal new-message notifications through afterMessageSent.
  */
 export async function forwardMessage(messageId: string, conversationIds: string[]) {

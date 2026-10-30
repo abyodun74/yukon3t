@@ -15,8 +15,6 @@ import type { Prisma } from "@/generated/prisma/client";
  * (/admin/circles lists every Circle for duplicate/spam clean-up; /admin/moderation shows reported content).
  */
 
-export type CircleVisibilityValue = "PUBLIC" | "PRIVATE";
-
 /** May the viewer see that the Circle exists (its page header, a link to it)? Members, or a standing invitee. */
 export function canSeeCircle(
   circle: { visibility: string },

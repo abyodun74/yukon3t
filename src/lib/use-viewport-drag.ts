@@ -3,7 +3,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { hapticImpact } from "@/lib/haptics";
 
-export type DragPosition = { left: number; top: number } | null;
+type DragPosition = { left: number; top: number } | null;
 
 const EDGE_MARGIN = 8;
 

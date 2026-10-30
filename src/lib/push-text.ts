@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE, format, intlLocale, isLocale, type Locale } from "@/lib
 import { HIDDEN_CALLER_NAME, hiddenPushPayload } from "@/lib/hidden-chats-rules";
 import { pushPreview } from "@/lib/e2ee/secret-chat";
 import { noticeText, type Notice } from "@/lib/notification-notice";
+import type { MessageMediaType as MediaType } from "@/generated/prisma/enums";
 
 // Text written for someone who isn't looking at the app (web push, FCM, VoIP), in the language stored on their account
 // (User.locale, kept current by src/lib/user-locale.ts). Server-only: it holds every language. The senders in push.ts,
@@ -85,7 +86,6 @@ export function incomingCallPush(type: "AUDIO" | "VIDEO", maskedName: string | n
 }
 
 type PushPayload = { title: string; body: string; url?: string };
-type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 
 /** A new message's push, for a recipient who doesn't hide the chat. Never the text of a secret chat (pushPreview). */
 export function messagePush(params: {

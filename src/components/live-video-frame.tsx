@@ -6,15 +6,7 @@ import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } fr
 import { useCallsText } from "@/components/calls-text";
 import { format } from "@/lib/i18n/locales";
 import { trackDailyDestroy } from "@/lib/call-prewarm";
-
-// Module scope (not inside LiveVideoFrame) so both it and the separate
-// ParticipantTile component below can call it — ParticipantTile needs its
-// own read of a tile's current audio state to render the host's mute
-// button correctly (on/off icon + aria-label), not just to compute the
-// toggle direction (which LiveVideoFrame's own onToggleMute closure does).
-function trackIsOn(state: DailyParticipant["tracks"]["audio"]["state"]) {
-  return state !== "off" && state !== "blocked";
-}
+import { trackIsOn } from "@/lib/daily-tracks";
 
 /**
  * Renders live streams' video with an in-app CSS grid instead of Daily's
@@ -33,12 +25,9 @@ function trackIsOn(state: DailyParticipant["tracks"]["audio"]["state"]) {
  *     is_owner token when a stage request is approved) is Prebuilt UI
  *     chrome too — it doesn't exist here, so an approved guest's tile just
  *     shows their camera the moment Daily actually lets them send.
- * The reconnect-on-approval effect and the "TEMPORARY diagnostic" blocks in
- * live-stream-room.tsx are left in place deliberately — they still work
+ * The reconnect-on-approval effect in live-stream-room.tsx still works
  * unchanged (dailyCall's event/participant API is identical whether the
- * instance came from createFrame() or createCallObject()) and are the
- * fastest way to confirm live that this fix actually holds, before anyone
- * strips them out.
+ * instance came from createFrame() or createCallObject()).
  */
 export function LiveVideoFrame({
   roomUrl,

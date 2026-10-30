@@ -43,8 +43,8 @@ import type { FlatComment } from "@/lib/comment-tree";
 import { useFeedText } from "@/components/feed-text";
 import { useContentTranslation } from "@/components/content-translation";
 import { format, plural, aroundPlaceholder, intlLocale } from "@/lib/i18n/locales";
-
-type MediaType = "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
+import type { ConnectionStatus } from "@/lib/engagement-status";
+import type { PostMediaType as MediaType } from "@/generated/prisma/enums";
 
 /**
  * Every other provider here (YouTube/Vimeo/Dailymotion) is a landscape
@@ -122,8 +122,6 @@ type EmbeddedPost = {
     openToIntents: string[];
   };
 };
-
-type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
 export type PostCardData = EmbeddedPost & {
   // Everyone/Friends only/Private, as chosen in the composer — always

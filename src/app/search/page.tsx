@@ -18,13 +18,11 @@ import { format, plural } from "@/lib/i18n/locales";
 import { vocabName } from "@/lib/i18n/language-names";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { countryName } from "@/lib/i18n/country-names";
+import { SEARCH_SORT_OPTIONS, type SearchSortOption } from "@/lib/sort-options";
 
 type SearchPostRow = Awaited<
   ReturnType<typeof prisma.post.findMany<{ include: typeof postCardInclude }>>
 >[number];
-
-const SORT_OPTIONS = ["relevant", "recent", "oldest", "current"] as const;
-type SortOption = (typeof SORT_OPTIONS)[number];
 
 const CURRENT_AFFAIRS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -53,8 +51,8 @@ export default async function SearchPage({
   const sortText = dictionary.pages.sort;
   const { q: rawQuery, sort: sortParam, country } = await searchParams;
   const q = (rawQuery ?? "").trim();
-  const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
-    ? (sortParam as SortOption)
+  const sort: SearchSortOption = SEARCH_SORT_OPTIONS.includes(sortParam as SearchSortOption)
+    ? (sortParam as SearchSortOption)
     : "relevant";
 
   let people: Awaited<ReturnType<typeof prisma.user.findMany>> = [];
@@ -287,7 +285,7 @@ export default async function SearchPage({
             defaultValue={sort}
             className="rounded-lg border border-line bg-surface px-3 py-2"
           >
-            {SORT_OPTIONS.map((option) => (
+            {SEARCH_SORT_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {sortText[option]}
               </option>

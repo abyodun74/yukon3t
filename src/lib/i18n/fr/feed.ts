@@ -1,7 +1,5 @@
 import type { feedEn } from "@/lib/i18n/en/feed";
-import { serverUnreachable } from "@/lib/i18n/fr/common";
-
-const staleDeployment = "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/fr/common";
 
 export const feed: typeof feedEn = {
   categories: {
@@ -170,7 +168,7 @@ export const feed: typeof feedEn = {
       rate_limited: "Vous publiez trop vite. Ralentissez un peu.",
       invalid: "Ce lien n'est pas valide. Vérifiez qu'il commence par http:// ou https://.",
       network: serverUnreachable,
-      stale_deployment: staleDeployment,
+      stale_deployment: newVersionAvailable,
       unavailable: "Impossible de transcrire cet enregistrement. Réessayez.",
       other: "Échec de la publication. Réessayez.",
       imageFormat: "Ce format d'image n'est pas pris en charge. Essayez un fichier JPEG, PNG, WebP ou GIF.",
@@ -246,7 +244,7 @@ export const feed: typeof feedEn = {
         rate_limited: "Vous publiez des stories trop vite. Ralentissez un peu.",
         not_configured: "L'envoi de stories n'est pas encore disponible.",
         network: serverUnreachable,
-        stale_deployment: staleDeployment,
+        stale_deployment: newVersionAvailable,
         frame_required: "Impossible de lire une image d'aperçu de cette vidéo, elle n'a donc pas été publiée. Essayez une autre vidéo ou enregistrez-la d'abord en MP4.",
         server_error: "Votre vidéo a bien été envoyée, mais sa publication a échoué. Réessayez dans un instant.",
         other: "Impossible de publier cette story. Réessayez.",

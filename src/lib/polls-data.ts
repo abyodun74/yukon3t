@@ -128,7 +128,7 @@ export async function loadPollWithAccess(pollId: string, viewer: Viewer) {
   return { poll, access };
 }
 
-export type PollOptionView = {
+type PollOptionView = {
   id: string;
   text: string | null;
   /** ISO instant, SCHEDULE polls only. */
@@ -169,7 +169,7 @@ export type PollView = {
  * `access` is the viewer's access to the parent (one parent per call, or a function for per-poll access, e.g. channel
  * polls in a Circle). The caller has already decided the viewer may see these.
  */
-export async function loadPollViews(
+async function loadPollViews(
   where: Prisma.PollWhereInput,
   viewer: Viewer,
   access: PollParentAccess | ((poll: { channelId: string | null }) => PollParentAccess),

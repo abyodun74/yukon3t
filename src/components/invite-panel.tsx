@@ -10,6 +10,7 @@ import { PhoneNumberField } from "@/components/phone-number-field";
 import { useInviteText } from "@/components/invite-text";
 import { isValidE164 } from "@/lib/phone-number";
 import { plural } from "@/lib/i18n/locales";
+import { copyTextToClipboard } from "@/lib/copy-image";
 
 type InviteContact = { id: string; name: string | null; tel: string };
 
@@ -93,12 +94,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   }, [displayedNativeRows, nativeSearch]);
 
   async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopyStatus("copied");
-    } catch {
-      setCopyStatus("failed");
-    }
+    setCopyStatus((await copyTextToClipboard(inviteUrl)) ? "copied" : "failed");
     setTimeout(() => setCopyStatus("idle"), 2000);
   }
 

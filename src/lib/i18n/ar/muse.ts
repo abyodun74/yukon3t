@@ -1,5 +1,5 @@
 import type { museEn } from "@/lib/i18n/en/muse";
-import { serverUnreachable } from "@/lib/i18n/ar/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/ar/common";
 
 // A Muse is "مقطع Muse", as in the notifications, and Home is "الرئيسية", the label the nav gives it. A count is
 // written label first ("التعليقات: 3") where it labels a button. A Muse lasts at most 5 minutes today; the plural
@@ -82,7 +82,7 @@ export const muse: typeof museEn = {
       rate_limited: "أنت تنشر بسرعة كبيرة. حاول مرة أخرى بعد قليل.",
       invalid: "تعذّر النشر. جرّب اختيار الملف أو الملفات من جديد.",
       network: serverUnreachable,
-      stale_deployment: "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.",
+      stale_deployment: newVersionAvailable,
       other: "حدث خطأ ما. حاول مرة أخرى.",
     },
   },

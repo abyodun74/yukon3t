@@ -1,4 +1,5 @@
 import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/fr/common";
 
 // A live stream is "un direct", a co-host "coanimateur" and a guest "invité" (the generic forms, as on the Home
 // strip); the stage is "la scène". Home is "l'Accueil", the label the nav gives it. What is said to the reader
@@ -11,7 +12,7 @@ export const live: typeof liveEn = {
     rate_limited: "Ralentissez un peu, puis réessayez.",
     unavailable: "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
     network: "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
-    stale_deployment: "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.",
+    stale_deployment: newVersionAvailable,
     other: "Impossible de rejoindre le direct. Réessayez.",
   },
   refresh: "Actualiser",

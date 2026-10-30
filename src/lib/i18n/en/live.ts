@@ -1,3 +1,5 @@
+import { newVersionAvailable } from "@/lib/i18n/en/common";
+
 /**
  * The live stream room (/live/[id]): joining, the stage, recording, the chat strip and reactions. LiveTextProvider
  * (live/layout.tsx) hands it over; without a provider these fall back to this. The video tiles and their mute,
@@ -11,7 +13,7 @@ export const liveEn = {
     rate_limited: "Slow down a little and try again.",
     unavailable: "Couldn't connect — check your connection and try again.",
     network: "Couldn't connect — check your connection and try again.",
-    stale_deployment: "A new version of the app is available — refresh the page to continue.",
+    stale_deployment: newVersionAvailable,
     other: "Couldn't join the stream — try again.",
   },
   refresh: "Refresh",

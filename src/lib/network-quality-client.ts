@@ -110,7 +110,7 @@ function start() {
 }
 
 /** Feeds one observed request time (ms until response headers, or until it timed out) into the latency median. */
-export function recordLatencySample(ms: number) {
+function recordLatencySample(ms: number) {
   if (!Number.isFinite(ms) || ms < 0) return;
   samples = addLatencySample(samples, { at: Date.now(), ms });
   refresh();
@@ -145,7 +145,7 @@ export function useNetworkQuality(): NetworkQuality {
   return useSyncExternalStore(subscribe, () => quality, () => "good");
 }
 
-export function getDataSaverPreference(): DataSaverPreference {
+function getDataSaverPreference(): DataSaverPreference {
   if (typeof window === "undefined") return "auto";
   start();
   return preference ?? "auto";

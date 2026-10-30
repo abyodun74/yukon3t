@@ -42,7 +42,7 @@ import type { Locale } from "@/lib/i18n/locales";
 // - Shows the other person's sentences, translated into this reader's language by the server.
 // Transcript text is only ever held in React state; it is never logged, stored or reported.
 
-export type CaptionNotice =
+type CaptionNotice =
   | "turned_off"
   | "cap_reached"
   | "peer_cap_reached"
@@ -62,7 +62,7 @@ function newCaptionId() {
 }
 
 /** Whether this browser/WebView can run a transcription connection at all. */
-export function captionsSupported(): boolean {
+function captionsSupported(): boolean {
   return typeof window !== "undefined" && typeof window.RTCPeerConnection === "function";
 }
 

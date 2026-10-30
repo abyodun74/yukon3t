@@ -94,7 +94,7 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
   return found;
 }
 
-export type SweepResult = {
+type SweepResult = {
   mode: "dry_run" | "delete";
   examined: number;
   referenced: number;
@@ -104,7 +104,7 @@ export type SweepResult = {
   sample: string[];
 };
 
-export type SweepOptions = {
+type SweepOptions = {
   dryRun: boolean;
   /** Only uploads older than this are looked at — comfortably longer than any real "pick, then post" gap. */
   minAgeMs: number;

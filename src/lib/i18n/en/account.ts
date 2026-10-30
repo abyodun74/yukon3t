@@ -263,8 +263,7 @@ export const accountEn = {
     interestsPlaceholder: "Search interests...",
     intentsLabel: "What are you open to here?",
     intentsHint: "Pick at least one.",
-    // The same labels as intentLabels (validations.ts), which the rest of the app shows; dictionaries.test.ts keeps
-    // the two in step.
+    // The same labels as intentLabels (validations.ts); dictionaries.test.ts keeps the two in step.
     intents: {
       FRIENDSHIP: "Friendship",
       CULTURAL_EXCHANGE: "Cultural Exchange",

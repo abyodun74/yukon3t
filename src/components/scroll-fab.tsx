@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useShellText } from "@/components/ui-text";
 
-export type ScrollFabAction = {
+type ScrollFabAction = {
   key: string;
   label: string;
   icon: ReactNode;

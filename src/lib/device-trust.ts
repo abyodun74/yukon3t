@@ -46,7 +46,7 @@ export async function touchKnownDevice(userId: string, deviceId: string) {
     });
 }
 
-export type DeviceEvaluation =
+type DeviceEvaluation =
   // No prior known device at all (brand-new account, or one that predates
   // this feature) — nothing to compare against, so the current device is
   // trusted outright rather than demanding a step-up on someone's very

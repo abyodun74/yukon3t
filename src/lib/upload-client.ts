@@ -10,12 +10,11 @@ import {
 } from "@/app/actions/media";
 import { requestViewOnceUpload } from "@/app/actions/view-once";
 import type { UploadKind } from "@/lib/storage";
-import { isStaleDeploymentError } from "@/lib/stale-deployment";
-import { holdReload } from "@/lib/stale-build";
+import { holdReload, looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
 import { backoffDelayMs, isRetryableStatus } from "@/lib/fetch-retry";
 
-export type ClientUploadResult =
+type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
   | { ok: false; error: string };
 
@@ -166,7 +165,7 @@ export async function withRetry<T>(
   delayMs = 800,
   waitForVisible = false,
   // Lets a caller opt certain errors out of retrying at all — e.g. a stale
-  // Server Action id after a redeploy (see stale-deployment.ts) will never
+  // Server Action id after a redeploy (see looksLikeStaleServerActionError in stale-build.ts) will never
   // succeed no matter how many times it's retried, so burning the full
   // attempt budget on it just delays showing the (actionable) error.
   shouldRetry: (err: unknown) => boolean = () => true,
@@ -337,7 +336,7 @@ async function uploadMultipart(file: File, kind: UploadKind, contentType: string
       2,
       800,
       false,
-      (err) => !isStaleDeploymentError(err),
+      (err) => !looksLikeStaleServerActionError(err),
     );
   } catch {
     return null;
@@ -429,7 +428,7 @@ async function uploadToStorage(
 
   let result;
   try {
-    // A stale Server Action id (see stale-deployment.ts) is excluded from
+    // A stale Server Action id (see looksLikeStaleServerActionError in stale-build.ts) is excluded from
     // retrying — no number of attempts will make the old-deploy request
     // resolve, so failing fast here just gets to the (actionable) error
     // sooner instead of burning the whole retry budget on it.
@@ -438,10 +437,10 @@ async function uploadToStorage(
       2,
       800,
       false,
-      (err) => !isStaleDeploymentError(err),
+      (err) => !looksLikeStaleServerActionError(err),
     );
   } catch (err) {
-    return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
+    return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network" };
   }
   if (result.error || !result.uploadUrl || !result.publicUrl || !result.key) {
     return { ok: false, error: result.error ?? "invalid" };
@@ -748,7 +747,7 @@ export function probeVideoDuration(file: File): Promise<number | null> {
   });
 }
 
-export type PrivateAvatarUploadResult =
+type PrivateAvatarUploadResult =
   | { ok: true; thumbKey: string; fullKey: string }
   | { ok: false; error: string };
 
@@ -769,10 +768,10 @@ export async function uploadPrivateAvatar(full: File, thumb: File): Promise<Priv
         2,
         800,
         false,
-        (err) => !isStaleDeploymentError(err),
+        (err) => !looksLikeStaleServerActionError(err),
       );
     } catch (err) {
-      return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
+      return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network" };
     }
     if (presigned.error !== null) return { ok: false, error: presigned.error };
     const { thumbUploadUrl, thumbKey, fullUploadUrl, fullKey } = presigned;
@@ -797,7 +796,7 @@ export async function uploadPrivateAvatar(full: File, thumb: File): Promise<Priv
   }
 }
 
-export type ViewOnceUploadResult =
+type ViewOnceUploadResult =
   | { ok: true; objectKey: string; frameKey: string | null; mediaType: ViewOnceMediaType }
   | { ok: false; error: string };
 
@@ -827,10 +826,10 @@ export async function uploadViewOnceMedia(file: File, conversationId: string): P
         2,
         800,
         false,
-        (err) => !isStaleDeploymentError(err),
+        (err) => !looksLikeStaleServerActionError(err),
       );
     } catch (err) {
-      return { ok: false, error: isStaleDeploymentError(err) ? "stale_deployment" : "network" };
+      return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network" };
     }
     if (presigned.error !== null) return { ok: false, error: presigned.error };
     const { uploadUrl, objectKey, frameUploadUrl, frameKey, mediaType } = presigned;

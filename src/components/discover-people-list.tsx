@@ -3,7 +3,7 @@
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
 import { UserLink } from "@/components/user-link";
-import { intentTagValues } from "@/lib/validation-constants";
+import type { IntentTag } from "@/lib/validation-constants";
 import { countryName } from "@/lib/i18n/country-names";
 import { isOnline } from "@/lib/presence";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
@@ -13,8 +13,6 @@ import { useShellText } from "@/components/ui-text";
 
 // Matches loadMoreDiscoverPeople's own PAGE_SIZE (src/app/actions/discover.ts).
 const PAGE_SIZE = 30;
-
-type IntentTag = (typeof intentTagValues)[number];
 
 type DiscoverPerson = {
   id: string;

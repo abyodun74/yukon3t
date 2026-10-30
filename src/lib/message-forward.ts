@@ -4,11 +4,10 @@
 
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
+import type { MessageMediaType as MediaType } from "@/generated/prisma/enums";
 
 /** Most conversations one forward can go to. */
 export const FORWARD_MAX_RECIPIENTS = 5;
-
-type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
 
 /** The stored fields of the message being forwarded that decide whether it can be. */
 export type ForwardSource = {

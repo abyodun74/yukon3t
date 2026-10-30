@@ -10,8 +10,7 @@ import { useMessagesText } from "@/components/messages-text";
 import { useUiText } from "@/components/ui-text";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format } from "@/lib/i18n/locales";
-
-type MediaType = "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
+import type { MessageMediaType as MediaType } from "@/generated/prisma/enums";
 
 export type InboxItem = {
   id: string;

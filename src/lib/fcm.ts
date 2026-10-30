@@ -14,7 +14,7 @@ const isFcmConfigured = isFirebaseAdminConfigured();
 
 const app: App | undefined = isFcmConfigured ? getFirebaseAdminApp() : undefined;
 
-export type IncomingCallPayload = {
+type IncomingCallPayload = {
   callId: string;
   // The caller as the ring shows them, in the callee's language (ringCallerName in push-text.ts).
   callerName: Localized<string>;

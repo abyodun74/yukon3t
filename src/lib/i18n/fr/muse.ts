@@ -1,5 +1,5 @@
 import type { museEn } from "@/lib/i18n/en/muse";
-import { serverUnreachable } from "@/lib/i18n/fr/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/fr/common";
 
 // "Muse" stays as it is, masculine ("un Muse", "les Muses"), as in the notifications. Home is "l'Accueil", the
 // label the nav gives it.
@@ -81,7 +81,7 @@ export const muse: typeof museEn = {
       rate_limited: "Vous publiez trop vite. Réessayez dans un instant.",
       invalid: "Publication impossible. Sélectionnez de nouveau le ou les fichiers.",
       network: serverUnreachable,
-      stale_deployment: "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.",
+      stale_deployment: newVersionAvailable,
       other: "Une erreur s'est produite. Réessayez.",
     },
   },

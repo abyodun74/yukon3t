@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
-export type AuthorEngagementStatus = {
+type AuthorEngagementStatus = {
   connectionStatus: ConnectionStatus;
   connectionIsRequester: boolean;
   conversationId: string | null;

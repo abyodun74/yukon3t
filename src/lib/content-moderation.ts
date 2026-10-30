@@ -3,7 +3,7 @@ import { prisma, type TransactionClient } from "@/lib/prisma";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { countPublishedInThread } from "@/lib/comment-count";
 
-export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
+type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
 
 /**
  * Removes the underlying content behind a report or a flagged-content review,

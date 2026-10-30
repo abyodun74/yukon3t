@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
-import { deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { keyFromPublicUrl } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isOwnedUploadKey } from "@/lib/media-keys";
 import { deleteStoredAvatar } from "@/lib/avatar-storage";
 
@@ -60,13 +61,9 @@ export async function deleteAccountMedia(userId: string, media: AccountMedia) {
         select: { coverImageUrl: true },
       });
       const used = new Set(stillUsed.map((c) => c.coverImageUrl));
-      await Promise.all(
-        media.circleCovers
-          .filter((u) => !used.has(u))
-          .map((u) => {
-            const key = keyFromPublicUrl(u);
-            return key ? deleteOwnedObject(key, userId) : Promise.resolve();
-          }),
+      await deleteOwnedUploads(
+        media.circleCovers.filter((u) => !used.has(u)),
+        userId,
       );
     }
     await deleteStoredAvatar(media.avatarUrl, userId);

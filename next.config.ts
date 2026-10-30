@@ -23,7 +23,7 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  // Content-Security-Policy is set per-request in src/middleware.ts so it
+  // Content-Security-Policy is set per-request in src/proxy.ts so it
   // can carry a fresh nonce instead of falling back to 'unsafe-inline'.
 ];
 

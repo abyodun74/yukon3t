@@ -192,7 +192,7 @@ async function pruneOldBackups(bucket: string) {
   return deleted;
 }
 
-export type BackupResult = {
+type BackupResult = {
   key: string;
   tableCount: number;
   totalRows: number;

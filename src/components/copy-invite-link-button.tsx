@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Link2, Check } from "lucide-react";
 import { useMessagesText } from "@/components/messages-text";
+import { copyTextToClipboard } from "@/lib/copy-image";
 
 export function CopyInviteLinkButton({ conversationId }: { conversationId: string }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
@@ -10,12 +11,7 @@ export function CopyInviteLinkButton({ conversationId }: { conversationId: strin
 
   async function copy() {
     const url = `${window.location.origin}/messages/${conversationId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setStatus("copied");
-    } catch {
-      setStatus("failed");
-    }
+    setStatus((await copyTextToClipboard(url)) ? "copied" : "failed");
     setTimeout(() => setStatus("idle"), 2000);
   }
 

@@ -2,6 +2,7 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { withNativePickerActive } from "@/lib/native-picker-activity";
+import { base64ToFile } from "@/lib/base64-file";
 
 interface GalleryPickerPluginInterface {
   pickImages(options: { limit: number }): Promise<{
@@ -14,13 +15,6 @@ const GalleryPicker = registerPlugin<GalleryPickerPluginInterface>("GalleryPicke
 
 function isAndroid() {
   return Capacitor.getPlatform() === "android";
-}
-
-function base64ToFile(base64: string, mimeType: string, name: string): File {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new File([bytes], name, { type: mimeType });
 }
 
 /**

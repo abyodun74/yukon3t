@@ -13,6 +13,7 @@ import { INITIAL_TURNSTILE_STATE, heldSubmitMessage, type TurnstileState } from 
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
 import { useAdvertiseText } from "@/components/advertise-text";
 import { aroundPlaceholder, byCode, plural } from "@/lib/i18n/locales";
+import { normalizeVideoFile } from "@/lib/video-file";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MEDIA_LIMITS["ad-video"] (a 30s clip) — duplicated locally for the
@@ -20,18 +21,6 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
-
-// Same content:// URI MIME-type gap as story-upload-modal.tsx's pickVideo —
-// a mobile document picker often hands back an empty/wrong File.type even
-// for a normal .mp4.
-function normalizeVideoFile(f: File): File | null {
-  if (VIDEO_TYPES.includes(f.type)) return f;
-  const ext = f.name.split(".").pop()?.toLowerCase();
-  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
-  if (!detectedType) return null;
-  return new File([f], f.name, { type: detectedType });
-}
 
 // The codes an upload or the booking action can answer with. Anything else reads as "couldn't submit".
 const RESULT_CODES = [

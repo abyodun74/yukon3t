@@ -1,4 +1,4 @@
-import { serverUnreachable } from "@/lib/i18n/en/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/en/common";
 
 /**
  * Posts, the post composer, sharing, stories, the live strip and the small people controls (connect, subscribe, trust
@@ -173,7 +173,7 @@ export const feedEn = {
       rate_limited: "You're posting too fast — slow down a little.",
       invalid: "That link isn't valid — check it starts with http:// or https://.",
       network: serverUnreachable,
-      stale_deployment: "A new version of the app is available — refresh the page to continue.",
+      stale_deployment: newVersionAvailable,
       unavailable: "Couldn't transcribe that clip — try again.",
       other: "Couldn't post — try again.",
       imageFormat: "That image format isn't supported — try a JPEG, PNG, WebP, or GIF.",
@@ -248,7 +248,7 @@ export const feedEn = {
         rate_limited: "You're posting stories too fast — slow down a little.",
         not_configured: "Story uploads aren't set up yet.",
         network: serverUnreachable,
-        stale_deployment: "A new version of the app is available — refresh the page to continue.",
+        stale_deployment: newVersionAvailable,
         frame_required: "Couldn't read a preview frame from that video, so it wasn't posted. Try another video, or save it as MP4 first.",
         server_error: "Your video uploaded, but posting it failed — try again in a moment.",
         other: "Couldn't post that story — try again.",

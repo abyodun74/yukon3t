@@ -21,7 +21,7 @@ import {
   sendLiveStreamComment,
   getLiveStreamComments,
 } from "@/app/actions/live-streams";
-import { isStaleDeploymentError } from "@/lib/stale-deployment";
+import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { createCoalescer, createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
@@ -239,8 +239,8 @@ export function LiveStreamRoom({
           // never be found again. post-composer.tsx hit this exact failure
           // mode first ("the entire cause of a burst of 'couldn't reach the
           // server' reports during a run of back-to-back deploys" per
-          // stale-deployment.ts's own comment) — same fix here.
-          setError(isStaleDeploymentError(err) ? "stale_deployment" : "network");
+          // looksLikeStaleServerActionError's comment in stale-build.ts) — same fix here.
+          setError(looksLikeStaleServerActionError(err) ? "stale_deployment" : "network");
           setPhase("error");
         });
     },
@@ -407,8 +407,7 @@ export function LiveStreamRoom({
     [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch],
   );
 
-  // Fires immediately once joined (this used to be usePolling's own
-  // "immediate fire on mount" — still needed since a realtime subscription
+  // Fires immediately once joined (still needed since a realtime subscription
   // alone only reports *new* signals, not current state) and on every
   // realtime "changed" event from here on, narrowed by handleSignal above.
   // Ref indirection avoids a "setState synchronously within an effect" lint

@@ -9,7 +9,7 @@ import { shareTargetRefusal, type ShareTargetRow } from "@/lib/share-to-chats";
 // a "use server" one: every export of those is callable from the browser, and this trusts its arguments.
 
 /** What each destination is read with: enough for shareTargetRefusal, the hidden-chat lock and afterMessageSent. */
-export const SHARE_TARGET_SELECT = {
+const SHARE_TARGET_SELECT = {
   id: true,
   isGroup: true,
   members: {

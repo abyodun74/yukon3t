@@ -9,7 +9,8 @@ import { format, type Locale } from "@/lib/i18n/locales";
 import { storySchema, messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
-import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -173,14 +174,7 @@ export async function createStory(formData: FormData) {
   }
 
   const uploadedUrls = [mediaUrl!, ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : [])];
-  async function cleanupUploads() {
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   const key = keyFromPublicUrl(mediaUrl!);
   const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["story-image"] : MEDIA_LIMITS["story-video"];
@@ -497,7 +491,7 @@ export async function replyToStory(storyId: string, formData: FormData) {
 
 /**
  * Every conversation (DM or group) the caller belongs to, as share targets
- * for shareStoryToConversation below — same shape MultiSelect's options
+ * for shareStoryToConversations below — same shape MultiSelect's options
  * expect. A DM's label is the other member's name; a group's is its name.
  * Excludes a DM with someone now blocked either way, same trust boundary
  * replyToStory enforces for its own single fixed recipient.

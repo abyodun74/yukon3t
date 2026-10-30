@@ -1,4 +1,4 @@
-import { serverUnreachable } from "@/lib/i18n/en/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/en/common";
 
 // Entries written "one: … | other: …" are plural forms, picked by plural() in locales.ts with "#" standing for the
 // number. Each language lists the categories its own grammar has (Intl.PluralRules): two here, six in Arabic.
@@ -90,7 +90,7 @@ export const uiEn = {
       unavailable: "Couldn't transcribe that clip — try again.",
       network: serverUnreachable,
       upload_failed: "Couldn't upload that clip — try again.",
-      stale_deployment: "A new version of the app is available — refresh the page to continue.",
+      stale_deployment: newVersionAvailable,
     },
   },
   report: {

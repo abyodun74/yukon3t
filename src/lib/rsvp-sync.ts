@@ -12,7 +12,7 @@ import type { RsvpStatus } from "@/lib/rsvp";
 const EVENT_NAME = "yk:rsvp-changed";
 
 /** The caller's reply after a change, and the event's fresh Going / Maybe counts (from setRsvp). */
-export type RsvpChange = {
+type RsvpChange = {
   postId: string;
   status: RsvpStatus | null;
   rsvpCount: number;

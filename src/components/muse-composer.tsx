@@ -6,7 +6,7 @@ import { X, Video, Music, Upload } from "lucide-react";
 import { createMuse } from "@/app/actions/muse";
 import { probeVideoDuration, uploadFileDirect, uploadVideoWithThumb, withRetry } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
-import { isStaleDeploymentError } from "@/lib/stale-deployment";
+import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { cn } from "@/lib/utils";
@@ -156,11 +156,11 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
         3,
         1000,
         false,
-        (err) => !isStaleDeploymentError(err),
+        (err) => !looksLikeStaleServerActionError(err),
       );
     } catch (err) {
       setStatus("error");
-      setErrorText(errorMessage(isStaleDeploymentError(err) ? "stale_deployment" : "network"));
+      setErrorText(errorMessage(looksLikeStaleServerActionError(err) ? "stale_deployment" : "network"));
       return;
     }
 

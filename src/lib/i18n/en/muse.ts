@@ -1,4 +1,4 @@
-import { serverUnreachable } from "@/lib/i18n/en/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/en/common";
 
 /**
  * Muse: the feed and its player, a Muse's comments, its share sheet and the composer. MuseTextProvider hands it to
@@ -85,7 +85,7 @@ export const museEn = {
       rate_limited: "You're posting too fast — try again in a bit.",
       invalid: "That couldn't be posted — try picking the file(s) again.",
       network: serverUnreachable,
-      stale_deployment: "A new version of the app is available — refresh the page to continue.",
+      stale_deployment: newVersionAvailable,
       other: "Something went wrong — try again.",
     },
   },

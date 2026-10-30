@@ -4,7 +4,7 @@ import { CircleMembershipButton } from "@/components/circle-membership-button";
 import { format, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-export type SubCircleSummary = {
+type SubCircleSummary = {
   id: string;
   name: string;
   slug: string;

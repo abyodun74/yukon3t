@@ -5,6 +5,7 @@ import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { watermarkImageFile } from "@/lib/watermark";
 import { captureError } from "@/lib/error-tracking";
+import { base64ToFile } from "@/lib/base64-file";
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,13 +36,6 @@ function mimeTypeFromFileName(fileName: string): string {
     default:
       return "image/jpeg";
   }
-}
-
-function base64ToFile(base64: string, fileName: string, mimeType: string): File {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new File([bytes], fileName, { type: mimeType });
 }
 
 /**
@@ -86,7 +80,7 @@ async function downloadToCache(src: string, fileName: string, watermark: boolean
     const { data } = await Filesystem.readFile({ path: fileName, directory: Directory.Cache });
     const base64Downloaded = typeof data === "string" ? data : await blobToBase64(data);
     const watermarked = await watermarkImageFile(
-      base64ToFile(base64Downloaded, fileName, mimeTypeFromFileName(fileName)),
+      base64ToFile(base64Downloaded, mimeTypeFromFileName(fileName), fileName),
     );
     const base64Watermarked = await blobToBase64(watermarked);
     const { uri } = await Filesystem.writeFile({ path: fileName, data: base64Watermarked, directory: Directory.Cache });
@@ -109,7 +103,7 @@ export function canShareNatively(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("Share");
 }
 
-export type ShareNativeResult = { attachedFiles: boolean; warning?: string; canceled?: boolean };
+type ShareNativeResult = { attachedFiles: boolean; warning?: string; canceled?: boolean };
 
 /**
  * Shares a post via the OS-native share sheet (Android Intent.ACTION_SEND /

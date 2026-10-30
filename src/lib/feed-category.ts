@@ -12,7 +12,7 @@ import { getEmbedding, toPgVector } from "@/lib/embeddings";
 import { nearestPostIds } from "@/lib/search-embeddings";
 import { feedCategoryValues } from "@/lib/validations";
 
-export type FeedCategory = (typeof feedCategoryValues)[number];
+type FeedCategory = (typeof feedCategoryValues)[number];
 
 // GENERAL is deliberately excluded — it's the catch-all every post starts
 // with, so a semantic "match" against it would just pull in everything and

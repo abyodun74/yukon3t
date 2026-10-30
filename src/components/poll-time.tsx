@@ -16,7 +16,7 @@ import { format, intlLocale, type Locale } from "@/lib/i18n/locales";
 const subscribe = () => () => {};
 
 /** True once rendering in the browser (false during the server render and hydration). */
-export function useIsClient() {
+function useIsClient() {
   return useSyncExternalStore(
     subscribe,
     () => true,
@@ -64,7 +64,7 @@ export function PollInstant({ iso, className }: { iso: string; className?: strin
 }
 
 /** The "… your time" line under a UTC time: browser only, and only where local time isn't UTC. */
-export function PollLocalTime({ iso }: { iso: string }) {
+function PollLocalTime({ iso }: { iso: string }) {
   const { locale, t } = useUiText();
   const isClient = useIsClient();
   if (!isClient || new Date(iso).getTimezoneOffset() === 0) return null;

@@ -3,11 +3,9 @@
 import { useState } from "react";
 import { IncomingRequestsList, SentRequestsList, ConnectedList } from "@/components/connections-lists";
 import { cn } from "@/lib/utils";
-import type { intentTagValues } from "@/lib/validation-constants";
+import type { IntentTag } from "@/lib/validation-constants";
 import type { pagesEn } from "@/lib/i18n/en/pages";
 import { format } from "@/lib/i18n/locales";
-
-type IntentTag = (typeof intentTagValues)[number];
 
 type ConnectionUser = {
   id: string;

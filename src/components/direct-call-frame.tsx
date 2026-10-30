@@ -34,14 +34,11 @@ import type { CallRoster } from "@/lib/use-call-roster";
 import { useCallSession } from "@/lib/call-session";
 import { useCallCaptions } from "@/lib/use-call-captions";
 import { CallCaptionsButton, CallCaptionsLayer } from "@/components/call-captions";
+import { trackIsOn } from "@/lib/daily-tracks";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
   return /speaker/i.test(device.label);
-}
-
-function trackIsOn(state: DailyParticipant["tracks"]["audio"]["state"]) {
-  return state !== "off" && state !== "blocked";
 }
 
 const NO_NOTICES: ReadonlySet<string> = new Set();

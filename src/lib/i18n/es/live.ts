@@ -1,4 +1,5 @@
 import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/es/common";
 
 // A live stream is a "transmisión en vivo", a co-host "coanfitrión" and a guest "invitado" (the generic forms, as on
 // the Home strip); the stage is "el escenario". Home is "Inicio", the label the nav gives it.
@@ -10,7 +11,7 @@ export const live: typeof liveEn = {
     rate_limited: "Ve un poco más despacio e inténtalo de nuevo.",
     unavailable: "No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.",
     network: "No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.",
-    stale_deployment: "Hay una nueva versión de la aplicación. Actualiza la página para continuar.",
+    stale_deployment: newVersionAvailable,
     other: "No se pudo entrar a la transmisión. Inténtalo de nuevo.",
   },
   refresh: "Actualizar",

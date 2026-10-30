@@ -22,7 +22,7 @@ export function isGiphyUrl(url: string): boolean {
   }
 }
 
-export type GiphyGif = { id: string; gifUrl: string; previewUrl: string };
+type GiphyGif = { id: string; gifUrl: string; previewUrl: string };
 
 function parseGiphyResponse(data: {
   data?: { id: string; images?: { original?: { url: string }; fixed_width_small?: { url: string } } }[];

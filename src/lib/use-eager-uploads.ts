@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { discardUpload, prefetchUpload } from "@/lib/upload-client";
 import type { UploadKind } from "@/lib/storage";
 
-export type EagerUploadItem = { file: File; kind: UploadKind; withThumb?: boolean };
+type EagerUploadItem = { file: File; kind: UploadKind; withThumb?: boolean };
 
 /**
  * Starts uploading each attached file as soon as it appears in `items`, and deletes the upload of any file that

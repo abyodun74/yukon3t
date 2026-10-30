@@ -16,15 +16,13 @@ import {
   type HiddenState,
 } from "@/lib/hidden-chats-rules";
 
-export { hiddenPushPayload } from "@/lib/hidden-chats-rules";
-
 /**
  * Hidden chats: a per-user, one-sided, PIN-locked area (ConversationMember.hiddenAt). This file is the server half:
  * which conversations and 1:1 peers a user has hidden, the unlock cookie, and the PIN check with its lockout. The rules
  * themselves are in hidden-chats-rules.ts.
  *
  * Every surface that lists conversations, peers or message notifications to a user must filter through
- * getHiddenState / getHiddenConversationIds / getHiddenPeerIds; the list of surfaces covered is in CLAUDE.md.
+ * getHiddenState / getHiddenPeerIds; the list of surfaces covered is in CLAUDE.md.
  */
 
 /**
@@ -53,10 +51,6 @@ export const getHiddenState = cache(async (userId: string): Promise<HiddenState>
   }
   return { conversationIds: rows.map((r) => r.conversationId), peerIds: [...peerIds] };
 });
-
-export async function getHiddenConversationIds(userId: string): Promise<string[]> {
-  return (await getHiddenState(userId)).conversationIds;
-}
 
 /** The other member of each hidden 1:1 chat. Hidden groups hide the group, not the people in it. */
 export async function getHiddenPeerIds(userId: string): Promise<string[]> {

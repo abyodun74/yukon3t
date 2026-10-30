@@ -1,11 +1,9 @@
 import { UserLink } from "@/components/user-link";
 import { TrustBadge } from "@/components/trust-badge";
 import { ConnectButton } from "@/components/connect-button";
-import { intentTagValues } from "@/lib/validation-constants";
+import type { IntentTag } from "@/lib/validation-constants";
 import { plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
-
-type IntentTag = (typeof intentTagValues)[number];
 
 type Item = {
   person: {

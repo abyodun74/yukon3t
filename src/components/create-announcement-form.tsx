@@ -6,6 +6,7 @@ import { createAnnouncement } from "@/app/actions/announcements";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { normalizeVideoFile } from "@/lib/video-file";
 
 // Not imported from storage.ts — that module pulls in node:crypto/the AWS
 // SDK (server-only), which a "use client" component importing it drags into
@@ -22,18 +23,6 @@ const MAX_VIDEO_SECONDS = 120;
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
-
-// Same content:// URI MIME-type gap as ad-booking-form.tsx's own
-// normalizeVideoFile — a mobile document picker often hands back an empty/
-// wrong File.type even for a normal .mp4.
-function normalizeVideoFile(f: File): File | null {
-  if (VIDEO_TYPES.includes(f.type)) return f;
-  const ext = f.name.split(".").pop()?.toLowerCase();
-  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
-  if (!detectedType) return null;
-  return new File([f], f.name, { type: detectedType });
-}
 
 function errorMessage(code: string) {
   switch (code) {

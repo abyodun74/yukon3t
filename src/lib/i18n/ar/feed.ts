@@ -1,7 +1,5 @@
 import type { feedEn } from "@/lib/i18n/en/feed";
-import { serverUnreachable } from "@/lib/i18n/ar/common";
-
-const staleDeployment = "يتوفر إصدار جديد من التطبيق. حدّث الصفحة للمتابعة.";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/ar/common";
 
 export const feed: typeof feedEn = {
   categories: {
@@ -168,7 +166,7 @@ export const feed: typeof feedEn = {
       rate_limited: "أنت تنشر بسرعة كبيرة. تمهّل قليلًا.",
       invalid: "هذا الرابط غير صالح. تأكد من أنه يبدأ بـ http:// أو https://.",
       network: serverUnreachable,
-      stale_deployment: staleDeployment,
+      stale_deployment: newVersionAvailable,
       unavailable: "تعذّر تحويل هذا التسجيل إلى نص. حاول مرة أخرى.",
       other: "تعذّر النشر. حاول مرة أخرى.",
       imageFormat: "صيغة هذه الصورة غير مدعومة. جرّب JPEG أو PNG أو WebP أو GIF.",
@@ -244,7 +242,7 @@ export const feed: typeof feedEn = {
         rate_limited: "أنت تنشر القصص بسرعة كبيرة. تمهّل قليلًا.",
         not_configured: "رفع القصص غير متاح بعد.",
         network: serverUnreachable,
-        stale_deployment: staleDeployment,
+        stale_deployment: newVersionAvailable,
         frame_required: "تعذّرت قراءة إطار معاينة من هذا الفيديو، لذا لم يُنشَر. جرّب فيديو آخر أو احفظه أولًا بصيغة MP4.",
         server_error: "رُفع الفيديو، لكن تعذّر نشره. حاول مرة أخرى بعد لحظة.",
         other: "تعذّر نشر هذه القصة. حاول مرة أخرى.",

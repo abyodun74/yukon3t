@@ -1,5 +1,5 @@
 import type { uiEn } from "@/lib/i18n/en/ui";
-import { serverUnreachable } from "@/lib/i18n/fr/common";
+import { serverUnreachable, newVersionAvailable } from "@/lib/i18n/fr/common";
 
 export const ui: typeof uiEn = {
   listSeparator: ", ",
@@ -79,7 +79,7 @@ export const ui: typeof uiEn = {
       unavailable: "Impossible de transcrire cet enregistrement. Réessayez.",
       network: serverUnreachable,
       upload_failed: "Impossible d'importer cet enregistrement. Réessayez.",
-      stale_deployment: "Une nouvelle version de l'application est disponible. Actualisez la page pour continuer.",
+      stale_deployment: newVersionAvailable,
     },
   },
   report: {

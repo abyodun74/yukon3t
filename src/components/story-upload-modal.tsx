@@ -8,11 +8,12 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
-import { isStaleDeploymentError } from "@/lib/stale-deployment";
+import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
+import { normalizeVideoFile } from "@/lib/video-file";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -23,7 +24,6 @@ const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 // createStory has no batch endpoint — each item is its own upload + DB row —
 // and story creation itself has no rate limit (unlimited uploads over
 // time). There's deliberately no cap on how many items one picker
@@ -45,23 +45,6 @@ type StoryItem = {
   previewUrl: string;
   upload: UploadState;
 };
-
-/**
- * Android's document picker often hands back a file from a content:// URI
- * (Google Photos, a file manager, etc.) with File.type empty or wrong,
- * even for a perfectly normal .mp4 — a strict MIME-type check alone
- * rejected those outright with no indication why. Falls back to the file
- * extension, and returns a corrected File so the upload itself (which
- * sends file.type as the R2 object's Content-Type) doesn't inherit the
- * same wrong/empty type.
- */
-function normalizeVideoFile(f: File): File | null {
-  if (VIDEO_TYPES.includes(f.type)) return f;
-  const ext = f.name.split(".").pop()?.toLowerCase();
-  const detectedType = ext ? VIDEO_EXTENSION_TYPES[ext] : undefined;
-  if (!detectedType) return null;
-  return new File([f], f.name, { type: detectedType });
-}
 
 
 function makeId() {
@@ -446,7 +429,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       if (result.error) return { ok: false as const, message: byCode(t.stories.upload.errors, result.error) };
       return { ok: true as const };
     } catch (err) {
-      return { ok: false as const, message: isStaleDeploymentError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network") };
+      return { ok: false as const, message: looksLikeStaleServerActionError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network") };
     }
   }
 
@@ -474,7 +457,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       router.refresh();
       onClose();
     } catch (err) {
-      setError(isStaleDeploymentError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network"));
+      setError(looksLikeStaleServerActionError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network"));
     } finally {
       setTextPosting(false);
     }

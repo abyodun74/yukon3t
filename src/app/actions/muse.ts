@@ -12,9 +12,9 @@ import {
   MAX_STORY_VIDEO_SECONDS,
   STORY_LIFETIME_MS,
   verifyUploadedSize,
-  deleteOwnedObject,
   keyFromPublicUrl,
 } from "@/lib/storage";
+import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { isEmojiOnly } from "@/lib/emoji";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
@@ -110,14 +110,7 @@ export async function createMuse(formData: FormData) {
     ...(videoThumbnailUrl ? [videoThumbnailUrl] : []),
     ...(audioUrl ? [audioUrl] : []),
   ];
-  async function cleanupUploads() {
-    await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, user.id) : Promise.resolve();
-      }),
-    );
-  }
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   const videoKey = keyFromPublicUrl(videoUrl);
   const videoSizeOk = videoKey && (await verifyUploadedSize({

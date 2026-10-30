@@ -11,9 +11,7 @@ import { getConnectedOrPendingIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { countryName } from "@/lib/i18n/country-names";
-
-const SORT_OPTIONS = ["relevant", "recent", "oldest", "online"] as const;
-type SortOption = (typeof SORT_OPTIONS)[number];
+import { DISCOVER_SORT_OPTIONS, type DiscoverSortOption } from "@/lib/sort-options";
 
 // Offset (not cursor) pagination — "relevant" sorts by trustScore, which
 // isn't unique, so a cursor keyed on it could skip or repeat rows at tie
@@ -32,8 +30,8 @@ export default async function DiscoverPage({
   const t = dictionary.pages.discover;
   const sortText = dictionary.pages.sort;
   const { intent, country, sort: sortParam } = await searchParams;
-  const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
-    ? (sortParam as SortOption)
+  const sort: DiscoverSortOption = DISCOVER_SORT_OPTIONS.includes(sortParam as DiscoverSortOption)
+    ? (sortParam as DiscoverSortOption)
     : "recent";
 
   const [blockedIds, connectedIds, mayKnow] = await Promise.all([
@@ -215,7 +213,7 @@ export default async function DiscoverPage({
           defaultValue={sort}
           className="w-full rounded-lg border border-line bg-surface px-3 py-2 sm:w-auto"
         >
-          {SORT_OPTIONS.map((option) => (
+          {DISCOVER_SORT_OPTIONS.map((option) => (
             <option key={option} value={option}>
               {sortText[option]}
             </option>

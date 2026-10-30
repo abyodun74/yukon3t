@@ -24,7 +24,7 @@ import {
 //
 // Nothing here receives, stores or logs audio or transcript text.
 
-export const DEFAULT_CAPTION_STT_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_CAPTION_STT_MODEL = "gpt-4o-mini-transcribe";
 const OPENAI_TIMEOUT_MS = 10_000;
 /** How long the minted client secret can be used to start the session (it is used at once, by us). */
 const CLIENT_SECRET_TTL_SECONDS = 60;
@@ -33,7 +33,7 @@ export function isCallCaptionsConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY) && process.env.CALL_CAPTIONS_ENABLED === "1";
 }
 
-export function captionSttModel(): string {
+function captionSttModel(): string {
   return process.env.CALL_CAPTIONS_STT_MODEL?.trim() || DEFAULT_CAPTION_STT_MODEL;
 }
 
@@ -42,7 +42,7 @@ export function captionSttModel(): string {
  * transcribed (silence produces nothing); near-field noise reduction suits a phone held close. No language is set:
  * people often speak something other than their app language, so the model detects it.
  */
-export function captionSessionConfig(model = captionSttModel()) {
+function captionSessionConfig(model = captionSttModel()) {
   return {
     type: "transcription",
     audio: {
@@ -126,7 +126,7 @@ export async function openCaptionTranscription(
 }
 
 /** Ends a session at OpenAI. Best-effort: the browser closes its side too, and OpenAI ends idle sessions itself. */
-export async function hangUpProviderCall(providerCallId: string | null): Promise<void> {
+async function hangUpProviderCall(providerCallId: string | null): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || !providerCallId) return;
   try {
@@ -143,7 +143,7 @@ export async function hangUpProviderCall(providerCallId: string | null): Promise
 
 // ---------- The call ----------
 
-export async function loadCaptionCall(callId: string): Promise<CaptionCallFacts | null> {
+async function loadCaptionCall(callId: string): Promise<CaptionCallFacts | null> {
   const call = await prisma.call.findUnique({
     where: { id: callId },
     select: {

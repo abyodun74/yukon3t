@@ -22,7 +22,7 @@ import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-
 import { useReloadHold } from "@/lib/stale-build-client";
 import { sessionNeedsWakeLock } from "@/lib/call-resilience";
 
-export type StartSessionInput = {
+type StartSessionInput = {
   /** Dedupe key — e.g. `call:${callId}` or `live:${liveStreamId}`. Starting a
    * session with a key that's already active just re-expands it instead of
    * tearing down and rejoining the Daily room. */
