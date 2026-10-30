@@ -12,7 +12,8 @@ import { requestViewOnceUpload } from "@/app/actions/view-once";
 import type { UploadKind } from "@/lib/storage";
 import { holdReload, looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
-import { backoffDelayMs, isRetryableStatus } from "@/lib/fetch-retry";
+import { backoffDelayMs } from "@/lib/fetch-retry";
+import { putAttemptOutcome, WRITE_ONCE_UPLOAD_PROTOCOL } from "@/lib/write-once-upload";
 
 type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -259,16 +260,18 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
  * whatever startTransition called this, which React/Next renders as a full
  * page crash rather than a normal form error.
  */
+// `headers` are the request headers the presigned URL was signed with (`If-None-Match: *`, see write-once-upload.ts):
+// the PUT must send them exactly, or R2 refuses it as a bad signature.
 type RequestUploadUrlFn = (
   fd: FormData,
-) => Promise<{ error: string | null; uploadUrl?: string; publicUrl?: string; key?: string }>;
+) => Promise<{ error: string | null; uploadUrl?: string; publicUrl?: string; key?: string; headers?: Record<string, string> }>;
 
 // --- Batched presigning -----------------------------------------------------
 // Next.js runs one browser's Server Action calls strictly one after another. A post with five photos, or a video plus
 // its thumbnail, used to make five/two presign calls in a row — each a full round trip through auth, the rate limit
 // and R2 signing — before the last file could even start uploading. Every presign request made in the same instant
 // (callers use Promise.all) is now coalesced into ONE requestUploadUrls call.
-type PresignResult = { error: string | null; uploadUrl?: string; publicUrl?: string; key?: string };
+type PresignResult = { error: string | null; uploadUrl?: string; publicUrl?: string; key?: string; headers?: Record<string, string> };
 type PendingPresign = {
   item: { kind: string; contentType: string };
   resolve: (r: PresignResult) => void;
@@ -286,7 +289,10 @@ async function flushPresigns() {
   for (let i = 0; i < all.length; i += MAX_BATCH) {
     const chunk = all.slice(i, i + MAX_BATCH);
     try {
-      const res = await requestUploadUrls(chunk.map((p) => p.item));
+      const res = await requestUploadUrls(
+        chunk.map((p) => p.item),
+        WRITE_ONCE_UPLOAD_PROTOCOL,
+      );
       const items = "items" in res ? res.items : null;
       if (items) {
         chunk.forEach((p, idx) => p.resolve(items[idx] ?? { error: "invalid" }));
@@ -442,7 +448,7 @@ async function uploadToStorage(
   } catch (err) {
     return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network" };
   }
-  if (result.error || !result.uploadUrl || !result.publicUrl || !result.key) {
+  if (result.error || !result.uploadUrl || !result.publicUrl || !result.key || !result.headers) {
     return { ok: false, error: result.error ?? "invalid" };
   }
   // Narrowed into their own const bindings — a closure over the `let
@@ -450,7 +456,7 @@ async function uploadToStorage(
   // guard just above (a real gap, not just noise: RequestUploadUrlFn's
   // return type isn't the discriminated union requestUploadUrl's own
   // inferred type is, so the two behave differently here).
-  const { uploadUrl, publicUrl, key } = result;
+  const { uploadUrl, publicUrl, key, headers: signedHeaders } = result;
 
   // Android WebView (confirmed on the installed app, not just theorized —
   // see the investigation this comment came out of) can hand back a
@@ -468,33 +474,39 @@ async function uploadToStorage(
   const isVideo = VIDEO_KINDS.has(kind);
   const putBody: BodyInit = isVideo ? uploadFile : await uploadFile.arrayBuffer();
 
-  let putRes;
+  let stored: boolean;
   try {
     // Retrying re-sends to the exact same presigned URL/key (not a fresh
-    // request-upload-url round trip), so a retry just overwrites the same
-    // R2 object rather than risking an orphaned duplicate. Video gets more
-    // attempts than everything else, and waits for the page to be back in
-    // the foreground before each retry — see PUT_ATTEMPTS_VIDEO and
-    // waitForForeground above. The video-kind presigned URL is valid for an
-    // hour (see createUploadUrl), so waiting for the app to be reopened
-    // still has plenty of room even after a long backgrounded stretch.
+    // request-upload-url round trip). The key is write-once (the URL signs
+    // `If-None-Match: *`, see write-once-upload.ts), so a retry after an
+    // attempt that did reach R2 but whose response was lost gets 412: that
+    // counts as stored on a retry only, never on the first attempt (see
+    // putAttemptOutcome). Video gets more attempts than everything else, and
+    // waits for the page to be back in the foreground before each retry —
+    // see PUT_ATTEMPTS_VIDEO and waitForForeground above. The video-kind
+    // presigned URL is valid for hours (see createUploadUrl), so waiting for
+    // the app to be reopened still has plenty of room even after a long
+    // backgrounded stretch.
     const putAttempts = isVideo ? PUT_ATTEMPTS_VIDEO : PUT_ATTEMPTS_DEFAULT;
     const timeoutMs = attemptTimeoutMs(uploadFile.size);
-    putRes = await withRetry(
+    let attempt = 0;
+    stored = await withRetry(
       async () => {
+        attempt++;
         const res = await fetchWithTimeout(
           uploadUrl,
           {
             method: "PUT",
-            headers: { "Content-Type": uploadFile.type },
+            headers: { ...signedHeaders, "Content-Type": uploadFile.type },
             body: putBody,
           },
           timeoutMs,
         );
         // A storage-side 5xx/429 is as transient as a dropped connection;
-        // anything else (403 expired URL, 400) is final and returned as is.
-        if (isRetryableStatus(res.status)) throw new Error(`PUT ${res.status}`);
-        return res;
+        // anything else (403 expired URL, 400, a first-attempt 412) is final.
+        const outcome = putAttemptOutcome(res.status, attempt);
+        if (outcome === "retry") throw new Error(`PUT ${res.status}`);
+        return outcome === "ok";
       },
       putAttempts,
       800,
@@ -504,7 +516,7 @@ async function uploadToStorage(
     return { ok: false, error: "network" };
   }
 
-  if (!putRes.ok) {
+  if (!stored) {
     return { ok: false, error: "upload_failed" };
   }
 

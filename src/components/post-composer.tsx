@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, useTransition, type Clipbo
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
 import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
-import { addImageFromUrl, requestUploadUrl } from "@/app/actions/media";
+import { abortMultipartUpload, addImageFromUrl, completeMultipartUpload, startNativeVideoUpload } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
 import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry, probeVideoDuration } from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
@@ -485,20 +485,36 @@ export function PostComposer({
     setNativeVideoUploading(true);
 
     try {
+      // A one-part multipart upload, not a single-PUT URL: the installed apps' native uploader can't send the signed
+      // `If-None-Match: *` that makes those write-once, and a part URL stops working once the upload is completed
+      // (see createSinglePartUpload in storage.ts).
       const fd = new FormData();
       fd.set("kind", "post-video");
       fd.set("contentType", native.mimeType);
-      const requested = await requestUploadUrl(fd);
-      if (requested.error || !requested.uploadUrl || !requested.publicUrl) {
+      fd.set("size", String(native.size));
+      const started = await startNativeVideoUpload(fd).catch(() => ({ error: "network" as const }));
+      if (started.error !== null) {
         setStatus("error");
-        setErrorText(byCode(t.composer.errors, requested.error ?? "network"));
+        setErrorText(byCode(t.composer.errors, started.error));
         return;
       }
+      const ref = new FormData();
+      ref.set("key", started.key);
+      ref.set("uploadId", started.uploadId);
 
-      const uploaded = await uploadVideoNative(native.uri, requested.uploadUrl, native.mimeType);
+      const uploaded = await uploadVideoNative(native.uri, started.partUrl, native.mimeType);
       if (!uploaded) {
+        void abortMultipartUpload(ref).catch(() => {});
         setStatus("error");
         setErrorText(byCode(t.composer.errors, "network"));
+        return;
+      }
+      ref.set("partCount", "1");
+      const completed = await withRetry(() => completeMultipartUpload(ref), 3, 800).catch(() => ({ error: "network" as const }));
+      if (completed.error !== null) {
+        void abortMultipartUpload(ref).catch(() => {});
+        setStatus("error");
+        setErrorText(byCode(t.composer.errors, completed.error === "network" ? "network" : "upload_failed"));
         return;
       }
 
@@ -511,7 +527,7 @@ export function PostComposer({
         : null;
 
       setNativeVideoUpload({
-        videoUrl: requested.publicUrl,
+        videoUrl: started.publicUrl,
         videoThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
         videoDurationSeconds: native.durationSeconds ?? undefined,
         name: native.name,

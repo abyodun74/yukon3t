@@ -15,6 +15,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
+import { WRITE_ONCE_PUT_HEADERS } from "@/lib/write-once-upload";
 
 export type UploadKind =
   | "avatar"
@@ -270,15 +271,20 @@ export async function createUploadUrl({
   // a fresh one) don't start failing partway through on a slow connection.
   // Non-video kinds stay at 5 minutes.
   const expiresIn = expiresInSeconds ?? (VIDEO_KINDS.has(kind) ? 21_600 : 300);
+  // Write-once (security audit H3, see write-once-upload.ts): `If-None-Match: *` is signed into the URL, so R2
+  // accepts the first PUT and refuses every later one (412), and the URL can't replace the file after it has been
+  // moderated and published. `unhoistableHeaders` pins the condition as a signed request header, never a query
+  // parameter: the form verified against production R2 (first PUT 200, second PUT 412). The client must send exactly
+  // `headers` below (a PUT without them fails the signature check).
   const uploadUrl = await getSignedUrl(
     client(),
-    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
-    { expiresIn },
+    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType, IfNoneMatch: "*" }),
+    { expiresIn, unhoistableHeaders: new Set(["if-none-match"]) },
   );
 
   const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
 
-  return { uploadUrl, publicUrl, key };
+  return { uploadUrl, publicUrl, key, headers: { ...WRITE_ONCE_PUT_HEADERS } };
 }
 
 /** Server-side direct upload (as opposed to createUploadUrl's client-driven presigned PUT) — used when the bytes originate on the server itself, e.g. an image fetched from a URL the user pasted in. */
@@ -498,6 +504,46 @@ export async function createMultipartUpload({
   );
   const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
   return { key, uploadId, partSize: MULTIPART_PART_BYTES, partUrls, publicUrl };
+}
+
+/**
+ * A multipart upload with exactly ONE part covering the whole file, for the installed Android apps' native video
+ * uploader (GalleryPickerPlugin.uploadVideo, native-video-picker.ts). That Java code PUTs to whatever URL it is given
+ * with only a Content-Type header and cannot be changed without a Play release, so it can't send the signed
+ * `If-None-Match: *` that makes createUploadUrl's single-PUT URLs write-once. A part URL needs no condition: it is
+ * only valid until completeMultipartUpload assembles the object, after which R2 has no such upload id any more and
+ * the URL can't touch the object. One part (up to 5 GiB, above every video cap) keeps the native side's single
+ * sequential PUT, and retries of it, unchanged; Content-Type is never part of a presigned signature here (the
+ * presigner leaves it unsigned), exactly as on the single-PUT URLs that code used before. `sizeBytes` is what the
+ * device reported and may be 0 (unknown); the real total is checked against the kind's cap at completion.
+ */
+export async function createSinglePartUpload({
+  kind,
+  contentType,
+  userId,
+  sizeBytes,
+}: {
+  kind: UploadKind;
+  contentType: string;
+  userId: string;
+  sizeBytes: number;
+}) {
+  if (!isStorageConfigured()) throw new Error("not_configured");
+  const ext = validateContentType(kind, contentType);
+  if (!ext || !isVideoKind(kind)) throw new Error("invalid_content_type");
+  if (!Number.isFinite(sizeBytes) || sizeBytes < 0 || sizeBytes > MEDIA_LIMITS[kind]) throw new Error("invalid_size");
+
+  const bucket = process.env.R2_BUCKET_NAME!;
+  const key = `${kind}/${userId}/${randomUUID()}.${ext}`;
+  const created = await client().send(new CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: contentType }));
+  const uploadId = created.UploadId;
+  if (!uploadId) throw new Error("multipart_start_failed");
+
+  const partUrl = await getSignedUrl(client(), new UploadPartCommand({ Bucket: bucket, Key: key, UploadId: uploadId, PartNumber: 1 }), {
+    expiresIn: 21_600,
+  });
+  const publicUrl = `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
+  return { key, uploadId, partUrl, publicUrl };
 }
 
 /**

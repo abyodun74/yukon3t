@@ -56,12 +56,14 @@ vi.mock("@/lib/prisma", () => ({
 
 const { requestAdUpload, createAdCampaign } = await import("@/app/actions/ads");
 const { MEDIA_LIMITS } = await import("@/lib/storage");
+const { WRITE_ONCE_UPLOAD_PROTOCOL, WRITE_ONCE_UPLOAD_PROTOCOL_FIELD } = await import("@/lib/write-once-upload");
 
 function uploadForm(over: Record<string, string> = {}) {
   const fd = new FormData();
   fd.set("mediaType", "IMAGE");
   fd.set("contentType", "image/jpeg");
   fd.set("size", "1000");
+  fd.set(WRITE_ONCE_UPLOAD_PROTOCOL_FIELD, WRITE_ONCE_UPLOAD_PROTOCOL);
   for (const [k, v] of Object.entries(over)) fd.set(k, v);
   return fd;
 }
@@ -89,7 +91,7 @@ beforeEach(() => {
   checkRateLimit.mockResolvedValue(true);
   createUploadUrl.mockImplementation(async ({ kind, userId }: { kind: string; userId: string }) => {
     const key = `${kind}/${userId}/u${++n}.bin`;
-    return { uploadUrl: `https://r2.example.com/put/${key}`, publicUrl: `${R2}/${key}`, key };
+    return { uploadUrl: `https://r2.example.com/put/${key}`, publicUrl: `${R2}/${key}`, key, headers: { "If-None-Match": "*" } };
   });
   verifyUploadedSize.mockResolvedValue(true);
   moderateMedia.mockResolvedValue({ allowed: true, flaggedCategories: [] });
@@ -98,6 +100,23 @@ beforeEach(() => {
 });
 
 describe("requestAdUpload", () => {
+  it("answers an outdated page (no write-once protocol) with stale_deployment, before spending its bot check", async () => {
+    const fd = uploadForm();
+    fd.delete(WRITE_ONCE_UPLOAD_PROTOCOL_FIELD);
+    expect((await requestAdUpload(fd)).error).toBe("stale_deployment");
+    expect(passesBotGate).not.toHaveBeenCalled();
+    expect(createUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("hands back the write-once headers each URL was signed with", async () => {
+    const result = await requestAdUpload(
+      uploadForm({ mediaType: "VIDEO", contentType: "video/mp4", size: "5000", thumbContentType: "image/jpeg", thumbSize: "100" }),
+    );
+    if (result.error !== null) throw new Error(String(result.error));
+    expect(result.main.headers).toEqual({ "If-None-Match": "*" });
+    expect(result.thumb?.headers).toEqual({ "If-None-Match": "*" });
+  });
+
   it("runs the bot check before minting anything", async () => {
     passesBotGate.mockResolvedValue({ ok: false, reason: "invalid" });
     const result = await requestAdUpload(uploadForm());

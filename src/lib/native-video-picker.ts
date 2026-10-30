@@ -72,8 +72,13 @@ export async function pickVideoNative(): Promise<{
 /**
  * Streams the video at `uri` (from pickVideoNative above) directly from
  * native code to a presigned R2 PUT URL — the bytes never cross the JS
- * bridge. `uploadUrl`/`contentType` come from the same requestUploadUrl
- * server action every other upload kind in this app already uses.
+ * bridge. `uploadUrl` is the single part URL of a one-part multipart upload
+ * (startNativeVideoUpload), never a createUploadUrl single-PUT URL: the
+ * installed apps' Java uploader sends only Content-Type, so it can't send the
+ * signed `If-None-Match: *` those require (see write-once-upload.ts), and it
+ * re-sends the same URL on retry, which a part URL allows until the upload is
+ * completed. Any header-signed URL passed here would fail on every installed
+ * build.
  */
 export async function uploadVideoNative(uri: string, uploadUrl: string, contentType: string): Promise<boolean> {
   try {

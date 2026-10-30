@@ -16,6 +16,7 @@ import {
   uploadBuffer,
   keyBelongsToOwner,
   createMultipartUpload,
+  createSinglePartUpload,
   completeMultipartUpload as completeMultipart,
   abortMultipartUpload as abortMultipart,
   publicUrlForKey,
@@ -29,9 +30,9 @@ import {
   presignAvatarGet,
 } from "@/lib/storage";
 import {
-  requestUploadSchema,
   requestUploadBatchSchema,
   startMultipartSchema,
+  startNativeVideoUploadSchema,
   multipartRefSchema,
   completeMultipartSchema,
   confirmAvatarUploadSchema,
@@ -44,39 +45,7 @@ import { deleteStoredAvatar } from "@/lib/avatar-storage";
 import { AVATAR_EXTENSIONS, AVATAR_THUMB_MAX_BYTES, twoSizeAvatar, type AvatarExtension } from "@/lib/avatar-url";
 import { fetchRemoteImage } from "@/lib/fetch-remote-image";
 import { recordUploads } from "@/lib/upload-records";
-
-export async function requestUploadUrl(formData: FormData) {
-  const user = await requireVerifiedUser();
-
-  if (!isStorageConfigured()) {
-    return { error: "not_configured" as const };
-  }
-
-  const allowed = await checkRateLimit("mediaUpload", user.id);
-  if (!allowed) {
-    return { error: "rate_limited" as const };
-  }
-
-  const parsed = requestUploadSchema.safeParse({
-    kind: formData.get("kind"),
-    contentType: formData.get("contentType"),
-  });
-  if (!parsed.success) {
-    return { error: "invalid" as const };
-  }
-
-  try {
-    const { uploadUrl, publicUrl, key } = await createUploadUrl({
-      kind: parsed.data.kind,
-      contentType: parsed.data.contentType,
-      userId: user.id,
-    });
-    await recordUploads([{ key, kind: parsed.data.kind }], user.id);
-    return { error: null, uploadUrl, publicUrl, key };
-  } catch {
-    return { error: "invalid" as const };
-  }
-}
+import { WRITE_ONCE_UPLOAD_PROTOCOL } from "@/lib/write-once-upload";
 
 /**
  * Several presigned URLs in ONE call. Next.js runs a browser's Server Action calls one at a time, so a post with
@@ -84,9 +53,13 @@ export async function requestUploadUrl(formData: FormData) {
  * upload could even start; the client now coalesces the requests it makes together into this. Each item still costs
  * one unit of the same per-user upload limit and is validated exactly like requestUploadUrl.
  */
-export async function requestUploadUrls(items: { kind: string; contentType: string }[]) {
+export async function requestUploadUrls(items: { kind: string; contentType: string }[], protocol?: string) {
   const user = await requireVerifiedUser();
 
+  // A client bundle from before write-once uploads would PUT without the signed header (see write-once-upload.ts).
+  if (protocol !== WRITE_ONCE_UPLOAD_PROTOCOL) {
+    return { error: "stale_deployment" as const };
+  }
   if (!isStorageConfigured()) {
     return { error: "not_configured" as const };
   }
@@ -105,8 +78,8 @@ export async function requestUploadUrls(items: { kind: string; contentType: stri
   const results = await Promise.all(
     parsed.data.map(async ({ kind, contentType }) => {
       try {
-        const { uploadUrl, publicUrl, key } = await createUploadUrl({ kind, contentType, userId: user.id });
-        return { error: null, uploadUrl, publicUrl, key };
+        const { uploadUrl, publicUrl, key, headers } = await createUploadUrl({ kind, contentType, userId: user.id });
+        return { error: null, uploadUrl, publicUrl, key, headers };
       } catch {
         return { error: "invalid" as const };
       }
@@ -141,6 +114,44 @@ export async function startMultipartUpload(formData: FormData) {
 
   try {
     const started = await createMultipartUpload({
+      kind: parsed.data.kind,
+      contentType: parsed.data.contentType,
+      userId: user.id,
+      sizeBytes: parsed.data.size,
+    });
+    await recordUploads([{ key: started.key, kind: parsed.data.kind }], user.id);
+    return { error: null, ...started };
+  } catch {
+    return { error: "invalid" as const };
+  }
+}
+
+/**
+ * The installed Android apps' native video uploader (post composer, native-video-picker.ts): a one-part multipart
+ * upload, so the URL handed to native code stops working once completeMultipartUpload (partCount 1) has assembled
+ * the file. See createSinglePartUpload in storage.ts for why this isn't a write-once single-PUT URL.
+ */
+export async function startNativeVideoUpload(formData: FormData) {
+  const user = await requireVerifiedUser();
+
+  if (!isStorageConfigured()) {
+    return { error: "not_configured" as const };
+  }
+  if (!(await checkRateLimit("mediaUpload", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const parsed = startNativeVideoUploadSchema.safeParse({
+    kind: formData.get("kind"),
+    contentType: formData.get("contentType"),
+    size: formData.get("size"),
+  });
+  if (!parsed.success) {
+    return { error: "invalid" as const };
+  }
+
+  try {
+    const started = await createSinglePartUpload({
       kind: parsed.data.kind,
       contentType: parsed.data.contentType,
       userId: user.id,

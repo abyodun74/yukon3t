@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { Camera, Upload, Video, X } from "lucide-react";
 import { createAdCampaign, requestAdUpload } from "@/app/actions/ads";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { WRITE_ONCE_UPLOAD_PROTOCOL, WRITE_ONCE_UPLOAD_PROTOCOL_FIELD } from "@/lib/write-once-upload";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { AD_DURATION_OPTIONS, AD_UPLOAD_PASS_FIELD, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
@@ -35,7 +36,7 @@ const RESULT_CODES = [
   "captcha_unavailable",
 ] as const;
 
-type MintedUpload = { uploadUrl: string; publicUrl: string; key: string };
+type MintedUpload = { uploadUrl: string; publicUrl: string; key: string; headers: Record<string, string> };
 
 // The presigned URL was already minted by requestAdUpload (which ran the bot check), so uploadFileDirect is handed a
 // "request" function that just returns it: same PUT, retry and timeout handling as every other upload.
@@ -188,6 +189,7 @@ export function AdBookingForm() {
       }
       uploadFd.set(HONEYPOT_FIELD, honeypot);
       uploadFd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
+      uploadFd.set(WRITE_ONCE_UPLOAD_PROTOCOL_FIELD, WRITE_ONCE_UPLOAD_PROTOCOL);
       if (turnstileRequired) {
         const token = turnstileTokenRef.current;
         if (!token) {

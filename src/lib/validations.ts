@@ -372,6 +372,11 @@ export const startMultipartSchema = z.object({
   size: z.coerce.number().int().positive(),
 });
 
+/** Like startMultipartSchema, but the size is the device's report and may be 0 (unknown): see createSinglePartUpload. */
+export const startNativeVideoUploadSchema = startMultipartSchema.extend({
+  size: z.coerce.number().int().min(0),
+});
+
 export const multipartRefSchema = z.object({
   key: z.string().trim().min(1).max(500),
   uploadId: z.string().trim().min(1).max(1000),

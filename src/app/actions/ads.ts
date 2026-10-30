@@ -21,6 +21,7 @@ import {
   validateContentType,
 } from "@/lib/storage";
 import { recordUploads } from "@/lib/upload-records";
+import { WRITE_ONCE_UPLOAD_PROTOCOL, WRITE_ONCE_UPLOAD_PROTOCOL_FIELD } from "@/lib/write-once-upload";
 import { isOwnedUploadKey } from "@/lib/media-keys";
 import { encodeAdUploadPass, verifyAdUploadPass } from "@/lib/ad-upload-pass";
 import { adPriceCents, AD_CURRENCY, AD_UPLOAD_PASS_FIELD } from "@/lib/ads";
@@ -42,6 +43,11 @@ const AD_UPLOAD_OWNER = "anonymous";
 export async function requestAdUpload(formData: FormData) {
   if (isBotSubmission(formData)) {
     return { error: "invalid" as const };
+  }
+  // Before the bot check, so an outdated page doesn't spend its Turnstile token on URLs it can't use: its PUT would
+  // lack the signed write-once header (see write-once-upload.ts).
+  if (formData.get(WRITE_ONCE_UPLOAD_PROTOCOL_FIELD) !== WRITE_ONCE_UPLOAD_PROTOCOL) {
+    return { error: "stale_deployment" as const };
   }
   if (!isStorageConfigured()) {
     return { error: "not_configured" as const };

@@ -296,9 +296,9 @@ To reproduce this setup elsewhere (a new deploy target, a teammate's machine):
 3. Enable public access on the bucket (R2.dev subdomain or a custom domain) to get a public base URL.
 4. **Configure CORS on the bucket** to allow direct browser uploads — without this, the client's presigned PUT will be blocked by the browser:
    ```json
-   [{"AllowedOrigins": ["https://your-domain.com"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["Content-Type"]}]
+   [{"AllowedOrigins": ["https://your-domain.com"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["Content-Type", "If-None-Match"]}]
    ```
-   (add `http://localhost:3000` too for local testing)
+   (add `http://localhost:3000` too for local testing). `If-None-Match` is required: every single-PUT URL is write-once (next section) and the browser sends that header, so a CORS rule without it fails every upload's preflight.
 5. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` in `.env`.
 6. Restart the dev server — `src/proxy.ts` reads `R2_ACCOUNT_ID`/`R2_PUBLIC_URL` at request time to open the CSP's `connect-src`/`media-src`/`img-src` only as far as needed.
 
@@ -314,6 +314,24 @@ itself (no ETag/CORS exposure needed) and the upload is aborted if a part is mis
 are coalesced into one `requestUploadUrls` call (each item still counts against `mediaUpload`). The S3 client also now sets
 `requestChecksumCalculation/responseChecksumValidation: "WHEN_REQUIRED"`, Cloudflare's documented setting for R2 with SDK v3.
 `R2_ENDPOINT` exists only so tests can point the SDK at a local S3 stand-in; production never sets it.
+
+### Write-once public uploads (security audit H3, 2026-10-30)
+
+A presigned PUT stays valid for its whole lifetime (5 minutes for images, 6 hours for videos), so before this an uploader
+could publish a clean file, let it pass moderation, then PUT different content to the same URL and replace it. Now:
+- **Single-PUT URLs** (`createUploadUrl`, every public kind: post/story/Muse/message/comment media, video thumbnails, circle
+  covers, collab material, ambient, the public-path avatar, ads, announcements) sign `If-None-Match: *` as a request header
+  (`IfNoneMatch: "*"` + `unhoistableHeaders`). R2 stores the first PUT and answers every later one 412. The URL comes back
+  with `headers` that the client must send (`src/lib/write-once-upload.ts`); the browser PUT in `upload-client.ts` spreads
+  them. A 412 on a *retry* counts as stored (an earlier attempt landed but its response was lost); a 412 on the first attempt
+  is a failure. Clients that predate this (no `WRITE_ONCE_UPLOAD_PROTOCOL` on `requestUploadUrls` / `requestAdUpload`) get
+  `stale_deployment` instead of a URL they would fail to use.
+- **Multipart** part URLs need no condition: the upload id is gone once `completeMultipartUpload` assembles the object.
+- **The installed Android apps' native video uploader** (`GalleryPickerPlugin.uploadVideo`) PUTs with only Content-Type and
+  can't send the header without a Play release, so the composer gives it a **one-part multipart upload**
+  (`startNativeVideoUpload` / `createSinglePartUpload`) and completes it with `partCount` 1. Never hand native code a
+  `createUploadUrl` URL.
+- Private buckets (view-once, private avatars) were already protected by the server-side copy to a final key.
 
 Uploads also **start when a file is attached** rather than when Post is tapped (`prefetchUpload` / `useEagerUploads`; post and
 Muse composers): the eventual submit reuses the finished upload. A removed/replaced/abandoned attachment is deleted again via
