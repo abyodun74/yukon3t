@@ -2,15 +2,10 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { Camera, Upload, Video, X } from "lucide-react";
-import { createAdCampaign, requestAdUploadUrl } from "@/app/actions/ads";
-import {
-  uploadFileDirect,
-  captureVideoFrameFromFile,
-  resizeImageFile,
-  withRetry,
-} from "@/lib/upload-client";
+import { createAdCampaign, requestAdUpload } from "@/app/actions/ads";
+import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { AD_DURATION_OPTIONS, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
+import { AD_DURATION_OPTIONS, AD_UPLOAD_PASS_FIELD, MAX_AD_VIDEO_SECONDS, adPriceCents, formatCents } from "@/lib/ads";
 import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-protection";
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
@@ -20,9 +15,9 @@ import { useAdvertiseText } from "@/components/advertise-text";
 import { aroundPlaceholder, byCode, plural } from "@/lib/i18n/locales";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
-// Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally for the
+// Kept in sync with storage.ts's MEDIA_LIMITS["ad-video"] (a 30s clip) — duplicated locally for the
 // same reason as post-composer.tsx's MAX_VIDEO_BYTES.
-const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 const VIDEO_EXTENSION_TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
@@ -51,12 +46,12 @@ const RESULT_CODES = [
   "captcha_unavailable",
 ] as const;
 
-// This never actually calls uploadFileDirect with "kind" pointed at requestUploadUrl
-// (the authenticated one) — it goes through requestAdUploadUrl instead, passed
-// in as a same-shaped function so uploadFileDirect doesn't need an authed/public
-// branch of its own.
-async function uploadAdFile(file: File, kind: "ad-image" | "ad-video") {
-  return uploadFileDirect(file, kind, requestAdUploadUrl);
+type MintedUpload = { uploadUrl: string; publicUrl: string; key: string };
+
+// The presigned URL was already minted by requestAdUpload (which ran the bot check), so uploadFileDirect is handed a
+// "request" function that just returns it: same PUT, retry and timeout handling as every other upload.
+function putMinted(file: File, kind: "ad-image" | "ad-video", minted: MintedUpload) {
+  return uploadFileDirect(file, kind, async () => ({ error: null, ...minted }));
 }
 
 export function AdBookingForm() {
@@ -189,66 +184,88 @@ export function AdBookingForm() {
     }
     setError(null);
     startTransition(async () => {
-      let media: { mediaUrl: string; mediaThumbnailUrl?: string };
-      if (mediaType === "IMAGE") {
-        const result = await uploadAdFile(file, "ad-image");
-        if (!result.ok) {
-          setError(errorMessage(result.error));
-          return;
-        }
-        media = { mediaUrl: result.publicUrl };
-      } else {
-        const [videoResult, thumb] = await Promise.all([
-          uploadAdFile(file, "ad-video"),
-          captureVideoFrameFromFile(file).then((frame) =>
-            frame ? withRetry(() => uploadFileDirect(frame, "video-thumb")) : null,
-          ),
-        ]);
-        if (!videoResult.ok) {
-          setError(errorMessage(videoResult.error));
-          return;
-        }
-        media = { mediaUrl: videoResult.publicUrl, mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined };
-      }
+      // A video's poster frame is captured first so its size is known when the upload URLs are requested.
+      const frame = mediaType === "VIDEO" ? await captureVideoFrameFromFile(file) : null;
 
-      const fd = new FormData();
-      fd.set("companyName", companyName.trim());
-      fd.set("contactName", contactName.trim());
-      fd.set("contactEmail", contactEmail.trim());
-      fd.set("headline", headline.trim());
-      fd.set("body", body.trim());
-      fd.set("linkUrl", linkUrl.trim());
-      fd.set("mediaType", mediaType);
-      fd.set("mediaUrl", media.mediaUrl);
-      if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
-      fd.set("durationDays", String(durationDays));
-      fd.set(HONEYPOT_FIELD, honeypot);
-      fd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
+      // One bot check per attempt, spent here: requestAdUpload mints the upload URLs and hands back a pass that
+      // createAdCampaign accepts for these exact files. Read the token now, at the moment of the request.
+      const uploadFd = new FormData();
+      uploadFd.set("mediaType", mediaType);
+      uploadFd.set("contentType", file.type);
+      uploadFd.set("size", String(file.size));
+      if (frame) {
+        uploadFd.set("thumbContentType", frame.type);
+        uploadFd.set("thumbSize", String(frame.size));
+      }
+      uploadFd.set(HONEYPOT_FIELD, honeypot);
+      uploadFd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
       if (turnstileRequired) {
-        // Read now, after the uploads above — a long video upload can outlive
-        // a token, and the widget refreshes it in the background.
         const token = turnstileTokenRef.current;
         if (!token) {
           setError(heldSubmitMessage(turnstileStateRef.current, t.turnstile));
           return;
         }
-        fd.set(TURNSTILE_RESPONSE_FIELD, token);
+        uploadFd.set(TURNSTILE_RESPONSE_FIELD, token);
       }
 
       try {
-        // createAdCampaign redirects to Stripe on success (throwing Next's
-        // internal redirect signal) rather than returning — only a rejected
-        // result actually reaches here.
-        const result = await createAdCampaign(fd);
-        if (result?.error) {
-          setError(errorMessage(result.error));
+        let minted;
+        try {
+          minted = await requestAdUpload(uploadFd);
+        } catch {
+          setError(errorMessage("network"));
+          return;
         }
-      } catch {
-        setError(errorMessage("network"));
+        if (minted.error !== null) {
+          setError(errorMessage(minted.error));
+          return;
+        }
+
+        const mainKind = mediaType === "IMAGE" ? "ad-image" : "ad-video";
+        const [mainResult, thumbResult] = await Promise.all([
+          putMinted(file, mainKind, minted.main),
+          frame && minted.thumb ? putMinted(frame, "ad-image", minted.thumb) : Promise.resolve(null),
+        ]);
+        if (!mainResult.ok) {
+          setError(errorMessage(mainResult.error));
+          return;
+        }
+        const media = {
+          mediaUrl: mainResult.publicUrl,
+          mediaThumbnailUrl: thumbResult?.ok ? thumbResult.publicUrl : undefined,
+        };
+
+        const fd = new FormData();
+        fd.set("companyName", companyName.trim());
+        fd.set("contactName", contactName.trim());
+        fd.set("contactEmail", contactEmail.trim());
+        fd.set("headline", headline.trim());
+        fd.set("body", body.trim());
+        fd.set("linkUrl", linkUrl.trim());
+        fd.set("mediaType", mediaType);
+        fd.set("mediaUrl", media.mediaUrl);
+        if (media.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
+        fd.set("durationDays", String(durationDays));
+        fd.set(HONEYPOT_FIELD, honeypot);
+        fd.set(FORM_TIMESTAMP_FIELD, String(mountedAtRef.current));
+        fd.set(AD_UPLOAD_PASS_FIELD, minted.pass);
+
+        try {
+          // createAdCampaign redirects to Stripe on success (throwing Next's
+          // internal redirect signal) rather than returning — only a rejected
+          // result actually reaches here.
+          const result = await createAdCampaign(fd);
+          if (result?.error) {
+            setError(errorMessage(result.error));
+          }
+        } catch {
+          setError(errorMessage("network"));
+        }
+      } finally {
+        // requestAdUpload consumed this token whether or not the booking went
+        // through; get a fresh one for the next attempt.
+        setTurnstileReset((n) => n + 1);
       }
-      // The server consumed this token whether or not the booking went
-      // through; get a fresh one for the next attempt.
-      setTurnstileReset((n) => n + 1);
     });
   }
 

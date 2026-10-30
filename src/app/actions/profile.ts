@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getPasswordHash, isPasswordResetRequired, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { activeWidgetTokensOf } from "@/lib/ambient-access";
 import {
   onboardingSchema,
   profileUpdateSchema,
@@ -16,6 +17,7 @@ import {
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { recomputeTrustScore } from "@/lib/trust";
 import { moderateText } from "@/lib/moderation";
+import { profileTextToModerate } from "@/lib/profile-moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { updateUserEmbedding } from "@/lib/embeddings";
 import { revalidatePath } from "next/cache";
@@ -30,6 +32,7 @@ import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
+import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -51,8 +54,10 @@ export async function completeOnboarding(formData: FormData) {
 
   const { name, bio, country, languages, interests, openToIntents, birthDate } = parsed.data;
 
-  if (bio) {
-    const modResult = await moderateText(bio);
+  // The display name is shown everywhere (and in pushes), so a new one goes through the same gate as the bio.
+  const onboardingText = profileTextToModerate(name, user.name, bio);
+  if (onboardingText) {
+    const modResult = await moderateText(onboardingText);
     if (!modResult.allowed) {
       redirect("/onboarding?error=moderation");
     }
@@ -104,8 +109,9 @@ export async function updateProfile(formData: FormData) {
 
   const { name, bio, country, languages, interests, openToIntents } = parsed.data;
 
-  if (bio) {
-    const modResult = await moderateText(bio);
+  const profileText = profileTextToModerate(name, user.name, bio);
+  if (profileText) {
+    const modResult = await moderateText(profileText);
     if (!modResult.allowed) {
       redirect(`/u/${user.id}?error=moderation`);
     }
@@ -306,6 +312,8 @@ export async function setPassword(formData: FormData) {
     // instant the real owner changes their password.
     data: { username, passwordHash, passwordResetRequiredAt: null, sessionInvalidatedAt: new Date() },
   });
+  // The ambient widget's bearer token isn't a session either: end it with the rest.
+  await prisma.ambientWidgetToken.updateMany(activeWidgetTokensOf(user.id));
 
   revalidatePath("/settings");
   redirect("/settings?saved=1");
@@ -342,6 +350,7 @@ export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
       sessionInvalidatedAt: new Date(),
     },
   });
+  await prisma.ambientWidgetToken.updateMany(activeWidgetTokensOf(user.id));
   await trustDevice(user.id, result.challenge.deviceId, await getDeviceLabel());
 
   revalidatePath("/settings");
@@ -500,7 +509,10 @@ export async function deactivateAccount() {
 export async function deleteMyAccount() {
   const user = await requireUser();
   // Hard delete — never paywalled, never held hostage. Cascades handle
-  // owned rows via the Prisma schema's onDelete: Cascade relations.
+  // owned rows via the Prisma schema's onDelete: Cascade relations; the
+  // files behind them are collected first and removed after (account-media.ts).
+  const media = await collectAccountMedia(user.id, user.avatarUrl);
   await prisma.user.delete({ where: { id: user.id } });
+  await deleteAccountMedia(user.id, media);
   await signOut({ redirectTo: "/" });
 }

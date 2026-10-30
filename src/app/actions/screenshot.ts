@@ -11,6 +11,24 @@ import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-cha
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { hiddenPush } from "@/lib/push-text";
 import { storyHref } from "@/lib/notification-href";
+import { canViewPost } from "@/lib/post-visibility";
+
+async function canSeeStoryForScreenshot(viewerId: string, authorId: string, storyId: string) {
+  const [connection, view] = await Promise.all([
+    prisma.connection.findFirst({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { requesterId: viewerId, targetId: authorId },
+          { requesterId: authorId, targetId: viewerId },
+        ],
+      },
+      select: { id: true },
+    }),
+    prisma.storyView.findUnique({ where: { storyId_viewerId: { storyId, viewerId } }, select: { id: true } }),
+  ]);
+  return Boolean(connection || view);
+}
 
 type ScreenshotTarget =
   | { type: "post"; id: string }
@@ -82,14 +100,24 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
 
   switch (target.type) {
     case "post": {
+      // Only a post the caller can actually see (audit L4): otherwise any id made a "took a screenshot" push.
+      if (!(await canViewPost(target.id, user.id))) return { error: "not_found" };
       const post = await prisma.post.findUnique({ where: { id: target.id }, select: { authorId: true } });
       if (!post) return { error: "not_found" };
       await notifyOne(post.authorId, user.id, user.name, { postId: target.id }, `/post/${target.id}`);
       return { error: null };
     }
     case "story": {
-      const story = await prisma.story.findUnique({ where: { id: target.id }, select: { authorId: true } });
-      if (!story) return { error: "not_found" };
+      const story = await prisma.story.findUnique({
+        where: { id: target.id },
+        select: { authorId: true, expiresAt: true },
+      });
+      if (!story || story.expiresAt < new Date()) return { error: "not_found" };
+      // Only a story the caller could be looking at: one of a connection's (the tray), or one they have opened
+      // (a story shared into their chat records a view when it is opened).
+      if (story.authorId !== user.id && !(await canSeeStoryForScreenshot(user.id, story.authorId, target.id))) {
+        return { error: "not_found" };
+      }
       // The owner's story itself (the viewer opens at it), the same place the bell row leads.
       await notifyOne(story.authorId, user.id, user.name, { storyId: target.id }, storyHref(story.authorId, target.id));
       return { error: null };
@@ -118,8 +146,15 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
       return { error: null };
     }
     case "profile": {
-      const owner = await prisma.user.findUnique({ where: { id: target.id }, select: { id: true } });
-      if (!owner) return { error: "not_found" };
+      // Only a profile the caller can open: the same rules as /u/[userId] (ACTIVE, named, not the guest-preview
+      // identity, not a site admin's); blocks are checked in notifyOne.
+      const owner = await prisma.user.findUnique({
+        where: { id: target.id },
+        select: { id: true, status: true, name: true, isGuestPreview: true, isAdmin: true },
+      });
+      if (!owner || owner.status !== "ACTIVE" || !owner.name || owner.isGuestPreview || owner.isAdmin) {
+        return { error: "not_found" };
+      }
       await notifyOne(target.id, user.id, user.name, {}, `/u/${user.id}`);
       return { error: null };
     }

@@ -5,7 +5,7 @@ export const profile: typeof profileEn = {
   page: {
     updated: "Profil mis à jour.",
     errors: {
-      moderation: "Votre bio ne respecte pas nos règles de contenu.",
+      moderation: "Votre nom ou votre bio ne respecte pas nos règles de contenu.",
       other: "Veuillez vérifier les informations saisies.",
     },
     onlineNow: "En ligne",

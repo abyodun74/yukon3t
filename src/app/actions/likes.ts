@@ -150,7 +150,12 @@ const LIKERS_LIMIT = 100;
  * pass to toggleLike (see interactionTargetId in post-card.tsx).
  */
 export async function getPostLikers(postId: string) {
-  await requireVerifiedViewer();
+  const viewer = await requireVerifiedViewer();
+  // Only for a post the viewer can see: a Friends-only, Private or private-Circle post's likers used to be listed to
+  // anyone (guests included) who had its id.
+  if (typeof postId !== "string" || !(await canViewPost(postId, viewer.id))) {
+    return { likers: [] };
+  }
 
   const likes = await prisma.like.findMany({
     where: { postId },

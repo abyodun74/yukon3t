@@ -62,6 +62,12 @@ export async function startLiveStream(formData: FormData) {
     return { error: "invalid" as const };
   }
   const { title, circleId, targetUserId } = parsed.data;
+  // The title is shown to everyone on Home's "Live now" (and in invites): same text gate as posts, refused if flagged
+  // (a stream has no hidden/held state to put it in).
+  const titleCheck = await moderateText(title);
+  if (!titleCheck.allowed) {
+    return { error: "moderation" as const };
+  }
 
   const existing = await prisma.liveStream.findFirst({
     where: { hostId: user.id, status: "LIVE" },

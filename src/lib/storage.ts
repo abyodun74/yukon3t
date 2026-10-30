@@ -118,7 +118,9 @@ export const MEDIA_LIMITS: Record<UploadKind, number> = {
   "ambient-image": 25 * 1024 * 1024,
   "story-video": MAX_VIDEO_BYTES,
   "ad-image": 25 * 1024 * 1024,
-  "ad-video": MAX_VIDEO_BYTES,
+  // An ad clip is at most MAX_AD_VIDEO_SECONDS (30s): 250MB fits even high-bitrate 4K. This kind is minted for anyone
+  // who passes the bot check (no account), so it gets a real cap, not the 2GB every signed-in video kind shares.
+  "ad-video": 250 * 1024 * 1024,
   "announcement-image": 25 * 1024 * 1024,
   "announcement-video": MAX_VIDEO_BYTES,
   "collab-material": 25 * 1024 * 1024,
@@ -241,10 +243,13 @@ export async function createUploadUrl({
   kind,
   contentType,
   userId,
+  expiresInSeconds,
 }: {
   kind: UploadKind;
   contentType: string;
   userId: string;
+  /** Overrides the default lifetime below (the public ad flow asks for a shorter one). */
+  expiresInSeconds?: number;
 }) {
   if (!isStorageConfigured()) {
     throw new Error("not_configured");
@@ -264,7 +269,7 @@ export async function createUploadUrl({
   // upload-client.ts, which all reuse this same URL rather than requesting
   // a fresh one) don't start failing partway through on a slow connection.
   // Non-video kinds stay at 5 minutes.
-  const expiresIn = VIDEO_KINDS.has(kind) ? 21_600 : 300;
+  const expiresIn = expiresInSeconds ?? (VIDEO_KINDS.has(kind) ? 21_600 : 300);
   const uploadUrl = await getSignedUrl(
     client(),
     new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),

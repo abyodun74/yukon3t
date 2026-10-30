@@ -29,19 +29,27 @@ export async function editPost(postId: string, formData: FormData) {
   if (post.authorId !== user.id) {
     return { error: "forbidden" as const };
   }
+  // Only a live post can be edited. A held (FLAGGED: media screen, Hive, long video) or REMOVED post used to be
+  // re-screened on its caption alone and set PUBLISHED, which made held media public and took it out of the admin
+  // queue and the 14-day hold sweep. Same rule as editComment.
+  if (post.moderationStatus !== "PUBLISHED") {
+    return { error: "under_review" as const };
+  }
 
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
-  // select, not the default full row — post-card.tsx's saveEdit only ever
-  // reads result.post.content/editedAt; the rest (videoStreamUid,
-  // videoLongReviewClaimedAt, sharedPostId, etc.) is internal pipeline
-  // state with no reason to reach the client.
-  const updated = await prisma.post.update({
-    where: { id: postId },
-    data: { content, moderationStatus, editedAt: new Date() },
-    select: { content: true, editedAt: true },
+  // Guarded on PUBLISHED: a hold that lands between the read above and this write (the Hive cron, an admin) must
+  // stay a hold. Only content/editedAt go back — post-card.tsx's saveEdit reads nothing else.
+  const editedAt = new Date();
+  const written = await prisma.post.updateMany({
+    where: { id: postId, authorId: user.id, moderationStatus: "PUBLISHED" },
+    data: { content, moderationStatus, editedAt },
   });
+  if (written.count === 0) {
+    return { error: "under_review" as const };
+  }
+  const updated = { content, editedAt };
   // Translations of the old wording are never served again (keyed by a hash of the text); drop them now too.
   await deleteTranslationsOf("post", postId);
 

@@ -5,7 +5,7 @@ export const profile: typeof profileEn = {
   page: {
     updated: "Perfil atualizado.",
     errors: {
-      moderation: "Sua bio não está de acordo com nossas diretrizes de conteúdo.",
+      moderation: "Seu nome ou sua bio não está de acordo com nossas diretrizes de conteúdo.",
       other: "Confira os dados informados.",
     },
     onlineNow: "Online agora",

@@ -5,7 +5,7 @@ export const profile: typeof profileEn = {
   page: {
     updated: "تم تحديث الملف الشخصي.",
     errors: {
-      moderation: "نبذتك لا تتوافق مع إرشادات المحتوى لدينا.",
+      moderation: "اسمك أو نبذتك لا يتوافقان مع إرشادات المحتوى لدينا.",
       other: "يُرجى التحقق من البيانات التي أدخلتها.",
     },
     onlineNow: "متصل الآن",

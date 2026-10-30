@@ -3,6 +3,7 @@
 import type { DailyCall } from "@daily-co/daily-js";
 import { uploadFileDirect } from "@/lib/upload-client";
 import { sendMessage } from "@/app/actions/messages";
+import { isCollabMaterialContentType, isCollabMaterialUrl } from "@/lib/collab-material-url";
 
 export type SharedMaterial = { url: string; name: string; contentType: string };
 
@@ -46,11 +47,18 @@ export async function shareCollabMaterial({
   return { ok: true, material };
 }
 
-export function collabMaterialFromAppMessage(data: unknown): SharedMaterial | null {
+/**
+ * A shared material from another participant's app-message, or null. Any participant can send any payload on that
+ * channel, so only a file shareCollabMaterial could have produced is accepted: our own bucket's `collab-material/`
+ * objects (collab-material-url.ts), an allowed content type and a sane name (audit L6).
+ */
+export function collabMaterialFromAppMessage(data: unknown, mediaBaseUrl: string | null): SharedMaterial | null {
   if (!data || typeof data !== "object") return null;
   const msg = data as { type?: unknown; material?: unknown };
   if (msg.type !== COLLAB_MATERIAL_MESSAGE_TYPE || !msg.material || typeof msg.material !== "object") return null;
   const { url, name, contentType } = msg.material as Partial<SharedMaterial>;
   if (typeof url !== "string" || typeof name !== "string" || typeof contentType !== "string") return null;
+  if (!isCollabMaterialUrl(url, mediaBaseUrl) || !isCollabMaterialContentType(contentType)) return null;
+  if (name.length === 0 || name.length > 255) return null;
   return { url, name, contentType };
 }

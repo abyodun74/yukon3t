@@ -147,6 +147,7 @@ export const shell: typeof shellEn = {
     },
     postErrors: {
       moderation: "Isso não está de acordo com nossas diretrizes de conteúdo e não foi publicado.",
+      frame_required: "Não foi possível ler um quadro de pré-visualização desse vídeo, por isso ele não foi compartilhado. Tente outro vídeo ou salve-o primeiro como MP4.",
       upload_check_failed: "Não conseguimos confirmar seu arquivo por um problema do nosso lado. Não há nada de errado com sua publicação — tente novamente em instantes.",
       too_large: "Esse arquivo é grande demais.",
       rate_limited: "Você está publicando rápido demais. Vá um pouco mais devagar.",

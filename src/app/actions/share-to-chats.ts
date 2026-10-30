@@ -6,6 +6,7 @@ import { messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend } from "@/lib/e2ee/secret-chat";
 import { isGiphyUrl } from "@/lib/giphy";
@@ -77,6 +78,15 @@ export async function sendToConversations(formData: FormData) {
     if (!ok) {
       await cleanupUploads();
       return { error: "too_large" as const };
+    }
+    // A video's still frame: required, the sender's own upload, size-capped (see video-thumbnail-check.ts).
+    if (mediaType === "VIDEO") {
+      const thumb = await checkVideoThumbnail(mediaThumbnailUrl, user.id);
+      if (thumb === "required") return { error: "frame_required" as const };
+      if (thumb !== "ok") {
+        await cleanupUploads();
+        return { error: thumb === "too_large" ? ("too_large" as const) : ("invalid" as const) };
+      }
     }
   } else if (mediaType === "GIF") {
     if (!mediaUrl || !isGiphyUrl(mediaUrl)) {

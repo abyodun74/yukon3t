@@ -10,6 +10,7 @@ import { storySchema, messageSchema, shareToChatsSchema } from "@/lib/validation
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
 import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
+import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -187,6 +188,15 @@ export async function createStory(formData: FormData) {
   if (!sizeOk) {
     await cleanupUploads();
     return { error: "too_large" as const };
+  }
+  // A video story's still frame: required, the author's own upload, size-capped (see video-thumbnail-check.ts).
+  if (mediaType === "VIDEO") {
+    const thumb = await checkVideoThumbnail(mediaThumbnailUrl, user.id);
+    if (thumb === "required") return { error: "frame_required" as const };
+    if (thumb !== "ok") {
+      await cleanupUploads();
+      return { error: thumb === "too_large" ? ("too_large" as const) : ("invalid" as const) };
+    }
   }
 
   const modResult = await moderateMedia({

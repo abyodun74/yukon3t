@@ -297,6 +297,7 @@ export const messages: typeof messagesEn = {
       network: serverUnreachable,
       rateLimited: "Ve un poco más despacio.",
       blocked: "No se pudo entregar este mensaje.",
+      videoFrameRequired: "No pudimos leer un fotograma de vista previa de ese video, así que no se envió. Prueba con otro video o guárdalo primero como MP4.",
       hiddenLocked: "Ingresa tu PIN para seguir chateando.",
       modeChanged: "La configuración de este chat acaba de cambiar. Toca enviar de nuevo.",
       edit: "No pudimos guardar los cambios.",

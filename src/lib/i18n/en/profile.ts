@@ -9,7 +9,7 @@ export const profileEn = {
   page: {
     updated: "Profile updated.",
     errors: {
-      moderation: "Your bio didn't pass our content guidelines.",
+      moderation: "Your name or bio didn't pass our content guidelines.",
       other: "Please check your inputs.",
     },
     onlineNow: "Online now",

@@ -154,6 +154,7 @@ export const shellEn = {
     },
     postErrors: {
       moderation: "That didn't pass our content guidelines and wasn't posted.",
+      frame_required: "Couldn't read a preview frame from that video, so it wasn't shared. Try another video, or save it as MP4 first.",
       upload_check_failed: "We couldn't confirm your upload because of a problem on our side. Nothing is wrong with your post — please try again in a moment.",
       too_large: "That file is too large.",
       rate_limited: "You're posting too fast — slow down a little.",

@@ -15,3 +15,6 @@ export function adPriceCents(durationDays: number) {
 export function formatCents(cents: number, currency: string = AD_CURRENCY) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
+
+/** The form field carrying requestAdUpload's pass to createAdCampaign (see src/lib/ad-upload-pass.ts). */
+export const AD_UPLOAD_PASS_FIELD = "adUploadPass";

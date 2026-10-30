@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type TransactionClient } from "@/lib/prisma";
-import { deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { countPublishedInThread } from "@/lib/comment-count";
 
 export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
@@ -9,7 +9,7 @@ export type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "CO
  * Removes the underlying content behind a report or a flagged-content review,
  * regardless of which of the five content types it is. Returns the author's
  * user id (so the caller can write an audit trail entry against them in the
- * same transaction) plus any R2 keys to clean up afterward, or null when
+ * same transaction) plus the media URLs to clean up afterward, or null when
  * there's nothing to remove (a USER-targeted report, or content that's
  * already gone).
  *
@@ -25,7 +25,7 @@ export async function removeModeratedContent(
   targetType: ModeratableTargetType,
   targetId: string,
   tx: TransactionClient = prisma,
-): Promise<{ authorId: string; mediaKeysToDelete: string[] } | null> {
+): Promise<{ authorId: string; mediaUrlsToDelete: string[] } | null> {
   switch (targetType) {
     case "POST": {
       const post = await tx.post.findUnique({ where: { id: targetId } });
@@ -45,21 +45,18 @@ export async function removeModeratedContent(
       }
       await tx.post.delete({ where: { id: targetId } });
 
-      const mediaUrls = [
+      const mediaUrlsToDelete = [
         ...post.mediaUrls,
         ...siblings.flatMap((s) => s.mediaUrls),
         ...(post.videoUrl ? [post.videoUrl] : []),
         ...(post.videoThumbnailUrl ? [post.videoThumbnailUrl] : []),
       ];
-      const mediaKeysToDelete = mediaUrls
-        .map((url) => keyFromPublicUrl(url))
-        .filter((key): key is string => Boolean(key));
 
       revalidatePath("/circles", "layout");
       revalidatePath("/home");
       revalidatePath(`/u/${post.authorId}`);
       revalidatePath(`/post/${targetId}`);
-      return { authorId: post.authorId, mediaKeysToDelete };
+      return { authorId: post.authorId, mediaUrlsToDelete };
     }
     case "COMMENT": {
       const comment = await tx.comment.findUnique({ where: { id: targetId } });
@@ -80,17 +77,14 @@ export async function removeModeratedContent(
       // are real uploads to this app's bucket just like a post's video —
       // left uncleaned, an automated removal (this function's actual
       // caller) would leak them forever with no user action to catch it.
-      const mediaUrls = [
+      const mediaUrlsToDelete = [
         comment.audioUrl,
         comment.videoUrl,
         comment.videoThumbnailUrl,
       ].filter((url): url is string => Boolean(url));
-      const mediaKeysToDelete = mediaUrls
-        .map((url) => keyFromPublicUrl(url))
-        .filter((key): key is string => Boolean(key));
 
       revalidatePath(`/post/${comment.postId}`);
-      return { authorId: comment.authorId, mediaKeysToDelete };
+      return { authorId: comment.authorId, mediaUrlsToDelete };
     }
     case "MESSAGE": {
       const message = await tx.message.findUnique({ where: { id: targetId } });
@@ -100,18 +94,19 @@ export async function removeModeratedContent(
       // (see messages.ts's `moderationStatus: { not: "REMOVED" }` filter) — a
       // conversation's history shouldn't vanish, just the offending message.
       // A voice/video note's file still needs cleaning up from storage
-      // though, same as deleteMessageForEveryone.
+      // though, same as deleteMessageForEveryone. The row keeps existing, so its
+      // media columns are cleared: otherwise it would still count as a reference
+      // and the reference-checked cleanup below would never delete the file.
       await tx.message.update({
         where: { id: targetId },
-        data: { moderationStatus: "REMOVED" },
+        data: { moderationStatus: "REMOVED", mediaUrl: null, mediaThumbnailUrl: null },
       });
-      const mediaKeysToDelete = [message.mediaUrl, message.mediaThumbnailUrl]
-        .filter((url): url is string => Boolean(url))
-        .map((url) => keyFromPublicUrl(url))
-        .filter((key): key is string => Boolean(key));
+      const mediaUrlsToDelete = [message.mediaUrl, message.mediaThumbnailUrl].filter(
+        (url): url is string => Boolean(url),
+      );
 
       revalidatePath(`/messages/${message.conversationId}`);
-      return { authorId: message.senderId, mediaKeysToDelete };
+      return { authorId: message.senderId, mediaUrlsToDelete };
     }
     case "CIRCLE": {
       const circle = await tx.circle.findUnique({ where: { id: targetId } });
@@ -121,7 +116,7 @@ export async function removeModeratedContent(
 
       revalidatePath("/circles");
       revalidatePath("/admin/circles");
-      return { authorId: circle.createdById, mediaKeysToDelete: [] };
+      return { authorId: circle.createdById, mediaUrlsToDelete: [] };
     }
     case "COLLAB_POST": {
       const collabPost = await tx.collabBoardPost.findUnique({ where: { id: targetId } });
@@ -135,7 +130,7 @@ export async function removeModeratedContent(
       });
 
       revalidatePath("/collab");
-      return { authorId: collabPost.authorId, mediaKeysToDelete: [] };
+      return { authorId: collabPost.authorId, mediaUrlsToDelete: [] };
     }
     case "MUSE": {
       const muse = await tx.muse.findUnique({ where: { id: targetId } });
@@ -143,16 +138,13 @@ export async function removeModeratedContent(
 
       await tx.muse.delete({ where: { id: targetId } });
 
-      const mediaUrls = [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl].filter(
+      const mediaUrlsToDelete = [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl].filter(
         (url): url is string => Boolean(url),
       );
-      const mediaKeysToDelete = mediaUrls
-        .map((url) => keyFromPublicUrl(url))
-        .filter((key): key is string => Boolean(key));
 
       revalidatePath("/muse");
       revalidatePath(`/u/${muse.authorId}`);
-      return { authorId: muse.authorId, mediaKeysToDelete };
+      return { authorId: muse.authorId, mediaUrlsToDelete };
     }
     case "USER":
     default:
@@ -160,7 +152,12 @@ export async function removeModeratedContent(
   }
 }
 
-/** Runs the R2 cleanup deferred by removeModeratedContent — call only after the transaction that used it has committed. */
-export async function cleanUpModeratedMedia(mediaKeysToDelete: string[]) {
-  await Promise.all(mediaKeysToDelete.map((key) => deleteObject(key)));
+/**
+ * Runs the R2 cleanup deferred by removeModeratedContent — call only after the transaction that used it has committed.
+ * Only files nothing else still uses are deleted (deleteMediaIfUnreferenced): a removed reshare (a post shared to a
+ * Story or Muse, a forwarded message) points at the original's file, and removing the copy used to delete the
+ * original author's media too (audit M2).
+ */
+export async function cleanUpModeratedMedia(mediaUrlsToDelete: string[]) {
+  await deleteMediaIfUnreferenced(mediaUrlsToDelete);
 }

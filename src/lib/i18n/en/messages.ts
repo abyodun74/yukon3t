@@ -310,6 +310,7 @@ export const messagesEn = {
       network: serverUnreachable,
       rateLimited: "Slow down a little.",
       blocked: "This message couldn't be delivered.",
+      videoFrameRequired: "Couldn't read a preview frame from that video, so it wasn't sent. Try another video, or save it as MP4 first.",
       hiddenLocked: "Enter your PIN to keep chatting.",
       modeChanged: "This chat's settings just changed - tap send again.",
       edit: "Couldn't save that edit.",

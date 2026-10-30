@@ -37,7 +37,9 @@ import {
   deleteObject,
   deleteOwnedObject,
   keyFromPublicUrl,
+  publicUrlForKey,
 } from "@/lib/storage";
+import { isCircleCoverKey, isOwnedUploadKey } from "@/lib/media-keys";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { normalizeLinkUrl } from "@/lib/link-url";
@@ -921,19 +923,24 @@ export async function removeCircleMember(circleId: string, targetUserId: string)
   return { error: null };
 }
 
-/** Owner or co-admin: sets/replaces the Circle's cover picture. */
+/**
+ * Owner or co-admin: sets/replaces the Circle's cover picture. Same rules as confirmAvatarUpload: the key must be the
+ * caller's own `circle-cover/` upload and the stored URL is derived from it here, never taken from the client (a
+ * client-supplied URL used to be stored as is, so a victim's media URL could be set as a cover, then deleted from R2
+ * on the next cover change). The previous cover is deleted only if it is a `circle-cover/` object no other Circle uses.
+ */
 export async function confirmCircleCoverUpload(formData: FormData) {
   const user = await requireVerifiedUser();
 
   const parsed = confirmCircleCoverUploadSchema.safeParse({
     circleId: formData.get("circleId"),
     key: formData.get("key"),
-    publicUrl: formData.get("publicUrl"),
   });
-  if (!parsed.success) {
+  if (!parsed.success || !isOwnedUploadKey(parsed.data.key, "circle-cover", user.id)) {
     return { error: "invalid" as const };
   }
-  const { circleId, key, publicUrl } = parsed.data;
+  const { circleId, key } = parsed.data;
+  const publicUrl = publicUrlForKey(key);
 
   const circle = await prisma.circle.findUnique({ where: { id: circleId } });
   if (!circle) {
@@ -955,15 +962,19 @@ export async function confirmCircleCoverUpload(formData: FormData) {
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
 
-  const previousKey = circle.coverImageUrl ? keyFromPublicUrl(circle.coverImageUrl) : null;
+  const previousUrl = circle.coverImageUrl;
 
   await prisma.circle.update({
     where: { id: circleId },
     data: { coverImageUrl: publicUrl },
   });
 
-  if (previousKey) {
-    await deleteObject(previousKey);
+  const previousKey = previousUrl ? keyFromPublicUrl(previousUrl) : null;
+  if (previousUrl && previousKey && isCircleCoverKey(previousKey)) {
+    const stillUsed = await prisma.circle.count({ where: { coverImageUrl: previousUrl } });
+    if (stillUsed === 0) {
+      await deleteObject(previousKey);
+    }
   }
 
   revalidatePath(`/circles/${circle.slug}`);

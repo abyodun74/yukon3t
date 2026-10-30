@@ -433,7 +433,8 @@ const sections: Section[] = [
             but hidden from everyone except you, and our moderators review
             it: they either publish it as you posted it or remove it. You
             see a note that it&apos;s waiting for review, and you don&apos;t
-            need to upload it again. A held post nobody has reviewed within
+            need to upload it again. Its caption can&apos;t be edited while
+            it&apos;s waiting for review. A held post nobody has reviewed within
             14 days is deleted, together with its photos or video. Uploads
             in the most serious categories (such as sexual content involving
             minors) are rejected and deleted straight away and never kept
@@ -468,7 +469,10 @@ const sections: Section[] = [
             branded back to where it came from. In &ldquo;Send to a
             friend&rdquo; you can tick up to 5 chats and send to all of them
             at once; the same works when sharing a Muse, a Story, or
-            something shared in from another app.
+            something shared in from another app. The share icon only shows
+            on posts shared with Everyone: a Friends-only or Private post
+            can&apos;t be reposted, added to someone else&apos;s Story, or
+            shared to Muse or a Circle.
           </>
         ),
       },
@@ -1100,7 +1104,10 @@ const sections: Section[] = [
             Circle — never anyone else, and never your public profile, Feed,
             or Discover. Adding someone to your Inner Circle is one-directional,
             like subscribing: they don&apos;t need to add you back for you to
-            see theirs.
+            see theirs. They also have to still be connected with you: if
+            either of you blocks the other, or you&apos;re no longer
+            connected, your moments stop showing for them (and blocking
+            removes each of you from the other&apos;s Inner Circle).
           </>
         ),
       },

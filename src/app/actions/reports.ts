@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireAdmin } from "@/lib/auth-guards";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { activeWidgetTokensOf } from "@/lib/ambient-access";
 import { reportSchema, moderationActionSchema, flaggedContentActionSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recomputeTrustScore } from "@/lib/trust";
@@ -96,7 +97,7 @@ export async function resolveReport(formData: FormData) {
   // crash partway through must never leave a user banned (or content gone)
   // with no audit record, or a report marked resolved with the enforcement
   // action it describes never having happened.
-  let removedMediaKeys: string[] = [];
+  let removedMediaUrls: string[] = [];
   let touchedUserId: string | null = null;
 
   await prisma.$transaction(async (tx) => {
@@ -126,7 +127,7 @@ export async function resolveReport(formData: FormData) {
             performedBy: admin.id,
           },
         });
-        removedMediaKeys = removed.mediaKeysToDelete;
+        removedMediaUrls = removed.mediaUrlsToDelete;
         touchedUserId = removed.authorId;
       }
     } else if (report.reportedUserId) {
@@ -147,14 +148,17 @@ export async function resolveReport(formData: FormData) {
             suspensionReason: note,
           },
         });
+        // The ambient widget route also refuses a non-ACTIVE owner; revoking keeps a lifted suspension from
+        // silently reviving an old token.
+        await tx.ambientWidgetToken.updateMany(activeWidgetTokensOf(report.reportedUserId));
       }
 
       touchedUserId = report.reportedUserId;
     }
   });
 
-  if (removedMediaKeys.length > 0) {
-    await cleanUpModeratedMedia(removedMediaKeys);
+  if (removedMediaUrls.length > 0) {
+    await cleanUpModeratedMedia(removedMediaUrls);
   }
   if (touchedUserId) {
     await recomputeTrustScore(touchedUserId);
@@ -352,7 +356,7 @@ export async function removeFlaggedContent(formData: FormData) {
   });
 
   if (removed) {
-    await cleanUpModeratedMedia(removed.mediaKeysToDelete);
+    await cleanUpModeratedMedia(removed.mediaUrlsToDelete);
     await recomputeTrustScore(removed.authorId);
   }
 

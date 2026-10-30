@@ -245,7 +245,7 @@ export const accountEn = {
       "Every field below is required except Bio, which is optional. Your account won't be created until the rest are filled in.",
     errors: {
       invalid: "Please fill in all required fields.",
-      moderation: "Your bio didn't pass our content guidelines. Please revise it.",
+      moderation: "Your name or bio didn't pass our content guidelines. Please revise it.",
       underage: "You must be at least {age} years old to use YuKon3t.",
     },
     name: "Display name",

@@ -62,7 +62,7 @@ export const advertiseEn = {
       imageType: "Use a JPEG, PNG, or WebP image.",
       imageTooLarge: "Images must be 25MB or smaller.",
       videoType: "Use an MP4, MOV or WebM video.",
-      videoTooLarge: "Video must be 2GB or smaller.",
+      videoTooLarge: "Video must be 250MB or smaller.",
       videoTooLong: "one: Videos must be # second or shorter. | other: Videos must be # seconds or shorter.",
       details: "Fill in your company and contact details.",
       adFields: "Fill in your ad's headline, copy, and link.",

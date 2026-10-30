@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
-import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { currentInnerCircleMemberIds } from "@/lib/ambient-access";
 import { avatarUrlForExternalClient } from "@/lib/avatar-storage";
 
 /**
@@ -40,9 +40,11 @@ export async function GET(request: Request) {
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const widgetToken = await prisma.ambientWidgetToken.findUnique({
     where: { tokenHash },
-    select: { id: true, userId: true, revokedAt: true },
+    select: { id: true, userId: true, revokedAt: true, user: { select: { status: true } } },
   });
-  if (!widgetToken || widgetToken.revokedAt) {
+  // A banned or suspended owner's token stops working (it is also revoked when that happens, see reports.ts), as do
+  // tokens revoked by a password reset or change.
+  if (!widgetToken || widgetToken.revokedAt || widgetToken.user.status !== "ACTIVE") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -53,12 +55,9 @@ export async function GET(request: Request) {
     .update({ where: { id: widgetToken.id }, data: { lastUsedAt: new Date() } })
     .catch(() => {});
 
-  // This feed is meant for a lock-screen widget: someone whose chat the owner has hidden is never shown on it.
-  const members = await prisma.innerCircleMember.findMany({
-    where: { ownerId: widgetToken.userId, memberId: { notIn: await getHiddenPeerIds(widgetToken.userId) } },
-    select: { memberId: true },
-  });
-  const memberIds = members.map((m) => m.memberId);
+  // Re-checked on every poll: still connected, no block either way, ACTIVE, and (this is a lock-screen surface) not
+  // someone whose chat the owner has hidden. See currentInnerCircleMemberIds.
+  const memberIds = await currentInnerCircleMemberIds(widgetToken.userId);
   if (memberIds.length === 0) {
     return NextResponse.json({ moments: [] });
   }

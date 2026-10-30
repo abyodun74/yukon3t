@@ -11,6 +11,7 @@ import { moderateImage } from "@/lib/moderation";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { MEDIA_LIMITS, verifyUploadedSize, deleteOwnedObject, keyFromPublicUrl } from "@/lib/storage";
 import { captureError } from "@/lib/error-tracking";
+import { currentInnerCircleMemberIds } from "@/lib/ambient-access";
 
 // "A handful" — small and deliberate, not a second feed. Enforced here, not
 // just implied by the picker UI, so it stays true even against a scripted
@@ -111,14 +112,14 @@ export async function removeFromInnerCircle(memberId: string) {
   return { error: null };
 }
 
-/** The in-app preview of what an eventual widget would show: active moments from everyone in the caller's inner circle, newest first. */
+/**
+ * The in-app preview of what an eventual widget would show: active moments from everyone in the caller's inner circle,
+ * newest first. Membership is re-checked on every read (still connected, no block either way, ACTIVE, not a hidden-chat
+ * peer): see currentInnerCircleMemberIds.
+ */
 export async function getAmbientFeed() {
   const user = await requireVerifiedUser();
-  const members = await prisma.innerCircleMember.findMany({
-    where: { ownerId: user.id, memberId: { notIn: await getHiddenPeerIds(user.id) } },
-    select: { memberId: true },
-  });
-  const memberIds = members.map((m) => m.memberId);
+  const memberIds = await currentInnerCircleMemberIds(user.id);
   if (memberIds.length === 0) return [];
 
   return prisma.ambientMoment.findMany({

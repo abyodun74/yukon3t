@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guards";
-import { adBookingSchema, requestUploadSchema } from "@/lib/validations";
+import { adBookingSchema, adUploadRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { isBotSubmission } from "@/lib/bot-protection";
@@ -18,39 +18,92 @@ import {
   keyFromPublicUrl,
   createUploadUrl,
   isStorageConfigured,
+  validateContentType,
 } from "@/lib/storage";
-import { adPriceCents, AD_CURRENCY } from "@/lib/ads";
+import { recordUploads } from "@/lib/upload-records";
+import { isOwnedUploadKey } from "@/lib/media-keys";
+import { encodeAdUploadPass, verifyAdUploadPass } from "@/lib/ad-upload-pass";
+import { adPriceCents, AD_CURRENCY, AD_UPLOAD_PASS_FIELD } from "@/lib/ads";
 import { isPaymentsConfigured, createAdCheckoutSession, refundAdPayment } from "@/lib/stripe";
 
-/** Public, unauthenticated — mirrors requestUploadUrl but IP-rate-limited instead of user-keyed, and restricted to the two ad- upload kinds. */
-export async function requestAdUploadUrl(formData: FormData) {
+/** How long the public ad flow's presigned PUTs live: a 25MB photo or a 30s (max 250MB) clip, not a 2GB post video. */
+const AD_IMAGE_UPLOAD_URL_TTL_SECONDS = 300;
+const AD_VIDEO_UPLOAD_URL_TTL_SECONDS = 60 * 60;
+/** Every ad upload is minted under this owner segment (there is no account), see createAdCampaign's checks. */
+const AD_UPLOAD_OWNER = "anonymous";
+
+/**
+ * Public, unauthenticated: presigned PUTs for one booking's creative (and a video's poster frame). It used to be
+ * open to anyone with only an IP limit (audit H4), so now it is the step that runs the bot check (honeypot + Turnstile
+ * via passesBotGate), checks the declared type and size against the ad kinds' caps before minting anything, keeps the
+ * URLs short-lived, and records the uploads so sweep-abandoned-uploads removes any that never become a booking. The
+ * returned pass lets createAdCampaign skip a second Turnstile tap for exactly these keys (src/lib/ad-upload-pass.ts).
+ */
+export async function requestAdUpload(formData: FormData) {
+  if (isBotSubmission(formData)) {
+    return { error: "invalid" as const };
+  }
   if (!isStorageConfigured()) {
     return { error: "not_configured" as const };
   }
 
   const ip = await getClientIp();
+  const botCheck = await passesBotGate(formData, ip, "requestAdUpload");
+  if (!botCheck.ok) {
+    return { error: captchaErrorCode(botCheck.reason) };
+  }
   const allowed = await checkRateLimit("adUpload", ip);
   if (!allowed) {
     return { error: "rate_limited" as const };
   }
 
-  const parsed = requestUploadSchema.safeParse({
-    kind: formData.get("kind"),
+  const parsed = adUploadRequestSchema.safeParse({
+    mediaType: formData.get("mediaType"),
     contentType: formData.get("contentType"),
+    size: formData.get("size"),
+    thumbContentType: formData.get("thumbContentType") || undefined,
+    thumbSize: formData.get("thumbSize") || undefined,
   });
-  if (!parsed.success || (parsed.data.kind !== "ad-image" && parsed.data.kind !== "ad-video")) {
+  if (!parsed.success) {
     return { error: "invalid" as const };
+  }
+  const { mediaType, contentType, size, thumbContentType, thumbSize } = parsed.data;
+  const kind = mediaType === "IMAGE" ? "ad-image" : "ad-video";
+  if (!validateContentType(kind, contentType)) {
+    return { error: "invalid" as const };
+  }
+  if (size > MEDIA_LIMITS[kind]) {
+    return { error: "too_large" as const };
+  }
+  const thumbType = mediaType === "VIDEO" ? thumbContentType : undefined;
+  if (thumbType !== undefined) {
+    if (!validateContentType("ad-image", thumbType) || !thumbSize || thumbSize > MEDIA_LIMITS["video-thumb"]) {
+      return { error: "invalid" as const };
+    }
   }
 
   try {
-    // No user.id to scope the object key to (public flow) — a random
-    // "anonymous" bucket keeps the same key shape createUploadUrl expects.
-    const { uploadUrl, publicUrl, key } = await createUploadUrl({
-      kind: parsed.data.kind,
-      contentType: parsed.data.contentType,
-      userId: "anonymous",
+    const main = await createUploadUrl({
+      kind,
+      contentType,
+      userId: AD_UPLOAD_OWNER,
+      expiresInSeconds: kind === "ad-video" ? AD_VIDEO_UPLOAD_URL_TTL_SECONDS : AD_IMAGE_UPLOAD_URL_TTL_SECONDS,
     });
-    return { error: null, uploadUrl, publicUrl, key };
+    const thumb =
+      thumbType !== undefined
+        ? await createUploadUrl({
+            kind: "ad-image",
+            contentType: thumbType,
+            userId: AD_UPLOAD_OWNER,
+            expiresInSeconds: AD_IMAGE_UPLOAD_URL_TTL_SECONDS,
+          })
+        : null;
+    await recordUploads(
+      [{ key: main.key, kind }, ...(thumb ? [{ key: thumb.key, kind: "ad-image" }] : [])],
+      AD_UPLOAD_OWNER,
+    );
+    const pass = await encodeAdUploadPass(thumb ? [main.key, thumb.key] : [main.key], process.env.AUTH_SECRET!);
+    return { error: null, main, thumb, pass };
   } catch {
     return { error: "invalid" as const };
   }
@@ -73,10 +126,6 @@ export async function createAdCampaign(formData: FormData) {
   }
 
   const ip = await getClientIp();
-  const botCheck = await passesBotGate(formData, ip, "createAdCampaign");
-  if (!botCheck.ok) {
-    return { error: captchaErrorCode(botCheck.reason) };
-  }
   const allowed = await checkRateLimit("adBookingCreate", ip);
   if (!allowed) {
     return { error: "rate_limited" as const };
@@ -104,23 +153,42 @@ export async function createAdCampaign(formData: FormData) {
   const { companyName, contactName, contactEmail, headline, body, linkUrl, mediaType, mediaUrl, mediaThumbnailUrl, durationDays } =
     parsed.data;
 
-  const uploadedUrls = [mediaUrl, ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : [])];
-  // Ad uploads are unauthenticated (no user.id), so requestAdUploadUrl mints
-  // every ad-image/ad-video key under a shared "anonymous" owner segment —
-  // that's the ownership boundary here, same idea as the per-user checks on
-  // every other upload kind.
+  // The bot check ran when these exact files were requested (requestAdUpload); its pass names their keys. The files
+  // must be this flow's own ad uploads of the right kind, never another object in the bucket.
+  const mediaKey = keyFromPublicUrl(mediaUrl);
+  const thumbKey = mediaType === "VIDEO" && mediaThumbnailUrl ? keyFromPublicUrl(mediaThumbnailUrl) : null;
+  const mediaKind = mediaType === "IMAGE" ? "ad-image" : "ad-video";
+  if (
+    !mediaKey ||
+    !isOwnedUploadKey(mediaKey, mediaKind, AD_UPLOAD_OWNER) ||
+    (mediaType === "VIDEO" && mediaThumbnailUrl && (!thumbKey || !isOwnedUploadKey(thumbKey, "ad-image", AD_UPLOAD_OWNER)))
+  ) {
+    return { error: "invalid" as const };
+  }
+  const passOk = await verifyAdUploadPass(
+    formData.get(AD_UPLOAD_PASS_FIELD),
+    thumbKey ? [mediaKey, thumbKey] : [mediaKey],
+    process.env.AUTH_SECRET!,
+  );
+  if (!passOk) {
+    return { error: "captcha" as const };
+  }
+  // One booking per upload: a pass can't be replayed to open more checkouts for the same file.
+  if (await prisma.adCampaign.findFirst({ where: { mediaUrl }, select: { id: true } })) {
+    return { error: "invalid" as const };
+  }
+
+  // Only the keys checked above (this flow's own uploads, named by the pass).
   async function cleanupUploads() {
     await Promise.all(
-      uploadedUrls.map((url) => {
-        const key = keyFromPublicUrl(url);
-        return key ? deleteOwnedObject(key, "anonymous") : Promise.resolve();
-      }),
+      [mediaKey, thumbKey].map((key) => (key ? deleteOwnedObject(key, AD_UPLOAD_OWNER) : Promise.resolve())),
     );
   }
 
-  const key = keyFromPublicUrl(mediaUrl);
-  const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["ad-image"] : MEDIA_LIMITS["ad-video"];
-  const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: "anonymous" }));
+  const sizeOk =
+    (await verifyUploadedSize({ key: mediaKey, maxBytes: MEDIA_LIMITS[mediaKind], ownerId: AD_UPLOAD_OWNER })) &&
+    (!thumbKey ||
+      (await verifyUploadedSize({ key: thumbKey, maxBytes: MEDIA_LIMITS["video-thumb"], ownerId: AD_UPLOAD_OWNER })));
   if (!sizeOk) {
     await cleanupUploads();
     return { error: "too_large" as const };
@@ -135,6 +203,8 @@ export async function createAdCampaign(formData: FormData) {
     await cleanupUploads();
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
+  // The poster frame was only for this check; the campaign stores the creative alone.
+  if (thumbKey) await deleteOwnedObject(thumbKey, AD_UPLOAD_OWNER);
 
   const priceCents = adPriceCents(durationDays);
 

@@ -11,7 +11,12 @@ import { prisma } from "@/lib/prisma";
 // run, and a tripwire that refuses to delete anything if a suspicious share of candidates look unreferenced (which is
 // what a broken reference check would look like).
 
-/** Kinds recorded and swept — the ones a composer uploads ahead of posting. Same set discardUploads may delete. */
+/**
+ * Kinds recorded and swept — the ones a composer uploads ahead of posting (the same set discardUploads may delete),
+ * plus the public ad booking's uploads (requestAdUpload, owner "anonymous"): a booking that is never completed leaves
+ * them behind, and AdCampaign.mediaUrl is in findReferencedUrls, so a booked creative is never swept. A video ad's
+ * poster frame is only used for screening, so it is swept even when the booking went through.
+ */
 const SWEEPABLE_KINDS = new Set([
   "post-image",
   "post-video",
@@ -22,6 +27,8 @@ const SWEEPABLE_KINDS = new Set([
   "comment-video",
   "story-image",
   "story-video",
+  "ad-image",
+  "ad-video",
 ]);
 
 /** Remembers that `keys` (all belonging to `userId`) were handed out as upload URLs. Never throws — recording must not break an upload. */

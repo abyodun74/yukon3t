@@ -60,7 +60,7 @@ export const advertise: typeof advertiseEn = {
       imageType: "Usa una imagen JPEG, PNG o WebP.",
       imageTooLarge: "Las imágenes deben pesar 25 MB o menos.",
       videoType: "Usa un video MP4, MOV o WebM.",
-      videoTooLarge: "El video debe pesar 2 GB o menos.",
+      videoTooLarge: "El video debe pesar 250 MB o menos.",
       videoTooLong: "one: Los videos deben durar # segundo o menos. | other: Los videos deben durar # segundos o menos.",
       details: "Completa los datos de tu empresa y de contacto.",
       adFields: "Completa el título, el texto y el enlace de tu anuncio.",

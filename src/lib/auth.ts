@@ -176,6 +176,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 // the emailed code is confirmed (confirmLoginDeviceChallenge).
                 return "/sign-in/verify-device";
               }
+              // Out of challenge emails for now: refuse this sign-in rather than let it through unchallenged (it used
+              // to fall through to `return true`). Same outcome as the password path. The limiter itself fails open
+              // on a Redis outage, so this can't lock everyone out.
+              return "/sign-in?error=rate_limited";
             } else if (deviceId) {
               if (evaluation.status === "trusted_first_device") {
                 await trustDevice(existing.id, deviceId, await getDeviceLabel());

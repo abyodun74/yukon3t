@@ -409,7 +409,7 @@ async function uploadToStorage(
   file: File,
   kind: UploadKind,
   // Defaults to the authenticated requestUploadUrl action; the public
-  // /advertise booking flow passes requestAdUploadUrl instead, since there's
+  // /advertise booking flow passes a function returning the URL requestAdUpload already minted, since there's
   // no signed-in user to attribute the upload to there.
   requestUrlFn: RequestUploadUrlFn = requestUploadUrlBatched,
 ): Promise<ClientUploadResult> {

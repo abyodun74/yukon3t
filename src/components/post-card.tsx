@@ -983,7 +983,7 @@ export function PostCard({
       fd.set("content", text);
       const result = await editPost(post.id, fd);
       if (result.error || !result.post) {
-        setEditError(t.post.editFailed);
+        setEditError(result.error === "under_review" ? t.post.editUnderReview : t.post.editFailed);
         return;
       }
       setContent(result.post.content);

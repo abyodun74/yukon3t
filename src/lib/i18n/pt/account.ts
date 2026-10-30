@@ -242,7 +242,7 @@ export const account: typeof accountEn = {
       "Todos os campos abaixo são obrigatórios, exceto Bio, que é opcional. Sua conta só será criada quando os demais forem preenchidos.",
     errors: {
       invalid: "Preencha todos os campos obrigatórios.",
-      moderation: "Sua bio não está de acordo com nossas diretrizes de conteúdo. Revise o texto.",
+      moderation: "Seu nome ou sua bio não está de acordo com nossas diretrizes de conteúdo. Revise o texto.",
       underage: "Você precisa ter pelo menos {age} anos para usar o YuKon3t.",
     },
     name: "Nome de exibição",

@@ -300,6 +300,7 @@ export const messages: typeof messagesEn = {
       network: serverUnreachable,
       rateLimited: "Ralentissez un peu.",
       blocked: "Ce message n'a pas pu être remis.",
+      videoFrameRequired: "Impossible de lire une image d'aperçu de cette vidéo, elle n'a donc pas été envoyée. Essayez une autre vidéo ou enregistrez-la d'abord en MP4.",
       hiddenLocked: "Saisissez votre code PIN pour continuer à discuter.",
       modeChanged: "Les réglages de cette discussion viennent de changer. Touchez de nouveau Envoyer.",
       edit: "Impossible d'enregistrer cette modification.",

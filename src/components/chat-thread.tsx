@@ -1738,6 +1738,8 @@ export function ChatThread({
               ? t.errors.blocked
               : result.error === "hidden_locked"
                 ? t.errors.hiddenLocked
+              : result.error === "frame_required"
+                ? t.errors.videoFrameRequired
               : modeChanged
                 ? t.errors.modeChanged
                 : t.errors.send,

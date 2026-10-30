@@ -107,7 +107,7 @@ export const es2 = {
   },
   "who-see-ambient-moments": {
     q: "¿Quién puede ver mis momentos de Ambient?",
-    a: "Solo las personas que te han agregado *a ti* a su propio Inner Circle. Nunca nadie más, y nunca aparecen en tu perfil público, en el feed ni en Descubrir. Agregar a alguien a tu Inner Circle va en una sola dirección, como suscribirse: esa persona no necesita agregarte para que tú veas los suyos.",
+    a: "Solo las personas que te han agregado *a ti* a su propio Inner Circle. Nunca nadie más, y nunca aparecen en tu perfil público, en el feed ni en Descubrir. Agregar a alguien a tu Inner Circle va en una sola dirección, como suscribirse: esa persona no necesita agregarte para que tú veas los suyos. Además, deben seguir conectados contigo: si alguno de los dos bloquea al otro o dejan de estar conectados, tus momentos dejan de mostrarse para esa persona (y al bloquear, cada uno sale del Inner Circle del otro).",
   },
   "there-lock-screen-watch-widget": {
     q: "¿Hay un widget para la pantalla de bloqueo o para el reloj?",

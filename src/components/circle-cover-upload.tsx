@@ -67,7 +67,6 @@ export function CircleCoverUpload({
       const fd = new FormData();
       fd.set("circleId", circleId);
       fd.set("key", uploaded.key);
-      fd.set("publicUrl", uploaded.publicUrl);
 
       let result;
       try {

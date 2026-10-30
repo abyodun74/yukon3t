@@ -37,7 +37,8 @@ function captureAlertText(alert: CaptureAlert, t: typeof callsEn.frame.capture) 
  * wrapper's size/position — the underlying <CallFrame>/Daily iframe never
  * unmounts, so the call itself is never interrupted.
  */
-export function GlobalCallFrame() {
+/** `mediaBaseUrl`: the media bucket's public base (R2_PUBLIC_URL), the only place a shared material may come from. */
+export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null }) {
   const { session, minimized, dailyCall, setDailyCall, endSession, hangUp, minimize, expand, reconnectingRef } = useCallSession();
   const [sharedMaterial, setSharedMaterial] = useState<SharedMaterial | null>(null);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
@@ -81,7 +82,7 @@ export function GlobalCallFrame() {
   useEffect(() => {
     if (!dailyCall) return;
     const handleAppMessage = (ev: { data: unknown }) => {
-      const material = collabMaterialFromAppMessage(ev.data);
+      const material = collabMaterialFromAppMessage(ev.data, mediaBaseUrl);
       if (material) setSharedMaterial(material);
       const captureKind = captureAlertFromAppMessage(ev.data);
       if (captureKind) showCaptureAlert({ kind: captureKind, source: "remote" });
@@ -90,7 +91,7 @@ export function GlobalCallFrame() {
     return () => {
       dailyCall.off("app-message", handleAppMessage);
     };
-  }, [dailyCall]);
+  }, [dailyCall, mediaBaseUrl]);
 
   // Native screenshot/screen-recording detection (see
   // src/lib/screen-capture-guard.ts) — watching starts/stops with the call

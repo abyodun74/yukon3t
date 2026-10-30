@@ -243,7 +243,7 @@ export const account: typeof accountEn = {
       "Todos los campos son obligatorios excepto Biografía, que es opcional. Tu cuenta no se creará hasta que completes el resto.",
     errors: {
       invalid: "Completa todos los campos obligatorios.",
-      moderation: "Tu biografía no cumple nuestras normas de contenido. Modifícala.",
+      moderation: "Tu nombre o tu biografía no cumplen nuestras normas de contenido. Modifícalos.",
       underage: "Debes tener al menos {age} años para usar YuKon3t.",
     },
     name: "Nombre visible",

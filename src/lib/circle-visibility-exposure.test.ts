@@ -41,6 +41,9 @@ const UNFILTERED_CIRCLE_LISTS: Record<string, number> = {
   // Circles the inviter created (createdById): the owner is always a member.
   "lib/collab-circle-options.ts": 1,
   "lib/collab-invites-server.ts": 1,
+  // Account deletion's file clean-up: the deleted person's own Circles' cover URLs (createdById), then which of those
+  // URLs any Circle still uses. Only URLs, used server-side to decide what to delete; never returned to a browser.
+  "lib/account-media.ts": 2,
 };
 
 describe("queries that list Circles", () => {

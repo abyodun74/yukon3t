@@ -419,10 +419,10 @@ export const confirmPrivateAvatarUploadSchema = z.object({
   fullKey: z.string().trim().min(1).max(200),
 });
 
+// No publicUrl: the stored URL is derived from the key on the server (confirmCircleCoverUpload).
 export const confirmCircleCoverUploadSchema = z.object({
   circleId: z.string().cuid(),
   key: z.string().trim().min(1).max(500),
-  publicUrl: z.string().url(),
 });
 
 export const imageFromUrlSchema = z.object({
@@ -482,6 +482,17 @@ export const collabInviteSchema = z
     message: "Pick at least one person or Circle to invite.",
     path: ["inviteeIds"],
   });
+
+// requestAdUpload (public /advertise): the creative's declared type and size, plus the poster frame for a video. The
+// declared size is checked against the kind's cap before any URL is minted; the real size is HEAD-checked again by
+// createAdCampaign.
+export const adUploadRequestSchema = z.object({
+  mediaType: z.enum(["IMAGE", "VIDEO"]),
+  contentType: z.string().trim().min(1).max(100),
+  size: z.coerce.number().int().positive(),
+  thumbContentType: z.string().trim().min(1).max(100).optional(),
+  thumbSize: z.coerce.number().int().positive().optional(),
+});
 
 export const adBookingSchema = z.object({
   companyName: z.string().trim().min(2).max(100),

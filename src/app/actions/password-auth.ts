@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { activeWidgetTokensOf } from "@/lib/ambient-access";
+import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import {
   loginSchema,
   forgotPasswordSchema,
@@ -239,8 +241,18 @@ export async function confirmEmailOtp(formData: FormData) {
     redirect("/verify-email?error=too_many_attempts");
   }
 
+  // The attempt is reserved BEFORE the code is compared, in one guarded write (same pattern as verifyDeviceChallenge):
+  // read-compare-increment let parallel guesses (from many IPs, the limiter is per ip+user) all pass the cap check at
+  // once. A correct code resets the count below.
+  const reserved = await prisma.user.updateMany({
+    where: { id: userId, emailOtpCodeHash: user.emailOtpCodeHash, emailOtpAttempts: { lt: EMAIL_OTP_MAX_ATTEMPTS } },
+    data: { emailOtpAttempts: { increment: 1 } },
+  });
+  if (reserved.count === 0) {
+    redirect("/verify-email?error=too_many_attempts");
+  }
+
   if (hashOtpCode(code) !== user.emailOtpCodeHash) {
-    await prisma.user.update({ where: { id: userId }, data: { emailOtpAttempts: { increment: 1 } } });
     redirect("/verify-email?error=invalid_code");
   }
 
@@ -690,6 +702,9 @@ export async function resetPassword(formData: FormData) {
     },
   });
   await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
+  // A reset also ends the ambient widget's long-lived bearer token (it isn't a session, so sessionInvalidatedAt
+  // doesn't reach it).
+  await prisma.ambientWidgetToken.updateMany(activeWidgetTokensOf(resetToken.userId));
 
   redirect("/sign-in?reset=1");
 }
@@ -841,7 +856,10 @@ export async function adminDeleteUser(formData: FormData) {
       performedBy: admin.id,
     },
   });
+  // Same file cleanup as deleteMyAccount (account-media.ts): collected before the delete, removed after it.
+  const media = await collectAccountMedia(user.id, user.avatarUrl);
   await prisma.user.delete({ where: { id: user.id } });
+  await deleteAccountMedia(user.id, media);
 
   revalidatePath("/admin/users");
   return { error: null };

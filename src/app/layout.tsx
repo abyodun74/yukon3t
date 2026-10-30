@@ -277,7 +277,7 @@ export default async function RootLayout({
             {/* Native app only; renders nothing in a browser. Not session-gated: an "Update required" applies signed out too. */}
             <AppUpdateGate userId={session?.user?.id ?? null} />
             {member && <IncomingCallListener currentUserId={member.id} />}
-            {member && <GlobalCallFrame />}
+            {member && <GlobalCallFrame mediaBaseUrl={process.env.R2_PUBLIC_URL || null} />}
             {member && <FcmTokenBridge />}
             {member && <PresenceHeartbeat />}
             {member && <ScreenshotGuard />}

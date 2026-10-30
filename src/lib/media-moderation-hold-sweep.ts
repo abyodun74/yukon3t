@@ -58,7 +58,7 @@ export async function sweepExpiredMediaHolds(now = new Date()): Promise<{ expire
         return result;
       });
       if (removed) {
-        await cleanUpModeratedMedia(removed.mediaKeysToDelete);
+        await cleanUpModeratedMedia(removed.mediaUrlsToDelete);
         expired += 1;
       }
     } catch (err) {

@@ -14,7 +14,7 @@ const cleanUpModeratedMedia = vi.fn();
 
 vi.mock("@/lib/content-moderation", () => ({
   removeModeratedContent: (...a: unknown[]) => removeModeratedContent(...a),
-  cleanUpModeratedMedia: (keys: string[]) => cleanUpModeratedMedia(keys),
+  cleanUpModeratedMedia: (urls: string[]) => cleanUpModeratedMedia(urls),
 }));
 vi.mock("@/lib/prisma", () => {
   const tx = {
@@ -42,7 +42,7 @@ beforeEach(() => {
   findManyAudit.mockImplementation(async () => holds);
   removeModeratedContent.mockImplementation(async (_type: string, id: string) => ({
     authorId: AUTHOR,
-    mediaKeysToDelete: [`post-video/${AUTHOR}/${id}.mp4`],
+    mediaUrlsToDelete: [`https://media.example.com/post-video/${AUTHOR}/${id}.mp4`],
   }));
 });
 
@@ -61,7 +61,7 @@ describe("sweepExpiredMediaHolds", () => {
     posts = { cpost1: { moderationStatus: "FLAGGED" } };
     expect(await sweepExpiredMediaHolds()).toEqual({ expired: 1 });
     expect(removeModeratedContent).toHaveBeenCalledWith("POST", "cpost1", expect.anything());
-    expect(cleanUpModeratedMedia).toHaveBeenCalledWith([`post-video/${AUTHOR}/cpost1.mp4`]);
+    expect(cleanUpModeratedMedia).toHaveBeenCalledWith([`https://media.example.com/post-video/${AUTHOR}/cpost1.mp4`]);
     expect(auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         targetId: AUTHOR,

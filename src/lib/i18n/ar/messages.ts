@@ -295,6 +295,7 @@ export const messages: typeof messagesEn = {
       network: serverUnreachable,
       rateLimited: "تمهّل قليلًا.",
       blocked: "تعذّر تسليم هذه الرسالة.",
+      videoFrameRequired: "تعذّرت قراءة إطار معاينة من هذا الفيديو، لذا لم يُرسَل. جرّب فيديو آخر أو احفظه أولًا بصيغة MP4.",
       hiddenLocked: "أدخل رمز PIN لمتابعة المحادثة.",
       modeChanged: "تغيّرت إعدادات هذه المحادثة للتو. اضغط على «إرسال» مرة أخرى.",
       edit: "تعذّر حفظ التعديل.",

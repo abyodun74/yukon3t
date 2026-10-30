@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { innerCircleRowsBetween } from "@/lib/ambient-access";
 
 /** Blocking is a one-click safety action — no separate connection-request step, unlike everything else that touches another account. */
 export async function blockUser(targetId: string) {
@@ -32,6 +33,8 @@ export async function blockUser(targetId: string) {
         ],
       },
     }),
+    // ...and takes each out of the other's inner circle (ambient moments), both directions.
+    prisma.innerCircleMember.deleteMany({ where: innerCircleRowsBetween(user.id, targetId) }),
   ]);
 
   revalidatePath(`/u/${targetId}`);

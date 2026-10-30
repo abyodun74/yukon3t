@@ -183,6 +183,12 @@ export async function shareToStory(postId: string) {
   if (!(await canViewPost(rootId, user.id))) {
     return { error: "not_found" as const };
   }
+  // A Story is shown to the sharer's connections, who aren't the people a Friends-only or Private post's author chose:
+  // only a PUBLIC post can go to someone else's story (the author can always share their own). Same rule as repost,
+  // shareToCircle and shareToMuse (audit M3).
+  if (root.visibility !== "PUBLIC" && root.authorId !== user.id) {
+    return { error: "not_shareable" as const };
+  }
   // A Story is shown to the sharer's connections, who may not be in the PRIVATE Circle this post belongs to.
   if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" as const };
