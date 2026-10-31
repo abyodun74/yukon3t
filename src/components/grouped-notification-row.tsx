@@ -76,6 +76,7 @@ export function GroupedNotificationRow({
           <span
             className="ms-2 text-xs text-foreground-soft"
             title={formatDateTime(latestCreatedAt, locale)}
+            suppressHydrationWarning
           >
             {formatTimeAgo(latestCreatedAt, locale, ui.time.justNow)}
           </span>

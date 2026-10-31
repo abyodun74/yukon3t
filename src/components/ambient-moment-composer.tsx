@@ -134,7 +134,10 @@ export function AmbientMomentComposer({ initialMoments }: { initialMoments: Mome
                 >
                   {t.delete}
                 </button>
-                <span className="absolute bottom-1 start-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white">
+                <span
+                  className="absolute bottom-1 start-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white"
+                  suppressHydrationWarning
+                >
                   {formatTimeAgo(moment.createdAt, locale, justNow)}
                 </span>
               </li>

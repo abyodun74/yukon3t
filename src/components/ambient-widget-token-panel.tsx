@@ -59,7 +59,7 @@ export function AmbientWidgetTokenPanel({ initialStatus }: { initialStatus: Stat
       <p className="mt-1 text-xs text-foreground-soft">{t.intro}</p>
 
       {status.active && (
-        <p className="mt-2 text-xs text-foreground-soft">
+        <p className="mt-2 text-xs text-foreground-soft" suppressHydrationWarning>
           {format(t.activeSince, { when: formatTimeAgo(status.createdAt, locale, justNow) })}
           {status.lastUsedAt && (
             <> · {format(t.lastUsed, { when: formatTimeAgo(status.lastUsedAt, locale, justNow) })}</>

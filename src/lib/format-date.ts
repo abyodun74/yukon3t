@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import { uiEn } from "@/lib/i18n/en/ui";
 import { intlLocale, type Locale } from "@/lib/i18n/locales";
 
@@ -76,19 +75,30 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["minute", 60],
 ];
 
+const relativeFormats = new Map<Locale, Intl.RelativeTimeFormat>();
+
+/** English is pinned to "en" (not the device's language) because the words around it are English. */
+function relativeFormat(locale: Locale) {
+  let formatter = relativeFormats.get(locale);
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(intlLocale(locale) ?? "en", { numeric: "always" });
+    relativeFormats.set(locale, formatter);
+  }
+  return formatter;
+}
+
 /**
- * "5 minutes ago" for a comment. English keeps date-fns's wording ("about 2 hours ago"); the other languages get
- * Intl.RelativeTimeFormat, which knows each one's plural forms, and `justNow` for anything under a minute.
+ * "5 minutes ago" for a comment, in every language through Intl.RelativeTimeFormat, which knows each one's plural
+ * forms. Elapsed time is floored to the largest whole unit (2h59m is "2 hours ago"). Under a minute, any future
+ * time (a device clock running behind the server's) and an invalid date all read `justNow`, never "in 1 minute".
+ * The result depends on the clock, so an element that renders it on both server and client needs
+ * suppressHydrationWarning.
  */
 export function formatTimeAgo(date: Date, locale: Locale = "en", justNow: string = uiEn.time.justNow) {
-  if (locale === "en") return formatDistanceToNow(date, { addSuffix: true });
-  const seconds = Math.max(0, Math.round((Date.now() - new Date(date).getTime()) / 1000));
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   const unit = RELATIVE_UNITS.find(([, size]) => seconds >= size);
   if (!unit) return justNow;
-  return new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: "always" }).format(
-    -Math.floor(seconds / unit[1]),
-    unit[0],
-  );
+  return relativeFormat(locale).format(-Math.floor(seconds / unit[1]), unit[0]);
 }
 
 /** "5m" / "3h" / "2d" for a Muse comment, in the reader's own short form ("5 min", "5 د"). */

@@ -79,6 +79,7 @@ export function NotificationRow({
           <span
             className="ms-2 text-xs text-foreground-soft"
             title={formatDateTime(notification.createdAt, locale)}
+            suppressHydrationWarning
           >
             {formatTimeAgo(notification.createdAt, locale, ui.time.justNow)}
           </span>

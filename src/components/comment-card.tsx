@@ -137,7 +137,7 @@ export function CommentCard({
         </div>
         <span className="flex items-center gap-1.5 text-xs text-foreground-soft">
           {editedAt && <span>{t.edited}</span>}
-          <span title={formatDateTime(comment.createdAt, locale)}>
+          <span title={formatDateTime(comment.createdAt, locale)} suppressHydrationWarning>
             {formatTimeAgo(comment.createdAt, locale, ui.time.justNow)}
           </span>
         </span>
