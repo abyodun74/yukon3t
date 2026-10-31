@@ -38,6 +38,8 @@ import { PollSection } from "@/components/poll-section";
 import { circlePollWhere, getCirclePollAccess, loadPollPage } from "@/lib/polls-data";
 import { CircleEventsSection } from "@/components/circle-events-section";
 import { circleEventsWhere, loadCircleEventPage } from "@/lib/circle-events-data";
+import { loadCircleMemberPage } from "@/lib/circle-members-data";
+import type { CircleMemberPage } from "@/lib/circle-members";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -88,7 +90,9 @@ export default async function CirclePage({
         },
         channels: {
           orderBy: { position: "asc" },
-          include: { members: { select: { userId: true } } },
+          // Only the viewer's own row (the private-channel access check below); a private channel's access list is
+          // paged in its settings sheet, with the Circle's members (lib/circle-members.ts).
+          include: { members: { where: { userId: me.id }, select: { userId: true } } },
         },
       },
     }),
@@ -139,7 +143,7 @@ export default async function CirclePage({
   // None of these four depend on one another — each only needs `circle`/
   // `canModerate`/`activeChannel`, already resolved above — so they run
   // together rather than as four sequential round trips.
-  const [pendingJoinRequests, rawPosts, allMembers, circleLiveStreams, subCircleInvites] = await Promise.all([
+  const [pendingJoinRequests, rawPosts, memberPage, circleLiveStreams, subCircleInvites] = await Promise.all([
     // Join requests sent before PRIVATE Circles became invite-only: nobody can send a new one, but the admins can still
     // answer these (the requester no longer sees the Circle).
     canModerate && circle.visibility === "PRIVATE"
@@ -159,13 +163,16 @@ export default async function CirclePage({
         })
       : Promise.resolve([]),
 
+    // The first page of members (the member list or manager, the voice-room invite picker and a private channel's
+    // access picker; "Load more" in each fetches the rest), for members and the owner, as before. An admin viewing a
+    // private channel also gets each listed member's access to it.
     !isPrivateNonMember && (isMember || isOwner)
-      ? prisma.circleMembership.findMany({
-          where: { circleId: circle.id },
-          orderBy: { joinedAt: "asc" },
-          include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
-        })
-      : Promise.resolve([]),
+      ? loadCircleMemberPage(
+          circle.id,
+          null,
+          canModerate && activeChannel?.visibility === "PRIVATE" ? activeChannel.id : null,
+        )
+      : Promise.resolve<CircleMemberPage>({ members: [], nextCursor: null }),
 
     // Streams started for this Circle. A PRIVATE Circle's are shown here to its members only (and nowhere else in the
     // app); a PUBLIC Circle's also appear in Home's "Live now" strip, and here for anyone who can see the Circle.
@@ -206,7 +213,18 @@ export default async function CirclePage({
       loadCircleInvitesForAdmins(circle),
       getAcceptedConnectionUsers(me.id),
     ]);
-    const memberIds = new Set(allMembers.map((m) => m.userId));
+    // Which accepted invitees are still members: asked for those people only, not by loading every member.
+    const acceptedIds = invites.filter((i) => i.status === "ACCEPTED").map((i) => i.inviteeId);
+    const memberIds = new Set(
+      acceptedIds.length > 0
+        ? (
+            await prisma.circleMembership.findMany({
+              where: { circleId: circle.id, userId: { in: acceptedIds } },
+              select: { userId: true },
+            })
+          ).map((m) => m.userId)
+        : [],
+    );
     const pendingIds = new Set(invites.filter((i) => i.status === "PENDING" && !i.stale).map((i) => i.inviteeId));
     const connectionIds = connections.map((u) => u.id);
     const eligible = new Set(
@@ -410,10 +428,11 @@ export default async function CirclePage({
                     </div>
                     {canModerate && (
                       <ChannelSettingsModal
+                        key={activeChannel.id}
                         channel={activeChannel}
+                        circleId={circle.id}
                         circleSlug={circle.slug}
-                        circleMembers={allMembers.map((m) => m.user)}
-                        channelMemberIds={activeChannel.members.map((m) => m.userId)}
+                        initialMemberPage={memberPage}
                       />
                     )}
                   </div>
@@ -424,7 +443,8 @@ export default async function CirclePage({
                         key={activeChannel.id}
                         channelId={activeChannel.id}
                         canJoin={isMember || isOwner}
-                        circleMembers={allMembers.map((m) => m.user)}
+                        circleId={circle.id}
+                        initialMemberPage={memberPage}
                       />
                     </div>
                   ) : (
@@ -474,7 +494,7 @@ export default async function CirclePage({
               </h2>
               <p className="mt-1 text-xs text-foreground-soft">{t.coAdminNote}</p>
               <div className="mt-3">
-                <CircleMemberManager circleId={circle.id} members={allMembers} />
+                <CircleMemberManager key={circle.id} circleId={circle.id} initialPage={memberPage} />
               </div>
             </div>
           ) : (
@@ -486,7 +506,7 @@ export default async function CirclePage({
                   {t.membersHeading}
                 </h2>
                 <div className="mt-3">
-                  <CircleMemberList members={allMembers} />
+                  <CircleMemberList key={circle.id} circleId={circle.id} initialPage={memberPage} />
                 </div>
               </div>
             )

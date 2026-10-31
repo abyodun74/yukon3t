@@ -98,6 +98,9 @@ export const circles: typeof circlesEn = {
     makeCoAdmin: "ترقية إلى مشرف مشارك",
     removeCoAdmin: "إلغاء الإشراف المشارك",
     remove: "إزالة",
+    loadMore: "تحميل المزيد من الأعضاء",
+    loadingMore: "جارٍ التحميل...",
+    loadFailed: "تعذّر تحميل المزيد من الأعضاء. حاول مرة أخرى.",
   },
   joinRequests: {
     heading: "طلبات الانضمام ({count})",

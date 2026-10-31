@@ -4,8 +4,10 @@ import {
   createResyncScheduler,
   createSignalThrottle,
   isTransientRealtimeDisconnect,
+  realtimeClientConfig,
   type RealtimeTransport,
 } from "./realtime-client";
+import { RealtimeClient } from "@supabase/realtime-js";
 
 type OpenChannel = {
   topic: string;
@@ -526,5 +528,29 @@ describe("createSignalThrottle", () => {
     flying.signal();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("realtimeClientConfig", () => {
+  it("builds the same socket URL and auth supabase-js's createClient() used to", async () => {
+    for (const url of ["https://abc.supabase.co", "https://abc.supabase.co/", "  https://abc.supabase.co  "]) {
+      const { endpoint, options } = realtimeClientConfig(url, "sb_publishable_key");
+      expect(endpoint).toBe("wss://abc.supabase.co/realtime/v1");
+      expect(options.params).toEqual({ apikey: "sb_publishable_key" });
+      await expect(options.accessToken()).resolves.toBe("sb_publishable_key");
+    }
+  });
+
+  it("uses ws:// for a plain-http (local) project URL", () => {
+    expect(realtimeClientConfig("http://127.0.0.1:54321", "k").endpoint).toBe("ws://127.0.0.1:54321/realtime/v1");
+  });
+
+  it("is accepted by RealtimeClient, which joins channels on <endpoint>/websocket with the key", () => {
+    const { endpoint, options } = realtimeClientConfig("https://abc.supabase.co", "sb_publishable_key");
+    const client = new RealtimeClient(endpoint, options);
+    const socketUrl = client.endpointURL();
+    expect(socketUrl.startsWith("wss://abc.supabase.co/realtime/v1/websocket?")).toBe(true);
+    expect(new URL(socketUrl).searchParams.get("apikey")).toBe("sb_publishable_key");
+    expect(typeof client.channel("t").subscribe).toBe("function");
   });
 });

@@ -271,6 +271,8 @@ export function useSecretChat({
     setConvKey(null);
     setCode(null);
     cache.current.clear();
+    // `display` must be re-created whenever the cache changes: ChatThread memoises what it shows on its identity.
+    setVersion((v) => v + 1);
     await refresh();
     return { error: null };
   }, [currentUserId, refresh]);

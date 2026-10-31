@@ -17,22 +17,27 @@ import { useGuestPreview } from "@/components/guest-preview";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { useCirclesText } from "@/components/circles-text";
 import { useUiText } from "@/components/ui-text";
+import { CircleMembersLoadMore } from "@/components/circle-members-load-more";
+import { useCircleMemberPages } from "@/components/use-circle-member-pages";
 import { byCode, format, plural } from "@/lib/i18n/locales";
+import type { CircleMemberPage } from "@/lib/circle-members";
 
 type Participant = { id: string; name: string };
 type ActiveRoom = { roomUrl: string; token: string };
-type CircleMember = { id: string; name: string | null; avatarUrl: string | null };
 type InviteCounts = { pending: number; accepted: number; declined: number };
 
 /** Persistent, drop-in voice room for one voice Channel — no ringing, members join/leave freely. */
 export function CircleVoiceRoom({
   channelId,
   canJoin,
-  circleMembers,
+  circleId,
+  initialMemberPage,
 }: {
   channelId: string;
   canJoin: boolean;
-  circleMembers: CircleMember[];
+  circleId: string;
+  /** The Circle's first page of members for the invite picker; "Load more" there fetches the rest. */
+  initialMemberPage: CircleMemberPage;
 }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [active, setActive] = useState<ActiveRoom | null>(null);
@@ -44,6 +49,7 @@ export function CircleVoiceRoom({
   const { locale, t: circles } = useCirclesText();
   const t = circles.voice;
   const { t: ui } = useUiText();
+  const memberPages = useCircleMemberPages(circleId, initialMemberPage);
 
   const channelIdRef = useRef(channelId);
   useEffect(() => {
@@ -163,7 +169,7 @@ export function CircleVoiceRoom({
       <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title={t.inviteTitle}>
         {inviteError && <p role="alert" className="text-xs text-danger">{inviteError}</p>}
         <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
-          {circleMembers.map((m) => (
+          {memberPages.members.map(({ user: m }) => (
             <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2">
                 <UserAvatar avatarUrl={m.avatarUrl} name={m.name} size={24} />
@@ -179,8 +185,15 @@ export function CircleVoiceRoom({
               </button>
             </li>
           ))}
-          {circleMembers.length === 0 && <li className="text-sm text-foreground-soft">{t.noMembers}</li>}
+          {memberPages.members.length === 0 && <li className="text-sm text-foreground-soft">{t.noMembers}</li>}
         </ul>
+        <CircleMembersLoadMore
+          compact
+          hasMore={memberPages.hasMore}
+          loading={memberPages.loading}
+          failed={memberPages.failed}
+          onLoadMore={memberPages.loadMore}
+        />
       </Sheet>
 
       {active && <CallFrame roomUrl={active.roomUrl} token={active.token} type="AUDIO" onLeave={leave} />}

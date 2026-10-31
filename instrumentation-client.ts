@@ -46,9 +46,8 @@ async function isBehindServerBuild(): Promise<boolean> {
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    // Same conservative default as the server/edge configs — no live
-    // project to tune trace volume against yet.
-    tracesSampleRate: 0.1,
+    // Errors only: no tracesSampleRate, and the tracing code itself is
+    // compiled out (__SENTRY_TRACING__ in next.config.ts).
     async beforeSend(event) {
       const message = event.exception?.values?.[0]?.value ?? "";
       if (DEPLOY_SKEW_MESSAGES.some((re) => re.test(message)) && (await isBehindServerBuild())) {

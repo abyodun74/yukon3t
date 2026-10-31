@@ -837,6 +837,14 @@ export const circleEventListSchema = z.object({
   cursor: z.object({ eventAt: z.string().datetime(), id: z.string().cuid() }).nullish(),
 });
 
+// "Load more" on a Circle's member lists (loadCircleMembers, actions/circles.ts; paging rules in lib/circle-members.ts).
+// channelId: a private channel's access picker asks for its per-member access flags with each page.
+export const circleMemberListSchema = z.object({
+  circleId: z.string().cuid(),
+  cursor: z.object({ joinedAt: z.string().datetime(), id: z.string().cuid() }).nullish(),
+  channelId: z.string().cuid().nullish(),
+});
+
 // A bring-list item's text before normalizeBringItemText (lib/circle-events.ts) trims it and enforces the real limit.
 export const bringItemTextSchema = z.string().max(EVENT_BRING_ITEM_MAX_LENGTH * 4);
 

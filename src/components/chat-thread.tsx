@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
 import {
@@ -330,7 +330,9 @@ function ViewOnceChip({
   );
 }
 
-function MessageBubble({
+// Memoised: ChatThread re-renders on every composer keystroke, and every prop it passes here is kept stable (see
+// shownMessages and the useCallback handlers there), so a bubble re-renders only when its own message changes.
+const MessageBubble = memo(function MessageBubble({
   message,
   mine,
   currentUserId,
@@ -1104,7 +1106,7 @@ function MessageBubble({
       )}
     </div>
   );
-}
+});
 
 export function ChatThread({
   conversationId,
@@ -1179,15 +1181,28 @@ export function ChatThread({
     void prepareSecret(items);
   }, [messages, prepareSecret]);
   /** A message as it should be SHOWN: ciphertext decrypted (or a clear placeholder), everything else untouched. */
-  function viewOf(m: MessageData): MessageData {
-    if (!isEncryptedContent(m.content) && !(m.replyTo && isEncryptedContent(m.replyTo.content))) return m;
-    return {
-      ...m,
-      content: secret.display(m.content),
-      wasEncrypted: isEncryptedContent(m.content),
-      replyTo: m.replyTo ? { ...m.replyTo, content: secret.display(m.replyTo.content) } : null,
-    };
-  }
+  const secretDisplay = secret.display;
+  const viewOf = useCallback(
+    (m: MessageData): MessageData => {
+      if (!isEncryptedContent(m.content) && !(m.replyTo && isEncryptedContent(m.replyTo.content))) return m;
+      return {
+        ...m,
+        content: secretDisplay(m.content),
+        wasEncrypted: isEncryptedContent(m.content),
+        replyTo: m.replyTo ? { ...m.replyTo, content: secretDisplay(m.replyTo.content) } : null,
+      };
+    },
+    [secretDisplay],
+  );
+  // One shown copy per message, rebuilt only when the list or the decryption cache changes (secret.display is
+  // re-created whenever that cache changes). Typing in the composer re-renders ChatThread on every keystroke; with a
+  // stable `message` prop (plus the stable handlers below) the memoised MessageBubbles skip that re-render instead of
+  // all (up to 200) of them reconciling per keystroke, which is what made typing lag in long threads.
+  const shownMessages = useMemo(() => {
+    const shown = new Map<MessageData, MessageData>();
+    for (const m of messages) shown.set(m, viewOf(m));
+    return shown;
+  }, [messages, viewOf]);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1820,31 +1835,37 @@ export function ChatThread({
     textareaRef.current?.focus();
   }
 
-  function handleDeleted(messageId: string, mode: "me" | "everyone") {
+  // Bubble callbacks: stable identities (functional updates only), so MessageBubble's memo holds across keystrokes.
+  const handleDeleted = useCallback((messageId: string, mode: "me" | "everyone") => {
     setMessages((prev) =>
       mode === "me"
         ? prev.filter((m) => m.id !== messageId)
         : prev.map((m) => (m.id === messageId ? { ...m, deletedForEveryoneAt: new Date() } : m)),
     );
-  }
+  }, []);
 
-  function handleEdited(updated: MessageData) {
+  const handleEdited = useCallback((updated: MessageData) => {
     setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-  }
+  }, []);
 
-  function handleReacted(messageId: string, reactions: { emoji: string; userId: string }[]) {
+  const handleReacted = useCallback((messageId: string, reactions: { emoji: string; userId: string }[]) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
-  }
+  }, []);
 
-  function handleViewOnceOpened(messageId: string) {
+  const handleViewOnceOpened = useCallback((messageId: string) => {
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId && !m.viewOnceOpenedAt ? { ...m, viewOnceOpenedAt: new Date() } : m)),
     );
-  }
+  }, []);
 
-  function handleCorrected(messageId: string, corrections: CorrectionData[]) {
+  const handleCorrected = useCallback((messageId: string, corrections: CorrectionData[]) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, corrections } : m)));
-  }
+  }, []);
+
+  const handleForward = useCallback((message: MessageData) => {
+    setForwardMessageId(message.id);
+    setForwardOpen(true);
+  }, []);
 
   const memberById = new Map(members.map((m) => [m.userId, m]));
   // "Delete for everyone" used to leave a "This message was deleted"
@@ -1852,8 +1873,20 @@ export function ChatThread({
   // "delete for me" already was. The row itself stays in `messages` (the
   // server keeps a blanked-out record, and reply-quotes still point at it
   // via REPLY_TO_SELECT), it's just excluded from what actually renders.
-  const visibleMessages = messages.filter((m) => !m.deletedForEveryoneAt);
+  const visibleMessages = useMemo(() => messages.filter((m) => !m.deletedForEveryoneAt), [messages]);
   const lastMineIndex = isGroup ? visibleMessages.findLastIndex((m) => m.senderId === currentUserId) : -1;
+  // Group chats: "Seen by …" under the sender's own latest message. Memoised for the same reason as shownMessages:
+  // a fresh array per render would re-render that bubble on every keystroke.
+  const lastMine = lastMineIndex >= 0 ? visibleMessages[lastMineIndex] : undefined;
+  const lastMineSeenBy = useMemo(
+    () =>
+      lastMine
+        ? members
+            .filter((mem) => mem.userId !== currentUserId && mem.lastReadAt && mem.lastReadAt >= lastMine.createdAt)
+            .map((mem) => mem.name)
+        : undefined,
+    [lastMine, members, currentUserId],
+  );
 
   // Screen-reader announcement for a message that arrives while this thread
   // is open — the list itself is deliberately NOT a live region (every
@@ -1953,12 +1986,7 @@ export function ChatThread({
             !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
           const grouped = Boolean(prev && prev.senderId === m.senderId && !showDateSeparator);
           const sender = isGroup && !mine && !grouped ? memberById.get(m.senderId) : undefined;
-          const seenByNames =
-            i === lastMineIndex
-              ? members
-                  .filter((mem) => mem.userId !== currentUserId && mem.lastReadAt && mem.lastReadAt >= m.createdAt)
-                  .map((mem) => mem.name)
-              : undefined;
+          const seenByNames = i === lastMineIndex ? lastMineSeenBy : undefined;
           return (
             <div key={m.id}>
               {showDateSeparator && (
@@ -1977,7 +2005,7 @@ export function ChatThread({
                 )}
               >
                 <MessageBubble
-                  message={viewOf(m)}
+                  message={shownMessages.get(m) ?? viewOf(m)}
                   secretActive={secret.active}
                   encryptForEdit={secret.encrypt}
                   mine={mine}
@@ -1989,10 +2017,7 @@ export function ChatThread({
                   onReacted={handleReacted}
                   onCorrected={handleCorrected}
                   onReply={setReplyTarget}
-                  onForward={(message) => {
-                    setForwardMessageId(message.id);
-                    setForwardOpen(true);
-                  }}
+                  onForward={handleForward}
                   onViewOnceOpened={handleViewOnceOpened}
                 />
               </div>

@@ -1,22 +1,43 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { RealtimeClient } from "@supabase/realtime-js";
 import { captureError } from "@/lib/error-tracking";
 
 function isRealtimeConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 }
 
-let cachedClient: SupabaseClient | null = null;
+/**
+ * The Realtime socket URL and options exactly as supabase-js's createClient() builds them for its own
+ * RealtimeClient (`wss://<project>/realtime/v1`, the key as the `apikey` param, and the key again as the access
+ * token, which is what supabase-js sends when nobody is signed in to Supabase Auth, as here). Only Realtime is
+ * used, so the full supabase-js client (Auth, PostgREST, Storage, Functions: ~41KB gzipped more on every route,
+ * plus an Auth session bootstrap at start-up) isn't loaded at all.
+ */
+export function realtimeClientConfig(supabaseUrl: string, publishableKey: string) {
+  const base = supabaseUrl.trim();
+  const url = new URL("realtime/v1", base.endsWith("/") ? base : `${base}/`);
+  url.protocol = url.protocol.replace("http", "ws");
+  return {
+    endpoint: url.href,
+    options: {
+      params: { apikey: publishableKey },
+      accessToken: async () => publishableKey,
+    },
+  };
+}
 
-function client(): SupabaseClient | null {
+let cachedClient: RealtimeClient | null = null;
+
+function client(): RealtimeClient | null {
   if (!isRealtimeConfigured()) return null;
   if (cachedClient) return cachedClient;
-  cachedClient = createClient(
+  const { endpoint, options } = realtimeClientConfig(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
+  cachedClient = new RealtimeClient(endpoint, options);
   return cachedClient;
 }
 
@@ -280,7 +301,7 @@ export function createSignalThrottle(
   };
 }
 
-function supabaseTransport(supabase: SupabaseClient): RealtimeTransport {
+function supabaseTransport(supabase: RealtimeClient): RealtimeTransport {
   return {
     open(topic, onBroadcast, onStatus) {
       const sub = supabase
@@ -309,7 +330,7 @@ export function isTransientRealtimeDisconnect(err: unknown): boolean {
   );
 }
 
-function registry(supabase: SupabaseClient) {
+function registry(supabase: RealtimeClient) {
   cachedRegistry ??= createChannelRegistry(supabaseTransport(supabase), (topic, status, err) => {
     // Mobile WebViews drop their socket routinely and the Supabase client
     // recovers on its own, so these are noise in Sentry, not defects.

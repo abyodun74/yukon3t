@@ -100,6 +100,9 @@ export const circlesEn = {
     makeCoAdmin: "Make co-admin",
     removeCoAdmin: "Remove co-admin",
     remove: "Remove",
+    loadMore: "Load more members",
+    loadingMore: "Loading...",
+    loadFailed: "Couldn't load more members. Try again.",
   },
   joinRequests: {
     heading: "Join requests ({count})",

@@ -7,20 +7,22 @@ import { updateChannel, deleteChannel, addChannelMember, removeChannelMember } f
 import { UserLink } from "@/components/user-link";
 import { Sheet } from "@/components/sheet";
 import { useCirclesText } from "@/components/circles-text";
+import { CircleMembersLoadMore } from "@/components/circle-members-load-more";
+import { useCircleMemberPages } from "@/components/use-circle-member-pages";
 import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
-
-type CircleMember = { id: string; name: string | null; username: string | null; avatarUrl: string | null };
+import type { CircleMemberPage } from "@/lib/circle-members";
 
 export function ChannelSettingsModal({
   channel,
+  circleId,
   circleSlug,
-  circleMembers,
-  channelMemberIds,
+  initialMemberPage,
 }: {
   channel: { id: string; name: string; topic: string | null; visibility: "PUBLIC" | "PRIVATE"; type: "TEXT" | "VOICE" };
+  circleId: string;
   circleSlug: string;
-  circleMembers: CircleMember[];
-  channelMemberIds: string[];
+  /** The Circle's first page of members, each with `hasChannelAccess` for this channel when it is private; "Load more" fetches the rest. */
+  initialMemberPage: CircleMemberPage;
 }) {
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -45,7 +47,11 @@ export function ChannelSettingsModal({
     });
   }
 
-  const memberIdSet = new Set(channelMemberIds);
+  const circleMembers = useCircleMemberPages(
+    circleId,
+    initialMemberPage,
+    channel.visibility === "PRIVATE" ? channel.id : null,
+  );
 
   return (
     <>
@@ -123,8 +129,8 @@ export function ChannelSettingsModal({
               {t.whoCanSee}
             </h3>
             <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto">
-              {circleMembers.map((m) => {
-                const hasAccess = memberIdSet.has(m.id);
+              {circleMembers.members.map(({ user: m, hasChannelAccess }) => {
+                const hasAccess = hasChannelAccess === true;
                 return (
                   <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
                     <UserLink userId={m.id} name={m.name} username={m.username} avatarUrl={m.avatarUrl} avatarSize={20} />
@@ -133,8 +139,10 @@ export function ChannelSettingsModal({
                       disabled={isPending}
                       onClick={() =>
                         startTransition(async () => {
-                          if (hasAccess) await removeChannelMember(channel.id, m.id);
-                          else await addChannelMember(channel.id, m.id);
+                          const result = hasAccess
+                            ? await removeChannelMember(channel.id, m.id)
+                            : await addChannelMember(channel.id, m.id);
+                          if (!result.error) circleMembers.patch(m.id, { hasChannelAccess: !hasAccess });
                           router.refresh();
                         })
                       }
@@ -145,10 +153,17 @@ export function ChannelSettingsModal({
                   </li>
                 );
               })}
-              {circleMembers.length === 0 && (
+              {circleMembers.members.length === 0 && (
                 <li className="text-foreground-soft">{t.noMembers}</li>
               )}
             </ul>
+            <CircleMembersLoadMore
+              compact
+              hasMore={circleMembers.hasMore}
+              loading={circleMembers.loading}
+              failed={circleMembers.failed}
+              onLoadMore={circleMembers.loadMore}
+            />
           </div>
         )}
 

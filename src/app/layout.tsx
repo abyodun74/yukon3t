@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
-import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { MotionProvider } from "@/components/motion-provider";
 import { AppSplash } from "@/components/app-splash";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import { StaleBuildReload } from "@/components/stale-build-reload";
@@ -252,8 +252,9 @@ export default async function RootLayout({
             near-instant cross-fade under prefers-reduced-motion, with no
             per-component check needed. Wraps the whole app once here
             rather than each animated component wrapping itself, same
-            reasoning as CallSessionProvider just inside it. */}
-        <MotionConfig reducedMotion="user">
+            reasoning as CallSessionProvider just inside it. MotionProvider
+            also lazy-loads motion's animation code (see its comment). */}
+        <MotionProvider>
           <UiTextProvider locale={locale} text={dictionary.ui}>
           <ShellTextProvider locale={locale} text={dictionary.shell}>
           <CallsTextProvider locale={locale} text={session?.user ? dictionary.calls : undefined}>
@@ -324,7 +325,7 @@ export default async function RootLayout({
           </CallsTextProvider>
           </ShellTextProvider>
           </UiTextProvider>
-        </MotionConfig>
+        </MotionProvider>
       </body>
     </html>
   );

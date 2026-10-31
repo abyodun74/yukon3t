@@ -1,6 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion, useIsPresent, type PanInfo } from "motion/react";
+import { AnimatePresence, useIsPresent, type PanInfo } from "motion/react";
+// The small `m` components: animation and drag code is loaded lazily by MotionProvider (root layout).
+import * as m from "motion/react-m";
 import { X } from "lucide-react";
 import { useId, type ReactNode, type Ref } from "react";
 import { hapticImpact } from "@/lib/haptics";
@@ -141,7 +143,7 @@ function SheetBackdrop({
 }) {
   const isPresent = useIsPresent();
   return (
-    <motion.div
+    <m.div
       ref={dialogRef}
       className={className}
       style={isPresent ? undefined : { pointerEvents: "none" }}
@@ -160,7 +162,7 @@ function SheetBackdrop({
       dir={dir}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -193,7 +195,7 @@ function DialogPanel({
   // a width override behave predictably.
   const widthOverride = panelClassName?.includes("max-w-");
   return (
-    <motion.div
+    <m.div
       className={`hig-material my-auto w-full ${widthOverride ? "" : "max-w-sm"} rounded-xl border border-line bg-surface/90 p-4 backdrop-blur-xl ${panelClassName ?? ""}`}
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -210,7 +212,7 @@ function DialogPanel({
         </div>
       )}
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -256,7 +258,7 @@ function BottomSheetPanel({
   // Same override-vs-append reasoning as DialogPanel's own widthOverride.
   const widthOverride = panelClassName?.includes("max-w-");
   return (
-    <motion.div
+    <m.div
       className={`hig-material w-full ${widthOverride ? "" : "max-w-lg"} rounded-t-2xl border-t border-x border-line bg-surface/90 backdrop-blur-xl ${responsive ? "sm:rounded-2xl sm:max-w-sm" : ""} ${panelClassName ?? ""}`}
       style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       initial={{ y: "100%" }}
@@ -275,7 +277,7 @@ function BottomSheetPanel({
     >
       {/* Drag handle — a visual affordance, not the only draggable area;
           the whole panel is the drag target (motion's `drag` prop above
-          applies to this entire motion.div), matching how a real iOS
+          applies to this entire m.div), matching how a real iOS
           sheet can be dragged from its header, not just a tiny grabber. */}
       <div className="flex justify-center pb-1 pt-2" aria-hidden>
         <div className="h-1 w-9 rounded-full bg-foreground-soft/30" />
@@ -289,6 +291,6 @@ function BottomSheetPanel({
         </div>
       )}
       <div className="px-4 pb-4">{children}</div>
-    </motion.div>
+    </m.div>
   );
 }

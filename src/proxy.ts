@@ -174,7 +174,7 @@ export async function proxy(request: NextRequest) {
   })();
   const posthogConnectSrc = posthogHost ? ` ${posthogHost}` : "";
 
-  // supabase-js's realtime client does an HTTPS handshake/health-check
+  // Supabase's realtime client (@supabase/realtime-js) does an HTTPS handshake/health-check
   // against the project's own REST host before (and alongside) opening its
   // WebSocket — the WebSocket itself is already covered by connect-src's
   // scheme-only `wss:` below (see that entry's own comment), but this HTTPS

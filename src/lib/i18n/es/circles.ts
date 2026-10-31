@@ -96,6 +96,9 @@ export const circles: typeof circlesEn = {
     makeCoAdmin: "Nombrar coadmin",
     removeCoAdmin: "Quitar como coadmin",
     remove: "Expulsar",
+    loadMore: "Cargar más miembros",
+    loadingMore: "Cargando...",
+    loadFailed: "No se pudieron cargar más miembros. Inténtalo de nuevo.",
   },
   joinRequests: {
     heading: "Solicitudes para unirse ({count})",

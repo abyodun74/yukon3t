@@ -56,6 +56,17 @@ const nextConfig: NextConfig = {
     // client-address header: each platform sets its own, but passes the other's through as the client sent it.
     DEPLOY_PLATFORM: process.env.NETLIFY ? "netlify" : process.env.VERCEL ? "vercel" : "other",
   },
+  // Sentry is used for error reports only (captureError, global-error, /api/health, the siteverify reports), not
+  // performance tracing: these build-time flags drop the SDK's tracing and debug-logging code (browserTracing and
+  // spans; ~30KB gzipped of the first-load JS on every route) from every bundle. Same flags as Sentry's own
+  // `removeTracing`/`removeDebugLogging` tree-shake options, set through `compiler.define` so the webpack (Netlify)
+  // and Turbopack (Vercel) builds both get them. No Sentry.init sets tracesSampleRate any more.
+  compiler: {
+    define: {
+      __SENTRY_TRACING__: false,
+      __SENTRY_DEBUG__: false,
+    },
+  },
   // Already the default, but pinned explicitly: gzip/brotli response
   // compression for anything Next itself serves. Vercel's and Netlify's
   // edges also compress in front of this (see CLAUDE.md's dual-deployment

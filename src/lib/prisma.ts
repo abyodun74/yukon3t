@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { resolveDatabasePoolMax } from "@/lib/db-pool";
 
 // Each serverless function instance gets its own connection pool. With many
 // instances running concurrently, a large per-instance `max` multiplies into
@@ -8,11 +9,12 @@ import { PrismaClient } from "@/generated/prisma/client";
 // any application-level limit. Keep each pool small and put a real pooler
 // (Neon's built-in PgBouncer endpoint, i.e. a "-pooler" connection string,
 // or standalone PgBouncer/Supavisor) in front of Postgres to absorb the
-// aggregate connection count across all instances.
+// aggregate connection count across all instances. Production uses Neon's
+// pooler; the size (default 10) and why it is safe there: src/lib/db-pool.ts.
 const adapter = new PrismaPg(
   {
     connectionString: process.env.DATABASE_URL,
-    max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+    max: resolveDatabasePoolMax(process.env.DATABASE_POOL_MAX),
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
   },

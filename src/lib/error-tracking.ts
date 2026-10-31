@@ -17,12 +17,16 @@
  * webpack never inlines a bare SENTRY_DSN into a browser bundle, so that
  * check alone would silently always no-op client-side even with
  * instrumentation-client.ts's own Sentry.init already having run).
+ *
+ * The imports name only the function they use (destructured, not `const Sentry = await import(...)`): a whole-module
+ * dynamic import keeps every export of @sentry/nextjs, so the browser got an extra ~89KB gzipped chunk (Session
+ * Replay, Feedback, Profiling, none of which this app uses) the first time anything was reported.
  */
 export async function captureError(error: unknown, context?: Record<string, unknown>) {
   if (!process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN) return;
   try {
-    const Sentry = await import("@sentry/nextjs");
-    Sentry.captureException(error, context ? { extra: context } : undefined);
+    const { captureException } = await import("@sentry/nextjs");
+    captureException(error, context ? { extra: context } : undefined);
   } catch {
     // Never let error reporting itself become a new source of errors.
   }
@@ -32,8 +36,8 @@ export async function captureError(error: unknown, context?: Record<string, unkn
 export async function flushErrors(timeoutMs: number) {
   if (!process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN) return;
   try {
-    const Sentry = await import("@sentry/nextjs");
-    await Sentry.flush(timeoutMs);
+    const { flush } = await import("@sentry/nextjs");
+    await flush(timeoutMs);
   } catch {
     // Same as above: a failed flush must not stop the reload.
   }

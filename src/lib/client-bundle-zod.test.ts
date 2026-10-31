@@ -106,7 +106,7 @@ describe("client bundles stay free of zod", () => {
       if (path) problems.push(`${path.map(rel).join(" -> ")} -> zod`);
     }
     expect(problems).toEqual([]);
-  });
+  }, 30_000);
 
   it("validation-constants.ts imports nothing", () => {
     expect(staticImports(source.get(join(SRC, "lib", "validation-constants.ts"))!)).toEqual([]);

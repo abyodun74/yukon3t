@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireVerifiedUser, requireVerifiedViewer, requireViewer } from "@/lib/auth-guards";
+import { requireUser, requireVerifiedUser, requireVerifiedViewer, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { buildSeriesRule, type EventSeriesRule } from "@/lib/event-recurrence";
 import {
@@ -13,6 +13,7 @@ import {
   confirmCircleCoverUploadSchema,
   updateCircleDetailsSchema,
   circleInviteSchema,
+  circleMemberListSchema,
 } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -75,6 +76,7 @@ import {
   selectCircleInvitees,
 } from "@/lib/circle-invite";
 import { inviterStandingSelect, loadCircleInviteExclusions } from "@/lib/circle-invite-data";
+import { loadCircleMemberPage } from "@/lib/circle-members-data";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -1531,7 +1533,8 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
-    include: { circle: true, members: { select: { userId: true } } },
+    // Only the viewer's own row: enough for the access check below, without reading a private channel's whole list.
+    include: { circle: true, members: { where: { userId: user.id }, select: { userId: true } } },
   });
   if (!channel || channel.type !== "TEXT") {
     return { items: [], hasMore: false };
@@ -1559,4 +1562,38 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
   });
   const items = await attachViewerState(rawPosts, user.id);
   return { items, hasMore: rawPosts.length === CIRCLE_POSTS_PAGE_SIZE };
+}
+
+/**
+ * "Load more" on a Circle's member lists: the member list / co-admin manager, a private channel's access picker and the
+ * voice-room invite picker (lib/circle-members.ts). Who may see it is exactly the Circle page's rule: the Circle's
+ * content must be visible to the viewer (a PRIVATE Circle's to its members only, site admins included) and the viewer
+ * must be a member or the owner; anyone else gets an empty list, as the page shows them none. Per-member channel
+ * access flags only for a Circle admin asking about one of this Circle's channels.
+ */
+export async function loadCircleMembers(input: unknown) {
+  const user = await requireUser();
+  if (!(await checkRateLimit("circleMemberList", user.id))) return { error: "rate_limited" as const };
+  const parsed = circleMemberListSchema.safeParse(input);
+  if (!parsed.success) return { error: "invalid" as const };
+  const { circleId, cursor, channelId } = parsed.data;
+
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    select: { id: true, createdById: true, visibility: true },
+  });
+  if (!circle) return { error: "not_found" as const };
+  const membership = await getCircleMembership(circle.id, user.id);
+  const isOwner = circle.createdById === user.id;
+  if (!canSeeCircleContent(circle, !!membership) || !(membership || isOwner)) {
+    return { error: null, members: [], nextCursor: null };
+  }
+
+  let flagsFor: string | null = null;
+  if (channelId && isCircleAdmin(circle, membership, user)) {
+    const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { circleId: true } });
+    if (channel?.circleId === circle.id) flagsFor = channelId;
+  }
+  const page = await loadCircleMemberPage(circle.id, cursor ?? null, flagsFor);
+  return { error: null, ...page };
 }

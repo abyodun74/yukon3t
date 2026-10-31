@@ -255,6 +255,8 @@ const limiterDefinitions = {
   eventBringClaim: makeLimiter(60, "1 m", "eventBringClaim"),
   eventNudge: makeLimiter(10, "1 h", "eventNudge"),
   circleEventList: makeLimiter(120, "1 m", "circleEventList"),
+  // "Load more" on a Circle's member lists (actions/circles.ts loadCircleMembers): only stops a client hammering it.
+  circleMemberList: makeLimiter(120, "1 m", "circleMemberList"),
   // Organizer tools on a Circle event (actions/circle-event-organizer.ts). An update notifies up to
   // EVENT_ANNOUNCEMENT_MAX_RECIPIENTS people, and each event also takes at most EVENT_ANNOUNCEMENTS_PER_DAY in any 24h
   // (counted in the database, so it holds while Redis fails open); this one caps an organizer across all their events.
