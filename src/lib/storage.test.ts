@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateContentType, multipartPartCount, isVideoKind } from "./storage";
+import { validateContentType, multipartPartCount, isVideoKind, avatarExtensionFor } from "./storage";
 
 const VIDEO_KINDS = ["post-video", "comment-video", "message-video", "story-video", "muse-video", "ad-video"] as const;
 
@@ -22,7 +22,20 @@ describe("validateContentType — video uploads", () => {
 
   it("does not let a video type through on an image kind", () => {
     expect(validateContentType("post-image", "video/quicktime")).toBeNull();
-    expect(validateContentType("avatar", "video/mp4")).toBeNull();
+    expect(avatarExtensionFor("video/mp4")).toBeNull();
+  });
+});
+
+describe("profile pictures", () => {
+  it("allow only JPEG, PNG and WebP", () => {
+    expect(avatarExtensionFor("image/jpeg")).toBe("jpg");
+    expect(avatarExtensionFor("image/png")).toBe("png");
+    expect(avatarExtensionFor("image/webp")).toBe("webp");
+    for (const t of ["image/gif", "image/svg+xml", "application/octet-stream", ""]) expect(avatarExtensionFor(t), t).toBeNull();
+  });
+
+  it("are not a public upload kind any more (no public presign can be minted for one)", () => {
+    expect(() => validateContentType("avatar" as never, "image/jpeg")).toThrow();
   });
 });
 

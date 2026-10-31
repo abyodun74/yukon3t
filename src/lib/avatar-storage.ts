@@ -5,15 +5,7 @@ import {
   avatarPresignSigningDate,
   parseAvatarRouteUrl,
 } from "@/lib/avatar-url";
-import {
-  deleteAvatarObject,
-  deleteObject,
-  headAvatarObject,
-  isAvatarBucketConfigured,
-  keyBelongsToOwner,
-  keyFromPublicUrl,
-  presignAvatarGet,
-} from "@/lib/storage";
+import { deleteAvatarObject, headAvatarObject, isAvatarBucketConfigured, presignAvatarGet } from "@/lib/storage";
 
 /** Cache-Control R2 answers a presigned avatar GET with: private (per browser), and never past the link's own life. */
 export const AVATAR_IMAGE_CACHE_CONTROL = "private, max-age=3600";
@@ -43,7 +35,7 @@ export async function avatarObjectExists(key: string): Promise<boolean> {
 /**
  * For a consumer OUTSIDE the signed-in app (today: the widget feed, GET /api/ambient/feed, which authenticates with
  * a bearer token, not the session cookie the route needs): a route-form avatar becomes an absolute presigned URL to
- * its thumbnail, valid for at least an hour. Any other URL (a still-public avatar) is returned unchanged. Null if the
+ * its thumbnail, valid for at least an hour. Any other URL (not one of ours) is returned unchanged. Null if the
  * private avatar can't be signed, so the consumer shows initials instead of a broken link.
  */
 export async function avatarUrlForExternalClient(url: string | null): Promise<string | null> {
@@ -65,7 +57,7 @@ export const RING_AVATAR_PRESIGN_TTL_SECONDS = 300;
  * For the Android app's native ring notification (the caller's picture as its large icon, fetched by native code
  * with no session cookie): like avatarUrlForExternalClient, but the presigned thumbnail link is signed now and lives
  * only RING_AVATAR_PRESIGN_TTL_SECONDS, since it is used once, seconds after the push arrives. Only ever the
- * thumbnail, never the full-size image. Any other URL (a still-public avatar) is returned unchanged. Null when a
+ * thumbnail, never the full-size image. Any other URL (not one of ours) is returned unchanged. Null when a
  * private avatar can't be signed. Never throws.
  */
 export async function avatarUrlForRing(url: string | null): Promise<string | null> {
@@ -91,21 +83,14 @@ export function absoluteAvatarUrl(url: string | null): string | null {
 }
 
 /**
- * Deletes the stored object(s) behind a user's previous avatar, whichever form it was in: a public R2 URL (today's
- * uploads) or a route-form private avatar (both sizes). Only keys that belong to `ownerId` are touched, so a stray or
- * foreign URL in the column can never delete someone else's object. Best effort, never throws.
+ * Deletes the private-bucket object(s) behind a user's previous avatar: both sizes of a two-size avatar, or the one
+ * image of a single-image (backfilled) one. Only a route-form avatar of `ownerId` is touched, so a stray or foreign
+ * value in the column can never delete someone else's object. Profile pictures are never public any more (Stage 3,
+ * scripts/delete-public-avatars.ts), so any other URL is left alone. Best effort, never throws.
  */
 export async function deleteStoredAvatar(url: string | null, ownerId: string) {
-  if (!url) return;
   const target = parseAvatarRouteUrl(url);
-  if (target) {
-    if (target.ownerId !== ownerId) return;
-    const keys = target.twoSize ? [target.thumbKey, target.fullKey] : [target.thumbKey];
-    await Promise.all(keys.map((key) => deleteAvatarObject(key)));
-    return;
-  }
-  const publicKey = keyFromPublicUrl(url);
-  if (publicKey && keyBelongsToOwner(publicKey, ownerId)) {
-    await deleteObject(publicKey);
-  }
+  if (!target || target.ownerId !== ownerId) return;
+  const keys = target.twoSize ? [target.thumbKey, target.fullKey] : [target.thumbKey];
+  await Promise.all(keys.map((key) => deleteAvatarObject(key)));
 }

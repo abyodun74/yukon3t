@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
  * paths (right-click "Save image as…", the long-press "Save image" /
  * "Download image" callout, dragging the image out). It is a deterrent
  * only. Anything shown on screen can still be screenshotted, and devtools
- * or a direct fetch by a signed-in user can still reach the image (a public
- * R2 URL, or with AVATAR_PRIVATE a short-lived link from /api/avatar/…).
+ * or a direct fetch by a signed-in user can still reach the image (a
+ * short-lived link from /api/avatar/…).
  *
  * `protected-image` (globals.css) adds the CSS half: no touch callout, no
  * selection, no `-webkit-user-drag` (not in React's CSS types, hence a class).

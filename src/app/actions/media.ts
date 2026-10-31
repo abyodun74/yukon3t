@@ -9,9 +9,6 @@ import { recomputeTrustScore } from "@/lib/trust";
 import {
   createUploadUrl,
   isStorageConfigured,
-  MEDIA_LIMITS,
-  verifyUploadedSize,
-  deleteObject,
   deleteOwnedObject,
   uploadBuffer,
   keyBelongsToOwner,
@@ -19,10 +16,10 @@ import {
   createSinglePartUpload,
   completeMultipartUpload as completeMultipart,
   abortMultipartUpload as abortMultipart,
-  publicUrlForKey,
-  isAvatarPrivateUploadEnabled,
+  isAvatarBucketConfigured,
   createAvatarUploadUrl,
-  validateContentType,
+  avatarExtensionFor,
+  AVATAR_MAX_BYTES,
   isPrivateKeyOwnedBy,
   deleteAvatarObject,
   copyAvatarObject,
@@ -35,7 +32,6 @@ import {
   startNativeVideoUploadSchema,
   multipartRefSchema,
   completeMultipartSchema,
-  confirmAvatarUploadSchema,
   requestPrivateAvatarUploadSchema,
   confirmPrivateAvatarUploadSchema,
   imageFromUrlSchema,
@@ -267,66 +263,20 @@ export async function addImageFromUrl(formData: FormData) {
   return { error: null, publicUrl };
 }
 
-/**
- * The public (AVATAR_PRIVATE off) profile-picture path: the image was PUT to the public bucket via requestUploadUrls.
- * The URL saved is derived from the key here, never taken from the client: a client-supplied URL used to be saved as
- * is (any https URL, e.g. a tracking pixel every viewer would load) and, on the next change, turned back into a key
- * and deleted — someone else's media, if the URL was theirs. The key must be the caller's own avatar upload.
- */
-export async function confirmAvatarUpload(formData: FormData) {
-  const user = await requireVerifiedUser();
-
-  const parsed = confirmAvatarUploadSchema.safeParse({
-    key: formData.get("key"),
-    publicUrl: formData.get("publicUrl"),
-  });
-  if (!parsed.success || !parsed.data.key.startsWith("avatar/") || !keyBelongsToOwner(parsed.data.key, user.id)) {
-    return { error: "invalid" as const };
-  }
-  const { key } = parsed.data;
-  const publicUrl = publicUrlForKey(key);
-
-  const sizeOk = await verifyUploadedSize({ key, maxBytes: MEDIA_LIMITS.avatar, ownerId: user.id });
-  if (!sizeOk) {
-    return { error: "too_large" as const };
-  }
-
-  const modResult = await moderateImage(publicUrl);
-  if (!modResult.allowed) {
-    await deleteObject(key);
-    return { error: "moderation" as const, categories: modResult.flaggedCategories };
-  }
-
-  const previousUrl = user.avatarUrl;
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { avatarUrl: publicUrl },
-  });
-
-  // The previous picture may be public or (after AVATAR_PRIVATE was on, or the backfill) private: both are handled.
-  await deleteStoredAvatar(previousUrl, user.id);
-
-  await recomputeTrustScore(user.id);
-  revalidatePath("/settings");
-  revalidatePath(`/u/${user.id}`);
-  return { error: null };
-}
-
 /** How long the moderation API gets to fetch a private avatar it is checking (same as view-once's). */
 const AVATAR_MODERATION_URL_TTL_SECONDS = 300;
 
 /**
- * AVATAR_PRIVATE on: two presigned PUTs into the private avatar bucket, one for the ~320px thumbnail and one for the
- * ~1080px image (upload-client.ts uploadPrivateAvatar). Upload keys only (`avatar-upload/…`): the served `avatar/…`
- * keys are written by confirmPrivateAvatarUpload's server-side copy, so a still-valid PUT URL can't swap the picture
- * after it was moderated.
+ * Profile pictures (the only upload path; there is no public one): two presigned PUTs into the private avatar bucket,
+ * one for the ~320px thumbnail and one for the ~1080px image (upload-client.ts uploadPrivateAvatar). Upload keys only
+ * (`avatar-upload/…`): the served `avatar/…` keys are written by confirmPrivateAvatarUpload's server-side copy, so a
+ * still-valid PUT URL can't swap the picture after it was moderated.
  */
 export async function requestPrivateAvatarUpload(input: { contentType: string }) {
   const user = await requireVerifiedUser();
 
-  if (!isAvatarPrivateUploadEnabled()) {
-    return { error: "unavailable" as const };
+  if (!isAvatarBucketConfigured()) {
+    return { error: "not_configured" as const };
   }
   for (let i = 0; i < 2; i++) {
     if (!(await checkRateLimit("mediaUpload", user.id))) {
@@ -335,7 +285,7 @@ export async function requestPrivateAvatarUpload(input: { contentType: string })
   }
 
   const parsed = requestPrivateAvatarUploadSchema.safeParse(input);
-  if (!parsed.success || !validateContentType("avatar", parsed.data.contentType)) {
+  if (!parsed.success || !avatarExtensionFor(parsed.data.contentType)) {
     return { error: "invalid" as const };
   }
 
@@ -357,17 +307,17 @@ export async function requestPrivateAvatarUpload(input: { contentType: string })
 }
 
 /**
- * AVATAR_PRIVATE on: makes the two uploaded images the caller's profile picture. Each upload is copied to a served
+ * Makes the two uploaded images the caller's profile picture. Each upload is copied to a served
  * key the browser was never given a URL for, checked there (real size, real type), then BOTH images are moderated
  * from those copies (a modified client could upload an innocent thumbnail and a different full image, so checking one
  * isn't enough). Anything refused is deleted. Saves the same-origin route form (`/api/avatar/<id>/<uuid>-t.<ext>`)
- * and deletes the previous picture, public or private.
+ * and deletes the previous picture's objects.
  */
 export async function confirmPrivateAvatarUpload(input: { thumbKey: string; fullKey: string }) {
   const user = await requireVerifiedUser();
 
-  if (!isAvatarPrivateUploadEnabled()) {
-    return { error: "unavailable" as const };
+  if (!isAvatarBucketConfigured()) {
+    return { error: "not_configured" as const };
   }
 
   const parsed = confirmPrivateAvatarUploadSchema.safeParse(input);
@@ -411,7 +361,7 @@ export async function confirmPrivateAvatarUpload(input: { thumbKey: string; full
     return { error: "invalid" as const };
   }
   const [thumbHead, fullHead] = heads;
-  const typeOk = (h: { contentType: string } | null) => !!h && validateContentType("avatar", h.contentType) === ext;
+  const typeOk = (h: { contentType: string } | null) => !!h && avatarExtensionFor(h.contentType) === ext;
   if (!typeOk(thumbHead) || !typeOk(fullHead)) {
     await dropServed();
     return { error: "invalid" as const };
@@ -422,7 +372,7 @@ export async function confirmPrivateAvatarUpload(input: { thumbKey: string; full
     thumbHead.size === 0 ||
     fullHead.size === 0 ||
     thumbHead.size > AVATAR_THUMB_MAX_BYTES ||
-    fullHead.size > MEDIA_LIMITS.avatar
+    fullHead.size > AVATAR_MAX_BYTES
   ) {
     await dropServed();
     return { error: "too_large" as const };

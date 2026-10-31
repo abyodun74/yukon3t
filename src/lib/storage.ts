@@ -17,8 +17,9 @@ import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { WRITE_ONCE_PUT_HEADERS } from "@/lib/write-once-upload";
 
+// No "avatar": profile pictures never go to the public bucket (they use createAvatarUploadUrl below, see
+// CLAUDE.md "Profile pictures"), so no public presign can be minted for one.
 export type UploadKind =
-  | "avatar"
   | "post-image"
   | "post-video"
   | "video-thumb"
@@ -48,8 +49,7 @@ export type UploadKind =
   | "announcement-video";
 
 const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
-  avatar: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" },
-  // gif here (not on avatar/circle-cover/story-image/ad-image) matches
+  // gif here (not on circle-cover/story-image/ad-image, nor profile pictures) matches
   // exactly where the client actually offers it: post-composer.tsx and
   // chat-thread.tsx's paste/picker handlers, for a real animated GIF file
   // (as opposed to the separate pendingGif/gifUrl field, a Giphy CDN URL
@@ -107,7 +107,6 @@ const CONTENT_TYPE_ALLOWLIST: Record<UploadKind, Record<string, string>> = {
 const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 
 export const MEDIA_LIMITS: Record<UploadKind, number> = {
-  avatar: 12 * 1024 * 1024,
   "post-image": 25 * 1024 * 1024,
   "video-thumb": 3 * 1024 * 1024,
   "post-video": MAX_VIDEO_BYTES,
@@ -766,7 +765,7 @@ export function publicUrlForKey(key: string) {
   return `${process.env.R2_PUBLIC_URL!.replace(/\/$/, "")}/${key}`;
 }
 
-// --- Private avatar bucket (AVATAR_PRIVATE, see src/lib/avatar-url.ts and CLAUDE.md "Profile pictures") ----------
+// --- Private avatar bucket (every profile picture, see src/lib/avatar-url.ts and CLAUDE.md "Profile pictures") -----
 // A THIRD bucket, not the view-once one: that bucket's required 15-day lifecycle rule deletes everything in it, which
 // would silently wipe every profile picture two weeks after it was set. Same account and credentials, no public
 // domain; the only way to its bytes is a presigned GET minted here (by /api/avatar/… for signed-in users).
@@ -780,23 +779,16 @@ export function isAvatarBucketConfigured() {
   );
 }
 
-let warnedAvatarFlagWithoutBucket = false;
+/** What a profile picture may be (both sizes): the type the browser's resize encodes to, and its file extension. */
+const AVATAR_CONTENT_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
-/**
- * Whether NEW profile pictures go to the private avatar bucket. Off unless AVATAR_PRIVATE=1 AND the bucket is
- * configured; the flag without the bucket is inert (logged once), so a half-configured deploy keeps today's public
- * uploads instead of breaking them. Serving already-private avatars doesn't depend on this, only on the bucket, so
- * turning the flag back off never breaks a picture uploaded while it was on.
- */
-export function isAvatarPrivateUploadEnabled() {
-  if (process.env.AVATAR_PRIVATE !== "1") return false;
-  if (isAvatarBucketConfigured()) return true;
-  if (!warnedAvatarFlagWithoutBucket) {
-    warnedAvatarFlagWithoutBucket = true;
-    console.error("[storage] AVATAR_PRIVATE=1 but R2_AVATAR_BUCKET_NAME is not set; profile pictures stay public");
-  }
-  return false;
+/** The extension for an allowed profile-picture content type, else null. */
+export function avatarExtensionFor(contentType: string): string | null {
+  return AVATAR_CONTENT_TYPES[contentType] ?? null;
 }
+
+/** Byte cap for a profile picture's full-size image (the thumbnail has its own, AVATAR_THUMB_MAX_BYTES). */
+export const AVATAR_MAX_BYTES = 12 * 1024 * 1024;
 
 function avatarBucket() {
   if (!isAvatarBucketConfigured()) throw new Error("not_configured");
@@ -805,7 +797,7 @@ function avatarBucket() {
 
 /** A presigned PUT for one avatar upload key (`avatar-upload/<userId>/<uuid>.<ext>`), valid 5 minutes like createUploadUrl's. */
 export async function createAvatarUploadUrl({ userId, contentType }: { userId: string; contentType: string }) {
-  const ext = validateContentType("avatar", contentType);
+  const ext = avatarExtensionFor(contentType);
   if (!ext) throw new Error("invalid_content_type");
   const key = privateObjectKey("avatar-upload", userId, ext);
   const uploadUrl = await getSignedUrl(
@@ -847,11 +839,6 @@ export async function headAvatarObject(key: string): Promise<{ size: number; con
 export async function copyAvatarObject(sourceKey: string, destinationKey: string) {
   const bucket = avatarBucket();
   await client().send(new CopyObjectCommand({ Bucket: bucket, Key: destinationKey, CopySource: `${bucket}/${sourceKey}` }));
-}
-
-/** Writes bytes to an avatar-bucket key (the backfill's copy from the public bucket). Throws on failure. */
-export async function putAvatarObject(key: string, body: Uint8Array, contentType: string) {
-  await client().send(new PutObjectCommand({ Bucket: avatarBucket(), Key: key, Body: body, ContentType: contentType }));
 }
 
 /** Best-effort delete of an avatar-bucket object; says whether R2 confirmed it. Never throws. */

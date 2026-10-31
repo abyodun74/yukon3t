@@ -320,7 +320,7 @@ are coalesced into one `requestUploadUrls` call (each item still counts against 
 A presigned PUT stays valid for its whole lifetime (5 minutes for images, 6 hours for videos), so before this an uploader
 could publish a clean file, let it pass moderation, then PUT different content to the same URL and replace it. Now:
 - **Single-PUT URLs** (`createUploadUrl`, every public kind: post/story/Muse/message/comment media, video thumbnails, circle
-  covers, collab material, ambient, the public-path avatar, ads, announcements) sign `If-None-Match: *` as a request header
+  covers, collab material, ambient, ads, announcements) sign `If-None-Match: *` as a request header
   (`IfNoneMatch: "*"` + `unhoistableHeaders`). R2 stores the first PUT and answers every later one 412. The URL comes back
   with `headers` that the client must send (`src/lib/write-once-upload.ts`); the browser PUT in `upload-client.ts` spreads
   them. A 412 on a *retry* counts as stored (an earlier attempt landed but its response was lost); a 412 on the first attempt
@@ -390,11 +390,13 @@ setup: `node scripts/upload-cloudflare-watermark.mjs` (needs a currently-valid `
 `GET /client/v4/user/tokens/verify` first if unsure, since an expired/wrong token fails with a generic "Authentication error"
 that looks identical to a permissions problem).
 
-### Private profile pictures — built behind `AVATAR_PRIVATE`, off by default (2026-10-19)
+### Private profile pictures — the only path (2026-10-19; public path removed 2026-10-31)
 
-Until now every profile picture was a public `r2.dev` URL: anyone (signed out, a scraper) who had or guessed the URL
-could fetch it, and every page that showed it handed the URL out. The staged fix (details in CLAUDE.md "Profile pictures"
-and `src/lib/avatar-url.ts`):
+Before 2026-10-19 every profile picture was a public `r2.dev` URL: anyone (signed out, a scraper) who had or guessed the
+URL could fetch it, and every page that showed it handed the URL out. Now every profile picture is private (details in
+CLAUDE.md "Profile pictures" and `src/lib/avatar-url.ts`). The rollout was staged behind an `AVATAR_PRIVATE` flag; with
+Stage 3 the flag, the public upload path (`confirmAvatarUpload`, the `avatar` kind's public presign) and the public
+copies are gone:
 
 - **Storage.** A third R2 bucket, `R2_AVATAR_BUCKET_NAME`, with no public domain. Not the view-once bucket: its required
   15-day lifecycle rule would delete every profile picture. Browsers only ever get a 5-minute presigned PUT for an
@@ -411,18 +413,22 @@ and `src/lib/avatar-url.ts`):
   (`avatarUrlForExternalClient`); `exportMyData` gets an absolute site link. Checked (2026-10-19): no OG/meta tag, web push,
   FCM, email, sitemap, native/CallKit code or Daily.co payload uses an avatar URL. A source test
   (`src/lib/avatar-exposure.test.ts`) fails if a public page or an unauthenticated route starts rendering/returning one.
-- **Fixed alongside (public path too).** `confirmAvatarUpload` used to save the client-supplied `publicUrl` as is: any
-  https URL (a tracking image every viewer's browser would load) could become someone's avatar, and on their next change
-  `keyFromPublicUrl` turned it back into a key and **deleted it** — someone else's media if the URL was theirs. The URL is now
-  derived from the caller's own `avatar/<id>/…` key, and old-avatar deletion only touches the owner's keys
-  (`deleteStoredAvatar`).
+- **No public path.** `avatar` is no longer an `UploadKind`, so `createUploadUrl`/`requestUploadUrls` can't mint a public
+  avatar URL, and `confirmAvatarUpload` is removed. (It once saved the client-supplied `publicUrl` as is, so any https URL
+  could become someone's avatar and, on their next change, be turned back into a key and deleted; fixed 2026-10-19, now
+  moot.) Old-avatar deletion (`deleteStoredAvatar`) only touches the owner's own private keys, never a public object.
+- **Public copies deleted (Stage 3).** `npm run db:delete-public-avatars` (`scripts/delete-public-avatars.ts`, dry run by
+  default) deletes an object under the public bucket's `avatar/` prefix only if its key is exactly an app-minted avatar
+  key, the private bucket holds a same-size copy under the same key, no text/json/array column anywhere in the database
+  contains the key outside its own `/api/avatar/…` route form, and the backfill's mapping file (if present) agrees.
+  Anything else is skipped and listed. `--apply` is refused while any user's `avatarUrl` still points at the public bucket.
 - **Limits (accepted).** A signed-in user can still fetch any avatar they're shown, and the presigned link works for whoever
   holds it until it expires (≤2h). A revoked session (JWT not yet expired, `sessionInvalidatedAt` set) can still load avatars:
   the route skips `requireUser()`'s DB read on purpose. The 320px/1080px sizes are produced by the uploader's browser; a
   modified client can upload a larger "thumbnail" (capped at 2MB) and the server can't check pixel dimensions without decoding
   untrusted images. Migrated (pre-flag) avatars are one image for both sizes (no server-side resize, see the no-libvips
-  policy above). Until **Stage 3** deletes the public copies, a migrated avatar's old public URL keeps working for anyone who
-  already has it. Screenshots are out of scope; Android `FLAG_SECURE` for profiles is a possible **Stage 5** (native release).
+  policy above). After the Stage 3 deletion, an old public avatar URL returns 404 from R2, but a copy someone already
+  downloaded, or one still in a browser/CDN cache until it expires, can't be recalled. Screenshots are out of scope; Android `FLAG_SECURE` for profiles is a possible **Stage 5** (native release).
 
 ## Automated database backups — status: built, pending bucket setup (2026-09-16)
 

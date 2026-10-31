@@ -11,6 +11,7 @@ const ENV = {
   R2_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
   R2_BUCKET_NAME: "media-bucket",
   R2_PUBLIC_URL: "https://media.example.com",
+  R2_AVATAR_BUCKET_NAME: "avatar-bucket",
 };
 const saved: Record<string, string | undefined> = {};
 
@@ -29,7 +30,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-const { createUploadUrl, createSinglePartUpload } = await import("./storage");
+const { createUploadUrl, createSinglePartUpload, createAvatarUploadUrl } = await import("./storage");
 
 function signedHeaders(url: string) {
   return (new URL(url).searchParams.get("X-Amz-SignedHeaders") ?? "").split(";");
@@ -52,7 +53,6 @@ describe("createUploadUrl: write-once public uploads", () => {
     "circle-cover",
     "collab-material",
     "ambient-image",
-    "avatar",
     "ad-image",
     "ad-video",
     "announcement-image",
@@ -112,5 +112,23 @@ describe("createSinglePartUpload: the native video uploader's URL", () => {
     ).rejects.toThrow("invalid_size");
     expect(send).not.toHaveBeenCalled();
     send.mockRestore();
+  });
+});
+
+describe("profile pictures: private bucket only", () => {
+  it("createUploadUrl can't mint a public avatar URL", async () => {
+    await expect(createUploadUrl({ kind: "avatar" as never, contentType: "image/jpeg", userId: "user1" })).rejects.toThrow();
+  });
+
+  it("createAvatarUploadUrl signs a 5-minute PUT for an avatar-upload/ key in the avatar bucket", async () => {
+    const { uploadUrl, key } = await createAvatarUploadUrl({ userId: "user1", contentType: "image/webp" });
+    expect(key).toMatch(/^avatar-upload\/user1\/[0-9a-f-]{36}\.webp$/);
+    const url = new URL(uploadUrl);
+    expect(url.pathname).toBe(`/avatar-bucket/${key}`);
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("300");
+  });
+
+  it("createAvatarUploadUrl refuses anything but JPEG, PNG and WebP", async () => {
+    await expect(createAvatarUploadUrl({ userId: "user1", contentType: "image/gif" })).rejects.toThrow("invalid_content_type");
   });
 });

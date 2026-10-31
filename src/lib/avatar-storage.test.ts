@@ -2,17 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const presignAvatarGet = vi.fn();
 const isAvatarBucketConfigured = vi.fn();
+const deleteAvatarObject = vi.fn();
 vi.mock("@/lib/storage", () => ({
   presignAvatarGet: (...a: unknown[]) => presignAvatarGet(...a),
   isAvatarBucketConfigured: () => isAvatarBucketConfigured(),
-  deleteAvatarObject: vi.fn(),
-  deleteObject: vi.fn(),
+  deleteAvatarObject: (...a: unknown[]) => deleteAvatarObject(...a),
   headAvatarObject: vi.fn(),
-  keyBelongsToOwner: vi.fn(),
-  keyFromPublicUrl: vi.fn(),
 }));
 
-import { avatarUrlForRing, RING_AVATAR_PRESIGN_TTL_SECONDS } from "@/lib/avatar-storage";
+import { avatarUrlForRing, deleteStoredAvatar, RING_AVATAR_PRESIGN_TTL_SECONDS } from "@/lib/avatar-storage";
 
 const UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 
@@ -48,5 +46,31 @@ describe("avatarUrlForRing", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(avatarUrlForRing(`/api/avatar/ana1/${UUID}-t.jpg`)).resolves.toBeNull();
     error.mockRestore();
+  });
+});
+
+describe("deleteStoredAvatar", () => {
+  beforeEach(() => {
+    deleteAvatarObject.mockReset().mockResolvedValue(true);
+  });
+
+  it("deletes both sizes of a two-size avatar", async () => {
+    await deleteStoredAvatar(`/api/avatar/ana1/${UUID}-t.jpg`, "ana1");
+    expect(deleteAvatarObject.mock.calls.map((c) => c[0]).sort()).toEqual([
+      `avatar/ana1/${UUID}-f.jpg`,
+      `avatar/ana1/${UUID}-t.jpg`,
+    ]);
+  });
+
+  it("deletes the one image of a single-image (backfilled) avatar", async () => {
+    await deleteStoredAvatar(`/api/avatar/ana1/${UUID}.png`, "ana1");
+    expect(deleteAvatarObject.mock.calls).toEqual([[`avatar/ana1/${UUID}.png`]]);
+  });
+
+  it("never touches someone else's avatar, a public URL or nothing", async () => {
+    await deleteStoredAvatar(`/api/avatar/ben1/${UUID}-t.jpg`, "ana1");
+    await deleteStoredAvatar(`https://media.example.com/avatar/ana1/${UUID}.jpg`, "ana1");
+    await deleteStoredAvatar(null, "ana1");
+    expect(deleteAvatarObject).not.toHaveBeenCalled();
   });
 });

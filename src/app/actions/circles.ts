@@ -924,8 +924,7 @@ export async function removeCircleMember(circleId: string, targetUserId: string)
 }
 
 /**
- * Owner or co-admin: sets/replaces the Circle's cover picture. Same rules as confirmAvatarUpload: the key must be the
- * caller's own `circle-cover/` upload and the stored URL is derived from it here, never taken from the client (a
+ * Owner or co-admin: sets/replaces the Circle's cover picture. The key must be the caller's own `circle-cover/` upload and the stored URL is derived from it here, never taken from the client (a
  * client-supplied URL used to be stored as is, so a victim's media URL could be set as a cover, then deleted from R2
  * on the next cover change). The previous cover is deleted only if it is a `circle-cover/` object no other Circle uses.
  */

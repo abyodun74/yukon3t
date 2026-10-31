@@ -1,4 +1,4 @@
-// Private profile pictures (AVATAR_PRIVATE, see CLAUDE.md "Profile pictures"): the pure, client-safe half. Nothing
+// Private profile pictures (every profile picture, see CLAUDE.md "Profile pictures"): the pure, client-safe half. Nothing
 // here touches R2, the database or the environment, so it is unit-tested directly (avatar-url.test.ts) and can be
 // imported by client components.
 //
@@ -24,7 +24,7 @@ export type AvatarExtension = (typeof AVATAR_EXTENSIONS)[number];
 /** Long side, in pixels, of the two images a new private avatar is uploaded as (upload-client.ts resizes to these). */
 export const AVATAR_THUMB_DIMENSION = 320;
 export const AVATAR_FULL_DIMENSION = 1080;
-/** A 320px thumbnail is tens of KB; this only bounds a client that skips the resize. The full image keeps MEDIA_LIMITS.avatar. */
+/** A 320px thumbnail is tens of KB; this only bounds a client that skips the resize. The full image keeps AVATAR_MAX_BYTES (storage.ts). */
 export const AVATAR_THUMB_MAX_BYTES = 2 * 1024 * 1024;
 
 // Presigned GETs the route redirects to are signed as of the start of the current hour and valid for two hours, so
@@ -96,8 +96,9 @@ export function twoSizeAvatar(ownerId: string, uuid: string, ext: AvatarExtensio
 }
 
 /**
- * A public-bucket avatar key (`avatar/<ownerId>/<uuid>.<ext>`, what createUploadUrl minted) → the route form of the
- * same image copied to the private bucket under the same key, or null if the key isn't one (the backfill skips it).
+ * A legacy public-bucket avatar key (`avatar/<ownerId>/<uuid>.<ext>`, what the removed public upload path minted) →
+ * the route form of the same image, which the 2026-10-19 backfill copied to the private bucket under the same key; null
+ * if the key isn't one. Used by scripts/delete-public-avatars.ts (Stage 3) to find each public object's private copy.
  */
 export function routeUrlForPublicAvatarKey(key: string): { ownerId: string; routeUrl: string } | null {
   const match = PUBLIC_KEY_RE.exec(key);

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { isAvatarPrivateUploadEnabled, isViewOnceConfigured } from "@/lib/storage";
+import { isViewOnceConfigured } from "@/lib/storage";
 
 const title = "Privacy Policy | YuKon3t";
 const description =
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 29, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: October 31, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -222,22 +222,17 @@ export default function PrivacyPage() {
           capturing what is on their screen.
         </p>
       )}
-      {isAvatarPrivateUploadEnabled() && (
-        <p className="mt-2 text-foreground-soft">
-          <b>Profile pictures.</b> Profile pictures are kept in private
-          storage with no public link, and are shown only to people signed in
-          to YuKon3t (not to anyone you have blocked or who has blocked you).
-          A picture you add is stored as a small version, which signed-in
-          members see, and a larger version, which only you and your
-          connections can open. Both are screened automatically like any
-          other upload. When you change your picture, the previous one is
-          deleted from our storage. A picture added before profile pictures became
-          private may stay reachable at its earlier public address for a
-          limited time until we finish removing those copies. We cannot
-          prevent someone who can see your picture from capturing what is on
-          their screen.
-        </p>
-      )}
+      <p className="mt-2 text-foreground-soft">
+        <b>Profile pictures.</b> Profile pictures are kept in private
+        storage with no public link, and are shown only to people signed in
+        to YuKon3t (not to anyone you have blocked or who has blocked you).
+        A picture you add is stored as a small version, which signed-in
+        members see, and a larger version, which only you and your
+        connections can open. Both are screened automatically like any
+        other upload. When you change your picture, the previous one is
+        deleted from our storage. We cannot prevent someone who can see your
+        picture from capturing what is on their screen.
+      </p>
       <p className="mt-2 text-foreground-soft">
         <b>Hidden chats.</b> If you hide a chat, we store which chats you
         have hidden and when, and a one-way hash of the PIN you chose (never

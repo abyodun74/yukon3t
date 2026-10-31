@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Private profile pictures (AVATAR_PRIVATE) are only useful if nothing a signed-out visitor or a crawler can load
+// Private profile pictures are only useful if nothing a signed-out visitor or a crawler can load
 // renders or returns one. These guard that from the source: a page or route that shows avatars must require a
 // session, the pages that don't are an explicit list (a new public page is a decision, not an accident), and none of
 // those public pages render an avatar.

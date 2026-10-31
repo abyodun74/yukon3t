@@ -66,6 +66,27 @@ describe("requestUploadUrls", () => {
   });
 });
 
+describe("profile pictures have no public upload", () => {
+  it("requestUploadUrls refuses the avatar kind, minting nothing", async () => {
+    const res = await requestUploadUrls([{ kind: "avatar", contentType: "image/jpeg" }], WRITE_ONCE_UPLOAD_PROTOCOL);
+    expect(res).toEqual({ error: "invalid" });
+    expect(createUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("startNativeVideoUpload refuses it too", async () => {
+    const f = new FormData();
+    f.set("kind", "avatar");
+    f.set("contentType", "image/jpeg");
+    f.set("size", "1");
+    expect((await startNativeVideoUpload(f)).error).toBe("invalid");
+    expect(createSinglePartUpload).not.toHaveBeenCalled();
+  });
+
+  it("confirmAvatarUpload (the public confirm) is gone", async () => {
+    expect("confirmAvatarUpload" in (await import("@/app/actions/media"))).toBe(false);
+  });
+});
+
 describe("startNativeVideoUpload", () => {
   function fd(over: Record<string, string> = {}) {
     const f = new FormData();

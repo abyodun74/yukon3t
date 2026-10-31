@@ -2,8 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Camera, Upload } from "lucide-react";
-import { uploadFileDirect, resizeImageFile, resizeImageToMax, uploadPrivateAvatar } from "@/lib/upload-client";
-import { confirmAvatarUpload, confirmPrivateAvatarUpload } from "@/app/actions/media";
+import { resizeImageToMax, uploadPrivateAvatar } from "@/lib/upload-client";
+import { confirmPrivateAvatarUpload } from "@/app/actions/media";
 import { AVATAR_FULL_DIMENSION, AVATAR_THUMB_DIMENSION, AVATAR_THUMB_MAX_BYTES } from "@/lib/avatar-url";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -14,8 +14,12 @@ import { byCode } from "@/lib/i18n/locales";
 const MAX_AVATAR_BYTES = 12 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-/** `privateUpload`: AVATAR_PRIVATE is on (isAvatarPrivateUploadEnabled, read by the server page). Off: today's public path. */
-export function AvatarUpload({ currentUrl, privateUpload = false }: { currentUrl: string | null; privateUpload?: boolean }) {
+/**
+ * A profile picture is always private (see src/lib/avatar-url.ts): a ~1080px image and a ~320px thumbnail made from
+ * it (same encoder, so the same type) go to the private avatar bucket, then are saved as the same-origin
+ * /api/avatar/… path.
+ */
+export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
   const [preview, setPreview] = useState<string | null>(currentUrl);
   const [status, setStatus] = useState<
     "idle" | "uploading" | "error" | "not_configured" | "success"
@@ -42,70 +46,11 @@ export function AvatarUpload({ currentUrl, privateUpload = false }: { currentUrl
   function handleFile(file: File) {
     setStatus("uploading");
     setMessage(null);
-
-    startTransition(async () => {
-      if (privateUpload) {
-        await handlePrivateFile(file);
-        return;
-      }
-      // Resize before the size check — a raw phone photo routinely exceeds
-      // 12MB, but the resized version essentially never does.
-      const resized = await resizeImageFile(file);
-      if (resized.size > MAX_AVATAR_BYTES) {
-        setStatus("error");
-        setMessage(t.errors.too_large);
-        return;
-      }
-
-      const uploaded = await uploadFileDirect(resized, "avatar");
-      if (!uploaded.ok) {
-        setStatus(uploaded.error === "not_configured" ? "not_configured" : "error");
-        setMessage(
-          uploaded.error === "not_configured"
-            ? t.errors.not_configured
-            : uploaded.error === "network"
-              ? t.errors.network
-              : t.errors.upload,
-        );
-        return;
-      }
-
-      const fd = new FormData();
-      fd.set("key", uploaded.key);
-      fd.set("publicUrl", uploaded.publicUrl);
-
-      let result;
-      try {
-        result = await confirmAvatarUpload(fd);
-      } catch {
-        // A rejected server-action call (e.g. connectivity dropped between
-        // the upload finishing and this confirm step) would otherwise be
-        // an uncaught exception that crashes the whole page.
-        setStatus("error");
-        setMessage(t.errors.network);
-        return;
-      }
-
-      if (result.error) {
-        setStatus("error");
-        // Only these two codes have wording of their own; anything else is the general "couldn't save".
-        setMessage(
-          byCode(
-            { moderation: t.errors.moderation, too_large: t.errors.too_large, other: t.errors.other },
-            result.error,
-          ),
-        );
-        return;
-      }
-
-      setPreview(uploaded.publicUrl);
-      setStatus("success");
-    });
+    startTransition(() => upload(file));
   }
 
-  // AVATAR_PRIVATE on (see src/lib/avatar-url.ts): a ~1080px image and a ~320px thumbnail made from it (same encoder,
-  // so the same type), both to the private bucket, then saved as the same-origin /api/avatar/… path.
-  async function handlePrivateFile(file: File) {
+  async function upload(file: File) {
+    // Resize before the size check: a raw phone photo routinely exceeds 12MB, the resized version essentially never does.
     const full = await resizeImageToMax(file, AVATAR_FULL_DIMENSION);
     const thumb = await resizeImageToMax(full, AVATAR_THUMB_DIMENSION);
     if (full.size > MAX_AVATAR_BYTES || thumb.size > AVATAR_THUMB_MAX_BYTES) {
@@ -116,8 +61,14 @@ export function AvatarUpload({ currentUrl, privateUpload = false }: { currentUrl
 
     const uploaded = await uploadPrivateAvatar(full, thumb);
     if (!uploaded.ok) {
-      setStatus("error");
-      setMessage(uploaded.error === "network" ? t.errors.network : t.errors.upload);
+      setStatus(uploaded.error === "not_configured" ? "not_configured" : "error");
+      setMessage(
+        uploaded.error === "not_configured"
+          ? t.errors.not_configured
+          : uploaded.error === "network"
+            ? t.errors.network
+            : t.errors.upload,
+      );
       return;
     }
 
@@ -125,12 +76,15 @@ export function AvatarUpload({ currentUrl, privateUpload = false }: { currentUrl
     try {
       result = await confirmPrivateAvatarUpload({ thumbKey: uploaded.thumbKey, fullKey: uploaded.fullKey });
     } catch {
+      // A rejected server-action call (e.g. connectivity dropped between the upload finishing and this confirm step)
+      // would otherwise be an uncaught exception that crashes the whole page.
       setStatus("error");
       setMessage(t.errors.network);
       return;
     }
     if (result.error !== null) {
       setStatus("error");
+      // Only these two codes have wording of their own; anything else is the general "couldn't save".
       setMessage(
         byCode({ moderation: t.errors.moderation, too_large: t.errors.too_large, other: t.errors.other }, result.error),
       );

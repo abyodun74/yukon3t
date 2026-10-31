@@ -20,10 +20,11 @@ type ClientUploadResult =
   | { ok: false; error: string };
 
 // Kinds where the source is typically a raw phone-camera photo (often
-// several MB) but only ever needs to render as a feed thumbnail, avatar,
+// several MB) but only ever needs to render as a feed thumbnail, cover
 // or chat bubble — never full sensor resolution. Video/audio kinds are
 // deliberately excluded; resizing those is a different problem entirely.
-const RESIZABLE_KINDS: UploadKind[] = ["avatar", "post-image", "message-image", "circle-cover", "ambient-image"];
+// (Profile pictures are resized by AvatarUpload itself, see uploadPrivateAvatar.)
+const RESIZABLE_KINDS: UploadKind[] = ["post-image", "message-image", "circle-cover", "ambient-image"];
 
 const MAX_IMAGE_DIMENSION = 1920;
 const IMAGE_RESIZE_QUALITY = 0.85;
@@ -764,7 +765,7 @@ type PrivateAvatarUploadResult =
   | { ok: false; error: string };
 
 /**
- * AVATAR_PRIVATE on: uploads a profile picture's two already-resized images (a ~320px thumbnail and a ~1080px full
+ * Uploads a profile picture's two already-resized images (a ~320px thumbnail and a ~1080px full
  * image, same content type) to the private avatar bucket through their own presigned PUTs (requestPrivateAvatarUpload).
  * Not prefetched, batched or recorded like the ordinary uploads. Same retry/timeout treatment as uploadToStorage, and
  * both are sent from memory (Android's stale-temp-file bug). Never throws.

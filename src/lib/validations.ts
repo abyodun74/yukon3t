@@ -335,8 +335,9 @@ export const postSchema = z
     path: ["eventLocation"],
   });
 
+// Public-bucket kinds a browser may ask a presigned upload for. Never a profile picture: those go only to the private
+// avatar bucket (requestPrivateAvatarUpload).
 const uploadKindValues = [
-  "avatar",
   "post-image",
   "post-video",
   "video-thumb",
@@ -386,12 +387,7 @@ export const completeMultipartSchema = multipartRefSchema.extend({
   partCount: z.coerce.number().int().positive().max(10_000),
 });
 
-export const confirmAvatarUploadSchema = z.object({
-  key: z.string().trim().min(1).max(500),
-  publicUrl: z.string().url(),
-});
-
-// Private profile pictures (AVATAR_PRIVATE): one content type for both sizes (the client encodes them the same way),
+// Profile pictures (private avatar bucket): one content type for both sizes (the client encodes them the same way),
 // then the two upload keys it was given. Ownership/shape of the keys is checked again with isPrivateKeyOwnedBy.
 export const requestPrivateAvatarUploadSchema = z.object({
   contentType: z.string().trim().min(1).max(100),
