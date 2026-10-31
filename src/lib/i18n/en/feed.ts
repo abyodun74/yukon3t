@@ -22,7 +22,7 @@ export const feedEn = {
     MOTIVATIONAL: "Motivational",
     GENERAL: "General",
   },
-  // What someone is open to (validations.ts intentLabels), as shown on a person or a connection.
+  // What someone is open to (validation-constants.ts intentTagValues), as shown on a person or a connection.
   intents: {
     FRIENDSHIP: "Friendship",
     CULTURAL_EXCHANGE: "Cultural Exchange",

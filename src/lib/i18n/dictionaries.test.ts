@@ -2,14 +2,14 @@ import { describe, it, expect } from "vitest";
 import { en } from "@/lib/i18n/en";
 import { DICTIONARIES } from "@/lib/i18n/dictionaries";
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
-import { feedCategoryLabels, intentLabels, reportReasonCategoryLabels } from "@/lib/validations";
+import { feedCategoryValues, intentTagValues, reportReasonCategoryValues } from "@/lib/validation-constants";
 import { NOTIFICATION_VERB, notificationHasActor } from "@/lib/notification-text";
 import { GENERAL_INTERESTS } from "@/lib/interests";
 import { GENERAL_CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { COLLAB_TYPES } from "@/lib/collab-types";
 import { LANGUAGES } from "@/lib/languages";
 import { EMOJI_STYLE_VALUES } from "@/lib/emoji-style";
-import { RINGTONE_LABELS } from "@/lib/ringtones";
+import { RINGTONE_IDS } from "@/lib/ringtones";
 import { interestName, languageName, vocabName } from "@/lib/i18n/language-names";
 
 /** Every entry of a dictionary by its dotted path ("signIn.errors.locked", "shared.birthDate.months.0"). */
@@ -233,15 +233,15 @@ describe("dictionaries", () => {
     }
   });
 
-  it("uses the app's own intent labels in English", () => {
-    expect(en.onboarding.intents).toEqual(intentLabels);
+  it("has a label for every intent", () => {
+    expect(Object.keys(en.onboarding.intents).sort()).toEqual([...intentTagValues].sort());
   });
 
-  it("uses the app's own intent and feed category labels in English", () => {
-    expect(en.feed.intents).toEqual(intentLabels);
+  it("has a label for every intent and feed category", () => {
+    expect(Object.keys(en.feed.intents).sort()).toEqual([...intentTagValues].sort());
     const { all, ...categories } = en.feed.categories;
     expect(all).toBe("All");
-    expect(categories).toEqual(feedCategoryLabels);
+    expect(Object.keys(categories).sort()).toEqual([...feedCategoryValues].sort());
   });
 
   it("has a sentence for every notification type, built on the app's own wording in English", () => {
@@ -260,12 +260,12 @@ describe("dictionaries", () => {
     }
   });
 
-  it("uses the app's own report reasons in English", () => {
-    expect(en.ui.report.reasons).toEqual(reportReasonCategoryLabels);
+  it("has a label for every report reason", () => {
+    expect(Object.keys(en.ui.report.reasons).sort()).toEqual([...reportReasonCategoryValues].sort());
   });
 
-  it("uses the app's own ringtone names and emoji styles in English", () => {
-    expect(en.settings.calls.ringtones).toEqual(RINGTONE_LABELS);
+  it("has a name for every ringtone and emoji style", () => {
+    expect(Object.keys(en.settings.calls.ringtones).sort()).toEqual([...RINGTONE_IDS].sort());
     expect(Object.keys(en.settings.emoji.styles).sort()).toEqual([...EMOJI_STYLE_VALUES].sort());
   });
 

@@ -1,5 +1,5 @@
 import type { sharedEn } from "@/lib/i18n/en/shared";
-import { phoneInvalid, passwordInput, multiSelect } from "@/lib/i18n/pt/common";
+import { passwordInput, multiSelect } from "@/lib/i18n/pt/common";
 
 export const shared: typeof sharedEn = {
   passwordInput,
@@ -20,7 +20,6 @@ export const shared: typeof sharedEn = {
     failed: "A verificação de segurança não foi aprovada. Toque em Tentar novamente.",
   },
   phoneField: { countryCode: "Código do país", placeholder: "Número de telefone" },
-  phoneInvalid,
   birthDate: {
     monthLabel: "Mês de nascimento",
     dayLabel: "Dia de nascimento",

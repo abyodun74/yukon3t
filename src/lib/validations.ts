@@ -24,14 +24,6 @@ import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
 // without bundling zod; re-exported here for server code that reads them alongside the schemas.
 export { MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues };
 
-export const intentLabels: Record<(typeof intentTagValues)[number], string> = {
-  FRIENDSHIP: "Friendship",
-  CULTURAL_EXCHANGE: "Cultural Exchange",
-  PROFESSIONAL: "Professional",
-  COMMUNITY: "Community",
-  TRAVEL_TIPS: "Travel Tips",
-};
-
 /** True when someone born on `birthDate` is at least `minAge` years old today. */
 export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {
   const now = new Date();
@@ -261,20 +253,6 @@ export const updateChannelSchema = z.object({
   topic: z.string().trim().max(200).optional().default(""),
   visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
-
-export const feedCategoryLabels: Record<(typeof feedCategoryValues)[number], string> = {
-  OCCUPATIONAL: "Occupational",
-  ENTERTAINMENT: "Entertainment",
-  POLITICS: "Politics",
-  SPORTS: "Sports",
-  EDUCATIONAL: "Educational",
-  NEWS: "Local & International News",
-  RELIGIOUS_SPIRITUAL: "Religious & Spiritual",
-  FINANCIAL_TIPS: "Financial Tips",
-  HEALTH_WELLNESS: "Health & Wellness",
-  MOTIVATIONAL: "Motivational",
-  GENERAL: "General",
-};
 
 export const postSchema = z
   .object({
@@ -610,16 +588,6 @@ export const addGroupMembersSchema = z.object({
 export const correctionSchema = z.object({
   correctedText: z.string().trim().min(1).max(4000),
 });
-
-export const reportReasonCategoryLabels: Record<(typeof reportReasonCategoryValues)[number], string> = {
-  SPAM: "Spam",
-  SCAM_OR_FRAUD: "Scam or fraud",
-  PHISHING: "Phishing",
-  HARASSMENT: "Harassment or abuse",
-  FAKE_ACCOUNT: "Fake account / impersonation",
-  INAPPROPRIATE_CONTENT: "Inappropriate or unwanted content",
-  OTHER: "Something else",
-};
 
 export const reportSchema = z.object({
   targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT"]),

@@ -8,14 +8,6 @@ export type RingtoneId = "CLASSIC" | "CHIME" | "DIGITAL" | "MARIMBA" | "PULSE";
 
 export const RINGTONE_IDS: RingtoneId[] = ["CLASSIC", "CHIME", "DIGITAL", "MARIMBA", "PULSE"];
 
-export const RINGTONE_LABELS: Record<RingtoneId, string> = {
-  CLASSIC: "Classic Ring",
-  CHIME: "Chime",
-  DIGITAL: "Digital",
-  MARIMBA: "Marimba",
-  PULSE: "Pulse",
-};
-
 type Note = {
   freq: number;
   start: number;

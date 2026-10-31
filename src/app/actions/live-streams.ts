@@ -585,30 +585,6 @@ export async function getLiveStreamViewerCount(liveStreamId: string) {
 }
 
 /**
- * Host-only: the Daily `user_id`s (== our User.id, see joinLiveStream) of
- * everyone currently holding a GUEST/COHOST stage slot. Polled by the host's
- * client to know who to grant canSend to as they join the Daily room (see
- * joinLiveStream's doc comment for why this can't be baked into a token).
- */
-export async function getLiveStreamStageUserIds(liveStreamId: string) {
-  const user = await requireVerifiedViewer();
-
-  const liveStream = await prisma.liveStream.findUnique({
-    where: { id: liveStreamId },
-    select: { hostId: true },
-  });
-  if (!liveStream || liveStream.hostId !== user.id) {
-    return { userIds: [] };
-  }
-
-  const stageViewers = await prisma.liveStreamViewer.findMany({
-    where: { liveStreamId, role: { in: ["GUEST", "COHOST"] }, userId: { not: liveStream.hostId } },
-    select: { userId: true },
-  });
-  return { userIds: stageViewers.map((v) => v.userId) };
-}
-
-/**
  * Lists cloud recordings for this stream's room, fetched live from Daily.
  * Same access rule as the stream itself (canAccessLiveStream): an "Everyone"
  * or PUBLIC-Circle stream's recordings are open to any verified user, a

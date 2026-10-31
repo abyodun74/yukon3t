@@ -130,11 +130,6 @@ export function nextOccurrence(
   return null;
 }
 
-/** Whether the cron should look at a series whose latest occurrence started at `lastOccurrenceAt`. */
-export function isSeriesDue(lastOccurrenceAt: Date, now: Date) {
-  return lastOccurrenceAt.getTime() + EVENT_SERIES_ROLLOVER_DELAY_MS <= now.getTime();
-}
-
 /** The cutoff for the cron's query: series whose latest occurrence started at or before this are due. */
 export function seriesDueCutoff(now: Date) {
   return new Date(now.getTime() - EVENT_SERIES_ROLLOVER_DELAY_MS);

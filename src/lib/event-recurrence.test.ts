@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EVENT_SERIES_MAX_OCCURRENCES,
-  EVENT_SERIES_ROLLOVER_DELAY_MS,
   buildSeriesRule,
-  isSeriesDue,
   nextOccurrence,
   occurrenceAt,
   seriesDueCutoff,
@@ -117,9 +115,6 @@ describe("nextOccurrence", () => {
 
 describe("rollover timing", () => {
   it("is due an hour after the latest occurrence starts", () => {
-    const start = new Date("2026-10-21T18:30:00.000Z");
-    expect(isSeriesDue(start, new Date(start.getTime() + EVENT_SERIES_ROLLOVER_DELAY_MS - 1))).toBe(false);
-    expect(isSeriesDue(start, new Date(start.getTime() + EVENT_SERIES_ROLLOVER_DELAY_MS))).toBe(true);
     expect(iso(seriesDueCutoff(new Date("2026-10-21T19:30:00.000Z")))).toBe("2026-10-21T18:30:00.000Z");
   });
 });

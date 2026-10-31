@@ -132,11 +132,6 @@ export function leaseRefundSeconds(leaseUntil: Date, now: Date): number {
   return Math.max(0, Math.floor((leaseUntil.getTime() - now.getTime()) / 1000));
 }
 
-/** Whether `charge` more seconds still fit under the monthly cap. */
-export function fitsMonthlyCap(usedSeconds: number, charge: number, cap = CALL_CAPTION_MONTHLY_SECONDS): boolean {
-  return usedSeconds + charge <= cap;
-}
-
 /** Minutes left this month (rounded down), for the UI. */
 export function minutesLeft(usedSeconds: number, cap = CALL_CAPTION_MONTHLY_SECONDS): number {
   return Math.max(0, Math.floor((cap - usedSeconds) / 60));

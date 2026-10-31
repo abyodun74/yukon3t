@@ -103,7 +103,7 @@ export const uiEn = {
     },
     sent: "Reported. Our team reviews reports within 24 hours.",
     reason: "Reason",
-    // The same labels as reportReasonCategoryLabels (validations.ts); dictionaries.test.ts keeps the two in step.
+    // Keyed by the stored report reasons (validation-constants.ts reportReasonCategoryValues); dictionaries.test.ts checks every one is here.
     reasons: {
       SPAM: "Spam",
       SCAM_OR_FRAUD: "Scam or fraud",

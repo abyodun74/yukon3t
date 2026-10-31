@@ -45,20 +45,14 @@ async function sendFcmDataToUser(
   // The iOS half (see the apns field below). Defaults to a silent background push.
   localizedApns: Localized<ApnsConfig> = SILENT_CALL_APNS,
 ) {
+  if (!isFcmConfigured || !app) return;
   const dataFor = perLocale(localizedData);
-  // TEMPORARY diagnostic logging — remove once the missing-ringtone
-  // intermittency is root-caused. See src/lib/fcm.ts history/PR for context.
-  if (!isFcmConfigured || !app) {
-    console.log("[fcm-debug] not configured, skipping send", { userId, type: dataFor("en").type });
-    return;
-  }
 
   const tokens: Token[] = await prisma.fcmToken.findMany({ where: { userId }, select: TOKEN_SELECT });
-  // Every token here is the same person's, so one language.
-  const locale = storedLocale(tokens[0]?.user.locale);
-  const data = dataFor(locale);
-  console.log("[fcm-debug] tokens found", { userId, type: data.type, count: tokens.length });
   if (tokens.length === 0) return;
+  // Every token here is the same person's, so one language.
+  const locale = storedLocale(tokens[0].user.locale);
+  const data = dataFor(locale);
 
   // Genuinely best-effort, matching sendPushToUser's contract: callers like
   // startCall/endCall must not fail (or, for
@@ -83,23 +77,9 @@ async function sendFcmDataToUser(
       // send, so it doesn't depend on FcmToken.platform (null on old rows).
       apns: perLocale(localizedApns)(locale),
     });
-  } catch (err) {
-    console.log("[fcm-debug] sendEachForMulticast threw", { userId, type: data.type, err: String(err) });
+  } catch {
     return;
   }
-
-  console.log(
-    "[fcm-debug] send result",
-    {
-      userId,
-      type: data.type,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-      errors: response.responses
-        .map((r, i) => (r.success ? null : { token: tokens[i].token.slice(-8), code: r.error?.code, message: r.error?.message }))
-        .filter(Boolean),
-    },
-  );
 
   const staleTokenIds: string[] = [];
   response.responses.forEach((r, i) => {

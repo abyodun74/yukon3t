@@ -16,7 +16,6 @@ import {
   consentColumn,
   consentOf,
   errorCodeFromRealtimeEvent,
-  fitsMonthlyCap,
   isPlausibleSdpOffer,
   leaseChargeSeconds,
   leaseRefundSeconds,
@@ -96,8 +95,6 @@ describe("monthly minutes", () => {
 
   it("is a hard cap", () => {
     expect(CALL_CAPTION_MONTHLY_SECONDS).toBe(120 * 60);
-    expect(fitsMonthlyCap(CALL_CAPTION_MONTHLY_SECONDS - 90, 90)).toBe(true);
-    expect(fitsMonthlyCap(CALL_CAPTION_MONTHLY_SECONDS - 89, 90)).toBe(false);
     expect(minutesLeft(0)).toBe(120);
     expect(minutesLeft(CALL_CAPTION_MONTHLY_SECONDS + 500)).toBe(0);
   });

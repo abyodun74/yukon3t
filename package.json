@@ -76,7 +76,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
-    "@vitest/ui": "^4.1.11",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
