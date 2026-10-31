@@ -16,7 +16,6 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:backfill-embeddings": "tsx scripts/backfill-embeddings.ts",
-    "db:backfill-group-discoverable": "tsx scripts/backfill-group-discoverable.ts",
     "db:backfill-post-albums": "tsx scripts/backfill-post-albums.ts",
     "db:delete-public-avatars": "tsx scripts/delete-public-avatars.ts",
     "db:restore-backup": "tsx scripts/restore-database-backup.ts",

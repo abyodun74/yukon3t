@@ -28,7 +28,6 @@ npm run db:generate                    # prisma generate (custom output, see bel
 npm run db:studio                      # prisma studio
 npm run db:seed                        # tsx prisma/seed.ts
 npm run db:backfill-embeddings         # tsx scripts/backfill-embeddings.ts
-npm run db:backfill-group-discoverable
 npm run db:backfill-post-albums        # one-off: splits a legacy multi-photo Post row into one-post-per-photo siblings (see schema.prisma's Post.albumId) — dry run by default, needs --apply
 npm run db:delete-public-avatars       # private profile pictures stage 3: delete the old public `avatar/` objects once each is verified (same-size private copy, no DB reference); dry run by default, `-- --apply [--limit N] [--batch N] [--map map.json]`
 ```
