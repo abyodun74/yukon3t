@@ -20,6 +20,22 @@ export function callLabel(label: string | null | undefined, t: CallsText): strin
   return isPrivateCaller(label) ? t.privateCall : label;
 }
 
+/**
+ * The session label for a call the reader just answered. `ringLabel` is the in-app ring's own label when that ring
+ * was loaded (it already carries "+ N" for a ring into a call with others in it); `answeredName` is the caller's name
+ * as respondToCall announces it, masked like the ring (undefined when it didn't say, null for a caller with no name).
+ * An answer from the notification's or CallKit's Accept usually comes before the in-app ring has loaded, so the
+ * server's name is what keeps the in-call screen from saying "Someone" for a caller who has a name. `someone` is
+ * only for a caller who really has no name.
+ */
+export function answeredCallLabel(
+  ringLabel: string | null | undefined,
+  answeredName: string | null | undefined,
+  someone: string,
+): string {
+  return ringLabel || answeredName || someone;
+}
+
 /** Who a notice in the call screen is about, when it can't just name them. */
 export type CallPeer = { kind: "name"; name: string } | { kind: "private" } | { kind: "other" } | { kind: "everyone" };
 

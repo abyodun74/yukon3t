@@ -347,6 +347,13 @@ export async function respondToCall(callId: string, accept: boolean) {
     return { error: null, accepted: false as const };
   }
 
+  // The name the in-call screen labels the caller with, masked exactly like the ring (getIncomingCall): an answer
+  // from the notification's or CallKit's Accept can arrive before the in-app ring was ever loaded, and without this
+  // the screen had only "Someone" to show (and, not knowing the caller is hidden, would show their picture). Read
+  // before the call is accepted, so a failed lookup changes nothing.
+  const caller = await prisma.user.findUnique({ where: { id: call.callerId }, select: { name: true } });
+  const callerName = await maskHiddenCallerName(user.id, call.callerId, caller?.name ?? null);
+
   try {
     // Already minted by startCall and stored on the row — the common path
     // needs no Daily REST call here at all. Falls back to minting on the
@@ -369,7 +376,7 @@ export async function respondToCall(callId: string, accept: boolean) {
       return { error: "invalid" as const };
     }
     await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
-    return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
+    return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type, callerName };
   } catch {
     return { error: "call_service_unavailable" as const };
   }

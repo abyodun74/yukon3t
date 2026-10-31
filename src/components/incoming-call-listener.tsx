@@ -15,7 +15,7 @@ import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { hapticNotification, hapticImpact } from "@/lib/haptics";
 import { useCallsText } from "@/components/calls-text";
-import { callLabel, isPrivateCaller } from "@/lib/call-names";
+import { answeredCallLabel, callLabel, isPrivateCaller } from "@/lib/call-names";
 import { aroundPlaceholder } from "@/lib/i18n/locales";
 import { UserAvatar } from "@/components/user-link";
 
@@ -263,10 +263,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
-    const callerName =
-      incomingRef.current?.id === callId
-        ? incomingCallLabel(incomingRef.current, someoneRef.current)
-        : someoneRef.current;
+    // The in-app ring isn't loaded yet when this is an Accept from the notification or CallKit (a cold start, or
+    // the phone was locked): the name then comes from respondToCall, masked like the ring, so a hidden caller stays
+    // "Private call" and everyone else is named rather than "Someone".
+    const callerName = answeredCallLabel(
+      incomingRef.current?.id === callId ? incomingCallLabel(incomingRef.current, someoneRef.current) : null,
+      "callerName" in result ? result.callerName : undefined,
+      someoneRef.current,
+    );
     // Ownership of any prewarmed join for this exact call transfers to
     // DirectCallFrame now (it looks itself up by this same `call:${callId}`
     // key, via the `key` passed to startSession below) — only clear the
