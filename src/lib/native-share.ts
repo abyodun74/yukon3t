@@ -16,6 +16,9 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/** Cache subdirectory every file handed to the native share sheet is written to (see downloadToCache). */
+const SHARE_OUT_DIR = "share-out";
+
 type DownloadResult = { ok: true; uri: string } | { ok: false; reason: string };
 
 function mimeTypeFromFileName(fileName: string): string {
@@ -65,11 +68,18 @@ function mimeTypeFromFileName(fileName: string): string {
  * overwrites the same cache file.
  */
 async function downloadToCache(src: string, fileName: string, watermark: boolean): Promise<DownloadResult> {
+  // Inside SHARE_OUT_DIR, never the cache root: from the Android build after 1.27 the app's FileProvider only exposes that
+  // directory (android/app/src/main/res/xml/file_paths.xml), and the share target accepts the app's own files back
+  // in only from there (ShareUriPolicy.java). Older builds expose the whole cache dir, so this works on them too.
+  const path = `${SHARE_OUT_DIR}/${fileName}`;
   try {
-    await Filesystem.downloadFile({ url: src, path: fileName, directory: Directory.Cache });
+    // Android's downloadFile ignores `recursive` and never creates the parent directory, so make it first. mkdir
+    // rejects when it already exists; a real failure surfaces from downloadFile below.
+    await Filesystem.mkdir({ path: SHARE_OUT_DIR, directory: Directory.Cache, recursive: true }).catch(() => {});
+    await Filesystem.downloadFile({ url: src, path, directory: Directory.Cache });
 
     if (!watermark) {
-      const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+      const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
       return { ok: true, uri };
     }
 
@@ -77,13 +87,18 @@ async function downloadToCache(src: string, fileName: string, watermark: boolean
     // upload — the original post image stays untouched in R2 (still needed
     // unwatermarked for the feed/lightbox/etc.), only the copy that's about
     // to leave the app via the native share sheet gets stamped.
-    const { data } = await Filesystem.readFile({ path: fileName, directory: Directory.Cache });
+    const { data } = await Filesystem.readFile({ path, directory: Directory.Cache });
     const base64Downloaded = typeof data === "string" ? data : await blobToBase64(data);
     const watermarked = await watermarkImageFile(
       base64ToFile(base64Downloaded, mimeTypeFromFileName(fileName), fileName),
     );
     const base64Watermarked = await blobToBase64(watermarked);
-    const { uri } = await Filesystem.writeFile({ path: fileName, data: base64Watermarked, directory: Directory.Cache });
+    const { uri } = await Filesystem.writeFile({
+      path,
+      data: base64Watermarked,
+      directory: Directory.Cache,
+      recursive: true,
+    });
     return { ok: true, uri };
   } catch (err) {
     console.error(`downloadToCache failed for ${fileName}:`, err);
