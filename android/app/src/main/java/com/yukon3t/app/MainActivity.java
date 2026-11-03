@@ -53,6 +53,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GalleryPickerPlugin.class);
         registerPlugin(ImageClipboardPlugin.class);
         registerPlugin(SecureWindowPlugin.class);
+        // Also before super.onCreate(): Capacitor's Bridge reads the launch
+        // intent's data (App.getLaunchUrl) and extras (Cordova preferences)
+        // while it is built there. See DeepLinkGuard.
+        DeepLinkGuard.sanitize(this, getIntent());
         super.onCreate(savedInstanceState);
         handleCallDeepLink(getIntent());
         handleShareIntent(getIntent());
@@ -82,9 +86,11 @@ public class MainActivity extends BridgeActivity {
     // onCreate — this is the path a notification tap takes while the app is
     // already alive. Capacitor's own BridgeActivity.onNewIntent is what
     // fires the "appUrlOpen" event incoming-call-listener.tsx listens for;
-    // calling super first preserves that unchanged.
+    // the intent is sanitized first (DeepLinkGuard: only this app's own
+    // signed notification links keep their data), then super runs as before.
     @Override
     public void onNewIntent(Intent intent) {
+        DeepLinkGuard.sanitize(this, intent);
         super.onNewIntent(intent);
         handleCallDeepLink(intent);
         handleShareIntent(intent);
@@ -162,6 +168,9 @@ public class MainActivity extends BridgeActivity {
      * this replicates the rest of what the receiver used to do.
      */
     private void handleCallDeepLink(Intent intent) {
+        // Data is only still present here for a signed link from this app's
+        // own notification (DeepLinkGuard.sanitize ran first), so another app
+        // can't stop a ring or draw this Activity over the lock screen.
         if (intent == null || intent.getData() == null) return;
         Uri uri = intent.getData();
         if (!"yukon3t".equals(uri.getScheme()) || !"call".equals(uri.getHost())) return;

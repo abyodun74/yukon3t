@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- What ${applicationId}.fileprovider may expose (only through a grant this
+     app issues): the two cache subdirectories it shares files out of, and
+     nothing else. src/lib/native-share.ts downloads into cache/share-out/ for
+     @capacitor/share; ImageClipboardPlugin writes cache/clipboard-images/.
+     This used to be the whole cache dir (which also holds the WebView's HTTP
+     cache) plus the whole external storage root. ShareReceiverPlugin accepts
+     this provider's URIs back in only from these same two directories
+     (ShareUriPolicy.OWN_PROVIDER_ALLOWED_DIRS). -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <cache-path name="share_out" path="share-out/" />
+    <cache-path name="clipboard_images" path="clipboard-images/" />
 </paths>

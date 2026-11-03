@@ -182,7 +182,9 @@ public class CallForegroundService extends Service {
                 // after a reload (claimLaunchUrl).
                 .appendQueryParameter("n", callId)
                 .build();
-            viewIntent = new Intent(Intent.ACTION_VIEW, link, context, MainActivity.class);
+            // Signed: MainActivity drops the data of any yukon3t:// link
+            // that doesn't carry this app's own token (DeepLinkGuard).
+            viewIntent = DeepLinkGuard.sign(context, new Intent(Intent.ACTION_VIEW, link, context, MainActivity.class));
         } else {
             viewIntent = new Intent(context, MainActivity.class);
         }
@@ -417,6 +419,7 @@ public class CallForegroundService extends Service {
             app,
             MainActivity.class
         );
+        DeepLinkGuard.sign(app, viewIntent);
         viewIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(
             app,
@@ -551,7 +554,7 @@ public class CallForegroundService extends Service {
      */
     private static PendingIntent actionIntent(Context context, String callId, String action) {
         Uri uri = Uri.parse("yukon3t://call?callId=" + Uri.encode(callId) + "&action=" + action);
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri, context, MainActivity.class);
+        Intent intent = DeepLinkGuard.sign(context, new Intent(Intent.ACTION_VIEW, uri, context, MainActivity.class));
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int requestCode = (callId + action).hashCode();
         return PendingIntent.getActivity(

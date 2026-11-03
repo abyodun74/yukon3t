@@ -222,8 +222,12 @@ android {
         // missed-call notification tap deep link (yukon3t://open) and the caller
         // picture in the incoming-call notification (CallAvatarLoader). No new
         // permission, no manifest change, no new Play Console declaration.
-        versionCode 30
-        versionName "1.27"
+        // 31: security hardening - the share target accepts only real content:// media from
+        // other apps (ShareUriPolicy), the browsable yukon3t://call link is removed and
+        // notification taps are verified (DeepLinkGuard), FileProvider paths narrowed.
+        // No new permission, no new Play Console declaration.
+        versionCode 31
+        versionName "1.28"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

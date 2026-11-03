@@ -22,19 +22,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Notification-tap deep link for incoming calls raised by
-                 CallForegroundService/CallActionReceiver — a plain custom
-                 scheme (not an https App Link) since it's only ever opened
-                 from within this app's own notifications, so no
-                 assetlinks.json domain verification is needed. Read by
-                 incoming-call-listener.tsx via @capacitor/app's
-                 getLaunchUrl()/appUrlOpen. -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="yukon3t" android:host="call" />
-            </intent-filter>
+            <!-- No intent-filter for yukon3t:// links, on purpose (security
+                 audit L5). The incoming-call (yukon3t://call) and missed-call
+                 (yukon3t://open) notification taps are explicit, signed
+                 PendingIntents built by CallForegroundService, which need no
+                 filter; the BROWSABLE yukon3t://call filter that used to be
+                 here let any web page or app answer a ringing call. Every
+                 yukon3t:// link MainActivity receives is checked by
+                 DeepLinkGuard before Capacitor (getLaunchUrl/appUrlOpen,
+                 read by incoming-call-listener.tsx and capacitor-bridge.tsx)
+                 sees it. -->
 
             <!-- Share target: lets other apps' Share sheets offer "YuKon3t"
                  as a destination for a single image/video/audio file or
