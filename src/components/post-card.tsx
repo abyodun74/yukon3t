@@ -625,61 +625,38 @@ function MediaBlock({
           alt={post.content || format(t.post.photoBy, { name: post.author.name ?? t.post.someone })}
         />
       ) : (
+        // Every Post row holds at most one photo (a multi-photo post is an
+        // album of one-photo rows, rendered by AlbumCarousel above). This is
+        // a single photo, or an album's lead on its own (a repost/share's
+        // embedded original, which carries no albumPhotos).
         post.mediaType === "IMAGE" &&
-        post.mediaUrls.length > 0 && (
-          <div
-            className={cn(
-              "mt-3 grid gap-1.5 overflow-hidden rounded-lg",
-              post.mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
-            )}
-          >
-            {post.mediaUrls.map((url, i) => (
-              <button
-                key={url}
-                type="button"
-                onClick={() => onOpenImage(i)}
-                className="block cursor-zoom-in"
-              >
-                {/* Plain <img>, not next/image: avoids routing user-uploaded
-                    content through Next's bundled sharp (see SECURITY.md). */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={post.content || format(t.post.photoBy, { name: post.author.name ?? t.post.someone })}
-                  // Single photo: intrinsic size, not a fixed 4/5 box.
-                  // object-contain inside a forced aspect-[4/5] box (the
-                  // previous fix for the sides-cropped bug) traded cropping
-                  // for the opposite problem — confirmed live that a wide
-                  // graphic (a sports-score card) now rendered with large
-                  // empty letterbox bars above/below instead of filling the
-                  // frame. Dropping the fixed box lets the image's own
-                  // width/height ratio size the box directly — a photo
-                  // reasonably close to the feed's width fills it edge to
-                  // edge with no crop and no letterboxing, which covers the
-                  // common case (this screenshot included). max-h caps only
-                  // the rare extreme-portrait image that would otherwise
-                  // tower over the feed; object-contain there just means
-                  // that one capped case still shows the whole photo
-                  // (letterboxed) instead of cropping it — never the
-                  // all-the-time tradeoff the fixed box forced on every
-                  // photo. The multi-tile grid below keeps its own
-                  // aspect-square/-cover — that's a deliberate, legacy-only
-                  // square-grid crop (pre-backfill rows only, see
-                  // actions/circles.ts's createPost), not what was reported.
-                  className={cn(
-                    "img-fade-in w-full rounded-lg bg-line/40",
-                    post.mediaUrls.length === 1
-                      ? "max-h-[32rem] object-contain"
-                      : "aspect-square object-cover",
-                  )}
-                  loading="lazy"
-                  decoding="async"
-                  ref={markImageLoadedIfComplete}
-                  onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
-                />
-              </button>
-            ))}
-          </div>
+        post.mediaUrls[0] && (
+          <button type="button" onClick={() => onOpenImage(0)} className="mt-3 block w-full cursor-zoom-in">
+            {/* Plain <img>, not next/image: avoids routing user-uploaded
+                content through Next's bundled sharp (see SECURITY.md). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={post.mediaUrls[0]}
+              alt={post.content || format(t.post.photoBy, { name: post.author.name ?? t.post.someone })}
+              // Intrinsic size, not a fixed 4/5 box. object-contain inside a
+              // forced aspect-[4/5] box (the previous fix for the sides-cropped
+              // bug) traded cropping for the opposite problem — confirmed live
+              // that a wide graphic (a sports-score card) rendered with large
+              // empty letterbox bars above/below instead of filling the frame.
+              // Dropping the fixed box lets the image's own width/height ratio
+              // size the box directly — a photo reasonably close to the feed's
+              // width fills it edge to edge with no crop and no letterboxing.
+              // max-h caps only the rare extreme-portrait image that would
+              // otherwise tower over the feed; object-contain there just means
+              // that one capped case still shows the whole photo (letterboxed)
+              // instead of cropping it.
+              className="img-fade-in max-h-[32rem] w-full rounded-lg bg-line/40 object-contain"
+              loading="lazy"
+              decoding="async"
+              ref={markImageLoadedIfComplete}
+              onLoad={(e) => e.currentTarget.classList.add("img-loaded")}
+            />
+          </button>
         )
       )}
 
