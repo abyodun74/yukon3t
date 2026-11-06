@@ -1511,6 +1511,32 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "birthday-reminders",
+        q: "How do birthday reminders and wishes work?",
+        a: (
+          <>
+            Sharing your birthday is off until you turn it on. In Settings →
+            Privacy, under Birthday, choose who is reminded on your birthday:
+            your connections, members of your Circles, or both. Only the day
+            and month are ever shared, never the year or your age, and nobody
+            you&apos;ve blocked or who has blocked you is reminded; in a private
+            Circle, only its members are. On the day, each of those people gets
+            one reminder in their own morning (YuKon3t uses the time zone of
+            the device they use the app on), and if several people they know
+            have a birthday that day, one notification covers them all. Tapping
+            it lets them send you wishes: a reaction, a ready-made message or
+            their own words. Each wish arrives as a direct message from that
+            person, at most one per person per year, and you get one
+            notification that sums them up instead of one per wish. If you were
+            born on February 29, your birthday is celebrated on February 28 in
+            other years. Birthday sharing is only available from age 18. To
+            stop, set &ldquo;Share my birthday&rdquo; back to Off: nobody is
+            reminded from then on, though reminders already sent aren&apos;t
+            recalled.
+          </>
+        ),
+      },
     ],
   },
   {

@@ -113,6 +113,7 @@ export const FAQ_IDS = [
   "secret-chats",
   "forget-recovery-passphrase-lose-phone",
   "moderators-read-secret-chats-report",
+  "birthday-reminders",
   // Hidden chats
   "hiding-chat",
   "open-hidden-chat-unhide-one",

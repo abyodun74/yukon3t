@@ -12,12 +12,15 @@ export type Notice =
   | { kind: "recording_failed" }
   | { kind: "recording_flagged"; categories: string[] }
   // A coalesced NEW_MEMBER_JOINED row (src/lib/new-member-alerts.ts): the actor and `others` more people just joined.
-  | { kind: "new_members"; others: number };
+  | { kind: "new_members"; others: number }
+  // The celebrant's combined BIRTHDAY_WISHES row (src/lib/birthday-wish-server.ts): the actor and `others` more people
+  // wished them a happy birthday.
+  | { kind: "birthday_wishes"; others: number };
 
 // A category key is one token of video-review.ts's reasons ("sexual", "violence/graphic", "profanity"): never a comma.
 export function encodeNotice(notice: Notice): string {
   if (notice.kind === "recording_failed") return notice.kind;
-  if (notice.kind === "new_members") return `${notice.kind}:${notice.others}`;
+  if (notice.kind === "new_members" || notice.kind === "birthday_wishes") return `${notice.kind}:${notice.others}`;
   return `${notice.kind}:${notice.categories.join(",")}`;
 }
 
@@ -28,7 +31,7 @@ export function decodeNotice(data: string | null | undefined): Notice | null {
   const kind = colon === -1 ? data : data.slice(0, colon);
   const categories = colon === -1 ? [] : data.slice(colon + 1).split(",").filter(Boolean);
   if (kind === "recording_failed" && colon === -1) return { kind };
-  if (kind === "new_members") {
+  if (kind === "new_members" || kind === "birthday_wishes") {
     const others = colon === -1 ? NaN : Number(data.slice(colon + 1));
     return Number.isSafeInteger(others) && others > 0 ? { kind, others } : null;
   }
@@ -46,6 +49,9 @@ export function noticeText(notice: Notice, t: NoticeText, listSeparator: string)
   if (notice.kind === "recording_failed") return t.recordingFailed;
   if (notice.kind === "new_members") {
     return notice.others === 1 ? t.newMembersOne : format(t.newMembersMany, { count: String(notice.others) });
+  }
+  if (notice.kind === "birthday_wishes") {
+    return notice.others === 1 ? t.birthdayWishesOne : format(t.birthdayWishesMany, { count: String(notice.others) });
   }
   const names = [...new Set(notice.categories.map((key) => categoryName(key, t)))];
   const reasons = names.join(listSeparator);

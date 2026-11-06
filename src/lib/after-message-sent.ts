@@ -24,6 +24,7 @@ export async function afterMessageSent({
   secret,
   content,
   mediaType,
+  quiet = false,
 }: {
   user: { id: string; name: string | null };
   conversationId: string;
@@ -31,6 +32,11 @@ export async function afterMessageSent({
   secret: boolean;
   content: string;
   mediaType: "NONE" | "AUDIO" | "VIDEO" | "IMAGE" | "GIF";
+  /**
+   * No push and no MESSAGE bell row: the caller notifies the recipients its own way. Only birthday wishes
+   * (src/lib/birthday-wish-server.ts), whose celebrant gets one combined notification instead of one per wish.
+   */
+  quiet?: boolean;
 }) {
   // The message row is already committed by the time this runs, so nothing
   // below may throw out of the action — the sender would see an error and
@@ -62,7 +68,9 @@ export async function afterMessageSent({
     console.error("[messages] hidden-chat lookup failed after message was stored", err);
     await captureError(err, { step: "hiddenRecipients", conversationId });
   }
-  const { open: openIds, hidden: hiddenIds } = splitHiddenRecipients(recipientIds, hidingIds);
+  const { open: openIds, hidden: hiddenIds } = quiet
+    ? { open: [] as string[], hidden: [] as string[] }
+    : splitHiddenRecipients(recipientIds, hidingIds);
   // Never the message text in a secret chat, and never ciphertext anywhere (pushPreview, through messagePush). Each
   // recipient's copy is in their own language, read with their devices in the same query; worded once per language.
   const messagePayload = messagePush({
@@ -98,7 +106,7 @@ export async function afterMessageSent({
   // When the hidden lookup failed nobody is known to be "open", but the rows are still written for everyone: a row
   // is only ever shown through visibleNotificationWhere (the bell count and /notifications), which drops any row
   // whose conversation the reader has hidden, so writing one for a hiding recipient shows them nothing.
-  const bellIds = hiddenLookupFailed ? recipientIds : openIds;
+  const bellIds = quiet ? [] : hiddenLookupFailed ? recipientIds : openIds;
   if (bellIds.length > 0) {
     await bestEffort("notifications", () =>
       prisma.notification.createMany({

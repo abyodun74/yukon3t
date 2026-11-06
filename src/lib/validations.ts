@@ -19,6 +19,12 @@ import { EVENT_ANNOUNCEMENT_MAX_LENGTH } from "@/lib/circle-event-organizer";
 import { RSVP_STATUSES } from "@/lib/rsvp";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
+import {
+  BIRTHDAY_AUDIENCE_VALUES,
+  BIRTHDAY_EMOJIS,
+  BIRTHDAY_PRESET_IDS,
+  BIRTHDAY_WISH_TEXT_MAX,
+} from "@/lib/birthdays";
 
 // The plain constants live in the zod-free src/lib/validation-constants.ts so client components can import them
 // without bundling zod; re-exported here for server code that reads them alongside the schemas.
@@ -164,6 +170,24 @@ export const ringtoneSchema = z.object({
 export const newMemberAlertsSchema = z.object({
   newMemberAlerts: z.boolean(),
 });
+
+// Settings -> Privacy, "Share my birthday" (updateBirthdaySharing). OFF stores null.
+export const birthdaySharingSchema = z.object({
+  audience: z.enum(["OFF", ...BIRTHDAY_AUDIENCE_VALUES]),
+});
+
+// The quick-wish sheet (sendBirthdayWish): one reaction, one ready-made message (worded on the server, in the sender's
+// language) or the sender's own text.
+const birthdayCelebrantId = z.string().cuid();
+export const birthdayWishSchema = z.discriminatedUnion("kind", [
+  z.object({ celebrantId: birthdayCelebrantId, kind: z.literal("emoji"), emoji: z.enum(BIRTHDAY_EMOJIS) }),
+  z.object({ celebrantId: birthdayCelebrantId, kind: z.literal("preset"), presetId: z.enum(BIRTHDAY_PRESET_IDS) }),
+  z.object({
+    celebrantId: birthdayCelebrantId,
+    kind: z.literal("custom"),
+    text: z.string().trim().min(1).max(BIRTHDAY_WISH_TEXT_MAX),
+  }),
+]);
 
 export const autoTranslateSchema = z.object({
   autoTranslate: z.boolean(),

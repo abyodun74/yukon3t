@@ -173,3 +173,18 @@ export function eventAnnouncementPushBody(locale: Locale, text: string): string 
 export function newMemberPushBody(others: number, locale: Locale): string {
   return others > 0 ? noticeLine({ kind: "new_members", others }, locale) : activityLine("NEW_MEMBER_JOINED", locale);
 }
+
+/**
+ * The birthday-reminders cron's one push for a recipient (src/lib/birthdays-data.ts): one birthday is the person's
+ * name over "has a birthday today"; several are "Birthdays today" over "Ada and 2 others have birthdays today".
+ */
+export function birthdayPush(names: (string | null)[], locale: Locale): { title: string; body: string } {
+  const first = nameOrSomeone(names[0], locale);
+  if (names.length <= 1) return { title: first, body: activityLine("BIRTHDAY_TODAY", locale) };
+  const t = pushText(locale).birthday;
+  const others = names.length - 1;
+  return {
+    title: t.title,
+    body: others === 1 ? format(t.severalOne, { name: first }) : format(t.severalMany, { name: first, count: String(others) }),
+  };
+}

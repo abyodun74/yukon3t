@@ -145,6 +145,12 @@ describe("isHiddenNotification", () => {
     expect(isHiddenNotification(row("SCREENSHOT_TAKEN", "peer-hidden", null), hidden)).toBe(true);
   });
 
+  it("hides a hidden peer's birthday reminder and a wishes row naming them", () => {
+    expect(isHiddenNotification(row("BIRTHDAY_TODAY", "peer-hidden", null), hidden)).toBe(true);
+    expect(isHiddenNotification(row("BIRTHDAY_WISHES", "peer-hidden", "conv-open"), hidden)).toBe(true);
+    expect(isHiddenNotification(row("BIRTHDAY_TODAY", "friend", null), hidden)).toBe(false);
+  });
+
   it("leaves a hidden peer's public activity alone", () => {
     expect(isHiddenNotification(row("POST_LIKE", "peer-hidden", null), hidden)).toBe(false);
     expect(isHiddenNotification(row("POST_COMMENT", "peer-hidden", null), hidden)).toBe(false);
@@ -173,7 +179,12 @@ describe("visibleNotificationWhere", () => {
 
   it("excludes only the private types for a hidden peer", () => {
     expect(visibleNotificationWhere({ conversationIds: [], peerIds: ["p1"] })).toEqual([
-      { OR: [{ actorId: { notIn: ["p1"] } }, { type: { notIn: ["MESSAGE", "MISSED_CALL", "SCREENSHOT_TAKEN"] } }] },
+      {
+        OR: [
+          { actorId: { notIn: ["p1"] } },
+          { type: { notIn: ["MESSAGE", "MISSED_CALL", "SCREENSHOT_TAKEN", "BIRTHDAY_TODAY", "BIRTHDAY_WISHES"] } },
+        ],
+      },
     ]);
   });
 });

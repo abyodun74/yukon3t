@@ -61,7 +61,15 @@ export type HiddenState = { conversationIds: string[]; peerIds: string[] };
  * hidden even when the row carries no conversationId (MISSED_CALL never does). Public activity by the same person (a
  * like, a comment, a new post) is not: hiding a chat doesn't hide the person's public presence.
  */
-export const HIDDEN_PEER_NOTIFICATION_TYPES = ["MESSAGE", "MISSED_CALL", "SCREENSHOT_TAKEN"] as const;
+// A hidden peer's birthday reminder, and the birthday-wishes row while they are its named (latest) wisher, are hidden
+// too: both are about that person's private exchange with the reader (a wish is a direct message).
+export const HIDDEN_PEER_NOTIFICATION_TYPES = [
+  "MESSAGE",
+  "MISSED_CALL",
+  "SCREENSHOT_TAKEN",
+  "BIRTHDAY_TODAY",
+  "BIRTHDAY_WISHES",
+] as const;
 
 export function isHiddenNotification(
   notification: { type: string; actorId: string; conversationId: string | null },

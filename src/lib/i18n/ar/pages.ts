@@ -119,6 +119,8 @@ export const pages: typeof pagesEn = {
       EVENT_RESCHEDULED: "غيّر {name} موعد فعالية تشارك فيها",
       EVENT_ANNOUNCEMENT: "نشر {name} تحديثًا عن فعالية ستحضرها",
       NEW_MEMBER_JOINED: "انضم {name} للتو إلى YuKon3t",
+      BIRTHDAY_TODAY: "اليوم عيد ميلاد {name}",
+      BIRTHDAY_WISHES: "هنّأك {name} بعيد ميلادك",
     },
     notices: {
       videoFlagged:
@@ -133,6 +135,8 @@ export const pages: typeof pagesEn = {
         "تعذّر نشر تسجيل بثك المباشر في خلاصة الرئيسية، لأن مراجعتنا الآلية رصدت فيه ما يلي: {reasons}. لا يزال التسجيل نفسه متاحًا للتنزيل من قائمة «التسجيلات» في صفحة البث.",
       newMembersOne: "وشخص آخر انضما للتو إلى YuKon3t",
       newMembersMany: "و{count} آخرون انضموا للتو إلى YuKon3t",
+      birthdayWishesOne: "وشخص آخر هنّآك بعيد ميلادك",
+      birthdayWishesMany: "و{count} آخرون هنّأوك بعيد ميلادك",
       categories: {
         sexual: "محتوى جنسي صريح",
         "sexual/minors": "محتوى جنسي يتعلق بقاصرين",

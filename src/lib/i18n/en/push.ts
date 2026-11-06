@@ -47,6 +47,14 @@ export const pushEn = {
     EVENT_RESCHEDULED: "moved an event you're part of to a new time",
     EVENT_ANNOUNCEMENT: "posted an update about an event you're going to",
     NEW_MEMBER_JOINED: "just joined YuKon3t",
+    BIRTHDAY_TODAY: "has a birthday today",
+    BIRTHDAY_WISHES: "wished you a happy birthday",
+  },
+  // The birthday-reminders cron's one push for a recipient with several birthdays on the same day (birthdayPush).
+  birthday: {
+    title: "Birthdays today",
+    severalOne: "{name} and 1 other person have birthdays today",
+    severalMany: "{name} and {count} others have birthdays today",
   },
   // Extra lines under EVENT_CANCELLED / EVENT_RESCHEDULED (eventChangePushBody). The time is in UTC, said by its zone name.
   eventChange: {

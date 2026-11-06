@@ -41,6 +41,13 @@ export const push: typeof pushEn = {
     EVENT_RESCHEDULED: "Cambió la hora de un evento en el que participas",
     EVENT_ANNOUNCEMENT: "Publicó una novedad sobre un evento al que vas",
     NEW_MEMBER_JOINED: "Acaba de unirse a YuKon3t",
+    BIRTHDAY_TODAY: "Cumple años hoy",
+    BIRTHDAY_WISHES: "Te deseó feliz cumpleaños",
+  },
+  birthday: {
+    title: "Cumpleaños de hoy",
+    severalOne: "{name} y 1 persona más cumplen años hoy",
+    severalMany: "{name} y {count} personas más cumplen años hoy",
   },
   eventChange: {
     newTime: "Nueva hora: {when}",

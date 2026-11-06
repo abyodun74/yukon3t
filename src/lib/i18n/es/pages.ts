@@ -118,6 +118,8 @@ export const pages: typeof pagesEn = {
       EVENT_RESCHEDULED: "{name} cambió la hora de un evento en el que participas",
       EVENT_ANNOUNCEMENT: "{name} publicó una novedad sobre un evento al que vas",
       NEW_MEMBER_JOINED: "{name} acaba de unirse a YuKon3t",
+      BIRTHDAY_TODAY: "Hoy es el cumpleaños de {name}",
+      BIRTHDAY_WISHES: "{name} te deseó feliz cumpleaños",
     },
     notices: {
       videoFlagged:
@@ -132,6 +134,8 @@ export const pages: typeof pagesEn = {
         "No se pudo publicar la grabación de tu transmisión en vivo en el feed de Inicio porque nuestra revisión automática la marcó ({reasons}). La grabación sigue disponible para descargar en la lista de Grabaciones de la transmisión.",
       newMembersOne: "y 1 persona más acaban de unirse a YuKon3t",
       newMembersMany: "y {count} personas más acaban de unirse a YuKon3t",
+      birthdayWishesOne: "y 1 persona más te desearon feliz cumpleaños",
+      birthdayWishesMany: "y {count} personas más te desearon feliz cumpleaños",
       categories: {
         sexual: "contenido sexual explícito",
         "sexual/minors": "contenido sexual que involucra a menores",

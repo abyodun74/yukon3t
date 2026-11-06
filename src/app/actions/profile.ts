@@ -458,6 +458,12 @@ export async function exportMyData() {
       sentConnections: { where: { targetId: { notIn: hidden.peerIds } } },
       receivedConnections: { where: { requesterId: { notIn: hidden.peerIds } } },
       sentMessages: { where: { conversationId: { notIn: hidden.conversationIds } } },
+      // Birthday wishes you sent (who to, which year); the wish itself is one of sentMessages. Your own "Share my
+      // birthday" choice and recorded time zone are columns of this row.
+      birthdayWishesSent: {
+        where: { celebrantId: { notIn: hidden.peerIds } },
+        select: { celebrantId: true, year: true, createdAt: true },
+      },
       reportsFiled: true,
     },
   });

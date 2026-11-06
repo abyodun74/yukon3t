@@ -300,6 +300,14 @@ model User {
   newMemberAnnouncedAt DateTime?
   newMemberAlerts      Boolean   @default(true)
   newMemberPushAt      DateTime?
+
+  // Birthday reminders (src/lib/birthdays.ts, the birthday-reminders cron). birthdayAudience is the person's own
+  // "Share my birthday" choice in Settings -> Privacy: null (the default) means off; otherwise who is reminded on the
+  // day. Only the day and month of birthDate are ever shown to anyone, never the year or an age, and it can only be on
+  // for an adult (BIRTHDAY_MIN_AGE). timeZone is the device's IANA zone, recorded by the presence heartbeat
+  // (pingPresence) whenever it changes, so a reminder lands in the recipient's morning; null reads as UTC.
+  birthdayAudience BirthdayAudience?
+  timeZone         String?
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -418,6 +426,12 @@ model User {
   ambientMoments   AmbientMoment[]
   ambientWidgetTokens AmbientWidgetToken[]
 
+  birthdayRemindersAbout    BirthdayReminder[]   @relation("BirthdayReminderCelebrant")
+  birthdayRemindersReceived BirthdayReminder[]   @relation("BirthdayReminderRecipient")
+  birthdayWishesSent        BirthdayWish[]       @relation("BirthdayWishSender")
+  birthdayWishesReceived    BirthdayWish[]       @relation("BirthdayWishCelebrant")
+  birthdayWishDigests       BirthdayWishDigest[]
+
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
   // equality filters, ordered by trustScore) — without this, that query
@@ -428,6 +442,70 @@ model User {
   @@index([status, discoverable, lastSeenAt])
   @@index([status, discoverable, createdAt])
   @@index([onboardedAt])
+  @@index([birthdayAudience])
+}
+
+// Who a person's birthday reminder goes to (User.birthdayAudience). Unset = nobody.
+enum BirthdayAudience {
+  CONNECTIONS
+  CIRCLES
+  BOTH
+}
+
+// One birthday reminder: `recipientId` was told it is `celebrantId`'s birthday. The unique (celebrant, recipient,
+// year) is what makes the birthday-reminders cron idempotent: rows are inserted with skipDuplicates and only the ones
+// actually inserted get a bell row and a push, so a run repeated (or overlapping) sends nothing twice. `year` and
+// `occasionDate` are the recipient's local calendar date of the birthday (Feb 28 for a Feb 29 birthday in a non-leap
+// year); occasionDate also groups a recipient's reminders of one day into a single push. A row is also what lets the
+// recipient send a wish (sendBirthdayWish), for BIRTHDAY_WISH_WINDOW_MS after it was created.
+model BirthdayReminder {
+  id           String   @id @default(cuid())
+  celebrantId  String
+  recipientId  String
+  year         Int
+  occasionDate DateTime @db.Date
+  createdAt    DateTime @default(now())
+
+  celebrant User @relation("BirthdayReminderCelebrant", fields: [celebrantId], references: [id], onDelete: Cascade)
+  recipient User @relation("BirthdayReminderRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([celebrantId, recipientId, year])
+  @@index([recipientId, occasionDate])
+  @@index([recipientId, createdAt])
+}
+
+// A birthday wish: at most one per sender per celebrant per year (the unique key, claimed before the message is
+// written). The wish itself is an ordinary direct message (`messageId`), sent through createNonE2eeMessage.
+model BirthdayWish {
+  id          String   @id @default(cuid())
+  senderId    String
+  celebrantId String
+  year        Int
+  messageId   String?  @unique
+  createdAt   DateTime @default(now())
+
+  sender    User     @relation("BirthdayWishSender", fields: [senderId], references: [id], onDelete: Cascade)
+  celebrant User     @relation("BirthdayWishCelebrant", fields: [celebrantId], references: [id], onDelete: Cascade)
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([senderId, celebrantId, year])
+  @@index([celebrantId, year])
+}
+
+// The celebrant's one combined "N people wished you a happy birthday" bell row for a year (BIRTHDAY_WISHES). The first
+// wish of the year inserts this row (the unique key is the claim) and is the only one that pushes; later wishes update
+// the same notification's actor and count.
+model BirthdayWishDigest {
+  id             String   @id @default(cuid())
+  celebrantId    String
+  year           Int
+  notificationId String?  @unique
+  createdAt      DateTime @default(now())
+
+  celebrant    User          @relation(fields: [celebrantId], references: [id], onDelete: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@unique([celebrantId, year])
 }
 
 enum CircleVisibility {
@@ -1399,6 +1477,14 @@ enum NotificationType {
   // messageData is a "new_members:<others>" notice ("<name> and 3 others just joined"), which opens Discover's newest
   // people instead of one profile. Bell + FCM push, the push at most once per NEW_MEMBER_PUSH_COOLDOWN_MS per recipient.
   NEW_MEMBER_JOINED
+  // "<name> has a birthday today": one row per birthday per recipient, written by the birthday-reminders cron
+  // (src/lib/birthdays-data.ts) in the recipient's morning. actorId is the person whose birthday it is. Opens the
+  // quick-wish sheet (/birthdays?wish=<actorId>). A recipient's birthdays of one day share one push.
+  BIRTHDAY_TODAY
+  // "<name> wished you a happy birthday": the celebrant's one combined row per year (BirthdayWishDigest), updated as
+  // more wishes arrive into a "birthday_wishes:<others>" notice ("<name> and 3 others wished you a happy birthday").
+  // actorId is the latest wisher. Pushed once, on the first wish; each wish itself is a direct message.
+  BIRTHDAY_WISHES
 }
 
 model Notification {
@@ -1443,6 +1529,7 @@ model Notification {
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
   channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  birthdayWishDigest BirthdayWishDigest?
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
@@ -2652,6 +2739,7 @@ model Message {
   corrections  MessageCorrection[]
   viewOnceMedia ViewOnceMedia?
   translations ContentTranslation[]
+  birthdayWish BirthdayWish?
 
   // Every message query filters on conversationId and sorts/paginates on
   // createdAt together (getConversationMessages, the collab board, the

@@ -21,6 +21,8 @@ export const settingsEn = {
     current_password_invalid: "Current password is incorrect.",
     same_password: "That's your current password. For your security, choose a different one.",
     rate_limited: "Too many attempts — try again in a few minutes.",
+    birthday_unavailable:
+      "Birthday sharing is only for members aged 18 or over whose date of birth is on their account.",
     other: "Please check your inputs.",
   },
   saving: "Saving...",
@@ -34,6 +36,18 @@ export const settingsEn = {
     save: "Save privacy settings",
     // Always shown, and worded the same, whether or not the account has a PIN or a hidden chat.
     hiddenChats: "Hidden chats",
+  },
+  // Settings -> Privacy, "Share my birthday" (updateBirthdaySharing, src/lib/birthdays.ts). Off by default.
+  birthday: {
+    heading: "Birthday",
+    label: "Share my birthday",
+    hint: "On your birthday, the people you choose get one reminder and can send you wishes as a message. Only the day and month are shared, never the year or your age. Blocked people never see it.",
+    off: "Off: don't share my birthday",
+    connections: "With my connections",
+    circles: "With members of my Circles",
+    both: "With my connections and members of my Circles",
+    unavailable: "Birthday sharing is only for members aged 18 or over whose date of birth is on their account.",
+    save: "Save birthday setting",
   },
   notifications: {
     heading: "Notifications",

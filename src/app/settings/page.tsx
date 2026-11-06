@@ -3,6 +3,8 @@ import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, updateNewMemberAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
+import { updateBirthdaySharing } from "@/app/actions/birthdays";
+import { canShareBirthday } from "@/lib/birthdays";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
@@ -46,6 +48,9 @@ export default async function SettingsPage({
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
   const translationAvailable = isTranslationConfigured();
+  // Off and not offered to anyone who can't turn it on (no birth date on the account, or under BIRTHDAY_MIN_AGE); an
+  // account that already has it on can always turn it off.
+  const birthdayShareable = canShareBirthday(user.birthDate, new Date());
 
   const [signedInBefore, signedInAfter] = aroundPlaceholder(t.signedInAs, "email");
   const [profileBefore, profileAfter] = aroundPlaceholder(t.editProfile, "link");
@@ -145,6 +150,42 @@ export default async function SettingsPage({
             &rsaquo;
           </span>
         </Link>
+        <form action={updateBirthdaySharing} className="mt-6 space-y-3">
+          <h3 className="text-sm font-semibold">{t.birthday.heading}</h3>
+          <div>
+            <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
+              {t.birthday.label}
+            </label>
+            <select
+              id="settings-birthday-audience"
+              name="audience"
+              defaultValue={user.birthdayAudience ?? "OFF"}
+              disabled={!birthdayShareable && !user.birthdayAudience}
+              aria-describedby="settings-birthday-hint"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60"
+            >
+              <option value="OFF">{t.birthday.off}</option>
+              {(birthdayShareable || user.birthdayAudience === "CONNECTIONS") && (
+                <option value="CONNECTIONS">{t.birthday.connections}</option>
+              )}
+              {(birthdayShareable || user.birthdayAudience === "CIRCLES") && (
+                <option value="CIRCLES">{t.birthday.circles}</option>
+              )}
+              {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
+            </select>
+            <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
+              {birthdayShareable ? t.birthday.hint : t.birthday.unavailable}
+            </p>
+          </div>
+          {(birthdayShareable || user.birthdayAudience) && (
+            <SubmitButton
+              label={t.birthday.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          )}
+        </form>
       </div>
 
       <div>

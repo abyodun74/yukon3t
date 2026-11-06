@@ -121,6 +121,8 @@ export const pages: typeof pagesEn = {
       EVENT_RESCHEDULED: "{name} a déplacé un événement auquel vous participez",
       EVENT_ANNOUNCEMENT: "{name} a publié une info sur un événement auquel vous allez",
       NEW_MEMBER_JOINED: "{name} vient de rejoindre YuKon3t",
+      BIRTHDAY_TODAY: "C'est l'anniversaire de {name} aujourd'hui",
+      BIRTHDAY_WISHES: "{name} vous a souhaité un joyeux anniversaire",
     },
     notices: {
       videoFlagged:
@@ -135,6 +137,8 @@ export const pages: typeof pagesEn = {
         "L'enregistrement de votre direct n'a pas pu être publié dans le fil d'accueil, car notre contrôle automatique l'a signalé ({reasons}). L'enregistrement reste disponible au téléchargement dans la liste Enregistrements du direct.",
       newMembersOne: "et 1 autre personne viennent de rejoindre YuKon3t",
       newMembersMany: "et {count} autres personnes viennent de rejoindre YuKon3t",
+      birthdayWishesOne: "et 1 autre personne vous ont souhaité un joyeux anniversaire",
+      birthdayWishesMany: "et {count} autres personnes vous ont souhaité un joyeux anniversaire",
       categories: {
         sexual: "contenu sexuellement explicite",
         "sexual/minors": "contenu sexuel impliquant des mineurs",

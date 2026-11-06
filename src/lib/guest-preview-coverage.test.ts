@@ -287,6 +287,7 @@ describe("guest preview: every Server Action is member-guarded or deliberately a
 describe("guest preview: members-only pages show the guest screen", () => {
   const GATED_PAGES = [
     "src/app/notifications/page.tsx",
+    "src/app/birthdays/page.tsx",
     "src/app/messages/page.tsx",
     "src/app/messages/[id]/page.tsx",
     "src/app/messages/new/page.tsx",

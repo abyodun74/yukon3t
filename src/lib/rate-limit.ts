@@ -294,6 +294,8 @@ const limiterDefinitions = {
   // "Send to a friend" in the share sheets to up to 5 chats at once (sendToConversations, shareMuseToConversations,
   // shareStoryToConversations): per action, on top of messageSend per destination.
   shareToChats: makeLimiter(20, "10 m", "shareToChats"),
+  // Birthday wishes (sendBirthdayWish): per sender, on top of messageSend. At most one per celebrant per year anyway.
+  birthdayWish: makeLimiter(30, "1 h", "birthdayWish"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(

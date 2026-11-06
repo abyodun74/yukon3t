@@ -1,4 +1,5 @@
 import { decodeNotice } from "@/lib/notification-notice";
+import { birthdayWishHref } from "@/lib/birthdays";
 
 // Where a notification leads when opened. Shared by the notification list
 // (components/notification-row.tsx) and markReadByTarget
@@ -64,7 +65,9 @@ export type NotificationData = {
     | "EVENT_CANCELLED"
     | "EVENT_RESCHEDULED"
     | "EVENT_ANNOUNCEMENT"
-    | "NEW_MEMBER_JOINED";
+    | "NEW_MEMBER_JOINED"
+    | "BIRTHDAY_TODAY"
+    | "BIRTHDAY_WISHES";
   // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
   recipientId: string;
   readAt: Date | null;
@@ -115,6 +118,14 @@ export function notificationHref(notification: NotificationData) {
     return decodeNotice(notification.messageData)?.kind === "new_members"
       ? NEW_MEMBERS_DIGEST_HREF
       : `/u/${notification.actor.id}`;
+  }
+  // "<name> has a birthday today" opens the quick-wish sheet for them (the cron's push uses birthdayWishHref too).
+  if (notification.type === "BIRTHDAY_TODAY") return birthdayWishHref(notification.actor.id);
+  // The celebrant's combined wishes row: the latest wisher's chat while it is one wish, the inbox once several people
+  // have written (a birthday_wishes notice). The first wish's push opens the same chat.
+  if (notification.type === "BIRTHDAY_WISHES") {
+    if (decodeNotice(notification.messageData)?.kind === "birthday_wishes" || !notification.conversationId) return "/messages";
+    return `/messages/${notification.conversationId}`;
   }
   // Site admins' oversight notice about a new Circle. A PRIVATE Circle's page doesn't exist for a non-member, site
   // admins included (lib/circle-visibility.ts), so a private one opens the admin Circles list instead.

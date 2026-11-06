@@ -7,6 +7,7 @@ import { pushPreview } from "@/lib/e2ee/secret-chat";
 import { videoPendingReviewNoticeText } from "@/lib/moderation-labels";
 import {
   activityLine,
+  birthdayPush,
   groupByLocale,
   hiddenPush,
   incomingCallPush,
@@ -166,5 +167,27 @@ describe.each(SUPPORTED_LOCALES)("%s", (locale) => {
     const categories = DICTIONARIES[locale].pages.notifications.notices.categories;
     expect(line).toContain(categories.violence);
     expect(line).toContain(categories.profanity);
+  });
+});
+
+describe("birthdayPush", () => {
+  it("names one person, and counts the rest when several share a day", () => {
+    expect(birthdayPush(["Ada"], "en")).toEqual({ title: "Ada", body: "has a birthday today" });
+    expect(birthdayPush([null], "en")).toEqual({ title: "Someone", body: "has a birthday today" });
+    expect(birthdayPush(["Ada", "Bo"], "en")).toEqual({
+      title: "Birthdays today",
+      body: "Ada and 1 other person have birthdays today",
+    });
+    expect(birthdayPush(["Ada", "Bo", "Cy", "Di"], "en").body).toBe("Ada and 3 others have birthdays today");
+  });
+
+  it.each(SUPPORTED_LOCALES)("leaves no placeholder unfilled in %s, with Western digits", (locale) => {
+    for (const names of [["Ada"], ["Ada", "Bo"], ["Ada", "Bo", "Cy", "Di", "Ed"]]) {
+      const { title, body } = birthdayPush(names, locale);
+      expect(`${title} ${body}`).not.toMatch(/[{}]/);
+      expect(`${title} ${body}`).toContain("Ada");
+      expect(body).not.toMatch(/[٠-٩]/);
+    }
+    expect(birthdayPush(["Ada", "Bo", "Cy", "Di", "Ed"], locale).body).toContain("4");
   });
 });

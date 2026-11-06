@@ -84,6 +84,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   EVENT_RESCHEDULED: "moved an event you're part of to a new time",
   EVENT_ANNOUNCEMENT: "posted an update about an event you're going to",
   NEW_MEMBER_JOINED: "just joined YuKon3t",
+  BIRTHDAY_TODAY: "has a birthday today",
+  BIRTHDAY_WISHES: "wished you a happy birthday",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

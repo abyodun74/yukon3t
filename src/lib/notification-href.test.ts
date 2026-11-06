@@ -169,6 +169,14 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: { messageData: "new_members:3" }, href: "/discover?sort=recent" },
     { data: { messageData: "new_members:garbage" }, href: "/u/u1" },
   ],
+  // A birthday reminder: the quick-wish sheet for the person whose birthday it is (the actor).
+  BIRTHDAY_TODAY: [{ data: {}, href: "/birthdays?wish=u1" }],
+  // The celebrant's combined wishes row: the one wisher's chat, then the inbox once several people have written.
+  BIRTHDAY_WISHES: [
+    { data: chat, href: "/messages/c1" },
+    { data: { ...chat, messageData: "birthday_wishes:2" }, href: "/messages" },
+    { data: {}, href: "/messages" },
+  ],
 };
 
 describe("notificationHref for every notification type", () => {

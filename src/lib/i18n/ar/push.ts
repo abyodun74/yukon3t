@@ -44,6 +44,13 @@ export const push: typeof pushEn = {
     EVENT_RESCHEDULED: "غيّر موعد فعالية تشارك فيها",
     EVENT_ANNOUNCEMENT: "نشر تحديثًا عن فعالية ستحضرها",
     NEW_MEMBER_JOINED: "انضم للتو إلى YuKon3t",
+    BIRTHDAY_TODAY: "يحتفل اليوم بعيد ميلاده",
+    BIRTHDAY_WISHES: "هنّأك بعيد ميلادك",
+  },
+  birthday: {
+    title: "أعياد ميلاد اليوم",
+    severalOne: "اليوم عيد ميلاد {name} وشخص آخر",
+    severalMany: "اليوم عيد ميلاد {name} و{count} آخرين",
   },
   eventChange: {
     newTime: "الموعد الجديد: {when}",
