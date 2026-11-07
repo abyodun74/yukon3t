@@ -19,6 +19,7 @@ import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { isEmojiOnly } from "@/lib/emoji";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
+import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { publishEvent } from "@/lib/realtime-server";
@@ -293,7 +294,33 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
 /** Single Muse fetch backing the /muse/[id] permalink page (shared/deep links) — same shape as one getMuseFeed item. */
 export async function getMuseById(id: string) {
   const user = await requireVerifiedViewer();
+  return museItemForViewer(id, user);
+}
 
+/**
+ * The Muse a Home video post plays, for opening that post in the Muse viewer (MuseViewerOverlay): the Muse it is a
+ * reshare of (toggleMuseRepost's post). `item: null` when the post isn't one, or the viewer can't see the post or the
+ * Muse; the viewer then shows the post itself. Matched on the resharer as well, which keeps it on MuseRepost's
+ * (userId, museId) index.
+ */
+export async function getMuseForPost(postId: string) {
+  const user = await requireVerifiedViewer();
+
+  const post = await prisma.post.findFirst({
+    where: { id: postId, ...(await getVisiblePostsWhere(user.id)) },
+    select: { authorId: true },
+  });
+  if (!post) return { error: "not_found" as const, item: null };
+
+  const repost = await prisma.museRepost.findFirst({
+    where: { userId: post.authorId, postId },
+    select: { museId: true },
+  });
+  if (!repost) return { error: null, item: null };
+  return museItemForViewer(repost.museId, user);
+}
+
+async function museItemForViewer(id: string, user: { id: string; isAdmin: boolean }) {
   const m = await prisma.muse.findUnique({
     where: { id },
     include: {

@@ -120,7 +120,7 @@ export const pt1 = {
   },
   "videos-feed-play-automatically-no": {
     q: "Por que os vídeos do meu feed tocam sozinhos e sem som?",
-    a: "Os vídeos do feed tocam automaticamente sem som quando você chega até eles ao rolar e pausam quando você passa. Toque no ícone de alto-falante do vídeo para ativar o som (veja «Aumentar o volume do celular ativa o som de um vídeo do meu feed», acima) ou toque no próprio vídeo para pausar ou retomar.",
+    a: "Os vídeos do feed tocam automaticamente sem som quando você chega até eles ao rolar e pausam quando você passa. Toque no ícone de alto-falante do vídeo para ativar o som (veja «Aumentar o volume do celular ativa o som de um vídeo do meu feed», acima) ou toque no próprio vídeo para pausar ou retomar. No Início, tocar em um vídeo curto (de até 5 minutos) abre o vídeo em tela cheia no Muse, com som: continue rolando para ver mais Muses e feche ou volte para retornar ao mesmo ponto do seu feed. O botão de reproduzir do vídeo continua pausando ali mesmo.",
   },
   "zoom-back-out-photo-without": {
     q: "Como tiro o zoom de uma foto sem fechar o visualizador?",

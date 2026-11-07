@@ -557,7 +557,11 @@ const sections: Section[] = [
             Feed videos autoplay muted as you scroll to them, and pause once
             you scroll past — tap the speaker icon on the video to unmute
             (see &ldquo;Turning up my phone&apos;s volume unmutes a
-            video&rdquo; above), or tap the video itself to pause/resume.
+            video&rdquo; above), or tap the video itself to pause/resume. On
+            Home, tapping a short video (up to 5 minutes) opens it full-screen
+            in Muse instead, with sound: keep scrolling for more Muses, and
+            close it or go back to land on the same spot in your feed. The
+            play button on the video still pauses it in place.
           </>
         ),
       },

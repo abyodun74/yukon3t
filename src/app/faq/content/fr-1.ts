@@ -120,7 +120,7 @@ export const fr1 = {
   },
   "videos-feed-play-automatically-no": {
     q: "Pourquoi les vidéos de mon fil se lancent-elles automatiquement sans le son ?",
-    a: "Les vidéos du fil se lancent automatiquement sans le son lorsque vous arrivez dessus en faisant défiler, et se mettent en pause une fois que vous les avez dépassées. Touchez l'icône de haut-parleur de la vidéo pour réactiver le son (voir « Monter le volume de mon téléphone réactive le son d'une vidéo de mon fil » ci-dessus), ou touchez la vidéo elle-même pour la mettre en pause ou la reprendre.",
+    a: "Les vidéos du fil se lancent automatiquement sans le son lorsque vous arrivez dessus en faisant défiler, et se mettent en pause une fois que vous les avez dépassées. Touchez l'icône de haut-parleur de la vidéo pour réactiver le son (voir « Monter le volume de mon téléphone réactive le son d'une vidéo de mon fil » ci-dessus), ou touchez la vidéo elle-même pour la mettre en pause ou la reprendre. Dans Accueil, toucher une vidéo courte (5 minutes maximum) l'ouvre plutôt en plein écran dans Muse, avec le son : continuez à faire défiler pour voir d'autres Muses, puis fermez-la ou revenez en arrière pour retrouver le même endroit de votre fil. Le bouton de lecture de la vidéo la met toujours en pause sur place.",
   },
   "zoom-back-out-photo-without": {
     q: "Comment dézoomer une photo sans fermer la visionneuse ?",

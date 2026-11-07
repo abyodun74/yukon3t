@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye, Pause, Play } from "lucide-react";
 import {
   getMuseFeed,
+  getMuseForPost,
   getMuseReactionSummary,
   toggleMuseReaction,
   getMuseComments,
@@ -28,10 +29,11 @@ import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useMuseText } from "@/components/muse-text";
 import { useGuestPreview } from "@/components/guest-preview";
-import { useUiText } from "@/components/ui-text";
+import { useShellText, useUiText } from "@/components/ui-text";
 import { formatShortAge } from "@/lib/format-date";
 import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
+import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -68,6 +70,8 @@ type MuseItem = {
   isReposted: boolean;
   isFollowingAuthor: boolean;
   sharedPostId: string | null;
+  // Only on the card a Home feed video opened the viewer on (museSeedItem): that post, not a Muse.
+  seedPostId?: string;
 };
 
 type MuseCommentData = {
@@ -107,17 +111,27 @@ export function MuseFeed({
   initialItems,
   initialCursor,
   currentUserId,
+  seedPost,
+  onClose,
 }: {
   initialItems: MuseItem[];
   initialCursor: string | null;
   currentUserId: string;
+  /** Opened from a Home feed video (MuseViewerOverlay): start on that post, then the Muse feed from the top. */
+  seedPost?: MuseSeedPost;
+  /** Set when shown as an overlay over another page rather than as /muse: the cards get a close button. */
+  onClose?: () => void;
 }) {
   const router = useRouter();
   const { t } = useMuseText();
   // A guest preview session (src/lib/guest-preview.ts) can watch, not react, repost, comment or count as a view.
   const { isGuest, promptSignUp } = useGuestPreview();
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<MuseItem[]>(() => (seedPost ? [museSeedItem(seedPost)] : initialItems));
   const [cursor, setCursor] = useState(initialCursor);
+  // The first card keeps one React key when the post it opened on turns out to be a Muse reshare and is swapped for
+  // that Muse, so its <video> (the same file) carries on playing instead of starting over.
+  const [seedItemId, setSeedItemId] = useState(seedPost?.id ?? null);
+  const seedVideoUrl = seedPost?.videoUrl ?? null;
   // Muse opens playing WITH sound; the speaker button mutes it. `muted` is the viewer's own choice, shared by every
   // card (the same "one sound setting for the whole feed" convention Home's videos use).
   const [muted, setMuted] = useState(false);
@@ -149,10 +163,35 @@ export function MuseFeed({
     if (!cursor || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
     const result = await getMuseFeed({ cursor });
-    setItems((prev) => [...prev, ...result.items]);
+    setItems((prev) => appendMuseItems(prev, result.items, seedVideoUrl));
     setCursor(result.nextCursor);
     loadingMoreRef.current = false;
-  }, [cursor]);
+  }, [cursor, seedVideoUrl]);
+
+  // Opened on a feed post: ask whether that post is a Muse reshare (then the card becomes that Muse, with its
+  // reactions and comments) and load the Muse feed's first page after it, together. Either failing just leaves less
+  // to show (an unverified account can't open Muse, so it only sees the post).
+  useEffect(() => {
+    if (!seedPost) return;
+    let cancelled = false;
+    void Promise.all([getMuseForPost(seedPost.id).catch(() => null), getMuseFeed().catch(() => null)]).then(
+      ([seed, page]) => {
+        if (cancelled) return;
+        const muse = seed?.item ?? null;
+        if (muse) setSeedItemId(muse.id);
+        setItems((prev) => {
+          const head = muse ? prev.map((it) => (it.seedPostId === seedPost.id ? muse : it)) : prev;
+          return page ? appendMuseItems(head, page.items, seedVideoUrl) : head;
+        });
+        if (page) setCursor(page.nextCursor);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // Once per opening: seedPost is fixed for the overlay's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Infinite-scroll sentinel — a real scrollable list (this is now one,
   // not a single manually-swiped item) needs its own "getting close to the
@@ -324,13 +363,15 @@ export function MuseFeed({
         // full-viewport snap section, so scrolling behaves like an
         // ordinary feed (mouse wheel, trackpad, natural touch drag) instead
         // of requiring a deliberate swipe gesture past a fixed threshold.
-        className="fixed inset-0 z-10 select-none overflow-y-scroll bg-black"
+        // As an overlay, overscroll-contain keeps a fling past either end from scrolling the page underneath.
+        className={cn("fixed inset-0 z-10 select-none overflow-y-scroll bg-black", onClose && "overscroll-contain")}
         style={{ scrollSnapType: "y mandatory" }}
       >
         {items.map((item) => (
           <MuseCard
-            key={item.id}
+            key={item.id === seedItemId ? "seed" : item.id}
             item={item}
+            onClose={onClose}
             muted={muted}
             soundBlocked={soundBlocked}
             onSoundBlocked={() => setSoundBlocked(true)}
@@ -425,6 +466,7 @@ export function MuseFeed({
  */
 function MuseCard({
   item,
+  onClose,
   muted,
   soundBlocked,
   onSoundBlocked,
@@ -439,6 +481,8 @@ function MuseCard({
   onView,
 }: {
   item: MuseItem;
+  /** Shown as an overlay (MuseViewerOverlay): a close button, and no header or tab bar to clear. */
+  onClose?: () => void;
   muted: boolean;
   /** Autoplay-with-sound was refused somewhere in the feed: play muted for now, and a tap turns sound on. */
   soundBlocked: boolean;
@@ -457,6 +501,7 @@ function MuseCard({
   const { locale, t: muse } = useMuseText();
   const t = muse.feed;
   const { t: ui } = useUiText();
+  const { t: shell } = useShellText();
   const [paused, setPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   // Wider than isVisible on purpose — isVisible means "this is the active,
@@ -479,6 +524,8 @@ function MuseCard({
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const isOwner = item.author.id === currentUserId;
+  // The feed post the viewer opened on (not a Muse): only its video, author and caption are shown.
+  const isSeedPost = Boolean(item.seedPostId);
 
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -503,6 +550,7 @@ function MuseCard({
   // now fires once per page of items rather than once per swipe — the same
   // tradeoff Home's own post feed already makes for its reaction data.
   useEffect(() => {
+    if (isSeedPost) return;
     let cancelled = false;
     getMuseReactionSummary(item.id).then((result) => {
       if (!cancelled) setReactions(result.reactions);
@@ -510,7 +558,7 @@ function MuseCard({
     return () => {
       cancelled = true;
     };
-  }, [item.id]);
+  }, [item.id, isSeedPost]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -545,10 +593,11 @@ function MuseCard({
   // beyond "only when isVisible flips true," and can safely skip onView in
   // the dependency array (a fresh closure every render, same as any other
   // inline callback prop here).
+  // item.id: the opening card can turn from a feed post into its Muse while already on screen (see MuseFeed).
   useEffect(() => {
-    if (isVisible) onView();
+    if (isVisible && !isSeedPost) onView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible]);
+  }, [isVisible, item.id]);
 
 
   // Drives both the video and (when present) the separate audio track
@@ -583,8 +632,9 @@ function MuseCard({
       if (shouldPlay) void start(audio);
       else audio.pause();
     }
+    // item.audioUrl: a separate audio track can appear when the opening card turns into its Muse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, paused]);
+  }, [isVisible, paused, item.audioUrl]);
 
   async function handleToggleReaction(emoji: string) {
     const next = await onToggleReaction(emoji);
@@ -694,10 +744,25 @@ function MuseCard({
           // is the same idea for the bottom nav's clearance below. Both are
           // variables rather than a literal 4rem because those two bars stop
           // growing with the iOS text size setting while rem does not.
-          className="flex items-center justify-end gap-2 bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
+          className={cn(
+            "flex items-center justify-end gap-2 bg-gradient-to-b from-black/50 to-transparent px-4 pb-6",
+            onClose
+              ? "pt-[calc(0.75rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]"
+              : "pt-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))]",
+          )}
           onClick={(e) => e.stopPropagation()}
         >
-          {isOwner && (
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={shell.common.close}
+              className="me-auto rounded-full bg-black/40 p-2 text-white"
+            >
+              <X size={18} />
+            </button>
+          )}
+          {isOwner && !isSeedPost && (
             <button
               type="button"
               onClick={() => (confirmingDelete ? onDelete() : setConfirmingDelete(true))}
@@ -751,7 +816,7 @@ function MuseCard({
                   avatarUrl={item.author.avatarUrl}
                   className="text-sm font-medium text-white hover:text-white/80"
                 />
-                {!isOwner && (
+                {!isOwner && !isSeedPost && (
                   <SubscribeButton
                     targetId={item.author.id}
                     initiallySubscribed={item.isFollowingAuthor}
@@ -760,9 +825,11 @@ function MuseCard({
                 )}
               </div>
               {item.caption && <p dir="auto" className="mt-1 break-words text-sm text-white">{item.caption}</p>}
-              <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-white/70">
-                <Eye size={12} /> {countLabel(locale, t.views, item.viewCount)}
-              </p>
+              {!isSeedPost && (
+                <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-white/70">
+                  <Eye size={12} /> {countLabel(locale, t.views, item.viewCount)}
+                </p>
+              )}
               {item.sharedPostId && (
                 <Link
                   href={`/post/${item.sharedPostId}`}
@@ -774,54 +841,61 @@ function MuseCard({
               )}
             </div>
 
-            <div className="flex shrink-0 flex-col items-center gap-3">
-              <button
-                type="button"
-                onClick={onOpenComments}
-                className="flex flex-col items-center gap-0.5 text-white"
-                aria-label={format(t.commentsCount, { count: item.commentCount })}
-              >
-                <span className="rounded-full bg-black/40 p-2">
-                  <MessageCircle size={20} />
-                </span>
-                <span className="text-[0.6875rem]">{item.commentCount}</span>
-              </button>
-              <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
-                <EmojiPickerButton onSelect={handleToggleReaction} quickReactions={QUICK_REACTIONS} />
-                <span className="text-[0.6875rem]" aria-label={plural(locale, ui.reactions.count, item.likeCount)} role="img">
-                  {item.likeCount}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={onToggleRepost}
-                aria-label={format(t.reshareCount, { count: item.repostCount })}
-                aria-pressed={item.isReposted}
-                className="flex flex-col items-center gap-0.5 text-white"
-              >
-                <span className={cn("rounded-full p-2", item.isReposted ? "bg-accent text-accent-ink" : "bg-black/40")}>
-                  <Repeat2 size={20} />
-                </span>
-                <span className="text-[0.6875rem]">{item.repostCount}</span>
-              </button>
-              {/* "Share via device" brands/downloads the actual video file
-                  (see resolveBrandedVideoUrl) — nothing to brand or
-                  download for an EMBED item, which has no file of ours at
-                  all. Reshare-to-Home/Story above already cover it. */}
-              {!isEmbed && (
-                <button data-guest-block
+            {!isSeedPost && (
+              <div className="flex shrink-0 flex-col items-center gap-3">
+                <button
                   type="button"
-                  onClick={onShare}
-                  aria-label={format(t.shareCount, { count: item.shareCount })}
+                  onClick={onOpenComments}
                   className="flex flex-col items-center gap-0.5 text-white"
+                  aria-label={format(t.commentsCount, { count: item.commentCount })}
                 >
                   <span className="rounded-full bg-black/40 p-2">
-                    <Share2 size={20} />
+                    <MessageCircle size={20} />
                   </span>
-                  <span className="text-[0.6875rem]">{item.shareCount}</span>
+                  <span className="text-[0.6875rem]">{item.commentCount}</span>
                 </button>
-              )}
-            </div>
+                <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
+                  <EmojiPickerButton
+                    onSelect={handleToggleReaction}
+                    quickReactions={QUICK_REACTIONS}
+                    // The overlay sits at z-[70]; the picker is portaled to <body>.
+                    popupZClass={onClose ? "z-[80]" : undefined}
+                  />
+                  <span className="text-[0.6875rem]" aria-label={plural(locale, ui.reactions.count, item.likeCount)} role="img">
+                    {item.likeCount}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onToggleRepost}
+                  aria-label={format(t.reshareCount, { count: item.repostCount })}
+                  aria-pressed={item.isReposted}
+                  className="flex flex-col items-center gap-0.5 text-white"
+                >
+                  <span className={cn("rounded-full p-2", item.isReposted ? "bg-accent text-accent-ink" : "bg-black/40")}>
+                    <Repeat2 size={20} />
+                  </span>
+                  <span className="text-[0.6875rem]">{item.repostCount}</span>
+                </button>
+                {/* "Share via device" brands/downloads the actual video file
+                    (see resolveBrandedVideoUrl) — nothing to brand or
+                    download for an EMBED item, which has no file of ours at
+                    all. Reshare-to-Home/Story above already cover it. */}
+                {!isEmbed && (
+                  <button data-guest-block
+                    type="button"
+                    onClick={onShare}
+                    aria-label={format(t.shareCount, { count: item.shareCount })}
+                    className="flex flex-col items-center gap-0.5 text-white"
+                  >
+                    <span className="rounded-full bg-black/40 p-2">
+                      <Share2 size={20} />
+                    </span>
+                    <span className="text-[0.6875rem]">{item.shareCount}</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {reactions.length > 0 && (
@@ -836,7 +910,11 @@ function MuseCard({
               padding and would otherwise render behind the (higher
               z-index) nav bar. */}
           <div className="h-4" />
-          <div className="h-[calc(var(--tab-bar-height)+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:h-0" />
+          {onClose ? (
+            <SafeAreaBottomSpacer />
+          ) : (
+            <div className="h-[calc(var(--tab-bar-height)+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] md:h-0" />
+          )}
         </div>
       </div>
     </section>

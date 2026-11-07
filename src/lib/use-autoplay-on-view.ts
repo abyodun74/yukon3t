@@ -8,6 +8,22 @@ import { useEffect, useRef } from "react";
 // peeks onscreen).
 const VISIBILITY_THRESHOLD = 0.6;
 
+// Held while a full-screen viewer covers the page (the Home feed's Muse viewer, MuseViewerOverlay). The page doesn't
+// scroll underneath, but a card above can still change height and move a video across the threshold; starting it
+// then would make the one-video-at-a-time rule (installVideoCoordinator) pause the viewer's own video.
+let suspendedCount = 0;
+
+/** Stops feed videos from starting on their own until the returned release is called. */
+export function suspendAutoplayOnView() {
+  suspendedCount++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    suspendedCount--;
+  };
+}
+
 /**
  * Ref to attach to a feed `<video>` so it autoplays once scrolled mostly
  * into view and pauses once scrolled back out — the browser only allows
@@ -29,7 +45,7 @@ export function useAutoplayOnView<T extends HTMLVideoElement>({ autoplay = true 
       ([entry]) => {
         if (!entry) return;
         if (entry.isIntersecting) {
-          if (!autoplay) return;
+          if (!autoplay || suspendedCount > 0) return;
           // Autoplay can still legitimately reject (e.g. a user's browser
           // setting overriding the muted-autoplay allowance) — never let
           // that surface as an unhandled rejection.

@@ -120,7 +120,7 @@ export const es1 = {
   },
   "videos-feed-play-automatically-no": {
     q: "¿Por qué los videos de mi feed se reproducen solos y sin sonido?",
-    a: "Los videos del feed se reproducen automáticamente en silencio cuando llegas a ellos al desplazarte y se pausan cuando los dejas atrás. Toca el ícono de altavoz del video para activar el sonido (consulta «Al subir el volumen del teléfono se activa el sonido de un video de mi feed», más arriba) o toca el video para pausarlo o reanudarlo.",
+    a: "Los videos del feed se reproducen automáticamente en silencio cuando llegas a ellos al desplazarte y se pausan cuando los dejas atrás. Toca el ícono de altavoz del video para activar el sonido (consulta «Al subir el volumen del teléfono se activa el sonido de un video de mi feed», más arriba) o toca el video para pausarlo o reanudarlo. En Inicio, tocar un video corto (de hasta 5 minutos) lo abre a pantalla completa en Muse, con sonido: sigue desplazándote para ver más Muses y ciérralo o vuelve atrás para regresar al mismo punto de tu feed. El botón de reproducción del video sigue pausándolo ahí mismo.",
   },
   "zoom-back-out-photo-without": {
     q: "¿Cómo quito el zoom de una foto sin cerrar el visor?",

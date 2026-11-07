@@ -10,6 +10,8 @@ import { OptimisticPostCard } from "@/components/optimistic-post-card";
 import { useShellText } from "@/components/ui-text";
 import { fetchWithRetryClient, getNetworkQuality } from "@/lib/network-quality-client";
 import { feedPageSize } from "@/lib/network-quality";
+import { MuseViewerOverlay } from "@/components/muse-viewer-overlay";
+import type { MuseSeedPost } from "@/lib/muse-from-feed";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -103,6 +105,17 @@ export function PostFeedSection({
   // the bottom of the feed. Cleared by the next attempt.
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
 
+  // A short video tapped open in the Muse viewer (MuseViewerOverlay). While it's open, newer posts aren't prepended:
+  // that would move the feed under the viewer, and closing it must land exactly where the reader left. Whatever
+  // arrived meanwhile is fetched through the usual throttle once it closes.
+  const [museSeed, setMuseSeed] = useState<MuseSeedPost | null>(null);
+  const museOpenRef = useRef(false);
+  const missedWhileInMuseRef = useRef(false);
+  const openInMuse = useCallback((post: MuseSeedPost) => {
+    museOpenRef.current = true;
+    setMuseSeed(post);
+  }, []);
+
   const refetchNewer = useCallback(async () => {
     const latest = posts[0]?.createdAt;
     if (!latest) return;
@@ -158,6 +171,10 @@ export function PostFeedSection({
   // lands while this viewer has a post of their own on its way up, which is
   // most likely the one announcing it.
   const handleFeedSignal = useCallback((payload: unknown) => {
+    if (museOpenRef.current) {
+      missedWhileInMuseRef.current = true;
+      return;
+    }
     if (payload === null || hasSendingOptimisticPost()) return refetchNewerRef.current();
     signalThrottleRef.current?.signal();
   }, []);
@@ -254,7 +271,9 @@ export function PostFeedSection({
   useEffect(() => {
     if (lastInitialPostsRef.current === initialPosts) return;
     lastInitialPostsRef.current = initialPosts;
-    if (liveUpdatesEnabled) refetchNewerRef.current();
+    if (!liveUpdatesEnabled) return;
+    if (museOpenRef.current) missedWhileInMuseRef.current = true;
+    else refetchNewerRef.current();
   }, [initialPosts, liveUpdatesEnabled]);
 
   // Distance from the top of the document to the top of the virtualized
@@ -294,6 +313,15 @@ export function PostFeedSection({
     }
   }, [endIndex, hasMore, posts.length]);
 
+  function closeMuse() {
+    museOpenRef.current = false;
+    setMuseSeed(null);
+    if (missedWhileInMuseRef.current) {
+      missedWhileInMuseRef.current = false;
+      signalThrottleRef.current?.signal();
+    }
+  }
+
   if (posts.length === 0 && optimisticPosts.length === 0) return null;
 
   return (
@@ -330,7 +358,7 @@ export function PostFeedSection({
                 width: "100%",
               }}
             >
-              <PostCard post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} />
+              <PostCard post={post} viewerId={viewerId} viewerIsAdmin={viewerIsAdmin} onOpenVideoInMuse={openInMuse} />
             </div>
           );
         })}
@@ -350,6 +378,7 @@ export function PostFeedSection({
           </button>
         </div>
       )}
+      {museSeed && <MuseViewerOverlay seedPost={museSeed} currentUserId={viewerId} onClosed={closeMuse} />}
     </div>
   );
 }

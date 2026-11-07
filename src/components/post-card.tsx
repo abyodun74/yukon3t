@@ -44,6 +44,7 @@ import { useFeedText } from "@/components/feed-text";
 import { useContentTranslation } from "@/components/content-translation";
 import { format, plural, aroundPlaceholder, intlLocale } from "@/lib/i18n/locales";
 import type { ConnectionStatus } from "@/lib/engagement-status";
+import { opensInMuse, type MuseSeedPost } from "@/lib/muse-from-feed";
 import type { PostMediaType as MediaType } from "@/generated/prisma/enums";
 
 /**
@@ -512,11 +513,13 @@ function MediaBlock({
   post,
   onOpenImage,
   onOpenVideo,
+  onOpenInMuse,
   editing,
 }: {
   post: EmbeddedPost;
   onOpenImage: (index: number) => void;
   onOpenVideo: () => void;
+  onOpenInMuse?: (post: EmbeddedPost) => void;
   editing?: {
     draft: string;
     onDraftChange: (value: string) => void;
@@ -561,6 +564,8 @@ function MediaBlock({
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
   }, [muted, videoRef]);
+  // On Home, tapping a short video opens it in the Muse viewer instead of pausing it (see opensInMuse).
+  const openInMuse = onOpenInMuse && !editing && opensInMuse(post) ? () => onOpenInMuse(post) : null;
   return (
     <>
       {editing ? (
@@ -689,11 +694,16 @@ function MediaBlock({
             // capped/boxed — native browser `controls` (a scrubber/volume
             // slider) are deliberately omitted in favor of just the sound
             // toggle below, matching that same reference. Tapping the video
-            // itself toggles play/pause since there's no scrubber to do it.
+            // itself toggles play/pause since there's no scrubber to do it,
+            // or opens it in Muse where that's offered (the play button below
+            // still pauses it in place).
             className="aspect-[4/5] w-full cursor-pointer bg-black object-cover"
             onClick={(e) => {
               const el = e.currentTarget;
-              if (el.paused) el.play().catch(() => {});
+              if (openInMuse) {
+                el.pause();
+                openInMuse();
+              } else if (el.paused) el.play().catch(() => {});
               else el.pause();
             }}
           >
@@ -828,10 +838,13 @@ export function PostCard({
   viewerId,
   viewerIsAdmin = false,
   hideEventDetails = false,
+  onOpenVideoInMuse,
 }: {
   post: PostCardData;
   viewerId: string;
   viewerIsAdmin?: boolean;
+  /** Home only: a tap on a short video opens it in the Muse viewer. */
+  onOpenVideoInMuse?: (post: MuseSeedPost) => void;
   /** /post/[id] already renders the event panel under the card, so the card doesn't offer "Event details" there. */
   hideEventDetails?: boolean;
 }) {
@@ -1178,6 +1191,7 @@ export function PostCard({
         post={isQuoting ? displayPost : { ...displayPost, content }}
         onOpenImage={(index) => setLightboxIndex(index)}
         onOpenVideo={() => setLightboxVideo(true)}
+        onOpenInMuse={onOpenVideoInMuse}
         editing={
           !isQuoting && editing
             ? {
