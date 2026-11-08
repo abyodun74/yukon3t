@@ -130,6 +130,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "circles.details.public",
     "circles.list.coAdmin",
     "circles.members.coAdmin",
+    "shell.shareTarget.circleCoAdmin",
     "collab.form.type",
     "collab.form.fieldLabels.type",
     "collab.form.fieldLabels.description",

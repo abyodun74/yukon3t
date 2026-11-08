@@ -89,10 +89,21 @@ class ShareViewController: UIViewController {
                 }
             } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 group.enter()
+                // The concrete image type the provider offers (e.g. public.png for a
+                // screenshot), for naming raw bytes handed over as Data below.
+                let imageType = provider.registeredTypeIdentifiers
+                    .compactMap { UTType($0) }
+                    .first { $0.conforms(to: .image) && $0 != .image } ?? .png
                 provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { data, _ in
                     defer { group.leave() }
                     if let url = data as? URL {
                         appendFile(self.saveToAppGroup(from: url, suggestedName: url.lastPathComponent))
+                    } else if let raw = data as? Data {
+                        // The screenshot editor and some apps hand over the encoded
+                        // image itself rather than a file URL or a UIImage.
+                        let ext = imageType.preferredFilenameExtension ?? "png"
+                        let mime = imageType.preferredMIMEType ?? "image/png"
+                        appendFile(self.saveDataToAppGroup(raw, suggestedName: "shared-image.\(ext)", mimeType: mime))
                     } else if let image = data as? UIImage, let jpeg = image.jpegData(compressionQuality: 0.9) {
                         appendFile(self.saveDataToAppGroup(jpeg, suggestedName: "shared-image.jpg", mimeType: "image/jpeg"))
                     } else {
@@ -116,7 +127,11 @@ class ShareViewController: UIViewController {
 
         group.notify(queue: .main) {
             self.writeManifest(text: text, files: files, skipped: skipped)
-            self.openHostAppAndFinish()
+            if files.isEmpty && (text ?? "").isEmpty {
+                self.finish()
+            } else {
+                self.openHostAppAndFinish()
+            }
         }
     }
 
@@ -183,20 +198,85 @@ class ShareViewController: UIViewController {
         try? data.write(to: dir.appendingPathComponent("manifest.json"), options: .atomic)
     }
 
-    /// The sanctioned way for a Share Extension to hand off to its
-    /// containing app (available since iOS 8) — there's no UIApplication
-    /// here to just call openURL on directly, unlike a normal in-app deep
-    /// link. If the host app is backgrounded this resumes it (Capacitor's
-    /// "resume" App event, which share-target-gate.tsx already listens for);
-    /// if it's not running at all, this launches it fresh, same as tapping
-    /// its icon.
+    /// Asks the system to bring the containing app forward. Apple only
+    /// honours NSExtensionContext.open for Today and iMessage extensions, so
+    /// for a Share extension it normally answers `false`; nothing here works
+    /// around that with private API (App Review risk). Instead the share is
+    /// already saved in the App Group, and the person is told to open
+    /// YuKon3t: share-target-gate.tsx reads it on launch and on every
+    /// "resume", so the picker appears as soon as the app comes forward.
     private func openHostAppAndFinish() {
-        guard let url = URL(string: "yukon3t://share") else {
+        guard let url = URL(string: "yukon3t://share"), let context = extensionContext else {
             finish()
             return
         }
-        extensionContext?.open(url) { _ in
-            self.finish()
+        context.open(url) { opened in
+            DispatchQueue.main.async {
+                if opened {
+                    self.finish()
+                } else {
+                    self.showOpenAppNotice()
+                }
+            }
+        }
+    }
+
+    private func showOpenAppNotice() {
+        view.subviews.forEach { $0.removeFromSuperview() }
+        let words = openAppNoticeText()
+
+        let label = UILabel()
+        label.text = words.message
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.font = .preferredFont(forTextStyle: .body)
+        label.adjustsFontForContentSizeCategory = true
+        label.textColor = .label
+
+        let button = UIButton(type: .system)
+        button.setTitle(words.ok, for: .normal)
+        button.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        button.titleLabel?.adjustsFontForContentSizeCategory = true
+        button.addTarget(self, action: #selector(noticeDismissed), for: .touchUpInside)
+
+        let stack = UIStackView(arrangedSubviews: [label, button])
+        stack.axis = .vertical
+        stack.spacing = 16
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let card = UIView()
+        card.backgroundColor = .systemBackground
+        card.layer.cornerRadius = 14
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        view.addSubview(card)
+
+        NSLayoutConstraint.activate([
+            card.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            card.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            card.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32),
+            card.widthAnchor.constraint(lessThanOrEqualToConstant: 320),
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -16),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+        ])
+        UIAccessibility.post(notification: .screenChanged, argument: label)
+    }
+
+    @objc private func noticeDismissed() {
+        finish()
+    }
+
+    /// The app's five languages (src/lib/i18n); anything else reads English.
+    private func openAppNoticeText() -> (message: String, ok: String) {
+        let language = Locale.preferredLanguages.first.map { String($0.prefix(2)) } ?? "en"
+        switch language {
+        case "es": return ("Guardado. Abre YuKon3t para elegir dónde compartirlo.", "OK")
+        case "fr": return ("Enregistré. Ouvrez YuKon3t pour choisir où le partager.", "OK")
+        case "pt": return ("Salvo. Abra o YuKon3t para escolher onde compartilhar.", "OK")
+        case "ar": return ("تم الحفظ. افتح YuKon3t لتختار مكان مشاركته.", "حسنًا")
+        default: return ("Saved. Open YuKon3t to choose where to share it.", "OK")
         }
     }
 

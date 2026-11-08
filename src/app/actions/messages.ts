@@ -1017,7 +1017,10 @@ export async function getMyConversationsForShare() {
       },
     },
   });
-  const conversations = withoutSecretChats(rows);
+  // Most recently active first, like the forward sheet, so the people you talk to most are at the top.
+  const lastMessageAt = await latestMessageAtByConversation(rows.map((r) => r.id));
+  const lastActive = (r: (typeof rows)[number]) => lastMessageAt.get(r.id)?.getTime() ?? 0;
+  const conversations = withoutSecretChats([...rows].sort((a, b) => lastActive(b) - lastActive(a)));
 
   return {
     conversations: conversations.map((c) => {

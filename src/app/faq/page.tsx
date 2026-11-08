@@ -506,13 +506,19 @@ const sections: Section[] = [
         q: "Can I share a photo or video from another app (Instagram, TikTok, WhatsApp, etc.) straight into YuKon3t?",
         a: (
           <>
-            Yes — from that app&apos;s own share sheet, choose YuKon3t as the
-            target. A small dialog opens right away with a preview and lets
-            you add it to your Story, post it to Muse, post it to your Home
-            feed, or send it to a friend — pick one and it publishes
-            immediately (after passing the same automatic content check
-            every upload goes through), no extra taps or navigating to the
-            composer separately. This works best when the other app hands
+            Yes — from that app&apos;s own share sheet (your gallery, or right
+            after taking a screenshot), choose YuKon3t as the target. A small
+            dialog opens right away with a preview and an optional caption,
+            and lets you add it to your Story, post it to Muse, post it to
+            your Home feed, post it in one of your Circles, or send it to up
+            to 5 chats — pick one and it publishes immediately (after passing
+            the same automatic content check and the same rules as posting
+            from inside the app), no extra taps or navigating to the composer
+            separately. Several photos or screenshots at once become one
+            album on Home or in a Circle, and one message per photo in a
+            chat. The Circle list only shows Circles and channels you&apos;re
+            allowed to post in; a Circle&apos;s owner and co-admins also see
+            its private channels there. This works best when the other app hands
             over the real photo or video file — some apps&apos; share action
             only sends a link to their own post instead (that&apos;s a
             choice each app makes, not something YuKon3t controls; Instagram
@@ -524,8 +530,10 @@ const sections: Section[] = [
             way pasting one of those links directly into the Feed composer
             already works, just moderated by that platform rather than
             YuKon3t itself. For any other link, YuKon3t tells you so and you
-            can still send it to a friend from the same dialog. Android only
-            for now.
+            can still send it to a friend from the same dialog. This works in
+            the Android app; iPhone support comes with an app update (on
+            iPhone, after choosing YuKon3t, open YuKon3t to pick where it
+            goes).
           </>
         ),
       },

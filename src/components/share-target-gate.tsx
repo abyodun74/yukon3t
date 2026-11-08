@@ -2,21 +2,40 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, SquarePen, CirclePlus, Clapperboard, X } from "lucide-react";
+import { Send, SquarePen, CirclePlus, Clapperboard, Users, Hash, Lock, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { checkForPendingShare, type PendingShareMedia } from "@/lib/share-receiver";
 import { setPendingShareMedia } from "@/lib/share-target-store";
 import { getMyConversationsForShare } from "@/app/actions/messages";
 import { sendToConversations } from "@/app/actions/share-to-chats";
-import { createPost } from "@/app/actions/circles";
+import { createPost, getShareTargetCircles } from "@/app/actions/circles";
 import { createStory } from "@/app/actions/stories";
 import { createMuse } from "@/app/actions/muse";
-import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameFromFile, withRetry } from "@/lib/upload-client";
+import { looksLikeStaleServerActionError } from "@/lib/stale-build";
+import {
+  addOptimisticPost,
+  removeOptimisticPost,
+  markOptimisticPostError,
+  markOptimisticPostHeld,
+} from "@/lib/optimistic-posts-store";
 import { SendToChatsPicker, type SendToChatsOutcome } from "@/components/send-to-chats-picker";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useShellText } from "@/components/ui-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
+import {
+  SHARE_CAPTION_MAX_CHARS,
+  STORY_CAPTION_MAX_CHARS,
+  chatMessagesForShare,
+  combineChatSendOutcomes,
+  composerHandOffPath,
+  shareTargetOptions,
+  type ChatSendOutcome,
+  type ShareChannel,
+  type ShareCircleRole,
+  type UploadedShareMedia,
+} from "@/lib/share-target-destinations";
 
 const EMBED_PROVIDER_LABEL: Record<string, string> = {
   YOUTUBE: "YouTube",
@@ -27,15 +46,18 @@ const EMBED_PROVIDER_LABEL: Record<string, string> = {
   FACEBOOK: "Facebook",
 };
 
-// Duplicated from storage.ts's server-only constants (same pattern as
-// share-modal.tsx/muse-share-modal.tsx's own duplicates of these) — a Story
-// video tops out at 2 minutes, a Muse at 5.
-const MAX_STORY_VIDEO_SECONDS = 120;
-const MAX_MUSE_VIDEO_DURATION_SECONDS = 300;
-
 type Conversation = { id: string; label: string; avatarUrl: string | null; username: string | null };
-type View = "root" | "friends";
+type ShareCircle = {
+  id: string;
+  name: string;
+  slug: string;
+  parentName: string | null;
+  role: ShareCircleRole;
+  channels: ShareChannel[];
+};
+type View = "root" | "friends" | "circles";
 type Status = "idle" | "busy" | "done" | "error";
+type UploadOutcome = { ok: true; media: UploadedShareMedia } | { ok: false; error: string };
 
 /**
  * Drops any http(s) link out of shared text before it's used as a public
@@ -43,10 +65,9 @@ type Status = "idle" | "busy" | "done" | "error";
  * the actual photo/video Instagram/TikTok/etc. attached, not the bare link
  * those apps' own "Share" action often tacks on alongside it (or, for an
  * app that only ever shares a link with nothing attached, in place of real
- * media). Left untouched for a DM (sendToFriends below) — a link is normal,
- * expected content there. Returns "" (not the original text) when nothing
- * but a link remains, so callers can tell "had a real caption" apart from
- * "was just a link" without a second check.
+ * media). It only seeds the caption box: what the person leaves there is
+ * what's posted. Returns "" (not the original text) when nothing but a link
+ * remains.
  */
 function stripLinks(text: string | null): string {
   if (!text) return "";
@@ -68,11 +89,6 @@ function extractFirstUrl(text: string | null): string | null {
   return text.match(/\bhttps?:\/\/\S+/i)?.[0] ?? null;
 }
 
-type UploadedMedia =
-  | { mediaType: "NONE"; mediaUrls: [] }
-  | { mediaType: "IMAGE"; mediaUrls: string[] }
-  | { mediaType: "VIDEO"; mediaUrls: []; videoUrl: string; videoThumbnailUrl?: string; videoDurationSeconds?: number };
-
 function probeVideoDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -90,42 +106,74 @@ function probeVideoDuration(file: File): Promise<number | null> {
   });
 }
 
+function newRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 /**
- * Root-mounted (src/app/layout.tsx), Android and iOS — the incoming half of
- * the Share-target feature: another app's Share sheet ("Share to YuKon3t")
- * launches or resumes this app with an ACTION_SEND/SEND_MULTIPLE intent,
- * MainActivity stashes it (see its handleShareIntent), and
- * checkForPendingShare() below reads/consumes it exactly once per launch.
- * iOS reaches the same component via its own Share Extension + App Group
- * hand-off — see ios/ShareExtension and ShareReceiverPlugin.swift — with
- * checkForPendingShare() branching on platform so everything from here down
- * is already shared between both.
+ * Uploads whatever media a share carries through the normal write-once upload path (uploadFileDirect: photos are
+ * resized and re-encoded in the browser first, which also drops their EXIF/location data, like every other photo
+ * upload). Always the "post-*" kinds whatever the destination: post/message/story share the same size caps (see
+ * storage.ts's MEDIA_LIMITS), so one upload is valid for every action below.
+ */
+async function uploadShare(share: PendingShareMedia): Promise<UploadOutcome> {
+  if (share.video) {
+    const [videoResult, thumbnailResult, duration] = await Promise.all([
+      uploadFileDirect(share.video, "post-video"),
+      captureVideoFrameFromFile(share.video).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
+      probeVideoDuration(share.video),
+    ]);
+    if (!videoResult.ok) return { ok: false, error: videoResult.error };
+    return {
+      ok: true,
+      media: {
+        mediaType: "VIDEO",
+        mediaUrls: [],
+        videoUrl: videoResult.publicUrl,
+        videoThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
+        videoDurationSeconds: duration ?? undefined,
+      },
+    };
+  }
+  if (share.images.length === 0) return { ok: true, media: { mediaType: "NONE", mediaUrls: [] } };
+  const uploaded = await Promise.all(share.images.map((f) => uploadFileDirect(f, "post-image")));
+  const failed = uploaded.find((u) => !u.ok);
+  if (failed && !failed.ok) return { ok: false, error: failed.error };
+  return {
+    ok: true,
+    media: { mediaType: "IMAGE", mediaUrls: uploaded.map((u) => (u.ok ? u.publicUrl : "")).filter(Boolean) },
+  };
+}
+
+/**
+ * Root-mounted (src/app/layout.tsx) for signed-in members only (never a guest preview session), Android and iOS —
+ * the incoming half of the Share-target feature: another app's Share sheet ("Share to YuKon3t", e.g. a screenshot or
+ * photos from the gallery) launches or resumes this app, the native side stashes it (Android: MainActivity's
+ * handleShareIntent + ShareReceiverPlugin.java; iOS: the Share Extension writes it to the App Group container,
+ * ShareReceiverPlugin.swift reads it back) and checkForPendingShare() below reads/consumes it exactly once.
  *
- * Picking a destination (Story / Muse / Feed / a friend) uploads the shared
- * media and publishes to it immediately — no separate "review in the
- * composer, then tap Post" step. The moderation gate each of
- * createStory/createMuse/createPost/sendToConversations already runs server-side is
- * what's actually standing in for a manual review step here; picking the
- * destination is itself the user's explicit confirmation to publish there,
- * same as tapping "Post" always was, just merged into one action instead
- * of two. The one exception: createPost's own device-verification gate
- * (src/lib/device-trust.ts) needs a real code-entry UI that already lives
- * in post-composer.tsx — on that specific response this falls back to the
- * old "hand off to the composer" path rather than duplicating it here.
+ * Destinations (shareTargetOptions): Story, Muse, Home Feed, a Circle channel the person may post in
+ * (getShareTargetCircles; the owner/co-admin also sees private channels), or up to 5 chats (SendToChatsPicker).
+ * Picking one uploads the shared media once (cached across destinations) and publishes through the same server
+ * actions as everywhere else (createPost / createStory / createMuse / sendToConversations), so every check —
+ * verification, membership, channel access, blocks, hidden/secret chats, size/type, moderation and the review hold —
+ * applies unchanged. Picking the destination is the confirmation, as tapping "Post" is in the composer; the optional
+ * caption box is the only thing edited here.
  *
- * Story/Muse/Feed captions all run through stripLinks() first — see its own
- * doc comment for why a link tagging along with real media shouldn't end up
- * in a public caption. A share that never actually carried a photo/video
- * (the source app only sent a link — confirmed live, 2026-09-25: Instagram/
- * TikTok/etc. genuinely never attach a file to their own "More"/system-share
- * option for any third-party app, not something this app can read around)
- * still gets real Feed/Story/Muse options whenever that link resolves to a
- * known video-embed provider (parseVideoEmbedUrl, same recognizer the Feed
- * composer's own EMBED post type already uses) — the actual YouTube/Vimeo/
- * TikTok/Instagram/Facebook player shows up in the post, not a bare link,
- * same "moderated by the source, not us" trust boundary createPost's EMBED
- * branch already established. Only a link to something NOT a recognized
- * provider falls back to "Send to a friend" only.
+ * Several photos become one album on Home or in a Circle (createPost makes one Post per photo sharing an albumId), and
+ * one message per photo in a chat (chatMessagesForShare). Home posts are optimistic like the composer's: the sheet
+ * closes at once and a "Posting…" card shows on Home (optimistic-posts-store.ts) until createPost answers. Circle
+ * posts, Story, Muse and chats wait for the answer in the sheet, as their own composers do. createPost's new-device
+ * code step needs the composer's code entry: on that answer the share is handed to the composer instead
+ * (composerHandOffPath).
+ *
+ * A share that never carried a photo/video (the source app only sent a link — confirmed live, 2026-09-25: Instagram/
+ * TikTok/etc. never attach a file to their own "More"/system-share option for any third-party app) still gets
+ * Feed/Circle/Story/Muse whenever that link is a known video-embed provider (parseVideoEmbedUrl): the real player is
+ * posted, moderated by the source, the trust boundary createPost's EMBED branch already established. Any other link
+ * can only go to a chat.
  */
 export function ShareTargetGate({ userId }: { userId: string }) {
   const { t, dir, locale } = useShellText();
@@ -134,13 +182,15 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     byCode(t.shareTarget.postErrors, code === "not_a_member" || code === "blocked" ? "send_failed" : code);
   const router = useRouter();
   const [share, setShare] = useState<PendingShareMedia | null>(null);
+  const [caption, setCaption] = useState("");
   const [heldNotice, setHeldNotice] = useState(false);
   const [view, setView] = useState<View>("root");
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
+  const [circles, setCircles] = useState<ShareCircle[] | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
-  const uploadCacheRef = useRef<UploadedMedia | null>(null);
+  const uploadCacheRef = useRef<UploadedShareMedia | null>(null);
 
   useEffect(() => {
     const platform = Capacitor.getPlatform();
@@ -152,6 +202,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       checkForPendingShare().then((result) => {
         if (cancelled || !result) return;
         setShare(result);
+        setCaption(stripLinks(result.text).slice(0, SHARE_CAPTION_MAX_CHARS));
       });
     }
 
@@ -172,9 +223,19 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
   useEffect(() => {
     if (view === "friends" && conversations === null) {
-      getMyConversationsForShare().then((r) => setConversations(r.conversations));
+      getMyConversationsForShare()
+        .then((r) => setConversations(r.conversations))
+        .catch(() => setConversations([]));
     }
   }, [view, conversations]);
+
+  useEffect(() => {
+    if (view === "circles" && circles === null) {
+      getShareTargetCircles()
+        .then((r) => setCircles(r.circles))
+        .catch(() => setCircles([]));
+    }
+  }, [view, circles]);
 
   const previewUrl = useMemo(() => {
     const first = share?.images[0] ?? share?.video ?? null;
@@ -186,18 +247,11 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     };
   }, [previewUrl]);
 
-  // Needed up front (before ensureUploaded ever runs) to decide whether
-  // "Add to your story"/"Post to Muse" even show at all — Story and Muse
-  // each have their own duration ceiling, same as share-modal.tsx/
-  // muse-share-modal.tsx's own canShareToStory/canShareToMuse checks for an
-  // already-posted video, just probed client-side here since a freshly
-  // shared file's duration isn't known any other way yet.
+  // Needed up front (before anything is uploaded) to decide whether "Add to
+  // your story"/"Post to Muse" even show at all — each has its own duration
+  // ceiling, probed client-side since a freshly shared file's duration isn't
+  // known any other way yet. close() resets it.
   useEffect(() => {
-    // No reset-to-null branch for the no-video case: initial state is
-    // already null, and close() (below) resets it whenever a share is
-    // dismissed — a mounted share never actually swaps from a video to a
-    // different, non-video one in place (checkForPendingShare only ever
-    // hands over one share per mount), so there's nothing to reset here.
     if (!share?.video) return;
     let cancelled = false;
     probeVideoDuration(share.video).then((d) => {
@@ -213,8 +267,10 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   // that return.
   function close() {
     setShare(null);
+    setCaption("");
     setView("root");
     setConversations(null);
+    setCircles(null);
     setStatus("idle");
     setErrorText(null);
     setHeldNotice(false);
@@ -227,108 +283,145 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   });
 
   if (!share) return null;
-  const hasMedia = share.images.length > 0 || Boolean(share.video);
-  // Only attempted when there's no real file — a share that already has one
-  // never needs this (and share.text alongside real media is usually a
-  // caption/link the source app tacked on, not itself the point). Cheap and
-  // pure, recomputed on every render rather than memoized.
-  const embedUrl = !hasMedia ? extractFirstUrl(share.text) : null;
+  const current = share;
+  const hasMedia = current.images.length > 0 || Boolean(current.video);
+  // Only attempted when there's no real file — share.text alongside real
+  // media is usually a caption/link the source app tacked on, not the point.
+  const embedUrl = !hasMedia ? extractFirstUrl(current.text) : null;
   const embed = embedUrl ? parseVideoEmbedUrl(embedUrl) : null;
-  const hasPostableContent = hasMedia || Boolean(embed);
-  // A duration probe failure fails open (same reasoning as story-upload-
-  // modal.tsx's own probe) — an unknown duration doesn't block sharing. An
-  // embed has no duration of ours to check at all (see Story/Muse's own
-  // mediaType doc comments) — same no-cap treatment the server side gives it.
-  const canShareToStory =
-    hasPostableContent &&
-    (Boolean(embed) || !share.video || videoDurationSeconds === null || videoDurationSeconds <= MAX_STORY_VIDEO_SECONDS);
-  const canShareToMuse =
-    Boolean(embed) ||
-    (Boolean(share.video) && videoDurationSeconds !== null && videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS);
+  const options = shareTargetOptions({
+    imageCount: current.images.length,
+    hasVideo: Boolean(current.video),
+    hasEmbed: Boolean(embed),
+    videoDurationSeconds,
+  });
+  const postCaption = caption.trim();
 
-
-  // Uploads whatever media this share carries, once — "Post to Feed",
-  // "Add to your story", and each friend in the list all need the same
-  // uploaded URL(s), and bouncing between options (open the friend list,
-  // go back, try Feed instead) shouldn't re-upload the same file twice.
-  // Always uses the "post-*" upload kinds regardless of the eventual
-  // destination — post/message/story share the exact same size caps for
-  // both image and video (see storage.ts's MEDIA_LIMITS), so one upload is
-  // valid to hand to any of the three actions below.
-  async function ensureUploaded(): Promise<{ ok: true; media: UploadedMedia } | { ok: false; error: string }> {
+  // Uploads once — bouncing between destinations (open the chat list, go
+  // back, pick a Circle instead) must not upload the same file twice.
+  async function ensureUploaded(): Promise<UploadOutcome> {
     if (uploadCacheRef.current) return { ok: true, media: uploadCacheRef.current };
-    if (!hasMedia) {
-      const media: UploadedMedia = { mediaType: "NONE", mediaUrls: [] };
-      uploadCacheRef.current = media;
-      return { ok: true, media };
-    }
-    if (share!.video) {
-      const [videoResult, thumbnailResult, duration] = await Promise.all([
-        uploadFileDirect(share!.video, "post-video"),
-        captureVideoFrameFromFile(share!.video).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
-        probeVideoDuration(share!.video),
-      ]);
-      if (!videoResult.ok) return { ok: false, error: videoResult.error };
-      const media: UploadedMedia = {
-        mediaType: "VIDEO",
-        mediaUrls: [],
-        videoUrl: videoResult.publicUrl,
-        videoThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
-        videoDurationSeconds: duration ?? undefined,
-      };
-      uploadCacheRef.current = media;
-      return { ok: true, media };
-    }
-    const uploaded = await Promise.all(share!.images.map((f) => uploadFileDirect(f, "post-image")));
-    const failed = uploaded.find((u) => !u.ok);
-    if (failed && !failed.ok) return { ok: false, error: failed.error };
-    const media: UploadedMedia = {
-      mediaType: "IMAGE",
-      mediaUrls: uploaded.map((u) => (u.ok ? u.publicUrl : "")).filter(Boolean),
-    };
-    uploadCacheRef.current = media;
-    return { ok: true, media };
+    const result = await uploadShare(current);
+    if (result.ok) uploadCacheRef.current = result.media;
+    return result;
   }
 
-  async function publishToFeed() {
-    setStatus("busy");
-    setErrorText(null);
+  // createPost's fields for this share, Home or Circle alike. An embed has no
+  // upload at all: createPost's EMBED branch re-parses the link server-side.
+  function postFormData(media: UploadedShareMedia | null): FormData {
     const fd = new FormData();
-    if (embed) {
-      // No upload at all — the actual bytes stay on the source platform's
-      // own servers (see this component's own doc comment on the trust
-      // boundary this implies). createPost's EMBED branch re-parses the
-      // link itself server-side; this raw text is never trusted as-is.
-      // stripLinks() still runs on the caption in case the source app sent
-      // a caption alongside the link (e.g. "Check this out! <link>") — only
-      // the link itself feeds embedUrl, same split as the real-media path.
-      fd.set("content", stripLinks(share!.text));
+    fd.set("content", postCaption);
+    if (embed || !media) {
       fd.set("mediaType", "EMBED");
       fd.set("embedUrl", embedUrl!);
     } else {
+      fd.set("mediaType", media.mediaType);
+      fd.set("mediaUrls", JSON.stringify(media.mediaUrls));
+      if (media.mediaType === "VIDEO") {
+        fd.set("videoUrl", media.videoUrl);
+        if (media.videoThumbnailUrl) fd.set("videoThumbnailUrl", media.videoThumbnailUrl);
+        if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
+      }
+    }
+    // One key per submission, kept by withRetry's retries: createPost answers a key it already posted with success.
+    fd.set("clientRequestId", newRequestId());
+    return fd;
+  }
+
+  function submitPost(fd: FormData) {
+    return withRetry(() => createPost(fd), 3, 1000, false, (err) => !looksLikeStaleServerActionError(err));
+  }
+
+  // The composer takes over for the new-device code step, with the caption the person typed (an embed keeps its link).
+  function handOffToComposer(target: Parameters<typeof composerHandOffPath>[0]) {
+    setPendingShareMedia({ ...current, text: embed ? current.text : postCaption || null });
+    close();
+    router.push(composerHandOffPath(target));
+  }
+
+  // Optimistic, like the composer's Home post: the sheet closes now and the
+  // "Posting…" card on Home reports the outcome.
+  function publishToFeed() {
+    const localId = newRequestId();
+    const cached = uploadCacheRef.current;
+    const previewFile = current.images[0] ?? current.video ?? null;
+    addOptimisticPost({
+      localId,
+      content: postCaption,
+      previewUrl: previewFile ? URL.createObjectURL(previewFile) : null,
+      previewKind: current.images[0] ? "image" : current.video ? "video" : "none",
+      authorName: t.common.you,
+      authorAvatarUrl: null,
+      createdAt: new Date(),
+      status: "sending",
+    });
+    close();
+    router.push("/home");
+
+    void (async () => {
+      let media: UploadedShareMedia | null = null;
+      if (!embed) {
+        const uploaded = cached ? ({ ok: true, media: cached } as const) : await uploadShare(current);
+        if (!uploaded.ok) {
+          markOptimisticPostError(localId, byCode(t.shareTarget.uploadErrors, uploaded.error));
+          return;
+        }
+        media = uploaded.media;
+      }
+      let result;
+      try {
+        result = await submitPost(postFormData(media));
+      } catch (err) {
+        markOptimisticPostError(
+          localId,
+          looksLikeStaleServerActionError(err) ? t.shareTarget.uploadErrors.stale_deployment : publishError("network"),
+        );
+        return;
+      }
+      if (result.error === "device_verification_required") {
+        removeOptimisticPost(localId);
+        setPendingShareMedia({ ...current, text: embed ? current.text : postCaption || null });
+        router.push(composerHandOffPath({ kind: "feed", userId }));
+        return;
+      }
+      if (result.error) {
+        markOptimisticPostError(localId, publishError(result.error));
+        return;
+      }
+      if ("held" in result && result.held) markOptimisticPostHeld(localId, t.shareTarget.postHeld);
+      else removeOptimisticPost(localId);
+      router.refresh();
+    })();
+  }
+
+  async function publishToCircle(circle: ShareCircle, channel: ShareChannel) {
+    setStatus("busy");
+    setErrorText(null);
+    let media: UploadedShareMedia | null = null;
+    if (!embed) {
       const uploaded = await ensureUploaded();
       if (!uploaded.ok) {
         setStatus("error");
         setErrorText(byCode(t.shareTarget.uploadErrors, uploaded.error));
         return;
       }
-      fd.set("content", stripLinks(share!.text));
-      fd.set("mediaType", uploaded.media.mediaType);
-      fd.set("mediaUrls", JSON.stringify(uploaded.media.mediaUrls));
-      if (uploaded.media.mediaType === "VIDEO") {
-        fd.set("videoUrl", uploaded.media.videoUrl);
-        if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
-        if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
-      }
+      media = uploaded.media;
     }
-    const result = await createPost(fd);
+    const fd = postFormData(media);
+    fd.set("circleId", circle.id);
+    fd.set("channelId", channel.id);
+    let result;
+    try {
+      result = await submitPost(fd);
+    } catch (err) {
+      setStatus("error");
+      setErrorText(
+        looksLikeStaleServerActionError(err) ? t.shareTarget.uploadErrors.stale_deployment : publishError("network"),
+      );
+      return;
+    }
     if (result.error === "device_verification_required") {
-      // Rare (a genuinely new/unrecognized device) — hand off to the full
-      // composer, which already has its own emailed-code entry UI
-      // (post-composer.tsx), instead of duplicating that here.
-      setPendingShareMedia(share!);
-      close();
-      router.push(`/u/${userId}?compose=1`);
+      handOffToComposer({ kind: "circle", circleSlug: circle.slug, channelSlug: channel.slug });
       return;
     }
     if (result.error) {
@@ -345,13 +438,14 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       return;
     }
     setStatus("done");
-    router.push("/home");
+    router.push(composerHandOffPath({ kind: "circle", circleSlug: circle.slug, channelSlug: channel.slug }));
     router.refresh();
     setTimeout(close, 500);
   }
 
-  // The shared text (links kept: a link is normal in a DM) and/or the uploaded photo/video, to every ticked chat at
-  // once. The picker shows the outcome; the gate only stays "busy" meanwhile so the dialog can't be dismissed mid-upload.
+  // The share to every ticked chat at once. Photos go one message each (a message carries one file), the caption with
+  // the first; a share without a file sends its text as is (links kept: a link is normal in a DM). The picker shows
+  // the outcome; the gate only stays "busy" meanwhile so the dialog can't be dismissed mid-upload.
   async function sendToFriends(conversationIds: string[]): Promise<SendToChatsOutcome> {
     setStatus("busy");
     setErrorText(null);
@@ -360,26 +454,25 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       if (!uploaded.ok) {
         return { error: "upload", message: byCode(t.shareTarget.uploadErrors, uploaded.error) };
       }
-      const fd = new FormData();
-      for (const id of conversationIds) fd.append("conversationIds", id);
-      fd.set("content", share!.text ?? "");
-      fd.set("mediaType", uploaded.media.mediaType);
-      // Messages take a single mediaUrl, not an array — a multi-image share
-      // only ever sends the first image to a DM, same one-attachment-per-
-      // message shape chat-thread.tsx's own composer already has.
-      if (uploaded.media.mediaType === "IMAGE" && uploaded.media.mediaUrls[0]) {
-        fd.set("mediaUrl", uploaded.media.mediaUrls[0]);
-      } else if (uploaded.media.mediaType === "VIDEO") {
-        fd.set("mediaUrl", uploaded.media.videoUrl);
-        if (uploaded.media.videoThumbnailUrl) fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
+      const messages = chatMessagesForShare(uploaded.media, hasMedia ? postCaption : (current.text ?? ""));
+      const outcomes: ChatSendOutcome[] = [];
+      for (const message of messages) {
+        const fd = new FormData();
+        for (const id of conversationIds) fd.append("conversationIds", id);
+        fd.set("content", message.content);
+        fd.set("mediaType", message.mediaType);
+        if (message.mediaUrl) fd.set("mediaUrl", message.mediaUrl);
+        if (message.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", message.mediaThumbnailUrl);
+        const result = await sendToConversations(fd);
+        if (result.error) {
+          // Content-level refusals keep this sheet's own wording; "unavailable"/"rate_limited" are the picker's.
+          const own = result.error === "moderation" || result.error === "too_large";
+          outcomes.push({ error: result.error, message: own ? publishError(result.error) : undefined });
+          break;
+        }
+        outcomes.push({ sent: result.sent, failed: result.failed });
       }
-      const result = await sendToConversations(fd);
-      if (result.error) {
-        // Content-level refusals keep this sheet's own wording; "unavailable"/"rate_limited" are the picker's.
-        const own = result.error === "moderation" || result.error === "too_large";
-        return { error: result.error, message: own ? publishError(result.error) : undefined };
-      }
-      return { sent: result.sent, failed: result.failed };
+      return combineChatSendOutcomes(outcomes, conversationIds.length);
     } finally {
       setStatus("idle");
     }
@@ -421,13 +514,8 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
       }
     }
-    // storySchema caps captions at 200 chars (unlike post/message content,
-    // which allow far more) — truncate rather than let a longer shared
-    // caption fail the whole story with a generic "invalid" error, since
-    // the point of this flow is that picking a destination is supposed to
-    // just work, not surface a validation error with no way to edit it.
-    const caption = stripLinks(share!.text);
-    if (caption) fd.set("caption", caption.slice(0, 200));
+    // storySchema caps captions at 200 chars: cut rather than fail the whole story with a generic "invalid".
+    if (postCaption) fd.set("caption", postCaption.slice(0, STORY_CAPTION_MAX_CHARS));
     const result = await createStory(fd);
     if (result.error) {
       setStatus("error");
@@ -471,8 +559,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       if (uploaded.media.videoThumbnailUrl) fd.set("videoThumbnailUrl", uploaded.media.videoThumbnailUrl);
       if (uploaded.media.videoDurationSeconds) fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
     }
-    const caption = stripLinks(share!.text);
-    if (caption) fd.set("caption", caption);
+    if (postCaption) fd.set("caption", postCaption);
     const result = await createMuse(fd);
     if (result.error) {
       setStatus("error");
@@ -487,10 +574,21 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
   const busy = status === "busy";
   // Only truly "link only, nothing this app can do with it" when there's no
-  // real media AND the link isn't a recognized embeddable provider either —
-  // an embeddable link still gets real Feed/Story/Muse options (see embed
-  // above), so it doesn't hit this notice at all.
-  const linkOnly = !hasMedia && !embed && Boolean(share.text);
+  // real media AND the link isn't a recognized embeddable provider either.
+  const linkOnly = !hasMedia && !embed && Boolean(current.text);
+  const title = view === "root" ? t.shareTarget.title : view === "friends" ? t.shareTarget.sendToFriend : t.shareTarget.chooseCircle;
+  const optionClass =
+    "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50";
+  const backButton = (
+    <button
+      type="button"
+      onClick={() => setView("root")}
+      disabled={busy}
+      className="mt-3 text-xs text-foreground-soft hover:text-accent disabled:opacity-50"
+    >
+      {`${dir === "rtl" ? "→" : "←"} ${t.shareTarget.back}`}
+    </button>
+  );
 
   return (
     <div
@@ -499,7 +597,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       onClick={busy ? undefined : close}
       role="dialog"
       aria-modal="true"
-      aria-label={view === "root" ? t.shareTarget.title : t.shareTarget.sendToFriend}
+      aria-label={title}
       tabIndex={-1}
     >
       <div
@@ -507,9 +605,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            {view === "root" ? t.shareTarget.title : t.shareTarget.sendToFriend}
-          </h2>
+          <h2 className="text-sm font-semibold">{title}</h2>
           {!busy && (
             <button type="button" onClick={close} aria-label={t.common.close} className="text-foreground-soft hover:text-danger">
               <X size={18} />
@@ -518,15 +614,19 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         </div>
 
         {previewUrl &&
-          (share.video ? (
+          (current.video ? (
             <video src={previewUrl} className="mt-3 max-h-48 w-full rounded-lg bg-black object-contain" controls />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- a transient blob: URL, not a real asset next/image can optimize
             <img src={previewUrl} alt="" className="mt-3 max-h-48 w-full rounded-lg object-contain" />
           ))}
-        {/* No File object exists for an embed (see this component's own doc
-            comment) — nothing to build a previewUrl from — so this is its
-            own notice instead of previewUrl's own <video>/<img> branch. */}
+        {!current.video && current.images.length > 1 && (
+          <p className="mt-2 text-xs text-foreground-soft">
+            {format(t.shareTarget.albumNote, { count: current.images.length })}
+          </p>
+        )}
+        {/* No File object exists for an embed — nothing to build a previewUrl
+            from — so this is its own notice instead. */}
         {embed && (
           <p className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-foreground-soft">
             {EMBED_PROVIDER_LABEL[embed.provider]
@@ -540,10 +640,24 @@ export function ShareTargetGate({ userId }: { userId: string }) {
             {t.shareTarget.linkOnly}
           </p>
         )}
-        {share.skipped > 0 && (
+        {current.skipped > 0 && (
           <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-            {plural(locale, t.shareTarget.skipped, share.skipped)}
+            {plural(locale, t.shareTarget.skipped, current.skipped)}
           </p>
+        )}
+
+        {view === "root" && options.feed && (
+          <textarea
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            maxLength={SHARE_CAPTION_MAX_CHARS}
+            disabled={busy}
+            rows={2}
+            dir="auto"
+            aria-label={t.shareTarget.caption}
+            placeholder={t.shareTarget.caption}
+            className="mt-3 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+          />
         )}
 
         {errorText && <p role="alert" className="mt-3 text-xs text-danger">{errorText}</p>}
@@ -557,49 +671,78 @@ export function ShareTargetGate({ userId }: { userId: string }) {
 
         {view === "root" && (
           <div className="mt-3 space-y-1">
-            {canShareToStory && (
-              <button
-                type="button"
-                onClick={addToStory}
-                disabled={busy}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-              >
+            {options.story && (
+              <button type="button" onClick={addToStory} disabled={busy} className={optionClass}>
                 <CirclePlus size={16} />
                 {t.shareTarget.toStory}
               </button>
             )}
-            {canShareToMuse && (
-              <button
-                type="button"
-                onClick={postToMuse}
-                disabled={busy}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-              >
+            {options.muse && (
+              <button type="button" onClick={postToMuse} disabled={busy} className={optionClass}>
                 <Clapperboard size={16} />
                 {t.shareTarget.toMuse}
               </button>
             )}
-            {hasPostableContent && (
-              <button
-                type="button"
-                onClick={publishToFeed}
-                disabled={busy}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-              >
+            {options.feed && (
+              <button type="button" onClick={publishToFeed} disabled={busy} className={optionClass}>
                 <SquarePen size={16} />
                 {t.shareTarget.toFeed}
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setView("friends")}
-              disabled={busy}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
-            >
+            {options.circle && (
+              <button type="button" onClick={() => setView("circles")} disabled={busy} className={optionClass}>
+                <Users size={16} />
+                {t.shareTarget.toCircle}
+              </button>
+            )}
+            <button type="button" onClick={() => setView("friends")} disabled={busy} className={optionClass}>
               <Send size={16} />
               {t.shareTarget.sendToFriend}
             </button>
           </div>
+        )}
+
+        {view === "circles" && (
+          <>
+            {circles === null ? (
+              <p className="mt-3 px-2 text-sm text-foreground-soft">{t.common.loading}</p>
+            ) : circles.length === 0 ? (
+              <p className="mt-3 px-2 text-sm text-foreground-soft">{t.shareTarget.noCircles}</p>
+            ) : (
+              <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto">
+                {circles.map((circle) => (
+                  <li key={circle.id}>
+                    <div className="flex items-center gap-2 px-2 text-sm font-medium">
+                      <span dir="auto" className="min-w-0 flex-1 truncate">
+                        {circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}
+                      </span>
+                      {circle.role !== "member" && (
+                        <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">
+                          {circle.role === "owner" ? t.shareTarget.circleOwner : t.shareTarget.circleCoAdmin}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 space-y-0.5">
+                      {circle.channels.map((channel) => (
+                        <button
+                          key={channel.id}
+                          type="button"
+                          onClick={() => publishToCircle(circle, channel)}
+                          disabled={busy || status === "done"}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm hover:bg-line/60 disabled:opacity-50"
+                        >
+                          {channel.isPrivate ? <Lock size={14} aria-hidden /> : <Hash size={14} aria-hidden />}
+                          <span dir="auto" className="min-w-0 truncate">{channel.name}</span>
+                          {channel.isPrivate && <span className="sr-only">{t.shareTarget.privateChannel}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {backButton}
+          </>
         )}
 
         {view === "friends" && (
@@ -615,14 +758,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
               onSend={sendToFriends}
               onSent={afterSentToFriends}
             />
-            <button
-              type="button"
-              onClick={() => setView("root")}
-              disabled={busy}
-              className="mt-3 text-xs text-foreground-soft hover:text-accent disabled:opacity-50"
-            >
-              {`${dir === "rtl" ? "→" : "←"} ${t.shareTarget.back}`}
-            </button>
+            {backButton}
           </>
         )}
       </div>

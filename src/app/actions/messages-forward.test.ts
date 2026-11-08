@@ -332,6 +332,14 @@ describe("getMyConversationsForShare (post, Muse and share-target pickers)", () 
     expect(ids).toContain(GROUP);
   });
 
+  it("lists the most recently active chats first", async () => {
+    const ids = (await getMyConversationsForShare()).conversations.map((c) => c.id);
+    expect(ids.length).toBeGreaterThan(1);
+    const position = (id: string) => conversations.findIndex((c) => c.id === id);
+    expect(ids).toEqual([...ids].sort((a, b) => position(b) - position(a)));
+    expect(position(ids[0])).toBeGreaterThan(position(ids[ids.length - 1]));
+  });
+
   it("answers an empty list when the only chats are secret (the picker's 'no chats' state)", async () => {
     conversations = [
       { id: "csec0000000001", isGroup: false, name: null, members: [member(ME, { e2eeEnabledAt: new Date() }), member(CY, { e2eeEnabledAt: new Date() })] },

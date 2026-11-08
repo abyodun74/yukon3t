@@ -85,12 +85,20 @@ account-level configuration Codemagic's automatic signing depends on:
 
 ## What happens once it reaches a device
 
-Tapping "Share" in Photos/Instagram/TikTok/WhatsApp/etc. and choosing
-YuKon3t opens `ShareViewController`'s brief "Sharing…" spinner, which reads
-the shared item(s), writes them into the App Group container, then hands off
-to the main app — which shows the exact same `ShareTargetGate` picker
-(Story / Muse / Feed / a friend) Android already gets, since that component
-and everything downstream of it (`share-target-store.ts`, the upload/
-publish flows) was already platform-agnostic — only `share-receiver.ts`'s
-platform check needed to widen from Android-only to Android-or-iOS, which
-it now does.
+Tapping "Share" in Photos (or on a fresh screenshot) / WhatsApp / etc. and
+choosing YuKon3t opens `ShareViewController`'s brief "Sharing…" spinner,
+which reads the shared item(s) (a file URL, a `UIImage`, or raw image `Data`
+as the screenshot editor hands over) and writes them into the App Group
+container. It then asks the system to open `yukon3t://share`. **Apple only
+honours `NSExtensionContext.open` for Today and iMessage extensions**, so for
+a Share extension that normally answers `false`; the extension then shows
+"Saved. Open YuKon3t to choose where to share it." (in the app's five
+languages) instead of silently finishing. No private-API workaround is used
+(App Review risk). The main app's `ShareTargetGate` reads the App Group on
+launch and on every resume, so the picker (Story / Muse / Home Feed / a
+Circle / up to 5 chats) appears as soon as YuKon3t comes forward.
+
+`ios/App/App/ShareReceiverPlugin.swift` + `.m` were on disk but **not in the
+App target's Sources build phase** until 2026-11-08 (no iOS build before
+that could read a share, whatever the App Group state); they are now listed
+in `project.pbxproj` the same way `ScreenCaptureGuardPlugin` is.

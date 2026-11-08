@@ -77,6 +77,7 @@ import {
 } from "@/lib/circle-invite";
 import { inviterStandingSelect, loadCircleInviteExclusions } from "@/lib/circle-invite-data";
 import { loadCircleMemberPage } from "@/lib/circle-members-data";
+import { postableShareChannels, shareCircleRole } from "@/lib/share-target-destinations";
 
 const CIRCLE_POSTS_PAGE_SIZE = 20;
 
@@ -1515,6 +1516,68 @@ export async function getMyCircles() {
       parentName: parent && canSeeCircle(parent, { isMember: parent.members.length > 0 }) ? parent.name : null,
     })),
   };
+}
+
+/**
+ * "Post to a Circle" when sharing in from another app (share-target-gate.tsx): the Circles the caller is a member of,
+ * each with the text channels they may post into (postableShareChannels, canAccessChannel's rule: public channels,
+ * private ones they're allow-listed in, and every channel for the owner/co-admin), and their role there. Circles with
+ * no such channel are left out. Members only, so a PRIVATE Circle appears only to its members. Not a security
+ * boundary: createPost checks the channel again.
+ */
+export async function getShareTargetCircles() {
+  const user = await requireVerifiedUser();
+
+  const memberships = await prisma.circleMembership.findMany({
+    where: { userId: user.id },
+    select: {
+      role: true,
+      circle: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          coverImageUrl: true,
+          createdById: true,
+          parent: { select: { name: true, visibility: true, members: { where: { userId: user.id }, select: { id: true } } } },
+          channels: {
+            where: { type: "TEXT" },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              type: true,
+              visibility: true,
+              position: true,
+              members: { where: { userId: user.id }, select: { userId: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { circle: { name: "asc" } },
+  });
+
+  const circles = memberships.flatMap(({ role, circle }) => {
+    const channels = postableShareChannels(
+      circle.channels.map(({ members, ...channel }) => ({ ...channel, allowListed: members.length > 0 })),
+      { isMember: true, canModerate: isCircleAdmin(circle, { role }, user) },
+    );
+    if (channels.length === 0) return [];
+    const { parent } = circle;
+    return [
+      {
+        id: circle.id,
+        name: circle.name,
+        slug: circle.slug,
+        coverImageUrl: circle.coverImageUrl,
+        parentName: parent && canSeeCircle(parent, { isMember: parent.members.length > 0 }) ? parent.name : null,
+        role: shareCircleRole(circle, { role }, user.id),
+        channels,
+      },
+    ];
+  });
+  return { circles };
 }
 
 /**
