@@ -25,7 +25,10 @@ export interface NativeCallKitPlugin {
    */
   getPendingToken(): Promise<{ token: string | null }>;
   /** Same idea as getPendingToken(), for a call answered/declined via
-   * CallKit's system UI before the page ever attached a listener. */
+   * CallKit's system UI while the page wasn't listening (not loaded yet, or
+   * suspended in the background / behind the lock screen). Destructive: each
+   * call returns what was queued since the last one. IncomingCallListener
+   * drains it before every ring check. */
   getPendingCallEvents(): Promise<{ answered: string[]; declined: string[] }>;
 }
 

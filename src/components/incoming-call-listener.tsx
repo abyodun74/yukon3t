@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { getIncomingCall, getCallStatus, respondToCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
 import { useReloadHold } from "@/lib/stale-build-client";
+import { holdReload } from "@/lib/stale-build";
+import {
+  OUT_OF_APP_ANSWER_RETRY_DELAY_MS,
+  answerOutcome,
+  createCallAnswerTracker,
+} from "@/lib/call-answer-tracker";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -65,6 +71,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // Ringing counts as a call for stale-build reloads: the banner would come
   // back after one, but seconds late, on a call that only rings for so long.
   useReloadHold("call", incoming !== null);
+  // The call whose answer is being sent: its ring is hidden and silent from the tap on, not from the server's reply.
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
+  useReloadHold("call", answeringId !== null);
 
   const activeCallRef = useRef(activeCall);
   useEffect(() => {
@@ -87,28 +96,38 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // cancels while still ringing, or this component unmounts mid-ring).
   const pendingPrewarmKeyRef = useRef<string | null>(null);
 
-  // On iOS, a call already answered/declined via CallKit before this
-  // component ever mounted (the common cold-start-from-force-quit case)
-  // needs to be resolved *before* the very first getIncomingCall() check
-  // below, or that check wins the race and briefly renders this
-  // component's own ringing banner — with its own Accept/Decline — for a
-  // call CallKit already answered, immediately followed by acceptCall
-  // clearing it once the pending-event drain (further down) catches up.
-  // Confirmed live as a real, visible duplicate-buttons flash. Starts
-  // already-true off iOS (or non-native), where there's no such race to
-  // wait for; the effect below flips it true exactly once the drain
-  // finishes, success or failure alike, so a plugin error here can never
-  // permanently block the banner from ever appearing.
-  const [readyToCheckIncoming, setReadyToCheckIncoming] = useState(Capacitor.getPlatform() !== "ios");
+  // Calls being answered or just answered here, so a check that still finds them RINGING never puts up a second
+  // Accept: CallKit's Accept (iOS) and the notification's Accept (Android) reach this page while it is also checking
+  // for a ring, on a cold start and on every return from the background. See call-answer-tracker.ts.
+  const [answers] = useState(createCallAnswerTracker);
+  const retryTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = retryTimersRef.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  // Assigned below: checkIncoming needs acceptCall and the native drain, which are declared after it.
+  const acceptCallRef = useRef<(callId: string) => Promise<void>>(async () => {});
+  const syncNativeCallEventsRef = useRef<() => Promise<void>>(async () => {});
 
   const checkIncoming = useCallback(async () => {
+    // iOS: a CallKit answer the live event didn't deliver (the page was suspended or not loaded yet when it was
+    // tapped) is picked up here, before deciding whether this ring needs the in-app Accept at all.
+    await syncNativeCallEventsRef.current();
     const { call, ringtone: userRingtone } = await getIncomingCall();
     // Ignore a response that arrives after a call has since started.
-    if (!activeCallRef.current) {
-      setIncoming(call as IncomingCall | null);
-      if (userRingtone) setRingtone(userRingtone);
+    if (activeCallRef.current) return;
+    if (userRingtone) setRingtone(userRingtone);
+    if (call) {
+      const decision = answers.ringDecision(call.id);
+      if (decision === "accept") {
+        void acceptCallRef.current(call.id);
+        return;
+      }
+      if (decision === "hide") return;
     }
-  }, []);
+    setIncoming(call as IncomingCall | null);
+  }, [answers]);
 
   // Fires immediately on mount (in case a call is already ringing by the
   // time this component appears — a cold start from a push notification,
@@ -122,14 +141,16 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     checkIncomingRef.current = checkIncoming;
   });
   useEffect(() => {
-    if (!activeCall && readyToCheckIncoming) checkIncomingRef.current();
-  }, [activeCall, readyToCheckIncoming]);
+    if (!activeCall) checkIncomingRef.current();
+  }, [activeCall]);
 
   // Replaces the old 5s ring poll — startCall publishes onto the callee's
   // own call:{userId} channel the instant a call is placed (see
-  // REALTIME_CHANNELS.callSignal in actions/calls.ts).
+  // REALTIME_CHANNELS.callSignal in actions/calls.ts). Its immediate resync on
+  // every return to the foreground is also what drains a CallKit answer
+  // tapped while the app was in the background (checkIncoming).
   useRealtimeEvent(
-    !activeCall && readyToCheckIncoming ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
+    !activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
     "changed",
     checkIncoming,
     { resync: "immediate" },
@@ -223,18 +244,18 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // actually ringing, and stops the moment it isn't — accepted, declined,
   // hung up by the caller, or this component unmounts.
   const playerRef = useRef<RingtonePlayer | null>(null);
+  const ringingId = incoming && incoming.id !== answeringId ? incoming.id : null;
   useEffect(() => {
-    if (!incoming) return undefined;
+    if (!ringingId) return undefined;
     if (!playerRef.current) playerRef.current = new RingtonePlayer();
     playerRef.current.start(ringtone);
     return () => {
       playerRef.current?.stop();
     };
-    // Deliberately keyed on incoming?.id, not incoming itself — a fresh
-    // object can come back from a re-check even when it's the same ringing
-    // call, and restarting the loop then would glitch the audio.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incoming?.id, ringtone]);
+    // Keyed on the ringing call's id, not incoming itself — a fresh object
+    // can come back from a re-check even when it's the same ringing call,
+    // and restarting the loop then would glitch the audio.
+  }, [ringingId, ringtone]);
 
   // Pauses any feed/story/live video already playing the moment a call
   // starts ringing, so it doesn't compete with the ringtone before the call
@@ -257,17 +278,52 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // Callable by callId directly (not just from `incoming` state) so the
   // notification-tap deep-link handler below can accept/decline a call this
   // component's own subscription hasn't necessarily caught up to yet.
+  // Answers each call once however many paths ask (in-app button, CallKit's
+  // live event, its pending queue, the ring check's auto-accept); the server
+  // still guards the RINGING -> ACCEPTED write on its own.
   const acceptCall = useCallback(async (callId: string) => {
-    const result = await respondToCall(callId, true);
-    if (result.error || !result.roomUrl || !result.token) {
+    if (!answers.begin(callId)) return;
+    setAnsweringId(callId);
+    const ringLabel =
+      incomingRef.current?.id === callId ? incomingCallLabel(incomingRef.current, someoneRef.current) : null;
+    // A stale-build reload mid-answer would lose the reply (room and token)
+    // while the server has already marked the call ACCEPTED. Taken right
+    // away (the useReloadHold below only starts once this state commits),
+    // and kept a moment past the reply, until that hold and the call
+    // session's own have taken over.
+    const release = holdReload("call");
+    let result: Awaited<ReturnType<typeof respondToCall>> | null;
+    try {
+      result = await respondToCall(callId, true);
+    } catch {
+      result = null;
+    } finally {
+      setTimeout(release, 1_000);
+    }
+    const outcome = answerOutcome(result);
+    const followUp = answers.finish(callId, outcome);
+    setAnsweringId((current) => (current === callId ? null : current));
+    if (outcome === "refused") {
       setIncoming((current) => (current?.id === callId ? null : current));
+      return;
+    }
+    if (!result || result.error || !("roomUrl" in result) || !result.roomUrl || !result.token) {
+      if (followUp === "retry") {
+        const timer = setTimeout(() => {
+          retryTimersRef.current.delete(timer);
+          void acceptCallRef.current(callId);
+        }, OUT_OF_APP_ANSWER_RETRY_DELAY_MS);
+        retryTimersRef.current.add(timer);
+      } else if (followUp === "show") {
+        void checkIncomingRef.current();
+      }
       return;
     }
     // The in-app ring isn't loaded yet when this is an Accept from the notification or CallKit (a cold start, or
     // the phone was locked): the name then comes from respondToCall, masked like the ring, so a hidden caller stays
     // "Private call" and everyone else is named rather than "Someone".
     const callerName = answeredCallLabel(
-      incomingRef.current?.id === callId ? incomingCallLabel(incomingRef.current, someoneRef.current) : null,
+      ringLabel,
       "callerName" in result ? result.callerName : undefined,
       someoneRef.current,
     );
@@ -286,12 +342,50 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     }
     setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName });
     setIncoming((current) => (current?.id === callId ? null : current));
-  }, []);
+  }, [answers]);
+
+  // Layout effects, so both refs are set before the mount ring check (a
+  // passive effect further up) first reads them.
+  useLayoutEffect(() => {
+    acceptCallRef.current = acceptCall;
+  });
 
   const declineCall = useCallback(async (callId: string) => {
     await respondToCall(callId, false);
     setIncoming((current) => (current?.id === callId ? null : current));
   }, []);
+
+  // An Accept or Decline tapped outside the app: CallKit on iOS, the
+  // incoming-call notification on Android.
+  const answeredOutOfApp = useCallback(
+    (callId: string) => {
+      if (answers.noteOutOfAppAnswer(callId)) void acceptCall(callId);
+    },
+    [answers, acceptCall],
+  );
+  const declinedOutOfApp = useCallback(
+    (callId: string) => {
+      if (answers.noteOutOfAppDecline(callId)) void declineCall(callId);
+    },
+    [answers, declineCall],
+  );
+
+  // iOS: CallKit queues every Accept/Decline natively as well as firing it as
+  // a live event (NativeCallManager.swift), because the event is lost when
+  // the page isn't listening: not loaded yet on a cold start, or suspended
+  // while the app is in the background or the phone is locked. Drained
+  // before every ring check, so opening the app after answering on CallKit
+  // goes straight into the call instead of showing the in-app Accept.
+  const syncNativeCallEvents = useCallback(async () => {
+    if (Capacitor.getPlatform() !== "ios") return;
+    const { NativeCallKit } = await import("@/lib/native-callkit");
+    const pending = await NativeCallKit.getPendingCallEvents().catch(() => null);
+    pending?.answered.forEach(answeredOutOfApp);
+    pending?.declined.forEach(declinedOutOfApp);
+  }, [answeredOutOfApp, declinedOutOfApp]);
+  useLayoutEffect(() => {
+    syncNativeCallEventsRef.current = syncNativeCallEvents;
+  });
 
   // Haptics live in these two in-app-button wrappers, not acceptCall/
   // declineCall themselves — those are shared with the CallKit/Android
@@ -330,8 +424,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       const callId = parsed.searchParams.get("callId");
       const action = parsed.searchParams.get("action");
       if (!callId) return;
-      if (action === "accept") acceptCall(callId);
-      else if (action === "decline") declineCall(callId);
+      if (action === "accept") answeredOutOfApp(callId);
+      else if (action === "decline") declinedOutOfApp(callId);
       // No action (notification body tap) — just foregrounding the app is
       // enough; the mount-check above picks up the ringing banner.
     }
@@ -355,17 +449,18 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       cancelled = true;
       listener?.remove();
     };
-  }, [acceptCall, declineCall]);
+  }, [answeredOutOfApp, declinedOutOfApp]);
 
   // iOS only: CallKit's native Accept/Decline buttons (shown even while the
   // app is fully terminated, via PushKit — see NativeCallKitPlugin.swift)
   // report straight to the OS, not to this component, so this is what
   // routes that outcome back into the exact same respondToCall flow the
   // in-app buttons and Android's notification-tap deep link above already
-  // use. Answering also brings the app to the foreground as standard
-  // CallKit/system behavior, satisfying "once accept should connect call
-  // and automatically go to the app" with no extra navigation code needed
-  // here.
+  // use. These live events only arrive while the page is running; an answer
+  // tapped while it wasn't comes from the native queue, drained before every
+  // ring check (syncNativeCallEvents). iOS doesn't bring the app forward
+  // after an audio call is answered (the system call screen stays up until
+  // the user opens the app); opening it is what the drain is for.
   useEffect(() => {
     if (Capacitor.getPlatform() !== "ios") return undefined;
     let cancelled = false;
@@ -376,7 +471,10 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       const { NativeCallKit } = await import("@/lib/native-callkit");
       if (cancelled) return;
       answeredListener = await NativeCallKit.addListener("callAnswered", (event) => {
-        acceptCall(event.callId);
+        answeredOutOfApp(event.callId);
+        // The same answer also sits in the native queue; consume it now so a
+        // later drain can't replay it into a re-invite to the same call.
+        void syncNativeCallEvents();
       });
       declinedListener = await NativeCallKit.addListener("callDeclined", (event) => {
         // Deliberately the decline path only, even when this is the call
@@ -388,21 +486,12 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         // leaves the CallKit banner still ringing, where a later Decline
         // would hang up the call just answered — both would end a call the
         // user means to keep.
-        declineCall(event.callId);
+        declinedOutOfApp(event.callId);
+        void syncNativeCallEvents();
       });
-      // The actual delivery path for a call answered/declined via CallKit
-      // before this effect ever attached — a realistic case, since the
-      // system UI can be acted on while the app is still cold-starting.
-      // See getPendingCallEvents()'s own doc comment for why the
-      // addListener events above alone can't be relied on for that.
-      const pending = await NativeCallKit.getPendingCallEvents().catch(() => null);
-      if (cancelled) return;
-      pending?.answered.forEach((callId) => acceptCall(callId));
-      pending?.declined.forEach((callId) => declineCall(callId));
-      // Unblocks the ring-check effect above — on a failure (pending is
-      // null) too, so a plugin error here never permanently hides a
-      // genuinely still-ringing call's banner.
-      setReadyToCheckIncoming(true);
+      // An answer tapped between the mount ring check's drain and the
+      // listeners attaching reached neither.
+      if (!cancelled) await syncNativeCallEvents();
     })();
 
     return () => {
@@ -410,13 +499,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       answeredListener?.remove();
       declinedListener?.remove();
     };
-  }, [acceptCall, declineCall]);
+  }, [answeredOutOfApp, declinedOutOfApp, syncNativeCallEvents]);
 
   // Once active, the call itself renders via the root-mounted GlobalCallFrame
   // (see the startSession effect above) — nothing left to render here.
   if (activeCall) return null;
 
-  if (!incoming) return null;
+  // Nothing to answer while this call's answer is already on its way.
+  if (!incoming || incoming.id === answeringId) return null;
 
   // One sentence per kind of ring, the caller's name in bold wherever that language puts it. A caller whose chat
   // the reader has hidden is shown as the app's stand-in for the name, in a sentence worded for it.
