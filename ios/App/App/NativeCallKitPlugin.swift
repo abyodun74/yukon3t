@@ -37,4 +37,36 @@ public class NativeCallKitPlugin: CAPPlugin {
         let events = NativeCallManager.shared.drainPendingCallEvents()
         call.resolve(["answered": events.answered, "declined": events.declined])
     }
+
+    // The three below keep CallKit's ring in step with answers and declines
+    // that didn't come from CallKit itself — see src/lib/callkit-ring-sync.ts.
+    // NativeCallManager's state lives on the main queue; plugin calls don't.
+    @objc func reportCallAnswered(_ call: CAPPluginCall) {
+        guard let callId = call.getString("callId") else {
+            call.reject("callId is required")
+            return
+        }
+        DispatchQueue.main.async {
+            NativeCallManager.shared.answerFromApp(callId: callId)
+            call.resolve()
+        }
+    }
+
+    @objc func endRingingCall(_ call: CAPPluginCall) {
+        guard let callId = call.getString("callId"),
+              let reason = call.getString("reason").flatMap(NativeCallManager.RingEndReason.init(rawValue:)) else {
+            call.reject("callId and a known reason are required")
+            return
+        }
+        DispatchQueue.main.async {
+            NativeCallManager.shared.endRingingFromApp(callId: callId, reason: reason)
+            call.resolve()
+        }
+    }
+
+    @objc func getRingingCalls(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            call.resolve(["callIds": NativeCallManager.shared.ringingCallIds()])
+        }
+    }
 }

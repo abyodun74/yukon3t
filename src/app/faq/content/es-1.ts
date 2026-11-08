@@ -46,7 +46,11 @@ export const es1 = {
   },
   "some-people-disappear-from-discover": {
     q: "¿Por qué algunas personas desaparecen de Descubrir?",
-    a: "Descubrir solo muestra personas con las que todavía no has tenido ninguna interacción de contacto: en cuanto envías o recibes una solicitud de contacto, esa persona deja de aparecer en los resultados de Descubrir (siga pendiente o ya esté aceptada). Si una solicitud se rechaza, esa persona puede volver a aparecer en Descubrir para un nuevo intento.",
+    a: "Descubrir solo muestra personas con las que todavía no has tenido ninguna interacción de contacto: en cuanto envías o recibes una solicitud de contacto, esa persona deja de aparecer en los resultados de Descubrir (siga pendiente o ya esté aceptada). Si una solicitud se rechaza, esa persona puede volver a aparecer en Descubrir para un nuevo intento. El ícono de búsqueda de la parte superior de Descubrir sigue encontrándola.",
+  },
+  "search-people-discover": {
+    q: "¿Cómo encuentro a una persona concreta en Descubrir y conecto con ella?",
+    a: "Toca el ícono de la lupa en la parte superior de Descubrir y escribe al menos dos letras de su nombre o de su @usuario. Los resultados aparecen mientras escribes, cada uno con un botón que muestra en qué punto están: «Conectar», «Solicitud enviada», «Aceptar» (ya te pidió conectar) o «Conectados», además de «Mensaje». Aquí solo se puede encontrar a quienes aparecen en Descubrir: cuentas verificadas que no desactivaron «Mostrar mi perfil en Descubrir», y nunca a nadie que hayas bloqueado o que te haya bloqueado. Una búsqueda muestra como máximo 60 personas, así que si no ves a quien buscas, escribe más de su nombre. Solo se buscan nombres y nombres de usuario; los correos electrónicos, los números de teléfono y las fechas de cumpleaños nunca se buscan ni se muestran.",
   },
   "new-member-alerts": {
     q: "¿Por qué recibí una notificación de que alguien acaba de unirse a YuKon3t?",

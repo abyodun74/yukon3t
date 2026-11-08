@@ -184,6 +184,10 @@ const limiterDefinitions = {
   // Each call is a real Giphy API request — generous enough for someone
   // typing/refining a search, tight enough to bound spend per user.
   gifSearch: makeLimiter(30, "1 m"),
+  // Discover's people search (searchDiscoverPeople), one call per debounced keystroke or "Show more". The hourly
+  // ceiling bounds how much of the directory one account can walk through by scripting queries.
+  discoverSearch: makeLimiter(30, "1 m"),
+  discoverSearchHour: makeLimiter(300, "1 h"),
   // Each call is a real Safe Browsing API request (see src/lib/link-safety.ts)
   // — generous enough that checking every link post someone taps through in
   // a normal browsing session never gets throttled, tight enough that this

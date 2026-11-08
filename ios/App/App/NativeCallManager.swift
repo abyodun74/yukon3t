@@ -21,6 +21,9 @@ final class NativeCallManager: NSObject {
 
     private var pushRegistry: PKPushRegistry?
     private let provider: CXProvider
+    // Main queue, like the provider delegate and PushKit: every piece of
+    // state below is only touched there.
+    private let callController = CXCallController()
 
     // Set once by NativeCallKitPlugin.load(). Used for best-effort live
     // delivery (a listener already attached when an event fires); the
@@ -34,6 +37,24 @@ final class NativeCallManager: NSObject {
     // CallKit only gives delegate callbacks a CallKit-generated UUID back —
     // this is what maps one back to this app's own callId.
     private var activeCalls: [UUID: String] = [:]
+    // Calls this device answered, through CallKit's Accept or the in-app one
+    // (answerFromApp): no longer ringing.
+    private var answeredCalls: Set<UUID> = []
+    // Answer/end actions requested by answerFromApp/endRingingFromApp on
+    // behalf of the in-app buttons. The web page already acted on those, so
+    // they aren't reported back to it as callAnswered/callDeclined.
+    private var appRequestedActions: Set<UUID> = []
+
+    /// Why a ringing call stops, from the web page (endRingingCall).
+    /// `declined` is this device's own in-app Decline; the rest happened
+    /// somewhere else and map onto CallKit's own end reasons.
+    enum RingEndReason: String {
+        case declined
+        case answeredElsewhere
+        case declinedElsewhere
+        case remoteEnded
+        case unanswered
+    }
 
     private override init() {
         let config = CXProviderConfiguration()
@@ -110,12 +131,86 @@ final class NativeCallManager: NSObject {
     }
 
     /// Dismisses a still-ringing CallKit UI — sent when the caller hangs up
-    /// (or the call otherwise stops ringing) before this device answers.
-    /// See sendVoipCallCancelToUser in src/lib/apns-voip.ts.
+    /// (or the call otherwise stops ringing) before this device answers —
+    /// and ends an answered one at hang-up. See sendVoipCallCancelToUser in
+    /// src/lib/apns-voip.ts.
     private func endReportedCall(callId: String) {
         guard let uuid = activeCalls.first(where: { $0.value == callId })?.key else { return }
-        provider.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
+        // .unanswered on a call that was answered would log it as missed.
+        reportEnded(uuid, reason: answeredCalls.contains(uuid) ? .remoteEnded : .unanswered)
+    }
+
+    private func reportEnded(_ uuid: UUID, reason: CXCallEndedReason) {
+        guard activeCalls[uuid] != nil else { return }
+        provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
+        forget(uuid)
+    }
+
+    private func forget(_ uuid: UUID) {
         activeCalls.removeValue(forKey: uuid)
+        answeredCalls.remove(uuid)
+        appRequestedActions.remove(uuid)
+    }
+
+    private func ringingUUID(for callId: String) -> UUID? {
+        activeCalls.first(where: { $0.value == callId && !answeredCalls.contains($0.key) })?.key
+    }
+
+    /// Calls CallKit is ringing: reported, not answered here, not ended.
+    func ringingCallIds() -> [String] {
+        activeCalls.filter { !answeredCalls.contains($0.key) }.map { $0.value }
+    }
+
+    /// The call was answered with the in-app Accept. Requests the same
+    /// CXAnswerCallAction CallKit's own Accept performs, so CallKit moves the
+    /// call from ringing to active exactly as it does for that path (no
+    /// second system call UI, the usual audio-session activation), and the
+    /// existing call_cancelled push ends it at hang-up. Ending it instead
+    /// (reportCall endedAt) would leave the app in a call CallKit no longer
+    /// knows about. No-op if CallKit isn't ringing this call.
+    func answerFromApp(callId: String) {
+        guard let uuid = ringingUUID(for: callId) else { return }
+        appRequestedActions.insert(uuid)
+        callController.request(CXTransaction(action: CXAnswerCallAction(call: uuid))) { [weak self] error in
+            guard let error else { return }
+            DispatchQueue.main.async {
+                guard let self, !self.answeredCalls.contains(uuid) else { return }
+                print("[voip-native] answer request failed: \(error.localizedDescription)")
+                self.appRequestedActions.remove(uuid)
+                // The call goes on in the web view regardless; at least stop
+                // the ring.
+                self.reportEnded(uuid, reason: .answeredElsewhere)
+            }
+        }
+    }
+
+    /// Stops CallKit ringing a call the web page has seen end. No-op if
+    /// CallKit isn't ringing it (unknown, answered here or already ended).
+    func endRingingFromApp(callId: String, reason: RingEndReason) {
+        guard let uuid = ringingUUID(for: callId) else { return }
+        switch reason {
+        case .declined:
+            // This device's own Decline, like CallKit's: a user action, so
+            // it goes through CXCallController.
+            appRequestedActions.insert(uuid)
+            callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { [weak self] error in
+                guard let error else { return }
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    print("[voip-native] end request failed: \(error.localizedDescription)")
+                    self.appRequestedActions.remove(uuid)
+                    self.reportEnded(uuid, reason: .declinedElsewhere)
+                }
+            }
+        case .answeredElsewhere:
+            reportEnded(uuid, reason: .answeredElsewhere)
+        case .declinedElsewhere:
+            reportEnded(uuid, reason: .declinedElsewhere)
+        case .remoteEnded:
+            reportEnded(uuid, reason: .remoteEnded)
+        case .unanswered:
+            reportEnded(uuid, reason: .unanswered)
+        }
     }
 }
 
@@ -179,6 +274,8 @@ extension NativeCallManager: PKPushRegistryDelegate {
 extension NativeCallManager: CXProviderDelegate {
     func providerDidReset(_ provider: CXProvider) {
         activeCalls.removeAll()
+        answeredCalls.removeAll()
+        appRequestedActions.removeAll()
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
@@ -191,20 +288,24 @@ extension NativeCallManager: CXProviderDelegate {
         // persistent native in-call CallKit screen (no green-bar/Dynamic-
         // Island "return to call"); the existing in-app hang-up button
         // covers ending it.
-        if let callId = activeCalls[action.uuid] {
+        answeredCalls.insert(action.uuid)
+        let requestedByApp = appRequestedActions.remove(action.uuid) != nil
+        if !requestedByApp, let callId = activeCalls[action.uuid] {
             emitAnswered(callId)
         }
         action.fulfill()
     }
 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        // Only reachable pre-answer (declining the system ringing screen) —
-        // see the note above on why there's no ongoing CallKit session to
-        // end once a call is answered.
-        if let callId = activeCalls[action.uuid] {
+        // Declining the system ringing screen, or the system End on an
+        // answered call (which the web page treats as a no-op decline, see
+        // incoming-call-listener.tsx). An end the app requested itself
+        // (endRingingFromApp) was already handled by the web page.
+        let requestedByApp = appRequestedActions.remove(action.uuid) != nil
+        if !requestedByApp, let callId = activeCalls[action.uuid] {
             emitDeclined(callId)
         }
-        activeCalls.removeValue(forKey: action.uuid)
+        forget(action.uuid)
         action.fulfill()
     }
 }

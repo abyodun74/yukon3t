@@ -211,7 +211,28 @@ const sections: Section[] = [
             with, connection-wise — once you send or receive a connection
             request, they drop out of Discover&apos;s results (whether it&apos;s
             still pending or already accepted). If a request gets declined,
-            that person can reappear in Discover for a fresh attempt.
+            that person can reappear in Discover for a fresh attempt. The
+            search icon at the top of Discover still finds them.
+          </>
+        ),
+      },
+      {
+        id: "search-people-discover",
+        q: "How do I find a specific person in Discover and connect with them?",
+        a: (
+          <>
+            Tap the magnifying-glass icon at the top of Discover and type at
+            least two letters of their name or @username. Results appear as
+            you type, each with a button showing where you stand: Connect,
+            Request sent, Accept (they&apos;ve already asked to connect with
+            you) or Connected, plus Message. Only people who show up in
+            Discover can be found here: verified accounts that haven&apos;t
+            turned off &ldquo;Show my profile in Discover&rdquo;, and never
+            anyone you&apos;ve blocked or who has blocked you. One search shows
+            at most 60 people, so if the person you want isn&apos;t there,
+            type more of their name. Only names and usernames are searched;
+            email addresses, phone numbers and birthdays are never searched or
+            shown.
           </>
         ),
       },

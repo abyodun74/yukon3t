@@ -357,6 +357,22 @@ export const feedEn = {
     mutual: "one: # mutual connection | other: # mutual connections",
     unknownLocation: "Unknown location",
   },
+  // Discover's people search (src/components/discover-people-search.tsx).
+  peopleSearch: {
+    open: "Search people",
+    close: "Close search",
+    label: "Search people by name or username",
+    placeholder: "Name or @username",
+    keepTyping: "Type at least 2 letters or numbers.",
+    searching: "Searching…",
+    none: "No one found. Only people who show up in Discover can be found here.",
+    failed: "Couldn't search right now. Try again.",
+    rateLimited: "Too many searches. Wait a minute and try again.",
+    showMore: "Show more",
+    refine: "Those are the top matches. Type more of the name to narrow it down.",
+    incoming: "Wants to connect with you",
+    acceptFailed: "Couldn't accept. Try again.",
+  },
   // App-wide press-and-hold menu on a photo or link (src/components/link-copy-menu.tsx).
   pressMenu: {
     label: "Copy",

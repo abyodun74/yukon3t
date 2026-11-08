@@ -1,12 +1,23 @@
 "use server";
 
-import { requireViewer } from "@/lib/auth-guards";
+import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getConnectedOrPendingIds } from "@/lib/connections";
 import { onlineSince } from "@/lib/presence";
 import { DISCOVER_SORT_OPTIONS, type DiscoverSortOption } from "@/lib/sort-options";
+import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  DISCOVER_SEARCH_MAX_RESULTS,
+  DISCOVER_SEARCH_PAGE_SIZE,
+  discoverSearchPage,
+  discoverSearchState,
+  discoverSearchUserWhere,
+  normalizeDiscoverSearchQuery,
+  pickDiscoverSearchConnection,
+  type DiscoverSearchState,
+} from "@/lib/discover-search";
 
 // Matches /discover/page.tsx's own PAGE_SIZE (src/app/discover/page.tsx) —
 // same offset pagination there for the same reason (non-unique trustScore
@@ -222,4 +233,106 @@ export async function loadMoreDiscoverPeople(
   });
 
   return { items, hasMore: people.length === PAGE_SIZE };
+}
+
+export type DiscoverSearchItem = {
+  person: {
+    id: string;
+    name: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+    openToIntents: (typeof intentTagValues)[number][];
+  };
+  state: DiscoverSearchState;
+  /** Only for "incoming": the request the viewer can accept. */
+  connectionId: string | null;
+  /** Only for "connected": the 1:1 chat with them, when there is one. */
+  conversationId: string | null;
+};
+
+type DiscoverSearchResult = {
+  error: "rate_limited" | null;
+  items: DiscoverSearchItem[];
+  hasMore: boolean;
+};
+
+/**
+ * Discover's people search (the search icon on /discover): display name or @username, `page` 1-based, at most
+ * DISCOVER_SEARCH_MAX_RESULTS rows per query. Who can appear is discoverSearchUserWhere (src/lib/discover-search.ts)
+ * minus anyone blocked either way; each row carries only what the row renders plus the viewer's own connection state
+ * with that person. Members only (a verified account, like Connect itself), with its own limiters.
+ */
+export async function searchDiscoverPeople(rawQuery: string, rawPage: number): Promise<DiscoverSearchResult> {
+  const me = await requireVerifiedUser();
+  const query = normalizeDiscoverSearchQuery(rawQuery);
+  const page = discoverSearchPage(rawPage);
+  if (!query || !page) return { error: null, items: [], hasMore: false };
+
+  const [perMinute, perHour] = await Promise.all([
+    checkRateLimit("discoverSearch", me.id),
+    checkRateLimit("discoverSearchHour", me.id),
+  ]);
+  if (!perMinute || !perHour) return { error: "rate_limited", items: [], hasMore: false };
+
+  const blockedIds = await getBlockedEitherWayIds(me.id);
+  const skip = (page - 1) * DISCOVER_SEARCH_PAGE_SIZE;
+  const people = await prisma.user.findMany({
+    where: discoverSearchUserWhere(me.id, blockedIds, query),
+    orderBy: [{ trustScore: "desc" }, { id: "asc" }],
+    skip,
+    // One extra row says whether there is a next page, never past the cap.
+    take: Math.min(DISCOVER_SEARCH_PAGE_SIZE + 1, DISCOVER_SEARCH_MAX_RESULTS - skip),
+    select: { id: true, name: true, username: true, avatarUrl: true, openToIntents: true },
+  });
+  const hasMore = people.length > DISCOVER_SEARCH_PAGE_SIZE;
+  const pagePeople = people.slice(0, DISCOVER_SEARCH_PAGE_SIZE);
+
+  const peopleIds = pagePeople.map((p) => p.id);
+  const connections = peopleIds.length
+    ? await prisma.connection.findMany({
+        where: {
+          OR: [
+            { requesterId: me.id, targetId: { in: peopleIds } },
+            { targetId: me.id, requesterId: { in: peopleIds } },
+          ],
+        },
+        select: { id: true, status: true, requesterId: true, targetId: true },
+      })
+    : [];
+  const connectionsByOtherId = new Map<string, typeof connections>();
+  for (const c of connections) {
+    const otherId = c.requesterId === me.id ? c.targetId : c.requesterId;
+    connectionsByOtherId.set(otherId, [...(connectionsByOtherId.get(otherId) ?? []), c]);
+  }
+
+  const connectedIds = peopleIds.filter(
+    (id) => discoverSearchState(pickDiscoverSearchConnection(connectionsByOtherId.get(id) ?? []), me.id) === "connected",
+  );
+  const conversations = connectedIds.length
+    ? await prisma.conversation.findMany({
+        where: {
+          isGroup: false,
+          AND: [{ members: { some: { userId: me.id } } }, { members: { some: { userId: { in: connectedIds } } } }],
+        },
+        select: { id: true, members: { select: { userId: true } } },
+      })
+    : [];
+  const conversationIdByOtherId = new Map<string, string>();
+  for (const conv of conversations) {
+    const other = conv.members.find((m) => m.userId !== me.id);
+    if (other) conversationIdByOtherId.set(other.userId, conv.id);
+  }
+
+  const items = pagePeople.map((person): DiscoverSearchItem => {
+    const connection = pickDiscoverSearchConnection(connectionsByOtherId.get(person.id) ?? []);
+    const state = discoverSearchState(connection, me.id);
+    return {
+      person,
+      state,
+      connectionId: state === "incoming" && connection ? connection.id : null,
+      conversationId: state === "connected" ? (conversationIdByOtherId.get(person.id) ?? null) : null,
+    };
+  });
+
+  return { error: null, items, hasMore };
 }

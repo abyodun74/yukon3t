@@ -341,6 +341,17 @@ public class CallForegroundService extends Service {
             String label = intent.getStringExtra(EXTRA_LABEL);
             boolean isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, false);
             synchronized (NOTIFICATION_LOCK) {
+                // Switching the foreground notification only removes the
+                // FOREGROUND_NOTIFICATION_ID copy of the ring: the copy posted
+                // under the call's own id (ongoing, full-screen intent) used to
+                // stay up after an in-app Accept. Cancelled for the call that
+                // was ringing and for the one being joined (callId here is the
+                // session key, "call:<id>" for a 1:1 call).
+                NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+                if (ringingCallId != null) manager.cancel(notificationId(ringingCallId));
+                if (callId != null && callId.startsWith("call:")) {
+                    manager.cancel(notificationId(callId.substring("call:".length())));
+                }
                 ringingCallId = null;
                 activeCallKey = callId;
                 activeLabel = label != null ? label : "Call";

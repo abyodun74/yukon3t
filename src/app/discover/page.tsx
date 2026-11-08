@@ -2,6 +2,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { BackButton } from "@/components/back-button";
 import { prisma } from "@/lib/prisma";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
+import { DiscoverPeopleSearch } from "@/components/discover-people-search";
 import { PeopleYouMayKnow } from "@/components/people-you-may-know";
 import { getPeopleYouMayKnow } from "@/app/actions/discover";
 import { intentTagValues } from "@/lib/validations";
@@ -167,10 +168,7 @@ export default async function DiscoverPage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackButton href="/home" />
-      <h1 className="text-2xl font-semibold">{t.title}</h1>
-      <p className="mt-1 text-sm text-foreground-soft">
-        {t.intro}
-      </p>
+      <DiscoverPeopleSearch title={t.title} intro={t.intro} />
 
       <PeopleYouMayKnow items={mayKnowItems} />
 

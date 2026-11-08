@@ -46,7 +46,11 @@ export const fr1 = {
   },
   "some-people-disappear-from-discover": {
     q: "Pourquoi certaines personnes disparaissent-elles de Découvrir ?",
-    a: "Découvrir n'affiche que les personnes avec lesquelles vous n'avez encore eu aucun échange de mise en relation : dès que vous envoyez ou recevez une demande de mise en relation, la personne disparaît des résultats de Découvrir (que la demande soit encore en attente ou déjà acceptée). Si une demande est refusée, cette personne peut réapparaître dans Découvrir pour une nouvelle tentative.",
+    a: "Découvrir n'affiche que les personnes avec lesquelles vous n'avez encore eu aucun échange de mise en relation : dès que vous envoyez ou recevez une demande de mise en relation, la personne disparaît des résultats de Découvrir (que la demande soit encore en attente ou déjà acceptée). Si une demande est refusée, cette personne peut réapparaître dans Découvrir pour une nouvelle tentative. L'icône de recherche en haut de Découvrir permet toujours de la trouver.",
+  },
+  "search-people-discover": {
+    q: "Comment trouver une personne précise dans Découvrir et entrer en relation avec elle ?",
+    a: "Touchez l'icône de loupe en haut de Découvrir et tapez au moins deux lettres de son nom ou de son @nom d'utilisateur. Les résultats s'affichent pendant la saisie, chacun avec un bouton qui indique où vous en êtes : « Entrer en relation », « Demande envoyée », « Accepter » (la personne vous a déjà fait une demande) ou « En relation », ainsi que « Message ». Seules les personnes visibles dans Découvrir peuvent être trouvées ici : des comptes vérifiés qui n'ont pas désactivé « Afficher mon profil dans Découvrir », et jamais une personne que vous avez bloquée ou qui vous a bloqué. Une recherche affiche au plus 60 personnes : si la personne voulue n'y est pas, tapez davantage de son nom. Seuls les noms et noms d'utilisateur sont recherchés ; les adresses e-mail, numéros de téléphone et dates d'anniversaire ne sont jamais recherchés ni affichés.",
   },
   "new-member-alerts": {
     q: "Pourquoi ai-je reçu une notification indiquant que quelqu'un vient de rejoindre YuKon3t ?",

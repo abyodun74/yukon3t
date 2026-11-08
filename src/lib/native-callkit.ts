@@ -1,6 +1,7 @@
 "use client";
 
-import { registerPlugin } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import { nativePluginHasMethod, type CallKitRingEndReason, type CallKitRingPort } from "@/lib/callkit-ring-sync";
 
 type CallKitCallEvent = { callId: string };
 
@@ -30,6 +31,13 @@ export interface NativeCallKitPlugin {
    * call returns what was queued since the last one. IncomingCallListener
    * drains it before every ring check. */
   getPendingCallEvents(): Promise<{ answered: string[]; declined: string[] }>;
+  /** The call was answered in the app on this device: CallKit's ring becomes its active call. Not in builds before
+   * this method existed, see createNativeCallKitRingPort. */
+  reportCallAnswered(options: { callId: string }): Promise<void>;
+  /** Stops CallKit ringing for a call declined here or resolved elsewhere. Same build caveat. */
+  endRingingCall(options: { callId: string; reason: CallKitRingEndReason }): Promise<void>;
+  /** Calls CallKit is ringing (reported, not answered here). Same build caveat. */
+  getRingingCalls(): Promise<{ callIds: string[] }>;
 }
 
 /**
@@ -44,3 +52,37 @@ export interface NativeCallKitPlugin {
  * Capacitor.getPlatform() === "ios" before touching it.
  */
 export const NativeCallKit = registerPlugin<NativeCallKitPlugin>("NativeCallKit");
+
+const PLUGIN_NAME = "NativeCallKit";
+
+function hasMethod(method: keyof NativeCallKitPlugin) {
+  const headers = (Capacitor as unknown as { PluginHeaders?: Parameters<typeof nativePluginHasMethod>[0] })
+    .PluginHeaders;
+  return nativePluginHasMethod(headers, PLUGIN_NAME, method);
+}
+
+const noop: CallKitRingPort = {
+  answered: async () => {},
+  end: async () => {},
+  ringing: async () => [],
+};
+
+/**
+ * CallKit's side of callkit-ring-sync.ts. iOS only; each method is feature-detected because builds installed before
+ * these methods were added don't have them (the web layer is shared with every installed build).
+ */
+export function createNativeCallKitRingPort(): CallKitRingPort {
+  if (Capacitor.getPlatform() !== "ios") return noop;
+  return {
+    answered: async (callId) => {
+      if (hasMethod("reportCallAnswered")) await NativeCallKit.reportCallAnswered({ callId });
+    },
+    end: async (callId, reason) => {
+      if (hasMethod("endRingingCall")) await NativeCallKit.endRingingCall({ callId, reason });
+    },
+    ringing: async () => {
+      if (!hasMethod("getRingingCalls")) return [];
+      return (await NativeCallKit.getRingingCalls()).callIds;
+    },
+  };
+}

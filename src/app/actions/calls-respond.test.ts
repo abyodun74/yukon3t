@@ -31,7 +31,7 @@ vi.mock("@/lib/daily", () => ({
 }));
 vi.mock("@/lib/blocks", () => ({ isBlockedEitherWay: async () => false, isBlockedWithAny: async () => false }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: vi.fn() }));
-vi.mock("@/lib/fcm", () => ({ sendFcmCallToUser: vi.fn() }));
+vi.mock("@/lib/fcm", () => ({ sendFcmCallToUser: vi.fn(), sendFcmCallCancelToUser: vi.fn(async () => {}) }));
 vi.mock("@/lib/apns-voip", () => ({ sendVoipCallToUser: vi.fn(), sendVoipCallCancelToUser: vi.fn() }));
 vi.mock("@/lib/missed-call", () => ({ notifyMissedCall: vi.fn() }));
 vi.mock("@/lib/call-captions-server", () => ({ stopCaptionsForCall: vi.fn() }));
@@ -66,8 +66,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { respondToCall } = await import("@/app/actions/calls");
+const { sendFcmCallCancelToUser } = await import("@/lib/fcm");
+const { sendVoipCallCancelToUser } = await import("@/lib/apns-voip");
+const { publishEvent } = await import("@/lib/realtime-server");
 
 beforeEach(() => {
+  vi.clearAllMocks();
   callRow = {
     id: "call1",
     callerId: "caller",
@@ -106,5 +110,22 @@ describe("respondToCall (1:1 accept)", () => {
   it("names nobody on a decline", async () => {
     const result = await respondToCall("call1", false);
     expect(result).toEqual({ error: null, accepted: false });
+  });
+});
+
+describe("respondToCall clears the ring on the responder's other devices", () => {
+  it.each([true, false])("accept=%s: Android cancel and a signal to the responder, no VoIP cancel", async (accept) => {
+    await respondToCall("call1", accept);
+    expect(sendFcmCallCancelToUser).toHaveBeenCalledWith(me.id, "call1");
+    expect(publishEvent).toHaveBeenCalledWith(`call:${me.id}`, "changed");
+    expect(publishEvent).toHaveBeenCalledWith("call:caller", "changed");
+    expect(sendVoipCallCancelToUser).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the ring was already resolved", async () => {
+    callRow.status = "MISSED";
+    expect(await respondToCall("call1", true)).toEqual({ error: "invalid" });
+    expect(sendFcmCallCancelToUser).not.toHaveBeenCalled();
+    expect(publishEvent).not.toHaveBeenCalled();
   });
 });

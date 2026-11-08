@@ -9,4 +9,7 @@ CAP_PLUGIN(NativeCallKitPlugin, "NativeCallKit",
   CAP_PLUGIN_METHOD(echo, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(getPendingToken, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(getPendingCallEvents, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(reportCallAnswered, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(endRingingCall, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(getRingingCalls, CAPPluginReturnPromise);
 )

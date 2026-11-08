@@ -46,7 +46,11 @@ export const pt1 = {
   },
   "some-people-disappear-from-discover": {
     q: "Por que algumas pessoas somem do Descobrir?",
-    a: "O Descobrir só mostra pessoas com quem você ainda não teve nenhuma interação de conexão: assim que você envia ou recebe um pedido de conexão, a pessoa sai dos resultados do Descobrir (esteja o pedido pendente ou já aceito). Se um pedido for recusado, essa pessoa pode voltar a aparecer no Descobrir para uma nova tentativa.",
+    a: "O Descobrir só mostra pessoas com quem você ainda não teve nenhuma interação de conexão: assim que você envia ou recebe um pedido de conexão, a pessoa sai dos resultados do Descobrir (esteja o pedido pendente ou já aceito). Se um pedido for recusado, essa pessoa pode voltar a aparecer no Descobrir para uma nova tentativa. O ícone de busca no topo do Descobrir continua encontrando essa pessoa.",
+  },
+  "search-people-discover": {
+    q: "Como encontro uma pessoa específica no Descobrir e me conecto com ela?",
+    a: "Toque no ícone de lupa no topo do Descobrir e digite pelo menos duas letras do nome ou do @usuário da pessoa. Os resultados aparecem enquanto você digita, cada um com um botão que mostra em que pé vocês estão: «Conectar», «Solicitação enviada», «Aceitar» (a pessoa já pediu para se conectar com você) ou «Conectados», além de «Mensagem». Aqui só dá para encontrar quem aparece no Descobrir: contas verificadas que não desativaram “Mostrar meu perfil em Descobrir”, e nunca alguém que você bloqueou ou que bloqueou você. Uma busca mostra no máximo 60 pessoas; se quem você procura não aparecer, digite mais do nome. Só nomes e nomes de usuário são buscados; e-mails, números de telefone e datas de aniversário nunca são buscados nem exibidos.",
   },
   "new-member-alerts": {
     q: "Por que recebi uma notificação de que alguém acabou de entrar no YuKon3t?",

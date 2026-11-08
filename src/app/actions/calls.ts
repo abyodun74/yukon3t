@@ -7,7 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured } from "@/lib/daily";
 import { isBlockedEitherWay, isBlockedWithAny } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
-import { sendFcmCallToUser } from "@/lib/fcm";
+import { sendFcmCallCancelToUser, sendFcmCallToUser } from "@/lib/fcm";
 import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
@@ -343,7 +343,10 @@ export async function respondToCall(callId: string, accept: boolean) {
     if (count === 0) {
       return { error: "invalid" as const };
     }
-    await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
+    await Promise.all([
+      publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed"),
+      clearRingOnRespondersDevices(user.id, callId),
+    ]);
     return { error: null, accepted: false as const };
   }
 
@@ -375,11 +378,29 @@ export async function respondToCall(callId: string, accept: boolean) {
     if (count === 0) {
       return { error: "invalid" as const };
     }
-    await publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed");
+    await Promise.all([
+      publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed"),
+      clearRingOnRespondersDevices(user.id, callId),
+    ]);
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type, callerName };
   } catch {
     return { error: "call_service_unavailable" as const };
   }
+}
+
+/**
+ * An answer or decline came from one of this person's devices, and the ring is still up everywhere else it reached:
+ * the Android ringing notification (on the device that answered in the app as well) and the in-app ring of any other
+ * signed-in session. Android's call_cancelled handling only stops a ring, never a call already in progress, so it is
+ * safe on the answering phone too. No VoIP push: on an iPhone that answered, a call_cancelled would end the CallKit
+ * call it just answered. An iPhone still ringing elsewhere is stopped by its own page on the realtime signal
+ * (callkit-ring-sync.ts), which needs that app to be running.
+ */
+async function clearRingOnRespondersDevices(userId: string, callId: string) {
+  await Promise.all([
+    sendFcmCallCancelToUser(userId, callId).catch(() => {}),
+    publishEvent(REALTIME_CHANNELS.callSignal(userId), "changed"),
+  ]);
 }
 
 type CallWithParticipants = NonNullable<Awaited<ReturnType<typeof findCallWithParticipants>>>;
@@ -423,7 +444,7 @@ async function respondToInvite(
     // Declining can leave one person alone in the call with nobody else on
     // the way — that ends it.
     await settleCall(call.id);
-    await signalCallUsers(others);
+    await Promise.all([signalCallUsers(others), clearRingOnRespondersDevices(user.id, call.id)]);
     return { error: null, accepted: false as const };
   }
 
@@ -448,7 +469,7 @@ async function respondToInvite(
     if (!joined) {
       return { error: "invalid" as const };
     }
-    await signalCallUsers(others);
+    await Promise.all([signalCallUsers(others), clearRingOnRespondersDevices(user.id, call.id)]);
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
   } catch {
     return { error: "call_service_unavailable" as const };

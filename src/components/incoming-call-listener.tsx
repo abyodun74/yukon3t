@@ -12,6 +12,8 @@ import {
   answerOutcome,
   createCallAnswerTracker,
 } from "@/lib/call-answer-tracker";
+import { createCallKitRingSync } from "@/lib/callkit-ring-sync";
+import { createNativeCallKitRingPort } from "@/lib/native-callkit";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -100,6 +102,17 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // Accept: CallKit's Accept (iOS) and the notification's Accept (Android) reach this page while it is also checking
   // for a ring, on a cold start and on every return from the background. See call-answer-tracker.ts.
   const [answers] = useState(createCallAnswerTracker);
+  // iOS: stops CallKit's ring when the call is answered or declined in the app, or is resolved anywhere else
+  // (another device, the caller, the timeout). See callkit-ring-sync.ts.
+  const [callKitRing] = useState(() =>
+    createCallKitRingSync(createNativeCallKitRingPort(), {
+      status: async (callId) => {
+        const result = await getCallStatus(callId);
+        return result.error ? null : result.status;
+      },
+      answeringHere: (callId) => answers.ringDecision(callId) !== "show",
+    }),
+  );
   const retryTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => {
     const timers = retryTimersRef.current;
@@ -115,6 +128,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     // tapped) is picked up here, before deciding whether this ring needs the in-app Accept at all.
     await syncNativeCallEventsRef.current();
     const { call, ringtone: userRingtone } = await getIncomingCall();
+    void callKitRing.reconcile(call?.id ?? null);
     // Ignore a response that arrives after a call has since started.
     if (activeCallRef.current) return;
     if (userRingtone) setRingtone(userRingtone);
@@ -127,7 +141,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       if (decision === "hide") return;
     }
     setIncoming(call as IncomingCall | null);
-  }, [answers]);
+  }, [answers, callKitRing]);
 
   // Fires immediately on mount (in case a call is already ringing by the
   // time this component appears — a cold start from a push notification,
@@ -304,6 +318,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     const followUp = answers.finish(callId, outcome);
     setAnsweringId((current) => (current === callId ? null : current));
     if (outcome === "refused") {
+      void callKitRing.settle(callId);
       setIncoming((current) => (current?.id === callId ? null : current));
       return;
     }
@@ -340,9 +355,10 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     if (pendingPrewarmKeyRef.current === `call:${callId}`) {
       pendingPrewarmKeyRef.current = null;
     }
+    void callKitRing.answeredHere(callId);
     setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName });
     setIncoming((current) => (current?.id === callId ? null : current));
-  }, [answers]);
+  }, [answers, callKitRing]);
 
   // Layout effects, so both refs are set before the mount ring check (a
   // passive effect further up) first reads them.
@@ -352,8 +368,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
 
   const declineCall = useCallback(async (callId: string) => {
     await respondToCall(callId, false);
+    void callKitRing.declinedHere(callId);
     setIncoming((current) => (current?.id === callId ? null : current));
-  }, []);
+  }, [callKitRing]);
 
   // An Accept or Decline tapped outside the app: CallKit on iOS, the
   // incoming-call notification on Android.
@@ -482,10 +499,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         // a RINGING call). CallKit reports a mid-call system End the same
         // way, but mapping that to hangUp isn't safe until it's been
         // verified on a real iPhone: the side/lock button ends a CallKit
-        // call that's on the earpiece, and answering with the in-app Accept
-        // leaves the CallKit banner still ringing, where a later Decline
-        // would hang up the call just answered — both would end a call the
-        // user means to keep.
+        // call that's on the earpiece, which would end a call the user
+        // means to keep.
         declinedOutOfApp(event.callId);
         void syncNativeCallEvents();
       });
