@@ -75,7 +75,7 @@ export const fr1 = {
   },
   "still-get-calls-phone-asleep": {
     q: "Vais-je quand même recevoir les appels si mon téléphone est en veille ou verrouillé ?",
-    a: "Oui. Un appel entrant sonne et allume votre écran par-dessus l'écran de verrouillage, même lorsque votre téléphone est en veille ou en mode d'économie de batterie (Doze), comme un appel téléphonique ordinaire. Acceptez-le ou refusez-le directement depuis cet écran, ou touchez-le pour ouvrir l'application. Cela nécessite que l'autorisation de notification soit activée pour YuKon3t (Android la demande lors de votre première connexion). Si les appels ne réveillent pas votre téléphone, vérifiez Paramètres → Applications → YuKon3t → Notifications.",
+    a: "Oui. Un appel entrant sonne et allume votre écran par-dessus l'écran de verrouillage, même lorsque votre téléphone est en veille ou en mode d'économie de batterie (Doze), comme un appel téléphonique ordinaire. Acceptez-le ou refusez-le directement depuis cet écran, ou touchez-le pour ouvrir l'application. Cela nécessite que l'autorisation de notification soit activée pour YuKon3t (Android la demande lors de votre première connexion). Si les appels ne réveillent pas votre téléphone, vérifiez Paramètres → Applications → YuKon3t → Notifications. Si vous êtes connecté sur plusieurs téléphones, répondre ou refuser sur l'un arrête la sonnerie sur les autres, y compris sur les iPhone verrouillés.",
   },
   "shows-up-notification-phone": {
     q: "Qu'est-ce qui apparaît sous forme de notification sur mon téléphone ?",

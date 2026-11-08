@@ -33,6 +33,7 @@ final class NativeCallManager: NSObject {
     private var pendingToken: String?
     private var pendingAnswered: [String] = []
     private var pendingDeclined: [String] = []
+    private var pendingHungUp: [String] = []
 
     // CallKit only gives delegate callbacks a CallKit-generated UUID back —
     // this is what maps one back to this app's own callId.
@@ -44,6 +45,20 @@ final class NativeCallManager: NSObject {
     // behalf of the in-app buttons. The web page already acted on those, so
     // they aren't reported back to it as callAnswered/callDeclined.
     private var appRequestedActions: Set<UUID> = []
+
+    // By callId, what this device knows about calls beyond CallKit's own
+    // list, so a VoIP push that arrives late or out of order never rings:
+    // calls answered here (CallKit's Accept or the in-app one, whether or not
+    // CallKit was ringing), until they end here; and 1:1 calls whose ring is
+    // over here, newest last. A ring into a call already going (an invite,
+    // payload "invite") can legitimately come again for the same callId after
+    // a decline or leave, so only answeredHere applies to those.
+    private var answeredHere: [String: Date] = [:]
+    private var endedHere: [String] = []
+    private static let endedHereLimit = 64
+    // CALL_ROOM_LIFETIME_SECONDS (src/lib/call-resilience.ts): no call lasts
+    // longer, so an entry whose end was never seen here can't block anything.
+    private static let answeredHereLifetime: TimeInterval = 12 * 60 * 60
 
     /// Why a ringing call stops, from the web page (endRingingCall).
     /// `declined` is this device's own in-app Decline; the rest happened
@@ -109,6 +124,13 @@ final class NativeCallManager: NSObject {
         plugin?.notifyListeners("callDeclined", data: ["callId": callId])
     }
 
+    /// CallKit's own End (side button, lock screen, system call UI) on a call
+    /// answered on this device: the web page hangs up.
+    private func emitHungUp(_ callId: String) {
+        pendingHungUp.append(callId)
+        plugin?.notifyListeners("callEnded", data: ["callId": callId])
+    }
+
     /// Consumed once by NativeCallKitPlugin.getPendingToken() right after
     /// its JS side attaches a listener — covers a token that arrived before
     /// that attachment happened (the common case: PushKit fires within
@@ -123,21 +145,107 @@ final class NativeCallManager: NSObject {
     /// CallKit's system UI before the web page ever attached a listener —
     /// a fully realistic case, since CallKit can show and be acted on while
     /// the app is still cold-starting.
-    func drainPendingCallEvents() -> (answered: [String], declined: [String]) {
-        let result = (pendingAnswered, pendingDeclined)
+    func drainPendingCallEvents() -> (answered: [String], declined: [String], hungUp: [String]) {
+        let result = (pendingAnswered, pendingDeclined, pendingHungUp)
         pendingAnswered.removeAll()
         pendingDeclined.removeAll()
+        pendingHungUp.removeAll()
         return result
     }
 
-    /// Dismisses a still-ringing CallKit UI — sent when the caller hangs up
-    /// (or the call otherwise stops ringing) before this device answers —
-    /// and ends an answered one at hang-up. See sendVoipCallCancelToUser in
-    /// src/lib/apns-voip.ts.
-    private func endReportedCall(callId: String) {
-        guard let uuid = activeCalls.first(where: { $0.value == callId })?.key else { return }
-        // .unanswered on a call that was answered would log it as missed.
-        reportEnded(uuid, reason: answeredCalls.contains(uuid) ? .remoteEnded : .unanswered)
+    /// A call_cancelled VoIP push (src/lib/apns-voip.ts): the ring stopped
+    /// (the caller hung up, it timed out, or it was answered or declined on
+    /// another device, `reason`), or a call answered here is over.
+    ///
+    /// iOS 13+ terminates an app that returns from a VoIP push without
+    /// reporting an incoming call, and stops delivering VoIP pushes to one
+    /// that keeps doing it. Ending a call CallKit is showing covers that;
+    /// with no such call (never rung here, or already ended here) a
+    /// throwaway call is reported and ended at once instead.
+    private func handleCancelPush(callId: String, reason: String?, completion: @escaping () -> Void) {
+        let elsewhere = reason.flatMap(RingEndReason.init(rawValue:)).flatMap(NativeCallManager.elsewhereReason)
+        let uuid = activeCalls.first(where: { $0.value == callId })?.key
+        let answeredOnThisDevice = uuid.map { answeredCalls.contains($0) } ?? isAnsweredHere(callId)
+        if answeredOnThisDevice, let elsewhere = elsewhere {
+            // Another device can't have answered or declined a call this one
+            // answered (the server only lets one answer win, and never sends
+            // the answering device this cancel): keep the call.
+            reportAndEndAtOnce(callerName: nil, hasVideo: false, reason: elsewhere, completion: completion)
+            return
+        }
+        noteEnded(callId)
+        if let uuid = uuid {
+            // .unanswered on a call that was answered would log it as missed.
+            let ringReason = elsewhere ?? .unanswered
+            reportEnded(uuid, reason: answeredCalls.contains(uuid) ? .remoteEnded : ringReason)
+            completion()
+            return
+        }
+        reportAndEndAtOnce(callerName: nil, hasVideo: false, reason: elsewhere ?? .remoteEnded, completion: completion)
+    }
+
+    private static func elsewhereReason(_ reason: RingEndReason) -> CXCallEndedReason? {
+        switch reason {
+        case .answeredElsewhere:
+            return .answeredElsewhere
+        case .declinedElsewhere:
+            return .declinedElsewhere
+        case .declined, .remoteEnded, .unanswered:
+            return nil
+        }
+    }
+
+    /// Reports an incoming call under a fresh UUID that nothing else knows
+    /// and ends it straight away: how a VoIP push with no call to ring still
+    /// meets iOS's rule (see handleCancelPush). The UUID is never added to
+    /// activeCalls, so a tap on it in the instant it exists does nothing.
+    private func reportAndEndAtOnce(
+        callerName: String?,
+        hasVideo: Bool,
+        reason: CXCallEndedReason,
+        completion: @escaping () -> Void
+    ) {
+        let uuid = UUID()
+        let name = callerName ?? "YuKon3t"
+        let update = CXCallUpdate()
+        update.remoteHandle = CXHandle(type: .generic, value: name)
+        update.localizedCallerName = name
+        update.hasVideo = hasVideo
+        provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] error in
+            if error == nil {
+                self?.provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
+            }
+            completion()
+        }
+    }
+
+    /// Why an incoming-call push must not ring, or nil if it should: the call
+    /// was answered here (its push came after the in-app Accept), CallKit
+    /// already has it, or (1:1 only) its ring is already over here.
+    private func staleRingReason(callId: String, isInvite: Bool) -> CXCallEndedReason? {
+        if isAnsweredHere(callId) { return .answeredElsewhere }
+        if activeCalls.values.contains(callId) { return .remoteEnded }
+        if !isInvite && endedHere.contains(callId) { return .remoteEnded }
+        return nil
+    }
+
+    private func isAnsweredHere(_ callId: String) -> Bool {
+        guard let answeredAt = answeredHere[callId] else { return false }
+        if Date().timeIntervalSince(answeredAt) > Self.answeredHereLifetime {
+            answeredHere.removeValue(forKey: callId)
+            return false
+        }
+        return true
+    }
+
+    /// The call is over on this device.
+    private func noteEnded(_ callId: String) {
+        answeredHere.removeValue(forKey: callId)
+        endedHere.removeAll { $0 == callId }
+        endedHere.append(callId)
+        if endedHere.count > Self.endedHereLimit {
+            endedHere.removeFirst(endedHere.count - Self.endedHereLimit)
+        }
     }
 
     private func reportEnded(_ uuid: UUID, reason: CXCallEndedReason) {
@@ -156,9 +264,12 @@ final class NativeCallManager: NSObject {
         activeCalls.first(where: { $0.value == callId && !answeredCalls.contains($0.key) })?.key
     }
 
-    /// Calls CallKit is ringing: reported, not answered here, not ended.
+    /// Calls CallKit is ringing: reported, not answered here, not ended, and
+    /// with no answer or end this app requested still on its way.
     func ringingCallIds() -> [String] {
-        activeCalls.filter { !answeredCalls.contains($0.key) }.map { $0.value }
+        activeCalls
+            .filter { !answeredCalls.contains($0.key) && !appRequestedActions.contains($0.key) }
+            .map { $0.value }
     }
 
     /// The call was answered with the in-app Accept. Requests the same
@@ -167,8 +278,10 @@ final class NativeCallManager: NSObject {
     /// second system call UI, the usual audio-session activation), and the
     /// existing call_cancelled push ends it at hang-up. Ending it instead
     /// (reportCall endedAt) would leave the app in a call CallKit no longer
-    /// knows about. No-op if CallKit isn't ringing this call.
+    /// knows about. Either way the call is answered here: a VoIP push for it
+    /// arriving later must not ring (staleRingReason).
     func answerFromApp(callId: String) {
+        answeredHere[callId] = Date()
         guard let uuid = ringingUUID(for: callId) else { return }
         appRequestedActions.insert(uuid)
         callController.request(CXTransaction(action: CXAnswerCallAction(call: uuid))) { [weak self] error in
@@ -184,10 +297,16 @@ final class NativeCallManager: NSObject {
         }
     }
 
-    /// Stops CallKit ringing a call the web page has seen end. No-op if
-    /// CallKit isn't ringing it (unknown, answered here or already ended).
+    /// Stops CallKit ringing a call the web page has seen end, or a stale
+    /// ring for the call the page is in (answeredElsewhere, from its ring
+    /// check during a call). No-op if CallKit isn't ringing it (unknown,
+    /// answered here or already ended).
     func endRingingFromApp(callId: String, reason: RingEndReason) {
         guard let uuid = ringingUUID(for: callId) else { return }
+        // Only the ring ends for a call answered here: it goes on in the page.
+        if !isAnsweredHere(callId) {
+            noteEnded(callId)
+        }
         switch reason {
         case .declined:
             // This device's own Decline, like CallKit's: a user action, so
@@ -247,13 +366,23 @@ extension NativeCallManager: PKPushRegistryDelegate {
         let messageType = dict["type"] as? String ?? "incoming_call"
 
         if messageType == "call_cancelled" {
-            endReportedCall(callId: callId)
-            completion()
+            handleCancelPush(callId: callId, reason: dict["reason"] as? String, completion: completion)
             return
         }
 
         let callerName = dict["callerName"] as? String ?? "Someone"
         let callType = dict["callType"] as? String ?? "AUDIO"
+        let isInvite = dict["invite"] as? Bool ?? false
+
+        if let reason = staleRingReason(callId: callId, isInvite: isInvite) {
+            reportAndEndAtOnce(
+                callerName: callerName,
+                hasVideo: callType == "VIDEO",
+                reason: reason,
+                completion: completion
+            )
+            return
+        }
 
         // Apple requires reportNewIncomingCall to be called once, for every
         // VoIP push received, before this completion handler runs — skip
@@ -284,26 +413,40 @@ extension NativeCallManager: CXProviderDelegate {
         // into the same respondToCall flow the in-app Accept button uses
         // (see incoming-call-listener.tsx's "callAnswered" listener). The
         // actual call itself plays out entirely inside the web app's Daily
-        // iframe/WebRTC once it foregrounds — this doesn't keep a
-        // persistent native in-call CallKit screen (no green-bar/Dynamic-
-        // Island "return to call"); the existing in-app hang-up button
-        // covers ending it.
+        // iframe/WebRTC once it foregrounds. CallKit's End on it (side
+        // button, lock screen) is the hang-up, see the CXEndCallAction below.
+        guard let callId = activeCalls[action.uuid] else {
+            // Not a call this app is ringing (the throwaway call
+            // reportAndEndAtOnce reports, tapped in the instant it exists).
+            action.fail()
+            return
+        }
         answeredCalls.insert(action.uuid)
+        answeredHere[callId] = Date()
         let requestedByApp = appRequestedActions.remove(action.uuid) != nil
-        if !requestedByApp, let callId = activeCalls[action.uuid] {
+        if !requestedByApp {
             emitAnswered(callId)
         }
         action.fulfill()
     }
 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        // Declining the system ringing screen, or the system End on an
-        // answered call (which the web page treats as a no-op decline, see
+        // Declining the system ringing screen, or the system End on a call
+        // answered here: the web page hangs up (callEnded, see
         // incoming-call-listener.tsx). An end the app requested itself
-        // (endRingingFromApp) was already handled by the web page.
+        // (endRingingFromApp) was already handled by the web page. Fulfilling
+        // the action is what has CallKit end the call and deactivate the
+        // audio session it activated on answer; the page leaves the room.
         let requestedByApp = appRequestedActions.remove(action.uuid) != nil
-        if !requestedByApp, let callId = activeCalls[action.uuid] {
-            emitDeclined(callId)
+        if let callId = activeCalls[action.uuid] {
+            if !requestedByApp {
+                if answeredCalls.contains(action.uuid) {
+                    emitHungUp(callId)
+                } else {
+                    emitDeclined(callId)
+                }
+            }
+            noteEnded(callId)
         }
         forget(action.uuid)
         action.fulfill()

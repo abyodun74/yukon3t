@@ -8,7 +8,22 @@ import { createCallRoom, createMeetingToken, deleteCallRoom, isCallingConfigured
 import { isBlockedEitherWay, isBlockedWithAny } from "@/lib/blocks";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmCallCancelToUser, sendFcmCallToUser } from "@/lib/fcm";
-import { sendVoipCallToUser, sendVoipCallCancelToUser } from "@/lib/apns-voip";
+import {
+  findVoipTokens,
+  sendVoipCallCancelToTokens,
+  sendVoipCallEndedToUser,
+  sendVoipCallToUser,
+  type VoipCancelReason,
+} from "@/lib/apns-voip";
+import {
+  callKitEndedToken,
+  parseCallDevice,
+  participantAnswerRecord,
+  planResponderVoipCancel,
+  voipAnswerRecord,
+  type CallDevice,
+  type VoipTokenRef,
+} from "@/lib/voip-ring-targets";
 import { notifyMissedCall } from "@/lib/missed-call";
 import { maskHiddenCallerName } from "@/lib/hidden-chats";
 import { stopCaptionsForCall } from "@/lib/call-captions-server";
@@ -312,13 +327,18 @@ async function getIncomingInvite(userId: string) {
   };
 }
 
-export async function respondToCall(callId: string, accept: boolean) {
+/**
+ * `device` is the device answering (see voip-ring-targets.ts): it decides which of this person's other iPhones are
+ * sent a VoIP cancel that stops their CallKit ring. Only matched against the person's own tokens.
+ */
+export async function respondToCall(callId: string, accept: boolean, device?: CallDevice | null) {
   const user = await requireVerifiedUser();
+  const responder = parseCallDevice(device);
 
   const call = await findCallWithParticipants(callId);
   const mine = call?.participants.find((p) => p.userId === user.id);
   if (call && mine && call.status !== "RINGING") {
-    return respondToInvite(user, call, mine, accept);
+    return respondToInvite(user, call, mine, accept, responder);
   }
   if (!call || call.calleeId !== user.id) {
     return { error: "not_found" as const };
@@ -343,9 +363,10 @@ export async function respondToCall(callId: string, accept: boolean) {
     if (count === 0) {
       return { error: "invalid" as const };
     }
+    const voip = planResponderVoipCancel(await findVoipTokens(user.id), responder);
     await Promise.all([
       publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed"),
-      clearRingOnRespondersDevices(user.id, callId),
+      clearRingOnRespondersDevices(user.id, callId, voip.cancel, "declinedElsewhere"),
     ]);
     return { error: null, accepted: false as const };
   }
@@ -354,8 +375,14 @@ export async function respondToCall(callId: string, accept: boolean) {
   // from the notification's or CallKit's Accept can arrive before the in-app ring was ever loaded, and without this
   // the screen had only "Someone" to show (and, not knowing the caller is hidden, would show their picture). Read
   // before the call is accepted, so a failed lookup changes nothing.
-  const caller = await prisma.user.findUnique({ where: { id: call.callerId }, select: { name: true } });
+  const [caller, voipTokens] = await Promise.all([
+    prisma.user.findUnique({ where: { id: call.callerId }, select: { name: true } }),
+    findVoipTokens(user.id),
+  ]);
   const callerName = await maskHiddenCallerName(user.id, call.callerId, caller?.name ?? null);
+  // Stored with the answer, in the same guarded write: endCall reads it to send the hang-up cancel to the answering
+  // iPhone only.
+  const voip = planResponderVoipCancel(voipTokens, responder);
 
   try {
     // Already minted by startCall and stored on the row — the common path
@@ -373,14 +400,14 @@ export async function respondToCall(callId: string, accept: boolean) {
       }));
     const { count } = await prisma.call.updateMany({
       where: { id: callId, status: "RINGING" },
-      data: { status: "ACCEPTED", respondedAt: new Date() },
+      data: { status: "ACCEPTED", respondedAt: new Date(), ...voip.record },
     });
     if (count === 0) {
       return { error: "invalid" as const };
     }
     await Promise.all([
       publishEvent(REALTIME_CHANNELS.callSignal(call.callerId), "changed"),
-      clearRingOnRespondersDevices(user.id, callId),
+      clearRingOnRespondersDevices(user.id, callId, voip.cancel, "answeredElsewhere"),
     ]);
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type, callerName };
   } catch {
@@ -390,15 +417,22 @@ export async function respondToCall(callId: string, accept: boolean) {
 
 /**
  * An answer or decline came from one of this person's devices, and the ring is still up everywhere else it reached:
- * the Android ringing notification (on the device that answered in the app as well) and the in-app ring of any other
- * signed-in session. Android's call_cancelled handling only stops a ring, never a call already in progress, so it is
- * safe on the answering phone too. No VoIP push: on an iPhone that answered, a call_cancelled would end the CallKit
- * call it just answered. An iPhone still ringing elsewhere is stopped by its own page on the realtime signal
- * (callkit-ring-sync.ts), which needs that app to be running.
+ * the Android ringing notification (on the device that answered in the app as well), the in-app ring of any other
+ * signed-in session, and CallKit on their other iPhones. Android's call_cancelled handling only stops a ring, never a
+ * call already in progress, so it is safe on the answering phone too. The VoIP cancel is not: on the iPhone that
+ * answered it would end the CallKit call just answered, so it goes only to `voipTokens`, which never include the
+ * responding device (planResponderVoipCancel). A running app on another iPhone also stops its ring on the realtime
+ * signal (callkit-ring-sync.ts).
  */
-async function clearRingOnRespondersDevices(userId: string, callId: string) {
+async function clearRingOnRespondersDevices(
+  userId: string,
+  callId: string,
+  voipTokens: readonly VoipTokenRef[],
+  reason: VoipCancelReason,
+) {
   await Promise.all([
     sendFcmCallCancelToUser(userId, callId).catch(() => {}),
+    sendVoipCallCancelToTokens(voipTokens, callId, reason).catch(() => {}),
     publishEvent(REALTIME_CHANNELS.callSignal(userId), "changed"),
   ]);
 }
@@ -427,11 +461,13 @@ async function respondToInvite(
   call: CallWithParticipants,
   mine: ParticipantRow,
   accept: boolean,
+  responder: CallDevice | null,
 ) {
   if (call.status !== "ACCEPTED" || mine.status !== "RINGING") {
     return { error: "invalid" as const };
   }
   const others = liveUserIds(call).filter((id) => id !== user.id);
+  const voip = planResponderVoipCancel(await findVoipTokens(user.id), responder);
 
   if (!accept) {
     const { count } = await prisma.callParticipant.updateMany({
@@ -444,7 +480,10 @@ async function respondToInvite(
     // Declining can leave one person alone in the call with nobody else on
     // the way — that ends it.
     await settleCall(call.id);
-    await Promise.all([signalCallUsers(others), clearRingOnRespondersDevices(user.id, call.id)]);
+    await Promise.all([
+      signalCallUsers(others),
+      clearRingOnRespondersDevices(user.id, call.id, voip.cancel, "declinedElsewhere"),
+    ]);
     return { error: null, accepted: false as const };
   }
 
@@ -462,14 +501,17 @@ async function respondToInvite(
       if (!(await lockConnectedCall(tx, call.id))) return false;
       const { count } = await tx.callParticipant.updateMany({
         where: { id: mine.id, status: "RINGING" },
-        data: { status: "JOINED", respondedAt: new Date() },
+        data: { status: "JOINED", respondedAt: new Date(), ...voip.record },
       });
       return count > 0;
     });
     if (!joined) {
       return { error: "invalid" as const };
     }
-    await Promise.all([signalCallUsers(others), clearRingOnRespondersDevices(user.id, call.id)]);
+    await Promise.all([
+      signalCallUsers(others),
+      clearRingOnRespondersDevices(user.id, call.id, voip.cancel, "answeredElsewhere"),
+    ]);
     return { error: null, accepted: true as const, roomUrl: call.roomUrl, token, type: call.type };
   } catch {
     return { error: "call_service_unavailable" as const };
@@ -577,6 +619,8 @@ export async function inviteToCall(callId: string, inviteeId: string) {
         createdAt: now,
         respondedAt: null,
         leftAt: null,
+        voipOthersCleared: false,
+        answerVoipTokenId: null,
       },
     });
     return { error: null, liveIds: live.map((p) => p.userId) };
@@ -603,6 +647,7 @@ export async function inviteToCall(callId: string, inviteeId: string) {
       callId,
       callerName,
       callType: call.type,
+      invite: true,
     }).catch(() => {});
     await signalCallUsers([...outcome.liveIds, inviteeId]);
     return { error: null };
@@ -710,7 +755,12 @@ export async function getCallRoster(callId: string) {
  * settleCall). Guarded like every other transition here — both of the last
  * two people can leave at once, and the cron can be closing the same rows.
  */
-async function leaveGroupCall(userId: string, call: CallWithParticipants, mine: ParticipantRow | undefined) {
+async function leaveGroupCall(
+  userId: string,
+  call: CallWithParticipants,
+  mine: ParticipantRow | undefined,
+  endedHereToken: string | null,
+) {
   if (!mine || !isLiveParticipantStatus(mine.status)) {
     return { error: null };
   }
@@ -725,7 +775,7 @@ async function leaveGroupCall(userId: string, call: CallWithParticipants, mine: 
   // Same as the answered-call branch of endCall: nothing else tells this
   // person's own CallKit that the call it reported is over.
   if (wasRungForCall(call, mine)) {
-    await sendVoipCallCancelToUser(userId, call.id).catch(() => {});
+    await sendVoipCallEndedToUser(userId, call.id, participantAnswerRecord(call, mine), endedHereToken).catch(() => {});
   }
   await settleCall(call.id);
   // Self included: this can be reached from somewhere other than the call
@@ -734,8 +784,13 @@ async function leaveGroupCall(userId: string, call: CallWithParticipants, mine: 
   return { error: null };
 }
 
-export async function endCall(callId: string) {
+/**
+ * `device`: only read for a hang-up made by CallKit's own End on the iPhone in the call (see voip-ring-targets.ts),
+ * which needs no cancel push to end a CallKit call that is already over.
+ */
+export async function endCall(callId: string, device?: CallDevice | null) {
   const user = await requireVerifiedUser();
+  const endedHereToken = callKitEndedToken(parseCallDevice(device));
 
   const call = await findCallWithParticipants(callId);
   const mine = call?.participants.find((p) => p.userId === user.id);
@@ -746,10 +801,11 @@ export async function endCall(callId: string) {
     return { error: null };
   }
   if (call.participants.length > 0) {
-    return leaveGroupCall(user.id, call, mine);
+    return leaveGroupCall(user.id, call, mine, endedHereToken);
   }
 
   let wasRinging = call.status === "RINGING";
+  let answer = voipAnswerRecord(call);
   if (wasRinging) {
     // Guarded on the call still being RINGING: the timeout-missed-calls
     // cron (or the callee responding) can resolve it between the read above
@@ -762,7 +818,10 @@ export async function endCall(callId: string) {
       data: { status: call.callerId === user.id ? "MISSED" : "ENDED", endedAt: new Date() },
     });
     if (count === 0) {
-      const current = await prisma.call.findUnique({ where: { id: callId }, select: { status: true } });
+      const current = await prisma.call.findUnique({
+        where: { id: callId },
+        select: { status: true, voipOthersCleared: true, answerVoipTokenId: true },
+      });
       // The one outcome that still needs ending: the callee accepted in
       // that window, so this is now a hang-up of a connected call (below),
       // not a missed one. Anything else is already over.
@@ -770,6 +829,7 @@ export async function endCall(callId: string) {
         return { error: null };
       }
       wasRinging = false;
+      answer = voipAnswerRecord(current);
     }
   }
   if (!wasRinging) {
@@ -818,8 +878,14 @@ export async function endCall(callId: string) {
     // a "residual" call CallKit still believed was active indefinitely,
     // which also corrupted whether a *later* incoming call correctly
     // reported itself as video vs audio. No-ops on a non-iOS/untokened
-    // callee, same as every other VoIP send in this app.
-    await sendVoipCallCancelToUser(call.calleeId, callId).catch(() => {});
+    // callee, same as every other VoIP send in this app. Only the iPhone that
+    // answered, once the answer has cleared the others (voip-ring-targets.ts).
+    await sendVoipCallEndedToUser(
+      call.calleeId,
+      callId,
+      answer,
+      call.calleeId === user.id ? endedHereToken : null,
+    ).catch(() => {});
   }
 
   return { error: null };

@@ -3001,6 +3001,12 @@ model Call {
   captionsCalleeConsentAt DateTime?
   captionSessions         CallCaptionSession[]
 
+  // How the callee's answer cleared their other iPhones' CallKit rings (src/lib/voip-ring-targets.ts). Cleared: the
+  // other iPhones were sent a cancel when the call was answered, so at hang-up only answerVoipTokenId's device (null:
+  // none, the answer came from Android or a browser) is. Not cleared: every iPhone of the callee is, as before.
+  voipOthersCleared Boolean @default(false)
+  answerVoipTokenId String?
+
   @@index([calleeId, status])
   @@index([callerId, status])
   @@index([status, createdAt])
@@ -3033,6 +3039,9 @@ model CallParticipant {
   createdAt   DateTime              @default(now())
   respondedAt DateTime?
   leftAt      DateTime?
+  // Same as Call.voipOthersCleared / answerVoipTokenId, for this person's answer to being added. Reset on re-invite.
+  voipOthersCleared Boolean @default(false)
+  answerVoipTokenId String?
 
   call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
   user User @relation("CallParticipantUser", fields: [userId], references: [id], onDelete: Cascade)

@@ -35,7 +35,7 @@ public class NativeCallKitPlugin: CAPPlugin {
 
     @objc func getPendingCallEvents(_ call: CAPPluginCall) {
         let events = NativeCallManager.shared.drainPendingCallEvents()
-        call.resolve(["answered": events.answered, "declined": events.declined])
+        call.resolve(["answered": events.answered, "declined": events.declined, "ended": events.hungUp])
     }
 
     // The three below keep CallKit's ring in step with answers and declines

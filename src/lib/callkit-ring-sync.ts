@@ -2,9 +2,11 @@
 // reached through a CallKitRingPort (native-callkit.ts), so this is unit-tested without a device.
 //
 // CallKit only learns about a ring from the VoIP push (NativeCallManager.swift) and only stops ringing when told to.
-// The caller hanging up and the ring timing out already reach it as a `call_cancelled` VoIP push, but an answer or a
-// decline from the in-app ring, and an answer or decline on another device, never did: CallKit kept ringing after the
-// call was picked up. IncomingCallListener now reports each of those here.
+// The caller hanging up, the ring timing out and (since respondToCall sends it to every iPhone but the answering one,
+// voip-ring-targets.ts) an answer or decline on another device reach it as a `call_cancelled` VoIP push. An answer or
+// decline from the in-app ring on this device never did: CallKit kept ringing after the call was picked up.
+// IncomingCallListener reports each of those here, and its ring check ends any ring the server has already resolved
+// while this app is running (the realtime signal reaches a running app before or instead of the push).
 //
 // Why each native call is what it is (NativeCallManager.swift):
 //  - Answered on this device in the app: a CXAnswerCallAction requested through CXCallController, exactly what
@@ -14,6 +16,12 @@
 //    CallKit's own Decline.
 //  - Anything that happened elsewhere (another device, the caller, the timeout): reportCall(endedAt:reason:) with the
 //    matching CXCallEndedReason, which is how CallKit is told about an end it did not perform.
+//  - CallKit's own End (side button, lock screen, system call UI) on a call answered on this device: a hang-up. The
+//    native side reports it as `callEnded` (a ring declined there stays `callDeclined`); planCallKitEnd says what the
+//    page does with it. The CallKit call is already over, so endCall is told not to send this device a cancel for it.
+//  - A ring CallKit shows for the call this device is already in (its VoIP push arrived after the in-app answer):
+//    ended as answered elsewhere, from the ring check that runs during a call (reconcileDuringCall). Builds with that
+//    fix natively never show it (NativeCallManager.swift's staleRingReason).
 
 export type CallKitRingEndReason = "declined" | "answeredElsewhere" | "declinedElsewhere" | "remoteEnded" | "unanswered";
 
@@ -38,6 +46,24 @@ export function ringEndReasonForStatus(status: ServerCallStatus | null): CallKit
     case null:
       return "remoteEnded";
   }
+}
+
+/** What a CallKit End on an answered call means for this page. */
+export type CallKitEndPlan = "hangUp" | "afterAnswer" | "ignore";
+
+/**
+ * `activeCallId`: the call this page is in. `answer`: the answer tracker's view of the call (call-answer-tracker.ts):
+ * anything but "show" means an answer is queued, in flight or has just finished, so the End must end the call once
+ * that answer lands rather than be dropped.
+ */
+export function planCallKitEnd(
+  callId: string,
+  activeCallId: string | null,
+  answer: "show" | "accept" | "hide",
+): CallKitEndPlan {
+  if (callId === activeCallId) return "hangUp";
+  if (answer !== "show") return "afterAnswer";
+  return "ignore";
 }
 
 type PluginHeader = { name: string; methods: readonly { name: string }[] };
@@ -113,6 +139,22 @@ export function createCallKitRingSync(port: CallKitRingPort, deps: CallKitRingSy
         ringing
           .filter((id) => id !== serverRingingId && !deps.answeringHere(id))
           .map((id) => settle(id)),
+      );
+    },
+
+    /**
+     * The ring check while this page is in a call. A ring CallKit shows for that same call is stale (its VoIP push
+     * came after the answer here): it is ended as answered elsewhere, never adopted mid-call. Any other ring is
+     * reconciled as usual.
+     */
+    async reconcileDuringCall(activeCallId: string) {
+      const ringing = await port.ringing().catch(() => [] as string[]);
+      await Promise.all(
+        ringing.map((id) => {
+          if (id === activeCallId) return port.end(id, "answeredElsewhere").catch(() => {});
+          if (deps.answeringHere(id)) return undefined;
+          return settle(id);
+        }),
       );
     },
   };

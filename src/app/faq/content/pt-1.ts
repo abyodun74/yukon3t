@@ -75,7 +75,7 @@ export const pt1 = {
   },
   "still-get-calls-phone-asleep": {
     q: "Vou continuar recebendo chamadas se o celular estiver em repouso ou bloqueado?",
-    a: "Sim. Uma chamada recebida toca e acende a tela por cima da tela de bloqueio mesmo com o celular em repouso ou em modo de economia de bateria (Doze), como uma ligação comum. Aceite ou recuse direto nessa tela, ou toque nela para abrir o aplicativo. Para isso, a permissão de notificações do YuKon3t precisa estar ativada (o Android pede isso na primeira vez que você entra). Se as chamadas não estiverem acordando o celular, confira Configurações → Apps → YuKon3t → Notificações.",
+    a: "Sim. Uma chamada recebida toca e acende a tela por cima da tela de bloqueio mesmo com o celular em repouso ou em modo de economia de bateria (Doze), como uma ligação comum. Aceite ou recuse direto nessa tela, ou toque nela para abrir o aplicativo. Para isso, a permissão de notificações do YuKon3t precisa estar ativada (o Android pede isso na primeira vez que você entra). Se as chamadas não estiverem acordando o celular, confira Configurações → Apps → YuKon3t → Notificações. Se você estiver conectado em mais de um celular, atender ou recusar em um faz os outros pararem de tocar, inclusive iPhones bloqueados.",
   },
   "shows-up-notification-phone": {
     q: "O que aparece como notificação no meu celular?",

@@ -75,7 +75,7 @@ export const es1 = {
   },
   "still-get-calls-phone-asleep": {
     q: "¿Me seguirán llegando llamadas si mi teléfono está en reposo o bloqueado?",
-    a: "Sí. Una llamada entrante suena y enciende la pantalla sobre la pantalla de bloqueo aunque el teléfono esté en reposo o en un modo de ahorro de batería (Doze), igual que una llamada telefónica normal. Puedes aceptarla o rechazarla desde esa misma pantalla, o tocarla para abrir la aplicación. Para esto, YuKon3t necesita tener activado el permiso de notificaciones (Android lo pide la primera vez que inicias sesión). Si las llamadas no encienden tu teléfono, revisa Ajustes → Aplicaciones → YuKon3t → Notificaciones.",
+    a: "Sí. Una llamada entrante suena y enciende la pantalla sobre la pantalla de bloqueo aunque el teléfono esté en reposo o en un modo de ahorro de batería (Doze), igual que una llamada telefónica normal. Puedes aceptarla o rechazarla desde esa misma pantalla, o tocarla para abrir la aplicación. Para esto, YuKon3t necesita tener activado el permiso de notificaciones (Android lo pide la primera vez que inicias sesión). Si las llamadas no encienden tu teléfono, revisa Ajustes → Aplicaciones → YuKon3t → Notificaciones. Si tienes la sesión iniciada en más de un teléfono, al contestar o rechazar en uno deja de sonar en los demás, también en los iPhone bloqueados.",
   },
   "shows-up-notification-phone": {
     q: "¿Qué llega como notificación a mi teléfono?",

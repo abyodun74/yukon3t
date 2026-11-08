@@ -10,6 +10,7 @@ import { createSign } from "node:crypto";
 import http2 from "node:http2";
 import { prisma } from "@/lib/prisma";
 import { perLocale, storedLocale, type Localized } from "@/lib/push-text";
+import { planHangUpVoipCancel, type VoipAnswerRecord, type VoipTokenRef } from "@/lib/voip-ring-targets";
 
 // Same bundle ID as capacitor.config.ts's appId / ios/App/App's actual
 // target — VoIP pushes go to "<bundle-id>.voip", not the plain bundle ID
@@ -188,6 +189,9 @@ type VoipIncomingCallPayload = {
   // What CallKit shows as the caller, in the callee's language (ringCallerName in push-text.ts).
   callerName: Localized<string>;
   callType: "AUDIO" | "VIDEO";
+  // A ring into a call already going (inviteToCall). The same callId can ring the same person again after they
+  // declined or left, so the app must not treat an earlier end of that callId as making this ring stale.
+  invite?: boolean;
 };
 
 /**
@@ -218,6 +222,7 @@ export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCa
         callId: payload.callId,
         callerName,
         callType: payload.callType,
+        ...(payload.invite ? { invite: true } : {}),
       });
       // 400 = BadDeviceToken, 410 = Unregistered — either way this exact
       // token is never going to work again, unlike a transient 5xx/0.
@@ -229,22 +234,50 @@ export async function sendVoipCallToUser(userId: string, payload: VoipIncomingCa
   }
 }
 
+/** Why a cancel is sent while the call goes on: the ring was answered or declined on another of the person's devices.
+ * Builds that know it end CallKit's ring with the matching reason; older ones ignore it (they end it as unanswered). */
+export type VoipCancelReason = "answeredElsewhere" | "declinedElsewhere";
+
+export async function findVoipTokens(userId: string): Promise<VoipTokenRef[]> {
+  return prisma.voipPushToken.findMany({ where: { userId }, select: { id: true, token: true } });
+}
+
 /**
- * Tells a still-ringing iOS device's CallKit UI to dismiss itself — the
- * caller hung up (or the call otherwise stopped ringing) before this
- * device's user answered. Without this, a CXProvider-reported call has no
- * other way to find out the call it's displaying is gone; the counterpart
- * to sendFcmCallCancelToUser (src/lib/fcm.ts).
+ * Tells iOS devices' CallKit that a call is over for them: a still-ringing one stops ringing, an answered one ends.
+ * The counterpart to sendFcmCallCancelToUser (src/lib/fcm.ts). Every build handles a cancel for a call CallKit isn't
+ * showing differently (see NativeCallManager.swift), so callers choose the devices: see voip-ring-targets.ts.
  */
-export async function sendVoipCallCancelToUser(userId: string, callId: string) {
-  if (!isVoipPushConfigured()) return;
-
-  const tokens = await prisma.voipPushToken.findMany({ where: { userId } });
-  if (tokens.length === 0) return;
-
+export async function sendVoipCallCancelToTokens(
+  tokens: readonly VoipTokenRef[],
+  callId: string,
+  reason?: VoipCancelReason,
+) {
+  if (!isVoipPushConfigured() || tokens.length === 0) return;
   await Promise.all(
     tokens.map((t) =>
-      sendVoipPushRaw(t.token, { aps: { alert: "" }, type: "call_cancelled", callId }),
+      sendVoipPushRaw(t.token, { aps: { alert: "" }, type: "call_cancelled", callId, ...(reason ? { reason } : {}) }),
     ),
   );
+}
+
+/** A ring that ended without being answered (the caller hung up, it timed out): every iPhone of the person. */
+export async function sendVoipCallCancelToUser(userId: string, callId: string) {
+  if (!isVoipPushConfigured()) return;
+  await sendVoipCallCancelToTokens(await findVoipTokens(userId), callId);
+}
+
+/**
+ * A call this person answered is over for them: ends CallKit's call on the iPhone that answered, and only there when
+ * the answer already cleared the rest (planHangUpVoipCancel). `endedHereToken`: a device whose own CallKit End made
+ * the hang-up, left out.
+ */
+export async function sendVoipCallEndedToUser(
+  userId: string,
+  callId: string,
+  record: VoipAnswerRecord,
+  endedHereToken: string | null = null,
+) {
+  if (!isVoipPushConfigured()) return;
+  const tokens = await findVoipTokens(userId);
+  await sendVoipCallCancelToTokens(planHangUpVoipCancel(tokens, record, endedHereToken), callId);
 }

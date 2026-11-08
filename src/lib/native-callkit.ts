@@ -10,8 +10,10 @@ export interface NativeCallKitPlugin {
     eventName: "voipTokenReceived",
     listenerFunc: (data: { token: string }) => void,
   ): Promise<{ remove: () => void }>;
+  /** callEnded: CallKit's own End on a call answered on this device (a hang-up); builds before it report that End as
+   * callDeclined, which the page treats as a decline only. */
   addListener(
-    eventName: "callAnswered" | "callDeclined",
+    eventName: "callAnswered" | "callDeclined" | "callEnded",
     listenerFunc: (data: CallKitCallEvent) => void,
   ): Promise<{ remove: () => void }>;
   /**
@@ -29,8 +31,8 @@ export interface NativeCallKitPlugin {
    * CallKit's system UI while the page wasn't listening (not loaded yet, or
    * suspended in the background / behind the lock screen). Destructive: each
    * call returns what was queued since the last one. IncomingCallListener
-   * drains it before every ring check. */
-  getPendingCallEvents(): Promise<{ answered: string[]; declined: string[] }>;
+   * drains it before every ring check. `ended` (callEnded) is missing on builds before it. */
+  getPendingCallEvents(): Promise<{ answered: string[]; declined: string[]; ended?: string[] }>;
   /** The call was answered in the app on this device: CallKit's ring becomes its active call. Not in builds before
    * this method existed, see createNativeCallKitRingPort. */
   reportCallAnswered(options: { callId: string }): Promise<void>;

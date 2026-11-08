@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { deleteCallRoom } from "@/lib/daily";
 import { notifyMissedCall } from "@/lib/missed-call";
-import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
+import { sendVoipCallEndedToUser } from "@/lib/apns-voip";
+import { participantAnswerRecord } from "@/lib/voip-ring-targets";
 import { publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { shouldEndAfterLeave } from "@/lib/call-resilience";
@@ -86,7 +87,7 @@ export async function settleCall(callId: string) {
   await Promise.all(
     joined
       .filter((p) => wasRungForCall(call, p))
-      .map((p) => sendVoipCallCancelToUser(p.userId, callId).catch(() => {})),
+      .map((p) => sendVoipCallEndedToUser(p.userId, callId, participantAnswerRecord(call, p)).catch(() => {})),
   );
   await notifyMissedInvitees(call, ringing);
   return true;

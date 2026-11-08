@@ -356,7 +356,9 @@ const sections: Section[] = [
             app. This needs notification permission for YuKon3t to be turned
             on (Android asks for this the first time you sign in) — if calls
             aren&apos;t waking your phone, check Settings → Apps → YuKon3t →
-            Notifications.
+            Notifications. If you&apos;re signed in on more than one phone,
+            answering or declining on one stops the ringing on the others,
+            locked iPhones included.
           </>
         ),
       },

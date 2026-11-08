@@ -2,6 +2,7 @@
 
 import { endCall } from "@/app/actions/calls";
 import { retryUntilAnswered } from "@/lib/call-resilience";
+import type { CallDevice } from "@/lib/voip-ring-targets";
 
 const pending = new Set<string>();
 
@@ -14,13 +15,13 @@ const pending = new Set<string>();
  * with backoff and on the browser's "online" event until the server has
  * answered, bounded by END_CALL_RETRY_WINDOW_MS (see retryUntilAnswered) —
  * past that, the other side's grace period or the timeout-missed-calls sweep
- * closes the row.
+ * closes the row. `device`: see endCall.
  */
-export function endCallDurably(callId: string) {
+export function endCallDurably(callId: string, device?: CallDevice) {
   if (pending.has(callId)) return;
   pending.add(callId);
   retryUntilAnswered({
-    attempt: () => endCall(callId),
+    attempt: () => endCall(callId, device),
     subscribeOnline: (retryNow) => {
       window.addEventListener("online", retryNow);
       return () => window.removeEventListener("online", retryNow);

@@ -80,8 +80,8 @@ type CallSessionContextValue = {
   endSession: () => void;
   /**
    * The user's own hang-up — the in-call Leave/Hang up buttons come
-   * through here (iOS's system End button deliberately doesn't yet, see
-   * incoming-call-listener.tsx's callDeclined handler). A 1:1 call (renderer:
+   * through here, and so does iOS's CallKit End on a call answered on that
+   * iPhone (incoming-call-listener.tsx's callEnded handler). A 1:1 call (renderer:
    * "direct") is ended directly rather than by calling leave() and waiting
    * for "left-meeting": DirectCallFrame treats every "left-meeting" it sees
    * as an involuntary drop to reconnect from, and leave() doesn't even fire

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createCallKitRingSync,
   nativePluginHasMethod,
+  planCallKitEnd,
   ringEndReasonForStatus,
   type CallKitRingPort,
   type ServerCallStatus,
@@ -171,6 +172,41 @@ describe("createCallKitRingSync", () => {
     });
   });
 
+  describe("reconcileDuringCall", () => {
+    it("ends a ring CallKit shows for the call this page is in as answered elsewhere, without looking it up", async () => {
+      ringing = ["active"];
+      answering.add("active");
+      await sync().reconcileDuringCall("active");
+      expect(status).not.toHaveBeenCalled();
+      expect(port.end).toHaveBeenCalledWith("active", "answeredElsewhere");
+      expect(port.answered).not.toHaveBeenCalled();
+    });
+
+    it("reconciles any other ring as usual", async () => {
+      ringing = ["active", "other", "still"];
+      statuses = { other: "MISSED", still: "RINGING" };
+      await sync().reconcileDuringCall("active");
+      expect(port.end.mock.calls).toEqual([
+        ["active", "answeredElsewhere"],
+        ["other", "unanswered"],
+      ]);
+    });
+
+    it("leaves another ring that is being answered here alone", async () => {
+      ringing = ["other"];
+      statuses = { other: "ACCEPTED" };
+      answering.add("other");
+      await sync().reconcileDuringCall("active");
+      expect(port.end).not.toHaveBeenCalled();
+    });
+
+    it("does nothing on a build that can't list rings", async () => {
+      port.ringing.mockRejectedValue(new Error("UNIMPLEMENTED"));
+      await expect(sync().reconcileDuringCall("active")).resolves.toBeUndefined();
+      expect(port.end).not.toHaveBeenCalled();
+    });
+  });
+
   describe("settle (an answer here was refused)", () => {
     it("ends the ring the way the call was resolved, even while marked as answering here", async () => {
       statuses = { c1: "ACCEPTED" };
@@ -178,5 +214,23 @@ describe("createCallKitRingSync", () => {
       await sync().settle("c1");
       expect(port.end).toHaveBeenCalledWith("c1", "answeredElsewhere");
     });
+  });
+});
+
+describe("planCallKitEnd", () => {
+  it("hangs up the call this page is in", () => {
+    expect(planCallKitEnd("c1", "c1", "hide")).toBe("hangUp");
+    expect(planCallKitEnd("c1", "c1", "show")).toBe("hangUp");
+  });
+
+  it("ends a call whose answer is queued or in flight once it lands", () => {
+    expect(planCallKitEnd("c1", null, "accept")).toBe("afterAnswer");
+    expect(planCallKitEnd("c1", null, "hide")).toBe("afterAnswer");
+    expect(planCallKitEnd("c1", "other", "hide")).toBe("afterAnswer");
+  });
+
+  it("ignores an End for a call this page has nothing to do with", () => {
+    expect(planCallKitEnd("c1", null, "show")).toBe("ignore");
+    expect(planCallKitEnd("c1", "other", "show")).toBe("ignore");
   });
 });

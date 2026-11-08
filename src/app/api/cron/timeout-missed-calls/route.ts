@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { deleteCallRoom } from "@/lib/daily";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { notifyMissedCall } from "@/lib/missed-call";
-import { sendVoipCallCancelToUser } from "@/lib/apns-voip";
+import { sendVoipCallEndedToUser } from "@/lib/apns-voip";
+import { participantAnswerRecord, voipAnswerRecord } from "@/lib/voip-ring-targets";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { sweepStaleCaptionSessions } from "@/lib/call-captions-server";
@@ -156,7 +157,7 @@ async function sweepStaleAccepted() {
       ]);
       // Same as endCall's answered-call branch: nothing else tells the
       // callee's CallKit that the call it reported is over.
-      await sendVoipCallCancelToUser(call.calleeId, call.id).catch(() => {});
+      await sendVoipCallEndedToUser(call.calleeId, call.id, voipAnswerRecord(call)).catch(() => {});
       // A call people were added to: its participant rows are closed with
       // it, and everyone on them is told the same way.
       const open = await closeParticipantRows(call.id);
@@ -164,7 +165,7 @@ async function sweepStaleAccepted() {
       await Promise.all(
         open
           .filter((p) => p.userId !== call.calleeId && wasRungForCall(call, p))
-          .map((p) => sendVoipCallCancelToUser(p.userId, call.id).catch(() => {})),
+          .map((p) => sendVoipCallEndedToUser(p.userId, call.id, participantAnswerRecord(call, p)).catch(() => {})),
       );
     }),
   );

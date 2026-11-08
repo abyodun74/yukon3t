@@ -12,8 +12,9 @@ import {
   answerOutcome,
   createCallAnswerTracker,
 } from "@/lib/call-answer-tracker";
-import { createCallKitRingSync } from "@/lib/callkit-ring-sync";
+import { createCallKitRingSync, planCallKitEnd } from "@/lib/callkit-ring-sync";
 import { createNativeCallKitRingPort } from "@/lib/native-callkit";
+import { currentCallDevice } from "@/lib/call-device";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -69,7 +70,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
-  const { startSession, endSession } = useCallSession();
+  const { startSession, endSession, hangUp, session } = useCallSession();
+  const sessionKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    sessionKeyRef.current = session?.key ?? null;
+  });
   // Ringing counts as a call for stale-build reloads: the banner would come
   // back after one, but seconds late, on a call that only rings for so long.
   useReloadHold("call", incoming !== null);
@@ -113,6 +118,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       answeringHere: (callId) => answers.ringDecision(callId) !== "show",
     }),
   );
+  // iOS: CallKit's End on a call answered here is a hang-up (hungUpOutOfApp). The call it ended, so endCall can tell
+  // the server this device's CallKit call is already over; and calls whose End came while their answer was still on
+  // its way, ended as soon as that answer lands.
+  const callKitEndedIdRef = useRef<string | null>(null);
+  const callKitHungUpRef = useRef(new Set<string>());
   const retryTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => {
     const timers = retryTimersRef.current;
@@ -185,8 +195,12 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     if (result.status === "ENDED" || result.status === "MISSED" || result.status === "DECLINED") {
       endSession();
       setActiveCall((current) => (current?.callId === call.callId ? null : current));
+      return;
     }
-  }, [endSession]);
+    // iOS: CallKit may be ringing for this very call (its VoIP push arrived after the answer here), or for one
+    // resolved elsewhere meanwhile. See callkit-ring-sync.ts.
+    void callKitRing.reconcileDuringCall(call.callId);
+  }, [endSession, callKitRing]);
   useRealtimeEvent(
     activeCall ? REALTIME_CHANNELS.callSignal(currentUserId) : null,
     "changed",
@@ -211,8 +225,13 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         // gone — see endCallDurably. If it never gets through, the other
         // side's own grace period, or failing that the stale-ACCEPTED sweep,
         // closes the row. For someone who was added to a call, the server
-        // takes the same endCall as "I leave" and the call carries on.
-        endCallDurably(activeCall.callId);
+        // takes the same endCall as "I leave" and the call carries on. A
+        // hang-up from CallKit's End says so: that CallKit call is already
+        // over, and needs no cancel push.
+        endCallDurably(
+          activeCall.callId,
+          callKitEndedIdRef.current === activeCall.callId ? currentCallDevice({ callKitEnded: true }) : undefined,
+        );
         setActiveCall(null);
       },
       isOver: async () => {
@@ -308,7 +327,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     const release = holdReload("call");
     let result: Awaited<ReturnType<typeof respondToCall>> | null;
     try {
-      result = await respondToCall(callId, true);
+      result = await respondToCall(callId, true, currentCallDevice());
     } catch {
       result = null;
     } finally {
@@ -317,6 +336,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     const outcome = answerOutcome(result);
     const followUp = answers.finish(callId, outcome);
     setAnsweringId((current) => (current === callId ? null : current));
+    if (callKitHungUpRef.current.delete(callId)) {
+      // CallKit's End was pressed while this answer was on its way: the user hung up. Its CallKit call is over.
+      const device = currentCallDevice({ callKitEnded: true });
+      if (outcome === "connected") endCallDurably(callId, device);
+      else if (outcome === "failed") void respondToCall(callId, false, device).catch(() => {});
+      setIncoming((current) => (current?.id === callId ? null : current));
+      return;
+    }
     if (outcome === "refused") {
       void callKitRing.settle(callId);
       setIncoming((current) => (current?.id === callId ? null : current));
@@ -356,7 +383,10 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       pendingPrewarmKeyRef.current = null;
     }
     void callKitRing.answeredHere(callId);
-    setActiveCall({ callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName });
+    const next = { callId, roomUrl: result.roomUrl, token: result.token, type: result.type, callerName };
+    // Set now, not on the next render: a CallKit End arriving in between must find the call it hangs up.
+    activeCallRef.current = next;
+    setActiveCall(next);
     setIncoming((current) => (current?.id === callId ? null : current));
   }, [answers, callKitRing]);
 
@@ -367,7 +397,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   });
 
   const declineCall = useCallback(async (callId: string) => {
-    await respondToCall(callId, false);
+    await respondToCall(callId, false, currentCallDevice());
     void callKitRing.declinedHere(callId);
     setIncoming((current) => (current?.id === callId ? null : current));
   }, [callKitRing]);
@@ -387,6 +417,28 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     [answers, declineCall],
   );
 
+  // iOS: CallKit's End (side button, lock screen, system call UI) on a call
+  // answered on this device. The native side ends its CallKit call and audio
+  // session itself; this leaves the room and ends the call server-side the
+  // same way the in-call Hang up button does. Builds before callEnded report
+  // that End as callDeclined, which stays decline-only (see below).
+  const hungUpOutOfApp = useCallback(
+    (callId: string) => {
+      const plan = planCallKitEnd(callId, activeCallRef.current?.callId ?? null, answers.ringDecision(callId));
+      if (plan === "afterAnswer") callKitHungUpRef.current.add(callId);
+      if (plan !== "hangUp") return;
+      callKitEndedIdRef.current = callId;
+      if (sessionKeyRef.current === `call:${callId}`) {
+        hangUp();
+        return;
+      }
+      // Answered a moment ago, before the call UI took over.
+      endCallDurably(callId, currentCallDevice({ callKitEnded: true }));
+      setActiveCall((current) => (current?.callId === callId ? null : current));
+    },
+    [answers, hangUp],
+  );
+
   // iOS: CallKit queues every Accept/Decline natively as well as firing it as
   // a live event (NativeCallManager.swift), because the event is lost when
   // the page isn't listening: not loaded yet on a cold start, or suspended
@@ -399,7 +451,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     const pending = await NativeCallKit.getPendingCallEvents().catch(() => null);
     pending?.answered.forEach(answeredOutOfApp);
     pending?.declined.forEach(declinedOutOfApp);
-  }, [answeredOutOfApp, declinedOutOfApp]);
+    pending?.ended?.forEach(hungUpOutOfApp);
+  }, [answeredOutOfApp, declinedOutOfApp, hungUpOutOfApp]);
   useLayoutEffect(() => {
     syncNativeCallEventsRef.current = syncNativeCallEvents;
   });
@@ -483,6 +536,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     let cancelled = false;
     let answeredListener: { remove: () => void } | undefined;
     let declinedListener: { remove: () => void } | undefined;
+    let endedListener: { remove: () => void } | undefined;
 
     (async () => {
       const { NativeCallKit } = await import("@/lib/native-callkit");
@@ -494,14 +548,17 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         void syncNativeCallEvents();
       });
       declinedListener = await NativeCallKit.addListener("callDeclined", (event) => {
-        // Deliberately the decline path only, even when this is the call
-        // already in progress (where respondToCall no-ops — it only acts on
-        // a RINGING call). CallKit reports a mid-call system End the same
-        // way, but mapping that to hangUp isn't safe until it's been
-        // verified on a real iPhone: the side/lock button ends a CallKit
-        // call that's on the earpiece, which would end a call the user
-        // means to keep.
+        // The decline path only, even when this is the call already in
+        // progress (where respondToCall no-ops: it only acts on a RINGING
+        // call). Builds before callEnded report a mid-call CallKit End this
+        // way too, but they also leave CallKit ringing after an in-app
+        // answer, so a callDeclined for the call in progress can be the user
+        // dismissing that stale ring: never a hang-up.
         declinedOutOfApp(event.callId);
+        void syncNativeCallEvents();
+      });
+      endedListener = await NativeCallKit.addListener("callEnded", (event) => {
+        hungUpOutOfApp(event.callId);
         void syncNativeCallEvents();
       });
       // An answer tapped between the mount ring check's drain and the
@@ -513,8 +570,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       cancelled = true;
       answeredListener?.remove();
       declinedListener?.remove();
+      endedListener?.remove();
     };
-  }, [answeredOutOfApp, declinedOutOfApp, syncNativeCallEvents]);
+  }, [answeredOutOfApp, declinedOutOfApp, hungUpOutOfApp, syncNativeCallEvents]);
 
   // Once active, the call itself renders via the root-mounted GlobalCallFrame
   // (see the startSession effect above) — nothing left to render here.
