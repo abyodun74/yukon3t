@@ -102,3 +102,46 @@ Circle / up to 5 chats) appears as soon as YuKon3t comes forward.
 App target's Sources build phase** until 2026-11-08 (no iOS build before
 that could read a share, whatever the App Group state); they are now listed
 in `project.pbxproj` the same way `ScreenCaptureGuardPlugin` is.
+
+## How the app reads the shared files (fixed 2026-11-09)
+
+Build 1.2 (5) moved the files into the app's tmp directory but the page then
+tried `fetch(Capacitor.convertFileSrc(path))`, which only works on Android.
+On iOS the WebView shows `https://yukon3t.com` (`server.url`), and
+convertFileSrc gives `capacitor://localhost/_capacitor_file_/...`: another
+origin, not in the site's CSP `connect-src`, and served by Capacitor's
+`WebViewAssetHandler` without CORS headers for video (`mov`/`mp4`/`m4v`
+answer with a bare `URLResponse`). Every file failed to load. Now
+`getPendingShare` returns an opaque `id` + `size` per file and the page reads
+it with `readPendingFile({ id, offset, length })` in 2MB base64 chunks
+(`src/lib/share-receiver-read.ts`); the plugin only resolves bare ids inside
+`tmp/pending_share`, and deletes each file after its last chunk. The share
+sheet also holds stale-build reloads while it reads a share (a reload in
+that window lost the share, which the native side only hands over once).
+
+## Diagnosing a failing share on a device
+
+Logs: Console.app on the Mac with the iPhone selected (works for TestFlight
+builds), or the Xcode console when running from Xcode. Filter
+`subsystem:com.yukon3t.app.share`. Nothing logged contains a file name or
+content. Expected order for one photo:
+
+- `[extension] start providers=1 appGroup=true` (false: the extension has no
+  App Group; check the ShareExtension target's App Groups capability and
+  provisioning profile)
+- `[extension] provider types=public.jpeg,...`
+- `[extension] image loaded as url ok` then `copy ok bytes=N` (or
+  `write ok` for raw data). `copy failed error=<domain>#<code>` names the
+  failing step.
+- `[extension] collected files=1 skipped=0 text=false manifest=true`
+- `[extension] open host app answered false` (normal for Share extensions;
+  the "Saved. Open YuKon3t" notice follows)
+- after opening YuKon3t: `[plugin] plugin loaded` (once per launch; missing
+  means `ShareReceiverPlugin` is not in `ios/App/App/capacitor.config.json`'s
+  `packageClassList`: run `npm run cap:sync:ios`, not plain `npx cap sync`)
+- `[plugin] getPendingShare: delivered files=1 skipped=0 text=false`
+  (`no manifest`: the app sees a different or empty container;
+  `App Group container unavailable`: the App target lacks the entitlement)
+
+JS-side failures go to Sentry with `component: share-receiver` and `stage`
+`get_pending_share` or `ios_read_file`.

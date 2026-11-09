@@ -1,5 +1,9 @@
 import UIKit
 import UniformTypeIdentifiers
+import os
+
+/// Console.app / Xcode console: filter on subsystem "com.yukon3t.app.share". Never logs file names or content.
+private let shareLog = Logger(subsystem: "com.yukon3t.app.share", category: "extension")
 
 /**
  * iOS's half of the Share-target feature — the equivalent of Android's
@@ -57,6 +61,7 @@ class ShareViewController: UIViewController {
     private func handleShare() {
         let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? [])
             .flatMap { $0.attachments ?? [] }
+        shareLog.notice("start providers=\(providers.count) appGroup=\(self.pendingShareDirectory() != nil, privacy: .public)")
         guard !providers.isEmpty else {
             finish()
             return
@@ -80,11 +85,19 @@ class ShareViewController: UIViewController {
         }
 
         for provider in providers {
+            shareLog.notice("provider types=\(provider.registeredTypeIdentifiers.joined(separator: ","), privacy: .public)")
             if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
                 group.enter()
-                provider.loadItem(forTypeIdentifier: UTType.movie.identifier, options: nil) { data, _ in
+                // loadFileRepresentation hands over a readable temporary copy (deleted when this handler returns, so
+                // the copy into the App Group happens inside it). loadItem's URL for a Photos video can point at a
+                // file this sandbox may not read.
+                _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, error in
                     defer { group.leave() }
-                    guard let url = data as? URL else { appendFile(nil); return }
+                    guard let url = url else {
+                        shareLog.error("movie load failed \(Self.describe(error), privacy: .public)")
+                        appendFile(nil)
+                        return
+                    }
                     appendFile(self.saveToAppGroup(from: url, suggestedName: url.lastPathComponent))
                 }
             } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
@@ -94,8 +107,9 @@ class ShareViewController: UIViewController {
                 let imageType = provider.registeredTypeIdentifiers
                     .compactMap { UTType($0) }
                     .first { $0.conforms(to: .image) && $0 != .image } ?? .png
-                provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { data, _ in
+                provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { data, error in
                     defer { group.leave() }
+                    shareLog.notice("image loaded as \(Self.kindOf(data), privacy: .public) \(Self.describe(error), privacy: .public)")
                     if let url = data as? URL {
                         appendFile(self.saveToAppGroup(from: url, suggestedName: url.lastPathComponent))
                     } else if let raw = data as? Data {
@@ -126,8 +140,12 @@ class ShareViewController: UIViewController {
         }
 
         group.notify(queue: .main) {
-            self.writeManifest(text: text, files: files, skipped: skipped)
-            if files.isEmpty && (text ?? "").isEmpty {
+            let written = self.writeManifest(text: text, files: files, skipped: skipped)
+            let hasText = !(text ?? "").isEmpty
+            shareLog.notice("collected files=\(files.count) skipped=\(skipped) text=\(hasText, privacy: .public) manifest=\(written, privacy: .public)")
+            // Something that failed to copy still goes to the app (skipped > 0), which says so, rather than the sheet
+            // closing as if it had worked.
+            if !written || (files.isEmpty && !hasText && skipped == 0) {
                 self.finish()
             } else {
                 self.openHostAppAndFinish()
@@ -135,38 +153,69 @@ class ShareViewController: UIViewController {
         }
     }
 
+    private static func describe(_ error: Error?) -> String {
+        guard let error = error as NSError? else { return "ok" }
+        return "error=\(error.domain)#\(error.code)"
+    }
+
+    private static func kindOf(_ item: Any?) -> String {
+        guard let item = item else { return "nil" }
+        if item is URL { return "url" }
+        if item is Data { return "data" }
+        if item is UIImage { return "uiimage" }
+        return "other"
+    }
+
     /// Copies a provider-owned temp file into the App Group's shared
     /// PendingShare directory, enforcing maxVideoFileBytes — an oversized
     /// file is reported back as "skipped" (nil here) rather than silently
     /// dropped, same reasoning as ShareReceiverPlugin.java's own size cap.
     private func saveToAppGroup(from sourceURL: URL, suggestedName: String) -> [String: String]? {
-        guard
-            let size = (try? FileManager.default.attributesOfItem(atPath: sourceURL.path)[.size]) as? Int,
-            size <= maxVideoFileBytes,
-            let containerURL = pendingShareDirectory()
-        else { return nil }
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: sourceURL.path)[.size]) as? Int else {
+            shareLog.error("copy: source size unreadable")
+            return nil
+        }
+        guard size <= maxVideoFileBytes else {
+            shareLog.error("copy: too large bytes=\(size)")
+            return nil
+        }
+        guard let containerURL = pendingShareDirectory() else {
+            shareLog.error("copy: App Group container unavailable")
+            return nil
+        }
 
-        let ext = sourceURL.pathExtension.isEmpty ? "dat" : sourceURL.pathExtension
+        let ext = sourceURL.pathExtension.isEmpty ? "dat" : sourceURL.pathExtension.lowercased()
         let storedName = "\(UUID().uuidString).\(ext)"
         let destURL = containerURL.appendingPathComponent(storedName)
         do {
             try FileManager.default.copyItem(at: sourceURL, to: destURL)
         } catch {
+            shareLog.error("copy failed \(Self.describe(error), privacy: .public)")
             return nil
         }
+        shareLog.notice("copy ok bytes=\(size)")
         return ["path": storedName, "name": suggestedName, "mimeType": mimeType(forExtension: ext)]
     }
 
     private func saveDataToAppGroup(_ data: Data, suggestedName: String, mimeType: String) -> [String: String]? {
-        guard data.count <= maxImageDataBytes, let containerURL = pendingShareDirectory() else { return nil }
+        guard data.count <= maxImageDataBytes else {
+            shareLog.error("write: too large bytes=\(data.count)")
+            return nil
+        }
+        guard let containerURL = pendingShareDirectory() else {
+            shareLog.error("write: App Group container unavailable")
+            return nil
+        }
         let ext = (suggestedName as NSString).pathExtension
         let storedName = "\(UUID().uuidString).\(ext.isEmpty ? "dat" : ext)"
         let destURL = containerURL.appendingPathComponent(storedName)
         do {
             try data.write(to: destURL, options: .atomic)
         } catch {
+            shareLog.error("write failed \(Self.describe(error), privacy: .public)")
             return nil
         }
+        shareLog.notice("write ok bytes=\(data.count)")
         return ["path": storedName, "name": suggestedName, "mimeType": mimeType]
     }
 
@@ -190,12 +239,21 @@ class ShareViewController: UIViewController {
     /// exactly once" contract as Android's getPendingShare(), just
     /// implemented via a file the main app deletes after reading instead of
     /// an in-memory static field (there's no shared process here to hold one).
-    private func writeManifest(text: String?, files: [[String: String]], skipped: Int) {
-        guard let dir = pendingShareDirectory() else { return }
+    private func writeManifest(text: String?, files: [[String: String]], skipped: Int) -> Bool {
+        guard let dir = pendingShareDirectory() else {
+            shareLog.error("manifest: App Group container unavailable (check the App Groups entitlement)")
+            return false
+        }
         var payload: [String: Any] = ["files": files, "skipped": skipped]
         if let text = text, !text.isEmpty { payload["text"] = text }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        try? data.write(to: dir.appendingPathComponent("manifest.json"), options: .atomic)
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            try data.write(to: dir.appendingPathComponent("manifest.json"), options: .atomic)
+            return true
+        } catch {
+            shareLog.error("manifest write failed \(Self.describe(error), privacy: .public)")
+            return false
+        }
     }
 
     /// Asks the system to bring the containing app forward. Apple only
@@ -211,6 +269,7 @@ class ShareViewController: UIViewController {
             return
         }
         context.open(url) { opened in
+            shareLog.notice("open host app answered \(opened, privacy: .public)")
             DispatchQueue.main.async {
                 if opened {
                     self.finish()

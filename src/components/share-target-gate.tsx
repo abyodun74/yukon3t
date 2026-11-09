@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Send, SquarePen, CirclePlus, Clapperboard, Users, Hash, Lock, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { checkForPendingShare, type PendingShareMedia } from "@/lib/share-receiver";
+import { createSerialRunner, isShareHandOffUrl } from "@/lib/share-receiver-read";
+import { holdReload } from "@/lib/stale-build";
 import { setPendingShareMedia } from "@/lib/share-target-store";
 import { getMyConversationsForShare } from "@/app/actions/messages";
 import { sendToConversations } from "@/app/actions/share-to-chats";
@@ -196,28 +198,40 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     const platform = Capacitor.getPlatform();
     if (platform !== "android" && platform !== "ios") return;
     let cancelled = false;
-    let listener: { remove: () => void } | undefined;
+    const listeners: { remove: () => void }[] = [];
 
-    function check() {
-      checkForPendingShare().then((result) => {
+    // The native side hands a share over once. A stale-build reload (capacitor-bridge's "resume" check) landing
+    // between reading it and showing this sheet would lose it, so reloads wait until the sheet (aria-modal, which
+    // holds them from then on) is up.
+    const check = createSerialRunner(async () => {
+      const release = holdReload("work");
+      try {
+        const result = await checkForPendingShare();
         if (cancelled || !result) return;
         setShare(result);
         setCaption(stripLinks(result.text).slice(0, SHARE_CAPTION_MAX_CHARS));
-      });
-    }
+      } finally {
+        release();
+      }
+    });
 
-    check();
+    void check();
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
-      App.addListener("resume", check).then((h) => {
+      const keep = (h: { remove: () => void }) => {
         if (cancelled) h.remove();
-        else listener = h;
-      });
+        else listeners.push(h);
+      };
+      App.addListener("resume", () => void check()).then(keep);
+      // iOS: yukon3t://share, if iOS lets the Share Extension open the app.
+      App.addListener("appUrlOpen", (event) => {
+        if (isShareHandOffUrl(event.url)) void check();
+      }).then(keep);
     });
 
     return () => {
       cancelled = true;
-      listener?.remove();
+      for (const h of listeners) h.remove();
     };
   }, []);
 

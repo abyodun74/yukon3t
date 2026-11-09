@@ -7,4 +7,5 @@
 // CLAUDE.md's "Native iOS plugins (Capacitor) — packageClassList gotcha".
 CAP_PLUGIN(ShareReceiverPlugin, "ShareReceiver",
   CAP_PLUGIN_METHOD(getPendingShare, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(readPendingFile, CAPPluginReturnPromise);
 )

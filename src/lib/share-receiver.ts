@@ -1,12 +1,16 @@
 "use client";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { captureError } from "@/lib/error-tracking";
+import { readFileInChunks, type ShareFileChunk } from "@/lib/share-receiver-read";
 
 interface NativePendingShareFile {
   name: string;
   mimeType: string;
-  /** Absolute native filesystem path (Android) — see ShareReceiverPlugin.java's own doc comment for why this isn't base64 anymore. */
-  path: string;
+  /** Android: absolute native filesystem path — see ShareReceiverPlugin.java's own doc comment for why this isn't base64 anymore. */
+  path?: string;
+  /** iOS: opaque id for readPendingFile (ShareReceiverPlugin.swift). */
+  id?: string;
 }
 
 interface NativePendingShare {
@@ -18,6 +22,8 @@ interface NativePendingShare {
 
 interface ShareReceiverPluginType {
   getPendingShare(): Promise<NativePendingShare>;
+  /** iOS only. */
+  readPendingFile(options: { id: string; offset: number; length: number }): Promise<ShareFileChunk>;
 }
 
 /** Bridges to ShareReceiverPlugin.java (Android) / ShareReceiverPlugin.swift (iOS) — see their own doc comments. */
@@ -74,6 +80,7 @@ function mediaKind(mimeType: string, name: string): "image" | "video" | "audio" 
  * fetch error) — best-effort, same as every other step in this pipeline.
  */
 async function pathToFile(f: NativePendingShareFile): Promise<File | null> {
+  if (!f.path) return null;
   try {
     const url = Capacitor.convertFileSrc(f.path);
     const res = await fetch(url);
@@ -81,6 +88,24 @@ async function pathToFile(f: NativePendingShareFile): Promise<File | null> {
     const blob = await res.blob();
     return new File([blob], f.name, { type: f.mimeType || blob.type || "application/octet-stream" });
   } catch {
+    return null;
+  }
+}
+
+/**
+ * iOS: the WebView shows https://yukon3t.com, so the capacitor://localhost URL convertFileSrc gives there is another
+ * origin (outside the CSP's connect-src, and without CORS headers for video); the plugin hands the bytes over in
+ * base64 chunks instead. Failures are reported (stage only, never a file name) because nothing else would show them
+ * on a TestFlight/App Store build.
+ */
+async function readIosFile(f: NativePendingShareFile): Promise<File | null> {
+  const id = f.id;
+  if (!id) return null;
+  try {
+    const parts = await readFileInChunks((offset, length) => ShareReceiver.readPendingFile({ id, offset, length }));
+    return new File(parts, f.name, { type: f.mimeType || "application/octet-stream" });
+  } catch (err) {
+    void captureError(err, { component: "share-receiver", stage: "ios_read_file" });
     return null;
   }
 }
@@ -97,8 +122,13 @@ async function pathToFile(f: NativePendingShareFile): Promise<File | null> {
 export async function checkForPendingShare(): Promise<PendingShareMedia | null> {
   const platform = Capacitor.getPlatform();
   if (platform !== "android" && platform !== "ios") return null;
+  // iOS builds before 1.2 (5) never compiled the plugin in; nothing to read there.
+  if (!Capacitor.isPluginAvailable("ShareReceiver")) return null;
 
-  const result = await ShareReceiver.getPendingShare().catch(() => null);
+  const result = await ShareReceiver.getPendingShare().catch((err: unknown) => {
+    void captureError(err, { component: "share-receiver", stage: "get_pending_share", platform });
+    return null;
+  });
   if (!result || (!result.text && result.files.length === 0 && !result.skipped)) return null;
 
   const images: File[] = [];
@@ -110,7 +140,7 @@ export async function checkForPendingShare(): Promise<PendingShareMedia | null> 
   // native-side subset.
   let skipped = result.skipped ?? 0;
   for (const f of result.files) {
-    const file = await pathToFile(f);
+    const file = platform === "ios" ? await readIosFile(f) : await pathToFile(f);
     if (!file) {
       skipped++;
       continue;
