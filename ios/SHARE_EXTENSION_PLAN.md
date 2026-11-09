@@ -87,9 +87,10 @@ account-level configuration Codemagic's automatic signing depends on:
 
 Tapping "Share" in Photos (or on a fresh screenshot) / WhatsApp / etc. and
 choosing YuKon3t opens `ShareViewController`'s brief "Sharing…" spinner,
-which reads the shared item(s) (a file URL, a `UIImage`, or raw image `Data`
-as the screenshot editor hands over) and writes them into the App Group
-container. It then asks the system to open `yukon3t://share`. **Apple only
+which copies the shared item(s) into the App Group container (images and
+videos through `loadFileRepresentation`, falling back to the raw data, a
+`UIImage`, then `loadItem`; links and text through `loadObject`; at most 10
+attachments, in the order they were picked). It then asks the system to open `yukon3t://share`. **Apple only
 honours `NSExtensionContext.open` for Today and iMessage extensions**, so for
 a Share extension that normally answers `false`; the extension then shows
 "Saved. Open YuKon3t to choose where to share it." (in the app's five
@@ -123,19 +124,32 @@ that window lost the share, which the native side only hands over once).
 
 Logs: Console.app on the Mac with the iPhone selected (works for TestFlight
 builds), or the Xcode console when running from Xcode. Filter
-`subsystem:com.yukon3t.app.share`. Nothing logged contains a file name or
-content. Expected order for one photo:
+`subsystem:com.yukon3t.app.share`. Every extension line is also written with
+NSLog, prefixed `[YuKon3tShare]`, so the Xcode console shows it whatever its
+log-level filter. Nothing logged contains a file name or content. Expected
+order for one photo:
 
-- `[extension] start providers=1 appGroup=true` (false: the extension has no
-  App Group; check the ShareExtension target's App Groups capability and
-  provisioning profile)
-- `[extension] provider types=public.jpeg,...`
-- `[extension] image loaded as url ok` then `copy ok bytes=N` (or
-  `write ok` for raw data). `copy failed error=<domain>#<code>` names the
-  failing step.
-- `[extension] collected files=1 skipped=0 text=false manifest=true`
-- `[extension] open host app answered false` (normal for Share extensions;
-  the "Saved. Open YuKon3t" notice follows)
+- `launched`, then `viewDidLoad` (neither: the extension's view controller
+  never loaded; check `NSExtensionPrincipalClass` and the target's Sources)
+- `start items=1 providers=1 overLimit=0 appGroup=true` (false: the
+  extension has no App Group; check the ShareExtension target's App Groups
+  capability and provisioning profile. The sheet then says "Couldn't share
+  this to YuKon3t")
+- `provider[0] types=public.heic,public.jpeg,... plan=image(public.heic)`
+- `provider[0] method=fileRepresentation type=public.heic` then
+  `provider[0] copy ok bytes=N`. On failure it falls back, logging each step
+  with `error=<domain>#<code>`: `dataRepresentation` (`write ok`),
+  `loadObject(UIImage)`, then `loadItem`. The system's own
+  `nil expectedValueClass allowing {...}` line only means `loadItem` was
+  called from Swift; it is not an error.
+- `collected files=1 skipped=0 text=false timedOut=false stillLoading=0`
+  (loading gives up after 60s; anything still loading counts as skipped)
+- `manifest write ok files=1 skipped=0`
+- `open host app answered false` (normal for Share extensions), then
+  `disposition=saved_notice`; the "Saved. Open YuKon3t" notice follows.
+  `disposition=failed reason=<no_app_group|no_attachments|nothing_usable|manifest_write>`
+  shows the "Couldn't share" notice instead.
+- `completeRequest` once the notice's OK is tapped
 - after opening YuKon3t: `[plugin] plugin loaded` (once per launch; missing
   means `ShareReceiverPlugin` is not in `ios/App/App/capacitor.config.json`'s
   `packageClassList`: run `npm run cap:sync:ios`, not plain `npx cap sync`)
