@@ -19,7 +19,7 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">
-      <BackButton href="/notifications" label={dictionary.shell.common.back} />
+      <BackButton href="/home" label={dictionary.shell.common.back} />
       <h1 className="font-display text-2xl font-semibold">{t.title}</h1>
       <p className="mt-1 text-sm text-foreground-soft">{t.intro}</p>
       <BirthdayList people={people} initialWish={typeof wish === "string" ? wish : null} />
