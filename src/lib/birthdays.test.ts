@@ -358,30 +358,62 @@ describe("wish content", () => {
 });
 
 describe("birthdaySettingsView (Settings -> Privacy -> Birthday)", () => {
+  const now = new Date("2026-11-10T12:00:00.000Z");
+  const adult = born("1990-03-03");
+  const minor = born("2010-03-03");
+  const ways = ["BOTH", "CONNECTIONS", "CIRCLES"];
+
   it("offers an adult who is sharing every way of sharing, plus Turn off", () => {
-    expect(birthdaySettingsView("CIRCLES", true)).toEqual({
+    expect(birthdaySettingsView("CIRCLES", adult, now)).toEqual({
       sharing: true,
-      audiences: ["BOTH", "CONNECTIONS", "CIRCLES"],
+      audiences: ways,
       canTurnOn: false,
+      needsBirthDate: false,
     });
   });
 
   it("lets an adult who turned it off turn it back on, choosing who to share it with", () => {
-    expect(birthdaySettingsView("NONE", true)).toEqual({
+    expect(birthdaySettingsView("NONE", adult, now)).toEqual({
       sharing: false,
-      audiences: ["BOTH", "CONNECTIONS", "CIRCLES"],
+      audiences: ways,
       canTurnOn: true,
+      needsBirthDate: false,
     });
   });
 
-  it("lets an under-18 account (or one without a birth date) keep the default or turn it off, never turn it back on", () => {
-    expect(birthdaySettingsView("BOTH", false)).toEqual({ sharing: true, audiences: [], canTurnOn: false });
-    expect(birthdaySettingsView("NONE", false)).toEqual({ sharing: false, audiences: [], canTurnOn: false });
+  it("lets an under-18 account keep the default or turn it off, never turn it back on", () => {
+    expect(birthdaySettingsView("BOTH", minor, now)).toEqual({
+      sharing: true,
+      audiences: [],
+      canTurnOn: false,
+      needsBirthDate: false,
+    });
+    expect(birthdaySettingsView("NONE", minor, now)).toEqual({
+      sharing: false,
+      audiences: [],
+      canTurnOn: false,
+      needsBirthDate: false,
+    });
+  });
+
+  it("asks an account without a birth date to add one, and offers nothing that needs it", () => {
+    expect(birthdaySettingsView("BOTH", null, now)).toEqual({
+      sharing: true,
+      audiences: [],
+      canTurnOn: false,
+      needsBirthDate: true,
+    });
+    expect(birthdaySettingsView("NONE", null, now)).toEqual({
+      sharing: false,
+      audiences: [],
+      canTurnOn: false,
+      needsBirthDate: true,
+    });
   });
 
   it("never offers Off as a way of sharing (it has its own button)", () => {
     for (const audience of BIRTHDAY_AUDIENCE_VALUES) {
-      expect(birthdaySettingsView(audience, true).audiences).not.toContain("NONE");
+      expect(birthdaySettingsView(audience, adult, now).audiences).not.toContain("NONE");
     }
   });
 });

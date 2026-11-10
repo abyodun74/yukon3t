@@ -3,8 +3,10 @@ import { BackButton } from "@/components/back-button";
 import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, updateNewMemberAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
-import { updateBirthdaySharing } from "@/app/actions/birthdays";
-import { BIRTHDAY_DEFAULT_AUDIENCE, birthdaySettingsView, canShareBirthday } from "@/lib/birthdays";
+import { setBirthDateOnce, updateBirthdaySharing } from "@/app/actions/birthdays";
+import { BIRTHDAY_DEFAULT_AUDIENCE, birthdaySettingsView } from "@/lib/birthdays";
+import { MIN_AGE } from "@/lib/validation-constants";
+import { BirthDateSelect } from "@/components/birth-date-select";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
@@ -20,7 +22,7 @@ import { getRequestCountry } from "@/lib/request-country";
 import { EmojiStyleSetting } from "@/components/emoji-style-setting";
 import { DataSaverSetting } from "@/components/data-saver-setting";
 import { LanguagePicker } from "@/components/language-picker";
-import { aroundPlaceholder, byCode } from "@/lib/i18n/locales";
+import { aroundPlaceholder, byCode, format } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
 
@@ -51,7 +53,8 @@ export default async function SettingsPage({
   const translationAvailable = isTranslationConfigured();
   // "Share my birthday" is on by default (BOTH): "Turn off" is always there, and "Turn on" (or changing who is
   // reminded) only where it can apply now (birthdaySettingsView: a birth date on the account and BIRTHDAY_MIN_AGE).
-  const birthday = birthdaySettingsView(user.birthdayAudience, canShareBirthday(user.birthDate, new Date()));
+  // An account with no birth date gets the one-time "Add your date of birth" form (setBirthDateOnce) instead.
+  const birthday = birthdaySettingsView(user.birthdayAudience, user.birthDate, new Date());
   const birthdayAudienceLabels = {
     BOTH: t.birthday.both,
     CONNECTIONS: t.birthday.connections,
@@ -104,7 +107,7 @@ export default async function SettingsPage({
       )}
       {error && (
         <p role="alert" className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {byCode(t.errors, error)}
+          {format(byCode(t.errors, error), { age: MIN_AGE })}
         </p>
       )}
 
@@ -202,7 +205,9 @@ export default async function SettingsPage({
                     />
                   </form>
                 ) : (
-                  <p className="text-sm text-foreground-soft">{t.birthday.unavailable}</p>
+                  <p className="text-sm text-foreground-soft">
+                    {birthday.needsBirthDate ? t.birthday.noBirthDate : t.birthday.unavailable}
+                  </p>
                 )}
                 <form action={updateBirthdaySharing}>
                   <input type="hidden" name="audience" value="NONE" />
@@ -245,9 +250,51 @@ export default async function SettingsPage({
                 />
               </form>
             ) : (
-              // Under 18 (or no birth date on the account): Off stays Off until sharing can apply, and the page says
-              // so rather than offering a "Turn on" the action would refuse.
-              <p className="text-sm text-foreground-soft">{t.birthday.offUnavailable}</p>
+              // Under 18, or no birth date on the account yet: Off stays Off until sharing can apply, and the page says
+              // so (pointing to the form below when the birth date is missing) rather than offering a "Turn on" the
+              // action would refuse.
+              <p className="text-sm text-foreground-soft">
+                {birthday.needsBirthDate ? t.birthday.offNoBirthDate : t.birthday.offUnavailable}
+              </p>
+            )}
+            {birthday.needsBirthDate && (
+              // One time only: setBirthDateOnce writes it only while the account has none, and nothing edits it later.
+              <form action={setBirthDateOnce} className="space-y-3 rounded-lg border border-line p-3">
+                <h4 className="text-sm font-semibold">{t.birthday.addBirthDate.heading}</h4>
+                <p className="text-sm text-foreground-soft">{t.birthday.addBirthDate.intro}</p>
+                <p
+                  id="settings-birth-date-warning"
+                  className="rounded-lg bg-accent-soft px-3 py-2 text-sm font-medium"
+                >
+                  {t.birthday.addBirthDate.warning}
+                </p>
+                <div>
+                  <label htmlFor="settings-birth-date" className="block text-sm font-medium">
+                    {t.birthday.addBirthDate.label}
+                  </label>
+                  <div className="mt-1">
+                    <BirthDateSelect
+                      id="settings-birth-date"
+                      minAge={MIN_AGE}
+                      labels={dictionary.shared.birthDate}
+                      describedBy="settings-birth-date-warning settings-birth-date-hint"
+                    />
+                  </div>
+                  <p id="settings-birth-date-hint" className="mt-1 text-xs text-foreground-soft">
+                    {format(t.birthday.addBirthDate.ageHint, { age: MIN_AGE })}
+                  </p>
+                </div>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" name="confirm" required className="mt-0.5 shrink-0" />
+                  <span>{t.birthday.addBirthDate.confirm}</span>
+                </label>
+                <SubmitButton
+                  label={t.birthday.addBirthDate.save}
+                  pendingLabel={t.saving}
+                  offlineMessage={offlineMessage}
+                  className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink hover:opacity-90"
+                />
+              </form>
             )}
           </div>
         </CollapsibleSection>

@@ -41,18 +41,27 @@ export const BIRTHDAY_SHARING_AUDIENCES = ["BOTH", "CONNECTIONS", "CIRCLES"] as 
 /**
  * What Settings -> Privacy -> Birthday shows (src/app/settings/page.tsx), with the same rule updateBirthdaySharing
  * enforces: Off can always be chosen, keeping the current choice is always fine, and choosing a (new) way of sharing
- * needs a birthday that can be shared now (`shareable`, canShareBirthday: an adult with a known birth date).
+ * needs a birthday that can be shared now (canShareBirthday: an adult with a known birth date).
  * - On: "Turn off" is always offered; the who-is-reminded choice only when shareable (an under-18 account keeps its
  *   current choice, which takes effect at 18).
  * - Off: "Turn on" (with who to share it with) only when shareable. An under-18 account that turned it off can't turn it
  *   back on until it is 18; the page says so instead of offering a control the action would refuse.
+ * - No birth date on the account (some older accounts): `needsBirthDate`, so the page offers the one-time "Add your
+ *   birth date" form (setBirthDateOnce) and points to it instead of the under-18 wording.
  */
 export function birthdaySettingsView(
   audience: BirthdayAudience,
-  shareable: boolean,
-): { sharing: boolean; audiences: readonly BirthdayAudience[]; canTurnOn: boolean } {
+  birthDate: Date | null | undefined,
+  now: Date,
+): { sharing: boolean; audiences: readonly BirthdayAudience[]; canTurnOn: boolean; needsBirthDate: boolean } {
   const sharing = isSharingBirthday(audience);
-  return { sharing, audiences: shareable ? BIRTHDAY_SHARING_AUDIENCES : [], canTurnOn: !sharing && shareable };
+  const shareable = canShareBirthday(birthDate, now);
+  return {
+    sharing,
+    audiences: shareable ? BIRTHDAY_SHARING_AUDIENCES : [],
+    canTurnOn: !sharing && shareable,
+    needsBirthDate: !birthDate,
+  };
 }
 
 /**

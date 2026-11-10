@@ -23,6 +23,10 @@ export const settingsEn = {
     rate_limited: "Too many attempts — try again in a few minutes.",
     birthday_unavailable:
       "Birthday sharing is only for members aged 18 or over whose date of birth is on their account.",
+    birth_date_invalid: "Choose your date of birth from the lists.",
+    birth_date_underage: "You must be at least {age} years old to use YuKon3t.",
+    birth_date_confirm: "Tick the box to confirm that your date of birth can't be changed later.",
+    birth_date_already_set: "Your date of birth is already on your account and can't be changed.",
     other: "Please check your inputs.",
   },
   saving: "Saving...",
@@ -52,8 +56,20 @@ export const settingsEn = {
     turnOff: "Turn off birthday sharing",
     offHint: "Nobody is reminded of your birthday. Changed your mind? Choose who to share it with and turn it back on.",
     turnOn: "Turn on birthday sharing",
-    unavailable: "Your birthday is only shared once you're 18 or over and your date of birth is on your account; until then nobody is reminded. You can turn it off now if you prefer.",
-    offUnavailable: "Nobody is reminded of your birthday. You can turn sharing back on once you're 18 or over and your date of birth is on your account.",
+    unavailable: "Your birthday is only shared once you're 18 or over; until then nobody is reminded. You can turn it off now if you prefer.",
+    offUnavailable: "Nobody is reminded of your birthday. You can turn sharing back on once you're 18 or over.",
+    noBirthDate: "Your date of birth isn't on your account yet, so nobody is reminded of your birthday. Add it below to start sharing. You can still turn sharing off now if you prefer.",
+    offNoBirthDate: "Nobody is reminded of your birthday. To be able to turn sharing on, first add your date of birth below.",
+    // "Add your date of birth" (setBirthDateOnce): only for an account with none on it, and only once.
+    addBirthDate: {
+      heading: "Add your date of birth",
+      intro: "Your account doesn't have a date of birth yet. Birthday sharing needs one.",
+      warning: "You can add it only once and it can't be changed afterwards, so check it carefully. Only the day and month are ever shown to others, never the year or your age.",
+      label: "Date of birth",
+      ageHint: "You must be at least {age} years old to use YuKon3t.",
+      confirm: "I understand my date of birth can't be changed after I save it.",
+      save: "Save my date of birth",
+    },
   },
   notifications: {
     heading: "Notifications",

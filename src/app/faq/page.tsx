@@ -1563,7 +1563,11 @@ const sections: Section[] = [
             and month are ever shared, never the year or your age, and nobody
             you&apos;ve blocked or who has blocked you is reminded; in a private
             Circle, only its members are. It only applies from age 18 and when
-            your date of birth is on your account. Each of those people gets one
+            your date of birth is on your account. If your account doesn&apos;t
+            have one yet (some older accounts don&apos;t), you can add it under
+            Settings → Privacy → Birthday: you can only add it once and it
+            can&apos;t be changed afterwards, and others still only ever see
+            the day and month. Each of those people gets one
             quiet notification at midnight in their own time zone, with no
             sound or vibration (YuKon3t uses the time zone of the device they
             use the app on, and UTC until it knows it), and it also appears in

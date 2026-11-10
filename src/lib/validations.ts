@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues } from "@/lib/validation-constants";
+import { MAX_AGE, MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues } from "@/lib/validation-constants";
 import { TRANSLATION_BATCH_MAX, TRANSLATION_KINDS } from "@/lib/translation";
 import { CALL_CAPTION_MAX_CHARS, CALL_CAPTION_MAX_SDP_CHARS } from "@/lib/call-captions";
 import { AD_DURATION_OPTIONS } from "@/lib/ads";
@@ -28,7 +28,7 @@ import {
 
 // The plain constants live in the zod-free src/lib/validation-constants.ts so client components can import them
 // without bundling zod; re-exported here for server code that reads them alongside the schemas.
-export { MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues };
+export { MAX_AGE, MIN_AGE, feedCategoryValues, intentTagValues, reportReasonCategoryValues };
 
 /** True when someone born on `birthDate` is at least `minAge` years old today. */
 export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {
@@ -36,6 +36,39 @@ export function isOldEnough(birthDate: Date, minAge = MIN_AGE) {
   const cutoff = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
   return birthDate <= cutoff;
 }
+
+/**
+ * A birth date exactly as BirthDateSelect sends it ("YYYY-MM-DD"), as the UTC-midnight Date stored in User.birthDate.
+ * Strict: a day that doesn't exist ("2001-02-30") is refused rather than rolled over into the next month, and a missing
+ * field is refused rather than coerced (z.coerce.date() reads null as 1970-01-01).
+ */
+export function parseBirthDateInput(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
+
+/** Not older than BirthDateSelect lets anyone pick: born in this year minus MAX_AGE or later. */
+export function isPlausibleBirthDate(birthDate: Date, maxAge = MAX_AGE) {
+  return birthDate.getUTCFullYear() >= new Date().getFullYear() - maxAge;
+}
+
+/** A birth date from BirthDateSelect, with the joining age rules: at least MIN_AGE, no older than MAX_AGE. */
+const birthDateField = z
+  .unknown()
+  .transform((value, ctx) => {
+    const date = parseBirthDateInput(value);
+    if (!date) {
+      ctx.addIssue({ code: "custom", message: "invalid" });
+      return z.NEVER;
+    }
+    return date;
+  })
+  .refine((date) => isPlausibleBirthDate(date), { message: "invalid" })
+  .refine((date) => isOldEnough(date), { message: "underage" });
 
 const baseProfileFields = {
   name: z.string().trim().min(2).max(60),
@@ -64,9 +97,8 @@ export const onboardingSchema = z.object({
   ...baseProfileFields,
   languages: baseProfileFields.languages.min(1),
   interests: baseProfileFields.interests.min(1),
-  birthDate: z.coerce.date().refine(isOldEnough, {
-    message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
-  }),
+  // Strict (birthDateField): a missing or impossible date is refused, never coerced into 1970-01-01 or the next month.
+  birthDate: birthDateField,
 });
 
 export const usernameSchema = z
@@ -169,6 +201,13 @@ export const ringtoneSchema = z.object({
 
 export const newMemberAlertsSchema = z.object({
   newMemberAlerts: z.boolean(),
+});
+
+// Settings -> Privacy -> Birthday, "Add your birth date" (setBirthDateOnce): only for an account with none on it, once.
+// The same age rules as onboarding (birthDateField), plus the "this can't be changed later" box, which must be ticked.
+export const birthDateOnceSchema = z.object({
+  birthDate: birthDateField,
+  confirm: z.literal("on"),
 });
 
 // Settings -> Privacy, "Share my birthday" (updateBirthdaySharing): who is reminded, or NONE (Off, an explicit choice).

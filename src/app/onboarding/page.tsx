@@ -81,19 +81,19 @@ export default async function OnboardingPage({
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium">
-            {t.birthDate} <span className="text-danger">*</span>
-          </label>
-          <div className="mt-1">
-            <BirthDateSelect
-              defaultValue={user.birthDate?.toISOString().slice(0, 10)}
-              minAge={MIN_AGE}
-              labels={dictionary.shared.birthDate}
-            />
+        {/* Asked only when the account has no birth date yet (magic-link, Google, Apple): one recorded at sign-up is
+            never asked for again or changed here (completeOnboarding ignores it). */}
+        {user.birthDate === null && (
+          <div>
+            <label className="block text-sm font-medium">
+              {t.birthDate} <span className="text-danger">*</span>
+            </label>
+            <div className="mt-1">
+              <BirthDateSelect minAge={MIN_AGE} labels={dictionary.shared.birthDate} />
+            </div>
+            <p className="mt-1 text-xs text-foreground-soft">{format(t.ageHint, { age: MIN_AGE })}</p>
           </div>
-          <p className="mt-1 text-xs text-foreground-soft">{format(t.ageHint, { age: MIN_AGE })}</p>
-        </div>
+        )}
 
         <div>
           <label htmlFor="onboarding-country" className="block text-sm font-medium">

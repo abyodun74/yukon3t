@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Google / Apple accounts (created by the Auth.js adapter with no birth date) at onboarding (completeOnboarding).
 const userCreate = vi.fn();
 const userUpdate = vi.fn();
+const userUpdateMany = vi.fn();
 const userFindUnique = vi.fn();
 const userFindFirst = vi.fn();
 const requireUser = vi.fn();
@@ -18,9 +19,11 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       create: (...a: unknown[]) => userCreate(...a),
       update: (...a: unknown[]) => userUpdate(...a),
+      updateMany: (...a: unknown[]) => userUpdateMany(...a),
       findUnique: (...a: unknown[]) => userFindUnique(...a),
       findFirst: (...a: unknown[]) => userFindFirst(...a),
     },
+    $transaction: (ops: Promise<unknown>[]) => Promise.all(ops),
   },
 }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => redirect(url) }));
@@ -114,37 +117,61 @@ describe("password and phone sign-up", () => {
   });
 });
 
-function onboardingForm(birthDate: string) {
+function onboardingForm(birthDate: string | null) {
   const data = new FormData();
   data.set("name", "New Member");
   data.set("country", "Nigeria");
   data.append("languages", "English");
   data.append("interests", "Music");
   data.append("openToIntents", "FRIENDSHIP");
-  data.set("birthDate", birthDate);
+  if (birthDate !== null) data.set("birthDate", birthDate);
   return data;
 }
 
-async function onboard(user: Record<string, unknown>, birthDate: string) {
-  requireUser.mockResolvedValue({
+function onboardingUser(user: Record<string, unknown>) {
+  return {
     id: "u1",
     name: null,
     username: null,
+    country: null,
+    interests: [],
     onboardedAt: null,
     birthdayAudience: "BOTH",
     ...user,
-  });
-  expect(await completeOnboarding(onboardingForm(birthDate)).catch((err: Error) => err.message)).toBe(
-    "REDIRECT /home?onboarded=1",
-  );
-  return userUpdate.mock.calls[0][0].data as { birthdaySharingNoticePending?: boolean };
+  };
+}
+
+async function runOnboarding(user: Record<string, unknown>, birthDate: string | null) {
+  requireUser.mockResolvedValue(onboardingUser(user));
+  return completeOnboarding(onboardingForm(birthDate)).catch((err: Error) => err.message);
+}
+
+/** The guarded birth-date write's data, for an account that had none. */
+async function onboard(user: Record<string, unknown>, birthDate: string) {
+  expect(await runOnboarding(user, birthDate)).toBe("REDIRECT /home?onboarded=1");
+  expect(userUpdateMany).toHaveBeenCalledTimes(1);
+  const call = userUpdateMany.mock.calls[0][0] as {
+    where: Record<string, unknown>;
+    data: { birthDate: Date; birthdaySharingNoticePending?: boolean };
+  };
+  // Never over a birth date already there, even if one was recorded since the page loaded.
+  expect(call.where).toEqual({ id: "u1", birthDate: null });
+  return call.data;
 }
 
 describe("onboarding (magic-link, Google and Apple sign-up)", () => {
   beforeEach(() => {
     userUpdate.mockReset();
     userUpdate.mockResolvedValue({ id: "u1" });
+    userUpdateMany.mockReset();
+    userUpdateMany.mockResolvedValue({ count: 1 });
     requireUser.mockReset();
+  });
+
+  it("records the birth date of an account created without one", async () => {
+    const data = await onboard({ birthDate: null }, ADULT);
+    expect(data.birthDate).toEqual(new Date(`${ADULT}T00:00:00.000Z`));
+    expect(userUpdate.mock.calls[0][0].data).not.toHaveProperty("birthDate");
   });
 
   it("owes an account created without a birth date the notice when the one recorded is under 18", async () => {
@@ -161,8 +188,39 @@ describe("onboarding (magic-link, Google and Apple sign-up)", () => {
     );
   });
 
-  it("never touches the flag once a birth date is on the account (sign-up already decided, or Settings cleared it)", async () => {
-    const data = await onboard({ birthDate: new Date(`${MINOR}T00:00:00.000Z`) }, MINOR);
+  it("never changes a birth date already on the account, whatever the form sends", async () => {
+    const existing = new Date(`${ADULT}T00:00:00.000Z`);
+    expect(await runOnboarding({ birthDate: existing }, MINOR)).toBe("REDIRECT /home?onboarded=1");
+    expect(userUpdateMany).not.toHaveBeenCalled();
+    expect(userUpdate).toHaveBeenCalledTimes(1);
+    const data = userUpdate.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("birthDate");
     expect(data).not.toHaveProperty("birthdaySharingNoticePending");
+  });
+
+  it("doesn't ask an account that has a birth date for it again", async () => {
+    const existing = new Date(`${ADULT}T00:00:00.000Z`);
+    expect(await runOnboarding({ birthDate: existing }, null)).toBe("REDIRECT /home?onboarded=1");
+    expect(userUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("still requires a valid, old-enough birth date from an account that has none", async () => {
+    expect(await runOnboarding({ birthDate: null }, null)).toBe("REDIRECT /onboarding?error=underage");
+    expect(await runOnboarding({ birthDate: null }, `${thisYear - 10}-01-01`)).toBe(
+      "REDIRECT /onboarding?error=underage",
+    );
+    // A day that doesn't exist is refused, not rolled over into March.
+    expect(await runOnboarding({ birthDate: null }, `${thisYear - 30}-02-30`)).toBe(
+      "REDIRECT /onboarding?error=underage",
+    );
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(userUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("does nothing for a profile that is already complete", async () => {
+    const complete = { name: "Ada", country: "Nigeria", interests: ["Music"], birthDate: null };
+    expect(await runOnboarding(complete, ADULT)).toBe("REDIRECT /discover");
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(userUpdateMany).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireViewer, AuthError } from "@/lib/auth-guards";
+import { isProfileComplete } from "@/lib/profile-complete";
 
 /**
  * For server components/pages: redirects to /sign-in when not authenticated.
@@ -19,10 +20,6 @@ export async function getSessionUserOrRedirect() {
     }
     throw error;
   }
-}
-
-function isProfileComplete(user: { name: string | null; country: string | null; interests: string[] }) {
-  return Boolean(user.name && user.country && user.interests.length > 0);
 }
 
 /** Like getSessionUserOrRedirect, but also forces onboarding completion first. */

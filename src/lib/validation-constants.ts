@@ -13,6 +13,8 @@ export const intentTagValues = [
 export type IntentTag = (typeof intentTagValues)[number];
 
 export const MIN_AGE = 16;
+/** Oldest age a birth date can give: BirthDateSelect's earliest year (this year minus this), and setBirthDateOnce's check. */
+export const MAX_AGE = 120;
 
 // Mirrors the Prisma FeedCategory enum — which Home feed section a post is
 // filed under (src/app/home/page.tsx). Both the composer's category picker

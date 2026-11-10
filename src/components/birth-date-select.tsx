@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MIN_AGE } from "@/lib/validation-constants";
+import { MAX_AGE, MIN_AGE } from "@/lib/validation-constants";
 import { sharedEn } from "@/lib/i18n/en/shared";
 
 function daysInMonth(year: number, month: number) {
@@ -35,7 +35,7 @@ export function BirthDateSelect({
   defaultValue,
   required = true,
   minAge = MIN_AGE,
-  maxAge = 120,
+  maxAge = MAX_AGE,
   id,
   invalid = false,
   describedBy,

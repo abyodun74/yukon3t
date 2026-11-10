@@ -34,26 +34,42 @@ import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
+import { isProfileComplete } from "@/lib/profile-complete";
 
+/**
+ * First-time onboarding (/onboarding). Only for a profile that isn't complete yet (isProfileComplete, the same rule the
+ * page uses to send a finished profile on); a finished one is sent to Discover and nothing is written. The birth date
+ * is recorded here only for an account that has none (magic-link, Google and Apple accounts are created without one;
+ * password / phone sign-up already recorded it): an account that has one keeps it, whatever the form sends, and the
+ * page doesn't ask for it again. That write is guarded on `birthDate: null` in the database, so a race with Settings'
+ * "Add your birth date" (setBirthDateOnce) can't replace one either.
+ */
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
+  if (isProfileComplete(user)) {
+    redirect("/discover");
+  }
+  const needsBirthDate = user.birthDate === null;
 
-  const parsed = onboardingSchema.safeParse({
+  const fields = {
     name: formData.get("name"),
     bio: formData.get("bio") ?? "",
     country: formData.get("country"),
     languages: formData.getAll("languages"),
     interests: formData.getAll("interests"),
     openToIntents: formData.getAll("openToIntents"),
-    birthDate: formData.get("birthDate"),
-  });
+  };
+  const parsed = onboardingSchema.omit({ birthDate: true }).safeParse(fields);
+  // Only asked of an account without one; an account that has a birth date keeps it, whatever the form sends.
+  const parsedBirthDate = needsBirthDate ? onboardingSchema.shape.birthDate.safeParse(formData.get("birthDate")) : null;
 
-  if (!parsed.success) {
-    const underage = parsed.error.issues.some((i) => i.path[0] === "birthDate");
+  if (!parsed.success || (parsedBirthDate && !parsedBirthDate.success)) {
+    const underage = Boolean(parsedBirthDate && !parsedBirthDate.success);
     redirect(`/onboarding?error=${underage ? "underage" : "invalid"}`);
   }
 
-  const { name, bio, country, languages, interests, openToIntents, birthDate } = parsed.data;
+  const { name, bio, country, languages, interests, openToIntents } = parsed.data;
+  const birthDate = parsedBirthDate?.success ? parsedBirthDate.data : null;
 
   // The display name is shown everywhere (and in pushes), so a new one goes through the same gate as the bio.
   const onboardingText = profileTextToModerate(name, user.name, bio);
@@ -64,7 +80,7 @@ export async function completeOnboarding(formData: FormData) {
     }
   }
 
-  await prisma.user.update({
+  const profile = prisma.user.update({
     where: { id: user.id },
     data: {
       name,
@@ -74,19 +90,31 @@ export async function completeOnboarding(formData: FormData) {
       interests,
       interestsLower: interests.map((i) => i.toLowerCase()),
       openToIntents,
-      birthDate,
       // When joining finished, kept from the first time: the announce-new-members cron (src/lib/new-member-alerts.ts)
       // announces an account a little after this, once.
       onboardedAt: user.onboardedAt ?? new Date(),
+    },
+    select: { id: true },
+  });
+  if (birthDate) {
+    await prisma.$transaction([
+      profile,
       // Magic-link, Google and Apple accounts are created without a birth date, so this is their sign-up's age check:
       // an under-18 account is owed the one-time "your birthday is now shared" notice once it turns 18. Only when the
-      // birth date is first recorded (a password / phone sign-up decided it already), and never cleared here.
-      ...(user.birthDate === null &&
-      birthdayNoticePendingAtSignUp(birthDate, user.birthdayAudience, new Date())
-        ? { birthdaySharingNoticePending: true }
-        : {}),
-    },
-  });
+      // birth date is first recorded (never over one already there), and the flag is never cleared here.
+      prisma.user.updateMany({
+        where: { id: user.id, birthDate: null },
+        data: {
+          birthDate,
+          ...(birthdayNoticePendingAtSignUp(birthDate, user.birthdayAudience, new Date())
+            ? { birthdaySharingNoticePending: true }
+            : {}),
+        },
+      }),
+    ]);
+  } else {
+    await profile;
+  }
   await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });
 
   await recomputeTrustScore(user.id);
