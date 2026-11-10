@@ -12,4 +12,5 @@ CAP_PLUGIN(NativeCallKitPlugin, "NativeCallKit",
   CAP_PLUGIN_METHOD(reportCallAnswered, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(endRingingCall, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(getRingingCalls, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(endAnsweredCall, CAPPluginReturnPromise);
 )

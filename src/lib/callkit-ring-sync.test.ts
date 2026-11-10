@@ -50,7 +50,12 @@ describe("createCallKitRingSync", () => {
   let ringing: string[];
   let statuses: Record<string, ServerCallStatus | null | undefined>;
   let answering: Set<string>;
-  let port: { answered: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn>; ringing: ReturnType<typeof vi.fn> };
+  let port: {
+    answered: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+    ringing: ReturnType<typeof vi.fn>;
+    endAnswered: ReturnType<typeof vi.fn>;
+  };
   let status: ReturnType<typeof vi.fn>;
 
   function sync() {
@@ -68,6 +73,7 @@ describe("createCallKitRingSync", () => {
       answered: vi.fn(async () => {}),
       end: vi.fn(async () => {}),
       ringing: vi.fn(async () => ringing),
+      endAnswered: vi.fn(async () => {}),
     };
     status = vi.fn(async (id: string) => statuses[id]);
   });
@@ -213,6 +219,19 @@ describe("createCallKitRingSync", () => {
       answering.add("c1");
       await sync().settle("c1");
       expect(port.end).toHaveBeenCalledWith("c1", "answeredElsewhere");
+    });
+  });
+
+  describe("left (the page left a call answered here)", () => {
+    it("ends CallKit's call for it", async () => {
+      await sync().left("c1");
+      expect(port.endAnswered).toHaveBeenCalledWith("c1");
+      expect(port.end).not.toHaveBeenCalled();
+    });
+
+    it("does nothing on a build without the method", async () => {
+      port.endAnswered.mockRejectedValue(new Error("UNIMPLEMENTED"));
+      await expect(sync().left("c1")).resolves.toBeUndefined();
     });
   });
 });

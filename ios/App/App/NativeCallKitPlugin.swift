@@ -64,6 +64,18 @@ public class NativeCallKitPlugin: CAPPlugin {
         }
     }
 
+    /// The page left a call answered on this device: CallKit's active call for it ends too.
+    @objc func endAnsweredCall(_ call: CAPPluginCall) {
+        guard let callId = call.getString("callId") else {
+            call.reject("callId is required")
+            return
+        }
+        DispatchQueue.main.async {
+            NativeCallManager.shared.endAnsweredFromApp(callId: callId)
+            call.resolve()
+        }
+    }
+
     @objc func getRingingCalls(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             call.resolve(["callIds": NativeCallManager.shared.ringingCallIds()])

@@ -1,6 +1,9 @@
 import Foundation
 import PushKit
 import CallKit
+import AVFoundation
+import UIKit
+import WebKit
 
 /**
  * Owns PushKit registration and the CXProvider for the whole app lifetime —
@@ -31,6 +34,9 @@ final class NativeCallManager: NSObject {
     // this reference's mere presence — see the comment on emitToken().
     var plugin: NativeCallKitPlugin?
     private var pendingToken: String?
+    // The current PushKit token, kept (unlike pendingToken, which JS drains) so a native hang-up report can name this
+    // iPhone to the server: endCall then sends it no cancel push for a call its CallKit already ended.
+    private var voipToken: String?
     private var pendingAnswered: [String] = []
     private var pendingDeclined: [String] = []
     private var pendingHungUp: [String] = []
@@ -45,6 +51,8 @@ final class NativeCallManager: NSObject {
     // behalf of the in-app buttons. The web page already acted on those, so
     // they aren't reported back to it as callAnswered/callDeclined.
     private var appRequestedActions: Set<UUID> = []
+    // Calls reported with video: their audio session is left on the speaker (configureAudioSession).
+    private var videoCalls: Set<UUID> = []
 
     // By callId, what this device knows about calls beyond CallKit's own
     // list, so a VoIP push that arrives late or out of order never rings:
@@ -111,6 +119,7 @@ final class NativeCallManager: NSObject {
     private func emitToken(_ token: String) {
         print("[voip-native] emitToken called, plugin attached: \(plugin != nil)")
         pendingToken = token
+        voipToken = token
         plugin?.notifyListeners("voipTokenReceived", data: ["token": token])
     }
 
@@ -258,6 +267,117 @@ final class NativeCallManager: NSObject {
         activeCalls.removeValue(forKey: uuid)
         answeredCalls.remove(uuid)
         appRequestedActions.remove(uuid)
+        videoCalls.remove(uuid)
+    }
+
+    /// The web page left a call answered on this device (its own Hang up, or it found the call over): ends CallKit's
+    /// call for it now, as a user action through CXCallController, so the green call indicator and the audio session
+    /// go away with the call and a later side-button press or End never lands on a call the page already left. Not
+    /// echoed back as callEnded (the page already hung up). No-op if CallKit has no answered call for it.
+    func endAnsweredFromApp(callId: String) {
+        guard let uuid = activeCalls.first(where: { $0.value == callId && answeredCalls.contains($0.key) })?.key,
+              !appRequestedActions.contains(uuid) else { return }
+        appRequestedActions.insert(uuid)
+        callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { [weak self] error in
+            guard let error else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                print("[voip-native] end answered call request failed: \(error.localizedDescription)")
+                self.appRequestedActions.remove(uuid)
+                self.noteEnded(callId)
+                self.reportEnded(uuid, reason: .remoteEnded)
+            }
+        }
+    }
+
+    /// The server origin the web view loads (capacitor.config.json's server.url, bundled with the app).
+    private static let serverOrigin: URL = {
+        if let url = Bundle.main.url(forResource: "capacitor.config", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let server = json["server"] as? [String: Any],
+           let raw = server["url"] as? String,
+           let origin = URL(string: raw) {
+            return origin
+        }
+        return URL(string: "https://yukon3t.com")!
+    }()
+
+    /// CallKit's End on a call answered here, reported straight to the server (POST /api/calls/native, see
+    /// src/lib/native-call-request.ts) with the web view's own session cookie. The web page hears about it too
+    /// (callEnded), but pressing End or the side button locks the phone / backgrounds the app, CallKit deactivates the
+    /// audio session, and WebKit suspends the page, so its hang-up used to wait until the app was next opened while
+    /// the other person stayed in the call. endCall is guarded, so the page's own later hang-up is a no-op. Runs in a
+    /// background task: with the call over, nothing else keeps the app running long enough to send it.
+    private func reportHangUpToServer(callId: String, attempt: Int = 1) {
+        let app = UIApplication.shared
+        var task = UIBackgroundTaskIdentifier.invalid
+        let finish = {
+            if task != .invalid {
+                app.endBackgroundTask(task)
+                task = .invalid
+            }
+        }
+        task = app.beginBackgroundTask(withName: "callkit-hangup") { finish() }
+        guard let url = URL(string: "/api/calls/native", relativeTo: Self.serverOrigin)?.absoluteURL,
+              let host = url.host else {
+            finish()
+            return
+        }
+        var body: [String: Any] = ["action": "end", "callId": callId]
+        if let voipToken { body["voipToken"] = voipToken }
+        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
+            let matching = cookies.filter { cookie in
+                let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+                return host == domain || host.hasSuffix("." + domain)
+            }
+            var request = URLRequest(url: url, timeoutInterval: 15)
+            request.httpMethod = "POST"
+            request.httpShouldHandleCookies = false
+            for (name, value) in HTTPCookie.requestHeaderFields(with: matching) {
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("1", forHTTPHeaderField: "X-YuKon3t-Native-Call")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                print("[voip-native] hang-up report attempt \(attempt): status \(status) error \(error?.localizedDescription ?? "none")")
+                DispatchQueue.main.async {
+                    // A network failure or server error is retried once; 4xx (signed out, bad request) is final.
+                    if (error != nil || status >= 500) && attempt < 2 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            self?.reportHangUpToServer(callId: callId, attempt: attempt + 1)
+                            finish()
+                        }
+                        return
+                    }
+                    finish()
+                }
+            }.resume()
+        }
+    }
+
+    /// Apple's CallKit pattern: the audio session is configured when the call is answered, before the action is
+    /// fulfilled, and CallKit then activates it. An audio call uses the voice-chat mode (the earpiece, like any phone
+    /// call), which is also what makes the side button end the call: iOS only ends a call on the side button while its
+    /// audio is on the earpiece, on the speaker it just locks the phone. A video call stays on the speaker.
+    private func configureAudioSession(video: Bool) {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(
+                .playAndRecord,
+                mode: video ? .videoChat : .voiceChat,
+                options: [.allowBluetooth, .allowBluetoothA2DP]
+            )
+        } catch {
+            print("[voip-native] audio session configure failed: \(error.localizedDescription)")
+        }
+    }
+
+    private static func describeRoute() -> String {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        return route.outputs.map { $0.portType.rawValue }.joined(separator: ",")
     }
 
     private func ringingUUID(for callId: String) -> UUID? {
@@ -390,10 +510,16 @@ extension NativeCallManager: PKPushRegistryDelegate {
         // entitlement revoked.
         let uuid = UUID()
         activeCalls[uuid] = callId
+        if callType == "VIDEO" { videoCalls.insert(uuid) }
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: callerName)
         update.hasVideo = callType == "VIDEO"
         update.localizedCallerName = callerName
+        // The page has no hold, grouping or keypad: don't let CallKit offer them (an unhandled hold action would fail).
+        update.supportsHolding = false
+        update.supportsGrouping = false
+        update.supportsUngrouping = false
+        update.supportsDTMF = false
         provider.reportNewIncomingCall(with: uuid, update: update) { _ in
             completion()
         }
@@ -405,6 +531,15 @@ extension NativeCallManager: CXProviderDelegate {
         activeCalls.removeAll()
         answeredCalls.removeAll()
         appRequestedActions.removeAll()
+        videoCalls.removeAll()
+    }
+
+    func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        print("[voip-native] audio session activated, route: \(Self.describeRoute())")
+    }
+
+    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        print("[voip-native] audio session deactivated")
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
@@ -427,6 +562,7 @@ extension NativeCallManager: CXProviderDelegate {
         if !requestedByApp {
             emitAnswered(callId)
         }
+        configureAudioSession(video: videoCalls.contains(action.uuid))
         action.fulfill()
     }
 
@@ -438,10 +574,12 @@ extension NativeCallManager: CXProviderDelegate {
         // the action is what has CallKit end the call and deactivate the
         // audio session it activated on answer; the page leaves the room.
         let requestedByApp = appRequestedActions.remove(action.uuid) != nil
+        print("[voip-native] CXEndCallAction: known=\(activeCalls[action.uuid] != nil) answered=\(answeredCalls.contains(action.uuid)) byApp=\(requestedByApp) route=\(Self.describeRoute())")
         if let callId = activeCalls[action.uuid] {
             if !requestedByApp {
                 if answeredCalls.contains(action.uuid) {
                     emitHungUp(callId)
+                    reportHangUpToServer(callId: callId)
                 } else {
                     emitDeclined(callId)
                 }

@@ -188,11 +188,16 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // the old 5s fallback poll — respondToCall/endCall publish onto this same
   // channel on every status change, so this fires instantly instead.
   const checkActiveCallStatus = useCallback(async () => {
+    // iOS: CallKit's End (side button, lock screen) pressed while the page was suspended reaches it only through the
+    // native queue. This check runs on every return to the foreground, so it drains that queue too: before this, the
+    // queue was read only by the ring check, which never runs during a call, so the End was never acted on.
+    await syncNativeCallEventsRef.current();
     const call = activeCallRef.current;
     if (!call) return;
     const result = await getCallStatus(call.callId);
     if (result.error) return;
     if (result.status === "ENDED" || result.status === "MISSED" || result.status === "DECLINED") {
+      void callKitRing.left(call.callId);
       endSession();
       setActiveCall((current) => (current?.callId === call.callId ? null : current));
       return;
@@ -228,10 +233,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         // takes the same endCall as "I leave" and the call carries on. A
         // hang-up from CallKit's End says so: that CallKit call is already
         // over, and needs no cancel push.
-        endCallDurably(
-          activeCall.callId,
-          callKitEndedIdRef.current === activeCall.callId ? currentCallDevice({ callKitEnded: true }) : undefined,
-        );
+        const endedByCallKit = callKitEndedIdRef.current === activeCall.callId;
+        endCallDurably(activeCall.callId, endedByCallKit ? currentCallDevice({ callKitEnded: true }) : undefined);
+        // iOS: an in-app hang-up ends CallKit's call for it right away (the green call indicator, the audio session),
+        // rather than leaving it to the cancel push. Nothing to do when CallKit's own End is what hung up.
+        if (!endedByCallKit) void callKitRing.left(activeCall.callId);
         setActiveCall(null);
       },
       isOver: async () => {
@@ -406,6 +412,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // incoming-call notification on Android.
   const answeredOutOfApp = useCallback(
     (callId: string) => {
+      // Already in this call (a late repeat of its answer, e.g. from the native queue drained during the call).
+      if (activeCallRef.current?.callId === callId) return;
       if (answers.noteOutOfAppAnswer(callId)) void acceptCall(callId);
     },
     [answers, acceptCall],

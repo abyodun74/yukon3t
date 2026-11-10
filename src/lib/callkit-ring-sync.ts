@@ -90,6 +90,8 @@ export interface CallKitRingPort {
   end(callId: string, reason: CallKitRingEndReason): Promise<void>;
   /** Calls CallKit is ringing right now (reported and not answered on this device). */
   ringing(): Promise<string[]>;
+  /** Ends CallKit's active call for a call answered on this device (no-op if it has none). */
+  endAnswered(callId: string): Promise<void>;
 }
 
 export interface CallKitRingSyncDeps {
@@ -128,6 +130,15 @@ export function createCallKitRingSync(port: CallKitRingPort, deps: CallKitRingSy
 
     /** An answer from this device was refused: the ring was resolved somewhere else. End it the way it ended. */
     settle,
+
+    /**
+     * The page left a call answered on this device (in-app hang-up, or the call was found over): CallKit's call ends
+     * now, rather than when the hang-up's cancel push arrives (or never, if it doesn't), so a later CallKit End or side
+     * button press never lands on a call the page has already left.
+     */
+    async left(callId: string) {
+      await port.endAnswered(callId).catch(() => {});
+    },
 
     /**
      * After a ring check: every call CallKit is still ringing that the server didn't just report as ringing is looked

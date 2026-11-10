@@ -40,6 +40,8 @@ export interface NativeCallKitPlugin {
   endRingingCall(options: { callId: string; reason: CallKitRingEndReason }): Promise<void>;
   /** Calls CallKit is ringing (reported, not answered here). Same build caveat. */
   getRingingCalls(): Promise<{ callIds: string[] }>;
+  /** Ends CallKit's active call for a call this page has left (in-app hang-up, or found over). Same build caveat. */
+  endAnsweredCall(options: { callId: string }): Promise<void>;
 }
 
 /**
@@ -67,6 +69,7 @@ const noop: CallKitRingPort = {
   answered: async () => {},
   end: async () => {},
   ringing: async () => [],
+  endAnswered: async () => {},
 };
 
 /**
@@ -85,6 +88,9 @@ export function createNativeCallKitRingPort(): CallKitRingPort {
     ringing: async () => {
       if (!hasMethod("getRingingCalls")) return [];
       return (await NativeCallKit.getRingingCalls()).callIds;
+    },
+    endAnswered: async (callId) => {
+      if (hasMethod("endAnsweredCall")) await NativeCallKit.endAnsweredCall({ callId });
     },
   };
 }
