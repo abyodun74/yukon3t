@@ -146,6 +146,8 @@ self.addEventListener("push", (event) => {
       body: payload.body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      // A quiet notice (the midnight birthday reminder): shown without sound or vibration.
+      silent: payload.silent === true,
       data: { url: notificationTarget(payload.url) },
     }),
   );

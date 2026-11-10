@@ -171,9 +171,9 @@ export const newMemberAlertsSchema = z.object({
   newMemberAlerts: z.boolean(),
 });
 
-// Settings -> Privacy, "Share my birthday" (updateBirthdaySharing). OFF stores null.
+// Settings -> Privacy, "Share my birthday" (updateBirthdaySharing): who is reminded, or NONE (Off, an explicit choice).
 export const birthdaySharingSchema = z.object({
-  audience: z.enum(["OFF", ...BIRTHDAY_AUDIENCE_VALUES]),
+  audience: z.enum(BIRTHDAY_AUDIENCE_VALUES),
 });
 
 // The quick-wish sheet (sendBirthdayWish): one reaction, one ready-made message (worded on the server, in the sender's

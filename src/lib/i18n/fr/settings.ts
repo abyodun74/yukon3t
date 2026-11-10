@@ -33,12 +33,12 @@ export const settings: typeof settingsEn = {
   birthday: {
     heading: "Anniversaire",
     label: "Partager mon anniversaire",
-    hint: "Le jour de votre anniversaire, les personnes que vous choisissez reçoivent un seul rappel et peuvent vous envoyer leurs vœux par message. Seuls le jour et le mois sont partagés, jamais l'année ni votre âge. Les personnes bloquées ne le voient jamais.",
+    hint: "Activé par défaut, avec vos relations et les membres de vos Circles. Le jour de votre anniversaire, ils reçoivent un seul rappel discret (sans son ni vibration) à minuit dans leur propre fuseau horaire et peuvent vous envoyer leurs vœux par message. Seuls le jour et le mois sont partagés, jamais l'année ni votre âge. Les personnes bloquées ne le voient jamais. Choisissez Désactivé pour ne plus le partager.",
     off: "Désactivé : ne pas partager mon anniversaire",
     connections: "Avec mes relations",
     circles: "Avec les membres de mes Circles",
-    both: "Avec mes relations et les membres de mes Circles",
-    unavailable: "Le partage de l'anniversaire est réservé aux membres de 18 ans ou plus dont la date de naissance figure sur leur compte.",
+    both: "Avec mes relations et les membres de mes Circles (par défaut)",
+    unavailable: "Votre anniversaire n'est partagé qu'à partir de 18 ans et si votre date de naissance figure sur votre compte. Vous pouvez choisir Désactivé dès maintenant et il le restera.",
     save: "Enregistrer le réglage d'anniversaire",
   },
   notifications: {

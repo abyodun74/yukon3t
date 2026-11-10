@@ -435,7 +435,7 @@ export const ui: typeof uiEn = {
   },
   birthdays: {
     title: "Cumpleaños de hoy",
-    intro: "Personas que eligieron compartir su cumpleaños contigo. Solo se comparte el día, nunca el año ni la edad de nadie.",
+    intro: "Personas que comparten su cumpleaños contigo. Solo se comparte el día, nunca el año ni la edad de nadie.",
     empty: "No hay cumpleaños que celebrar ahora mismo.",
     sendWishes: "Felicitar",
     wished: "Felicitación enviada",
@@ -449,6 +449,8 @@ export const ui: typeof uiEn = {
     sent: "Enviado. Tu felicitación está en tu chat con {name}.",
     openChat: "Abrir chat",
     close: "Cerrar",
+    quietChannelName: "Recordatorios de cumpleaños",
+    quietChannelDescription: "Recordatorios silenciosos de cumpleaños, sin sonido ni vibración",
     presets: {
       happyBirthday: "¡Feliz cumpleaños! Que tengas un día maravilloso.",
       wonderfulYear: "¡Te deseo un año maravilloso!",

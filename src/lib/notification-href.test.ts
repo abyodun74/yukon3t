@@ -177,6 +177,8 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: { ...chat, messageData: "birthday_wishes:2" }, href: "/messages" },
     { data: {}, href: "/messages" },
   ],
+  // The one-time "your birthday is now shared" notice: the birthday choice in Settings.
+  BIRTHDAY_SHARING_ON: [{ data: {}, href: "/settings#birthdays" }],
 };
 
 describe("notificationHref for every notification type", () => {

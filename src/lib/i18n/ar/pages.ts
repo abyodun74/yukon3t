@@ -121,6 +121,8 @@ export const pages: typeof pagesEn = {
       NEW_MEMBER_JOINED: "انضم {name} للتو إلى YuKon3t",
       BIRTHDAY_TODAY: "اليوم عيد ميلاد {name}",
       BIRTHDAY_WISHES: "هنّأك {name} بعيد ميلادك",
+      BIRTHDAY_SHARING_ON:
+        "أصبح عيد ميلادك (اليوم والشهر فقط، ولا تُشارَك السنة أبدًا) مُشارَكًا الآن مع جهات تواصلك وأعضاء Circles الخاصة بك. يمكنك إيقاف ذلك من الإعدادات.",
     },
     notices: {
       videoFlagged:

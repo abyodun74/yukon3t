@@ -33,12 +33,12 @@ export const settings: typeof settingsEn = {
   birthday: {
     heading: "Cumpleaños",
     label: "Compartir mi cumpleaños",
-    hint: "El día de tu cumpleaños, las personas que elijas reciben un solo recordatorio y pueden enviarte felicitaciones como mensaje. Solo se comparten el día y el mes, nunca el año ni tu edad. Las personas bloqueadas nunca lo ven.",
+    hint: "Activado de forma predeterminada, con tus contactos y los miembros de tus Circles. El día de tu cumpleaños reciben un solo recordatorio silencioso (sin sonido ni vibración) a medianoche en su propia zona horaria y pueden enviarte felicitaciones como mensaje. Solo se comparten el día y el mes, nunca el año ni tu edad. Las personas bloqueadas nunca lo ven. Elige Desactivado para dejar de compartirlo.",
     off: "Desactivado: no compartir mi cumpleaños",
     connections: "Con mis contactos",
     circles: "Con los miembros de mis Circles",
-    both: "Con mis contactos y los miembros de mis Circles",
-    unavailable: "Compartir el cumpleaños es solo para miembros de 18 años o más que tienen su fecha de nacimiento en la cuenta.",
+    both: "Con mis contactos y los miembros de mis Circles (predeterminado)",
+    unavailable: "Tu cumpleaños solo se comparte cuando tienes 18 años o más y tu fecha de nacimiento está en tu cuenta. Puedes elegir Desactivado ahora y seguirá desactivado.",
     save: "Guardar ajuste de cumpleaños",
   },
   notifications: {

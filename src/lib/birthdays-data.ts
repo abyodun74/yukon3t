@@ -15,7 +15,9 @@ import {
   birthdayRefusal,
   birthdayReminderKey,
   birthdayWishHref,
+  canShareBirthday,
   dbDateKey,
+  isSharingBirthday,
   groupBirthdayPushes,
   localDateTime,
   localDateToDbDate,
@@ -32,7 +34,7 @@ import {
 
 const PERSON_SELECT = { id: true, status: true, isGuestPreview: true, birthDate: true } as const;
 
-export type BirthdayCelebrant = BirthdayPerson & { birthdayAudience: BirthdayAudience | null };
+export type BirthdayCelebrant = BirthdayPerson & { birthdayAudience: BirthdayAudience };
 
 /** How each person in the celebrant's audience is linked to them, read from accepted connections and shared Circles. */
 async function audienceLinks(celebrant: BirthdayCelebrant, onlyIds?: string[]): Promise<Map<string, BirthdayLink>> {
@@ -87,7 +89,7 @@ export async function eligibleBirthdayRecipients(
   now: Date,
   onlyIds?: string[],
 ): Promise<{ id: string; timeZone: string | null }[]> {
-  if (!celebrant.birthdayAudience) return [];
+  if (!isSharingBirthday(celebrant.birthdayAudience)) return [];
   const links = await audienceLinks(celebrant, onlyIds);
   const ids = [...links.keys()];
   if (ids.length === 0) return [];
@@ -138,7 +140,7 @@ async function celebrantCandidateIds(now: Date): Promise<string[]> {
   const days = birthdayCandidateMonthDays(now);
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT "id" FROM "User"
-    WHERE "birthdayAudience" IS NOT NULL
+    WHERE "birthdayAudience" <> 'NONE'
       AND "birthDate" IS NOT NULL
       AND "status" = 'ACTIVE'
       AND "isGuestPreview" = false
@@ -151,8 +153,8 @@ async function celebrantCandidateIds(now: Date): Promise<string[]> {
 
 /**
  * One run of the birthday-reminders cron (src/app/api/cron/birthday-reminders/route.ts, every 15 minutes). For every
- * person sharing a birthday that is today somewhere, every eligible recipient whose local morning of that day has
- * begun gets a BirthdayReminder row. Rows are inserted with skipDuplicates on the (celebrant, recipient, year) unique
+ * person sharing a birthday that is today somewhere, every eligible recipient for whom it is already that day (their
+ * local midnight has passed) gets a BirthdayReminder row. Rows are inserted with skipDuplicates on the (celebrant, recipient, year) unique
  * key and only rows this run actually inserted get a BIRTHDAY_TODAY bell row and a push, so running twice (or two runs
  * overlapping) sends nothing twice. A recipient's birthdays of one day share one push; a later run that finds another
  * birthday for them the same day adds its bell row without pushing again.
@@ -169,7 +171,7 @@ export async function sendBirthdayReminders(now = new Date()) {
   let failed = 0;
   const year = localDateTime(now, "UTC").year;
   for (const celebrant of celebrants) {
-    if (!celebrant.birthDate || !celebrant.birthdayAudience) continue;
+    if (!celebrant.birthDate || !isSharingBirthday(celebrant.birthdayAudience)) continue;
     // Isolated per celebrant: one failing lookup must not cost everyone else their reminders this run.
     try {
       const recipients = await eligibleBirthdayRecipients(celebrant, now);
@@ -225,7 +227,8 @@ export async function sendBirthdayReminders(now = new Date()) {
     });
     const pushedBefore = new Set(earlier.map((r) => `${r.recipientId}|${dbDateKey(r.occasionDate)}`));
 
-    // Recipients told about the same birthdays get the same push: one send per distinct list.
+    // Recipients told about the same birthdays get the same push: one send per distinct list. Delivered quietly (no
+    // sound, no vibration, iOS "passive"): it arrives at midnight in the recipient's time zone.
     const sameList = new Map<string, { celebrantIds: string[]; recipientIds: string[] }>();
     for (const group of groupBirthdayPushes(inserted, pushedBefore)) {
       const key = group.celebrantIds.join(",");
@@ -237,8 +240,12 @@ export async function sendBirthdayReminders(now = new Date()) {
     for (const { celebrantIds, recipientIds: to } of sameList.values()) {
       const url = celebrantIds.length === 1 ? birthdayWishHref(celebrantIds[0]) : BIRTHDAYS_HREF;
       const names = celebrantIds.map((id) => nameById.get(id) ?? null);
-      await sendPushToUsers(to, (locale) => ({ ...birthdayPush(names, locale), url }));
-      await sendFcmActivityToUsers(to, (locale) => ({ ...birthdayPush(names, locale), type: "BIRTHDAY_TODAY", url }));
+      await sendPushToUsers(to, (locale) => ({ ...birthdayPush(names, locale), url, silent: true }));
+      await sendFcmActivityToUsers(
+        to,
+        (locale) => ({ ...birthdayPush(names, locale), type: "BIRTHDAY_TODAY", url }),
+        { quiet: true },
+      );
       pushes += to.length;
     }
     await publishEvents(recipientIds.map((id) => ({ channel: REALTIME_CHANNELS.navBadges(id), event: "changed" })));
@@ -249,6 +256,57 @@ export async function sendBirthdayReminders(now = new Date()) {
     return { celebrants: celebrants.length, reminders: inserted.length, pushes, failed: failed + 1 };
   }
   return { celebrants: celebrants.length, reminders: inserted.length, pushes, failed };
+}
+
+/** Most default-on notices sent by one cron run; the rest go out on the next runs. */
+export const BIRTHDAY_SHARING_NOTICE_BATCH = 500;
+
+/**
+ * The one-time "your birthday is now shared" notice (BIRTHDAY_SHARING_ON, bell only, no push) to the accounts the
+ * default-on migration switched on (User.birthdaySharingNoticePending). Sent only once the account is one whose
+ * birthday can actually be shared (an ACTIVE adult with a known birth date, canShareBirthday), still sharing and not a
+ * site admin (never a celebrant); an under-18 account keeps its flag and gets the notice in the run after it turns
+ * 18. Each account is claimed by a guarded update in the same transaction that writes its bell row, so overlapping
+ * runs send nothing twice, and a failure sends nothing and claims nothing. Any choice made in Settings clears the flag
+ * (updateBirthdaySharing): that person has already seen the setting.
+ */
+export async function sendBirthdaySharingNotices(now = new Date()) {
+  // A day of slack on the 18-year cutoff: Feb 29 birthdays and time zones; canShareBirthday decides exactly.
+  const today = localDateTime(now, "UTC");
+  const cutoff = new Date(Date.UTC(today.year - 18, today.month - 1, today.day + 1));
+  const candidates = await prisma.user.findMany({
+    where: {
+      birthdaySharingNoticePending: true,
+      birthdayAudience: { not: "NONE" },
+      status: "ACTIVE",
+      isGuestPreview: false,
+      isAdmin: false,
+      birthDate: { not: null, lte: cutoff },
+    },
+    select: { id: true, birthDate: true },
+    orderBy: { id: "asc" },
+    take: BIRTHDAY_SHARING_NOTICE_BATCH,
+  });
+  const ids = candidates.filter((c) => canShareBirthday(c.birthDate, now)).map((c) => c.id);
+  if (ids.length === 0) return { notices: 0 };
+
+  const claimed = await prisma.$transaction(async (tx) => {
+    const rows = await tx.user.updateManyAndReturn({
+      where: { id: { in: ids }, birthdaySharingNoticePending: true, birthdayAudience: { not: "NONE" } },
+      data: { birthdaySharingNoticePending: false },
+      select: { id: true },
+    });
+    if (rows.length > 0) {
+      await tx.notification.createMany({
+        data: rows.map((r) => ({ recipientId: r.id, actorId: r.id, type: "BIRTHDAY_SHARING_ON" as const })),
+      });
+    }
+    return rows.map((r) => r.id);
+  });
+  if (claimed.length > 0) {
+    await publishEvents(claimed.map((id) => ({ channel: REALTIME_CHANNELS.navBadges(id), event: "changed" })));
+  }
+  return { notices: claimed.length };
 }
 
 /** The most recent reminder that still lets `recipientId` wish `celebrantId` (BIRTHDAY_WISH_WINDOW_MS), with its year. */

@@ -33,12 +33,12 @@ export const settings: typeof settingsEn = {
   birthday: {
     heading: "Aniversário",
     label: "Compartilhar meu aniversário",
-    hint: "No dia do seu aniversário, as pessoas que você escolher recebem um único lembrete e podem te mandar felicitações por mensagem. Só o dia e o mês são compartilhados, nunca o ano nem a sua idade. Pessoas bloqueadas nunca veem.",
+    hint: "Ativado por padrão, com suas conexões e os membros dos seus Circles. No dia do seu aniversário, eles recebem um único lembrete silencioso (sem som nem vibração) à meia-noite no fuso horário deles e podem te mandar felicitações por mensagem. Só o dia e o mês são compartilhados, nunca o ano nem a sua idade. Pessoas bloqueadas nunca veem. Escolha Desativado para parar de compartilhar.",
     off: "Desativado: não compartilhar meu aniversário",
     connections: "Com minhas conexões",
     circles: "Com os membros dos meus Circles",
-    both: "Com minhas conexões e os membros dos meus Circles",
-    unavailable: "Compartilhar o aniversário é só para membros com 18 anos ou mais que têm a data de nascimento na conta.",
+    both: "Com minhas conexões e os membros dos meus Circles (padrão)",
+    unavailable: "Seu aniversário só é compartilhado quando você tem 18 anos ou mais e sua data de nascimento está na conta. Você pode escolher Desativado agora e ele continuará desativado.",
     save: "Salvar configuração de aniversário",
   },
   notifications: {

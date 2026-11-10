@@ -67,7 +67,8 @@ export type NotificationData = {
     | "EVENT_ANNOUNCEMENT"
     | "NEW_MEMBER_JOINED"
     | "BIRTHDAY_TODAY"
-    | "BIRTHDAY_WISHES";
+    | "BIRTHDAY_WISHES"
+    | "BIRTHDAY_SHARING_ON";
   // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
   recipientId: string;
   readAt: Date | null;
@@ -121,6 +122,8 @@ export function notificationHref(notification: NotificationData) {
   }
   // "<name> has a birthday today" opens the quick-wish sheet for them (the cron's push uses birthdayWishHref too).
   if (notification.type === "BIRTHDAY_TODAY") return birthdayWishHref(notification.actor.id);
+  // "Your birthday is now shared": the birthday choice in Settings (the #birthdays anchor opens its section).
+  if (notification.type === "BIRTHDAY_SHARING_ON") return BIRTHDAY_SETTINGS_HREF;
   // The celebrant's combined wishes row: the latest wisher's chat while it is one wish, the inbox once several people
   // have written (a birthday_wishes notice). The first wish's push opens the same chat.
   if (notification.type === "BIRTHDAY_WISHES") {
@@ -181,3 +184,6 @@ export function storyHref(ownerId: string, storyId: string | null | undefined) {
 
 /** Where a coalesced NEW_MEMBER_JOINED digest leads: Discover, newest people first. */
 export const NEW_MEMBERS_DIGEST_HREF = "/discover?sort=recent";
+
+/** Where the one-time "your birthday is now shared" notice (BIRTHDAY_SHARING_ON) leads: Settings -> Privacy -> Birthday. */
+export const BIRTHDAY_SETTINGS_HREF = "/settings#birthdays";

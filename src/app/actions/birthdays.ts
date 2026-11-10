@@ -5,13 +5,15 @@ import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { birthdaySharingSchema, birthdayWishSchema } from "@/lib/validations";
-import { canShareBirthday } from "@/lib/birthdays";
+import { canShareBirthday, isSharingBirthday } from "@/lib/birthdays";
 import { sendBirthdayWishAs, type BirthdayWishResult } from "@/lib/birthday-wish-server";
 import { getDictionary } from "@/lib/i18n/server";
 
 /**
- * Settings -> Privacy, "Share my birthday": off (the default), or who is reminded on the day (src/lib/birthdays.ts).
- * Turning it on needs a known birth date and an adult account (BIRTHDAY_MIN_AGE); turning it off always works.
+ * Settings -> Privacy, "Share my birthday": who is reminded on the day (src/lib/birthdays.ts). On by default (BOTH);
+ * NONE is Off, and is always accepted. Changing to another way of sharing needs a known birth date and an adult account
+ * (BIRTHDAY_MIN_AGE). Any choice made here also clears a still-pending default-on notice (BIRTHDAY_SHARING_ON): the
+ * person has seen the setting and decided.
  */
 export async function updateBirthdaySharing(formData: FormData) {
   const user = await requireUser();
@@ -19,14 +21,20 @@ export async function updateBirthdaySharing(formData: FormData) {
   if (!parsed.success) {
     redirect("/settings?error=other");
   }
-  const audience = parsed.data.audience === "OFF" ? null : parsed.data.audience;
-  if (audience && !canShareBirthday(user.birthDate, new Date())) {
+  const audience = parsed.data.audience;
+  // Keeping the choice already stored is always fine (an under-18 account starts on BOTH like everyone, and it only
+  // takes effect at BIRTHDAY_MIN_AGE); picking a new way to share needs it to be shareable now.
+  if (
+    isSharingBirthday(audience) &&
+    audience !== user.birthdayAudience &&
+    !canShareBirthday(user.birthDate, new Date())
+  ) {
     redirect("/settings?error=birthday_unavailable");
   }
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { birthdayAudience: audience },
+    data: { birthdayAudience: audience, birthdaySharingNoticePending: false },
     select: { id: true },
   });
 

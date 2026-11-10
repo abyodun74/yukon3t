@@ -86,6 +86,9 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   NEW_MEMBER_JOINED: "just joined YuKon3t",
   BIRTHDAY_TODAY: "has a birthday today",
   BIRTHDAY_WISHES: "wished you a happy birthday",
+  // System notice, sent once by the birthday-reminders cron to accounts the default-on change switched on.
+  BIRTHDAY_SHARING_ON:
+    "Your birthday (day and month only, never the year) is now shared with your connections and members of your Circles. You can turn this off in Settings.",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,
@@ -97,6 +100,7 @@ export function notificationHasActor(type: NotificationType) {
     type !== "VIDEO_MODERATION_FAILED" &&
     type !== "VIDEO_FLAGGED_FOR_REVIEW" &&
     type !== "COLLAB_SESSION_REMINDER" &&
-    type !== "LIVE_RECORDING_POST_FAILED"
+    type !== "LIVE_RECORDING_POST_FAILED" &&
+    type !== "BIRTHDAY_SHARING_ON"
   );
 }

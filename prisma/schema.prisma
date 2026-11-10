@@ -302,12 +302,17 @@ model User {
   newMemberPushAt      DateTime?
 
   // Birthday reminders (src/lib/birthdays.ts, the birthday-reminders cron). birthdayAudience is the person's own
-  // "Share my birthday" choice in Settings -> Privacy: null (the default) means off; otherwise who is reminded on the
-  // day. Only the day and month of birthDate are ever shown to anyone, never the year or an age, and it can only be on
-  // for an adult (BIRTHDAY_MIN_AGE). timeZone is the device's IANA zone, recorded by the presence heartbeat
-  // (pingPresence) whenever it changes, so a reminder lands in the recipient's morning; null reads as UTC.
-  birthdayAudience BirthdayAudience?
-  timeZone         String?
+  // "Share my birthday" choice in Settings -> Privacy. On by default (BOTH: connections and Circles); NONE is an
+  // explicit "Off" and is the only way to be off (migration 20261110120100_birthday_sharing_default_on switched
+  // everyone who had never chosen to BOTH and kept everyone who had turned it off as NONE). Only the day and month of
+  // birthDate are ever shown to anyone, never the year or an age, and it only takes effect for an adult
+  // (BIRTHDAY_MIN_AGE). birthdaySharingNoticePending: this account was switched on by that migration and hasn't yet
+  // had the one-time BIRTHDAY_SHARING_ON bell notice (sent by the birthday-reminders cron once the account is an adult;
+  // cleared by any choice made in Settings). timeZone is the device's IANA zone, recorded by the presence heartbeat
+  // (pingPresence) whenever it changes, so a reminder lands at the recipient's local midnight; null reads as UTC.
+  birthdayAudience             BirthdayAudience @default(BOTH)
+  birthdaySharingNoticePending Boolean          @default(false)
+  timeZone                     String?
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -445,11 +450,12 @@ model User {
   @@index([birthdayAudience])
 }
 
-// Who a person's birthday reminder goes to (User.birthdayAudience). Unset = nobody.
+// Who a person's birthday reminder goes to (User.birthdayAudience). NONE = nobody (the person turned it off).
 enum BirthdayAudience {
   CONNECTIONS
   CIRCLES
   BOTH
+  NONE
 }
 
 // One birthday reminder: `recipientId` was told it is `celebrantId`'s birthday. The unique (celebrant, recipient,
@@ -1478,13 +1484,17 @@ enum NotificationType {
   // people instead of one profile. Bell + FCM push, the push at most once per NEW_MEMBER_PUSH_COOLDOWN_MS per recipient.
   NEW_MEMBER_JOINED
   // "<name> has a birthday today": one row per birthday per recipient, written by the birthday-reminders cron
-  // (src/lib/birthdays-data.ts) in the recipient's morning. actorId is the person whose birthday it is. Opens the
+  // (src/lib/birthdays-data.ts) from the recipient's local midnight, with a silent push. actorId is the person whose birthday it is. Opens the
   // quick-wish sheet (/birthdays?wish=<actorId>). A recipient's birthdays of one day share one push.
   BIRTHDAY_TODAY
   // "<name> wished you a happy birthday": the celebrant's one combined row per year (BirthdayWishDigest), updated as
   // more wishes arrive into a "birthday_wishes:<others>" notice ("<name> and 3 others wished you a happy birthday").
   // actorId is the latest wisher. Pushed once, on the first wish; each wish itself is a direct message.
   BIRTHDAY_WISHES
+  // One-time system notice (no push) to an account the default-on migration switched on: your birthday (day and month
+  // only) is now shared with your connections and Circles; opens Settings -> Privacy -> Birthday. actorId is the
+  // recipient themself (system-generated, see notificationHasActor).
+  BIRTHDAY_SHARING_ON
 }
 
 model Notification {

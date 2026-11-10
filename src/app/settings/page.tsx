@@ -49,8 +49,8 @@ export default async function SettingsPage({
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
   const translationAvailable = isTranslationConfigured();
-  // Off and not offered to anyone who can't turn it on (no birth date on the account, or under BIRTHDAY_MIN_AGE); an
-  // account that already has it on can always turn it off.
+  // "Share my birthday" is on by default (BOTH) and Off (NONE) can always be chosen. Someone it can't apply to yet (no
+  // birth date on the account, or under BIRTHDAY_MIN_AGE) is only offered their current choice and Off.
   const birthdayShareable = canShareBirthday(user.birthDate, new Date());
 
   const [signedInBefore, signedInAfter] = aroundPlaceholder(t.signedInAs, "email");
@@ -162,32 +162,29 @@ export default async function SettingsPage({
               <select
                 id="settings-birthday-audience"
                 name="audience"
-                defaultValue={user.birthdayAudience ?? "OFF"}
-                disabled={!birthdayShareable && !user.birthdayAudience}
+                defaultValue={user.birthdayAudience}
                 aria-describedby="settings-birthday-hint"
-                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60"
+                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
               >
-                <option value="OFF">{t.birthday.off}</option>
+                {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
                 {(birthdayShareable || user.birthdayAudience === "CONNECTIONS") && (
                   <option value="CONNECTIONS">{t.birthday.connections}</option>
                 )}
                 {(birthdayShareable || user.birthdayAudience === "CIRCLES") && (
                   <option value="CIRCLES">{t.birthday.circles}</option>
                 )}
-                {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
+                <option value="NONE">{t.birthday.off}</option>
               </select>
               <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
                 {birthdayShareable ? t.birthday.hint : t.birthday.unavailable}
               </p>
             </div>
-            {(birthdayShareable || user.birthdayAudience) && (
-              <SubmitButton
-                label={t.birthday.save}
-                pendingLabel={t.saving}
-                offlineMessage={offlineMessage}
-                className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-              />
-            )}
+            <SubmitButton
+              label={t.birthday.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
           </form>
         </CollapsibleSection>
 

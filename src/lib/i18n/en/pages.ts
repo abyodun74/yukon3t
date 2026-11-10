@@ -124,6 +124,8 @@ export const pagesEn = {
       NEW_MEMBER_JOINED: "{name} just joined YuKon3t",
       BIRTHDAY_TODAY: "{name} has a birthday today",
       BIRTHDAY_WISHES: "{name} wished you a happy birthday",
+      BIRTHDAY_SHARING_ON:
+        "Your birthday (day and month only, never the year) is now shared with your connections and members of your Circles. You can turn this off in Settings.",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into

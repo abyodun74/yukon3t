@@ -1,10 +1,11 @@
 import type { App } from "firebase-admin/app";
-import { getMessaging, type ApnsConfig } from "firebase-admin/messaging";
+import { getMessaging, type AndroidConfig, type ApnsConfig } from "firebase-admin/messaging";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
 import { SILENT_CALL_APNS, incomingCallData, missedCallApns, missedCallData } from "@/lib/call-push-data";
+import { quietAndroidConfig, quietApnsConfig } from "@/lib/quiet-push";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
@@ -209,8 +210,14 @@ export async function broadcastFcmAnnouncement(payload: { title: string; body: s
  * for all of them instead of one per recipient, sent with the same payload
  * shape through the announcement broadcast's chunked multicast. Best-effort
  * and never throws, including when the query itself fails.
+ * `quiet`: shown without sound or vibration (Android's quiet channel, iOS
+ * "passive"; see quiet-push.ts). Only the midnight birthday reminder.
  */
-export async function sendFcmActivityToUsers(userIds: string[], localizedPayload: Localized<ActivityPayload>) {
+export async function sendFcmActivityToUsers(
+  userIds: string[],
+  localizedPayload: Localized<ActivityPayload>,
+  options: { quiet?: boolean } = {},
+) {
   if (!isFcmConfigured || !app || userIds.length === 0) return;
 
   let tokens: Token[];
@@ -232,6 +239,7 @@ export async function sendFcmActivityToUsers(userIds: string[], localizedPayload
     await sendFcmNotificationToTokens(app, group, {
       notification: { title: payload.title, body: payload.body },
       data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
+      ...(options.quiet ? { android: quietAndroidConfig(), apns: quietApnsConfig() } : {}),
     });
   }
 }
@@ -278,7 +286,13 @@ export async function sendFcmNoticeToTokens(
 async function sendFcmNotificationToTokens(
   app: App,
   tokens: { id: string; token: string }[],
-  message: { notification: { title: string; body: string }; data: Record<string, string> },
+  message: {
+    notification: { title: string; body: string };
+    data: Record<string, string>;
+    // Defaults to a normal high-priority notification; quiet-push.ts's blocks for a quiet one.
+    android?: AndroidConfig;
+    apns?: ApnsConfig;
+  },
 ) {
   for (let i = 0; i < tokens.length; i += FCM_MULTICAST_CHUNK_SIZE) {
     const chunk = tokens.slice(i, i + FCM_MULTICAST_CHUNK_SIZE);
@@ -287,7 +301,8 @@ async function sendFcmNotificationToTokens(
         tokens: chunk.map((t) => t.token),
         notification: message.notification,
         data: message.data,
-        android: { priority: "high" },
+        android: message.android ?? { priority: "high" },
+        ...(message.apns ? { apns: message.apns } : {}),
       });
       const staleTokenIds: string[] = [];
       response.responses.forEach((r, idx) => {

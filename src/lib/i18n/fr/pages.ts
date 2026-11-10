@@ -123,6 +123,8 @@ export const pages: typeof pagesEn = {
       NEW_MEMBER_JOINED: "{name} vient de rejoindre YuKon3t",
       BIRTHDAY_TODAY: "C'est l'anniversaire de {name} aujourd'hui",
       BIRTHDAY_WISHES: "{name} vous a souhaité un joyeux anniversaire",
+      BIRTHDAY_SHARING_ON:
+        "Votre anniversaire (le jour et le mois seulement, jamais l'année) est désormais partagé avec vos relations et les membres de vos Circles. Vous pouvez le désactiver dans les Paramètres.",
     },
     notices: {
       videoFlagged:

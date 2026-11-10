@@ -436,7 +436,7 @@ export const ui: typeof uiEn = {
   },
   birthdays: {
     title: "Aniversários de hoje",
-    intro: "Pessoas que escolheram compartilhar o aniversário com você. Só o dia é compartilhado, nunca o ano nem a idade de ninguém.",
+    intro: "Pessoas que compartilham o aniversário com você. Só o dia é compartilhado, nunca o ano nem a idade de ninguém.",
     empty: "Nenhum aniversário para comemorar agora.",
     sendWishes: "Parabenizar",
     wished: "Parabéns enviados",
@@ -450,6 +450,8 @@ export const ui: typeof uiEn = {
     sent: "Enviado. Seus parabéns estão na sua conversa com {name}.",
     openChat: "Abrir conversa",
     close: "Fechar",
+    quietChannelName: "Lembretes de aniversário",
+    quietChannelDescription: "Lembretes silenciosos de aniversário, sem som nem vibração",
     presets: {
       happyBirthday: "Feliz aniversário! Tenha um dia maravilhoso.",
       wonderfulYear: "Desejo a você um ano maravilhoso!",

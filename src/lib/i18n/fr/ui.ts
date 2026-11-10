@@ -436,7 +436,7 @@ export const ui: typeof uiEn = {
   },
   birthdays: {
     title: "Anniversaires du jour",
-    intro: "Les personnes qui ont choisi de partager leur anniversaire avec vous. Seul le jour est partagé, jamais l'année ni l'âge de qui que ce soit.",
+    intro: "Les personnes qui partagent leur anniversaire avec vous. Seul le jour est partagé, jamais l'année ni l'âge de qui que ce soit.",
     empty: "Aucun anniversaire à fêter pour le moment.",
     sendWishes: "Souhaiter",
     wished: "Vœux envoyés",
@@ -450,6 +450,8 @@ export const ui: typeof uiEn = {
     sent: "Envoyé. Vos vœux sont dans votre discussion avec {name}.",
     openChat: "Ouvrir la discussion",
     close: "Fermer",
+    quietChannelName: "Rappels d'anniversaire",
+    quietChannelDescription: "Rappels d'anniversaire discrets, sans son ni vibration",
     presets: {
       happyBirthday: "Joyeux anniversaire ! Passe une merveilleuse journée.",
       wonderfulYear: "Je te souhaite une merveilleuse année !",

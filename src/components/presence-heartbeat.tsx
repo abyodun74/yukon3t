@@ -10,7 +10,7 @@ import { HEARTBEAT_INTERVAL_MS } from "@/lib/presence";
  * note on read-receipts for why a page that can be a `<Link>` prefetch
  * target must never mutate on its server-rendered path.
  */
-/** The device's time zone, for birthday reminders in the person's morning (pingPresence). */
+/** The device's time zone, for birthday reminders at the person's local midnight (pingPresence). */
 function deviceTimeZone(): string | undefined {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;

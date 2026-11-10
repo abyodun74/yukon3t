@@ -14,8 +14,8 @@ const PRESENCE_WRITE_MIN_INTERVAL_MS = 30_000;
  * stays in recordActivity, gated to real content-creation actions).
  *
  * `timeZone` is the device's IANA time zone, stored on the account only when it changes (compared with the row
- * requireUser already read, so an unchanged one costs nothing): it is what puts a birthday reminder in the person's
- * morning (src/lib/birthdays.ts). Anything that isn't a time zone this runtime knows is ignored.
+ * requireUser already read, so an unchanged one costs nothing): it is what puts a birthday reminder at the person's
+ * local midnight (src/lib/birthdays.ts). Anything that isn't a time zone this runtime knows is ignored.
  */
 export async function pingPresence(timeZone?: unknown) {
   const user = await requireUser();

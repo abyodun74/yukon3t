@@ -10,14 +10,20 @@ const memberFindMany = vi.fn();
 const reminderFindMany = vi.fn();
 const reminderCreateManyAndReturn = vi.fn();
 const notificationCreateMany = vi.fn();
+const userUpdateManyAndReturn = vi.fn();
 const webPush = vi.fn();
 const fcmToUsers = vi.fn();
 const publishEvents = vi.fn();
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const client: Record<string, unknown> = {
     $queryRaw: (...a: unknown[]) => queryRaw(...a),
-    user: { findMany: (...a: unknown[]) => userFindMany(...a) },
+    // An interactive transaction runs its callback against the same mocked client.
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(client),
+    user: {
+      findMany: (...a: unknown[]) => userFindMany(...a),
+      updateManyAndReturn: (...a: unknown[]) => userUpdateManyAndReturn(...a),
+    },
     connection: { findMany: (...a: unknown[]) => connectionFindMany(...a) },
     circleMembership: { findMany: (...a: unknown[]) => membershipFindMany(...a) },
     block: { findMany: (...a: unknown[]) => blockFindMany(...a) },
@@ -27,18 +33,19 @@ vi.mock("@/lib/prisma", () => ({
       createManyAndReturn: (...a: unknown[]) => reminderCreateManyAndReturn(...a),
     },
     notification: { createMany: (...a: unknown[]) => notificationCreateMany(...a) },
-  },
-}));
+  };
+  return { prisma: client };
+});
 vi.mock("@/lib/push", () => ({ sendPushToUsers: (...a: unknown[]) => webPush(...a) }));
 vi.mock("@/lib/fcm", () => ({ sendFcmActivityToUsers: (...a: unknown[]) => fcmToUsers(...a) }));
 vi.mock("@/lib/realtime-server", () => ({ publishEvents: (...a: unknown[]) => publishEvents(...a) }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn() }));
 
-import { sendBirthdayReminders } from "./birthdays-data";
+import { sendBirthdayReminders, sendBirthdaySharingNotices } from "./birthdays-data";
 import { notificationHref, type NotificationData } from "@/lib/notification-href";
 
-// 10:00 UTC on Nov 7: morning in London and Lagos, still Nov 6 night in Los Angeles.
-const now = new Date("2026-11-07T10:00:00Z");
+// 07:00 UTC on Nov 7: past midnight in London and Lagos, still 23:00 on Nov 6 in Los Angeles.
+const now = new Date("2026-11-07T07:00:00Z");
 const day = new Date("2026-11-07T00:00:00.000Z");
 const adultBirth = new Date("1990-03-03T00:00:00.000Z");
 
@@ -52,7 +59,7 @@ const person = (id: string, timeZone: string | null, birthDate: Date | null = ad
   timeZone,
 });
 
-const celebrant = (id: string, name: string, audience = "CONNECTIONS") => ({
+const celebrant = (id: string, name: string, audience: "CONNECTIONS" | "CIRCLES" | "BOTH" | "NONE" = "CONNECTIONS") => ({
   id,
   name,
   status: "ACTIVE",
@@ -113,6 +120,7 @@ describe("sendBirthdayReminders", () => {
       webPush,
       fcmToUsers,
       publishEvents,
+      userUpdateManyAndReturn,
     ]) {
       fn.mockReset();
     }
@@ -132,7 +140,7 @@ describe("sendBirthdayReminders", () => {
     expect(reminderCreateManyAndReturn).not.toHaveBeenCalled();
   });
 
-  it("reminds eligible recipients in their morning only: not blocked, not hiding the chat, adult, already 9:00 there", async () => {
+  it("reminds eligible recipients from their local midnight only: not blocked, not hiding the chat, adult, already the birthday there", async () => {
     world({
       celebrants: [celebrant("ada", "Ada")],
       connections: { ada: ["r-ok", "r-blocked", "r-hides", "r-minor", "r-la"] },
@@ -159,10 +167,12 @@ describe("sendBirthdayReminders", () => {
     expect(webPush).toHaveBeenCalledTimes(1);
     const [to, payload] = webPush.mock.calls[0] as [string[], Payload];
     expect(to).toEqual(["r-ok"]);
-    expect(payload("en")).toEqual({ title: "Ada", body: "has a birthday today", url: "/birthdays?wish=ada" });
+    // Silent: it lands at midnight. Web push asks for no sound/vibration, FCM goes out on the quiet channel / passive.
+    expect(payload("en")).toEqual({ title: "Ada", body: "has a birthday today", url: "/birthdays?wish=ada", silent: true });
     expect(payload("en").url).toBe(notificationHref(rowFor({ recipientId: "r-ok", actorId: "ada", type: "BIRTHDAY_TODAY" })));
-    const [, fcmPayload] = fcmToUsers.mock.calls[0] as [string[], Payload];
+    const [, fcmPayload, fcmOptions] = fcmToUsers.mock.calls[0] as [string[], Payload, { quiet?: boolean }];
     expect(fcmPayload("en")).toMatchObject({ type: "BIRTHDAY_TODAY", url: "/birthdays?wish=ada" });
+    expect(fcmOptions).toEqual({ quiet: true });
     expect(result).toEqual({ celebrants: 1, reminders: 1, pushes: 1, failed: 0 });
   });
 
@@ -211,8 +221,9 @@ describe("sendBirthdayReminders", () => {
       title: "Birthdays today",
       body: "Ada and 2 others have birthdays today",
       url: "/birthdays",
+      silent: true,
     });
-    expect(pushes).toContainEqual({ to: ["r2"], title: "Cy", body: "has a birthday today", url: "/birthdays?wish=cy" });
+    expect(pushes).toContainEqual({ to: ["r2"], title: "Cy", body: "has a birthday today", url: "/birthdays?wish=cy", silent: true });
   });
 
   it("adds the bell row for a birthday found later the same day without pushing that recipient again", async () => {
@@ -235,5 +246,80 @@ describe("sendBirthdayReminders", () => {
     expect(reminderCreateManyAndReturn.mock.calls[0][0].data.map((d: { recipientId: string }) => d.recipientId)).toEqual(["r-member"]);
     // Only members of the celebrant's own Circles are looked at.
     expect(membershipFindMany.mock.calls[0][0].where.circle).toEqual({ members: { some: { userId: "ada" } } });
+  });
+
+  it("reminds connections and Circle members alike with the default audience (BOTH)", async () => {
+    world({ celebrants: [celebrant("ada", "Ada", "BOTH")], connections: { ada: ["r-connection"] }, people: [person("r-member", "UTC"), person("r-connection", "UTC")] });
+    membershipFindMany.mockResolvedValue([{ userId: "r-member", circle: { visibility: "PUBLIC" } }]);
+    await sendBirthdayReminders(now);
+    expect(reminderCreateManyAndReturn.mock.calls[0][0].data.map((d: { recipientId: string }) => d.recipientId).sort()).toEqual([
+      "r-connection",
+      "r-member",
+    ]);
+  });
+
+  it("never reminds anyone of someone who turned sharing off (NONE)", async () => {
+    world({ celebrants: [celebrant("off", "Off", "NONE")], connections: { off: ["r1"] }, people: [person("r1", "UTC")] });
+    expect(await sendBirthdayReminders(now)).toEqual({ celebrants: 1, reminders: 0, pushes: 0, failed: 0 });
+    expect(connectionFindMany).not.toHaveBeenCalled();
+    expect(reminderCreateManyAndReturn).not.toHaveBeenCalled();
+    // ...and the database prefilter leaves them out in the first place.
+    const sql = queryRaw.mock.calls[0][0] as string[];
+    expect(sql.join("?")).toContain(`"birthdayAudience" <> 'NONE'`);
+  });
+});
+
+describe("sendBirthdaySharingNotices", () => {
+  beforeEach(() => {
+    for (const fn of [userFindMany, userUpdateManyAndReturn, notificationCreateMany, publishEvents]) fn.mockReset();
+    notificationCreateMany.mockResolvedValue({ count: 0 });
+  });
+
+  it("tells each switched-on adult once, as a bell row about themselves that opens the birthday setting", async () => {
+    userFindMany.mockResolvedValue([
+      { id: "adult", birthDate: adultBirth },
+      // The database query's cutoff has a day of slack; the exact age check leaves out someone turning 18 tomorrow.
+      { id: "almost", birthDate: new Date("2008-11-08T00:00:00.000Z") },
+    ]);
+    userUpdateManyAndReturn.mockResolvedValue([{ id: "adult" }]);
+
+    expect(await sendBirthdaySharingNotices(now)).toEqual({ notices: 1 });
+
+    const query = userFindMany.mock.calls[0][0];
+    expect(query.where).toMatchObject({
+      birthdaySharingNoticePending: true,
+      birthdayAudience: { not: "NONE" },
+      status: "ACTIVE",
+      isGuestPreview: false,
+      isAdmin: false,
+    });
+    // The claim is guarded on the flag (and still sharing), so an overlapping run claims nothing twice.
+    expect(userUpdateManyAndReturn).toHaveBeenCalledWith({
+      where: { id: { in: ["adult"] }, birthdaySharingNoticePending: true, birthdayAudience: { not: "NONE" } },
+      data: { birthdaySharingNoticePending: false },
+      select: { id: true },
+    });
+    expect(notificationCreateMany).toHaveBeenCalledWith({
+      data: [{ recipientId: "adult", actorId: "adult", type: "BIRTHDAY_SHARING_ON" }],
+    });
+    expect(notificationHref(rowFor({ recipientId: "adult", actorId: "adult", type: "BIRTHDAY_SHARING_ON" }))).toBe(
+      "/settings#birthdays",
+    );
+    expect(publishEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends nothing when every pending account is still under 18, and keeps their flag for later", async () => {
+    userFindMany.mockResolvedValue([{ id: "minor", birthDate: new Date("2010-01-01T00:00:00.000Z") }]);
+    expect(await sendBirthdaySharingNotices(now)).toEqual({ notices: 0 });
+    expect(userUpdateManyAndReturn).not.toHaveBeenCalled();
+    expect(notificationCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("writes no bell row when another run already claimed everyone", async () => {
+    userFindMany.mockResolvedValue([{ id: "adult", birthDate: adultBirth }]);
+    userUpdateManyAndReturn.mockResolvedValue([]);
+    expect(await sendBirthdaySharingNotices(now)).toEqual({ notices: 0 });
+    expect(notificationCreateMany).not.toHaveBeenCalled();
+    expect(publishEvents).not.toHaveBeenCalled();
   });
 });

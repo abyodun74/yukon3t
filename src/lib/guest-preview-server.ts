@@ -26,6 +26,8 @@ function guestRowData() {
     postsVisibility: "HIDDEN" as const,
     newMemberAlerts: false,
     newMemberAnnouncedAt: new Date(),
+    // Birthday sharing is on by default for real accounts; the shared guest identity never shares one.
+    birthdayAudience: "NONE" as const,
     status: "ACTIVE" as const,
   };
 }

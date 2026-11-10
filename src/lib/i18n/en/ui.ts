@@ -461,7 +461,7 @@ export const uiEn = {
   // age. The reactions are emoji in code (BIRTHDAY_EMOJIS); the ready-made messages are sent in the sender's language.
   birthdays: {
     title: "Birthdays today",
-    intro: "People who chose to share their birthday with you. Only the day is shared, never the year or anyone's age.",
+    intro: "People who share their birthday with you. Only the day is shared, never the year or anyone's age.",
     empty: "No birthdays to celebrate right now.",
     sendWishes: "Send wishes",
     wished: "Wishes sent",
@@ -475,6 +475,9 @@ export const uiEn = {
     sent: "Sent. Your wishes are in your chat with {name}.",
     openChat: "Open chat",
     close: "Close",
+    // The Android notification channel the midnight reminder is posted to (quiet-push.ts), as Android's app settings list it.
+    quietChannelName: "Birthday reminders",
+    quietChannelDescription: "Quiet reminders of birthdays, without sound or vibration",
     presets: {
       happyBirthday: "Happy birthday! Have a wonderful day.",
       wonderfulYear: "Wishing you a wonderful year ahead!",

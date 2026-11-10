@@ -41,12 +41,12 @@ export const settingsEn = {
   birthday: {
     heading: "Birthday",
     label: "Share my birthday",
-    hint: "On your birthday, the people you choose get one reminder and can send you wishes as a message. Only the day and month are shared, never the year or your age. Blocked people never see it.",
+    hint: "On by default, with your connections and members of your Circles. On your birthday they get one quiet reminder (no sound or vibration) at midnight in their own time zone, and can send you wishes as a message. Only the day and month are shared, never the year or your age. Blocked people never see it. Choose Off to stop sharing it.",
     off: "Off: don't share my birthday",
     connections: "With my connections",
     circles: "With members of my Circles",
-    both: "With my connections and members of my Circles",
-    unavailable: "Birthday sharing is only for members aged 18 or over whose date of birth is on their account.",
+    both: "With my connections and members of my Circles (default)",
+    unavailable: "Your birthday is only shared once you're 18 or over and your date of birth is on your account. You can choose Off now and it stays off.",
     save: "Save birthday setting",
   },
   notifications: {

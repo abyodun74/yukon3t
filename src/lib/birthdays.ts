@@ -4,13 +4,12 @@ import { canSeeCircleContent } from "@/lib/circle-visibility";
 // client-safe; the server half is birthdays-data.ts (the birthday-reminders cron, the /birthdays list) and
 // birthday-wish-server.ts (sendBirthdayWish).
 //
-// Sharing is opt-in (User.birthdayAudience, null = off) and only for adults. Nothing here or anywhere else ever puts
-// the birth year or an age in front of anyone: a reminder says "today", nothing more.
+// Sharing is on by default (User.birthdayAudience BOTH: connections and Circles) with an explicit opt-out (NONE), and
+// only ever takes effect for adults. Nothing here or anywhere else ever puts the birth year or an age in front of
+// anyone: a reminder says "today", nothing more.
 
 /** Nobody younger can share their birthday, be reminded of one, or send a wish. */
 export const BIRTHDAY_MIN_AGE = 18;
-/** Reminders go out from this hour of the recipient's local day (any later run that day still sends a missed one). */
-export const BIRTHDAY_REMINDER_HOUR = 9;
 /** Most people reminded of one birthday, most recently active first. Same cap as the other bulk fan-outs. */
 export const BIRTHDAY_MAX_RECIPIENTS = 500;
 /** Most fellow Circle members looked at for one birthday before the recipient filters run. */
@@ -25,8 +24,16 @@ export const BIRTHDAY_EMOJIS = ["🎂", "🎉", "🥳", "🎁", "🎈", "💐"] 
 export const BIRTHDAY_PRESET_IDS = ["happyBirthday", "wonderfulYear", "celebrateYou", "bestWishes"] as const;
 export type BirthdayPresetId = (typeof BIRTHDAY_PRESET_IDS)[number];
 
-export const BIRTHDAY_AUDIENCE_VALUES = ["CONNECTIONS", "CIRCLES", "BOTH"] as const;
+/** Who is reminded: the three ways of sharing, and NONE (the person turned it off in Settings). */
+export const BIRTHDAY_AUDIENCE_VALUES = ["CONNECTIONS", "CIRCLES", "BOTH", "NONE"] as const;
 export type BirthdayAudience = (typeof BIRTHDAY_AUDIENCE_VALUES)[number];
+/** Every account starts with this (the column's database default); NONE is only ever an explicit choice. */
+export const BIRTHDAY_DEFAULT_AUDIENCE: BirthdayAudience = "BOTH";
+
+/** Whether this choice shares the birthday with anyone (it still only takes effect for an adult, see canShareBirthday). */
+export function isSharingBirthday(audience: BirthdayAudience): boolean {
+  return audience === "CONNECTIONS" || audience === "CIRCLES" || audience === "BOTH";
+}
 
 /** A calendar date in someone's own time zone. Months are 1-12. */
 export type LocalDate = { year: number; month: number; day: number };
@@ -90,15 +97,19 @@ export function isAdultOn(birthDate: Date | null | undefined, date: LocalDate): 
   return Boolean(birthDate) && ageOn(birthDate!, date) >= BIRTHDAY_MIN_AGE;
 }
 
-/** Whether this person may switch "Share my birthday" on now: a known birth date, and an adult today. */
+/** Whether this person's birthday can be shared now: a known birth date, and an adult today. */
 export function canShareBirthday(birthDate: Date | null | undefined, now: Date): boolean {
   return isAdultOn(birthDate, localDateTime(now, "UTC"));
 }
 
 /**
  * The reminder for someone born on `birthDate`, if one is due at `now` for a recipient in `recipientTimeZone`: it is
- * their birthday on the recipient's local calendar, and the recipient's morning has begun (BIRTHDAY_REMINDER_HOUR).
- * `year` is the recipient's local year, the idempotency key's year.
+ * their birthday on the recipient's local calendar. That is due from the first instant of the recipient's local day
+ * (midnight, or whenever that day actually begins where a DST change skips midnight) until the day ends, so the first
+ * 15-minute cron run of the day sends it and any later run that day still sends a missed one. It is a pure "what is
+ * today's date there" check, never an hour comparison, so a skipped or repeated local hour can't make it miss or fire
+ * twice; `year` (the recipient's local year) is the idempotency key's year, and BirthdayReminder's unique (celebrant,
+ * recipient, year) is what stops a second send. No (or an unknown) time zone reads as UTC.
  */
 export function birthdayReminderDue(
   birthDate: Date,
@@ -106,7 +117,7 @@ export function birthdayReminderDue(
   recipientTimeZone: string | null | undefined,
 ): { year: number; occasionDate: LocalDate } | null {
   const local = localDateTime(now, recipientTimeZone);
-  if (local.hour < BIRTHDAY_REMINDER_HOUR || !isBirthdayOn(birthDate, local)) return null;
+  if (!isBirthdayOn(birthDate, local)) return null;
   return { year: local.year, occasionDate: { year: local.year, month: local.month, day: local.day } };
 }
 
@@ -166,7 +177,7 @@ export function sharedCircleCounts(circle: { visibility: string }, recipientIsMe
   return recipientIsMember && canSeeCircleContent(circle, recipientIsMember);
 }
 
-export function audienceAllows(audience: BirthdayAudience | null | undefined, link: BirthdayLink): boolean {
+export function audienceAllows(audience: BirthdayAudience, link: BirthdayLink): boolean {
   if (audience === "CONNECTIONS") return link.connected;
   if (audience === "CIRCLES") return link.sharesCircle;
   if (audience === "BOTH") return link.connected || link.sharesCircle;
@@ -182,7 +193,7 @@ export type BirthdayRefusal = "self" | "not_sharing" | "ineligible" | "not_in_au
  * out of every list of people the recipient sees).
  */
 export function birthdayRefusal(input: {
-  celebrant: BirthdayPerson & { birthdayAudience: BirthdayAudience | null };
+  celebrant: BirthdayPerson & { birthdayAudience: BirthdayAudience };
   recipient: BirthdayPerson;
   link: BirthdayLink;
   blocked: boolean;
@@ -191,7 +202,7 @@ export function birthdayRefusal(input: {
 }): BirthdayRefusal | null {
   const { celebrant, recipient } = input;
   if (celebrant.id === recipient.id) return "self";
-  if (!celebrant.birthdayAudience || !celebrant.birthDate) return "not_sharing";
+  if (!isSharingBirthday(celebrant.birthdayAudience) || !celebrant.birthDate) return "not_sharing";
   if (!isBirthdayParticipant(celebrant, input.date) || !isBirthdayParticipant(recipient, input.date)) return "ineligible";
   if (input.blocked) return "blocked";
   if (input.recipientHidesChat) return "hidden";
@@ -210,7 +221,7 @@ export function birthdayReminderKey(celebrantId: string, recipientId: string, ye
 
 /**
  * The reminders due at `now` for one celebrant, among recipients already cleared by birthdayRefusal: one per recipient
- * whose local morning of the birthday has begun. Anyone already reminded this year (`alreadySent` keys) is skipped;
+ * for whom it is already the birthday (their local midnight has passed). Anyone already reminded this year (`alreadySent` keys) is skipped;
  * the database's unique key is still what guarantees it when two runs overlap.
  */
 export function planBirthdayReminders(input: {

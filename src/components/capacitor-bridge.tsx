@@ -14,6 +14,8 @@ import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
 import { useCallSession } from "@/lib/call-session";
+import { useUiText } from "@/components/ui-text";
+import { QUIET_NOTIFICATION_CHANNEL_ID, QUIET_NOTIFICATION_CHANNEL_IMPORTANCE } from "@/lib/quiet-push";
 import {
   claimLaunchUrl,
   clearPushTap,
@@ -76,6 +78,12 @@ export function CapacitorBridge() {
   // owning any native-listener lifecycle itself.
   const requestPermissionNowRef = useRef<(() => void) | null>(null);
   const promptedRef = useRef(false);
+  // The quiet channel's name in the reader's language, read by the stable effect below when it creates the channel.
+  const birthdayText = useUiText().t.birthdays;
+  const quietChannelTextRef = useRef({ name: birthdayText.quietChannelName, description: birthdayText.quietChannelDescription });
+  useEffect(() => {
+    quietChannelTextRef.current = { name: birthdayText.quietChannelName, description: birthdayText.quietChannelDescription };
+  }, [birthdayText]);
   // Mirrors the current pathname into a ref so the resume listener below
   // (created once, inside the stable [router]-only effect) can read
   // wherever the user actually is *right now* instead of wherever they were
@@ -280,6 +288,21 @@ export function CapacitorBridge() {
         granted = requested?.receive === "granted";
       }
       if (!granted || cancelled) return;
+
+      // Android: the low-importance channel quiet notices (the midnight birthday reminder, src/lib/quiet-push.ts) are
+      // posted to, so they arrive without sound or vibration. Creating an existing channel again only refreshes its
+      // name and description. Older Android (< 8) has no channels and the plugin rejects; nothing to do then. Until
+      // this has run once, such a notice falls back to the app's default channel.
+      if (Capacitor.getPlatform() === "android") {
+        await FirebaseMessaging.createChannel({
+          id: QUIET_NOTIFICATION_CHANNEL_ID,
+          name: quietChannelTextRef.current.name,
+          description: quietChannelTextRef.current.description,
+          importance: QUIET_NOTIFICATION_CHANNEL_IMPORTANCE,
+          vibration: false, // the Android side reads "vibrate" and defaults to false, so it is off either way
+          lights: false,
+        }).catch(() => {});
+      }
 
       const result = await FirebaseMessaging.getToken().catch(() => null);
       if (result?.token) await register(result.token);

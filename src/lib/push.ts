@@ -2,7 +2,9 @@ import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { perLocale, storedLocale, type Localized } from "@/lib/push-text";
 
-type PushPayload = { title: string; body: string; url?: string };
+// `silent`: shown without sound or vibration (public/sw.js passes it to showNotification). Only the birthday-reminders
+// cron's reminder sets it.
+type PushPayload = { title: string; body: string; url?: string; silent?: boolean };
 
 // What every per-user send reads of a subscription: where to send, and the recipient's language to word it in (one
 // query for both, see push-text.ts).
