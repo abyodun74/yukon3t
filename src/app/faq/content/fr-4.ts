@@ -94,7 +94,7 @@ export const fr4 = {
 
   "invite-someone-from-phones-contacts": {
     q: "Comment inviter une personne des contacts de mon téléphone qui n'est pas encore sur YuKon3t ?",
-    a: "Allez dans Paramètres → « Inviter des amis » → « Choisir parmi les contacts ». Sur un téléphone ou un appareil Android, vous pouvez choisir directement des contacts et leur envoyer le lien de l'application par SMS d'un seul toucher ; partout ailleurs, cela ouvre le menu de partage de votre appareil, ou vous pouvez simplement copier le lien d'invitation et l'envoyer vous-même.",
+    a: "Allez dans Paramètres → « Inviter des amis » → « Choisir parmi les contacts », ou saisissez un numéro. Chaque numéro n'apparaît qu'une fois, même si votre téléphone l'a enregistré plusieurs fois (depuis Google, iCloud ou un autre compte) ; si une personne a plusieurs numéros, chacun est affiché avec son type (mobile, domicile, travail). Touchez « Inviter » pour envoyer un SMS, ou le bouton WhatsApp pour l'envoyer sur WhatsApp. Le message contient toujours le lien https://yukon3t.com/sign-up, que votre ami peut toucher pour s'inscrire. Vous pouvez aussi utiliser « Partager » pour l'envoyer avec n'importe quelle application de votre appareil, ou simplement copier le lien et l'envoyer vous-même.",
   },
 
   "signed-new-phone-computer-wheres": {

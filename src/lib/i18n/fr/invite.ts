@@ -14,9 +14,12 @@ export const invite: typeof inviteEn = {
   copied: "Copié !",
   copyFailed: "Copie impossible",
   share: "Partager",
-  textHeading: "Inviter par SMS",
+  shareFailed: "Partage impossible. Veuillez réessayer.",
+  whatsApp: "WhatsApp",
+  whatsAppLabel: "Inviter sur WhatsApp",
+  textHeading: "Inviter par SMS ou WhatsApp",
   textIntro:
-    "Choisissez des contacts (si votre appareil le permet) ou saisissez un numéro, puis envoyez à chacun un SMS contenant votre lien d'invitation.",
+    "Choisissez des contacts (si votre appareil le permet) ou saisissez un numéro, puis envoyez à chacun un SMS ou un message WhatsApp contenant votre lien d'invitation.",
   openingContacts: "Ouverture des contacts…",
   chooseContacts: "Choisir parmi les contacts",
   phoneLabel: "Numéro de téléphone",
@@ -28,6 +31,7 @@ export const invite: typeof inviteEn = {
   noMatches: "Aucun contact correspondant.",
   addSelected: "one: Ajouter # contact sélectionné | other: Ajouter # contacts sélectionnés",
   selectToAdd: "Sélectionnez des contacts à ajouter",
+  phoneKinds: { mobile: "Mobile", home: "Domicile", work: "Travail", other: "Autre" },
   errors: {
     permission:
       "L'accès aux contacts a été refusé. Autorisez-le pour YuKon3t dans les réglages de votre téléphone pour inviter depuis vos contacts.",

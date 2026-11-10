@@ -24,6 +24,16 @@ export const feed: typeof feedEn = {
     TRAVEL_TIPS: "Dicas de viagem",
   },
   quickActions: { live: "Ao vivo", addStory: "Adicionar story", newPost: "Nova publicação" },
+  createPicker: {
+    open: "Criar",
+    title: "Criar",
+    story: "Story",
+    storyHint: "Foto, vídeo ou texto por 24 horas",
+    feed: "Publicação",
+    feedHint: "Compartilhe no seu perfil e no Início",
+    muse: "Muse",
+    museHint: "Vídeo curto, de até 5 minutos",
+  },
   sponsored: "Patrocinado",
   streak: {
     days: "one: Sequência de # dia | other: Sequência de # dias",

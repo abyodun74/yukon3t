@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
 import { useImageFallback } from "@/lib/use-image-fallback";
 import { avatarFullSizeUrl } from "@/lib/avatar-url";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
-import { StoryUploadModal } from "@/components/story-upload-modal";
+import { CreatePickerButton } from "@/components/create-picker-sheet";
 import { Lightbox } from "@/components/lightbox";
-import { useFeedText } from "@/components/feed-text";
 import { useProfileText } from "@/components/profile-text";
 import { useUiText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
@@ -17,9 +15,10 @@ import { format } from "@/lib/i18n/locales";
 /**
  * Wraps a profile's avatar with an Instagram-style story ring (only shown
  * when there are active, non-expired stories) and, for the profile's own
- * owner, a "+" button to add one. Owns the open/close state for both the
- * viewer and upload overlays so the server-rendered profile page itself
- * stays a plain server component.
+ * owner, a "+" that opens the Story / Feed post / Muse picker
+ * (CreatePickerButton). Owns the open/close state for the viewer and photo
+ * overlays so the server-rendered profile page itself stays a plain server
+ * component.
  */
 export function ProfileStoryRing({
   userId,
@@ -52,12 +51,10 @@ export function ProfileStoryRing({
   const initialIndex = initialStoryId ? stories.findIndex((s) => s.id === initialStoryId) : -1;
   const [viewerOpen, setViewerOpen] = useState(initialIndex >= 0);
   const [startIndex, setStartIndex] = useState(Math.max(initialIndex, 0));
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const hasStories = stories.length > 0;
   const { t } = useProfileText();
   const ui = useUiText().t;
-  const addToStory = useFeedText().t.stories.addToStory;
   // A picture that fails to load counts as no picture: "No photo", and nothing to enlarge.
   const image = useImageFallback(avatarUrl);
   const photoUrl = image.show ? avatarUrl : null;
@@ -108,17 +105,9 @@ export function ProfileStoryRing({
           )}
         </button>
         )}
-        {isOwner && (
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            aria-label={addToStory}
-            className="absolute -bottom-1 -end-1 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
-          >
-            <Plus size={12} />
-          </button>
-        )}
-        {/* Owner always sees the "+" add-story button in this same corner
+        {/* 44px tap target centred on the small badge at the avatar's bottom-end corner. */}
+        {isOwner && <CreatePickerButton userId={userId} buttonClassName="-bottom-3.5 -end-3.5" />}
+        {/* Owner always sees the "+" create button in this same corner
             instead — no reason to show yourself as online. */}
         {!isOwner && online && (
           <span
@@ -142,8 +131,6 @@ export function ProfileStoryRing({
           onClose={() => setViewerOpen(false)}
         />
       )}
-
-      <StoryUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {photoOpen && photoUrl && (
         <Lightbox

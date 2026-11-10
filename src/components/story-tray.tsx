@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
 import { useImageFallback } from "@/lib/use-image-fallback";
 import { StoryUploadModal } from "@/components/story-upload-modal";
+import { CreatePickerButton } from "@/components/create-picker-sheet";
 import { StoryTrayViewer, type StoryTrayAuthorGroup } from "@/components/story-tray-viewer";
 import { useFeedText } from "@/components/feed-text";
 import { format } from "@/lib/i18n/locales";
@@ -17,7 +17,7 @@ function Ring({
   hasUnseen,
   hasStories,
   onClick,
-  onAdd,
+  createForUserId,
 }: {
   avatarUrl: string | null;
   label: string;
@@ -25,10 +25,10 @@ function Ring({
   hasUnseen: boolean;
   hasStories: boolean;
   onClick: () => void;
-  // Only set for "Your story" — a standalone affordance to add another
-  // story that's always available, independent of onClick (which, once you
-  // already have a story, is taken over by opening the viewer instead).
-  onAdd?: () => void;
+  // Only set for "Your story": the "+" that opens the Story / Feed post /
+  // Muse picker (CreatePickerButton), always there, independent of onClick
+  // (which opens your stack once you have a story, the story upload before).
+  createForUserId?: string;
 }) {
   const { t } = useFeedText();
   const image = useImageFallback(avatarUrl);
@@ -85,25 +85,18 @@ function Ring({
           {label}
         </span>
       </button>
-      {onAdd && hasStories && (
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={t.stories.addToStory}
-          className="absolute end-1 top-0 rounded-full border-2 border-background bg-accent p-1 text-accent-ink"
-        >
-          <Plus size={12} />
-        </button>
-      )}
+      {/* 44px tap target centred on the small badge at the ring's top-end corner (the tray's -mt-2.5 pt-2.5 keeps its
+          top inside the scroll container instead of clipped). */}
+      {createForUserId && <CreatePickerButton userId={createForUserId} buttonClassName="-top-2.5 -end-1.5" />}
     </div>
   );
 }
 
 /**
- * Horizontal ring row above the /home composer — "Your story" first (tapping
+ * Horizontal ring row at the top of /home — "Your story" first (tapping
  * it opens the upload modal if you have none active, otherwise your own
- * stack; a separate "+" badge, once you have at least one, always opens the
- * upload modal so you can add another — same pattern as ProfileStoryRing),
+ * stack; a separate "+" badge, always shown, opens the Story / Feed post /
+ * Muse picker — same pattern as ProfileStoryRing),
  * then connections with an active story, unseen ones styled distinctly.
  */
 export function StoryTray({
@@ -127,7 +120,7 @@ export function StoryTray({
 
   return (
     <>
-      <div className="flex gap-4 overflow-x-auto pb-1">
+      <div className="-mt-2.5 flex gap-4 overflow-x-auto pb-1 pt-2.5">
         {/* Adding a story is members-only: a guest preview session gets the sign-up sheet (src/components/guest-preview.tsx). */}
         <span data-guest-block className="contents">
         <Ring
@@ -143,7 +136,7 @@ export function StoryTray({
               setUploadOpen(true);
             }
           }}
-          onAdd={() => setUploadOpen(true)}
+          createForUserId={currentUserId}
         />
         </span>
         {others.map((group) => (

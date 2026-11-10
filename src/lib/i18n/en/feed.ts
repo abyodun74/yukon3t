@@ -31,6 +31,17 @@ export const feedEn = {
     TRAVEL_TIPS: "Travel Tips",
   },
   quickActions: { live: "Live", addStory: "Add story", newPost: "New post" },
+  // The "+" on your own profile picture (Home's "Your story" ring, your profile): src/components/create-picker-sheet.tsx.
+  createPicker: {
+    open: "Create",
+    title: "Create",
+    story: "Story",
+    storyHint: "Photo, video or text for 24 hours",
+    feed: "Feed post",
+    feedHint: "Share to your profile and Home",
+    muse: "Muse",
+    museHint: "Short video, up to 5 minutes",
+  },
   sponsored: "Sponsored",
   streak: {
     days: "one: #-day streak | other: #-day streak",

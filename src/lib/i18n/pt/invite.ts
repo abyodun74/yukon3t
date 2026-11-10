@@ -13,9 +13,12 @@ export const invite: typeof inviteEn = {
   copied: "Copiado!",
   copyFailed: "Não foi possível copiar",
   share: "Compartilhar",
-  textHeading: "Convidar por mensagem de texto",
+  shareFailed: "Não foi possível compartilhar. Tente novamente.",
+  whatsApp: "WhatsApp",
+  whatsAppLabel: "Convidar pelo WhatsApp",
+  textHeading: "Convidar por mensagem de texto ou WhatsApp",
   textIntro:
-    "Escolha contatos (quando disponível) ou digite um número e envie a cada pessoa uma mensagem de texto com seu link de convite.",
+    "Escolha contatos (quando disponível) ou digite um número e envie a cada pessoa uma mensagem de texto ou de WhatsApp com seu link de convite.",
   openingContacts: "Abrindo contatos…",
   chooseContacts: "Escolher dos contatos",
   phoneLabel: "Número de telefone",
@@ -27,6 +30,7 @@ export const invite: typeof inviteEn = {
   noMatches: "Nenhum contato encontrado.",
   addSelected: "one: Adicionar # selecionado | other: Adicionar # selecionados",
   selectToAdd: "Selecione contatos para adicionar",
+  phoneKinds: { mobile: "Celular", home: "Casa", work: "Trabalho", other: "Outro" },
   errors: {
     permission:
       "A permissão de acesso aos contatos foi negada. Ative-a para o YuKon3t nas configurações do seu celular para convidar a partir dos seus contatos.",

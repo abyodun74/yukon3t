@@ -94,7 +94,7 @@ export const es4 = {
 
   "invite-someone-from-phones-contacts": {
     q: "¿Cómo invito a alguien de la agenda de mi teléfono que todavía no está en YuKon3t?",
-    a: "Ve a Ajustes → «Invitar amigos» → «Elegir de la agenda». En un teléfono o dispositivo Android puedes elegir personas de tu agenda directamente y enviarles el enlace de la aplicación por mensaje de texto con un toque; en los demás casos, se abre el menú de compartir de tu dispositivo, o puedes simplemente copiar el enlace de invitación y enviarlo tú.",
+    a: "Ve a Ajustes → «Invitar amigos» → «Elegir de la agenda», o escribe un número. Cada número aparece una sola vez, aunque tu teléfono lo tenga guardado varias veces (desde Google, iCloud u otra cuenta); si una persona tiene varios números, se muestra cada uno con su tipo (móvil, casa, trabajo). Toca «Invitar» para enviar un mensaje de texto, o el botón de WhatsApp para enviarlo por WhatsApp. El mensaje siempre incluye el enlace https://yukon3t.com/sign-up, que tu amigo puede tocar para unirse. También puedes usar «Compartir» para enviarlo con cualquier aplicación de tu dispositivo, o simplemente copiar el enlace y enviarlo tú.",
   },
 
   "signed-new-phone-computer-wheres": {

@@ -45,7 +45,7 @@ export const es2 = {
 
   story: {
     q: "¿Qué es una historia?",
-    a: "Una foto, un video corto (de hasta 2 minutos) o un texto escrito o pegado que aparece en tu perfil y desaparece automáticamente a las 24 horas. Toca el «+» de tu propia foto de perfil para agregar una. Cualquier persona que pueda ver tu perfil puede verla mientras está activa.",
+    a: "Una foto, un video corto (de hasta 2 minutos) o un texto escrito o pegado que aparece en tu perfil y desaparece automáticamente a las 24 horas. Toca el «+» de tu propia foto de perfil («Tu historia» en Inicio, o en tu perfil) y elige «Historia» para agregar una; ese mismo «+» también ofrece «Publicación» y «Muse». Cualquier persona que pueda ver tu perfil puede ver tu historia mientras está activa.",
   },
   "post-text-only-story": {
     q: "¿Puedo publicar una historia solo de texto?",
@@ -53,7 +53,7 @@ export const es2 = {
   },
   "post-more-than-one-story": {
     q: "¿Puedo publicar más de una historia el mismo día?",
-    a: "Sí. Cuando tienes una historia activa, aparece un pequeño «+» en el aro de tu historia (tanto en Inicio como en tu perfil) para que sigas agregando más sin límite, además de poder tocar el propio aro para ver las que ya tienes.",
+    a: "Sí. El pequeño «+» del aro de tu historia (tanto en Inicio como en tu perfil) siempre está ahí: tócalo y elige «Historia» para seguir agregando más sin límite. Cuando tienes una historia activa, al tocar el propio aro ves las que ya tienes.",
   },
   "move-between-different-peoples-stories": {
     q: "¿Cómo paso de las historias de una persona a las de otra?",
@@ -70,7 +70,7 @@ export const es2 = {
   },
   "post-muse": {
     q: "¿Cómo publico un Muse?",
-    a: "Abre tu propio perfil y toca «Publicar un Muse». Elige un video (de hasta 5 minutos), agrega un texto si quieres y publícalo. Eso es todo, sin más pantallas. Un video más largo (de más de un minuto, aproximadamente) pasa por una revisión automática de seguridad adicional antes de ser visible para los demás, lo que puede tardar un poco más que con un clip corto. Antes de publicar también puedes elegir «Audio propio» para adjuntar un archivo de sonido aparte que reemplaza por completo el audio del video (la idea de «agregar sonido» de TikTok). Elige «Sonido original» (la opción por defecto) para conservar el audio del video.",
+    a: "Abre tu propio perfil y toca «Publicar un Muse», o toca el «+» de tu propia foto de perfil (en Inicio o en tu perfil) y elige «Muse». Elige un video (de hasta 5 minutos), agrega un texto si quieres y publícalo. Eso es todo, sin más pantallas. Un video más largo (de más de un minuto, aproximadamente) pasa por una revisión automática de seguridad adicional antes de ser visible para los demás, lo que puede tardar un poco más que con un clip corto. Antes de publicar también puedes elegir «Audio propio» para adjuntar un archivo de sonido aparte que reemplaza por completo el audio del video (la idea de «agregar sonido» de TikTok). Elige «Sonido original» (la opción por defecto) para conservar el audio del video.",
   },
   "delete-muse-after-ive-posted": {
     q: "¿Puedo eliminar un Muse después de publicarlo?",

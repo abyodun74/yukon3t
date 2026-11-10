@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { HideInIosApp } from "@/components/hide-in-ios-app";
 import { BackButton } from "@/components/back-button";
+import { ACCORDION_CARD, ACCORDION_GROUP, ACCORDION_LABEL, AccordionIndicator } from "@/components/accordion";
 import { auth } from "@/lib/auth";
 import { isViewOnceConfigured } from "@/lib/storage";
 import { PRIVATE_AVATARS_NOTE } from "./content/private-avatars";
@@ -910,8 +911,11 @@ const sections: Section[] = [
           <>
             A photo, short video (up to 2 minutes), or typed/pasted text on
             your profile that disappears automatically after 24 hours. Tap
-            the &ldquo;+&rdquo; on your own profile picture to add one —
-            anyone who can see your profile can view it while it&apos;s
+            the &ldquo;+&rdquo; on your own profile picture (&ldquo;Your
+            story&rdquo; on Home, or on your profile) and choose
+            &ldquo;Story&rdquo; to add one — the same &ldquo;+&rdquo; also
+            offers &ldquo;Feed post&rdquo; and &ldquo;Muse&rdquo;. Anyone
+            who can see your profile can view your Story while it&apos;s
             active.
           </>
         ),
@@ -934,10 +938,11 @@ const sections: Section[] = [
         q: "Can I post more than one Story in the same day?",
         a: (
           <>
-            Yes — once you have an active Story, a small &ldquo;+&rdquo;
-            badge appears on your story ring (both on Home and your profile)
-            so you can keep adding more without limit, in addition to tapping
-            the ring itself to view your existing stack.
+            Yes — the small &ldquo;+&rdquo; badge on your own story ring
+            (both on Home and your profile) is always there: tap it and
+            choose &ldquo;Story&rdquo; to keep adding more without limit.
+            Once you have an active Story, tapping the ring itself opens
+            your existing stack.
           </>
         ),
       },
@@ -1004,7 +1009,9 @@ const sections: Section[] = [
         q: "How do I post a Muse?",
         a: (
           <>
-            Open your own profile and tap &ldquo;Post a Muse.&rdquo; Choose a
+            Open your own profile and tap &ldquo;Post a Muse,&rdquo; or tap
+            the &ldquo;+&rdquo; on your own profile picture (on Home or your
+            profile) and choose &ldquo;Muse.&rdquo; Choose a
             video (up to 5 minutes), optionally add a caption, and post —
             that&apos;s it, no extra screens. A longer video (over about a
             minute) goes through an extra automated safety review before it
@@ -2185,10 +2192,15 @@ const sections: Section[] = [
         a: (
           <>
             Go to Settings → Invite friends → &ldquo;Choose from
-            contacts.&rdquo; On a phone/Android device you can pick contacts
-            directly and text them the app link with one tap; everywhere
-            else, it opens your device&apos;s share sheet, or you can just
-            copy the invite link and send it yourself.
+            contacts,&rdquo; or type a number. Each number shows up once,
+            however many times your phone has it saved (from Google, iCloud
+            or another account); a person with several numbers shows each one
+            with its type (mobile, home, work). Tap &ldquo;Invite&rdquo; to
+            send a text or the WhatsApp button to send it on WhatsApp. The
+            message always includes the link https://yukon3t.com/sign-up,
+            which your friend can tap to join. You can also use
+            &ldquo;Share&rdquo; to send it through any app on your device,
+            or just copy the link and send it yourself.
           </>
         ),
       },
@@ -2581,14 +2593,12 @@ export default async function FaqPage() {
                   <details
                     key={item.id}
                     id={item.id}
-                    className="group scroll-mt-24 rounded-xl border border-line bg-surface p-4 open:shadow-sm"
+                    className={`${ACCORDION_GROUP} ${ACCORDION_CARD} scroll-mt-24 p-4 open:shadow-sm`}
                   >
-                    <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
+                    <summary className={`cursor-pointer list-none ${ACCORDION_LABEL} marker:content-none`}>
                       <span className="flex items-center justify-between gap-3">
                         {translated?.items[item.id].q ?? item.q}
-                        <span className="shrink-0 text-foreground-soft transition-transform group-open:rotate-45">
-                          +
-                        </span>
+                        <AccordionIndicator />
                       </span>
                     </summary>
                     <div className="mt-2 text-sm leading-relaxed text-foreground-soft">

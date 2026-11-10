@@ -8,6 +8,7 @@ import { canShareBirthday } from "@/lib/birthdays";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { BlockButton } from "@/components/block-button";
 import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
@@ -101,320 +102,315 @@ export default async function SettingsPage({
         </p>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold">{t.privacy.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.privacy.intro}</p>
-        <form action={updatePrivacy} className="mt-4 space-y-4">
-          <div>
-            <label htmlFor="settings-posts-visibility" className="block text-sm font-medium">
-              {t.privacy.postsVisibility}
-            </label>
-            <select
-              id="settings-posts-visibility"
-              name="postsVisibility"
-              defaultValue={user.postsVisibility}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-            >
-              <option value="PUBLIC">{t.privacy.public}</option>
-              <option value="CONNECTIONS_ONLY">{t.privacy.connectionsOnly}</option>
-              {/* Admin-only, so it stays English like the rest of admin. */}
-              {user.isAdmin && (
-                <option value="HIDDEN" lang="en">
-                  Invisible to everyone (admin only)
-                </option>
-              )}
-            </select>
-          </div>
-          <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              name="discoverable"
-              defaultChecked={user.discoverable}
-            />
-            {t.privacy.discoverable}
-          </label>
-          <SubmitButton
-            label={t.privacy.save}
-            pendingLabel={t.saving}
-            offlineMessage={offlineMessage}
-            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          />
-        </form>
-        {/* Always here and always worded the same, whether or not this account has a PIN or any hidden chat. */}
-        <Link
-          href="/messages/hidden"
-          className="mt-4 flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm hover:border-accent hover:text-accent"
-        >
-          <span>{t.privacy.hiddenChats}</span>
-          <span aria-hidden className="text-foreground-soft rtl:-scale-x-100">
-            &rsaquo;
-          </span>
-        </Link>
-        <form action={updateBirthdaySharing} className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold">{t.birthday.heading}</h3>
-          <div>
-            <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
-              {t.birthday.label}
-            </label>
-            <select
-              id="settings-birthday-audience"
-              name="audience"
-              defaultValue={user.birthdayAudience ?? "OFF"}
-              disabled={!birthdayShareable && !user.birthdayAudience}
-              aria-describedby="settings-birthday-hint"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60"
-            >
-              <option value="OFF">{t.birthday.off}</option>
-              {(birthdayShareable || user.birthdayAudience === "CONNECTIONS") && (
-                <option value="CONNECTIONS">{t.birthday.connections}</option>
-              )}
-              {(birthdayShareable || user.birthdayAudience === "CIRCLES") && (
-                <option value="CIRCLES">{t.birthday.circles}</option>
-              )}
-              {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
-            </select>
-            <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
-              {birthdayShareable ? t.birthday.hint : t.birthday.unavailable}
-            </p>
-          </div>
-          {(birthdayShareable || user.birthdayAudience) && (
-            <SubmitButton
-              label={t.birthday.save}
-              pendingLabel={t.saving}
-              offlineMessage={offlineMessage}
-              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-            />
-          )}
-        </form>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.notifications.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.notifications.intro}</p>
-        <div className="mt-4">
-          <PushNotificationsToggle />
-        </div>
-        <form action={updateNewMemberAlerts} className="mt-4 space-y-3">
-          <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              name="newMemberAlerts"
-              defaultChecked={user.newMemberAlerts}
-              aria-describedby="settings-new-member-alerts-hint"
-              className="mt-0.5"
-            />
-            <span>
-              <span className="block font-medium">{t.notifications.newMembers}</span>
-              <span id="settings-new-member-alerts-hint" className="mt-0.5 block text-foreground-soft">
-                {t.notifications.newMembersHint}
-              </span>
-            </span>
-          </label>
-          <SubmitButton
-            label={t.notifications.save}
-            pendingLabel={t.saving}
-            offlineMessage={offlineMessage}
-            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          />
-        </form>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.language.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.language.body}</p>
-        {/* The one place a signed-in person can change it: the other pickers are on the signed-out screens. */}
-        <LanguagePicker locale={locale} label={dictionary.languagePicker.label} className="mt-4 justify-start" />
-        {/* Translating other people's text (src/lib/translation.ts). Without a provider configured it can't be turned on. */}
-        <form action={updateAutoTranslate} className="mt-4 space-y-3">
-          <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              name="autoTranslate"
-              defaultChecked={user.autoTranslate}
-              disabled={!translationAvailable}
-              aria-describedby="settings-auto-translate-hint"
-              className="mt-0.5"
-            />
-            <span>
-              <span className="block font-medium">{t.language.autoTranslate}</span>
-              <span id="settings-auto-translate-hint" className="mt-0.5 block text-foreground-soft">
-                {translationAvailable ? t.language.autoTranslateHint : t.language.autoTranslateUnavailable}
-              </span>
-            </span>
-          </label>
-          {translationAvailable && (
-            <SubmitButton
-              label={t.language.save}
-              pendingLabel={t.saving}
-              offlineMessage={offlineMessage}
-              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-            />
-          )}
-        </form>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.emoji.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.emoji.intro}</p>
-        <div className="mt-4">
-          <EmojiStyleSetting />
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.dataSaver.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.dataSaver.intro}</p>
-        <div className="mt-4">
-          <DataSaverSetting />
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.ambient.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.ambient.intro}</p>
-        <Link
-          href="/settings/ambient"
-          className="mt-3 inline-block rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
-        >
-          {t.ambient.manage}
-        </Link>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.invite.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.invite.intro}</p>
-        <div className="mt-4">
-          <InvitePanel defaultCountry={await getRequestCountry()} />
-        </div>
-      </div>
-
-      {blocked.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold">{t.blocked.heading}</h2>
-          <p className="mt-1 text-sm text-foreground-soft">{t.blocked.intro}</p>
-          <ul className="mt-4 space-y-2">
-            {blocked.map((b) => (
-              <li
-                key={b.id}
-                className="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm"
-              >
-                <Link href={`/u/${b.blocked.id}`} dir="auto" className="min-w-0 break-words hover:text-accent">
-                  {b.blocked.name ?? t.blocked.deleted}
-                </Link>
-                <BlockButton targetId={b.blocked.id} targetName={b.blocked.name} initiallyBlocked />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div>
-        <h2 className="text-lg font-semibold">{t.calls.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.calls.intro}</p>
-        <form action={updateRingtone} className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium">{t.calls.ringtone}</label>
-            <div className="mt-1">
-              <RingtonePicker defaultValue={user.ringtone} />
-            </div>
-          </div>
-          <SubmitButton
-            label={t.calls.save}
-            pendingLabel={t.saving}
-            offlineMessage={offlineMessage}
-            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          />
-        </form>
-      </div>
-
-      <div id="sign-in-method" className="scroll-mt-24">
-        <h2 className="text-lg font-semibold">{t.signInMethod.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">
-          {hasPassword ? t.signInMethod.withPassword : t.signInMethod.withoutPassword}
-        </p>
-        <form action={setPassword} className="mt-4 space-y-4">
-          {!user.username && (
+      {/* Every section is collapsible, in the FAQ's look, and starts closed like the FAQ's questions. Section ids are
+          anchors (/settings#notifications, #birthdays, #sign-in-method ...) that open their section; never rename one. */}
+      <div className="space-y-2">
+        <CollapsibleSection id="privacy" page="settings" title={t.privacy.heading}>
+          <p className="text-sm text-foreground-soft">{t.privacy.intro}</p>
+          <form action={updatePrivacy} className="mt-4 space-y-4">
             <div>
-              <label htmlFor="settings-username" className="block text-sm font-medium">
-                {t.signInMethod.username}
+              <label htmlFor="settings-posts-visibility" className="block text-sm font-medium">
+                {t.privacy.postsVisibility}
               </label>
-              <input
-                id="settings-username"
-                name="username"
-                required
-                minLength={3}
-                maxLength={20}
-                pattern="[a-zA-Z0-9_]+"
-                autoComplete="username"
-                className="ltr-value mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-              />
+              <select
+                id="settings-posts-visibility"
+                name="postsVisibility"
+                defaultValue={user.postsVisibility}
+                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+              >
+                <option value="PUBLIC">{t.privacy.public}</option>
+                <option value="CONNECTIONS_ONLY">{t.privacy.connectionsOnly}</option>
+                {/* Admin-only, so it stays English like the rest of admin. */}
+                {user.isAdmin && (
+                  <option value="HIDDEN" lang="en">
+                    Invisible to everyone (admin only)
+                  </option>
+                )}
+              </select>
             </div>
-          )}
-          {user.username && (
-            <p className="text-sm">
-              {usernameBefore}
-              <bdi className="font-medium">{user.username}</bdi>
-              {usernameAfter}
-            </p>
-          )}
-          {hasPassword && (
+            <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                name="discoverable"
+                defaultChecked={user.discoverable}
+              />
+              {t.privacy.discoverable}
+            </label>
+            <SubmitButton
+              label={t.privacy.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          </form>
+          {/* Always here and always worded the same, whether or not this account has a PIN or any hidden chat. */}
+          <Link
+            href="/messages/hidden"
+            className="mt-4 flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm hover:border-accent hover:text-accent"
+          >
+            <span>{t.privacy.hiddenChats}</span>
+            <span aria-hidden className="text-foreground-soft rtl:-scale-x-100">
+              &rsaquo;
+            </span>
+          </Link>
+          <form id="birthdays" action={updateBirthdaySharing} className="mt-6 scroll-mt-24 space-y-3">
+            <h3 className="text-sm font-semibold">{t.birthday.heading}</h3>
             <div>
-              <label htmlFor="settings-current-password" className="block text-sm font-medium">
-                {t.signInMethod.currentPassword}
+              <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
+                {t.birthday.label}
+              </label>
+              <select
+                id="settings-birthday-audience"
+                name="audience"
+                defaultValue={user.birthdayAudience ?? "OFF"}
+                disabled={!birthdayShareable && !user.birthdayAudience}
+                aria-describedby="settings-birthday-hint"
+                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60"
+              >
+                <option value="OFF">{t.birthday.off}</option>
+                {(birthdayShareable || user.birthdayAudience === "CONNECTIONS") && (
+                  <option value="CONNECTIONS">{t.birthday.connections}</option>
+                )}
+                {(birthdayShareable || user.birthdayAudience === "CIRCLES") && (
+                  <option value="CIRCLES">{t.birthday.circles}</option>
+                )}
+                {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
+              </select>
+              <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
+                {birthdayShareable ? t.birthday.hint : t.birthday.unavailable}
+              </p>
+            </div>
+            {(birthdayShareable || user.birthdayAudience) && (
+              <SubmitButton
+                label={t.birthday.save}
+                pendingLabel={t.saving}
+                offlineMessage={offlineMessage}
+                className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+              />
+            )}
+          </form>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="notifications" page="settings" title={t.notifications.heading}>
+          <p className="text-sm text-foreground-soft">{t.notifications.intro}</p>
+          <div className="mt-4">
+            <PushNotificationsToggle />
+          </div>
+          <form action={updateNewMemberAlerts} className="mt-4 space-y-3">
+            <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                name="newMemberAlerts"
+                defaultChecked={user.newMemberAlerts}
+                aria-describedby="settings-new-member-alerts-hint"
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-medium">{t.notifications.newMembers}</span>
+                <span id="settings-new-member-alerts-hint" className="mt-0.5 block text-foreground-soft">
+                  {t.notifications.newMembersHint}
+                </span>
+              </span>
+            </label>
+            <SubmitButton
+              label={t.notifications.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          </form>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="language" page="settings" title={t.language.heading}>
+          <p className="text-sm text-foreground-soft">{t.language.body}</p>
+          {/* The one place a signed-in person can change it: the other pickers are on the signed-out screens. */}
+          <LanguagePicker locale={locale} label={dictionary.languagePicker.label} className="mt-4 justify-start" />
+          {/* Translating other people's text (src/lib/translation.ts). Without a provider configured it can't be turned on. */}
+          <form action={updateAutoTranslate} className="mt-4 space-y-3">
+            <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                name="autoTranslate"
+                defaultChecked={user.autoTranslate}
+                disabled={!translationAvailable}
+                aria-describedby="settings-auto-translate-hint"
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-medium">{t.language.autoTranslate}</span>
+                <span id="settings-auto-translate-hint" className="mt-0.5 block text-foreground-soft">
+                  {translationAvailable ? t.language.autoTranslateHint : t.language.autoTranslateUnavailable}
+                </span>
+              </span>
+            </label>
+            {translationAvailable && (
+              <SubmitButton
+                label={t.language.save}
+                pendingLabel={t.saving}
+                offlineMessage={offlineMessage}
+                className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+              />
+            )}
+          </form>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="emoji-style" page="settings" title={t.emoji.heading}>
+          <p className="text-sm text-foreground-soft">{t.emoji.intro}</p>
+          <div className="mt-4">
+            <EmojiStyleSetting />
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="data-saver" page="settings" title={t.dataSaver.heading}>
+          <p className="text-sm text-foreground-soft">{t.dataSaver.intro}</p>
+          <div className="mt-4">
+            <DataSaverSetting />
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="ambient" page="settings" title={t.ambient.heading}>
+          <p className="text-sm text-foreground-soft">{t.ambient.intro}</p>
+          <Link
+            href="/settings/ambient"
+            className="mt-3 inline-block rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:border-accent hover:text-accent"
+          >
+            {t.ambient.manage}
+          </Link>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="invite" page="settings" title={t.invite.heading}>
+          <p className="text-sm text-foreground-soft">{t.invite.intro}</p>
+          <div className="mt-4">
+            <InvitePanel defaultCountry={await getRequestCountry()} />
+          </div>
+        </CollapsibleSection>
+
+        {blocked.length > 0 && (
+          <CollapsibleSection id="blocked" page="settings" title={t.blocked.heading}>
+            <p className="text-sm text-foreground-soft">{t.blocked.intro}</p>
+            <ul className="mt-4 space-y-2">
+              {blocked.map((b) => (
+                <li
+                  key={b.id}
+                  className="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm"
+                >
+                  <Link href={`/u/${b.blocked.id}`} dir="auto" className="min-w-0 break-words hover:text-accent">
+                    {b.blocked.name ?? t.blocked.deleted}
+                  </Link>
+                  <BlockButton targetId={b.blocked.id} targetName={b.blocked.name} initiallyBlocked />
+                </li>
+              ))}
+            </ul>
+          </CollapsibleSection>
+        )}
+
+        <CollapsibleSection id="calls" page="settings" title={t.calls.heading}>
+          <p className="text-sm text-foreground-soft">{t.calls.intro}</p>
+          <form action={updateRingtone} className="mt-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium">{t.calls.ringtone}</label>
+              <div className="mt-1">
+                <RingtonePicker defaultValue={user.ringtone} />
+              </div>
+            </div>
+            <SubmitButton
+              label={t.calls.save}
+              pendingLabel={t.saving}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          </form>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="sign-in-method" page="settings" title={t.signInMethod.heading}>
+          <p className="text-sm text-foreground-soft">
+            {hasPassword ? t.signInMethod.withPassword : t.signInMethod.withoutPassword}
+          </p>
+          <form action={setPassword} className="mt-4 space-y-4">
+            {!user.username && (
+              <div>
+                <label htmlFor="settings-username" className="block text-sm font-medium">
+                  {t.signInMethod.username}
+                </label>
+                <input
+                  id="settings-username"
+                  name="username"
+                  required
+                  minLength={3}
+                  maxLength={20}
+                  pattern="[a-zA-Z0-9_]+"
+                  autoComplete="username"
+                  className="ltr-value mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                />
+              </div>
+            )}
+            {user.username && (
+              <p className="text-sm">
+                {usernameBefore}
+                <bdi className="font-medium">{user.username}</bdi>
+                {usernameAfter}
+              </p>
+            )}
+            {hasPassword && (
+              <div>
+                <label htmlFor="settings-current-password" className="block text-sm font-medium">
+                  {t.signInMethod.currentPassword}
+                </label>
+                <PasswordInput
+                  id="settings-current-password"
+                  name="currentPassword"
+                  required
+                  maxLength={72}
+                  autoComplete="current-password"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                  labels={dictionary.shared.passwordInput}
+                />
+              </div>
+            )}
+            <div>
+              <label htmlFor="settings-new-password" className="block text-sm font-medium">
+                {hasPassword ? t.signInMethod.newPassword : t.signInMethod.password}
               </label>
               <PasswordInput
-                id="settings-current-password"
-                name="currentPassword"
+                id="settings-new-password"
+                name="password"
                 required
+                minLength={8}
                 maxLength={72}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
                 labels={dictionary.shared.passwordInput}
               />
             </div>
-          )}
-          <div>
-            <label htmlFor="settings-new-password" className="block text-sm font-medium">
-              {hasPassword ? t.signInMethod.newPassword : t.signInMethod.password}
-            </label>
-            <PasswordInput
-              id="settings-new-password"
-              name="password"
-              required
-              minLength={8}
-              maxLength={72}
-              autoComplete="new-password"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-              labels={dictionary.shared.passwordInput}
+            {hasPassword && <p className="text-xs text-foreground-soft">{t.signInMethod.signsOut}</p>}
+            <SubmitButton
+              label={hasPassword ? t.signInMethod.update : t.signInMethod.set}
+              pendingLabel={hasPassword ? t.signInMethod.updating : t.signInMethod.setting}
+              offlineMessage={offlineMessage}
+              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+            />
+          </form>
+        </CollapsibleSection>
+
+        <CollapsibleSection id="phone" page="settings" title={t.phone.heading}>
+          <p className="text-sm text-foreground-soft">{t.phone.intro}</p>
+          <div className="mt-4">
+            <PhoneVerificationForm
+              phone={user.phone}
+              phoneVerifiedAt={user.phoneVerifiedAt}
+              defaultCountry={await getRequestCountry()}
+              locale={locale}
+              t={dictionary.verifyPhone.form}
+              shared={dictionary.shared}
+              verifiedLabel={t.phone.verified}
             />
           </div>
-          {hasPassword && <p className="text-xs text-foreground-soft">{t.signInMethod.signsOut}</p>}
-          <SubmitButton
-            label={hasPassword ? t.signInMethod.update : t.signInMethod.set}
-            pendingLabel={hasPassword ? t.signInMethod.updating : t.signInMethod.setting}
-            offlineMessage={offlineMessage}
-            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-          />
-        </form>
-      </div>
+        </CollapsibleSection>
 
-      <div>
-        <h2 className="text-lg font-semibold">{t.phone.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.phone.intro}</p>
-        <div className="mt-4">
-          <PhoneVerificationForm
-            phone={user.phone}
-            phoneVerifiedAt={user.phoneVerifiedAt}
-            defaultCountry={await getRequestCountry()}
-            locale={locale}
-            t={dictionary.verifyPhone.form}
-            shared={dictionary.shared}
-            verifiedLabel={t.phone.verified}
-          />
-        </div>
+        <CollapsibleSection id="your-data" page="settings" title={t.data.heading}>
+          <AccountDangerZone showHeading={false} />
+        </CollapsibleSection>
       </div>
-
-      <AccountDangerZone />
     </div>
   );
 }

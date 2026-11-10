@@ -52,6 +52,7 @@ const PRODUCT_NAME_TITLES = [
   "pages.search.circles",
   "circles.list.title",
   "collab.board.title",
+  "feed.createPicker.muse",
 ];
 // "{name}: {text}", with nothing in it to translate.
 const NAME_THEN_TEXT = ["messages.inbox.from", "messages.thread.incoming"];
@@ -59,7 +60,13 @@ const NAME_THEN_TEXT = ["messages.inbox.from", "messages.thread.incoming"];
 const GIF_LABELS = ["messages.inbox.gif", "messages.thread.bubble.gif", "ui.comments.gifAlt"];
 const LATIN_SCRIPT_SHARED = [...GIF_LABELS, "ui.listSeparator", "ui.report.reasons.SPAM"];
 // Feature and brand names kept as they are: Ambient (like Muse), and two of the emoji sets.
-const NAMES_KEPT = ["settings.ambient.heading", "settings.emoji.styles.google", "settings.emoji.styles.twitter"];
+const NAMES_KEPT = [
+  "settings.ambient.heading",
+  "settings.emoji.styles.google",
+  "settings.emoji.styles.twitter",
+  // The invite panel's WhatsApp button: the brand name.
+  "invite.whatsApp",
+];
 // "Zoom", "Total", "Marimba", "Yoga" and "Fitness" are the words Spanish, French and Portuguese use too, and "min"
 // their abbreviation of "minutes" in "{date} · {minutes} min".
 const LATIN_LOANWORDS = [
@@ -139,6 +146,10 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "collab.detail.participantsHeading",
     "vocab.circleCategories.Culture",
     "vocab.collabTypes.Hackathons",
+    // French and Portuguese call a Story "story" (as everywhere else in their dictionaries).
+    "feed.createPicker.story",
+    // A mobile phone number is "Mobile" in French too.
+    "invite.phoneKinds.mobile",
   ],
   pt: [
     "onboarding.bio",
@@ -157,6 +168,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "vocab.languages.Dari",
     "vocab.collabTypes.Hackathons",
     "vocab.collabTypes.Networking",
+    "feed.createPicker.story",
   ],
   ar: [...PRODUCT_NAME_TITLES, ...NAME_THEN_TEXT, ...NAMES_KEPT],
 };

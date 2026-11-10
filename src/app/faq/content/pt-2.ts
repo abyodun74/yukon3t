@@ -45,7 +45,7 @@ export const pt2 = {
 
   story: {
     q: "O que é um story?",
-    a: "Uma foto, um vídeo curto (de até 2 minutos) ou um texto digitado ou colado, exibido no seu perfil, que desaparece automaticamente depois de 24 horas. Toque no «+» da sua própria foto de perfil para adicionar um. Qualquer pessoa que possa ver seu perfil pode vê-lo enquanto estiver ativo.",
+    a: "Uma foto, um vídeo curto (de até 2 minutos) ou um texto digitado ou colado, exibido no seu perfil, que desaparece automaticamente depois de 24 horas. Toque no «+» da sua própria foto de perfil («Seu story» no Início, ou no seu perfil) e escolha «Story» para adicionar um; esse mesmo «+» também oferece «Publicação» e «Muse». Qualquer pessoa que possa ver seu perfil pode ver seu story enquanto estiver ativo.",
   },
   "post-text-only-story": {
     q: "Posso publicar um story só de texto?",
@@ -53,7 +53,7 @@ export const pt2 = {
   },
   "post-more-than-one-story": {
     q: "Posso publicar mais de um story no mesmo dia?",
-    a: "Sim. Quando você tem um story ativo, aparece um pequeno «+» no anel do seu story (tanto no Início quanto no seu perfil) para você continuar adicionando outros sem limite, além de poder tocar no próprio anel para ver os que já tem.",
+    a: "Sim. O pequeno «+» no anel do seu story (tanto no Início quanto no seu perfil) está sempre lá: toque nele e escolha «Story» para continuar adicionando outros sem limite. Quando você tem um story ativo, tocar no próprio anel mostra os que você já tem.",
   },
   "move-between-different-peoples-stories": {
     q: "Como passo dos stories de uma pessoa para os de outra?",
@@ -70,7 +70,7 @@ export const pt2 = {
   },
   "post-muse": {
     q: "Como publico um Muse?",
-    a: "Abra seu próprio perfil e toque em «Publicar um Muse». Escolha um vídeo (de até 5 minutos), adicione uma legenda se quiser e publique. É só isso, sem outras telas. Um vídeo mais longo (com mais de um minuto, aproximadamente) passa por uma análise automática de segurança adicional antes de ficar visível para os outros, o que pode demorar um pouco mais do que com um vídeo mais curto. Antes de publicar, você também pode escolher «Áudio personalizado» para anexar um arquivo de som separado que substitui por completo o áudio do vídeo (a ideia de «adicionar som» do TikTok). Escolha «Som original» (o padrão) para manter o áudio do próprio vídeo.",
+    a: "Abra seu próprio perfil e toque em «Publicar um Muse», ou toque no «+» da sua própria foto de perfil (no Início ou no seu perfil) e escolha «Muse». Escolha um vídeo (de até 5 minutos), adicione uma legenda se quiser e publique. É só isso, sem outras telas. Um vídeo mais longo (com mais de um minuto, aproximadamente) passa por uma análise automática de segurança adicional antes de ficar visível para os outros, o que pode demorar um pouco mais do que com um vídeo mais curto. Antes de publicar, você também pode escolher «Áudio personalizado» para anexar um arquivo de som separado que substitui por completo o áudio do vídeo (a ideia de «adicionar som» do TikTok). Escolha «Som original» (o padrão) para manter o áudio do próprio vídeo.",
   },
   "delete-muse-after-ive-posted": {
     q: "Posso excluir um Muse depois de publicar?",

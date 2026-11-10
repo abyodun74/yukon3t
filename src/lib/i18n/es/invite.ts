@@ -14,9 +14,12 @@ export const invite: typeof inviteEn = {
   copied: "¡Copiado!",
   copyFailed: "No se pudo copiar",
   share: "Compartir",
-  textHeading: "Invitar por mensaje de texto",
+  shareFailed: "No se pudo compartir. Inténtalo de nuevo.",
+  whatsApp: "WhatsApp",
+  whatsAppLabel: "Invitar por WhatsApp",
+  textHeading: "Invitar por mensaje de texto o WhatsApp",
   textIntro:
-    "Elige personas de tu agenda (donde sea posible) o ingresa un número, y envía a cada una un mensaje con tu enlace de invitación.",
+    "Elige personas de tu agenda (donde sea posible) o ingresa un número, y envía a cada una un mensaje de texto o de WhatsApp con tu enlace de invitación.",
   openingContacts: "Abriendo la agenda…",
   chooseContacts: "Elegir de la agenda",
   phoneLabel: "Número de teléfono",
@@ -28,6 +31,7 @@ export const invite: typeof inviteEn = {
   noMatches: "Nadie coincide con la búsqueda.",
   addSelected: "one: Agregar # seleccionado | other: Agregar # seleccionados",
   selectToAdd: "Selecciona a quién agregar",
+  phoneKinds: { mobile: "Móvil", home: "Casa", work: "Trabajo", other: "Otro" },
   errors: {
     permission:
       "Se denegó el permiso para acceder a la agenda. Actívalo para YuKon3t en los ajustes de tu teléfono para invitar desde tu agenda.",

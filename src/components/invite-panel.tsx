@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Check, Link2, MessageSquareText, Search, Share2, Users, X } from "lucide-react";
+import { Check, Link2, MessageCircle, MessageSquareText, Search, Share2, Users, X } from "lucide-react";
 import type { ContactPayload } from "@capacitor-community/contacts";
 import { captureError } from "@/lib/error-tracking";
 import { Sheet } from "@/components/sheet";
@@ -11,8 +11,20 @@ import { useInviteText } from "@/components/invite-text";
 import { isValidE164 } from "@/lib/phone-number";
 import { plural } from "@/lib/i18n/locales";
 import { copyTextToClipboard } from "@/lib/copy-image";
-
-type InviteContact = { id: string; name: string | null; tel: string };
+import { canShareNatively, shareNative } from "@/lib/native-share";
+import {
+  buildInviteContactRows,
+  matchesInviteSearch,
+  mergeInviteContacts,
+  type InviteContact,
+  type RawInviteContact,
+} from "@/lib/invite-contacts";
+import {
+  buildInviteMessage,
+  buildInviteUrl,
+  buildSmsInviteHref,
+  buildWhatsAppInviteHref,
+} from "@/lib/invite-link";
 
 // The Contact Picker API (navigator.contacts.select) is real but experimental
 // and Chromium-only (Android Chrome, and desktop Chrome) — no type in the
@@ -34,27 +46,33 @@ function getContactsManager(): ContactsManager | null {
   return nav.contacts ?? null;
 }
 
-let contactRowId = 0;
+function nativeContactName(c: ContactPayload): string | null {
+  const display = c.name?.display?.trim();
+  if (display) return display;
+  const parts = [c.name?.given, c.name?.family].map((p) => p?.trim()).filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
 
-function flattenNativeContacts(contacts: ContactPayload[]): InviteContact[] {
-  const rows = contacts.flatMap((c) =>
-    (c.phones ?? [])
-      .map((p) => p.number)
-      .filter((n): n is string => Boolean(n && n.trim()))
-      .map((tel) => ({ id: String(contactRowId++), name: c.name?.display ?? null, tel })),
-  );
-  return rows.sort((a, b) => (a.name ?? "￿").localeCompare(b.name ?? "￿"));
+/** The address book's contacts as invite-contacts.ts reads them (it does the normalizing and de-duplicating). */
+function rawFromNativeContacts(contacts: ContactPayload[]): RawInviteContact[] {
+  return contacts.map((c) => ({ name: nativeContactName(c), phones: c.phones ?? [] }));
 }
 
 export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null }) {
   const { locale, t } = useInviteText();
+  // The link and the full message are built in one place (invite-link.ts): always https://yukon3t.com/sign-up,
+  // whatever host this page was opened on.
+  const inviteUrl = buildInviteUrl();
+  const inviteMessage = buildInviteMessage(t.message, inviteUrl);
   // Read directly during render rather than via useEffect+setState — same
   // convention as ShareModal's canNativeShare/url: these are plain,
   // synchronous browser-API reads with nothing to subscribe to, so an
   // effect would just add a redundant extra render for no benefit.
-  const inviteUrl = typeof window !== "undefined" ? `${window.location.origin}/sign-up` : "";
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const isNative = typeof window !== "undefined" && Capacitor.isNativePlatform();
+  // The native share sheet in the app (navigator.share isn't reliable in its WebView), the Web Share API elsewhere.
+  const canNativeShare = typeof window !== "undefined" && canShareNatively();
+  const canShare =
+    canNativeShare || (typeof navigator !== "undefined" && typeof navigator.share === "function");
   const canPickContacts = isNative || Boolean(getContactsManager());
 
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
@@ -64,6 +82,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   // Bumped after a number is added, to remount the field empty (it keeps its own state).
   const [manualFieldKey, setManualFieldKey] = useState(0);
   const [pickError, setPickError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   // Native-only: the device's full contact list (fetched once per picker
   // open) and the in-app checkbox picker built from it — the OS's own
@@ -86,11 +105,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
 
   const filteredNativeRows = useMemo(() => {
     if (!displayedNativeRows) return [];
-    const q = nativeSearch.trim().toLowerCase();
-    if (!q) return displayedNativeRows;
-    return displayedNativeRows.filter(
-      (r) => r.name?.toLowerCase().includes(q) || r.tel.toLowerCase().includes(q),
-    );
+    return displayedNativeRows.filter((r) => matchesInviteSearch(r, nativeSearch));
   }, [displayedNativeRows, nativeSearch]);
 
   async function copyLink() {
@@ -99,11 +114,23 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   }
 
   async function shareLink() {
+    setShareError(null);
+    // The link goes inside the text (not as a separate `url`): some targets (WhatsApp, several SMS apps) keep only one
+    // of the two, and the text is what they all keep.
+    if (canNativeShare) {
+      const result = await shareNative({ text: inviteMessage });
+      if (result.warning) setShareError(t.shareFailed);
+      return;
+    }
     try {
-      await navigator.share({ title: "YuKon3t", text: t.message, url: inviteUrl });
+      await navigator.share({ title: "YuKon3t", text: inviteMessage });
     } catch {
       // Cancelling the native share sheet also lands here — not an error worth surfacing.
     }
+  }
+
+  function phoneKindLabel(row: InviteContact): string | null {
+    return row.customLabel ?? (row.kind ? t.phoneKinds[row.kind] : null);
   }
 
   async function openContactPicker() {
@@ -126,7 +153,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
         const { contacts: fetched } = await Contacts.getContacts({
           projection: { name: true, phones: true },
         });
-        const rows = flattenNativeContacts(fetched);
+        const rows = buildInviteContactRows(rawFromNativeContacts(fetched), defaultCountry);
         if (rows.length === 0) {
           setPickError(t.errors.noNumbers);
           setNativeLoading(false);
@@ -153,14 +180,15 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
     if (!manager) return;
     try {
       const picked = await manager.select(["name", "tel"], { multiple: true });
-      const rows: InviteContact[] = picked.flatMap((c) =>
-        (c.tel ?? []).map((tel) => ({ id: String(contactRowId++), name: c.name?.[0] ?? null, tel })),
+      const rows = buildInviteContactRows(
+        picked.map((c) => ({ name: c.name?.[0], phones: (c.tel ?? []).map((number) => ({ number })) })),
+        defaultCountry,
       );
       if (rows.length === 0) {
         setPickError(t.errors.pickedNoNumbers);
         return;
       }
-      setContacts((prev) => [...prev, ...rows]);
+      setContacts((prev) => mergeInviteContacts(prev, rows));
     } catch {
       // User dismissed the picker — not an error worth surfacing.
     }
@@ -187,7 +215,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   function confirmNativeSelection() {
     if (!nativeRows) return;
     const chosen = nativeRows.filter((r) => nativeSelected.has(r.id));
-    setContacts((prev) => [...prev, ...chosen]);
+    setContacts((prev) => mergeInviteContacts(prev, chosen));
     closeNativePicker();
   }
 
@@ -200,7 +228,9 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
       return;
     }
     setPickError(null);
-    setContacts((prev) => [...prev, { id: String(contactRowId++), name: null, tel }]);
+    // Same normalizing as picked contacts, so a number already in the list (picked or typed) isn't added twice.
+    const rows = buildInviteContactRows([{ name: null, phones: [{ number: tel }] }], defaultCountry);
+    setContacts((prev) => mergeInviteContacts(prev, rows));
     setManualNumber("");
     setManualFieldKey((k) => k + 1);
   }
@@ -209,9 +239,6 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
     setContacts((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function smsHref(tel: string) {
-    return `sms:${encodeURIComponent(tel)}?body=${encodeURIComponent(`${t.message} ${inviteUrl}`)}`;
-  }
 
   return (
     <div className="space-y-6">
@@ -219,7 +246,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
         <p className="text-sm font-medium">{t.linkHeading}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-background px-3 py-2 text-start text-xs text-foreground-soft">
-            {inviteUrl || "…"}
+            {inviteUrl}
           </code>
           <button
             type="button"
@@ -239,7 +266,18 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               {t.share}
             </button>
           )}
+          <a
+            href={buildWhatsAppInviteHref(inviteMessage)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t.whatsAppLabel}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent"
+          >
+            <MessageCircle size={14} />
+            {t.whatsApp}
+          </a>
         </div>
+        {shareError && <p role="alert" className="mt-2 text-xs text-danger">{shareError}</p>}
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4">
@@ -302,15 +340,30 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
               >
                 <div className="min-w-0 flex-1">
                   {c.name && <p dir="auto" className="truncate text-sm font-medium">{c.name}</p>}
-                  <p dir="ltr" className="truncate text-start text-xs text-foreground-soft">{c.tel}</p>
+                  <p className="truncate text-start text-xs text-foreground-soft">
+                    <span dir="ltr">{c.display}</span>
+                    {phoneKindLabel(c) && <span dir="auto"> · {phoneKindLabel(c)}</span>}
+                  </p>
                 </div>
                 <a
-                  href={smsHref(c.tel)}
+                  href={buildSmsInviteHref(c.tel, inviteMessage)}
                   className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink"
                 >
                   <MessageSquareText size={13} />
                   {t.invite}
                 </a>
+                {c.e164 && (
+                  <a
+                    href={buildWhatsAppInviteHref(inviteMessage, c.e164)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t.whatsAppLabel}
+                    title={t.whatsAppLabel}
+                    className="flex shrink-0 items-center rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-accent hover:text-accent"
+                  >
+                    <MessageCircle size={13} />
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => removeContact(c.id)}
@@ -362,7 +415,10 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
                       />
                       <span className="min-w-0 flex-1">
                         {row.name && <span dir="auto" className="block truncate text-sm font-medium">{row.name}</span>}
-                        <span dir="ltr" className="block truncate text-start text-xs text-foreground-soft">{row.tel}</span>
+                        <span className="block truncate text-start text-xs text-foreground-soft">
+                          <span dir="ltr">{row.display}</span>
+                          {phoneKindLabel(row) && <span dir="auto"> · {phoneKindLabel(row)}</span>}
+                        </span>
                       </span>
                     </label>
                   ))}

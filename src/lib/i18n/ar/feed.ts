@@ -24,6 +24,16 @@ export const feed: typeof feedEn = {
     TRAVEL_TIPS: "نصائح سفر",
   },
   quickActions: { live: "بث مباشر", addStory: "إضافة قصة", newPost: "منشور جديد" },
+  createPicker: {
+    open: "إنشاء",
+    title: "إنشاء",
+    story: "قصة",
+    storyHint: "صورة أو فيديو أو نص لمدة 24 ساعة",
+    feed: "منشور",
+    feedHint: "شارك في ملفك الشخصي وفي «الرئيسية»",
+    muse: "Muse",
+    museHint: "فيديو قصير، حتى 5 دقائق",
+  },
   sponsored: "إعلان مموَّل",
   streak: {
     days: "zero: لا سلسلة أيام بعد | one: سلسلة يوم واحد | two: سلسلة يومين متتاليين | few: سلسلة # أيام متتالية | many: سلسلة # يومًا متتاليًا | other: سلسلة # يوم متتالٍ",

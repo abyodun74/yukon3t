@@ -4,18 +4,21 @@ import { useState, useTransition } from "react";
 import { exportMyData, deleteMyAccount, deactivateAccount } from "@/app/actions/profile";
 import { useSettingsText } from "@/components/settings-text";
 
-export function AccountDangerZone() {
+/** showHeading: false when the page already titles this block "Your data" (Settings' collapsible section). */
+export function AccountDangerZone({ showHeading = true }: { showHeading?: boolean } = {}) {
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const t = useSettingsText().t.data;
+  // Under the page's own "Your data" heading these are its sub-headings.
+  const Sub = showHeading ? "h2" : "h3";
 
   return (
     <div className="space-y-4 rounded-xl border border-danger/40 p-5">
       <div>
-        <h2 className="font-semibold">{t.heading}</h2>
-        <p className="mt-1 text-sm text-foreground-soft">{t.stored}</p>
+        {showHeading && <h2 className="font-semibold">{t.heading}</h2>}
+        <p className={`${showHeading ? "mt-1 " : ""}text-sm text-foreground-soft`}>{t.stored}</p>
         <p className="mt-2 text-sm text-foreground-soft">{t.exportIntro}</p>
         <button
           type="button"
@@ -45,7 +48,7 @@ export function AccountDangerZone() {
       </div>
 
       <div className="border-t border-line pt-4">
-        <h2 className="font-semibold">{t.deactivateHeading}</h2>
+        <Sub className="font-semibold">{t.deactivateHeading}</Sub>
         <p className="mt-1 text-sm text-foreground-soft">{t.deactivateIntro}</p>
         {!confirmingDeactivate ? (
           <button
@@ -77,7 +80,7 @@ export function AccountDangerZone() {
       </div>
 
       <div className="border-t border-line pt-4">
-        <h2 className="font-semibold text-danger">{t.deleteHeading}</h2>
+        <Sub className="font-semibold text-danger">{t.deleteHeading}</Sub>
         <p className="mt-1 text-sm text-foreground-soft">{t.deleteIntro}</p>
         {!confirming ? (
           <button
