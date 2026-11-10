@@ -35,6 +35,41 @@ export function isSharingBirthday(audience: BirthdayAudience): boolean {
   return audience === "CONNECTIONS" || audience === "CIRCLES" || audience === "BOTH";
 }
 
+/** The three ways of sharing, in the order Settings offers them. */
+export const BIRTHDAY_SHARING_AUDIENCES = ["BOTH", "CONNECTIONS", "CIRCLES"] as const satisfies readonly BirthdayAudience[];
+
+/**
+ * What Settings -> Privacy -> Birthday shows (src/app/settings/page.tsx), with the same rule updateBirthdaySharing
+ * enforces: Off can always be chosen, keeping the current choice is always fine, and choosing a (new) way of sharing
+ * needs a birthday that can be shared now (`shareable`, canShareBirthday: an adult with a known birth date).
+ * - On: "Turn off" is always offered; the who-is-reminded choice only when shareable (an under-18 account keeps its
+ *   current choice, which takes effect at 18).
+ * - Off: "Turn on" (with who to share it with) only when shareable. An under-18 account that turned it off can't turn it
+ *   back on until it is 18; the page says so instead of offering a control the action would refuse.
+ */
+export function birthdaySettingsView(
+  audience: BirthdayAudience,
+  shareable: boolean,
+): { sharing: boolean; audiences: readonly BirthdayAudience[]; canTurnOn: boolean } {
+  const sharing = isSharingBirthday(audience);
+  return { sharing, audiences: shareable ? BIRTHDAY_SHARING_AUDIENCES : [], canTurnOn: !sharing && shareable };
+}
+
+/**
+ * Whether a new account is owed the one-time BIRTHDAY_SHARING_ON notice (User.birthdaySharingNoticePending), decided
+ * when its birth date is first recorded (password / phone sign-up; onboarding for magic-link, Google and Apple, whose
+ * accounts are created without one). An adult sees the setting with sharing already on and keeps false; an under-18
+ * account starts on the default too, but nothing is shared until BIRTHDAY_MIN_AGE, so the birthday-reminders cron
+ * (sendBirthdaySharingNotices) tells it once it turns 18. Never for an account that isn't sharing.
+ */
+export function birthdayNoticePendingAtSignUp(
+  birthDate: Date | null | undefined,
+  audience: BirthdayAudience,
+  now: Date,
+): boolean {
+  return Boolean(birthDate) && isSharingBirthday(audience) && !canShareBirthday(birthDate, now);
+}
+
 /** A calendar date in someone's own time zone. Months are 1-12. */
 export type LocalDate = { year: number; month: number; day: number };
 

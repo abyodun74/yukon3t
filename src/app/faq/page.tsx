@@ -1574,10 +1574,16 @@ const sections: Section[] = [
             person, at most one per person per year, and you get one
             notification that sums them up instead of one per wish. If you were
             born on February 29, your birthday is celebrated on February 28 in
-            other years. To choose who is reminded, or to stop sharing it, go to
-            Settings → Privacy → Birthday and pick your connections, members of
-            your Circles, both, or Off. With Off, nobody is reminded from then
-            on, though reminders already sent aren&apos;t recalled.
+            other years. To choose who is reminded, go to Settings → Privacy →
+            Birthday and pick your connections, members of your Circles, or
+            both. To stop sharing it, tap &ldquo;Turn off birthday
+            sharing&rdquo; there: nobody is reminded from then on, though
+            reminders already sent aren&apos;t recalled. Changed your mind? The
+            same place has &ldquo;Turn on birthday sharing&rdquo;. If
+            you&apos;re under 18, you can keep the default or turn it off, but
+            once it&apos;s off it can only be turned back on from 18. If you
+            join before you&apos;re 18, you get a one-time notification when
+            your birthday starts being shared.
           </>
         ),
       },

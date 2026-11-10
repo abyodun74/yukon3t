@@ -4,6 +4,8 @@ import {
   BIRTHDAY_DEFAULT_AUDIENCE,
   ageOn,
   audienceAllows,
+  birthdayNoticePendingAtSignUp,
+  birthdaySettingsView,
   birthdayCandidateMonthDays,
   birthdayRefusal,
   birthdayReminderDue,
@@ -352,5 +354,55 @@ describe("wish content", () => {
     expect(birthdayWishContent({ kind: "emoji", emoji: "🎂" }, presets)).toBe("🎂");
     expect(birthdayWishContent({ kind: "preset", presetId: "bestWishes" }, presets)).toBe("Best wishes!");
     expect(birthdayWishContent({ kind: "custom", text: "  Have a great one  " }, presets)).toBe("Have a great one");
+  });
+});
+
+describe("birthdaySettingsView (Settings -> Privacy -> Birthday)", () => {
+  it("offers an adult who is sharing every way of sharing, plus Turn off", () => {
+    expect(birthdaySettingsView("CIRCLES", true)).toEqual({
+      sharing: true,
+      audiences: ["BOTH", "CONNECTIONS", "CIRCLES"],
+      canTurnOn: false,
+    });
+  });
+
+  it("lets an adult who turned it off turn it back on, choosing who to share it with", () => {
+    expect(birthdaySettingsView("NONE", true)).toEqual({
+      sharing: false,
+      audiences: ["BOTH", "CONNECTIONS", "CIRCLES"],
+      canTurnOn: true,
+    });
+  });
+
+  it("lets an under-18 account (or one without a birth date) keep the default or turn it off, never turn it back on", () => {
+    expect(birthdaySettingsView("BOTH", false)).toEqual({ sharing: true, audiences: [], canTurnOn: false });
+    expect(birthdaySettingsView("NONE", false)).toEqual({ sharing: false, audiences: [], canTurnOn: false });
+  });
+
+  it("never offers Off as a way of sharing (it has its own button)", () => {
+    for (const audience of BIRTHDAY_AUDIENCE_VALUES) {
+      expect(birthdaySettingsView(audience, true).audiences).not.toContain("NONE");
+    }
+  });
+});
+
+describe("birthdayNoticePendingAtSignUp", () => {
+  const now = new Date("2026-11-10T12:00:00Z");
+
+  it("owes an under-18 sign-up the one-time notice for when sharing starts at 18", () => {
+    expect(birthdayNoticePendingAtSignUp(born("2010-05-05"), BIRTHDAY_DEFAULT_AUDIENCE, now)).toBe(true);
+    // Turns 18 tomorrow: still a minor today.
+    expect(birthdayNoticePendingAtSignUp(born("2008-11-11"), "BOTH", now)).toBe(true);
+  });
+
+  it("leaves an adult sign-up without it (18 today counts as adult)", () => {
+    expect(birthdayNoticePendingAtSignUp(born("1990-03-03"), BIRTHDAY_DEFAULT_AUDIENCE, now)).toBe(false);
+    expect(birthdayNoticePendingAtSignUp(born("2008-11-10"), "BOTH", now)).toBe(false);
+  });
+
+  it("is never owed without a birth date or while not sharing", () => {
+    expect(birthdayNoticePendingAtSignUp(null, "BOTH", now)).toBe(false);
+    expect(birthdayNoticePendingAtSignUp(undefined, "BOTH", now)).toBe(false);
+    expect(birthdayNoticePendingAtSignUp(born("2010-05-05"), "NONE", now)).toBe(false);
   });
 });

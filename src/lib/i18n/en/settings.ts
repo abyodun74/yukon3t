@@ -37,17 +37,23 @@ export const settingsEn = {
     // Always shown, and worded the same, whether or not the account has a PIN or a hidden chat.
     hiddenChats: "Hidden chats",
   },
-  // Settings -> Privacy, "Share my birthday" (updateBirthdaySharing, src/lib/birthdays.ts). Off by default.
+  // Settings -> Privacy, "Share my birthday" (updateBirthdaySharing, birthdaySettingsView in src/lib/birthdays.ts). On
+  // by default; Turn off / Turn on switch it.
   birthday: {
     heading: "Birthday",
-    label: "Share my birthday",
-    hint: "On by default, with your connections and members of your Circles. On your birthday they get one quiet reminder (no sound or vibration) at midnight in their own time zone, and can send you wishes as a message. Only the day and month are shared, never the year or your age. Blocked people never see it. Choose Off to stop sharing it.",
-    off: "Off: don't share my birthday",
+    statusOn: "Birthday sharing is on",
+    statusOff: "Birthday sharing is off",
+    audience: "Who is reminded",
+    hint: "On by default, with your connections and members of your Circles. On your birthday they get one quiet reminder (no sound or vibration) at midnight in their own time zone, and can send you wishes as a message. Only the day and month are shared, never the year or your age. Blocked people never see it. You can turn it off at any time and back on later.",
     connections: "With my connections",
     circles: "With members of my Circles",
     both: "With my connections and members of my Circles (default)",
-    unavailable: "Your birthday is only shared once you're 18 or over and your date of birth is on your account. You can choose Off now and it stays off.",
-    save: "Save birthday setting",
+    save: "Save who is reminded",
+    turnOff: "Turn off birthday sharing",
+    offHint: "Nobody is reminded of your birthday. Changed your mind? Choose who to share it with and turn it back on.",
+    turnOn: "Turn on birthday sharing",
+    unavailable: "Your birthday is only shared once you're 18 or over and your date of birth is on your account; until then nobody is reminded. You can turn it off now if you prefer.",
+    offUnavailable: "Nobody is reminded of your birthday. You can turn sharing back on once you're 18 or over and your date of birth is on your account.",
   },
   notifications: {
     heading: "Notifications",

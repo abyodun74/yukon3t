@@ -33,6 +33,7 @@ import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
+import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
 
 export async function completeOnboarding(formData: FormData) {
   const user = await requireUser();
@@ -77,6 +78,13 @@ export async function completeOnboarding(formData: FormData) {
       // When joining finished, kept from the first time: the announce-new-members cron (src/lib/new-member-alerts.ts)
       // announces an account a little after this, once.
       onboardedAt: user.onboardedAt ?? new Date(),
+      // Magic-link, Google and Apple accounts are created without a birth date, so this is their sign-up's age check:
+      // an under-18 account is owed the one-time "your birthday is now shared" notice once it turns 18. Only when the
+      // birth date is first recorded (a password / phone sign-up decided it already), and never cleared here.
+      ...(user.birthDate === null &&
+      birthdayNoticePendingAtSignUp(birthDate, user.birthdayAudience, new Date())
+        ? { birthdaySharingNoticePending: true }
+        : {}),
     },
   });
   await updateUserEmbedding(user.id, { name, username: user.username, bio, interests });

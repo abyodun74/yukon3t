@@ -263,7 +263,9 @@ export const BIRTHDAY_SHARING_NOTICE_BATCH = 500;
 
 /**
  * The one-time "your birthday is now shared" notice (BIRTHDAY_SHARING_ON, bell only, no push) to the accounts the
- * default-on migration switched on (User.birthdaySharingNoticePending). Sent only once the account is one whose
+ * default-on migration switched on, and to accounts that signed up under 18 (birthdayNoticePendingAtSignUp, set by
+ * signUpWithPassword and, for magic-link / Google / Apple accounts, completeOnboarding), all flagged by
+ * User.birthdaySharingNoticePending. Sent only once the account is one whose
  * birthday can actually be shared (an ACTIVE adult with a known birth date, canShareBirthday), still sharing and not a
  * site admin (never a celebrant); an under-18 account keeps its flag and gets the notice in the run after it turns
  * 18. Each account is claimed by a guarded update in the same transaction that writes its bell row, so overlapping

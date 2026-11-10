@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // always accepted, and any save clears a pending default-on notice.
 const requireUser = vi.fn();
 const userUpdate = vi.fn();
+const revalidatePath = vi.fn();
 const redirect = vi.fn((url: string) => {
   throw new Error(`REDIRECT ${url}`);
 });
@@ -11,7 +12,7 @@ const redirect = vi.fn((url: string) => {
 vi.mock("@/lib/auth-guards", () => ({ requireUser: () => requireUser(), requireVerifiedUser: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: (...a: unknown[]) => userUpdate(...a) } } }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => redirect(url) }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidatePath(path) }));
 vi.mock("@/lib/birthday-wish-server", () => ({ sendBirthdayWishAs: vi.fn() }));
 vi.mock("@/lib/i18n/server", () => ({ getDictionary: vi.fn() }));
 
@@ -36,6 +37,7 @@ describe("updateBirthdaySharing", () => {
     userUpdate.mockReset();
     userUpdate.mockResolvedValue({ id: "u" });
     redirect.mockClear();
+    revalidatePath.mockClear();
   });
 
   it("records Off as an explicit NONE and clears the pending notice", async () => {
@@ -62,6 +64,36 @@ describe("updateBirthdaySharing", () => {
     expect(await save("BOTH")).toBe("REDIRECT /settings?saved=1");
     expect(await save("CONNECTIONS")).toBe("REDIRECT /settings?error=birthday_unavailable");
     expect(userUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets an adult who turned it off turn it back on, with any audience, without owing a notice", async () => {
+    for (const audience of ["BOTH", "CONNECTIONS", "CIRCLES"]) {
+      requireUser.mockResolvedValue({ ...adult, birthdayAudience: "NONE" });
+      expect(await save(audience)).toBe("REDIRECT /settings?saved=1");
+      // Turning it back on is a choice made in Settings: the one-time "now shared" notice is never (re)queued.
+      expect(userUpdate).toHaveBeenLastCalledWith({
+        where: { id: "u1" },
+        data: { birthdayAudience: audience, birthdaySharingNoticePending: false },
+        select: { id: true },
+      });
+    }
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+  });
+
+  it("explains, rather than saves, an under-18 account turning it back on after turning it off", async () => {
+    requireUser.mockResolvedValue({ ...minor, birthdayAudience: "NONE" });
+    for (const audience of ["BOTH", "CONNECTIONS", "CIRCLES"]) {
+      expect(await save(audience)).toBe("REDIRECT /settings?error=birthday_unavailable");
+    }
+    // Keeping it off is still fine.
+    expect(await save("NONE")).toBe("REDIRECT /settings?saved=1");
+    expect(userUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an account with no birth date turning it back on", async () => {
+    requireUser.mockResolvedValue({ id: "u3", birthDate: null, birthdayAudience: "NONE" });
+    expect(await save("BOTH")).toBe("REDIRECT /settings?error=birthday_unavailable");
+    expect(userUpdate).not.toHaveBeenCalled();
   });
 
   it("refuses anything that isn't a choice, including the old OFF value", async () => {

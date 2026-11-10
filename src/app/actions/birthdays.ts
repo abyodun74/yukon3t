@@ -11,8 +11,10 @@ import { getDictionary } from "@/lib/i18n/server";
 
 /**
  * Settings -> Privacy, "Share my birthday": who is reminded on the day (src/lib/birthdays.ts). On by default (BOTH);
- * NONE is Off, and is always accepted. Changing to another way of sharing needs a known birth date and an adult account
- * (BIRTHDAY_MIN_AGE). Any choice made here also clears a still-pending default-on notice (BIRTHDAY_SHARING_ON): the
+ * NONE is Off ("Turn off"), and is always accepted. Changing to another way of sharing, including turning it back on
+ * after Off, needs a known birth date and an adult account (BIRTHDAY_MIN_AGE): an under-18 account that turned it off
+ * can't turn it on again until 18, and the page says so (birthdaySettingsView) instead of offering it. Any choice made
+ * here also clears a still-pending default-on notice (BIRTHDAY_SHARING_ON), so turning it back on never sends one: the
  * person has seen the setting and decided.
  */
 export async function updateBirthdaySharing(formData: FormData) {

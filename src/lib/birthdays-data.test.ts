@@ -315,6 +315,23 @@ describe("sendBirthdaySharingNotices", () => {
     expect(notificationCreateMany).not.toHaveBeenCalled();
   });
 
+  it("tells someone who signed up under 18 on the run after they turn 18, not before", async () => {
+    // Flagged at sign-up (birthdayNoticePendingAtSignUp); turns 18 on 2026-11-08.
+    const minorAtSignUp = { id: "teen", birthDate: new Date("2008-11-08T00:00:00.000Z") };
+    userFindMany.mockResolvedValue([minorAtSignUp]);
+    expect(await sendBirthdaySharingNotices(now)).toEqual({ notices: 0 });
+    expect(userUpdateManyAndReturn).not.toHaveBeenCalled();
+
+    userUpdateManyAndReturn.mockResolvedValue([{ id: "teen" }]);
+    expect(await sendBirthdaySharingNotices(new Date("2026-11-08T00:15:00Z"))).toEqual({ notices: 1 });
+    expect(userUpdateManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: ["teen"] } }) }),
+    );
+    expect(notificationCreateMany).toHaveBeenCalledWith({
+      data: [{ recipientId: "teen", actorId: "teen", type: "BIRTHDAY_SHARING_ON" }],
+    });
+  });
+
   it("writes no bell row when another run already claimed everyone", async () => {
     userFindMany.mockResolvedValue([{ id: "adult", birthDate: adultBirth }]);
     userUpdateManyAndReturn.mockResolvedValue([]);

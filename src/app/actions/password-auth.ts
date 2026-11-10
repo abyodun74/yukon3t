@@ -31,6 +31,7 @@ import { requireAdmin } from "@/lib/auth-guards";
 import { STUCK_UNVERIFIED_AFTER_MS } from "@/lib/login-issues";
 import { getClientIp as clientIp } from "@/lib/client-ip";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { BIRTHDAY_DEFAULT_AUDIENCE, birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
 import { generateOtpCode, hashOtpCode, EMAIL_OTP_TTL_MS, EMAIL_OTP_MAX_ATTEMPTS } from "@/lib/otp";
 import {
   issuePendingVerificationCookie,
@@ -194,7 +195,16 @@ export async function signUpWithPassword(_prev: SignUpState, formData: FormData)
   let created;
   try {
     created = await prisma.user.create({
-      data: { email, username, passwordHash, birthDate, status: "ACTIVE", pendingVerificationMethod: verificationMethod },
+      data: {
+        email,
+        username,
+        passwordHash,
+        birthDate,
+        status: "ACTIVE",
+        pendingVerificationMethod: verificationMethod,
+        // Birthday sharing starts on (the column default); an under-18 account is told once it turns 18.
+        birthdaySharingNoticePending: birthdayNoticePendingAtSignUp(birthDate, BIRTHDAY_DEFAULT_AUDIENCE, new Date()),
+      },
     });
   } catch (err) {
     // Two people racing for the same email/username: the loser gets the same message as the pre-check.

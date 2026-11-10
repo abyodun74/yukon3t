@@ -4,7 +4,7 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, updateNewMemberAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
 import { updateBirthdaySharing } from "@/app/actions/birthdays";
-import { canShareBirthday } from "@/lib/birthdays";
+import { BIRTHDAY_DEFAULT_AUDIENCE, birthdaySettingsView, canShareBirthday } from "@/lib/birthdays";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
@@ -49,9 +49,15 @@ export default async function SettingsPage({
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
   const translationAvailable = isTranslationConfigured();
-  // "Share my birthday" is on by default (BOTH) and Off (NONE) can always be chosen. Someone it can't apply to yet (no
-  // birth date on the account, or under BIRTHDAY_MIN_AGE) is only offered their current choice and Off.
-  const birthdayShareable = canShareBirthday(user.birthDate, new Date());
+  // "Share my birthday" is on by default (BOTH): "Turn off" is always there, and "Turn on" (or changing who is
+  // reminded) only where it can apply now (birthdaySettingsView: a birth date on the account and BIRTHDAY_MIN_AGE).
+  const birthday = birthdaySettingsView(user.birthdayAudience, canShareBirthday(user.birthDate, new Date()));
+  const birthdayAudienceLabels = {
+    BOTH: t.birthday.both,
+    CONNECTIONS: t.birthday.connections,
+    CIRCLES: t.birthday.circles,
+    NONE: t.birthday.statusOff,
+  } as const;
 
   const [signedInBefore, signedInAfter] = aroundPlaceholder(t.signedInAs, "email");
   const [profileBefore, profileAfter] = aroundPlaceholder(t.editProfile, "link");
@@ -153,39 +159,97 @@ export default async function SettingsPage({
               &rsaquo;
             </span>
           </Link>
-          <form id="birthdays" action={updateBirthdaySharing} className="mt-6 scroll-mt-24 space-y-3">
+          {/* #birthdays is the anchor the BIRTHDAY_SHARING_ON notice opens; keep it on this block. */}
+          <div id="birthdays" className="mt-6 scroll-mt-24 space-y-3">
             <h3 className="text-sm font-semibold">{t.birthday.heading}</h3>
-            <div>
-              <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
-                {t.birthday.label}
-              </label>
-              <select
-                id="settings-birthday-audience"
-                name="audience"
-                defaultValue={user.birthdayAudience}
-                aria-describedby="settings-birthday-hint"
-                className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-              >
-                {(birthdayShareable || user.birthdayAudience === "BOTH") && <option value="BOTH">{t.birthday.both}</option>}
-                {(birthdayShareable || user.birthdayAudience === "CONNECTIONS") && (
-                  <option value="CONNECTIONS">{t.birthday.connections}</option>
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <span
+                aria-hidden
+                className={`inline-block size-2.5 shrink-0 rounded-full ${birthday.sharing ? "bg-success" : "bg-line"}`}
+              />
+              {birthday.sharing ? t.birthday.statusOn : t.birthday.statusOff}
+            </p>
+            {birthday.sharing ? (
+              <>
+                {birthday.audiences.length > 0 ? (
+                  <form action={updateBirthdaySharing} className="space-y-3">
+                    <div>
+                      <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
+                        {t.birthday.audience}
+                      </label>
+                      <select
+                        id="settings-birthday-audience"
+                        name="audience"
+                        defaultValue={user.birthdayAudience}
+                        aria-describedby="settings-birthday-hint"
+                        className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                      >
+                        {birthday.audiences.map((audience) => (
+                          <option key={audience} value={audience}>
+                            {birthdayAudienceLabels[audience]}
+                          </option>
+                        ))}
+                      </select>
+                      <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
+                        {t.birthday.hint}
+                      </p>
+                    </div>
+                    <SubmitButton
+                      label={t.birthday.save}
+                      pendingLabel={t.saving}
+                      offlineMessage={offlineMessage}
+                      className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+                    />
+                  </form>
+                ) : (
+                  <p className="text-sm text-foreground-soft">{t.birthday.unavailable}</p>
                 )}
-                {(birthdayShareable || user.birthdayAudience === "CIRCLES") && (
-                  <option value="CIRCLES">{t.birthday.circles}</option>
-                )}
-                <option value="NONE">{t.birthday.off}</option>
-              </select>
-              <p id="settings-birthday-hint" className="mt-1 text-sm text-foreground-soft">
-                {birthdayShareable ? t.birthday.hint : t.birthday.unavailable}
-              </p>
-            </div>
-            <SubmitButton
-              label={t.birthday.save}
-              pendingLabel={t.saving}
-              offlineMessage={offlineMessage}
-              className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
-            />
-          </form>
+                <form action={updateBirthdaySharing}>
+                  <input type="hidden" name="audience" value="NONE" />
+                  <SubmitButton
+                    label={t.birthday.turnOff}
+                    pendingLabel={t.saving}
+                    offlineMessage={offlineMessage}
+                    className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-danger hover:text-danger"
+                  />
+                </form>
+              </>
+            ) : birthday.canTurnOn ? (
+              <form action={updateBirthdaySharing} className="space-y-3">
+                <p id="settings-birthday-hint" className="text-sm text-foreground-soft">
+                  {t.birthday.offHint}
+                </p>
+                <div>
+                  <label htmlFor="settings-birthday-audience" className="block text-sm font-medium">
+                    {t.birthday.audience}
+                  </label>
+                  <select
+                    id="settings-birthday-audience"
+                    name="audience"
+                    defaultValue={BIRTHDAY_DEFAULT_AUDIENCE}
+                    aria-describedby="settings-birthday-hint"
+                    className="mt-1 w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                  >
+                    {birthday.audiences.map((audience) => (
+                      <option key={audience} value={audience}>
+                        {birthdayAudienceLabels[audience]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <SubmitButton
+                  label={t.birthday.turnOn}
+                  pendingLabel={t.saving}
+                  offlineMessage={offlineMessage}
+                  className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink hover:opacity-90"
+                />
+              </form>
+            ) : (
+              // Under 18 (or no birth date on the account): Off stays Off until sharing can apply, and the page says
+              // so rather than offering a "Turn on" the action would refuse.
+              <p className="text-sm text-foreground-soft">{t.birthday.offUnavailable}</p>
+            )}
+          </div>
         </CollapsibleSection>
 
         <CollapsibleSection id="notifications" page="settings" title={t.notifications.heading}>
