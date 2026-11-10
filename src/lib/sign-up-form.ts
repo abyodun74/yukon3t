@@ -51,7 +51,10 @@ function trimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function reasonFor(field: SignUpField, issueCodes: string[], raw: SignUpRaw): SignUpReason {
+type FieldIssue = { code: string; message: string };
+
+function reasonFor(field: SignUpField, issues: FieldIssue[], raw: SignUpRaw): SignUpReason {
+  const issueCodes = issues.map((issue) => issue.code);
   switch (field) {
     case "username":
       if (!trimmed(raw.username)) return "username_required";
@@ -63,7 +66,9 @@ function reasonFor(field: SignUpField, issueCodes: string[], raw: SignUpRaw): Si
       if (typeof raw.password !== "string" || raw.password === "") return "password_required";
       return issueCodes.includes("too_big") ? "password_too_long" : "password_too_short";
     case "birthDate":
-      return issueCodes.includes("custom") ? "birth_date_underage" : "birth_date_required";
+      // signUpSchema's strict birth date field (shared with onboarding and Settings): "underage" for a future date or
+      // one under MIN_AGE; anything else (missing, partial, not a real day, older than MAX_AGE) asks for a real date.
+      return issues.some((issue) => issue.message === "underage") ? "birth_date_underage" : "birth_date_required";
     case "phone":
       return trimmed(raw.phone) ? "phone_invalid" : "phone_required";
   }
@@ -85,18 +90,15 @@ export function validateSignUp(raw: SignUpRaw): {
   let formError: SignUpFormError | null = null;
 
   if (!parsed.success) {
-    const codesByField = new Map<SignUpField, string[]>();
+    const issuesByField = new Map<SignUpField, FieldIssue[]>();
     for (const issue of parsed.error.issues) {
       const field = issue.path[0];
       // Anything else (a verification method the form doesn't offer) is not something the person can correct.
       if (!isSignUpField(field)) formError = "invalid";
-      else codesByField.set(field, [...(codesByField.get(field) ?? []), issue.code]);
+      else issuesByField.set(field, [...(issuesByField.get(field) ?? []), { code: issue.code, message: issue.message }]);
     }
-    for (const [field, codes] of codesByField) fieldErrors[field] = reasonFor(field, codes, raw);
+    for (const [field, issues] of issuesByField) fieldErrors[field] = reasonFor(field, issues, raw);
   }
-
-  // z.coerce.date() reads a missing value as 1970-01-01, which would pass the age check.
-  if (!trimmed(raw.birthDate)) fieldErrors.birthDate = "birth_date_required";
 
   // The schema's own phone check is skipped whenever another field fails, and only checks the E.164 shape.
   const byPhone = raw.verificationMethod === "PHONE";

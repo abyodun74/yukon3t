@@ -56,7 +56,10 @@ export function isPlausibleBirthDate(birthDate: Date, maxAge = MAX_AGE) {
   return birthDate.getUTCFullYear() >= new Date().getFullYear() - maxAge;
 }
 
-/** A birth date from BirthDateSelect, with the joining age rules: at least MIN_AGE, no older than MAX_AGE. */
+/**
+ * A birth date from BirthDateSelect, with the joining age rules: at least MIN_AGE, no older than MAX_AGE. Used by
+ * sign-up, onboarding and Settings' one-time "Add your date of birth". Issue messages: "invalid" or "underage".
+ */
 const birthDateField = z
   .unknown()
   .transform((value, ctx) => {
@@ -126,9 +129,9 @@ export const signUpSchema = z
     username: usernameSchema.refine((u) => !isReservedUsername(u), { message: "That username isn't available." }),
     email: z.string().trim().toLowerCase().email(),
     password: passwordSchema,
-    birthDate: z.coerce.date().refine(isOldEnough, {
-      message: `You must be at least ${MIN_AGE} years old to use YuKon3t.`,
-    }),
+    // The same strict field as onboarding and Settings (birthDateField): a missing, partial or impossible date
+    // ("2001-02-30") or one older than MAX_AGE is "invalid"; a future one or one under MIN_AGE is "underage".
+    birthDate: birthDateField,
     verificationMethod: z.enum(verificationMethodValues),
     // Only used (and only required) when verifying by phone: the number the code is texted to.
     phone: z.string().trim().optional(),

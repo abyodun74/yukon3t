@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MIN_AGE } from "@/lib/validations";
+import { MAX_AGE, MIN_AGE } from "@/lib/validations";
 import { en } from "@/lib/i18n/en";
 import {
   SIGN_UP_FIELDS,
@@ -92,6 +92,63 @@ describe("validateSignUp", () => {
     expect(reason(isoYearsAgo(MIN_AGE - 1))).toBe("birth_date_underage");
     expect(reason(isoYearsAgo(MIN_AGE, 2))).toBe("birth_date_underage");
     expect(reason(isoYearsAgo(MIN_AGE, -2))).toBeUndefined();
+  });
+
+  describe("birth date, read strictly (never coerced)", () => {
+    const thisYear = new Date().getFullYear();
+    // Leap and non-leap years well inside the allowed ages, whatever today is.
+    let leap = thisYear - 30;
+    while (!(leap % 4 === 0 && (leap % 100 !== 0 || leap % 400 === 0))) leap--;
+    const nonLeap = leap - 1;
+    const check = (birthDate: unknown) => validateSignUp({ ...valid, birthDate });
+    const reason = (birthDate: unknown) => check(birthDate).fieldErrors.birthDate;
+
+    it("refuses a missing value instead of reading it as 1970-01-01", () => {
+      for (const missing of [undefined, null, "", "   "]) {
+        const r = check(missing);
+        expect(r.fieldErrors.birthDate, String(missing)).toBe("birth_date_required");
+        expect(r.data).toBeNull();
+      }
+    });
+
+    it("refuses a partial or malformed value", () => {
+      for (const partial of ["1990", "1990-05", "1990-05-", "-05-05", "1990-5-5", "05/05/1990", "1990-05-05T00:00:00Z", " 1990-05-05", 0, 642_000_000_000, new Date(1990, 4, 5)]) {
+        expect(reason(partial), String(partial)).toBe("birth_date_required");
+      }
+    });
+
+    it("refuses a day that doesn't exist instead of rolling it into the next month", () => {
+      for (const impossible of [`${leap}-02-30`, `${leap}-04-31`, `${nonLeap}-02-29`, `${leap}-13-01`, `${leap}-00-10`, `${leap}-06-00`, `${leap}-01-32`]) {
+        const r = check(impossible);
+        expect(r.fieldErrors.birthDate, impossible).toBe("birth_date_required");
+        expect(r.data, impossible).toBeNull();
+      }
+    });
+
+    it("says a future date or one under MIN_AGE is too young", () => {
+      expect(reason(`${thisYear + 1}-01-01`)).toBe("birth_date_underage");
+      expect(reason(isoYearsAgo(0))).toBe("birth_date_underage");
+      expect(reason(isoYearsAgo(MIN_AGE, 1))).toBe("birth_date_underage");
+    });
+
+    it("refuses a date older than MAX_AGE, like the picker and Settings", () => {
+      expect(reason(`${thisYear - MAX_AGE - 1}-12-31`)).toBe("birth_date_required");
+      expect(reason(`${thisYear - MAX_AGE}-01-01`)).toBeUndefined();
+    });
+
+    it("accepts real dates, Feb 29 in a leap year included, as UTC midnight", () => {
+      for (const [input, utc] of [
+        [`${leap}-02-29`, Date.UTC(leap, 1, 29)],
+        [`${nonLeap}-02-28`, Date.UTC(nonLeap, 1, 28)],
+        [`${leap}-04-30`, Date.UTC(leap, 3, 30)],
+        [`${leap}-12-31`, Date.UTC(leap, 11, 31)],
+        [isoYearsAgo(MIN_AGE, -2), null],
+      ] as const) {
+        const r = check(input);
+        expect(r.fieldErrors, input).toEqual({});
+        if (utc !== null) expect(r.data?.birthDate.getTime(), input).toBe(utc);
+      }
+    });
   });
 
   it("checks the phone number only when verifying by phone", () => {

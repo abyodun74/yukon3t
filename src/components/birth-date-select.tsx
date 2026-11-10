@@ -8,6 +8,14 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
 }
 
+/**
+ * How many days to offer for the picks so far: all of a month's days once a month is chosen (a leap year stands in
+ * until the year is, so Feb 29 stays possible), 31 before that.
+ */
+function dayCountFor(year: string, month: string) {
+  return month ? daysInMonth(year ? Number(year) : 2000, Number(month)) : 31;
+}
+
 function pad(n: string) {
   return n.padStart(2, "0");
 }
@@ -27,8 +35,11 @@ const selectClass =
  * to work around its UI.
  *
  * Combines the three selects into one hidden `name="birthDate"` field as
- * `YYYY-MM-DD`, so the server action (signUpWithPassword/completeOnboarding)
- * and its Zod schema (z.coerce.date()) need no changes at all.
+ * `YYYY-MM-DD` (empty until all three are picked), which the server reads
+ * strictly with parseBirthDateInput (sign-up, onboarding, Settings): a day
+ * that doesn't exist is refused there, never rolled into the next month, and
+ * this component never offers or keeps one (Feb 30, Apr 31, Feb 29 once a
+ * non-leap year is picked).
  */
 export function BirthDateSelect({
   name = "birthDate",
@@ -72,17 +83,24 @@ export function BirthDateSelect({
     return list;
   }, [currentYear, minAge, maxAge]);
 
-  const dayCount = year && month ? daysInMonth(Number(year), Number(month)) : 31;
+  const dayCount = dayCountFor(year, month);
   const days = useMemo(() => Array.from({ length: dayCount }, (_, i) => i + 1), [dayCount]);
+
+  // Switching to a shorter month (picked the 31st, then April) or to a non-leap
+  // year (picked Feb 29, then 2001) can leave `day` pointing at a date that no
+  // longer exists: clear it rather than submitting e.g. "Apr 31".
+  function clearDayIfGone(nextYear: string, nextMonth: string) {
+    if (day && Number(day) > dayCountFor(nextYear, nextMonth)) setDay("");
+  }
 
   function handleMonthChange(nextMonth: string) {
     setMonth(nextMonth);
-    // Switching from a 31-day month to a shorter one (picked the 31st, then
-    // switched to April) can leave `day` pointing at a date that no longer
-    // exists — clear it rather than silently combining into e.g. "Apr 31".
-    if (day && nextMonth && Number(day) > daysInMonth(Number(year) || currentYear, Number(nextMonth))) {
-      setDay("");
-    }
+    clearDayIfGone(year, nextMonth);
+  }
+
+  function handleYearChange(nextYear: string) {
+    setYear(nextYear);
+    clearDayIfGone(nextYear, month);
   }
 
   const combined = year && month && day ? `${year}-${pad(month)}-${pad(day)}` : "";
@@ -128,7 +146,7 @@ export function BirthDateSelect({
         aria-describedby={describedBy}
         required={required}
         value={year}
-        onChange={(e) => setYear(e.target.value)}
+        onChange={(e) => handleYearChange(e.target.value)}
         className={selectClass}
       >
         <option value="">{labels.year}</option>

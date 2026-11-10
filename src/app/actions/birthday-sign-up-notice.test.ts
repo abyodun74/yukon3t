@@ -115,6 +115,36 @@ describe("password and phone sign-up", () => {
     userCreate.mockClear();
     expect((await signUp(ADULT, "PHONE")).birthdaySharingNoticePending).toBe(false);
   });
+
+  it("refuses a missing, partial, impossible, future or too-old birth date and creates no account", async () => {
+    const cases: [string | null, "birth_date_required" | "birth_date_underage"][] = [
+      [null, "birth_date_required"],
+      ["", "birth_date_required"],
+      [`${thisYear - 30}-02`, "birth_date_required"],
+      [`${thisYear - 30}-02-30`, "birth_date_required"],
+      [`${thisYear - 30}-04-31`, "birth_date_required"],
+      ["2001-02-29", "birth_date_required"],
+      [`${thisYear - 121}-01-01`, "birth_date_required"],
+      [`${thisYear + 1}-01-01`, "birth_date_underage"],
+      [`${thisYear - 10}-01-01`, "birth_date_underage"],
+    ];
+    for (const method of ["EMAIL", "PHONE"] as const) {
+      for (const [birthDate, reason] of cases) {
+        const form = signUpForm(birthDate ?? "", method);
+        if (birthDate === null) form.delete("birthDate");
+        const state = await signUpWithPassword({ fieldErrors: {}, formError: null }, form);
+        expect(state, `${method} ${birthDate}`).toEqual({ fieldErrors: { birthDate: reason }, formError: null });
+      }
+    }
+    expect(userCreate).not.toHaveBeenCalled();
+  });
+
+  it("stores Feb 29 of a leap year as that exact day", async () => {
+    await signUp("2000-02-29", "PHONE");
+    expect((userCreate.mock.calls[0][0].data as { birthDate: Date }).birthDate.toISOString()).toBe(
+      "2000-02-29T00:00:00.000Z",
+    );
+  });
 });
 
 function onboardingForm(birthDate: string | null) {

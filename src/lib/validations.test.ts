@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isOldEnough, MIN_AGE, usernameSchema, signUpSchema, phoneSchema, resetPasswordSchema } from "@/lib/validations";
+import { isOldEnough, MAX_AGE, MIN_AGE, usernameSchema, signUpSchema, phoneSchema, resetPasswordSchema } from "@/lib/validations";
 
 describe("resetPasswordSchema", () => {
   const base = { token: "abc", password: "hunter22!", confirmPassword: "hunter22!" };
@@ -66,39 +66,47 @@ describe("signUpSchema", () => {
     password: "correct horse battery staple",
     verificationMethod: "EMAIL" as const,
   };
+  // BirthDateSelect's "YYYY-MM-DD", `years` years before today.
+  function isoYearsAgo(years: number) {
+    const d = new Date();
+    return `${d.getFullYear() - years}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(Math.min(d.getDate(), 28)).padStart(2, "0")}`;
+  }
+  const birthDate = isoYearsAgo(MIN_AGE + 5);
+  const birthDateIssue = (value: unknown) => {
+    const result = signUpSchema.safeParse({ ...validBase, birthDate: value });
+    return result.success ? null : result.error.issues.find((issue) => issue.path[0] === "birthDate")?.message;
+  };
 
   it("accepts a well-formed signup for someone old enough", () => {
-    const birthDate = new Date();
-    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
     const result = signUpSchema.safeParse({ ...validBase, birthDate });
     expect(result.success).toBe(true);
   });
 
   it("rejects a signup from someone under the minimum age", () => {
-    const birthDate = new Date();
-    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE - 1));
-    const result = signUpSchema.safeParse({ ...validBase, birthDate });
-    expect(result.success).toBe(false);
+    expect(birthDateIssue(isoYearsAgo(MIN_AGE - 1))).toBe("underage");
+  });
+
+  it("reads the birth date strictly: missing, partial, impossible or too old is invalid, never coerced", () => {
+    const year = new Date().getFullYear() - 30;
+    for (const value of [undefined, null, "", "1990-05", "1990-5-5", "not-a-date", new Date(1990, 4, 5), `${year}-02-30`, `${year}-04-31`, "2001-02-29", `${new Date().getFullYear() - MAX_AGE - 1}-06-01`]) {
+      expect(birthDateIssue(value), String(value)).toBe("invalid");
+    }
+    expect(birthDateIssue(`${new Date().getFullYear() + 1}-01-01`)).toBe("underage");
+    expect(birthDateIssue("2000-02-29")).toBeNull();
   });
 
   it("lowercases and trims the email", () => {
-    const birthDate = new Date();
-    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
     const result = signUpSchema.safeParse({ ...validBase, email: "  Jane@Example.COM  ", birthDate });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.email).toBe("jane@example.com");
   });
 
   it("accepts PHONE as the verification method", () => {
-    const birthDate = new Date();
-    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
     const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "PHONE", phone: "+14155551234" });
     expect(result.success).toBe(true);
   });
 
   it("rejects an unrecognized verification method", () => {
-    const birthDate = new Date();
-    birthDate.setFullYear(birthDate.getFullYear() - (MIN_AGE + 5));
     const result = signUpSchema.safeParse({ ...validBase, birthDate, verificationMethod: "FAX" });
     expect(result.success).toBe(false);
   });
