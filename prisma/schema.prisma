@@ -313,6 +313,10 @@ model User {
   birthdayAudience             BirthdayAudience @default(BOTH)
   birthdaySharingNoticePending Boolean          @default(false)
   timeZone                     String?
+  // Public-holiday reminders (src/lib/holidays.ts, the holiday-reminders cron): "Today is Independence Day in
+  // Nigeria" on the morning of each public holiday of the account's `country`. The recipient's own switch in
+  // Settings -> Notifications, on by default with an explicit opt-out; under-18s get them too (nothing personal).
+  holidayReminders             Boolean          @default(true)
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -436,6 +440,7 @@ model User {
   birthdayWishesSent        BirthdayWish[]       @relation("BirthdayWishSender")
   birthdayWishesReceived    BirthdayWish[]       @relation("BirthdayWishCelebrant")
   birthdayWishDigests       BirthdayWishDigest[]
+  holidayRemindersSent      HolidayReminder[]
 
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
@@ -478,6 +483,24 @@ model BirthdayReminder {
   @@unique([celebrantId, recipientId, year])
   @@index([recipientId, occasionDate])
   @@index([recipientId, createdAt])
+}
+
+// One public-holiday reminder: `userId` was told that today is the holiday `holidayKey` (src/lib/holidays.ts:
+// "<country code>:<slug of the holiday's English name>", e.g. "NG:independence-day") of `year`. The unique (user,
+// holiday, year) is what makes the holiday-reminders cron idempotent: rows are inserted with skipDuplicates and only
+// the ones actually inserted get a bell row and a push, so a repeated or overlapping run sends nothing twice.
+// `holidayDate` is the holiday's calendar date.
+model HolidayReminder {
+  id          String   @id @default(cuid())
+  userId      String
+  holidayKey  String
+  year        Int
+  holidayDate DateTime @db.Date
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, holidayKey, year])
 }
 
 // A birthday wish: at most one per sender per celebrant per year (the unique key, claimed before the message is
@@ -1495,6 +1518,11 @@ enum NotificationType {
   // only) is now shared with your connections and Circles; opens Settings -> Privacy -> Birthday. actorId is the
   // recipient themself (system-generated, see notificationHasActor).
   BIRTHDAY_SHARING_ON
+  // "Today is Independence Day in Nigeria": one row per public holiday per recipient, written by the holiday-reminders
+  // cron (src/lib/holidays-data.ts) from 08:00 in the recipient's time zone on a holiday of their country, with a
+  // silent push (one per recipient per day). messageData is a "holiday" notice carrying the holiday's and the
+  // country's names. actorId is the recipient themself (system-generated, see notificationHasActor). Opens Home.
+  HOLIDAY_TODAY
 }
 
 model Notification {

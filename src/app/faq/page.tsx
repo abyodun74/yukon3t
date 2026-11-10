@@ -1576,7 +1576,15 @@ const sections: Section[] = [
             lets them send you wishes: a reaction, a ready-made message or
             their own words. Each wish arrives as a direct message from that
             person, at most one per person per year, and you get one
-            notification that sums them up instead of one per wish. If you were
+            notification that sums them up instead of one per wish. On your
+            birthday, a card from YuKon3t is also at the top of your profile
+            all day, from midnight to the end of the day in your own time zone:
+            you see a &ldquo;Happy birthday from YuKon3t&rdquo; greeting, and
+            only the people your birthday is shared with (never anyone
+            you&apos;ve blocked or who has blocked you) see that it&apos;s your
+            birthday today there, with a button to send you wishes once their
+            reminder has arrived. It never shows the date, the year or your
+            age, and turning birthday sharing off removes it. If you were
             born on February 29, your birthday is celebrated on February 28 in
             other years. To choose who is reminded, go to Settings → Privacy →
             Birthday and pick your connections, members of your Circles, or
@@ -1588,6 +1596,36 @@ const sections: Section[] = [
             once it&apos;s off it can only be turned back on from 18. If you
             join before you&apos;re 18, you get a one-time notification when
             your birthday starts being shared.
+          </>
+        ),
+      },
+      {
+        id: "holiday-reminders",
+        q: "How do public holiday reminders work?",
+        a: (
+          <>
+            On the morning of a public holiday in your country, YuKon3t sends
+            you one quiet notification, such as &ldquo;Today is Independence
+            Day in Nigeria&rdquo; or &ldquo;Today is Memorial Day in the
+            United States&rdquo;. It uses the country on your profile (you can
+            change it with Edit profile) and arrives at around 8:00 in the time
+            zone of the device you use the app on (UTC until the app knows
+            it), with no sound or vibration. It also appears in your
+            notifications list, and tapping it opens your Home feed. Reminders
+            cover national public holidays and well-known days your country
+            marks, such as Independence Day, Labour or Workers&apos; Day,
+            Children&apos;s Day, Mother&apos;s Day and Father&apos;s Day. When
+            a holiday falls on a weekend and the day off moves to another day,
+            you&apos;re reminded once, on the holiday itself. If several
+            holidays fall on the same day, one notification covers them all.
+            Holiday names are shown in your app language where we have them,
+            and in English otherwise. Holiday reminders are on for everyone by
+            default; to stop them, untick &ldquo;Public holidays&rdquo; under
+            Settings → Notifications and tap Save. The holiday calendar is
+            built into YuKon3t, so your country isn&apos;t sent anywhere to work
+            them out. A few countries aren&apos;t covered yet; if yours
+            isn&apos;t, or your profile says &ldquo;Other / Not listed&rdquo;,
+            you won&apos;t get these reminders.
           </>
         ),
       },

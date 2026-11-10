@@ -13,6 +13,8 @@ const CODE_BY_APP_NAME: Record<string, string> = {
   "Congo (Republic)": "CG",
   "Ivory Coast": "CI",
   Myanmar: "MM",
+  // Worded by WORDED_HERE below for display; the code is only for countryCode (public-holiday reminders).
+  Palestine: "PS",
   "Saint Kitts and Nevis": "KN",
   "Saint Lucia": "LC",
   "Saint Vincent and the Grenadines": "VC",
@@ -36,6 +38,14 @@ const WORDED_HERE: Record<string, Record<Exclude<Locale, "en">, string>> = {
 
 let codeByEnglishName: Map<string, string> | null = null;
 
+function isCanonicalRegion(code: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`;
+  } catch {
+    return false;
+  }
+}
+
 function codes() {
   if (codeByEnglishName) return codeByEnglishName;
   codeByEnglishName = new Map(Object.entries(CODE_BY_APP_NAME));
@@ -44,6 +54,9 @@ function codes() {
   for (const a of letters) {
     for (const b of letters) {
       const code = a + b;
+      // Deprecated aliases ("UK", "FX", "YU", "DD") carry the same English name as the real code and come later in
+      // the alphabet, so they would otherwise win: "United Kingdom" must map to GB, not UK.
+      if (!isCanonicalRegion(code)) continue;
       let name: string | undefined;
       try {
         name = english.of(code);
@@ -54,6 +67,16 @@ function codes() {
     }
   }
   return codeByEnglishName;
+}
+
+/**
+ * The ISO 3166-1 alpha-2 code of a stored (English) country name, or null ("Other / Not listed", anything unknown). A
+ * value that already is a code (the guest-preview row's "US") is returned as is.
+ */
+export function countryCode(englishName: string | null | undefined): string | null {
+  if (!englishName) return null;
+  if (/^[A-Z]{2}$/.test(englishName)) return englishName;
+  return codes().get(englishName) ?? null;
 }
 
 /** A stored (English) country name in `locale`. The stored value itself never changes. */

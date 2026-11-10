@@ -450,6 +450,14 @@ export const ui: typeof uiEn = {
     sent: "Envoyé. Vos vœux sont dans votre discussion avec {name}.",
     openChat: "Ouvrir la discussion",
     close: "Fermer",
+    profileCard: {
+      ownTitle: "Joyeux anniversaire de la part de YuKon3t !",
+      ownBody: "Nous vous souhaitons une merveilleuse journée. Aujourd'hui, les personnes avec qui vous partagez votre anniversaire voient une carte d'anniversaire sur votre profil.",
+      ownSettings: "Paramètres d'anniversaire",
+      visitorTitle: "C'est l'anniversaire de {name} aujourd'hui",
+      visitorBody: "YuKon3t souhaite un joyeux anniversaire à {name}.",
+      sendWish: "Envoyer vos vœux",
+    },
     quietChannelName: "Rappels d'anniversaire",
     quietChannelDescription: "Rappels d'anniversaire discrets, sans son ni vibration",
     presets: {

@@ -22,10 +22,14 @@ import {
   localDateTime,
   localDateToDbDate,
   planBirthdayReminders,
+  profileBirthdayToday,
+  profileBirthdayWishState,
   sharedCircleCounts,
   type BirthdayAudience,
   type BirthdayLink,
   type BirthdayPerson,
+  type ProfileBirthdayCard,
+  type ProfileBirthdayOwner,
   type TodaysBirthday,
 } from "@/lib/birthdays";
 
@@ -344,6 +348,36 @@ export async function birthdayWishContext(senderId: string, celebrantId: string,
     year: reminder.year,
     celebrant: { id: celebrant.id, name: celebrant.name, openToIntents: celebrant.openToIntents },
   };
+}
+
+/**
+ * The birthday card on `owner`'s profile (/u/[userId]) for `viewer`, or null. Not a post and not a notification: it is
+ * worked out on every request from the row the page already loaded, so nothing is stored, pushed or cached, and a
+ * profile on any day that isn't the owner's birthday (profileBirthdayToday, pure) costs no query at all.
+ * - The owner sees their own greeting while they share their birthday.
+ * - Anyone else sees it only if they could be reminded of it (eligibleBirthdayRecipients with just them: in the chosen
+ *   audience, ACTIVE adult, not the guest identity, no block either way, not hiding their chat with the owner), so the
+ *   card never tells anyone more than the reminder already does. Their "Send a wish" follows the wish rules
+ *   (profileBirthdayWishState).
+ */
+export async function loadProfileBirthdayCard(
+  viewer: { id: string; isGuestPreview: boolean },
+  owner: ProfileBirthdayOwner,
+  now = new Date(),
+): Promise<ProfileBirthdayCard | null> {
+  if (!profileBirthdayToday(owner, now)) return null;
+  if (viewer.id === owner.id) return { kind: "own" };
+  if (viewer.isGuestPreview) return null;
+  const eligible = await eligibleBirthdayRecipients(owner, now, [viewer.id]);
+  if (!eligible.some((r) => r.id === viewer.id)) return null;
+  const reminder = await openReminder(owner.id, viewer.id, now);
+  const wished = reminder
+    ? await prisma.birthdayWish.findUnique({
+        where: { senderId_celebrantId_year: { senderId: viewer.id, celebrantId: owner.id, year: reminder.year } },
+        select: { id: true },
+      })
+    : null;
+  return { kind: "visitor", wish: profileBirthdayWishState({ hasOpenReminder: !!reminder, alreadyWished: !!wished }) };
 }
 
 /**

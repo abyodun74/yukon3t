@@ -115,6 +115,7 @@ export const FAQ_IDS = [
   "forget-recovery-passphrase-lose-phone",
   "moderators-read-secret-chats-report",
   "birthday-reminders",
+  "holiday-reminders",
   // Hidden chats
   "hiding-chat",
   "open-hidden-chat-unhide-one",

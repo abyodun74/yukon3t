@@ -56,6 +56,12 @@ export const pushEn = {
     severalOne: "{name} and 1 other person have birthdays today",
     severalMany: "{name} and {count} others have birthdays today",
   },
+  // The holiday-reminders cron's push when a day has several holidays (holidayPush); one holiday is its name over the
+  // bell row's "Today is ... in ..." sentence.
+  holiday: {
+    title: "Holidays today",
+    several: "Today in {country}: {holidays}",
+  },
   // Extra lines under EVENT_CANCELLED / EVENT_RESCHEDULED (eventChangePushBody). The time is in UTC, said by its zone name.
   eventChange: {
     newTime: "New time: {when}",

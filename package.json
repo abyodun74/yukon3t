@@ -49,6 +49,7 @@
     "@upstash/redis": "^1.38.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "date-holidays": "3.38.0",
     "emoji-picker-react": "^4.19.1",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
@@ -93,6 +94,7 @@
     "fast-uri": "^3.1.6",
     "@xmldom/xmldom": "^0.9.12",
     "@grpc/grpc-js": "^1.14.5",
-    "@fastify/busboy": "^3.2.2"
+    "@fastify/busboy": "^3.2.2",
+    "date-holidays-parser": "3.4.7"
   }
 }

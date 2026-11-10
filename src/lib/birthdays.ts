@@ -323,6 +323,46 @@ export type TodaysBirthday = {
   wished: boolean;
 };
 
+// ---------- The birthday card on a profile ----------
+
+/** What the profile page knows about its owner for the birthday card (the row it already loaded). Never sent to a browser. */
+export type ProfileBirthdayOwner = BirthdayPerson & {
+  birthdayAudience: BirthdayAudience;
+  isAdmin: boolean;
+  timeZone: string | null;
+};
+
+/**
+ * Whether `owner` has a birthday card on their profile at `now`: it is their birthday on their OWN local calendar
+ * (User.timeZone, UTC when unknown or invalid), they share it (not NONE), and they are an ACTIVE adult, not a site
+ * admin (never a celebrant) or the guest identity. All day long: from the first instant of their local day (midnight,
+ * or whenever the day begins where DST skips midnight) through 23:59, because it is a "what is today's date there"
+ * check, never an hour comparison; a Feb 29 birthday is on Feb 28 in other years. Pure and query-free, so a profile on
+ * any other day costs nothing more than this. `year` is the owner's local year (never shown).
+ */
+export function profileBirthdayToday(owner: ProfileBirthdayOwner, now: Date): { year: number } | null {
+  if (owner.isAdmin || !owner.birthDate || !isSharingBirthday(owner.birthdayAudience)) return null;
+  const local = localDateTime(now, owner.timeZone);
+  if (!isBirthdayOn(owner.birthDate, local)) return null;
+  if (!isBirthdayParticipant(owner, local)) return null;
+  return { year: local.year };
+}
+
+/**
+ * The visitor's "Send a wish" on the card. Wishing from a profile is exactly wishing from the reminder
+ * (sendBirthdayWish): it needs the visitor's own birthday reminder of the last BIRTHDAY_WISH_WINDOW_MS, so `none` (no
+ * button) until it arrives at the visitor's local midnight; `wished` once they wished this person this year.
+ */
+export type ProfileBirthdayWish = "available" | "wished" | "none";
+
+/** What the profile's birthday card shows. Only the day is implied ("today"): never a date, a year or an age. */
+export type ProfileBirthdayCard = { kind: "own" } | { kind: "visitor"; wish: ProfileBirthdayWish };
+
+export function profileBirthdayWishState(input: { hasOpenReminder: boolean; alreadyWished: boolean }): ProfileBirthdayWish {
+  if (!input.hasOpenReminder) return "none";
+  return input.alreadyWished ? "wished" : "available";
+}
+
 // ---------- Wishes ----------
 
 export type BirthdayWishChoice =

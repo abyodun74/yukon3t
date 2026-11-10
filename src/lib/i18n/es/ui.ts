@@ -449,6 +449,14 @@ export const ui: typeof uiEn = {
     sent: "Enviado. Tu felicitación está en tu chat con {name}.",
     openChat: "Abrir chat",
     close: "Cerrar",
+    profileCard: {
+      ownTitle: "¡Feliz cumpleaños de parte de YuKon3t!",
+      ownBody: "Esperamos que tengas un día maravilloso. Hoy, las personas con las que compartes tu cumpleaños ven una tarjeta de cumpleaños en tu perfil.",
+      ownSettings: "Ajustes de cumpleaños",
+      visitorTitle: "Hoy es el cumpleaños de {name}",
+      visitorBody: "YuKon3t le desea a {name} un feliz cumpleaños.",
+      sendWish: "Enviar una felicitación",
+    },
     quietChannelName: "Recordatorios de cumpleaños",
     quietChannelDescription: "Recordatorios silenciosos de cumpleaños, sin sonido ni vibración",
     presets: {

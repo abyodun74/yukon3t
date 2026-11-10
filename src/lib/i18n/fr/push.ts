@@ -50,6 +50,10 @@ export const push: typeof pushEn = {
     severalOne: "{name} et 1 autre personne fêtent leur anniversaire aujourd'hui",
     severalMany: "{name} et {count} autres personnes fêtent leur anniversaire aujourd'hui",
   },
+  holiday: {
+    title: "Fêtes du jour",
+    several: "Aujourd'hui ({country}) : {holidays}",
+  },
   eventChange: {
     newTime: "Nouvel horaire : {when}",
     reason: "Motif : {reason}",

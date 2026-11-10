@@ -450,6 +450,14 @@ export const ui: typeof uiEn = {
     sent: "Enviado. Seus parabéns estão na sua conversa com {name}.",
     openChat: "Abrir conversa",
     close: "Fechar",
+    profileCard: {
+      ownTitle: "Feliz aniversário, com carinho do YuKon3t!",
+      ownBody: "Desejamos a você um dia maravilhoso. Hoje, as pessoas com quem você compartilha o seu aniversário veem um cartão de aniversário no seu perfil.",
+      ownSettings: "Configurações de aniversário",
+      visitorTitle: "Hoje é aniversário de {name}",
+      visitorBody: "O YuKon3t deseja um feliz aniversário a {name}.",
+      sendWish: "Mandar parabéns",
+    },
     quietChannelName: "Lembretes de aniversário",
     quietChannelDescription: "Lembretes silenciosos de aniversário, sem som nem vibração",
     presets: {

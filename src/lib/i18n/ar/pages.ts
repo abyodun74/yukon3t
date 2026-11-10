@@ -123,6 +123,7 @@ export const pages: typeof pagesEn = {
       BIRTHDAY_WISHES: "هنّأك {name} بعيد ميلادك",
       BIRTHDAY_SHARING_ON:
         "أصبح عيد ميلادك (اليوم والشهر فقط، ولا تُشارَك السنة أبدًا) مُشارَكًا الآن مع جهات تواصلك وأعضاء Circles الخاصة بك. يمكنك إيقاف ذلك من الإعدادات.",
+      HOLIDAY_TODAY: "اليوم عطلة رسمية في بلدك",
     },
     notices: {
       videoFlagged:
@@ -139,6 +140,7 @@ export const pages: typeof pagesEn = {
       newMembersMany: "و{count} آخرون انضموا للتو إلى YuKon3t",
       birthdayWishesOne: "وشخص آخر هنّآك بعيد ميلادك",
       birthdayWishesMany: "و{count} آخرون هنّأوك بعيد ميلادك",
+      holidayToday: "اليوم {holiday} في {country}",
       categories: {
         sexual: "محتوى جنسي صريح",
         "sexual/minors": "محتوى جنسي يتعلق بقاصرين",

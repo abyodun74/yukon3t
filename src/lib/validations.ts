@@ -202,8 +202,10 @@ export const ringtoneSchema = z.object({
   ringtone: z.enum(ringtoneValues),
 });
 
-export const newMemberAlertsSchema = z.object({
+// Settings -> Notifications: "New members" (src/lib/new-member-alerts.ts) and "Public holidays" (src/lib/holidays.ts).
+export const notificationAlertsSchema = z.object({
   newMemberAlerts: z.boolean(),
+  holidayReminders: z.boolean(),
 });
 
 // Settings -> Privacy -> Birthday, "Add your birth date" (setBirthDateOnce): only for an account with none on it, once.

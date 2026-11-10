@@ -75,6 +75,9 @@ export const settings: typeof settingsEn = {
     newMembers: "Novos membros",
     newMembersHint:
       "Me avise quando alguém novo entrar no YuKon3t e aparecer em Descobrir. Seu celular recebe no máximo um desses avisos a cada 12 horas; os demais ficam agrupados em uma única entrada nas suas notificações.",
+    holidays: "Feriados",
+    holidaysHint:
+      "Me lembrar na manhã dos feriados e datas importantes do meu país (o do meu perfil), como o Dia da Independência ou o Dia do Trabalhador. Uma única notificação silenciosa, sem som.",
     save: "Salvar",
   },
   language: {

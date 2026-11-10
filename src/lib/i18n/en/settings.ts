@@ -82,6 +82,9 @@ export const settingsEn = {
     newMembers: "New members",
     newMembersHint:
       "Let me know when someone new joins YuKon3t and shows up in Discover. Your phone gets at most one of these every 12 hours; the rest are grouped into one entry in your notifications.",
+    holidays: "Public holidays",
+    holidaysHint:
+      "Remind me on the morning of public holidays and notable days in my country (the one on my profile), like Independence Day or Workers' Day. One quiet notification, with no sound.",
     save: "Save",
   },
   language: {

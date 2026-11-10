@@ -89,6 +89,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // System notice, sent once by the birthday-reminders cron to accounts the default-on change switched on.
   BIRTHDAY_SHARING_ON:
     "Your birthday (day and month only, never the year) is now shared with your connections and members of your Circles. You can turn this off in Settings.",
+  // System notice from the holiday-reminders cron; its messageData (a "holiday" notice) names the day and the country.
+  HOLIDAY_TODAY: "Today is a public holiday in your country",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,
@@ -101,6 +103,7 @@ export function notificationHasActor(type: NotificationType) {
     type !== "VIDEO_FLAGGED_FOR_REVIEW" &&
     type !== "COLLAB_SESSION_REMINDER" &&
     type !== "LIVE_RECORDING_POST_FAILED" &&
-    type !== "BIRTHDAY_SHARING_ON"
+    type !== "BIRTHDAY_SHARING_ON" &&
+    type !== "HOLIDAY_TODAY"
   );
 }

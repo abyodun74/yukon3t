@@ -179,6 +179,11 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
   ],
   // The one-time "your birthday is now shared" notice: the birthday choice in Settings.
   BIRTHDAY_SHARING_ON: [{ data: {}, href: "/settings#birthdays" }],
+  // "Today is Independence Day in Nigeria": the Home feed, whatever the notice says.
+  HOLIDAY_TODAY: [
+    { data: { messageData: 'holiday:["Independence Day","Nigeria"]' }, href: "/home" },
+    { data: {}, href: "/home" },
+  ],
 };
 
 describe("notificationHref for every notification type", () => {

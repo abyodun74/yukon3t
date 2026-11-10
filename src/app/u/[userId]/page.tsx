@@ -28,6 +28,8 @@ import { interestName, languageName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, format, plural, type Locale } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
+import { ProfileBirthdayCard } from "@/components/profile-birthday-card";
+import { loadProfileBirthdayCard } from "@/lib/birthdays-data";
 
 /** "3 subscribers" with the number in bold, wherever the language's plural form puts it. */
 function BoldCount({ locale, forms, count }: { locale: Locale; forms: string; count: number }) {
@@ -86,7 +88,7 @@ export default async function PublicProfilePage({
   // Whether the posts could be visible before the block and connection are known: the visibility filter is only built
   // when they might be (the same set of cases canSeePosts below can say yes in, never more).
   const mightSeePosts = isOwnProfile || user.postsVisibility !== "HIDDEN";
-  const [iBlockedThem, connection, subscriberCount, subscribingCount, visiblePostsWhere] = await Promise.all([
+  const [iBlockedThem, connection, subscriberCount, subscribingCount, visiblePostsWhere, birthdayCard] = await Promise.all([
     isOwnProfile
       ? false
       : prisma.block
@@ -105,6 +107,10 @@ export default async function PublicProfilePage({
     prisma.subscription.count({ where: { subscribedToId: user.id } }),
     prisma.subscription.count({ where: { subscriberId: user.id } }),
     mightSeePosts ? getVisiblePostsWhere(me.id) : null,
+    // YuKon3t's birthday card (src/lib/birthdays.ts): a pure date check on the row above, with no query, unless it is
+    // the owner's birthday in their own time zone; then only people the birthday is shared with see it (blocks either
+    // way included). Computed per request, never stored or cached.
+    loadProfileBirthdayCard({ id: me.id, isGuestPreview: me.isGuestPreview }, user),
   ]);
 
   const canSeePosts =
@@ -188,6 +194,8 @@ export default async function PublicProfilePage({
           {error === "moderation" ? t.errors.moderation : t.errors.other}
         </p>
       )}
+
+      {birthdayCard && <ProfileBirthdayCard card={birthdayCard} person={{ id: user.id, name: user.name }} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">

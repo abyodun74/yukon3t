@@ -75,6 +75,9 @@ export const settings: typeof settingsEn = {
     newMembers: "Nouveaux membres",
     newMembersHint:
       "Me prévenir quand quelqu'un de nouveau rejoint YuKon3t et apparaît dans Découvrir. Votre téléphone en reçoit au plus une toutes les 12 heures ; les autres sont regroupées en une seule entrée dans vos notifications.",
+    holidays: "Jours fériés",
+    holidaysHint:
+      "Me prévenir le matin des jours fériés et des journées marquantes de mon pays (celui de mon profil), comme la fête nationale ou la fête du Travail. Une seule notification discrète, sans son.",
     save: "Enregistrer",
   },
   language: {

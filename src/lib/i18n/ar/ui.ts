@@ -451,6 +451,14 @@ export const ui: typeof uiEn = {
     sent: "أُرسلت. تهنئتك في محادثتك مع {name}.",
     openChat: "فتح المحادثة",
     close: "إغلاق",
+    profileCard: {
+      ownTitle: "عيد ميلاد سعيد من YuKon3t!",
+      ownBody: "نتمنى لك يومًا رائعًا. اليوم، يرى الأشخاص الذين تشارك معهم عيد ميلادك بطاقة عيد ميلاد في ملفك الشخصي.",
+      ownSettings: "إعدادات عيد الميلاد",
+      visitorTitle: "اليوم عيد ميلاد {name}",
+      visitorBody: "يتمنى YuKon3t لـ {name} عيد ميلاد سعيدًا.",
+      sendWish: "أرسل تهنئة",
+    },
     quietChannelName: "تذكيرات أعياد الميلاد",
     quietChannelDescription: "تذكيرات هادئة بأعياد الميلاد، بلا صوت ولا اهتزاز",
     presets: {

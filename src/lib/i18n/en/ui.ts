@@ -475,6 +475,16 @@ export const uiEn = {
     sent: "Sent. Your wishes are in your chat with {name}.",
     openChat: "Open chat",
     close: "Close",
+    // The card at the top of a profile on that person's birthday (profile-birthday-card.tsx), all day in their own time
+    // zone. Says "today" only: never a date, year or age.
+    profileCard: {
+      ownTitle: "Happy birthday from YuKon3t!",
+      ownBody: "We hope you have a wonderful day. Today, the people you share your birthday with see a birthday card on your profile.",
+      ownSettings: "Birthday settings",
+      visitorTitle: "It's {name}'s birthday today",
+      visitorBody: "YuKon3t wishes {name} a happy birthday.",
+      sendWish: "Send a wish",
+    },
     // The Android notification channel the midnight reminder is posted to (quiet-push.ts), as Android's app settings list it.
     quietChannelName: "Birthday reminders",
     quietChannelDescription: "Quiet reminders of birthdays, without sound or vibration",

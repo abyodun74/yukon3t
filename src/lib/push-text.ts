@@ -188,3 +188,15 @@ export function birthdayPush(names: (string | null)[], locale: Locale): { title:
     body: others === 1 ? format(t.severalOne, { name: first }) : format(t.severalMany, { name: first, count: String(others) }),
   };
 }
+
+/**
+ * The holiday-reminders cron's one push for a recipient (src/lib/holidays-data.ts), from holiday and country names
+ * already in `locale`: one holiday is its name over "Today is <holiday> in <country>" (the bell row's holiday notice);
+ * several are "Holidays today" over "Today in <country>: <a> and <b>".
+ */
+export function holidayPush(names: string[], country: string, locale: Locale): { title: string; body: string } {
+  if (names.length === 1) return { title: names[0], body: noticeLine({ kind: "holiday", holiday: names[0], country }, locale) };
+  const t = pushText(locale).holiday;
+  const holidays = new Intl.ListFormat(intlLocale(locale) ?? "en", { type: "conjunction" }).format(names);
+  return { title: t.title, body: format(t.several, { country, holidays }) };
+}

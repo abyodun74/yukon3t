@@ -9,7 +9,7 @@ import {
   profileUpdateSchema,
   privacySchema,
   ringtoneSchema,
-  newMemberAlertsSchema,
+  notificationAlertsSchema,
   autoTranslateSchema,
   setPasswordSchema,
   usernameSchema,
@@ -216,10 +216,16 @@ export async function updateRingtone(formData: FormData) {
   redirect("/settings?saved=1");
 }
 
-/** Settings -> Notifications: whether this account hears about new members joining (NEW_MEMBER_JOINED). */
-export async function updateNewMemberAlerts(formData: FormData) {
+/**
+ * Settings -> Notifications: whether this account hears about new members joining (NEW_MEMBER_JOINED) and gets
+ * public-holiday reminders (HOLIDAY_TODAY, src/lib/holidays.ts). Both on by default; an unticked box is the opt-out.
+ */
+export async function updateNotificationAlerts(formData: FormData) {
   const user = await requireUser();
-  const parsed = newMemberAlertsSchema.safeParse({ newMemberAlerts: formData.get("newMemberAlerts") === "on" });
+  const parsed = notificationAlertsSchema.safeParse({
+    newMemberAlerts: formData.get("newMemberAlerts") === "on",
+    holidayReminders: formData.get("holidayReminders") === "on",
+  });
 
   if (!parsed.success) {
     redirect("/settings?error=invalid");

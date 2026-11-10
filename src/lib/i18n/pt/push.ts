@@ -49,6 +49,10 @@ export const push: typeof pushEn = {
     severalOne: "{name} e mais 1 pessoa fazem aniversário hoje",
     severalMany: "{name} e mais {count} pessoas fazem aniversário hoje",
   },
+  holiday: {
+    title: "Feriados de hoje",
+    several: "Hoje ({country}): {holidays}",
+  },
   eventChange: {
     newTime: "Novo horário: {when}",
     reason: "Motivo: {reason}",

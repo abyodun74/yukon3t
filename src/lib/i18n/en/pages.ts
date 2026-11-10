@@ -126,6 +126,7 @@ export const pagesEn = {
       BIRTHDAY_WISHES: "{name} wished you a happy birthday",
       BIRTHDAY_SHARING_ON:
         "Your birthday (day and month only, never the year) is now shared with your connections and members of your Circles. You can turn this off in Settings.",
+      HOLIDAY_TODAY: "Today is a public holiday in your country",
     },
     // The sentence of a row whose notice is stored as data (Notification.messageData, see
     // src/lib/notification-notice.ts), and of its push. Kept identical in English to the prose written into
@@ -145,6 +146,7 @@ export const pagesEn = {
       newMembersMany: "and {count} others just joined YuKon3t",
       birthdayWishesOne: "and 1 other person wished you a happy birthday",
       birthdayWishesMany: "and {count} others wished you a happy birthday",
+      holidayToday: "Today is {holiday} in {country}",
       categories: {
         sexual: "sexually explicit content",
         "sexual/minors": "sexual content involving minors",

@@ -125,6 +125,7 @@ export const pages: typeof pagesEn = {
       BIRTHDAY_WISHES: "{name} vous a souhaité un joyeux anniversaire",
       BIRTHDAY_SHARING_ON:
         "Votre anniversaire (le jour et le mois seulement, jamais l'année) est désormais partagé avec vos relations et les membres de vos Circles. Vous pouvez le désactiver dans les Paramètres.",
+      HOLIDAY_TODAY: "Aujourd'hui est un jour férié dans votre pays",
     },
     notices: {
       videoFlagged:
@@ -141,6 +142,7 @@ export const pages: typeof pagesEn = {
       newMembersMany: "et {count} autres personnes viennent de rejoindre YuKon3t",
       birthdayWishesOne: "et 1 autre personne vous ont souhaité un joyeux anniversaire",
       birthdayWishesMany: "et {count} autres personnes vous ont souhaité un joyeux anniversaire",
+      holidayToday: "Aujourd'hui, c'est {holiday} ({country})",
       categories: {
         sexual: "contenu sexuellement explicite",
         "sexual/minors": "contenu sexuel impliquant des mineurs",
