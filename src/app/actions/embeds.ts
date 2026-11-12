@@ -1,7 +1,11 @@
 "use server";
 
+import { z } from "zod";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { resolveSharedEmbedLink } from "@/lib/resolve-share-link";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { SHARED_LINK_MAX_LENGTH, resolveSharedEmbedLink } from "@/lib/resolve-share-link";
+
+const sharedLinkSchema = z.string().trim().url().max(SHARED_LINK_MAX_LENGTH);
 
 /**
  * Resolves a bare shared link to a directly-embeddable video URL by
@@ -12,9 +16,16 @@ import { resolveSharedEmbedLink } from "@/lib/resolve-share-link";
  * real embedded player instead of a bare, unclickable link —
  * createPost still independently re-parses whatever URL this hands back
  * before ever trusting it, same as any other pasted link.
+ *
+ * Every call makes the server request a caller-chosen host, so it is validated (a URL string, at most 2048 chars)
+ * and limited per user (`linkResolve`, which fails closed); anything refused answers `{ url: null }`, which the
+ * composer already treats as "not a video link".
  */
-export async function resolveSharedVideoLink(url: string) {
-  await requireVerifiedUser();
-  const resolved = await resolveSharedEmbedLink(url);
+export async function resolveSharedVideoLink(url: unknown) {
+  const user = await requireVerifiedUser();
+  const parsed = sharedLinkSchema.safeParse(url);
+  if (!parsed.success) return { url: null };
+  if (!(await checkRateLimit("linkResolve", user.id))) return { url: null };
+  const resolved = await resolveSharedEmbedLink(parsed.data);
   return { url: resolved };
 }

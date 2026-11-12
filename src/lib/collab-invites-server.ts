@@ -3,6 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { selectCircleInvitees } from "@/lib/collab-circle-invite";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
+import { canViewCollab } from "@/lib/collab-permissions";
 import {
   collabInviteExcludesInvitee,
   collabInviteStillStands,
@@ -121,6 +122,27 @@ export async function loadStandingCollabInvite(inviteeId: string, collab: { id: 
   });
   if (!invite || !collabInviteStillStands(collab, invite.inviter)) return null;
   return { id: invite.id, inviterName: invite.inviter.name };
+}
+
+/**
+ * Whether `viewer` may see this collab at all: the collab page's own gate (canViewCollab — PUBLIC, the author, a
+ * participant, a standing invite, or a site admin), for Server Actions that take a collab id from the browser and
+ * return what that page shows (getCollabSessionParticipants). False for a missing collab.
+ */
+export async function viewerCanSeeCollab(collabId: unknown, viewer: { id: string; isAdmin: boolean }) {
+  if (typeof collabId !== "string" || !collabId) return false;
+  const collab = await prisma.collabBoardPost.findUnique({
+    where: { id: collabId },
+    select: { id: true, authorId: true, visibility: true },
+  });
+  if (!collab) return false;
+  if (canViewCollab(collab, false, viewer, false)) return true;
+  const participant = await prisma.collabParticipant.findUnique({
+    where: { userId_collabId: { userId: viewer.id, collabId: collab.id } },
+    select: { id: true },
+  });
+  if (participant) return true;
+  return Boolean(await loadStandingCollabInvite(viewer.id, collab));
 }
 
 /**

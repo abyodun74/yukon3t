@@ -14,7 +14,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getCollabMembership } from "@/lib/collab-permissions";
 import { publishEvent, notifyBadgeChange } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { sendCollabInvites } from "@/lib/collab-invites-server";
+import { sendCollabInvites, viewerCanSeeCollab } from "@/lib/collab-invites-server";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
 import { captureError } from "@/lib/error-tracking";
 import {
@@ -258,10 +258,17 @@ export async function leaveCollabSession(collabId: string) {
   return { error: null };
 }
 
-/** Polled every few seconds by the Collab page to show who's already in the session before joining. */
+/**
+ * Polled every few seconds by the Collab page to show who's already in the session before joining. Only for someone
+ * who can see the collab page itself (viewerCanSeeCollab: a PRIVATE collab's author, participants, standing invitees
+ * and site admins); anyone else gets an empty list, so a private collab's id doesn't reveal who is in its session.
+ */
 export async function getCollabSessionParticipants(collabId: string) {
   try {
-    await requireVerifiedViewer();
+    const viewer = await requireVerifiedViewer();
+    if (!(await viewerCanSeeCollab(collabId, viewer))) {
+      return { participants: [] };
+    }
 
     const participants = await prisma.collabSessionParticipant.findMany({
       where: { collabId, joinedAt: { gt: new Date(Date.now() - COLLAB_SESSION_STALE_AFTER_MS) } },

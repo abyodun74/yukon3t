@@ -26,6 +26,7 @@ import { activityLine, nameOrSomeone } from "@/lib/push-text";
 import type { Locale } from "@/lib/i18n/locales";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { liveChatPageQuery } from "@/lib/live-chat-page";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
@@ -756,7 +757,7 @@ export async function sendLiveStreamComment(liveStreamId: string, formData: Form
  * getLiveStreamViewerCount (a polling loop shouldn't surface a transient
  * blip as a visible error). `afterId` is a plain cursor (this comment's id
  * or later), not a timestamp, avoiding any clock-skew edge case between
- * client and server.
+ * client and server. Every answer is capped (src/lib/live-chat-page.ts), with or without a cursor.
  */
 export async function getLiveStreamComments(liveStreamId: string, afterId?: string) {
   try {
@@ -771,27 +772,26 @@ export async function getLiveStreamComments(liveStreamId: string, afterId?: stri
       return { comments: [] };
     }
 
-    let afterCreatedAt: Date | undefined;
-    if (afterId) {
-      const after = await prisma.liveStreamComment.findUnique({
-        where: { id: afterId },
-        select: { createdAt: true },
-      });
-      afterCreatedAt = after?.createdAt;
-    }
+    // The cursor only counts when it is a comment of THIS stream; anything else is treated as no cursor.
+    const after =
+      typeof afterId === "string" && afterId
+        ? await prisma.liveStreamComment.findFirst({
+            where: { id: afterId, liveStreamId },
+            select: { createdAt: true, id: true },
+          })
+        : null;
 
-    const comments = await prisma.liveStreamComment.findMany({
-      where: {
-        liveStreamId,
-        ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
-      },
-      orderBy: { createdAt: "asc" },
-      // Only caps the very first fetch (no cursor yet) — once polling is
-      // established, each tick only ever asks for what landed since the
-      // last one, which is never anywhere near this many.
-      take: afterId ? undefined : 30,
+    // Every answer is capped (liveChatPageQuery): the first fetch is the latest LIVE_CHAT_FIRST_PAGE comments, each
+    // later one at most LIVE_CHAT_PAGE_MAX after the cursor (the client advances its cursor to the last one it got,
+    // so a burst larger than that arrives over the next fetches instead of in one unbounded response).
+    const { args, newestFirst } = liveChatPageQuery(liveStreamId, after);
+    const rows = await prisma.liveStreamComment.findMany({
+      where: args.where,
+      orderBy: args.orderBy,
+      take: args.take,
       include: { author: { select: { id: true, name: true, avatarUrl: true } } },
     });
+    const comments = newestFirst ? rows.reverse() : rows;
 
     return {
       comments: comments.map((c) => ({

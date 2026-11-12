@@ -1,19 +1,21 @@
-import { getActiveAdForDisplay, recordAdImpression } from "@/app/actions/ads";
+import { getActiveAdForDisplay } from "@/app/actions/ads";
 import { AdClickTracker } from "@/components/ad-click-tracker";
 import { getDictionary } from "@/lib/i18n/server";
+import { recordAdImpressionFor } from "@/lib/ad-counters";
+import { getClientIp } from "@/lib/client-ip";
 
 /**
  * Renders nothing when no campaign is currently ACTIVE and within its date
- * window — a missing ad slot, not an empty placeholder box. Impression
- * counting is a naive "rendered = seen" per page load (not deduped per
- * viewer), a reasonable v1 given there's no ad-serving infra to dedupe
- * against yet.
+ * window — a missing ad slot, not an empty placeholder box. An impression is
+ * "rendered = seen", counted on the server only, at most once per viewer IP
+ * per campaign per 30 minutes (src/lib/ad-counters.ts), so reloading the
+ * page doesn't inflate it.
  */
 export async function AdSlot() {
   const ad = await getActiveAdForDisplay();
   if (!ad) return null;
 
-  await recordAdImpression(ad.id);
+  await recordAdImpressionFor(ad.id, await getClientIp());
   const sponsored = (await getDictionary()).feed.sponsored;
 
   return (

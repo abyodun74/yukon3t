@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { profileIsListed } from "@/lib/profile-access";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
@@ -21,11 +22,9 @@ export default async function SubscribersPage({
   const t = dictionary.profile.page;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  // The shared guest-preview identity (src/lib/guest-preview.ts) has no profile and no lists.
-  if (!user || user.status !== "ACTIVE" || !user.name || user.isGuestPreview) notFound();
-  // Site admins are invisible platform-wide — see the same guard on
-  // /u/[userId] itself.
-  if (user.isAdmin && user.id !== me.id) notFound();
+  // The guest-preview identity has no profile and no lists; site admins are invisible platform-wide except to
+  // themselves (profileIsListed, shared with loadMoreSubscribers/loadMoreSubscribing and /u/[userId]).
+  if (!user || !user.name || !profileIsListed(user, me.id)) notFound();
 
   const rows = await prisma.subscription.findMany({
     // Admins are invisible platform-wide — excluded from the listed rows

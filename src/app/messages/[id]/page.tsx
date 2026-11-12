@@ -21,6 +21,8 @@ import { isViewOnceConfigured } from "@/lib/storage";
 import { HiddenRelock } from "@/components/hidden-relock";
 import { getHiddenPeerIds, isMembershipLocked } from "@/lib/hidden-chats";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
+import { groupJoinRequestRefusal } from "@/lib/group-chat-rules";
+import { isBlockedWithAny } from "@/lib/blocks";
 import { getDictionary } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
 
@@ -50,9 +52,17 @@ export default async function ConversationPage({
   ]);
   if (!conversation) notFound();
 
-  // Not a member: only groups can be joined via their shared link — DMs stay invite-only.
+  // Not a member: only a discoverable group can be joined by request — DMs and non-discoverable groups stay
+  // invite-only, and someone blocked either way with anyone in it gets nothing (same rule as requestToJoinGroup).
   if (!membership) {
-    if (!conversation.isGroup) notFound();
+    const memberIds = conversation.members.map((m) => m.user.id);
+    const refusal = groupJoinRequestRefusal({
+      isGroup: conversation.isGroup,
+      discoverable: conversation.discoverable,
+      isMember: false,
+      blockedWithAMember: conversation.isGroup ? await isBlockedWithAny(me.id, memberIds) : false,
+    });
+    if (refusal) notFound();
 
     const myRequest = await prisma.groupJoinRequest.findUnique({
       where: { conversationId_userId: { conversationId: id, userId: me.id } },
@@ -237,7 +247,8 @@ export default async function ConversationPage({
                   discoverable={conversation.discoverable}
                 />
               )}
-              <CopyInviteLinkButton conversationId={id} />
+              {/* The link lets non-members ask to join, which only a discoverable group allows. */}
+              {conversation.discoverable && <CopyInviteLinkButton conversationId={id} />}
               <LeaveGroupButton conversationId={id} />
               {(conversation.createdById === me.id || me.isAdmin) && (
                 <DeleteGroupButton conversationId={id} isAdminOverride={conversation.createdById !== me.id} />

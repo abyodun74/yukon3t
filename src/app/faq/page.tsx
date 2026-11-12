@@ -1465,7 +1465,11 @@ const sections: Section[] = [
             Start one from Messages → &ldquo;New group&rdquo;: pick a name
             and at least 2 of your connections. Public groups can also be
             found under &ldquo;Discover groups&rdquo; — search by name and
-            request to join. If you created a group, open it and use
+            request to join, or open a public group&apos;s invite link. A
+            group that isn&apos;t discoverable is invite-only: only its
+            creator can add people, and nobody can ask to join it. You
+            can&apos;t join a group, or be added to one, while you and
+            someone in it have blocked each other. If you created a group, open it and use
             &ldquo;Add members&rdquo; any time afterward to bring in more of
             your connections. Any member can tap &ldquo;Leave group&rdquo;
             to exit on their own (ownership passes to the next member if

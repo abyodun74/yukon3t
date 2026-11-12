@@ -25,9 +25,48 @@ function toIcsUtc(date: Date): string {
   return `${date.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
 }
 
-/** RFC 5545 §3.3.11 — backslash, semicolon, comma, and newlines are the only characters a TEXT value needs escaped. */
-function escapeIcsText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+/**
+ * RFC 5545 §3.3.11 TEXT value. Every line break form (CRLF, a lone CR, LF, and the Unicode line/paragraph
+ * separators) becomes the escaped `\n`, and every other control character (TEXT allows none but tab) is dropped:
+ * member-written titles, descriptions and locations are untrusted, and an unescaped lone CR is a line break to
+ * importers that accept one, which would let the text start a property of its own (an extra ATTENDEE, URL, ...).
+ * Then backslash, semicolon and comma are escaped, as the RFC requires.
+ */
+export function escapeIcsText(text: string): string {
+  return text
+    .replace(/\r\n|[\r\n\u2028\u2029]/g, "\n")
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}
+
+// RFC 5545 §3.1: a content line SHOULD NOT be longer than 75 octets excluding the line break; longer ones are folded
+// by inserting CRLF followed by one space.
+const ICS_MAX_LINE_OCTETS = 75;
+
+/** Folds one content line at 75 UTF-8 octets, never inside a multi-byte character (or a surrogate pair). */
+export function foldIcsLine(line: string): string {
+  const encoder = new TextEncoder();
+  const parts: string[] = [];
+  let current = "";
+  let currentOctets = 0;
+  // Continuation lines start with the folding space, which counts toward their 75.
+  let limit = ICS_MAX_LINE_OCTETS;
+  for (const char of line) {
+    const octets = encoder.encode(char).length;
+    if (currentOctets + octets > limit) {
+      parts.push(current);
+      current = "";
+      currentOctets = 0;
+      limit = ICS_MAX_LINE_OCTETS - 1;
+    }
+    current += char;
+    currentOctets += octets;
+  }
+  parts.push(current);
+  return parts.join("\r\n ");
 }
 
 /**
@@ -70,7 +109,9 @@ export function buildCollabIcs(params: {
     "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",
-  ].join("\r\n");
+  ]
+    .map(foldIcsLine)
+    .join("\r\n");
 }
 
 export function buildGoogleCalendarUrl(params: {

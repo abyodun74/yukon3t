@@ -48,7 +48,7 @@ import { track } from "@/lib/analytics";
 import { isCircleAdmin, getCircleMembership } from "@/lib/circle-permissions";
 import { checkSubCircleParent, subCircleVisibility } from "@/lib/circle-hierarchy";
 import { canSeeCircle, canSeeCircleContent } from "@/lib/circle-visibility";
-import { LEAD_POST_ONLY } from "@/lib/post-visibility";
+import { channelFeedPostsWhere } from "@/lib/post-visibility";
 import {
   circleCreateLockKey,
   circleDedupeCutoff,
@@ -66,7 +66,7 @@ import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-chall
 import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
 import { publishEvent, notifyBadgeChange } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { isBlockedWithAny } from "@/lib/blocks";
+import { getBlockedEitherWayIds, isBlockedWithAny } from "@/lib/blocks";
 import { pushActivityNotification } from "@/lib/notify-push";
 import {
   canInviteToCircle,
@@ -1615,8 +1615,14 @@ export async function loadMoreCirclePosts(channelId: string, cursor: string) {
     return { items: [], hasMore: false };
   }
 
+  // Same list as the Circle page (channelFeedPostsWhere: no blocked-either-way, suspended or banned authors), and the
+  // cursor must be one of this channel's posts.
+  const where = channelFeedPostsWhere(channel.id, await getBlockedEitherWayIds(user.id));
+  if (typeof cursor !== "string" || !(await prisma.post.findFirst({ where: { id: cursor, channelId: channel.id }, select: { id: true } }))) {
+    return { items: [], hasMore: false };
+  }
   const rawPosts = await prisma.post.findMany({
-    where: { channelId: channel.id, moderationStatus: "PUBLISHED", ...LEAD_POST_ONLY },
+    where,
     orderBy: { createdAt: "desc" },
     take: CIRCLE_POSTS_PAGE_SIZE,
     cursor: { id: cursor },

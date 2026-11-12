@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCollabIcs, buildGoogleCalendarUrl } from "@/lib/calendar-export";
+import { buildCollabIcs, buildGoogleCalendarUrl, escapeIcsText, foldIcsLine } from "@/lib/calendar-export";
 
 const startAt = new Date("2026-10-13T18:00:00Z");
 const now = new Date("2026-10-07T12:00:00Z");
@@ -45,6 +45,59 @@ describe("buildCollabIcs", () => {
     });
     expect(ics).toContain("SUMMARY:Tax prep\\; Q1\\, 2026");
     expect(ics).toContain("DESCRIPTION:Line one\\nLine two \\\\ backslash");
+  });
+});
+
+describe("calendar-file injection (CR / control characters)", () => {
+  const unfold = (ics: string) => ics.replace(/\r\n /g, "");
+  const propertyNames = (ics: string) => unfold(ics).split("\r\n").map((l) => l.split(/[:;]/)[0]);
+
+  it("turns a lone CR, CRLF, LF and Unicode separators into an escaped \\n", () => {
+    expect(escapeIcsText("a\rb")).toBe("a\\nb");
+    expect(escapeIcsText("a\r\nb")).toBe("a\\nb");
+    expect(escapeIcsText("a\nb")).toBe("a\\nb");
+    expect(escapeIcsText("a\u2028b\u2029c")).toBe("a\\nb\\nc");
+  });
+
+  it("drops other control characters but keeps tab", () => {
+    expect(escapeIcsText("a\u0000b\u0007c\u001bd\u007fe\tf")).toBe("abcde\tf");
+  });
+
+  it("can't start a property of its own from a title, description or location", () => {
+    const ics = buildCollabIcs({
+      uid: "event-1",
+      title: "Party\rATTENDEE:mailto:evil@example.com",
+      description: "x\r\nURL:https://evil.example\rEND:VEVENT",
+      location: "Hall\rORGANIZER:mailto:evil@example.com",
+      startAt,
+      now,
+    });
+    // No bare CR or LF anywhere except as part of a CRLF line break.
+    expect(ics.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
+    const names = propertyNames(ics);
+    expect(names).not.toContain("ATTENDEE");
+    expect(names).not.toContain("URL");
+    expect(names).not.toContain("ORGANIZER");
+    expect(names.filter((n) => n === "END").length).toBe(3);
+    expect(unfold(ics)).toContain("SUMMARY:Party\\nATTENDEE:mailto:evil@example.com");
+  });
+
+  it("folds long lines at 75 octets without splitting a multi-byte character", () => {
+    const title = "é".repeat(100) + "😀".repeat(30);
+    const ics = buildCollabIcs({ uid: "e", title, description: "", startAt, now });
+    const encoder = new TextEncoder();
+    for (const line of ics.split("\r\n")) {
+      expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
+      expect(line).not.toContain("\uFFFD");
+    }
+    expect(unfold(ics)).toContain(`SUMMARY:${title}`);
+  });
+
+  it("leaves short lines as they are", () => {
+    expect(foldIcsLine("SUMMARY:short")).toBe("SUMMARY:short");
+    const exact = "X".repeat(75);
+    expect(foldIcsLine(exact)).toBe(exact);
+    expect(foldIcsLine(exact + "Y")).toBe(`${exact}\r\n Y`);
   });
 });
 

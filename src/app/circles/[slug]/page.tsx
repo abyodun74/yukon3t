@@ -22,7 +22,8 @@ import { CIRCLE_CATEGORIES } from "@/lib/circle-categories";
 import { CirclePostsList } from "@/components/circle-posts-list";
 import { BackButton } from "@/components/back-button";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
-import { LEAD_POST_ONLY } from "@/lib/post-visibility";
+import { channelFeedPostsWhere } from "@/lib/post-visibility";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { canSeeCircle, canSeeCircleContent, visibleOrInvitedCircleWhere } from "@/lib/circle-visibility";
 import { canInviteToCircle, eligibleCircleInvitees } from "@/lib/circle-invite";
@@ -156,7 +157,8 @@ export default async function CirclePage({
 
     activeChannel?.type === "TEXT" && !isPrivateNonMember
       ? prisma.post.findMany({
-          where: { channelId: activeChannel.id, moderationStatus: "PUBLISHED", ...LEAD_POST_ONLY },
+          // Shared with loadMoreCirclePosts: no blocked-either-way, suspended or banned authors.
+          where: channelFeedPostsWhere(activeChannel.id, await getBlockedEitherWayIds(me.id)),
           orderBy: { createdAt: "desc" },
           take: POSTS_PAGE_SIZE,
           include: postCardInclude,

@@ -135,6 +135,21 @@ export const LEAD_POST_ONLY: Prisma.PostWhereInput = {
 };
 
 /**
+ * A Circle channel's post list, for the Circle page and loadMoreCirclePosts alike (whether the viewer may open the
+ * channel at all is checked before this): published lead posts by ACTIVE authors (not suspended or banned), minus
+ * anyone blocked either way with the viewer, the same exclusions every other post list applies.
+ */
+export function channelFeedPostsWhere(channelId: string, blockedIds: ReadonlySet<string>): Prisma.PostWhereInput {
+  return {
+    channelId,
+    moderationStatus: "PUBLISHED",
+    author: { status: "ACTIVE" },
+    ...(blockedIds.size ? { authorId: { notIn: [...blockedIds] } } : {}),
+    ...LEAD_POST_ONLY,
+  };
+}
+
+/**
  * getVisiblePostsWhere for a general listing — the viewer's visible posts
  * minus anything members-only (see NOT_MEMBERS_ONLY) and minus a multi-photo
  * post's non-lead siblings (see LEAD_POST_ONLY). Combined with AND so no

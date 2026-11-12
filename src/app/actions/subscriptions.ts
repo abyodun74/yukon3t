@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { profileIsListed } from "@/lib/profile-access";
+import { loadProfileOwner } from "@/lib/profile-access-server";
 import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -74,9 +76,30 @@ export async function toggleSubscription(targetId: string) {
   return { error: null, subscribed: true };
 }
 
+/**
+ * The subscriber lists' own gate, the same as /u/[userId]/subscribers and /subscribing: the profile must exist for
+ * the viewer (profileIsListed: ACTIVE, named, not the guest identity, not a hidden site admin), and the cursor must be
+ * a row of the list being paged (`side` names the profile's column), not any subscription id.
+ */
+async function canPageSubscriptions(
+  viewerId: string,
+  profileUserId: unknown,
+  cursor: unknown,
+  side: "subscribedToId" | "subscriberId",
+) {
+  if (typeof profileUserId !== "string" || typeof cursor !== "string" || !profileUserId || !cursor) return false;
+  const owner = await loadProfileOwner(profileUserId);
+  if (!owner || !profileIsListed(owner, viewerId)) return false;
+  const row = await prisma.subscription.findFirst({ where: { id: cursor, [side]: profileUserId }, select: { id: true } });
+  return Boolean(row);
+}
+
 /** Auto-load-more for /u/[userId]/subscribers, called via useInfiniteScroll. */
 export async function loadMoreSubscribers(profileUserId: string, cursor: string) {
   const viewer = await requireViewer();
+  if (!(await canPageSubscriptions(viewer.id, profileUserId, cursor, "subscribedToId"))) {
+    return { items: [], hasMore: false };
+  }
   const rows = await prisma.subscription.findMany({
     // Admins are invisible platform-wide — excluded from the *listed* rows
     // here, not just when they're the profile being viewed (see the
@@ -102,6 +125,9 @@ export async function loadMoreSubscribers(profileUserId: string, cursor: string)
 /** Auto-load-more for /u/[userId]/subscribing, called via useInfiniteScroll. */
 export async function loadMoreSubscribing(profileUserId: string, cursor: string) {
   const viewer = await requireViewer();
+  if (!(await canPageSubscriptions(viewer.id, profileUserId, cursor, "subscriberId"))) {
+    return { items: [], hasMore: false };
+  }
   const rows = await prisma.subscription.findMany({
     // Same admin exclusion as loadMoreSubscribers above.
     where: { subscriberId: profileUserId, subscribedTo: { isAdmin: false } },

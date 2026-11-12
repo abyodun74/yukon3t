@@ -21,7 +21,7 @@ import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storag
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
-import { getBlockedEitherWayIds, isBlockedEitherWay } from "@/lib/blocks";
+import { getBlockedEitherWayIds, isBlockedEitherWay, isBlockedWithAny } from "@/lib/blocks";
 import { isSecretChat, checkSecretSend, textForModeration, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
@@ -40,6 +40,13 @@ import {
   forwardedMessageData,
   uniqueForwardTargets,
 } from "@/lib/message-forward";
+import {
+  adminGroupDeleteReason,
+  blockBetweenWhere,
+  canAnswerJoinRequest,
+  groupJoinRequestRefusal,
+  groupMembersEligible,
+} from "@/lib/group-chat-rules";
 
 const REACTION_SELECT = { emoji: true, userId: true } as const;
 const CORRECTION_INCLUDE = { author: { select: { id: true, name: true } } } as const;
@@ -70,6 +77,20 @@ const REPLY_TO_SELECT = {
     sender: { select: { id: true, name: true } },
   },
 } as const;
+
+/**
+ * Whether `newIds` may be put into a group whose members are (or will be) `existingIds`: all ACTIVE, and no block
+ * either way between any of them and anyone in the group afterwards (groupMembersEligible). Used by createGroupChat,
+ * addGroupMembers and respondToJoinRequest.
+ */
+async function canJoinGroup(newIds: readonly string[], existingIds: readonly string[]) {
+  const everyoneAfter = [...new Set([...existingIds, ...newIds])];
+  const [activeCount, block] = await Promise.all([
+    prisma.user.count({ where: { id: { in: [...newIds] }, status: "ACTIVE" } }),
+    prisma.block.findFirst({ where: blockBetweenWhere(newIds, everyoneAfter), select: { id: true } }),
+  ]);
+  return groupMembersEligible({ newIds, activeCount, blockBetween: Boolean(block) });
+}
 
 /** Creates a group conversation — caller must have an ACCEPTED connection with every selected member. */
 export async function createGroupChat(formData: FormData) {
@@ -102,6 +123,10 @@ export async function createGroupChat(formData: FormData) {
     },
   });
   if (acceptedCount !== memberIds.length) {
+    redirect("/messages/new?error=invalid");
+  }
+  // Every member an ACTIVE account, nobody blocked either way with anyone else in the new group.
+  if (!(await canJoinGroup(memberIds, [user.id]))) {
     redirect("/messages/new?error=invalid");
   }
 
@@ -182,9 +207,15 @@ export async function addGroupMembers(conversationId: string, formData: FormData
   if (acceptedCount !== newIds.length) {
     return { error: "invalid" as const };
   }
+  // ACTIVE accounts only, and nobody blocked either way with anyone already in the group (or with each other). One
+  // generic answer, so it can't reveal who blocked whom.
+  if (!(await canJoinGroup(newIds, [...existingIds]))) {
+    return { error: "unavailable" as const };
+  }
 
   await prisma.conversationMember.createMany({
     data: newIds.map((id) => ({ conversationId, userId: id })),
+    skipDuplicates: true,
   });
   await prisma.notification.createMany({
     data: newIds.map((id) => ({
@@ -301,13 +332,32 @@ export async function deleteGroupChat(conversationId: string) {
   if (!conversation || !conversation.isGroup) {
     return { error: "not_found" as const };
   }
-  if (conversation.createdById !== user.id && !user.isAdmin) {
+  const isAdminOverride = conversation.createdById !== user.id;
+  if (isAdminOverride && !user.isAdmin) {
     return { error: "forbidden" as const };
   }
 
-  await prisma.conversation.delete({ where: { id: conversationId } });
+  if (isAdminOverride) {
+    // A site admin removing someone else's group is a moderation action: recorded in the AuditLog against the
+    // group's creator (or the admin, if the creator's account is gone), in the same transaction as the delete.
+    const memberCount = await prisma.conversationMember.count({ where: { conversationId } });
+    await prisma.$transaction([
+      prisma.auditLog.create({
+        data: {
+          targetId: conversation.createdById ?? user.id,
+          action: "CONTENT_REMOVED",
+          performedBy: user.id,
+          reason: adminGroupDeleteReason({ id: conversation.id, name: conversation.name, memberCount }),
+        },
+      }),
+      prisma.conversation.delete({ where: { id: conversationId } }),
+    ]);
+  } else {
+    await prisma.conversation.delete({ where: { id: conversationId } });
+  }
 
   revalidatePath("/messages");
+  revalidatePath("/admin/groups");
   redirect("/messages");
 }
 
@@ -315,16 +365,29 @@ export async function deleteGroupChat(conversationId: string) {
 export async function requestToJoinGroup(conversationId: string) {
   const user = await requireVerifiedUser();
 
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
-  if (!conversation || !conversation.isGroup) {
+  if (typeof conversationId !== "string" || !conversationId) {
     return { error: "not_found" as const };
   }
+  if (!(await checkRateLimit("groupJoinRequest", user.id))) {
+    return { error: "rate_limited" as const };
+  }
 
-  const membership = await prisma.conversationMember.findUnique({
-    where: { conversationId_userId: { conversationId, userId: user.id } },
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, isGroup: true, discoverable: true, members: { select: { userId: true } } },
   });
-  if (membership) {
-    return { error: "already_member" as const };
+  if (!conversation) {
+    return { error: "not_found" as const };
+  }
+  const memberIds = conversation.members.map((m) => m.userId);
+  const refusal = groupJoinRequestRefusal({
+    isGroup: conversation.isGroup,
+    discoverable: conversation.discoverable,
+    isMember: memberIds.includes(user.id),
+    blockedWithAMember: await isBlockedWithAny(user.id, memberIds),
+  });
+  if (refusal) {
+    return { error: refusal };
   }
 
   const existing = await prisma.groupJoinRequest.findUnique({
@@ -357,34 +420,63 @@ export async function requestToJoinGroup(conversationId: string) {
 export async function respondToJoinRequest(requestId: string, approve: boolean) {
   const user = await requireVerifiedUser();
 
+  if (typeof requestId !== "string" || !requestId) {
+    return { error: "not_found" as const };
+  }
   const request = await prisma.groupJoinRequest.findUnique({
     where: { id: requestId },
-    include: { conversation: true },
+    select: {
+      id: true,
+      status: true,
+      userId: true,
+      conversationId: true,
+      conversation: { select: { isGroup: true, createdById: true, members: { select: { userId: true } } } },
+    },
   });
-  if (!request) {
+  if (!request || !request.conversation.isGroup) {
     return { error: "not_found" as const };
   }
   if (request.conversation.createdById !== user.id) {
     return { error: "forbidden" as const };
   }
-
-  if (approve) {
-    // No group-size cap — membership is unlimited.
-    await prisma.conversationMember.upsert({
-      where: {
-        conversationId_userId: { conversationId: request.conversationId, userId: request.userId },
-      },
-      create: { conversationId: request.conversationId, userId: request.userId },
-      update: {},
-    });
+  // Already approved or declined (a double tap, another tab): nothing to do, and never re-added after a decline.
+  if (!canAnswerJoinRequest(request.status)) {
+    return { error: "not_found" as const };
   }
 
-  await prisma.groupJoinRequest.update({
-    where: { id: requestId },
-    data: { status: approve ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+  const memberIds = request.conversation.members.map((m) => m.userId);
+  // The requester is checked again now, not when they asked: still ACTIVE, and not blocked either way with anyone in
+  // the group today. If not, approving declines the request instead.
+  const admit =
+    approve && (memberIds.includes(request.userId) || (await canJoinGroup([request.userId], memberIds)));
+
+  // The PENDING guard is the claim: of two answers racing, only one writes anything.
+  const answered = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.groupJoinRequest.updateMany({
+      where: { id: request.id, status: "PENDING" },
+      data: { status: admit ? "APPROVED" : "DECLINED", respondedAt: new Date() },
+    });
+    if (count === 0) return false;
+    if (admit) {
+      // No group-size cap — membership is unlimited.
+      await tx.conversationMember.upsert({
+        where: {
+          conversationId_userId: { conversationId: request.conversationId, userId: request.userId },
+        },
+        create: { conversationId: request.conversationId, userId: request.userId },
+        update: {},
+      });
+    }
+    return true;
   });
 
   revalidatePath(`/messages/${request.conversationId}`);
+  if (!answered) {
+    return { error: "not_found" as const };
+  }
+  if (approve && !admit) {
+    return { error: "unavailable" as const };
+  }
   return { error: null };
 }
 

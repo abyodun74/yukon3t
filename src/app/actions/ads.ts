@@ -26,6 +26,7 @@ import { isOwnedUploadKey } from "@/lib/media-keys";
 import { encodeAdUploadPass, verifyAdUploadPass } from "@/lib/ad-upload-pass";
 import { adPriceCents, AD_CURRENCY, AD_UPLOAD_PASS_FIELD } from "@/lib/ads";
 import { isPaymentsConfigured, createAdCheckoutSession, refundAdPayment } from "@/lib/stripe";
+import { recordAdClickFor } from "@/lib/ad-counters";
 
 /** How long the public ad flow's presigned PUTs live: a 25MB photo or a 30s (max 250MB) clip, not a 2GB post video. */
 const AD_IMAGE_UPLOAD_URL_TTL_SECONDS = 300;
@@ -391,22 +392,11 @@ export async function getActiveAdForDisplay() {
 }
 
 // Deliberately public/unauthenticated, same reasoning as
-// getActiveAdForDisplay above — AdSlot (which calls this right after
-// fetching the ad) renders for anonymous landing-page visitors too. Scoped
-// to an already-ACTIVE campaign id and returns nothing, so the only
-// possible abuse is inflating a count, not reading or writing anything
-// sensitive.
-export async function recordAdImpression(id: string) {
-  await prisma.adCampaign.updateMany({
-    where: { id, status: "ACTIVE" },
-    data: { impressionCount: { increment: 1 } },
-  });
-}
-
-// Same reasoning as recordAdImpression above.
-export async function recordAdClick(id: string) {
-  await prisma.adCampaign.updateMany({
-    where: { id, status: "ACTIVE" },
-    data: { clickCount: { increment: 1 } },
-  });
+// getActiveAdForDisplay above — AdClickTracker renders for anonymous
+// landing-page visitors too. Returns nothing; the id is validated, only an
+// ACTIVE campaign counts, and each client IP counts once per campaign per
+// 10 minutes (src/lib/ad-counters.ts), so it can't be used to inflate the
+// count. Impressions have no action at all: AdSlot records them on the server.
+export async function recordAdClick(id: unknown) {
+  await recordAdClickFor(id, await getClientIp());
 }

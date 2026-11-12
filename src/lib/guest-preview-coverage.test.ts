@@ -42,8 +42,7 @@ const GUEST_READ_ALLOWED: Record<string, readonly string[]> = {
 const PUBLIC_NO_SESSION: Record<string, Record<string, string>> = {
   "ads.ts": {
     getActiveAdForDisplay: "public ad slot, also shown signed out",
-    recordAdImpression: "public ad slot counter, also counted signed out",
-    recordAdClick: "public ad slot counter, also counted signed out",
+    recordAdClick: "public ad slot click counter (validated id, once per IP per campaign per 10 min), also counted signed out",
     requestAdUpload: "public /advertise booking flow (honeypot + Turnstile + limiter), not tied to an account",
     createAdCampaign: "public /advertise booking flow (the pass requestAdUpload issues after Turnstile + limiter), not tied to an account",
   },

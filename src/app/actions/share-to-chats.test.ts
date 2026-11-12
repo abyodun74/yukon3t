@@ -95,6 +95,18 @@ vi.mock("@/lib/prisma", () => {
     museShare: { create: (...a: unknown[]) => museShareCreate(...a) },
     notification: { create: (...a: unknown[]) => notificationCreate(...a) },
     story: { findUnique: async () => story },
+    // The story's author, for loadViewableStory's profile rule (src/lib/profile-access.ts): a public, active member.
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        status: "ACTIVE",
+        name: "Author",
+        isAdmin: false,
+        isGuestPreview: false,
+        postsVisibility: "PUBLIC",
+      }),
+    },
+    connection: { findFirst: async () => null },
     // createNonE2eeMessage's locked re-read of the destination's members (the only interpolated value is its id).
     $queryRaw: async (_sql: TemplateStringsArray, conversationId: string) => {
       const conv = conversations.find((c) => c.id === conversationId);

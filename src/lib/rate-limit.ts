@@ -320,6 +320,16 @@ const limiterDefinitions = {
   // user: what bounds guessing a password from a stolen session. Codes sent for the same step use deviceChallengeSend
   // (email) / phoneVerifyRequest (SMS), and checking one deviceChallengeCheck / phoneVerifyCheck.
   accountReauth: makeLimiter(10, "1 h", "accountReauth"),
+  // Following a shared link's redirects to find the video it points at (resolveSharedVideoLink, actions/embeds.ts),
+  // per user: each call makes the server send up to 3 requests to a host the caller chose.
+  linkResolve: makeLimiter(30, "10 m", "linkResolve"),
+  // Asking to join a discoverable group chat (requestToJoinGroup), per user: each request lands in the creator's list.
+  groupJoinRequest: makeLimiter(20, "1 h", "groupJoinRequest"),
+  // Public ad counters, keyed by client IP + campaign id: at most one click per viewer per campaign per 10 minutes
+  // (recordAdClick), and one impression per 30 minutes (recordAdImpressionFor in src/lib/ad-counters.ts), so reloading
+  // or scripting the action can't inflate an advertiser's numbers.
+  adClick: makeLimiter(1, "10 m", "adClick"),
+  adImpression: makeLimiter(1, "30 m", "adImpression"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(
@@ -347,7 +357,8 @@ export const FAIL_CLOSED_WITH_DB_FALLBACK: ReadonlySet<LimiterName> = new Set<Li
 ]);
 
 /**
- * Limiters that FAIL CLOSED with no fallback: each allowed call is a paid third-party call with no other cap, so
+ * Limiters that FAIL CLOSED with no fallback: each allowed call is a paid third-party call (or, for linkResolve,
+ * outbound requests to a caller-chosen host) with no other cap, so
  * during an Upstash outage they are refused rather than unlimited (the feature pauses; nothing else breaks).
  * Everything not in either set fails OPEN: a slow or down Redis must never take the app down.
  */
@@ -356,6 +367,7 @@ export const FAIL_CLOSED_NO_FALLBACK: ReadonlySet<LimiterName> = new Set<Limiter
   "translateModelCall", // OpenAI per cache miss
   "translateGlobal", // the bill's ceiling across everyone
   "brandedVideo", // Cloudflare Stream encode
+  "linkResolve", // up to 3 outbound requests to a caller-chosen host; refused, the shared link just stays a link
 ]);
 
 /** A fixed-window counter used when Upstash is unavailable: true while `key` has used fewer than `limit` in `windowMs`. */

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { viewerCanSeeProfilePosts } from "@/lib/profile-access-server";
 import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
@@ -133,40 +134,25 @@ export async function deletePost(postId: string) {
  * `canSeePosts` account-level check, plus getVisiblePostsWhere's per-post
  * Everyone/Friends only/Private check) server-side rather than trusting the
  * caller, so this can't be used to page past a private profile's — or a
- * single private post's — visibility.
+ * single private post's — visibility. The page's whole rule, through the same
+ * helpers (src/lib/profile-access.ts): the profile must exist for the viewer
+ * (ACTIVE, named, not the guest identity, not a hidden site admin), and its
+ * posts be visible to them. The cursor must be one of this profile's posts.
  */
 export async function loadMoreProfilePosts(profileUserId: string, cursor: string) {
   const viewer = await requireViewer();
 
-  const profileUser = await prisma.user.findUnique({ where: { id: profileUserId } });
-  if (!profileUser || profileUser.status !== "ACTIVE") {
+  if (typeof profileUserId !== "string" || typeof cursor !== "string" || !profileUserId || !cursor) {
     return { items: [], hasMore: false };
   }
-
-  const isOwnProfile = profileUserId === viewer.id;
-  const iBlockedThem = isOwnProfile
-    ? false
-    : Boolean(
-        await prisma.block.findUnique({
-          where: { blockerId_blockedId: { blockerId: viewer.id, blockedId: profileUserId } },
-        }),
-      );
-  const connection = isOwnProfile
-    ? null
-    : await prisma.connection.findFirst({
-        where: {
-          OR: [
-            { requesterId: viewer.id, targetId: profileUserId },
-            { requesterId: profileUserId, targetId: viewer.id },
-          ],
-        },
-      });
-  const canSeePosts =
-    !iBlockedThem &&
-    (isOwnProfile ||
-      (profileUser.postsVisibility !== "HIDDEN" &&
-        (profileUser.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED")));
-  if (!canSeePosts) {
+  if (!(await viewerCanSeeProfilePosts(viewer.id, profileUserId))) {
+    return { items: [], hasMore: false };
+  }
+  const cursorPost = await prisma.post.findFirst({
+    where: { id: cursor, authorId: profileUserId, circleId: null },
+    select: { id: true },
+  });
+  if (!cursorPost) {
     return { items: [], hasMore: false };
   }
 

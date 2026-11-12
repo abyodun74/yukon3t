@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { canSeeProfileContent, profileIsListed } from "@/lib/profile-access";
 import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
@@ -70,19 +71,14 @@ export default async function PublicProfilePage({
   const t = dictionary.profile.page;
   const [beforeName, afterName] = aroundPlaceholder(t.connectionsOnly, "name");
 
-  if (!user || user.status !== "ACTIVE" || !user.name) notFound();
+  if (!user) notFound();
   // The shared guest-preview identity (src/lib/guest-preview.ts) has no profile: a guest opening their own Profile tab
   // is told why; for everyone else it doesn't exist.
-  if (user.isGuestPreview) {
-    if (me.isGuestPreview) return <GuestGatedScreen kind="profile" />;
-    notFound();
-  }
+  if (user.isGuestPreview && user.status === "ACTIVE" && me.isGuestPreview) return <GuestGatedScreen kind="profile" />;
+  // ACTIVE, named, not the guest identity, and not a site admin (invisible platform-wide) unless it's their own
+  // profile: profileIsListed, the same rule as the subscriber lists and every action that pages past this page.
+  if (!user.name || !profileIsListed(user, me.id)) notFound();
   const isOwnProfile = user.id === me.id;
-  // Site admins are invisible platform-wide — see the same guard on
-  // /u/[userId]/subscribers and /subscribing, and the isAdmin exclusions
-  // in search/discover and requestConnection/startDirectMessage. Skipped
-  // only for the admin viewing their own profile.
-  if (user.isAdmin && !isOwnProfile) notFound();
   const online = isOnline(user.lastSeenAt);
 
   // Whether the posts could be visible before the block and connection are known: the visibility filter is only built
@@ -113,11 +109,13 @@ export default async function PublicProfilePage({
     loadProfileBirthdayCard({ id: me.id, isGuestPreview: me.isGuestPreview }, user),
   ]);
 
-  const canSeePosts =
-    !iBlockedThem &&
-    (isOwnProfile ||
-      (user.postsVisibility !== "HIDDEN" &&
-        (user.postsVisibility === "PUBLIC" || connection?.status === "ACCEPTED")));
+  // Shared with loadMoreProfilePosts and the Story actions (src/lib/profile-access.ts).
+  const canSeePosts = canSeeProfileContent({
+    owner: user,
+    viewerId: me.id,
+    iBlockedThem,
+    connected: connection?.status === "ACCEPTED",
+  });
 
   // canSeePosts above is a cheap account-level bail-out (skips the query
   // entirely for a blocked/HIDDEN author); getVisiblePostsWhere is what

@@ -25,6 +25,9 @@ import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
 import { sendToEachChat } from "@/lib/share-to-chats-server";
 import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
+import { STORY_TRAY_AUTHOR_WHERE } from "@/lib/profile-access";
+import { loadViewableStory } from "@/lib/profile-access-server";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -43,12 +46,21 @@ export async function getConnectionsStories() {
     },
     select: { requesterId: true, targetId: true },
   });
-  const connectionIds = connections.map((c) => (c.requesterId === user.id ? c.targetId : c.requesterId));
+  const blockedIds = await getBlockedEitherWayIds(user.id);
+  const connectionIds = connections
+    .map((c) => (c.requesterId === user.id ? c.targetId : c.requesterId))
+    .filter((id) => !blockedIds.has(id));
 
+  // The caller's own, plus connections' whose Stories the profile rule lets them see (profile-access.ts: ACTIVE,
+  // named, not an admin, not HIDDEN; blocked either way already dropped above). The same rule every Story action
+  // below re-checks through loadViewableStory.
   const stories = await prisma.story.findMany({
     where: {
-      authorId: { in: [...connectionIds, user.id] },
       expiresAt: { gt: new Date() },
+      OR: [
+        { authorId: user.id },
+        ...(connectionIds.length ? [{ authorId: { in: connectionIds }, author: STORY_TRAY_AUTHOR_WHERE }] : []),
+      ],
     },
     orderBy: { createdAt: "asc" },
     include: {
@@ -272,16 +284,15 @@ export async function deleteStory(id: string) {
 /**
  * Records that the caller watched a story — a no-op (not an error) for the
  * author's own story, same reasoning a like/RSVP wouldn't count from its
- * own author: "who's viewed my story" should never include yourself.
+ * own author: "who's viewed my story" should never include yourself. Only a
+ * story the caller may see (loadViewableStory), so nobody can add themselves
+ * to the viewer list of a story that isn't shown to them.
  */
 export async function viewStory(storyId: string) {
   const user = await requireVerifiedUser();
 
-  const story = await prisma.story.findUnique({
-    where: { id: storyId },
-    select: { authorId: true, expiresAt: true },
-  });
-  if (!story || story.expiresAt < new Date()) {
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
     return { error: "not_found" as const };
   }
   if (story.authorId === user.id) {
@@ -289,8 +300,8 @@ export async function viewStory(storyId: string) {
   }
 
   await prisma.storyView.upsert({
-    where: { storyId_viewerId: { storyId, viewerId: user.id } },
-    create: { storyId, viewerId: user.id },
+    where: { storyId_viewerId: { storyId: story.id, viewerId: user.id } },
+    create: { storyId: story.id, viewerId: user.id },
     update: {},
   });
 
@@ -359,7 +370,11 @@ async function reactionSummary(storyId: string, viewerId: string) {
 
 export async function getStoryReactionSummary(storyId: string) {
   const user = await requireVerifiedViewer();
-  const result = await reactionSummary(storyId, user.id);
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
+    return { error: "not_found" as const, summary: [], mine: null };
+  }
+  const result = await reactionSummary(story.id, user.id);
   return { error: null, ...result };
 }
 
@@ -375,8 +390,7 @@ export async function toggleStoryReaction(storyId: string, emoji: string) {
     return { error: "invalid" as const };
   }
 
-  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { expiresAt: true } });
-  if (!story || story.expiresAt < new Date()) {
+  if (!(await loadViewableStory(user.id, storyId))) {
     return { error: "not_found" as const };
   }
 
@@ -410,16 +424,19 @@ export async function toggleStoryReaction(storyId: string, emoji: string) {
 export async function replyToStory(storyId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
-  const story = await prisma.story.findUnique({ where: { id: storyId } });
-  if (!story || story.expiresAt < new Date()) {
+  if (typeof storyId === "string" && storyId) {
+    const raw = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true } });
+    // Kept as its own answer: the reply sheet tells the user they can't message this person.
+    if (raw && raw.authorId !== user.id && (await isBlockedEitherWay(user.id, raw.authorId))) {
+      return { error: "blocked" as const };
+    }
+  }
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
     return { error: "not_found" as const };
   }
   if (story.authorId === user.id) {
     return { error: "forbidden" as const };
-  }
-
-  if (await isBlockedEitherWay(user.id, story.authorId)) {
-    return { error: "blocked" as const };
   }
 
   const conversation = await prisma.conversation.findFirst({
@@ -539,22 +556,24 @@ export async function getShareableConversations() {
  * (reactions, viewer's own quick-react bar, etc.). Same visibility rule as
  * every other story read here: still unexpired, and not blocked either way
  * with the author — a forwarded message can otherwise outlive the sender's
- * own connection to whoever it reached.
+ * own connection to whoever it reached. Plus the author's profile rule
+ * (loadViewableStory), so a friends-only author's story stays with their
+ * connections even when a copy of the link reaches someone else.
  */
 export async function getStory(storyId: string) {
   const user = await requireVerifiedViewer();
 
-  const story = await prisma.story.findUnique({
-    where: { id: storyId },
-    include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
-      _count: { select: { views: true } },
-    },
-  });
-  if (!story || story.expiresAt < new Date()) {
-    return { error: "not_found" as const, story: null };
-  }
-  if (await isBlockedEitherWay(user.id, story.authorId)) {
+  const viewable = await loadViewableStory(user.id, storyId);
+  const story = viewable
+    ? await prisma.story.findUnique({
+        where: { id: viewable.id },
+        include: {
+          author: { select: { id: true, name: true, avatarUrl: true } },
+          _count: { select: { views: true } },
+        },
+      })
+    : null;
+  if (!story) {
     return { error: "not_found" as const, story: null };
   }
 
@@ -600,11 +619,8 @@ export async function shareStoryToConversations(storyId: string, conversationIds
     return { error: "rate_limited" as const };
   }
 
-  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { id: true, authorId: true, expiresAt: true } });
-  if (!story || story.expiresAt < new Date()) {
-    return { error: "not_found" as const };
-  }
-  if (await isBlockedEitherWay(user.id, story.authorId)) {
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
     return { error: "not_found" as const };
   }
 
@@ -631,27 +647,22 @@ const STORY_COMMENTS_LIMIT = 50;
 
 /**
  * A story's public comment thread — distinct from replyToStory above, which
- * is a private DM and never lands here. Same minimal access check every
- * other story action here uses (not expired; blocked either way excluded)
- * rather than a strict "must be an accepted connection" gate — a story's
- * real privacy boundary is that its id is only ever surfaced to connected
- * viewers in the first place (getConnectionsStories), not an
- * authorization check on the id itself, consistent with viewStory/
- * toggleStoryReaction's own equally minimal checks.
+ * is a private DM and never lands here. Same access check as every other
+ * story action here (loadViewableStory: unexpired, no block either way, and
+ * the author's profile rule — PUBLIC to anyone, CONNECTIONS_ONLY to accepted
+ * connections, never a HIDDEN, inactive or admin account): an id alone grants
+ * nothing.
  */
 export async function getStoryComments(storyId: string) {
   const user = await requireVerifiedViewer();
 
-  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true, expiresAt: true } });
-  if (!story || story.expiresAt < new Date()) {
-    return { error: "not_found" as const, comments: [] };
-  }
-  if (await isBlockedEitherWay(user.id, story.authorId)) {
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
     return { error: "not_found" as const, comments: [] };
   }
 
   const comments = await prisma.storyComment.findMany({
-    where: { storyId, moderationStatus: "PUBLISHED" },
+    where: { storyId: story.id, moderationStatus: "PUBLISHED" },
     orderBy: { createdAt: "asc" },
     take: STORY_COMMENTS_LIMIT,
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
@@ -668,11 +679,8 @@ export async function createStoryComment(storyId: string, formData: FormData) {
     return { error: "rate_limited" as const };
   }
 
-  const story = await prisma.story.findUnique({ where: { id: storyId } });
-  if (!story || story.expiresAt < new Date()) {
-    return { error: "not_found" as const };
-  }
-  if (await isBlockedEitherWay(user.id, story.authorId)) {
+  const story = await loadViewableStory(user.id, storyId);
+  if (!story) {
     return { error: "not_found" as const };
   }
 
@@ -684,7 +692,7 @@ export async function createStoryComment(storyId: string, formData: FormData) {
   const modResult = await moderateText(content);
   const comment = await prisma.storyComment.create({
     data: {
-      storyId,
+      storyId: story.id,
       authorId: user.id,
       content,
       moderationStatus: modResult.allowed ? "PUBLISHED" : "FLAGGED",
