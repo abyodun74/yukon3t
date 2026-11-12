@@ -2293,7 +2293,9 @@ const sections: Section[] = [
           <>
             Yes — Settings → Your data → &ldquo;Export my data&rdquo; gives
             you a JSON file of everything tied to your account, free, any
-            time, as a personal backup.
+            time, as a personal backup. For your security you&apos;re asked to
+            confirm it&apos;s you first: your password, or, if your account
+            has no password, a 6-digit code we email you.
           </>
         ),
       },
@@ -2306,7 +2308,8 @@ const sections: Section[] = [
             deleting anything — signing back in with your password or email
             link reactivates it automatically. <strong>Delete</strong>{" "}
             permanently removes your profile, posts, messages, and Circles
-            you own; this cannot be undone.
+            you own; this cannot be undone, so it asks for your password (or,
+            without one, a code we email you) before it runs.
           </>
         ),
       },

@@ -660,7 +660,7 @@ export const correctionSchema = z.object({
 export const reportSchema = z.object({
   targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT"]),
   targetId: z.string().cuid(),
-  reportedUserId: z.string().cuid().optional(),
+  // No reportedUserId: whom a report is about is derived on the server from the target (src/lib/report-target.ts).
   reasonCategory: z.enum(reportReasonCategoryValues).optional().default("OTHER"),
   reason: z.string().trim().min(10).max(1000),
 });

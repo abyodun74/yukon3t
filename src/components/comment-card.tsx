@@ -287,7 +287,6 @@ export function CommentCard({
             <ReportTrigger
               targetType="COMMENT"
               targetId={comment.id}
-              reportedUserId={comment.author.id}
             />
           </div>
           <ReactionBar reactions={reactions} onToggle={toggleReaction} />

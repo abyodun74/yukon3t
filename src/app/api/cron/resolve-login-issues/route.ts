@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { UNRESOLVED_LOGIN_ISSUE_CLEAR_AFTER_MS } from "@/lib/login-issues";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { UNVERIFIED_ACCOUNT_WHERE } from "@/lib/account-verification";
+import { pruneLoginFailureCounters } from "@/lib/login-lockout-server";
 
 /**
  * Triggered on a schedule (Netlify Scheduled Function), not by a user
@@ -14,8 +15,11 @@ import { UNVERIFIED_ACCOUNT_WHERE } from "@/lib/account-verification";
  * the queue after 48h unresolved" means clearing that underlying state:
  *  - Failed-attempts-only accounts (never actually locked): reset the
  *    streak so the account is no longer flagged.
- *  - Locked accounts: lockedUntil already self-expires within 24h, so this
- *    is mostly a safety net.
+ *  - Locked accounts: lockedUntil already self-expires within an hour, so
+ *    this is mostly a safety net.
+ *  - Per-IP / per-device sign-in failure counters (LoginFailureCounter,
+ *    src/lib/login-lockout.ts) idle for 48h and not locking anything are
+ *    deleted.
  *  - Stuck-unverified accounts (verified neither by email nor by phone,
  *    UNVERIFIED_ACCOUNT_WHERE in src/lib/account-verification.ts — an
  *    account that verified by text is not stuck): dismissed into "recently
@@ -55,5 +59,12 @@ export async function GET(request: Request) {
     data: { loginIssueResolvedAt: new Date() },
   });
 
-  return NextResponse.json({ error: null, clearedCount: cleared.count, dismissedCount: dismissed.count });
+  const prunedCounters = await pruneLoginFailureCounters(cutoff);
+
+  return NextResponse.json({
+    error: null,
+    clearedCount: cleared.count,
+    dismissedCount: dismissed.count,
+    prunedCounters,
+  });
 }

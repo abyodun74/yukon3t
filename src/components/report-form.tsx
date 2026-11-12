@@ -22,14 +22,12 @@ type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" |
 export function ReportModal({
   targetType,
   targetId,
-  reportedUserId,
   evidenceText,
   open,
   onClose,
 }: {
   targetType: ReportTargetType;
   targetId: string;
-  reportedUserId?: string;
   /** For a message from a secret (end-to-end encrypted) chat: its decrypted text, which the server can't read. Shared with moderators only when the reporter submits. */
   evidenceText?: string;
   open: boolean;
@@ -110,7 +108,6 @@ export function ReportModal({
                 const fd = new FormData();
                 fd.set("targetType", targetType);
                 fd.set("targetId", targetId);
-                if (reportedUserId) fd.set("reportedUserId", reportedUserId);
                 fd.set("reasonCategory", category);
                 fd.set("reason", reason);
                 if (evidenceText !== undefined) fd.set("evidenceText", evidenceText);
@@ -139,12 +136,10 @@ export function ReportModal({
 export function ReportTrigger({
   targetType,
   targetId,
-  reportedUserId,
   label,
 }: {
   targetType: ReportTargetType;
   targetId: string;
-  reportedUserId?: string;
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -169,7 +164,6 @@ export function ReportTrigger({
         <ReportModal
           targetType={targetType}
           targetId={targetId}
-          reportedUserId={reportedUserId}
           open={open}
           onClose={() => setOpen(false)}
         />

@@ -74,8 +74,6 @@ function passwordErrorMessage(error: string | undefined, t: Awaited<ReturnType<t
       return t.common.captchaFailed;
     case "captcha_unavailable":
       return t.common.captchaUnavailable;
-    case "locked":
-      return t.signIn.errors.locked;
     default:
       return null;
   }

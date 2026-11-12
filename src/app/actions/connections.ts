@@ -12,6 +12,7 @@ import { notifyBadgeChange } from "@/lib/realtime-server";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { latestMessageAtByConversation } from "@/lib/latest-messages";
 import { findDirectConversationId, startDirectConversation } from "@/lib/direct-conversation";
+import { isDemoContactRefused } from "@/lib/app-review-demo";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
 const CONNECTIONS_PAGE_SIZE = 20;
@@ -51,7 +52,14 @@ export async function requestConnection(formData: FormData) {
   // invisible platform-wide (see /u/[userId] and the search/discover
   // exclusions), so no one should even learn an admin account exists by
   // getting a *different* error here.
-  if (!target || target.status !== "ACTIVE" || target.isAdmin || target.isGuestPreview) {
+  // App Review demo accounts only reach each other (src/lib/app-review-demo.ts), answered like any unavailable target.
+  if (
+    !target ||
+    target.status !== "ACTIVE" ||
+    target.isAdmin ||
+    target.isGuestPreview ||
+    isDemoContactRefused(user, target)
+  ) {
     return { error: "not_found" };
   }
   // Deliberately indistinguishable from "not_found" — a request shouldn't
@@ -207,7 +215,13 @@ export async function startDirectMessage(targetId: string) {
   // Same as requestConnection above (this action creates a Connection row
   // too, further down) — admins are invisible platform-wide, so this stays
   // indistinguishable from an inactive/nonexistent target.
-  if (!target || target.status !== "ACTIVE" || target.isAdmin || target.isGuestPreview) {
+  if (
+    !target ||
+    target.status !== "ACTIVE" ||
+    target.isAdmin ||
+    target.isGuestPreview ||
+    isDemoContactRefused(user, target)
+  ) {
     return { error: "not_found" as const };
   }
   if (await isBlockedEitherWay(user.id, targetId)) {

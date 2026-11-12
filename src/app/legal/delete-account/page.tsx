@@ -41,6 +41,12 @@ export default function DeleteAccountPage() {
         <li>Sign in to YuKon3t at <a href="/sign-in" className="text-accent">yukon3t.com</a> (or open the Android app).</li>
         <li>Go to <Link href="/settings" className="text-accent">Settings</Link>.</li>
         <li>Scroll to the &quot;Delete account&quot; section and confirm.</li>
+        <li>
+          Confirm it&apos;s you: enter your password, or, if your account has
+          no password (you sign in with an email link, Google or Apple), the
+          6-digit code we email you. This stops someone who has your unlocked
+          phone or a stolen session from deleting your account.
+        </li>
       </ol>
       <p className="mt-2 text-foreground-soft">
         Deletion happens immediately when you confirm — there is no grace

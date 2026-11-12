@@ -44,6 +44,9 @@ const UNFILTERED_CIRCLE_LISTS: Record<string, number> = {
   // Account deletion's file clean-up: the deleted person's own Circles' cover URLs (createdById), then which of those
   // URLs any Circle still uses. Only URLs, used server-side to decide what to delete; never returned to a browser.
   "lib/account-media.ts": 2,
+  // The moderation queue's preview of reported Circles (by id, from open reports): admin-only, server-rendered on
+  // /admin/moderation; a PRIVATE one links to /admin/circles, never to its page.
+  "lib/report-content-preview.ts": 1,
 };
 
 describe("queries that list Circles", () => {

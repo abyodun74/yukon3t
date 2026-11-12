@@ -70,8 +70,6 @@ export const accountEn = {
     errors: {
       invalid_credentials: "Incorrect username/email or password.",
       rate_limited: "Too many attempts. Please wait a few minutes and try again.",
-      locked:
-        "Too many failed attempts — this account is locked for 24 hours. Reset your password below to unlock it immediately.",
     },
     identifier: "Username or email",
     password: "Password",
@@ -306,6 +304,8 @@ export const accountEn = {
         PASSWORD_CHANGE: "Confirm it's you — password change on YuKon3t",
         POST: "Confirm it's you — new device posting to YuKon3t",
         HIDDEN_PIN_RESET: "Your YuKon3t security code",
+        ACCOUNT_DELETE: "Confirm it's you — deleting your YuKon3t account",
+        DATA_EXPORT: "Confirm it's you — downloading your YuKon3t data",
       },
       intros: {
         LOGIN:
@@ -313,6 +313,8 @@ export const accountEn = {
         PASSWORD_CHANGE:
           "Someone just tried to change the password on your YuKon3t account from a device we don't recognize ({device}).",
         POST: "Someone just tried to post from your YuKon3t account from a device we don't recognize ({device}).",
+        ACCOUNT_DELETE: "Someone signed in to your YuKon3t account just asked to permanently delete it ({device}).",
+        DATA_EXPORT: "Someone signed in to your YuKon3t account just asked to download a copy of all of its data ({device}).",
       },
       ifYou: "If this is you, enter this code to continue:",
       outro:

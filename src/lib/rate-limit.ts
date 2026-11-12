@@ -9,15 +9,21 @@ const memoryHits = new Map<string, { count: number; resetAt: number }>();
 
 function memoryLimiter(limit: number, windowMs: number, prefix?: string) {
   return {
-    limit: async (identifier: string) => {
+    limit: async (identifier: string, opts?: { rate?: number }) => {
+      const rate = Math.max(1, opts?.rate ?? 1);
       const key = prefix ? `${prefix}:${identifier}` : identifier;
       const now = Date.now();
       const entry = memoryHits.get(key);
       if (!entry || entry.resetAt < now) {
-        memoryHits.set(key, { count: 1, resetAt: now + windowMs });
-        return { success: true, remaining: limit - 1 };
+        if (rate > limit) return { success: false, remaining: limit };
+        memoryHits.set(key, { count: rate, resetAt: now + windowMs });
+        return { success: true, remaining: limit - rate };
       }
-      entry.count += 1;
+      if (entry.count + rate > limit && rate > 1) {
+        // Like Upstash's sliding window: a multi-token request that doesn't fit is refused without consuming anything.
+        return { success: false, remaining: Math.max(0, limit - entry.count) };
+      }
+      entry.count += rate;
       const success = entry.count <= limit;
       return { success, remaining: Math.max(0, limit - entry.count) };
     },
@@ -60,15 +66,24 @@ function makeLimiter(limit: number, window: `${number} ${"s" | "m" | "h"}`, pref
 }
 
 // 1s instead of the library's 5s default: on timeout Ratelimit does NOT throw,
-// it resolves { success: true, reason: "timeout" } (fail open), so a slow
-// Redis can stall a request by at most this long.
+// it resolves { success: true, reason: "timeout" }, which checkRateLimit
+// treats like an error (fail open, closed or database fallback, per limiter),
+// so a slow Redis can stall a request by at most this long.
 const RATE_LIMIT_TIMEOUT_MS = 1000;
 
-function buildLimiter(
-  { limit, window, prefix }: ReturnType<typeof makeLimiter>,
-  name: string,
-) {
-  const key = prefix ?? `rl:${name}`;
+function limiterKey({ prefix }: ReturnType<typeof makeLimiter>, name: string): string {
+  return prefix ?? `rl:${name}`;
+}
+
+function windowToMs(window: ReturnType<typeof makeLimiter>["window"]): number {
+  const [amount, unit] = window.split(" ");
+  const multiplier = unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : 1_000;
+  return Number(amount) * multiplier;
+}
+
+function buildLimiter(def: ReturnType<typeof makeLimiter>, name: string) {
+  const { limit, window } = def;
+  const key = limiterKey(def, name);
   if (redis) {
     return new Ratelimit({
       redis,
@@ -78,9 +93,7 @@ function buildLimiter(
       timeout: RATE_LIMIT_TIMEOUT_MS,
     });
   }
-  const [amount, unit] = window.split(" ");
-  const multiplier = unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : 1_000;
-  return memoryLimiter(limit, Number(amount) * multiplier, key);
+  return memoryLimiter(limit, windowToMs(window), key);
 }
 
 const limiterDefinitions = {
@@ -303,14 +316,67 @@ const limiterDefinitions = {
   // Settings -> Privacy -> Birthday, "Add your birth date" (setBirthDateOnce): per user. It can only ever succeed once;
   // this just caps retries of a refused date (underage, invalid).
   birthDateSet: makeLimiter(5, "1 h", "birthDateSet"),
+  // Re-entering the account password before "Export my data" or "Delete account" (actions/account-reauth.ts), per
+  // user: what bounds guessing a password from a stolen session. Codes sent for the same step use deviceChallengeSend
+  // (email) / phoneVerifyRequest (SMS), and checking one deviceChallengeCheck / phoneVerifyCheck.
+  accountReauth: makeLimiter(10, "1 h", "accountReauth"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(
   Object.entries(limiterDefinitions).map(([name, def]) => [name, buildLimiter(def, name)]),
 ) as { [K in keyof typeof limiterDefinitions]: ReturnType<typeof buildLimiter> };
 
+export type LimiterName = keyof typeof limiterDefinitions;
+
+/**
+ * Limiters that FAIL CLOSED when Upstash errors or times out, and fall back to a counter in Postgres
+ * (src/lib/rate-limit-db-fallback.ts) instead of letting the request through unlimited: each of these sends an email
+ * or a text message (real money, and a way to flood someone's inbox or phone) or guards re-entering a password. If
+ * the fallback isn't available either (not registered in this runtime, or the database errors), the request is
+ * refused like any rate-limited one. The fallback is a fixed window of the same length and size, so it is about as
+ * strict as the Upstash sliding window.
+ */
+export const FAIL_CLOSED_WITH_DB_FALLBACK: ReadonlySet<LimiterName> = new Set<LimiterName>([
+  "signIn", // magic-link email (sign-in/page.tsx)
+  "passwordSignUp", // creates an account and sends its verification email or text
+  "passwordResetRequest", // password reset email
+  "emailOtpSend", // sign-up email code
+  "phoneVerifyRequest", // SMS code (Twilio charge per send)
+  "deviceChallengeSend", // step-up email code (new-device sign-in, password change, hidden PIN reset, re-auth)
+  "accountReauth", // password re-entry before data export / account deletion
+]);
+
+/**
+ * Limiters that FAIL CLOSED with no fallback: each allowed call is a paid third-party call with no other cap, so
+ * during an Upstash outage they are refused rather than unlimited (the feature pauses; nothing else breaks).
+ * Everything not in either set fails OPEN: a slow or down Redis must never take the app down.
+ */
+export const FAIL_CLOSED_NO_FALLBACK: ReadonlySet<LimiterName> = new Set<LimiterName>([
+  "transcribeAudio", // OpenAI Whisper per call
+  "translateModelCall", // OpenAI per cache miss
+  "translateGlobal", // the bill's ceiling across everyone
+  "brandedVideo", // Cloudflare Stream encode
+]);
+
+/** A fixed-window counter used when Upstash is unavailable: true while `key` has used fewer than `limit` in `windowMs`. */
+export type RateLimitFallback = (key: string, limit: number, windowMs: number) => Promise<boolean>;
+
+// Registered by src/lib/rate-limit-db-fallback.ts (which needs Prisma) rather than imported here: this file is also
+// bundled into src/proxy.ts, which must not pull in a database client. Kept on globalThis so every bundle in the
+// server process sees the same registration.
+const FALLBACK_SLOT = Symbol.for("yukon3t.rateLimitDbFallback");
+
+export function registerRateLimitFallback(fallback: RateLimitFallback | null): void {
+  (globalThis as Record<symbol, unknown>)[FALLBACK_SLOT] = fallback;
+}
+
+function registeredFallback(): RateLimitFallback | null {
+  const value = (globalThis as Record<symbol, unknown>)[FALLBACK_SLOT];
+  return typeof value === "function" ? (value as RateLimitFallback) : null;
+}
+
 // An Upstash outage (or an exhausted plan) fails every check, and src/proxy.ts
-// runs one on nearly every request — so the fail-open trace is reported at
+// runs one on nearly every request — so the outage trace is reported at
 // most once per window per server instance per kind of failure, not once per
 // request. Not keyed by limiter: an outage hits all of them, so the first
 // failure's limiter name is enough.
@@ -318,6 +384,7 @@ const FAIL_OPEN_REPORT_INTERVAL_MS = 10 * 60 * 1000;
 const failOpenReports = {
   error: { lastAt: null as number | null, suppressed: 0 },
   timeout: { lastAt: null as number | null, suppressed: 0 },
+  fallback: { lastAt: null as number | null, suppressed: 0 },
 };
 
 // Returns how many failures were suppressed since the last report if this one
@@ -335,32 +402,72 @@ function claimFailOpenReport(kind: keyof typeof failOpenReports): number | null 
   return suppressed;
 }
 
-export async function checkRateLimit(
-  limiter: keyof typeof rateLimiters,
-  identifier: string,
-) {
+/** What a limiter does when Upstash can't answer: "open" (allow), "closed" (refuse), or "database" (fallback). */
+export function unavailableBehaviour(limiter: LimiterName): "open" | "closed" | "database" {
+  if (FAIL_CLOSED_WITH_DB_FALLBACK.has(limiter)) return "database";
+  if (FAIL_CLOSED_NO_FALLBACK.has(limiter)) return "closed";
+  return "open";
+}
+
+// The answer for a check Upstash couldn't make (thrown error or timeout).
+async function whenUpstashUnavailable(limiter: LimiterName, identifier: string, rate: number): Promise<boolean> {
+  const behaviour = unavailableBehaviour(limiter);
+  if (behaviour === "open") return true;
+  if (behaviour === "closed") return false;
+  const fallback = registeredFallback();
+  if (!fallback) return false;
+  const def = limiterDefinitions[limiter];
   try {
-    const result = await rateLimiters[limiter].limit(identifier);
+    let allowed = true;
+    for (let i = 0; i < rate && allowed; i++) {
+      allowed = await fallback(`${limiterKey(def, limiter)}:${identifier}`, def.limit, windowToMs(def.window));
+    }
+    return allowed;
+  } catch (err) {
+    const suppressed = claimFailOpenReport("fallback");
+    if (suppressed !== null) {
+      console.error(`[rate-limit] ${limiter} database fallback failed too; refusing`, err);
+      void captureError(err, { where: "checkRateLimit:fallback", limiter, suppressedSinceLastReport: suppressed });
+    }
+    return false;
+  }
+}
+
+function outcomeWord(limiter: LimiterName): string {
+  const behaviour = unavailableBehaviour(limiter);
+  return behaviour === "open" ? "failing open" : behaviour === "closed" ? "failing closed" : "using the database fallback";
+}
+
+/**
+ * Whether one more request (or `rate` more, see src/proxy.ts's page-limit credits) fits under `limiter` for
+ * `identifier`. When Upstash errors or times out the answer depends on the limiter: most fail open, the email/SMS
+ * senders fall back to a database counter, and a few paid ones fail closed (see the two sets above).
+ */
+export async function checkRateLimit(limiter: LimiterName, identifier: string, options?: { rate?: number }) {
+  const rate = Math.max(1, Math.floor(options?.rate ?? 1));
+  try {
+    const result = await rateLimiters[limiter].limit(identifier, rate > 1 ? { rate } : undefined);
     if ("reason" in result && result.reason === "timeout") {
       const suppressed = claimFailOpenReport("timeout");
       if (suppressed !== null) {
         console.error(
-          `[rate-limit] ${limiter} timed out after ${RATE_LIMIT_TIMEOUT_MS}ms; failing open` +
+          `[rate-limit] ${limiter} timed out after ${RATE_LIMIT_TIMEOUT_MS}ms; ${outcomeWord(limiter)}` +
             (suppressed > 0 ? ` (${suppressed} similar suppressed since last report)` : ""),
         );
       }
+      return whenUpstashUnavailable(limiter, identifier, rate);
     }
     return result.success;
   } catch (err) {
-    // An Upstash outage should degrade to unlimited, not take the app down —
-    // but not silently: this is the only trace that limits stopped enforcing.
+    // An Upstash outage should degrade, not take the app down — but not
+    // silently: this is the only trace that limits stopped enforcing.
     const suppressed = claimFailOpenReport("error");
     if (suppressed !== null) {
-      console.error(`[rate-limit] ${limiter} check failed; failing open`, err);
+      console.error(`[rate-limit] ${limiter} check failed; ${outcomeWord(limiter)}`, err);
       // captureError never rejects (it swallows its own errors), and the
       // request must not wait on Sentry.
       void captureError(err, { where: "checkRateLimit", limiter, suppressedSinceLastReport: suppressed });
     }
-    return true;
+    return whenUpstashUnavailable(limiter, identifier, rate);
   }
 }

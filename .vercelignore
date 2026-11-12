@@ -1,0 +1,33 @@
+# Files the `vercel` CLI must never upload from this machine. Vercel builds read env vars from the project settings;
+# a local .env here would silently become part of a Vercel build (see SECURITY.md, the AUTH_SECRET placeholder), and
+# Next's own env loading reads it.
+.env
+.env.*
+!.env.example
+
+# Local platform state and machine-only files
+.vercel
+.netlify
+.gstack
+.claude
+.agents
+.impeccable
+
+# Secrets and signing material
+*.pem
+*.jks
+*.keystore
+/android/keystore.properties
+/android/local.properties
+/android/app/google-services.json
+/ios/App/App/GoogleService-Info.plist
+
+# Local data dumps (user ids + avatar URLs; see .gitignore)
+avatar-migration-map*.json
+
+# Build and test output
+/.next
+/out
+/build
+/coverage
+*.tsbuildinfo

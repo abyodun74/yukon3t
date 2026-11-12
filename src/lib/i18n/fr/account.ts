@@ -67,8 +67,6 @@ export const account: typeof accountEn = {
     errors: {
       invalid_credentials: "Nom d'utilisateur/e-mail ou mot de passe incorrect.",
       rate_limited: "Trop de tentatives. Patientez quelques minutes, puis réessayez.",
-      locked:
-        "Trop de tentatives échouées. Ce compte est verrouillé pendant 24 heures. Réinitialisez votre mot de passe ci-dessous pour le déverrouiller immédiatement.",
     },
     identifier: "Nom d'utilisateur ou e-mail",
     password: "Mot de passe",
@@ -306,6 +304,8 @@ export const account: typeof accountEn = {
         PASSWORD_CHANGE: "Confirmez qu'il s'agit bien de vous : changement de mot de passe sur YuKon3t",
         POST: "Confirmez qu'il s'agit bien de vous : publication sur YuKon3t depuis un nouvel appareil",
         HIDDEN_PIN_RESET: "Votre code de sécurité YuKon3t",
+        ACCOUNT_DELETE: "Confirmez que c'est bien vous : suppression de votre compte YuKon3t",
+        DATA_EXPORT: "Confirmez que c'est bien vous : téléchargement de vos données YuKon3t",
       },
       intros: {
         LOGIN:
@@ -313,6 +313,8 @@ export const account: typeof accountEn = {
         PASSWORD_CHANGE:
           "Quelqu'un vient d'essayer de changer le mot de passe de votre compte YuKon3t depuis un appareil que nous ne reconnaissons pas ({device}).",
         POST: "Quelqu'un vient d'essayer de publier avec votre compte YuKon3t depuis un appareil que nous ne reconnaissons pas ({device}).",
+        ACCOUNT_DELETE: "Quelqu'un de connecté à votre compte YuKon3t vient de demander sa suppression définitive ({device}).",
+        DATA_EXPORT: "Quelqu'un de connecté à votre compte YuKon3t vient de demander à télécharger une copie de toutes ses données ({device}).",
       },
       ifYou: "Si c'est bien vous, saisissez ce code pour continuer :",
       outro:

@@ -43,3 +43,32 @@ export function mayRefreshSession(claims: Claims, user: UserRow): boolean {
   }
   return true;
 }
+
+/**
+ * The longest a session can be kept alive by refreshing, counted from when it began (the token's stable `issuedAt`,
+ * set at sign-in and carried over by every re-issue): 120 days. Past that the refresh route answers
+ * `refreshed: false` and the cookie runs out on its own, so a stolen cookie can't be kept alive forever and every
+ * member signs in again at least every 120 days. Not a sign-out: nothing is deleted early.
+ */
+export const SESSION_ABSOLUTE_MAX_AGE_SECONDS = 120 * 24 * 60 * 60;
+
+/**
+ * How long (seconds) a re-issued session cookie may last: the usual sliding lifetime, cut so the session never
+ * outlives SESSION_ABSOLUTE_MAX_AGE_SECONDS from its `issuedAt`. Null when it may not be extended at all: no usable
+ * `issuedAt` (older tokens; also never a time in the future), the absolute limit already reached, or a re-issue that
+ * wouldn't end later than the cookie the browser already holds (`exp`), so a refresh can never shorten a session.
+ */
+export function refreshedSessionMaxAge(
+  claims: { issuedAt?: unknown; exp?: unknown },
+  nowSeconds: number,
+  slidingSeconds: number,
+  absoluteSeconds: number = SESSION_ABSOLUTE_MAX_AGE_SECONDS,
+): number | null {
+  const issuedAt = claims.issuedAt;
+  if (typeof issuedAt !== "number" || !Number.isFinite(issuedAt) || issuedAt > nowSeconds + 60) return null;
+  const remaining = Math.floor(issuedAt + absoluteSeconds - nowSeconds);
+  if (remaining <= 0) return null;
+  const maxAge = Math.min(slidingSeconds, remaining);
+  if (typeof claims.exp === "number" && nowSeconds + maxAge <= claims.exp) return null;
+  return maxAge;
+}

@@ -103,11 +103,11 @@ export const fr4 = {
   },
   "download-copy-data": {
     q: "Puis-je télécharger une copie de mes données ?",
-    a: "Oui. Paramètres → « Vos données » → « Exporter mes données » vous fournit un fichier JSON de tout ce qui est lié à votre compte, gratuitement et à tout moment, comme sauvegarde personnelle.",
+    a: "Oui. Paramètres → « Vos données » → « Exporter mes données » vous fournit un fichier JSON de tout ce qui est lié à votre compte, gratuitement et à tout moment, comme sauvegarde personnelle. Pour votre sécurité, on vous demande d'abord de confirmer que c'est bien vous : votre mot de passe ou, si votre compte n'en a pas, un code à 6 chiffres envoyé par e-mail.",
   },
   "difference-between-deactivating-deleting-account": {
     q: "Quelle est la différence entre désactiver et supprimer mon compte ?",
-    a: "**Désactiver** masque votre profil et vos publications sans rien supprimer ; vous reconnecter avec votre mot de passe ou un lien reçu par e-mail le réactive automatiquement. **Supprimer** efface définitivement votre profil, vos publications, vos messages et les Circles dont vous êtes propriétaire ; cette action est irréversible.",
+    a: "**Désactiver** masque votre profil et vos publications sans rien supprimer ; vous reconnecter avec votre mot de passe ou un lien reçu par e-mail le réactive automatiquement. **Supprimer** efface définitivement votre profil, vos publications, vos messages et les Circles dont vous êtes propriétaire ; cette action est irréversible, c'est pourquoi votre mot de passe (ou, sans mot de passe, un code envoyé par e-mail) est demandé avant.",
   },
   "forgot-password": {
     q: "J'ai oublié mon mot de passe.",

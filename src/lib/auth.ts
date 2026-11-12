@@ -13,6 +13,8 @@ import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { evaluateDevice, trustDevice, touchKnownDevice } from "@/lib/device-trust";
 import { createDeviceChallenge, issuePendingDeviceChallengeCookie } from "@/lib/device-challenge";
 import { checkRateLimit } from "@/lib/rate-limit";
+// Registers the database fallback the fail-closed limiters (signIn, deviceChallengeSend, ...) use while Upstash is down.
+import "@/lib/rate-limit-db-fallback";
 import { magicLinkEmail } from "@/lib/account-emails";
 import { localeFromRequest } from "@/lib/i18n/locales";
 import { getLocale } from "@/lib/i18n/server";
@@ -177,8 +179,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 return "/sign-in/verify-device";
               }
               // Out of challenge emails for now: refuse this sign-in rather than let it through unchallenged (it used
-              // to fall through to `return true`). Same outcome as the password path. The limiter itself fails open
-              // on a Redis outage, so this can't lock everyone out.
+              // to fall through to `return true`). Same outcome as the password path. On a Redis outage the limiter
+              // counts in the database instead (rate-limit-db-fallback.ts), so this still can't lock everyone out;
+              // only if the database fails too is the code refused.
               return "/sign-in?error=rate_limited";
             } else if (deviceId) {
               if (evaluation.status === "trusted_first_device") {

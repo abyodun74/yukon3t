@@ -367,7 +367,6 @@ export default async function CollabDetailPage({
           <ReportTrigger
             targetType="COLLAB_POST"
             targetId={collab.id}
-            reportedUserId={collab.author.id}
           />
         </div>
       </div>

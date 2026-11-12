@@ -10,6 +10,7 @@ import { BirthDateSelect } from "@/components/birth-date-select";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { listBlockedUsers } from "@/app/actions/blocks";
 import { AccountDangerZone } from "@/components/account-danger-zone";
+import { reauthMethodFor } from "@/lib/account-reauth-rules";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import { BlockButton } from "@/components/block-button";
 import { PasswordInput } from "@/components/password-input";
@@ -532,7 +533,11 @@ export default async function SettingsPage({
         </CollapsibleSection>
 
         <CollapsibleSection id="your-data" page="settings" title={t.data.heading}>
-          <AccountDangerZone showHeading={false} />
+          <AccountDangerZone
+            showHeading={false}
+            reauthMethod={reauthMethodFor({ hasPassword, passwordResetRequired })}
+            passwordLabels={dictionary.shared.passwordInput}
+          />
         </CollapsibleSection>
       </div>
     </div>

@@ -48,8 +48,9 @@ model VerificationToken {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
+  id     String @id @default(cuid())
+  userId String
+  // The SHA-256 (hex) of the emailed token, never the token itself (src/lib/reset-token.ts).
   token     String   @unique
   expires   DateTime
   createdAt DateTime @default(now())
@@ -57,6 +58,34 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Password sign-in failures per (account or typed identifier) x (client IP or device), see src/lib/login-lockout.ts.
+// Both keys are SHA-256 hashes; no relation to User on purpose, so an identifier matching no account is counted the
+// same way. Pruned by the resolve-login-issues cron.
+model LoginFailureCounter {
+  id          String    @id @default(cuid())
+  subjectKey  String
+  sourceKey   String
+  failures    Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@unique([subjectKey, sourceKey])
+  @@index([updatedAt])
+}
+
+// Fallback rate-limit counters, used ONLY while Upstash is down or out of quota, for the limiters that send email or
+// SMS (FAIL_CLOSED_WITH_DB_FALLBACK in src/lib/rate-limit.ts; written by src/lib/rate-limit-db-fallback.ts). One row
+// per limiter + identifier: a fixed window that restarts once `windowStart` is older than the limiter's window. `key`
+// is a SHA-256 (identifiers can contain an email address or IP). No relation to User; rows older than 2 days are
+// pruned as it goes.
+model RateLimitFallback {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@index([windowStart])
 }
 
 // ---------- Core domain ----------
@@ -3267,6 +3296,11 @@ enum SecurityChallengePurpose {
   // Resetting the hidden-chats PIN on an account with no password to re-prove
   // (magic-link / OAuth only): resetHiddenPinWithCode in actions/hidden-chats.ts.
   HIDDEN_PIN_RESET
+  // Re-authentication with an emailed code before an irreversible account action, for an account with no password
+  // (actions/account-reauth.ts): deleting the account, and downloading all of its data. A code for one never works
+  // for the other.
+  ACCOUNT_DELETE
+  DATA_EXPORT
 }
 
 // A device this user has already proven ownership of — either the very

@@ -103,11 +103,11 @@ export const es4 = {
   },
   "download-copy-data": {
     q: "¿Puedo descargar una copia de mis datos?",
-    a: "Sí. Ajustes → «Tus datos» → «Exportar mis datos» te da un archivo JSON con todo lo vinculado a tu cuenta, gratis y en cualquier momento, como copia de seguridad personal.",
+    a: "Sí. Ajustes → «Tus datos» → «Exportar mis datos» te da un archivo JSON con todo lo vinculado a tu cuenta, gratis y en cualquier momento, como copia de seguridad personal. Por tu seguridad, primero se te pide confirmar que eres tú: tu contraseña o, si tu cuenta no tiene contraseña, un código de 6 dígitos que te enviamos por correo.",
   },
   "difference-between-deactivating-deleting-account": {
     q: "¿Qué diferencia hay entre desactivar y eliminar mi cuenta?",
-    a: "**Desactivar** oculta tu perfil y tus publicaciones sin eliminar nada; al volver a iniciar sesión con tu contraseña o con un enlace por correo, la cuenta se reactiva automáticamente. **Eliminar** borra de forma permanente tu perfil, tus publicaciones, tus mensajes y los Circles de los que eres propietario; esto no se puede deshacer.",
+    a: "**Desactivar** oculta tu perfil y tus publicaciones sin eliminar nada; al volver a iniciar sesión con tu contraseña o con un enlace por correo, la cuenta se reactiva automáticamente. **Eliminar** borra de forma permanente tu perfil, tus publicaciones, tus mensajes y los Circles de los que eres propietario; esto no se puede deshacer, así que antes te pide tu contraseña (o, si no tienes, un código que te enviamos por correo).",
   },
   "forgot-password": {
     q: "Olvidé mi contraseña.",

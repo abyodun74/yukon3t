@@ -10,6 +10,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { recomputeTrustScore } from "@/lib/trust";
 import { removeModeratedContent, cleanUpModeratedMedia } from "@/lib/content-moderation";
 import { deleteStreamVideo } from "@/lib/cloudflare-stream";
+import { accusedUserIdOf, reportableTargetAccused } from "@/lib/report-target";
 
 export async function fileReport(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -19,40 +20,27 @@ export async function fileReport(formData: FormData) {
     return { error: "rate_limited" };
   }
 
+  // No reportedUserId here: whom a report is about is never taken from the client (see src/lib/report-target.ts).
   const parsed = reportSchema.safeParse({
     targetType: formData.get("targetType"),
     targetId: formData.get("targetId"),
-    reportedUserId: formData.get("reportedUserId") || undefined,
     reasonCategory: formData.get("reasonCategory") || undefined,
     reason: formData.get("reason"),
   });
   if (!parsed.success) {
     return { error: "invalid" };
   }
+  const { targetType, targetId } = parsed.data;
 
-  let reportedUserId = parsed.data.reportedUserId;
+  // Must exist, be visible to the reporter and not be their own; the accused is the target's author/sender/creator
+  // (or the profile itself for USER), read from the database.
+  const reportedUserId = await reportableTargetAccused(targetType, targetId, user);
+  if (!reportedUserId) {
+    return { error: "invalid" };
+  }
+
   let evidenceText: string | undefined;
-
-  if (parsed.data.targetType === "MESSAGE") {
-    // A message report has to be about a message the reporter can actually see:
-    // they must be in that conversation, and it can't be their own. The accused
-    // is taken from the message itself — never from the client.
-    const message = await prisma.message.findUnique({
-      where: { id: parsed.data.targetId },
-      select: { senderId: true, conversationId: true },
-    });
-    if (!message || message.senderId === user.id) {
-      return { error: "invalid" };
-    }
-    const membership = await prisma.conversationMember.findUnique({
-      where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
-      select: { id: true },
-    });
-    if (!membership) {
-      return { error: "invalid" };
-    }
-    reportedUserId = message.senderId;
-
+  if (targetType === "MESSAGE") {
     // A secret (end-to-end encrypted) chat's messages are unreadable to us, so
     // the reporter's own app attaches the decrypted text. It's the reporter's
     // word — we can't verify it — and the admin queue says so.
@@ -60,12 +48,27 @@ export async function fileReport(formData: FormData) {
     if (evidence.success && evidence.data) evidenceText = evidence.data;
   }
 
-  await prisma.report.create({
-    data: { ...parsed.data, reportedUserId, evidenceText, reporterId: user.id },
+  // One open report per reporter per target: a repeat (double tap, retry, or re-filing the same thing) while the
+  // first is still in the queue answers success without adding a row, so one person can't stack reports on someone.
+  // The advisory lock makes the check-then-insert safe against two submissions at once.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${reportDedupeLockKey(user.id, targetType, targetId)}))`;
+    const existing = await tx.report.findFirst({
+      where: { reporterId: user.id, targetType, targetId, status: { in: ["OPEN", "REVIEWING"] } },
+      select: { id: true },
+    });
+    if (existing) return;
+    await tx.report.create({
+      data: { ...parsed.data, reportedUserId, evidenceText, reporterId: user.id },
+    });
   });
 
   revalidatePath("/admin/moderation");
   return { error: null };
+}
+
+function reportDedupeLockKey(reporterId: string, targetType: string, targetId: string) {
+  return `report:${reporterId}:${targetType}:${targetId}`;
 }
 
 /**
@@ -100,6 +103,15 @@ export async function resolveReport(formData: FormData) {
   let removedMediaUrls: string[] = [];
   let touchedUserId: string | null = null;
 
+  // Whom the report is about is re-read from the target as it is now (author/sender/creator, or the profile), not
+  // taken from the stored row: reports filed before fileReport derived it on the server carry a client-chosen
+  // reportedUserId, which could name someone who had nothing to do with the content. The row is corrected below, so
+  // the trust score (which counts RESOLVED reports against reportedUserId) lands on the right person too. Only when
+  // the target no longer exists does the stored value stand.
+  const accusedId = (await accusedUserIdOf(report.targetType, report.targetId)) ?? report.reportedUserId;
+  const misattributedUserId =
+    report.reportedUserId && report.reportedUserId !== accusedId ? report.reportedUserId : null;
+
   await prisma.$transaction(async (tx) => {
     await tx.report.update({
       where: { id: reportId },
@@ -111,6 +123,7 @@ export async function resolveReport(formData: FormData) {
         status: action === "REPORT_DISMISSED" ? "DISMISSED" : "RESOLVED",
         resolutionNote: note,
         resolvedAt: new Date(),
+        reportedUserId: accusedId,
       },
     });
 
@@ -130,10 +143,10 @@ export async function resolveReport(formData: FormData) {
         removedMediaUrls = removed.mediaUrlsToDelete;
         touchedUserId = removed.authorId;
       }
-    } else if (report.reportedUserId) {
+    } else if (accusedId) {
       await tx.auditLog.create({
         data: {
-          targetId: report.reportedUserId,
+          targetId: accusedId,
           action,
           reason: note,
           performedBy: admin.id,
@@ -142,7 +155,7 @@ export async function resolveReport(formData: FormData) {
 
       if (action === "SUSPEND" || action === "BAN") {
         await tx.user.update({
-          where: { id: report.reportedUserId },
+          where: { id: accusedId },
           data: {
             status: action === "BAN" ? "BANNED" : "SUSPENDED",
             suspensionReason: note,
@@ -150,10 +163,10 @@ export async function resolveReport(formData: FormData) {
         });
         // The ambient widget route also refuses a non-ACTIVE owner; revoking keeps a lifted suspension from
         // silently reviving an old token.
-        await tx.ambientWidgetToken.updateMany(activeWidgetTokensOf(report.reportedUserId));
+        await tx.ambientWidgetToken.updateMany(activeWidgetTokensOf(accusedId));
       }
 
-      touchedUserId = report.reportedUserId;
+      touchedUserId = accusedId;
     }
   });
 
@@ -162,6 +175,10 @@ export async function resolveReport(formData: FormData) {
   }
   if (touchedUserId) {
     await recomputeTrustScore(touchedUserId);
+  }
+  if (misattributedUserId) {
+    // No longer counted against them now that the row names the real author.
+    await recomputeTrustScore(misattributedUserId);
   }
 
   revalidatePath("/admin/moderation");

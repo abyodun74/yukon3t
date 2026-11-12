@@ -27,6 +27,7 @@ export const settingsEn = {
     birth_date_underage: "You must be at least {age} years old to use YuKon3t.",
     birth_date_confirm: "Tick the box to confirm that your date of birth can't be changed later.",
     birth_date_already_set: "Your date of birth is already on your account and can't be changed.",
+    demo_account: "This is an App Store review demo account, so this can't be done from it.",
     other: "Please check your inputs.",
   },
   saving: "Saving...",
@@ -169,6 +170,25 @@ export const settingsEn = {
     delete: "Delete my account",
     deleteConfirm: "Yes, permanently delete",
     cancel: "Cancel",
+    // Confirming it's you before "Export my data" or "Delete account" (account-reauth-rules.ts).
+    reauth: {
+      passwordPrompt: "For your security, enter your password to continue.",
+      passwordLabel: "Your password",
+      codePrompt: "For your security, we'll email a 6-digit code to the address on your account.",
+      sendCode: "Email me a code",
+      sendAgain: "Send a new code",
+      codeSent: "We emailed you a code. It expires in 10 minutes.",
+      codeLabel: "6-digit code",
+      exportConfirm: "Download my data",
+      errors: {
+        reauth_required: "Confirm it's you first.",
+        wrong_password: "That password isn't right.",
+        wrong_code: "That code isn't right. Check the email and try again.",
+        code_expired: "That code has expired or was already used. Send a new one.",
+        rate_limited: "Too many attempts. Try again later.",
+        send_failed: "We couldn't send a code right now. Try again in a moment.",
+      },
+    },
   },
   // The code screen a password change from an unrecognized device goes through. Its title, its errors and its
   // resend wording are the sign-in code screen's (verifyDevice, common).

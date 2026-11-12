@@ -34,6 +34,7 @@ import type { Locale } from "@/lib/i18n/locales";
 import { track } from "@/lib/analytics";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { isDemoContactRefused } from "@/lib/app-review-demo";
 import { CALL_MAX_PARTICIPANTS, CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
 import {
   isLiveParticipantStatus,
@@ -81,7 +82,8 @@ export async function startCall(formData: FormData) {
   if (!connection) {
     return { error: "not_connected" as const };
   }
-  if (!callee || callee.status !== "ACTIVE") {
+  // App Review demo accounts only reach each other (src/lib/app-review-demo.ts).
+  if (!callee || callee.status !== "ACTIVE" || isDemoContactRefused(user, callee)) {
     return { error: "not_found" as const };
   }
   if (blocked) {
@@ -556,7 +558,10 @@ export async function inviteToCall(callId: string, inviteeId: string) {
 
   const [connection, invitee, blocked, busy] = await Promise.all([
     requireAcceptedConnection(user.id, inviteeId),
-    prisma.user.findUnique({ where: { id: inviteeId }, select: { id: true, name: true, status: true } }),
+    prisma.user.findUnique({
+      where: { id: inviteeId },
+      select: { id: true, name: true, status: true, isAppReviewDemo: true },
+    }),
     isBlockedWithAny(inviteeId, currentIds),
     isInAnotherLiveCall(inviteeId, callId),
   ]);
@@ -566,7 +571,7 @@ export async function inviteToCall(callId: string, inviteeId: string) {
   // One answer for a missing or inactive account and for a block between
   // the invitee and anyone in the call, so it can't be used to learn who
   // has blocked whom.
-  if (!invitee || invitee.status !== "ACTIVE" || blocked) {
+  if (!invitee || invitee.status !== "ACTIVE" || blocked || isDemoContactRefused(user, invitee)) {
     return { error: "unavailable" as const };
   }
   if (busy) {

@@ -15,7 +15,6 @@ export function PostOptionsMenu({
   canDelete,
   canReport,
   reportTargetId,
-  reportedUserId,
   onEdit,
 }: {
   postId: string;
@@ -23,7 +22,6 @@ export function PostOptionsMenu({
   canDelete: boolean;
   canReport: boolean;
   reportTargetId: string;
-  reportedUserId: string;
   onEdit: () => void;
 }) {
   const { t } = useFeedText();
@@ -138,7 +136,6 @@ export function PostOptionsMenu({
         <ReportModal
           targetType="POST"
           targetId={reportTargetId}
-          reportedUserId={reportedUserId}
           open={reporting}
           onClose={() => setReporting(false)}
         />

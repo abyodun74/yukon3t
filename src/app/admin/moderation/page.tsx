@@ -17,6 +17,7 @@ import { AdminDeleteConversationButton } from "@/components/admin-delete-convers
 import { STUCK_UNVERIFIED_AFTER_MS, RESOLVED_LOGIN_ISSUE_VISIBLE_MS } from "@/lib/login-issues";
 import { LEAD_POST_ONLY } from "@/lib/post-visibility";
 import { violationLabelsFromReasons } from "@/lib/moderation-labels";
+import { loadReportedContent, reportedContentKey, type ReportedContent } from "@/lib/report-content-preview";
 import {
   MEDIA_HOLD_PERFORMED_BY,
   MEDIA_REJECT_PERFORMED_BY,
@@ -154,9 +155,12 @@ async function ReportsQueueSection({ limit }: SectionProps) {
         select: {
           id: true,
           targetType: true,
+          targetId: true,
           createdAt: true,
           reason: true,
+          reasonCategory: true,
           evidenceText: true,
+          reportedUserId: true,
           reporter: { select: { name: true } },
           reportedUser: { select: { name: true, status: true } },
         },
@@ -170,6 +174,9 @@ async function ReportsQueueSection({ limit }: SectionProps) {
       </div>
     );
   }
+  // The reported content itself, so the decision rests on what was posted, not on the report's description of it.
+  // A failure here leaves the queue usable (each card says the preview couldn't load).
+  const contents = await loadSection("reported content", () => loadReportedContent(open, limit));
 
   return (
     <div className="mt-8 space-y-4">
@@ -177,11 +184,15 @@ async function ReportsQueueSection({ limit }: SectionProps) {
         <div key={report.id} className="rounded-xl border border-line p-4">
           <div className="flex items-center justify-between text-xs text-foreground-soft">
             <span>
-              {report.targetType} · reported by {report.reporter.name}
+              {report.targetType} · {report.reasonCategory} · reported by {report.reporter.name}
             </span>
             <span>{report.createdAt.toLocaleString()}</span>
           </div>
           <p className="mt-2 break-words text-sm">{report.reason}</p>
+          <ReportedContentPreview
+            content={contents ? contents.get(reportedContentKey(report)) : undefined}
+            recordedAccusedId={report.reportedUserId}
+          />
           {report.evidenceText && (
             <div className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs">
               <p className="font-medium text-foreground-soft">
@@ -201,6 +212,82 @@ async function ReportsQueueSection({ limit }: SectionProps) {
       ))}
       {open.length === 0 && (
         <p className="text-sm text-foreground-soft">Queue is clear.</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The reported thing as it is now: who it's by, its text, a media preview and links. Flags a report whose stored
+ * accused user isn't the content's author (filed before fileReport derived it on the server); resolving it acts on
+ * the author shown here, not the stored name (see resolveReport).
+ */
+function ReportedContentPreview({
+  content,
+  recordedAccusedId,
+}: {
+  content: ReportedContent | undefined;
+  recordedAccusedId: string | null;
+}) {
+  if (!content) {
+    return <p className="mt-2 text-xs text-danger">Couldn&apos;t load the reported content. Reload to try again.</p>;
+  }
+  if (!content.exists) {
+    return (
+      <p className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs text-foreground-soft">
+        The reported content no longer exists (deleted or already removed).
+      </p>
+    );
+  }
+  const authorLabel = content.author
+    ? `${content.author.name ?? content.author.username ?? "Unknown"}${content.author.username ? ` (@${content.author.username})` : ""} · ${content.author.status}`
+    : "Unknown";
+  const misattributed = Boolean(content.author && recordedAccusedId && content.author.id !== recordedAccusedId);
+  return (
+    <div className="mt-2 rounded-lg border border-line bg-surface p-2 text-xs">
+      <p className="font-medium text-foreground-soft">Reported content · by {authorLabel}</p>
+      {misattributed && (
+        <p role="alert" className="mt-1 text-danger">
+          This report&apos;s recorded user isn&apos;t the content&apos;s author (filed before reports were attributed on
+          the server). Any action applies to the author shown here.
+        </p>
+      )}
+      {content.mediaLabel && <p className="mt-1 text-foreground-soft">Media: {content.mediaLabel}</p>}
+      {content.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={content.imageUrl}
+          alt="Preview of the reported media"
+          loading="lazy"
+          decoding="async"
+          className="mt-2 max-h-48 rounded-md object-contain"
+        />
+      )}
+      {content.text && <p className="mt-1 whitespace-pre-wrap break-words text-sm">{content.text}</p>}
+      {content.notes.map((note) => (
+        <p key={note} className="mt-1 text-foreground-soft">
+          {note}
+        </p>
+      ))}
+      {(content.links.length > 0 || content.href) && (
+        <div className="mt-2 flex flex-wrap gap-3">
+          {content.href && (
+            <Link href={content.href} className="text-accent hover:underline">
+              Open in the app
+            </Link>
+          )}
+          {content.links.map((link) => (
+            <a
+              key={`${link.label}:${link.href}`}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-accent hover:underline"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
       )}
     </div>
   );

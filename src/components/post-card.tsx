@@ -1114,7 +1114,6 @@ export function PostCard({
             canDelete={viewerId === post.author.id || viewerIsAdmin}
             canReport={viewerId !== displayPost.author.id}
             reportTargetId={interactionTargetId}
-            reportedUserId={displayPost.author.id}
             onEdit={startEditing}
           />
         </div>

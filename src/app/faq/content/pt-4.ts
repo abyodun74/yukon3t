@@ -103,11 +103,11 @@ export const pt4 = {
   },
   "download-copy-data": {
     q: "Posso baixar uma cópia dos meus dados?",
-    a: "Sim. Configurações → «Seus dados» → «Exportar meus dados» fornece um arquivo JSON com tudo o que está ligado à sua conta, de graça e a qualquer momento, como backup pessoal.",
+    a: "Sim. Configurações → «Seus dados» → «Exportar meus dados» fornece um arquivo JSON com tudo o que está ligado à sua conta, de graça e a qualquer momento, como backup pessoal. Para sua segurança, primeiro pedimos que você confirme que é você: sua senha ou, se sua conta não tiver senha, um código de 6 dígitos enviado por e-mail.",
   },
   "difference-between-deactivating-deleting-account": {
     q: "Qual é a diferença entre desativar e excluir minha conta?",
-    a: "**Desativar** oculta seu perfil e suas publicações sem excluir nada; entrar de novo com sua senha ou com um link por e-mail reativa a conta automaticamente. **Excluir** remove de forma permanente seu perfil, suas publicações, suas mensagens e os Circles dos quais você é proprietário; isso não pode ser desfeito.",
+    a: "**Desativar** oculta seu perfil e suas publicações sem excluir nada; entrar de novo com sua senha ou com um link por e-mail reativa a conta automaticamente. **Excluir** remove de forma permanente seu perfil, suas publicações, suas mensagens e os Circles dos quais você é proprietário; isso não pode ser desfeito, por isso pedimos antes sua senha (ou, sem senha, um código enviado por e-mail).",
   },
   "forgot-password": {
     q: "Esqueci minha senha.",

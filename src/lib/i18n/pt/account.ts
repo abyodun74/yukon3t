@@ -67,8 +67,6 @@ export const account: typeof accountEn = {
     errors: {
       invalid_credentials: "Usuário/e-mail ou senha incorretos.",
       rate_limited: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
-      locked:
-        "Muitas tentativas sem sucesso. Esta conta está bloqueada por 24 horas. Redefina sua senha abaixo para desbloqueá-la imediatamente.",
     },
     identifier: "Usuário ou e-mail",
     password: "Senha",
@@ -303,6 +301,8 @@ export const account: typeof accountEn = {
         PASSWORD_CHANGE: "Confirme que é você: alteração de senha no YuKon3t",
         POST: "Confirme que é você: publicação no YuKon3t a partir de um novo dispositivo",
         HIDDEN_PIN_RESET: "Seu código de segurança do YuKon3t",
+        ACCOUNT_DELETE: "Confirme que é você: excluir sua conta do YuKon3t",
+        DATA_EXPORT: "Confirme que é você: baixar seus dados do YuKon3t",
       },
       intros: {
         LOGIN:
@@ -310,6 +310,8 @@ export const account: typeof accountEn = {
         PASSWORD_CHANGE:
           "Alguém acabou de tentar alterar a senha da sua conta do YuKon3t a partir de um dispositivo que não reconhecemos ({device}).",
         POST: "Alguém acabou de tentar publicar com a sua conta do YuKon3t a partir de um dispositivo que não reconhecemos ({device}).",
+        ACCOUNT_DELETE: "Alguém conectado à sua conta do YuKon3t acabou de pedir para excluí-la de forma permanente ({device}).",
+        DATA_EXPORT: "Alguém conectado à sua conta do YuKon3t acabou de pedir para baixar uma cópia de todos os dados dela ({device}).",
       },
       ifYou: "Se foi você, digite este código para continuar:",
       outro:

@@ -1,3 +1,6 @@
+// Sending email is what the fail-closed limiters guard: their database fallback must be registered wherever email goes out.
+import "@/lib/rate-limit-db-fallback";
+
 async function sendEmailOnce({
   apiKey,
   to,

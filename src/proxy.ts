@@ -10,11 +10,12 @@ import {
   rateLimitPage,
   rateLimitPageLocale,
 } from "@/lib/page-rate-limit";
+import { allowWithCredits, createCreditCache } from "@/lib/page-limit-credits";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 
-// Every proxy rate-limit check costs one Upstash command, so requests that
-// are machine-driven or static skip the per-IP pageRequest limiter. They still
+// Every proxy rate-limit check that isn't covered by local credit (pageLimitCredits below) costs one Upstash command,
+// so requests that are machine-driven or static skip the per-IP pageRequest limiter. They still
 // run through the rest of the proxy (CSP, device id) unchanged. Cron routes
 // are authenticated by a bearer secret (isCronAuthorized in every
 // /api/cron/*/route.ts); the others are public but cheap and non-mutating.
@@ -47,6 +48,11 @@ function reportNoAddress() {
   console.error("[rate-limit] page request with no client address; not counted");
 }
 
+// Page-limit requests reserved in batches and spent locally (src/lib/page-limit-credits.ts): about one Upstash command
+// per 10 requests per bucket per instance instead of one per request, so ordinary traffic can't exhaust the Upstash
+// plan (when it is exhausted, every limiter stops working). Module-level so it lives as long as the instance.
+const pageLimitCredits = createCreditCache();
+
 /** Whether the page-level limits let this request through (see pageLimitChecks for which buckets it counts against). */
 async function pageRequestAllowed(request: NextRequest): Promise<boolean> {
   if (skipsPageRateLimit(request.nextUrl.pathname)) return true;
@@ -56,7 +62,14 @@ async function pageRequestAllowed(request: NextRequest): Promise<boolean> {
     reportNoAddress();
     return true;
   }
-  const results = await Promise.all(checks.map((check) => checkRateLimit(check.limiter, check.identifier)));
+  const now = Date.now();
+  const results = await Promise.all(
+    checks.map((check) =>
+      allowWithCredits(pageLimitCredits, `${check.limiter}:${check.identifier}`, (rate) =>
+        checkRateLimit(check.limiter, check.identifier, { rate }),
+      now),
+    ),
+  );
   return results.every(Boolean);
 }
 

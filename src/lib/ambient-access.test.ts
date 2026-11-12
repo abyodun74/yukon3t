@@ -72,6 +72,6 @@ describe("wiring (source scan)", () => {
   it("password reset/change and ban/suspension revoke widget tokens", () => {
     expect(read("src/app/actions/password-auth.ts")).toContain("activeWidgetTokensOf(resetToken.userId)");
     expect(read("src/app/actions/profile.ts").match(/activeWidgetTokensOf\(user\.id\)/g)?.length).toBe(2);
-    expect(read("src/app/actions/reports.ts")).toContain("activeWidgetTokensOf(report.reportedUserId)");
+    expect(read("src/app/actions/reports.ts")).toContain("activeWidgetTokensOf(accusedId)");
   });
 });

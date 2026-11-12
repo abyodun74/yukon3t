@@ -35,6 +35,8 @@ import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
 import { isProfileComplete } from "@/lib/profile-complete";
+import { verifyAccountReauth } from "@/lib/account-reauth";
+import { APP_REVIEW_DEMO_REFUSED } from "@/lib/app-review-demo";
 
 /**
  * First-time onboarding (/onboarding). Only for a profile that isn't complete yet (isProfileComplete, the same rule the
@@ -261,6 +263,10 @@ export async function updateAutoTranslate(formData: FormData) {
 
 export async function setPassword(formData: FormData) {
   const user = await requireUser();
+  // A demo account's password comes from APP_REVIEW_DEMO_PASSWORD only (fixAppReviewDemoAccount).
+  if (user.isAppReviewDemo) {
+    redirect(`/settings?error=${APP_REVIEW_DEMO_REFUSED}`);
+  }
   const parsed = setPasswordSchema.safeParse({
     password: formData.get("password"),
     currentPassword: formData.get("currentPassword") || undefined,
@@ -364,6 +370,9 @@ export async function setPassword(formData: FormData) {
 /** Completes a password change that setPassword above paused on for an unrecognized device. */
 export async function confirmPasswordChangeDeviceChallenge(formData: FormData) {
   const user = await requireUser();
+  if (user.isAppReviewDemo) {
+    redirect(`/settings?error=${APP_REVIEW_DEMO_REFUSED}`);
+  }
   const challengeId = String(formData.get("challengeId") ?? "");
   const code = String(formData.get("code") ?? "").trim();
 
@@ -436,8 +445,22 @@ export async function resendPasswordChangeDeviceChallenge(formData: FormData) {
   redirect(`/settings/verify-device?challengeId=${challenge.id}&sent=1`);
 }
 
-export async function exportMyData() {
+/**
+ * "Export my data". Needs `proof` that it's the account holder (the password, or an emailed code from
+ * requestAccountReauthCode: verifyAccountReauth), because the file is everything the account holds and a stolen or
+ * borrowed session must not be able to walk away with it.
+ */
+export async function exportMyData(proof?: unknown) {
   const user = await requireUser();
+
+  const reauth = await verifyAccountReauth(user.id, "export", proof);
+  if (!reauth.ok) {
+    return { error: reauth.error, data: null };
+  }
+  // The App Review demo accounts are shared with Apple's reviewers: no data export from them.
+  if (user.isAppReviewDemo) {
+    return { error: APP_REVIEW_DEMO_REFUSED, data: null };
+  }
 
   // Repeatable to trigger and expensive to serve (a full, unbounded dump of
   // everything the user has ever posted/sent) — not truncating the actual
@@ -554,8 +577,22 @@ export async function deactivateAccount() {
   await signOut({ redirectTo: "/" });
 }
 
-export async function deleteMyAccount() {
+/**
+ * "Delete account". Irreversible, so it needs `proof` that it's the account holder (the password, or an emailed code
+ * from requestAccountReauthCode: verifyAccountReauth); a stolen or borrowed session alone can't delete the account.
+ * Answers `{ error }` when that proof is missing or wrong; on success it signs out and redirects.
+ */
+export async function deleteMyAccount(proof?: unknown) {
   const user = await requireUser();
+  const reauth = await verifyAccountReauth(user.id, "delete", proof);
+  if (!reauth.ok) {
+    return { error: reauth.error };
+  }
+  // The App Review demo accounts are restored from /admin only (fixAppReviewDemoAccount); deleting one would break
+  // review for the next submission.
+  if (user.isAppReviewDemo) {
+    return { error: APP_REVIEW_DEMO_REFUSED };
+  }
   // Hard delete — never paywalled, never held hostage. Cascades handle
   // owned rows via the Prisma schema's onDelete: Cascade relations; the
   // files behind them are collected first and removed after (account-media.ts).

@@ -48,10 +48,36 @@ import {
   readPendingDeviceChallengeCookie,
   clearPendingDeviceChallengeCookie,
 } from "@/lib/device-challenge";
+import { generateResetToken, hashResetToken, resetPasswordUrl } from "@/lib/reset-token";
+import { lockoutSourceKeys } from "@/lib/login-lockout";
+import {
+  clearAllLoginFailures,
+  clearLoginFailures,
+  isLoginLocked,
+  recordLoginFailure,
+  type LoginSubject,
+} from "@/lib/login-lockout-server";
+import {
+  APP_REVIEW_DEMO_MIN_PASSWORD_LENGTH,
+  appReviewDemoIdentity,
+  appReviewDemoPassword,
+  matchesAppReviewDemoPassword,
+} from "@/lib/app-review-demo";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
-const LOCKOUT_THRESHOLD = 4;
-const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Stores a fresh reset token for the account (only its SHA-256; any older link stops working) and returns the link
+ * to email, which carries the token in the URL fragment (src/lib/reset-token.ts).
+ */
+async function issuePasswordResetLink(userId: string): Promise<string> {
+  const token = generateResetToken();
+  await prisma.passwordResetToken.deleteMany({ where: { userId } });
+  await prisma.passwordResetToken.create({
+    data: { userId, token: hashResetToken(token), expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+  });
+  return resetPasswordUrl(process.env.NEXT_PUBLIC_APP_URL, token);
+}
 
 /**
  * Replaces any outstanding reset link for the account with a fresh one and emails it. "required" is the forced reset
@@ -64,14 +90,16 @@ async function sendPasswordResetEmail(
   reason: "requested" | "required",
   locale: Locale,
 ) {
-  const token = randomUUID();
-  await prisma.passwordResetToken.deleteMany({ where: { userId } });
-  await prisma.passwordResetToken.create({
-    data: { userId, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
-  });
-
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  const url = await issuePasswordResetLink(userId);
   await sendEmail({ to: email, ...passwordResetEmail(locale, reason, url) });
+}
+
+// A real bcrypt hash of a random string, compared against when no usable account matched, so an unknown identifier
+// takes as long to answer as a wrong password.
+let dummyHash: Promise<string> | null = null;
+function dummyPasswordHash(): Promise<string> {
+  dummyHash ??= hashPassword(randomUUID());
+  return dummyHash;
 }
 
 /** `locale` is the caller's to choose: the request's language for someone verifying their own account, English for an admin's resend. */
@@ -417,47 +445,65 @@ export async function loginWithPassword(formData: FormData) {
     if (loose.length === 1) user = loose[0];
   }
 
-  // The shared guest-preview identity (/try) has no password and is never signed in to; refused here as well.
-  if (!user || !user.passwordHash || user.isGuestPreview) {
-    redirect("/sign-in?error=invalid_credentials");
-  }
-  if (user.status !== "ACTIVE" && user.status !== "DEACTIVATED") {
-    redirect("/sign-in?error=invalid_credentials");
+  const account = user;
+  const deviceId = await getDeviceId();
+
+  // Brute-force lockout (src/lib/login-lockout.ts): per account x IP, per account x device, and account-wide at a
+  // higher threshold, all in the database (the Upstash limiters above fail open). An identifier that matches no
+  // account is counted and locked exactly the same way, and a locked attempt gets the same "too many attempts" answer
+  // as the rate limiters, so nothing here says whether an account exists. Checked before the password, so a locked
+  // attempt can't probe it. The account-wide lock never applies to a device the account already trusts, nor to the
+  // App Review demo accounts (reviewers sign in from a new device each time and must not be lockable from elsewhere;
+  // they still have the per-IP and per-device locks, and their password is a long, environment-only secret).
+  const sourceKeys = lockoutSourceKeys(ip, deviceId);
+  const subject: LoginSubject = account ? { userId: account.id } : { identifier };
+  const locked = await isLoginLocked({
+    subject,
+    sourceKeys,
+    accountLockedUntil: account?.lockedUntil ?? null,
+    accountWideExempt: async () =>
+      Boolean(account) &&
+      (account!.isAppReviewDemo ||
+        (deviceId !== null && (await evaluateDevice(account!.id, deviceId)).status === "known")),
+  });
+  if (locked) {
+    redirect("/sign-in?error=rate_limited");
   }
 
-  // Brute-force lockout, separate from (and stricter than) the IP-scoped
-  // passwordLogin rate limit above — this one is per-account and survives
-  // the attacker switching IPs. Checked before verifying the password so a
-  // locked account can't be probed at all during the lockout window. The
-  // App Review demo account is exempt — it must never end up 24h-locked
-  // out right before the one sign-in attempt that matters (see
-  // isAppReviewDemo above the device step-up further down).
-  if (!user.isAppReviewDemo && user.lockedUntil && user.lockedUntil > new Date()) {
-    redirect("/sign-in?error=locked");
+  // The shared guest-preview identity (/try) has no password and is never signed in to; refused here as well.
+  const canSignIn =
+    account !== null &&
+    Boolean(account.passwordHash) &&
+    !account.isGuestPreview &&
+    (account.status === "ACTIVE" || account.status === "DEACTIVATED");
+  let passwordOk = false;
+  if (canSignIn && account?.passwordHash) {
+    passwordOk = await verifyPassword(password, account.passwordHash);
+    // A demo account also needs the password that is configured right now (APP_REVIEW_DEMO_PASSWORD): with it unset
+    // or rotated, no stored hash (e.g. one set from an old value) signs it in.
+    if (account.isAppReviewDemo && !matchesAppReviewDemoPassword(password)) {
+      if (!appReviewDemoPassword()) {
+        console.error(
+          `[app-review-demo] APP_REVIEW_DEMO_PASSWORD is not set or shorter than ${APP_REVIEW_DEMO_MIN_PASSWORD_LENGTH} characters: demo sign-in refused`,
+        );
+      }
+      passwordOk = false;
+    }
+  } else {
+    await verifyPassword(password, await dummyPasswordHash());
   }
 
   const outcome = passwordSignInOutcome({
-    passwordOk: await verifyPassword(password, user.passwordHash),
-    resetRequiredAt: user.passwordResetRequiredAt,
-    isAppReviewDemo: user.isAppReviewDemo,
+    passwordOk,
+    resetRequiredAt: account?.passwordResetRequiredAt ?? null,
+    isAppReviewDemo: account?.isAppReviewDemo ?? false,
   });
-  if (outcome === "wrong_password") {
-    const attempts = user.failedLoginAttempts + 1;
-    const lockingNow = attempts >= LOCKOUT_THRESHOLD;
-    // failedLoginAt anchors "how long has this been unresolved" for the
-    // resolve-login-issues cron (src/app/api/cron/resolve-login-issues) —
-    // only set on the first attempt in a fresh window, same as
-    // failedLoginAttempts itself only starting to count from 0 there.
-    if (!user.isAppReviewDemo) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: lockingNow
-          ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS), failedLoginAt: null }
-          : { failedLoginAttempts: attempts, failedLoginAt: user.failedLoginAttempts === 0 ? new Date() : undefined },
-      });
-    }
-    redirect(`/sign-in?error=${lockingNow ? "locked" : "invalid_credentials"}`);
+  // Every failed credential case gets the same answer, including the failure that just locked.
+  if (outcome === "wrong_password" || !account) {
+    await recordLoginFailure({ subject, sourceKeys });
+    redirect("/sign-in?error=invalid_credentials");
   }
+  user = account;
   // Forced reset: the password is right but may no longer be used. Nothing is signed in and no account state changes
   // (the failed-attempt count and any lockout bookkeeping stay as they were); the owner gets the ordinary reset email,
   // under the same per-IP-and-address limit as "Forgot password", and resetPassword clears the flag.
@@ -492,6 +538,7 @@ export async function loginWithPassword(formData: FormData) {
       },
     });
   }
+  await clearLoginFailures(user.id, sourceKeys);
 
   // New/unrecognized-device step-up: the password alone proved the account,
   // but not that this browser/install is one the real owner already uses —
@@ -504,8 +551,9 @@ export async function loginWithPassword(formData: FormData) {
   // emailed code would be an unclearable dead end (Apple Guideline 2.1).
   // isAppReviewDemo marks the one account behind App Store Connect's
   // demo credentials as exempt: every device it logs in from is trusted
-  // outright, no challenge ever sent.
-  const deviceId = await getDeviceId();
+  // outright, no challenge ever sent. (Kept on purpose: without it review
+  // can't sign in at all. The account's password is an environment-only
+  // secret of at least 16 characters, see src/lib/app-review-demo.ts.)
   if (user.isAppReviewDemo) {
     if (deviceId) await trustDevice(user.id, deviceId, await getDeviceLabel());
   } else {
@@ -653,41 +701,64 @@ export async function requestPasswordReset(formData: FormData) {
     redirect("/forgot-password?sent=1");
   }
 
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true } });
-  if (user && user.status === "ACTIVE") {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, status: true, isAppReviewDemo: true },
+  });
+  // The App Review demo accounts' password is set from APP_REVIEW_DEMO_PASSWORD only (fixAppReviewDemoAccount), never
+  // by email: same landing page, nothing sent.
+  if (user && user.status === "ACTIVE" && !user.isAppReviewDemo) {
     await sendPasswordResetEmail(user.id, email, "requested", await getLocale());
   }
 
   redirect("/forgot-password?sent=1");
 }
 
-export async function resetPassword(formData: FormData) {
+export type ResetPasswordState = { error: "invalid" | "mismatch" | "same_password" | null };
+
+/**
+ * The reset form's action (useActionState in src/components/reset-password-form.tsx). The token only ever travels in
+ * the POST body: a fixable error comes back as state, so the form keeps the token in memory instead of it being put
+ * back into a URL. Success and an unusable token redirect.
+ */
+export async function resetPassword(_prev: ResetPasswordState, formData: FormData): Promise<ResetPasswordState> {
   const parsed = resetPasswordSchema.safeParse({
     token: formData.get("token"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword") ?? "",
   });
   if (!parsed.success) {
-    const rawToken = encodeURIComponent(String(formData.get("token") ?? ""));
     const mismatch = parsed.error.issues.some((i) => i.path[0] === "confirmPassword");
-    redirect(`/reset-password?token=${rawToken}&error=${mismatch ? "mismatch" : "invalid"}`);
+    return { error: mismatch ? "mismatch" : "invalid" };
   }
   const { token, password } = parsed.data;
 
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token: hashResetToken(token) } });
   if (!resetToken || resetToken.expires < new Date()) {
     redirect("/forgot-password?error=expired");
   }
 
   const target = await prisma.user.findUnique({
     where: { id: resetToken.userId },
-    select: { failedLoginAttempts: true, lockedUntil: true, passwordHash: true, passwordResetRequiredAt: true },
+    select: {
+      failedLoginAttempts: true,
+      lockedUntil: true,
+      passwordHash: true,
+      passwordResetRequiredAt: true,
+      isAppReviewDemo: true,
+    },
   });
-  const hadLoginIssue = !!target && (target.failedLoginAttempts > 0 || !!target.lockedUntil);
+  // A demo account's password comes from APP_REVIEW_DEMO_PASSWORD only (no link is ever sent for one, see
+  // requestPasswordReset; this catches one issued before it was flagged).
+  if (!target || target.isAppReviewDemo) {
+    await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
+    redirect("/forgot-password?error=expired");
+  }
+  const hadLoginIssue = target.failedLoginAttempts > 0 || !!target.lockedUntil;
 
   // A forced reset exists to retire the old password, so it can't be chosen again.
-  if (target?.passwordResetRequiredAt && target.passwordHash && (await verifyPassword(password, target.passwordHash))) {
-    redirect(`/reset-password?token=${encodeURIComponent(token)}&error=same_password`);
+  if (target.passwordResetRequiredAt && target.passwordHash && (await verifyPassword(password, target.passwordHash))) {
+    return { error: "same_password" };
   }
 
   const passwordHash = await hashPassword(password);
@@ -700,7 +771,7 @@ export async function resetPassword(formData: FormData) {
     // checks each session's issued-at time against this on every request.
     // Completing a reset is proof of email ownership, so it also clears any
     // brute-force lockout immediately rather than making the real owner
-    // wait out the 24h — this is the intended early-unlock path.
+    // wait it out — this is the intended early-unlock path.
     data: {
       passwordHash,
       passwordResetRequiredAt: null,
@@ -712,6 +783,8 @@ export async function resetPassword(formData: FormData) {
     },
   });
   await prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId } });
+  // Proof of email ownership also clears every per-IP / per-device sign-in lock on the account.
+  await clearAllLoginFailures(resetToken.userId);
   // A reset also ends the ambient widget's long-lived bearer token (it isn't a session, so sessionInvalidatedAt
   // doesn't reach it).
   await prisma.ambientWidgetToken.updateMany(activeWidgetTokensOf(resetToken.userId));
@@ -723,7 +796,7 @@ export async function resetPassword(formData: FormData) {
  * Admin-initiated password reset — for support cases where a customer can't
  * complete their own reset (e.g. they don't recognize the "email already in
  * use" they get on sign-up because they'd forgotten they already had an
- * account) or is locked out and doesn't want to wait 24h. Uses the exact
+ * account) or is locked out and doesn't want to wait. Uses the exact
  * same token/expiry as the self-service flow, so completing it also clears
  * the lockout via resetPassword above — this one action covers both cases.
  * Not IP-rate-limited like requestPasswordReset: the trust boundary here is
@@ -736,14 +809,12 @@ export async function adminSendPasswordReset(userId: string) {
   if (!user) {
     return { error: "not_found" as const };
   }
+  // Demo accounts get their password from APP_REVIEW_DEMO_PASSWORD via fixAppReviewDemoAccount, never a link.
+  if (user.isAppReviewDemo) {
+    return { error: "demo_account" as const };
+  }
 
-  const token = randomUUID();
-  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-  await prisma.passwordResetToken.create({
-    data: { userId: user.id, token, expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
-  });
-
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  const url = await issuePasswordResetLink(user.id);
   const sent = await sendEmail({
     to: user.email,
     subject: "Reset your YuKon3t password",
@@ -875,47 +946,60 @@ export async function adminDeleteUser(formData: FormData) {
   return { error: null };
 }
 
-// The single fixed identity App Store Connect's demo-account field points
-// at — see scripts/fix-app-review-demo-account.ts's own doc comment for the
-// full backstory (Apple reviews from a device/network this app has never
-// seen and a mailbox they can't read, so this account needs
-// isAppReviewDemo to skip every gate a normal new/unverified account would
-// hit). Hardcoded, not a form field: there is deliberately exactly one of
-// these, matching the one identity typed into App Store Connect.
-const APP_REVIEW_DEMO_USERNAME = "abiodunapplereview";
-const APP_REVIEW_DEMO_EMAIL = "appreview@yukon3t.com";
-const APP_REVIEW_DEMO_PASSWORD = "AppReview001";
-
 /**
- * Admin one-click fix for the App Store review demo account — same
- * find-or-create-and-repair logic as scripts/fix-app-review-demo-account.ts,
- * exposed as a real Server Action instead of a local script specifically
- * because that script needs DATABASE_URL pointed at production to do
- * anything useful, and this repo's own local dev .env points at a
- * different (non-production) database — confirmed live 2026-09-30 when
- * running the script locally reported "No user found" for an account that
- * demonstrably exists in real production. A Server Action always runs with
- * the exact production DATABASE_URL the deployed app itself uses — no
- * local env configuration to get wrong.
+ * Admin one-click fix for the App Store review demo accounts. A Server Action rather than only a local script because
+ * a Server Action always runs against the database the deployed app uses (this repo's local .env points at a
+ * different, non-production database: confirmed 2026-09-30, when the script reported "No user found" for an account
+ * that existed in production).
  *
- * Unlike the script, always resets the password to the known value rather
- * than making that optional — this button only exists to make the account
- * provably match what's typed into App Store Connect, so leaving an
- * unknown current password in place would defeat the point.
+ * Sets the password of every demo account to APP_REVIEW_DEMO_PASSWORD, read on the server at the moment the button is
+ * pressed. That variable is never in the repository and has no default: unset (or shorter than 16 characters) this
+ * refuses and changes nothing. Finds (or creates) the primary account (APP_REVIEW_DEMO_USERNAME / _EMAIL, with
+ * non-secret defaults, see src/lib/app-review-demo.ts) and also repairs every other account already flagged
+ * isAppReviewDemo (e.g. a second account reviewers message). Nothing it returns or logs contains the password.
  */
 export async function fixAppReviewDemoAccount() {
   const admin = await requireAdmin();
 
+  const password = appReviewDemoPassword();
+  if (!password) {
+    return {
+      error: "password_not_configured" as const,
+      message: `APP_REVIEW_DEMO_PASSWORD is not set on this deployment, or is shorter than ${APP_REVIEW_DEMO_MIN_PASSWORD_LENGTH} characters. Set it on both Netlify and Vercel, redeploy, then press this again. Nothing was changed.`,
+      before: null,
+      action: null,
+      othersRepaired: 0,
+    };
+  }
+  const { username, email } = appReviewDemoIdentity();
+  const passwordHash = await hashPassword(password);
+
+  const repairData = {
+    passwordHash,
+    passwordResetRequiredAt: null,
+    isAppReviewDemo: true,
+    status: "ACTIVE" as const,
+    deactivatedAt: null,
+    failedLoginAttempts: 0,
+    lockedUntil: null,
+    failedLoginAt: null,
+    // Every other session of the account ends, as on any password change.
+    sessionInvalidatedAt: new Date(),
+  };
+
   const existing = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { username: { equals: APP_REVIEW_DEMO_USERNAME, mode: "insensitive" } },
-        { email: APP_REVIEW_DEMO_EMAIL },
-      ],
+    where: { OR: [{ username: { equals: username, mode: "insensitive" } }, { email }] },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      status: true,
+      emailVerified: true,
+      lockedUntil: true,
+      failedLoginAttempts: true,
+      isAppReviewDemo: true,
     },
   });
-
-  const passwordHash = await hashPassword(APP_REVIEW_DEMO_PASSWORD);
 
   const before = existing
     ? {
@@ -930,11 +1014,12 @@ export async function fixAppReviewDemoAccount() {
       }
     : null;
 
+  let primaryId: string;
   if (!existing) {
     const created = await prisma.user.create({
       data: {
-        username: APP_REVIEW_DEMO_USERNAME,
-        email: APP_REVIEW_DEMO_EMAIL,
+        username,
+        email,
         passwordHash,
         // Any adult date works — this account never goes through the real
         // signup age-gate, and nothing else reads birthDate for it.
@@ -943,42 +1028,43 @@ export async function fixAppReviewDemoAccount() {
         emailVerified: new Date(),
         isAppReviewDemo: true,
       },
+      select: { id: true },
     });
-    await prisma.auditLog.create({
-      data: {
-        targetId: created.id,
-        action: "APP_REVIEW_DEMO_ACCOUNT_FIXED",
-        reason: "Created — did not exist in production at all.",
-        performedBy: admin.id,
-      },
+    primaryId = created.id;
+  } else {
+    primaryId = existing.id;
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { ...repairData, username, email, emailVerified: existing.emailVerified ?? new Date() },
     });
-    return { error: null, before: null, action: "created" as const };
   }
 
-  await prisma.user.update({
-    where: { id: existing.id },
-    data: {
-      username: APP_REVIEW_DEMO_USERNAME,
-      email: APP_REVIEW_DEMO_EMAIL,
-      passwordHash,
-      passwordResetRequiredAt: null,
-      isAppReviewDemo: true,
-      status: "ACTIVE",
-      deactivatedAt: null,
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-      failedLoginAt: null,
-      emailVerified: existing.emailVerified ?? new Date(),
-    },
+  // Every other flagged demo account gets the same password and the same repair.
+  const others = await prisma.user.updateMany({
+    where: { isAppReviewDemo: true, id: { not: primaryId } },
+    data: repairData,
   });
+  const demoIds = (
+    await prisma.user.findMany({ where: { isAppReviewDemo: true }, select: { id: true } })
+  ).map((u) => u.id);
+  for (const id of demoIds) await clearAllLoginFailures(id);
+
   await prisma.auditLog.create({
     data: {
-      targetId: existing.id,
+      targetId: primaryId,
       action: "APP_REVIEW_DEMO_ACCOUNT_FIXED",
-      reason: `Repaired — before: ${JSON.stringify(before)}`,
+      reason: existing
+        ? `Repaired, password set from APP_REVIEW_DEMO_PASSWORD (${others.count} other demo account(s) too) — before: ${JSON.stringify(before)}`
+        : `Created with the password from APP_REVIEW_DEMO_PASSWORD (${others.count} other demo account(s) repaired too) — did not exist in production.`,
       performedBy: admin.id,
     },
   });
 
-  return { error: null, before, action: "repaired" as const };
+  return {
+    error: null,
+    message: null,
+    before,
+    action: existing ? ("repaired" as const) : ("created" as const),
+    othersRepaired: others.count,
+  };
 }

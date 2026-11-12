@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { checkRateLimit, rateLimiters } from "@/lib/rate-limit";
+import {
+  FAIL_CLOSED_NO_FALLBACK,
+  FAIL_CLOSED_WITH_DB_FALLBACK,
+  checkRateLimit,
+  rateLimiters,
+  registerRateLimitFallback,
+  unavailableBehaviour,
+} from "@/lib/rate-limit";
 import { captureError } from "@/lib/error-tracking";
 
 vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn(async () => {}) }));
@@ -158,5 +165,88 @@ describe("fail-open reporting is throttled", () => {
     vi.mocked(captureError).mockReturnValue(new Promise(() => {}));
 
     await expect(checkRateLimit("pageRequest", "ip")).resolves.toBe(true);
+  });
+});
+
+describe("the rate option (page-limit credits)", () => {
+  it("reserves several requests at once and refuses a batch that doesn't fit without consuming it", async () => {
+    const key = `test-rate-${Math.random()}`;
+    // "pageRequest" allows 300 per 1m.
+    expect(await checkRateLimit("pageRequest", key, { rate: 295 })).toBe(true);
+    expect(await checkRateLimit("pageRequest", key, { rate: 10 })).toBe(false);
+    for (let i = 0; i < 5; i++) expect(await checkRateLimit("pageRequest", key)).toBe(true);
+    expect(await checkRateLimit("pageRequest", key)).toBe(false);
+  });
+});
+
+describe("when Upstash is unavailable", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    registerRateLimitFallback(null);
+  });
+
+  const SENDERS = [
+    "signIn",
+    "passwordSignUp",
+    "passwordResetRequest",
+    "emailOtpSend",
+    "phoneVerifyRequest",
+    "deviceChallengeSend",
+    "accountReauth",
+  ] as const;
+
+  it("puts every email/SMS-sending limiter on the database fallback, and only paid ones on plain fail-closed", () => {
+    for (const name of SENDERS) expect(unavailableBehaviour(name)).toBe("database");
+    expect([...FAIL_CLOSED_WITH_DB_FALLBACK].sort()).toEqual([...SENDERS].sort());
+    for (const name of FAIL_CLOSED_NO_FALLBACK) expect(unavailableBehaviour(name)).toBe("closed");
+    // Reads, feeds and the page limit keep failing open.
+    for (const name of ["pageRequest", "pageRequestDevice", "like", "museView", "avatarView", "pollList"] as const) {
+      expect(unavailableBehaviour(name)).toBe("open");
+    }
+  });
+
+  it("counts an email/SMS sender in the database fallback on an Upstash error, and follows its answer", async () => {
+    vi.spyOn(rateLimiters.passwordResetRequest, "limit").mockRejectedValue(new Error("max requests limit exceeded"));
+    const fallback = vi.fn(async () => true);
+    registerRateLimitFallback(fallback);
+    expect(await checkRateLimit("passwordResetRequest", "resetreq:1.2.3.4:a@b.c")).toBe(true);
+    // Same key space as Upstash (rl:<name>), same size and window (5 per hour).
+    expect(fallback).toHaveBeenCalledWith("rl:passwordResetRequest:resetreq:1.2.3.4:a@b.c", 5, 3_600_000);
+
+    fallback.mockResolvedValue(false);
+    expect(await checkRateLimit("passwordResetRequest", "resetreq:1.2.3.4:a@b.c")).toBe(false);
+  });
+
+  it("uses the fallback on a timeout too (the library resolves success: true there)", async () => {
+    vi.spyOn(rateLimiters.phoneVerifyRequest, "limit").mockResolvedValue({
+      success: true,
+      remaining: 0,
+      reason: "timeout",
+    } as never);
+    registerRateLimitFallback(async () => false);
+    expect(await checkRateLimit("phoneVerifyRequest", "user-1")).toBe(false);
+  });
+
+  it("refuses an email/SMS sender when there is no fallback or the database fails as well", async () => {
+    vi.spyOn(rateLimiters.emailOtpSend, "limit").mockRejectedValue(new Error("down"));
+    expect(await checkRateLimit("emailOtpSend", "otpsend:x")).toBe(false);
+
+    registerRateLimitFallback(async () => {
+      throw new Error("db down");
+    });
+    expect(await checkRateLimit("emailOtpSend", "otpsend:x")).toBe(false);
+  });
+
+  it("refuses a paid limiter without a fallback, and still fails open for ordinary ones", async () => {
+    vi.spyOn(rateLimiters.transcribeAudio, "limit").mockRejectedValue(new Error("down"));
+    vi.spyOn(rateLimiters.like, "limit").mockRejectedValue(new Error("down"));
+    const fallback = vi.fn(async () => true);
+    registerRateLimitFallback(fallback);
+    expect(await checkRateLimit("transcribeAudio", "u")).toBe(false);
+    expect(await checkRateLimit("like", "u")).toBe(true);
+    expect(fallback).not.toHaveBeenCalled();
   });
 });

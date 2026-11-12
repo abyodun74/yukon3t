@@ -21,6 +21,7 @@ export const settings: typeof settingsEn = {
     birth_date_underage: "Vous devez avoir au moins {age} ans pour utiliser YuKon3t.",
     birth_date_confirm: "Cochez la case pour confirmer que votre date de naissance ne pourra plus être modifiée.",
     birth_date_already_set: "Votre date de naissance figure déjà sur votre compte et ne peut pas être modifiée.",
+    demo_account: "Ceci est un compte de démonstration pour l'examen de l'App Store : cette action n'est pas possible depuis ce compte.",
     other: "Veuillez vérifier les informations saisies.",
   },
   saving: "Enregistrement...",
@@ -165,6 +166,24 @@ export const settings: typeof settingsEn = {
     delete: "Supprimer mon compte",
     deleteConfirm: "Oui, supprimer définitivement",
     cancel: "Annuler",
+    reauth: {
+      passwordPrompt: "Pour votre sécurité, saisissez votre mot de passe pour continuer.",
+      passwordLabel: "Votre mot de passe",
+      codePrompt: "Pour votre sécurité, nous allons envoyer un code à 6 chiffres à l'adresse e-mail de votre compte.",
+      sendCode: "M'envoyer un code",
+      sendAgain: "Envoyer un nouveau code",
+      codeSent: "Nous vous avons envoyé un code par e-mail. Il expire dans 10 minutes.",
+      codeLabel: "Code à 6 chiffres",
+      exportConfirm: "Télécharger mes données",
+      errors: {
+        reauth_required: "Confirmez d'abord que c'est bien vous.",
+        wrong_password: "Ce mot de passe n'est pas correct.",
+        wrong_code: "Ce code n'est pas correct. Vérifiez l'e-mail et réessayez.",
+        code_expired: "Ce code a expiré ou a déjà été utilisé. Demandez-en un nouveau.",
+        rate_limited: "Trop de tentatives. Réessayez plus tard.",
+        send_failed: "Impossible d'envoyer un code pour le moment. Réessayez dans un instant.",
+      },
+    },
   },
   verifyDevice: {
     usedBody:

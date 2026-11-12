@@ -1097,7 +1097,6 @@ const MessageBubble = memo(function MessageBubble({
         <ReportModal
           targetType="MESSAGE"
           targetId={message.id}
-          reportedUserId={message.senderId}
           // From a secret chat the server can't read the message, so the decrypted text rides along with the report.
           evidenceText={message.wasEncrypted ? message.content : undefined}
           open={reporting}

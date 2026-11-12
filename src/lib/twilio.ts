@@ -5,6 +5,8 @@
 // stores a code itself, only starts a verification and checks a submitted
 // code against Twilio.
 import type { Locale } from "@/lib/i18n/locales";
+// Sending SMS is what the fail-closed limiters guard: their database fallback must be registered wherever a text goes out.
+import "@/lib/rate-limit-db-fallback";
 
 // Verify's own names for the languages this app has (it writes the text message itself, from its own templates).
 const VERIFY_LOCALES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-BR", ar: "ar" };

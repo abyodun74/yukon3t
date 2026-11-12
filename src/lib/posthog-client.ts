@@ -2,6 +2,7 @@
 
 import type { PostHog } from "posthog-js";
 import { disablePostHogGeoIp } from "@/lib/posthog-geoip";
+import { scrubPostHogUrls } from "@/lib/posthog-url-scrub";
 import { getNetworkQuality, onNetworkQualityChange } from "@/lib/network-quality-client";
 
 // Opt-in until configured, same pattern as GTM/Clarity/R2 elsewhere in this
@@ -78,8 +79,10 @@ function init(posthog: PostHog) {
     // No IP-derived location: every event (pageviews, $identify, replay
     // $snapshot batches) carries $geoip_disable so PostHog skips GeoIP
     // enrichment. Set in init, so nothing is ever sent without it. See
-    // posthog-geoip.ts for why there's no `ip: false` here.
-    before_send: disablePostHogGeoIp,
+    // posthog-geoip.ts for why there's no `ip: false` here. Before that,
+    // scrubPostHogUrls redacts reset tokens / one-time codes from every
+    // URL-like property (posthog-url-scrub.ts).
+    before_send: [scrubPostHogUrls, disablePostHogGeoIp],
     disable_session_recording: lowData || noRecording,
     session_recording: {
       // Two independent layers, deliberately not left at their SDK

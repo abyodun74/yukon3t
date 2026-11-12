@@ -15,6 +15,7 @@
 // so this stays the same "zero cost or risk when Sentry isn't configured"
 // contract captureError's own doc comment already promises server-side.
 import * as Sentry from "@sentry/nextjs";
+import { scrubSentryBreadcrumb, scrubSentryEvent } from "@/lib/sentry-url-scrub";
 
 // What a client left behind by a deploy throws when a request of its lands
 // on the new build: Safari/WKWebView's and Chrome's wording for a fetch that
@@ -48,12 +49,15 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     // Errors only: no tracesSampleRate, and the tracing code itself is
     // compiled out (__SENTRY_TRACING__ in next.config.ts).
+    // Reset tokens and one-time codes never reach Sentry inside a URL
+    // (src/lib/sentry-url-scrub.ts).
+    beforeBreadcrumb: (breadcrumb) => scrubSentryBreadcrumb(breadcrumb),
     async beforeSend(event) {
       const message = event.exception?.values?.[0]?.value ?? "";
       if (DEPLOY_SKEW_MESSAGES.some((re) => re.test(message)) && (await isBehindServerBuild())) {
         return null;
       }
-      return event;
+      return scrubSentryEvent(event);
     },
   });
 }

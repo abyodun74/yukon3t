@@ -9,9 +9,9 @@ import { clientIpFromHeaders } from "@/lib/page-rate-limit";
  * (clientIpFromHeaders): the current host's own client-address header first (Netlify's or
  * Vercel's, never the other's), then the first hop of x-forwarded-for. It
  * is not meant to be spoof-proof everywhere — it blunts casual abuse and
- * IP-varying enumeration, not a determined attacker. The per-account attempt
- * lockout (see LOCKOUT_THRESHOLD in password-auth.ts) is the actual defense
- * against targeted brute force.
+ * IP-varying enumeration, not a determined attacker. The database-backed
+ * sign-in lockout (per account x IP, per account x device, and account-wide;
+ * src/lib/login-lockout.ts) is the actual defense against targeted brute force.
  */
 export async function getClientIp() {
   const h = await headers();

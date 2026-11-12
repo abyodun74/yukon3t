@@ -309,7 +309,9 @@ export default function PrivacyPage() {
         a temporary session cookie that expires after at most 2 hours). It
         lasts 30 days and is renewed while you keep using YuKon3t, so you stay
         signed in until you sign out, change or reset your password, or go 30
-        days without opening the app or site. We also use a
+        days without opening the app or site. For your security, renewal stops
+        120 days after you signed in, so you will be asked to sign in again at
+        least every 120 days, even if you use YuKon3t every day. We also use a
         small, non-sensitive cookie to remember your light/dark/system theme
         preference. We do not use third-party advertising or tracking
         cookies on YuKon3t. If you complete a paid ad booking, Stripe&apos;s
