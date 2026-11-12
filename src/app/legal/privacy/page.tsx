@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 10, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 11, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -306,7 +306,10 @@ export default function PrivacyPage() {
       <h2 className="mt-8 font-semibold">10. Cookies</h2>
       <p className="mt-2 text-foreground-soft">
         We use a session cookie to keep you signed in (for a guest preview,
-        a temporary session cookie that expires after at most 2 hours) and a
+        a temporary session cookie that expires after at most 2 hours). It
+        lasts 30 days and is renewed while you keep using YuKon3t, so you stay
+        signed in until you sign out, change or reset your password, or go 30
+        days without opening the app or site. We also use a
         small, non-sensitive cookie to remember your light/dark/system theme
         preference. We do not use third-party advertising or tracking
         cookies on YuKon3t. If you complete a paid ad booking, Stripe&apos;s

@@ -13,6 +13,7 @@ import { GlobalCallFrame } from "@/components/global-call-frame";
 import { CallSessionProvider } from "@/lib/call-session";
 import { FcmTokenBridge } from "@/components/fcm-token-bridge";
 import { PresenceHeartbeat } from "@/components/presence-heartbeat";
+import { SessionKeepAlive } from "@/components/session-keep-alive";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
 import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
@@ -276,6 +277,7 @@ export default async function RootLayout({
             {member && <GlobalCallFrame mediaBaseUrl={process.env.R2_PUBLIC_URL || null} />}
             {member && <FcmTokenBridge />}
             {member && <PresenceHeartbeat />}
+            {member && <SessionKeepAlive />}
             {member && <ScreenshotGuard />}
             {session?.user && <FeedVideoVolumeSync />}
             {member && <ShareTargetGate userId={member.id} />}

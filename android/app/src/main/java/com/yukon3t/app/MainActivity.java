@@ -12,6 +12,7 @@ import android.os.Looper;
 import android.service.notification.StatusBarNotification;
 import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 
 import androidx.activity.EdgeToEdge;
 
@@ -136,6 +137,21 @@ public class MainActivity extends BridgeActivity {
             if (channelId != null && CALL_NOTIFICATION_CHANNELS.contains(channelId)) continue;
             manager.cancel(sbn.getTag(), sbn.getId());
         }
+    }
+
+    /**
+     * Writes the WebView's cookies (the sign-in session among them) to disk
+     * every time the app leaves the foreground. Android's CookieManager only
+     * persists them on its own schedule, so a process killed soon after a
+     * sign-in or a session refresh (swiped away from Recents, killed by the
+     * OS for memory, or replaced by a Play Store update) could come back
+     * without the newest cookie and look signed out. Cheap: it only writes
+     * what changed.
+     */
+    @Override
+    public void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush();
     }
 
     /**

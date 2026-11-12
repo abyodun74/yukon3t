@@ -1,6 +1,6 @@
 import { encode } from "next-auth/jwt";
 import { cookies } from "next/headers";
-import { sessionCookieName, SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
+import { sessionCookieName, sessionSecret, SESSION_MAX_AGE_SECONDS } from "@/lib/auth-cookie";
 
 type ClaimsSource = { isAdmin?: boolean; trustBand?: string | null };
 
@@ -36,7 +36,7 @@ export async function issueSessionCookie(user: {
   const cookieName = sessionCookieName();
   const token = await encode({
     token: { sub: user.id, ...sessionTokenClaims(user) },
-    secret: process.env.AUTH_SECRET!,
+    secret: sessionSecret(),
     salt: cookieName,
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
