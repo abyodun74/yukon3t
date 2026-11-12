@@ -751,7 +751,9 @@ const sections: Section[] = [
             between. The video in that card only starts once you&apos;ve
             actually scrolled to it, so simply passing it on your way down
             the feed doesn&apos;t count you as a viewer — pausing on it does.
-            A Circle&apos;s own streams also appear in a &ldquo;Live
+            When several people are live at once, one card plays at a time:
+            the one you most recently stopped on. The others wait until you
+            reach them. A Circle&apos;s own streams also appear in a &ldquo;Live
             now&rdquo; section at the top of that Circle&apos;s page.
           </>
         ),
@@ -770,7 +772,7 @@ const sections: Section[] = [
             closed to non-members — even with the link. Either way, picking
             a Circle or sub-circle as &ldquo;who can watch&rdquo; scopes who
             gets <em>notified</em> too: every member of that Circle or
-            sub-circle gets a notification the moment the stream starts,
+            sub-circle gets a notification as soon as the stream starts,
             whether it&apos;s the owner or any other member who starts it —
             not your wider subscriber base, even for a public Circle. A
             stream started for <strong>Everyone</strong> is instead announced

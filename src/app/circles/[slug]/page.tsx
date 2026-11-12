@@ -180,7 +180,8 @@ export default async function CirclePage({
     // app); a PUBLIC Circle's also appear in Home's "Live now" strip, and here for anyone who can see the Circle.
     !isPrivateNonMember
       ? prisma.liveStream.findMany({
-          where: { circleId: circle.id, status: "LIVE" },
+          // roomName: a start still attaching its Daily room can't be joined yet, so it isn't listed.
+          where: { circleId: circle.id, status: "LIVE", roomName: { not: "" } },
           orderBy: { startedAt: "desc" },
           take: 10,
           select: { id: true, title: true, host: { select: { name: true, username: true } } },

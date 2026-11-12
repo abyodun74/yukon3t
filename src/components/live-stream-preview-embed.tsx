@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import { joinLiveStream, leaveLiveStream } from "@/app/actions/live-streams";
 import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
-import { trackDailyDestroy } from "@/lib/call-prewarm";
+import { readyForNewDailyInstance, trackDailyDestroy } from "@/lib/call-prewarm";
+import { livePreviewSlot } from "@/lib/live-preview-slot";
 
 /**
  * The actual ongoing stream, playing inside a Home-feed card
@@ -30,6 +31,13 @@ import { trackDailyDestroy } from "@/lib/call-prewarm";
  * call-prewarm.ts already relies on for a callee's pre-accept join. Nothing
  * here ever calls setLocalVideo/setLocalAudio: there is no local media to
  * toggle.
+ *
+ * Only one preview plays at a time (livePreviewSlot): with several people
+ * live, several cards can be on screen at once, and daily-js allows a single
+ * call instance per page. The newest card on screen owns the slot; the others
+ * show "Connecting…" until it is theirs. A preview also never starts while
+ * anything else holds Daily's instance (a call, the full live room), and asks
+ * the server for nothing in that case.
  */
 export function LiveStreamPreviewEmbed({
   liveStreamId,
@@ -46,9 +54,21 @@ export function LiveStreamPreviewEmbed({
   const { isGuest } = useGuestPreview();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hostTrack, setHostTrack] = useState<MediaStreamTrack | null>(null);
+  const slotId = useId();
+  const ownsSlot = useSyncExternalStore(
+    livePreviewSlot.subscribe,
+    () => livePreviewSlot.owner() === slotId,
+    () => false,
+  );
 
   useEffect(() => {
-    if (!active || isGuest) return;
+    if (!active || isGuest) return undefined;
+    livePreviewSlot.claim(slotId);
+    return () => livePreviewSlot.release(slotId);
+  }, [active, isGuest, slotId]);
+
+  useEffect(() => {
+    if (!active || isGuest || !ownsSlot) return;
 
     let cancelled = false;
     let call: DailyCall | null = null;
@@ -85,6 +105,22 @@ export function LiveStreamPreviewEmbed({
     // "Connecting…" placeholder and nothing else. Someone idly scrolling
     // Home must never be shown an error for a preview they didn't ask for.
     (async () => {
+      // Dynamic import, not static — same reasoning as LiveVideoFrame/
+      // DirectCallFrame: this package touches browser globals at module
+      // load, so it must never be evaluated during SSR of a "use client"
+      // component's initial server-rendered pass.
+      let DailyIframe: typeof import("@daily-co/daily-js").default;
+      try {
+        ({ default: DailyIframe } = await import("@daily-co/daily-js"));
+        // Let the previous preview's teardown finish (the slot just moved), and never evict anything: if Daily's
+        // one instance is still held (a call, the live room), this preview simply doesn't start — before asking
+        // the server for a viewer token it couldn't use.
+        await readyForNewDailyInstance(DailyIframe, { evictStray: false });
+        if (cancelled || DailyIframe.getCallInstance()) return;
+      } catch {
+        return;
+      }
+
       let roomUrl: string;
       let token: string;
       try {
@@ -102,16 +138,6 @@ export function LiveStreamPreviewEmbed({
       }
 
       try {
-        // Dynamic import, not static — same reasoning as LiveVideoFrame/
-        // DirectCallFrame: this package touches browser globals at module
-        // load, so it must never be evaluated during SSR of a "use client"
-        // component's initial server-rendered pass.
-        const { default: DailyIframe } = await import("@daily-co/daily-js");
-        if (cancelled) {
-          teardown();
-          return;
-        }
-
         // createCallObject(), not createFrame() — this renders its own
         // <video> below, exactly like LiveVideoFrame does. avoidEval: true
         // loads the call-machine bundle via a <script> tag instead of a
@@ -144,7 +170,7 @@ export function LiveStreamPreviewEmbed({
       cancelled = true;
       teardown();
     };
-  }, [active, liveStreamId, hostId, isGuest]);
+  }, [active, ownsSlot, liveStreamId, hostId, isGuest]);
 
   // Manual MediaStreamTrack attachment — createCallObject() mode renders
   // nothing of its own, same pattern as LiveVideoFrame's ParticipantTile.

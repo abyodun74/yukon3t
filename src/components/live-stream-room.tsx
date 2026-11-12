@@ -34,7 +34,11 @@ import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
 // the end-inactive-streams cron watches for, not a "refetch when something
 // changed" concern, so a timer is the actually-correct mechanism regardless
 // of everything else in this file moving to realtime events.
-const HEARTBEAT_INTERVAL_MS = 5000;
+// Once a minute: the cron only ends a stream after 30 silent minutes, so a
+// beat every 5s (as this was) bought nothing but 12x the function calls and
+// database writes per host and co-host, multiplied by everyone live at once,
+// and a Server Action queued ahead of the host's own actions every 5s.
+const HEARTBEAT_INTERVAL_MS = 60_000;
 // Most often a client re-reads the viewer/stage counts for join/leave churn.
 const PRESENCE_REFETCH_INTERVAL_MS = 5000;
 // Nothing server-side publishes when a recording finishes — it's started and
@@ -428,7 +432,10 @@ export function LiveStreamRoom({
   // COHOST only, same as before.
   useEffect(() => {
     if (phase === "joining" || !(isHost || role === "COHOST")) return undefined;
-    const interval = setInterval(() => recordLiveStreamHeartbeat(liveStreamId), HEARTBEAT_INTERVAL_MS);
+    // A missed beat is fine (the next one is a minute away; the cutoff is 30).
+    const interval = setInterval(() => {
+      recordLiveStreamHeartbeat(liveStreamId).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [phase, isHost, role, liveStreamId]);
 

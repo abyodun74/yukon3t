@@ -1945,6 +1945,13 @@ model LiveStream {
   // while the stream is open — always holds the most recent activity among
   // all of them (see the auto-end-inactive-streams cron), never per-user.
   lastHostActivityAt DateTime?
+  // When this stream's "X is live" notifications (LIVE_STREAM_INVITE /
+  // CIRCLE_LIVE / SUBSCRIPTION_LIVE) were claimed for sending. Null = not yet
+  // sent: announceLiveStream (src/lib/live-stream-announce.ts) claims it with
+  // a guarded update right after startLiveStream answers the host, and the
+  // end-inactive-streams cron retries any stream still null (a lost or failed
+  // send), so the fan-out never runs inside, or fails, the host's own start.
+  announcedAt DateTime?
 
   host           User                      @relation("LiveStreamHost", fields: [hostId], references: [id], onDelete: Cascade)
   targetUser     User?                     @relation("LiveStreamTarget", fields: [targetUserId], references: [id], onDelete: Cascade)

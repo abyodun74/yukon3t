@@ -1,26 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Radio } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
-import { getActiveLiveStreams, startLiveStream } from "@/app/actions/live-streams";
+import { startLiveStream } from "@/app/actions/live-streams";
 import { getMyCircles } from "@/app/actions/circles";
 import { getMyConnectionsForPicker } from "@/app/actions/connections";
-import { useRealtimeEvent } from "@/lib/realtime-client";
-import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
+import { useActiveLiveStreams } from "@/lib/use-active-live-streams";
 import { Sheet } from "@/components/sheet";
 import { captureError } from "@/lib/error-tracking";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
 import { format, byCode } from "@/lib/i18n/locales";
 
-type Stream = {
-  id: string;
-  title: string;
-  host: { id: string; name: string | null; avatarUrl: string | null };
-  viewerCount: number;
-};
 type Circle = { id: string; name: string; parentName: string | null };
 type Connection = { id: string; name: string | null };
 
@@ -43,7 +36,8 @@ function targetUserIdFrom(audience: string) {
 export function LiveStreamStrip() {
   const { t } = useFeedText();
   const { t: shell } = useShellText();
-  const [streams, setStreams] = useState<Stream[]>([]);
+  // Shared with the feed cards and coalesced across signals (see use-active-live-streams.ts).
+  const streams = useActiveLiveStreams();
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
   // Raw <select> value — "", "circle:<id>", or "user:<id>" — see
@@ -56,26 +50,6 @@ export function LiveStreamStrip() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
-  const refetch = useCallback(async () => {
-    const { streams: list } = await getActiveLiveStreams();
-    setStreams(list);
-  }, []);
-
-  // Fires once on mount (a realtime subscription alone only reports *new*
-  // signals, not current state) and again on every "changed" broadcast from
-  // here on — startLiveStream/endLiveStream publish onto this global
-  // channel (see REALTIME_CHANNELS.liveStreams in actions/live-streams.ts).
-  // Ref indirection avoids a "setState synchronously within an effect" lint
-  // false-positive, same pattern as every other realtime migration here.
-  const refetchRef = useRef(refetch);
-  useEffect(() => {
-    refetchRef.current = refetch;
-  });
-  useEffect(() => {
-    refetchRef.current();
-  }, []);
-  useRealtimeEvent(REALTIME_CHANNELS.liveStreams(), "changed", refetch);
 
   // No .catch previously — a rejected call (a session hiccup, a transient
   // DB error) left `circles` null forever with nothing surfaced, which

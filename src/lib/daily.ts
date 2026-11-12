@@ -2,6 +2,7 @@
 // email.ts and moderation.ts, rather than pulling in a server SDK for two
 // endpoints. The client only ever gets @daily-co/daily-js, for joining.
 import { CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
+import { DailyApiError, dailyRequest } from "@/lib/daily-request";
 
 export function isCallingConfigured() {
   return Boolean(process.env.DAILY_API_KEY);
@@ -33,35 +34,18 @@ export async function createCallRoom({
   name: string;
   expiresInSeconds?: number;
 }) {
-  const res = await fetch("https://api.daily.co/v1/rooms", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name,
-      privacy: "private",
-      properties: {
-        exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
-        enable_screenshare: true,
-        enable_chat: false,
-        eject_at_room_exp: true,
-        // Daily's prebuilt UI otherwise shows its own camera/mic "prejoin"
-        // lobby screen with its own Join button before actually connecting
-        // — on a 1:1 call, accepting the ring (see respondToCall) is already
-        // that confirmation, so both sides should connect immediately
-        // instead of needing a second tap each.
-        enable_prejoin_ui: false,
-      },
-    }),
+  return createRoom(name, {
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    enable_screenshare: true,
+    enable_chat: false,
+    eject_at_room_exp: true,
+    // Daily's prebuilt UI otherwise shows its own camera/mic "prejoin"
+    // lobby screen with its own Join button before actually connecting
+    // — on a 1:1 call, accepting the ring (see respondToCall) is already
+    // that confirmation, so both sides should connect immediately
+    // instead of needing a second tap each.
+    enable_prejoin_ui: false,
   });
-
-  if (!res.ok) {
-    throw new Error("daily_room_create_failed");
-  }
-  const data = await res.json();
-  return { url: data.url as string, name: data.name as string };
 }
 
 export async function createMeetingToken({
@@ -95,7 +79,8 @@ export async function createMeetingToken({
    */
   expiresInSeconds?: number;
 }) {
-  const res = await fetch("https://api.daily.co/v1/meeting-tokens", {
+  // Retried (dailyRequest): a duplicate token from an attempt that did land is harmless, it just goes unused.
+  const res = await dailyRequest("https://api.daily.co/v1/meeting-tokens", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey()}`,
@@ -112,9 +97,6 @@ export async function createMeetingToken({
     }),
   });
 
-  if (!res.ok) {
-    throw new Error("daily_token_create_failed");
-  }
   const data = await res.json();
   return data.token as string;
 }
@@ -139,20 +121,48 @@ export async function deleteCallRoom(roomName: string) {
   }
 }
 
+/**
+ * Creates a room under a name of our own choosing (always derived from one of our row ids, so it belongs to exactly
+ * one call/stream/collab). The POST is retried (dailyRequest), and a retry can land after an earlier attempt that
+ * timed out on our side was in fact created on Daily's: that answers a 4xx ("already exists"). So on a 4xx the
+ * room is looked up by name, and an existing one is returned instead of failing a start that actually worked.
+ */
 async function createRoom(name: string, properties: Record<string, unknown>) {
-  const res = await fetch("https://api.daily.co/v1/rooms", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name, privacy: "private", properties }),
-  });
-  if (!res.ok) {
-    throw new Error("daily_room_create_failed");
+  try {
+    const res = await dailyRequest("https://api.daily.co/v1/rooms", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, privacy: "private", properties }),
+    });
+    const data = await res.json();
+    return { url: data.url as string, name: data.name as string };
+  } catch (err) {
+    if (isRealRefusal(err)) {
+      const existing = await getRoom(name);
+      if (existing) return existing;
+    }
+    throw err;
   }
-  const data = await res.json();
-  return { url: data.url as string, name: data.name as string };
+}
+
+async function getRoom(name: string): Promise<{ url: string; name: string } | null> {
+  try {
+    const res = await dailyRequest(`https://api.daily.co/v1/rooms/${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${apiKey()}` },
+    });
+    const data = await res.json();
+    return typeof data?.url === "string" && typeof data?.name === "string" ? { url: data.url, name: data.name } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A 4xx other than 429: Daily understood the request and said no (as opposed to a timeout, rate limit or outage). */
+function isRealRefusal(err: unknown) {
+  return err instanceof DailyApiError && err.status !== null && err.status >= 400 && err.status < 500 && err.status !== 429;
 }
 
 /**
@@ -190,7 +200,11 @@ export async function createCollabRoom({
     // since most do, with a plain fallback below so a plan that doesn't
     // support it still gets a working room, just without the record button.
     return await createRoom(name, { ...baseProperties, enable_recording: "cloud" });
-  } catch {
+  } catch (err) {
+    // Only a real refusal (the plan has no cloud recording) is a reason to try again without it. A timeout, 429
+    // or 5xx already had createRoom's retries; repeating it would add load to a struggling API and quietly hand
+    // the user a room without recording.
+    if (!isRealRefusal(err)) throw err;
     return await createRoom(name, baseProperties);
   }
 }
@@ -237,7 +251,11 @@ export async function createLiveStreamRoom({
     // since most do, with a plain fallback below so a plan that doesn't
     // support it still gets a working room, just without the record button.
     return await createRoom(name, { ...baseProperties, enable_recording: "cloud" });
-  } catch {
+  } catch (err) {
+    // Only a real refusal (the plan has no cloud recording) is a reason to try again without it. A timeout, 429
+    // or 5xx already had createRoom's retries; repeating it would add load to a struggling API and quietly hand
+    // the user a room without recording.
+    if (!isRealRefusal(err)) throw err;
     return await createRoom(name, baseProperties);
   }
 }

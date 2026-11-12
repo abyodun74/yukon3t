@@ -11,6 +11,15 @@
  * both the publishing Server Actions and the subscribing client components.
  */
 export const LIVE_STREAM_SIGNAL_KINDS = ["comment", "presence", "stage"] as const;
+
+/**
+ * The global `live-streams` signal (any stream starting or ending, heard by every open Home tab at once) is
+ * coalesced per tab (use-active-live-streams.ts): a random wait of up to this long before refetching, so tabs
+ * don't all hit the server in the same instant...
+ */
+export const LIVE_LIST_SIGNAL_MAX_DELAY_MS = 3_000;
+/** ...and at most one signal-driven refetch per this long, however many streams start or end in between. */
+export const LIVE_LIST_SIGNAL_COOLDOWN_MS = 10_000;
 export type LiveStreamSignalKind = (typeof LIVE_STREAM_SIGNAL_KINDS)[number];
 
 /**

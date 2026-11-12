@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -15,21 +16,21 @@ import {
 import { getCircleMembership } from "@/lib/circle-permissions";
 import { canAccessLiveStream } from "@/lib/live-stream-access";
 import { liveStreamTitleSchema, liveStreamJoinRoleSchema, liveStreamCommentSchema } from "@/lib/validations";
-import { notifySubscribers } from "@/lib/notify-subscribers";
 import { moderateText } from "@/lib/moderation";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import type { LiveStreamSignalKind } from "@/lib/live-stream-signal";
 import { captureError } from "@/lib/error-tracking";
-import { sendPushToUser } from "@/lib/push";
-import { activityLine, nameOrSomeone } from "@/lib/push-text";
-import type { Locale } from "@/lib/i18n/locales";
-import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { liveChatPageQuery } from "@/lib/live-chat-page";
+import { announceLiveStream } from "@/lib/live-stream-announce";
+import { existingLiveDecision, liveStartLockKey } from "@/lib/live-stream-start";
 
 /** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
+
+/** Most live streams Home's "Live now" strip and feed cards list at once (newest first). */
+const ACTIVE_LIVE_STREAMS_LIMIT = 30;
 
 /**
  * Every publish onto a stream's own channel says what changed, so listeners
@@ -70,13 +71,6 @@ export async function startLiveStream(formData: FormData) {
     return { error: "moderation" as const };
   }
 
-  const existing = await prisma.liveStream.findFirst({
-    where: { hostId: user.id, status: "LIVE" },
-  });
-  if (existing) {
-    return { error: "already_live" as const, liveStreamId: existing.id };
-  }
-
   if (circleId && !(await getCircleMembership(circleId, user.id))) {
     return { error: "not_a_member" as const };
   }
@@ -102,15 +96,46 @@ export async function startLiveStream(formData: FormData) {
     }
   }
 
-  const liveStream = await prisma.liveStream.create({
-    data: { hostId: user.id, circleId, targetUserId, title, roomName: "", roomUrl: "" },
+  // Check-and-create under a per-host advisory lock: a double tap, a second device or a client retry can't create a
+  // second stream (and a second Daily room and a second round of notifications) for the same host. The lock is
+  // per host, so other people going live at the same moment never wait on it.
+  const now = new Date();
+  const claim = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${liveStartLockKey(user.id)}))`;
+    const existing = await tx.liveStream.findFirst({
+      where: { hostId: user.id, status: "LIVE" },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, roomName: true, startedAt: true },
+    });
+    const decision = existingLiveDecision(existing, now);
+    if (decision === "already_live") return { alreadyLiveId: existing!.id };
+    if (decision === "reclaim") {
+      // A start of theirs that died before its room was attached: end it rather than block them with "already
+      // live" until the inactivity cron gets to it.
+      await tx.liveStream.update({ where: { id: existing!.id }, data: { status: "ENDED", endedAt: now } });
+    }
+    const created = await tx.liveStream.create({
+      data: { hostId: user.id, circleId, targetUserId, title, roomName: "", roomUrl: "" },
+      select: { id: true },
+    });
+    return { liveStreamId: created.id };
   });
+  if ("alreadyLiveId" in claim) {
+    return { error: "already_live" as const, liveStreamId: claim.alreadyLiveId };
+  }
+  const liveStreamId = claim.liveStreamId;
+
+  // Every failure from here on removes this half-made stream, so it never shows on Home or blocks the next try.
+  const abandon = async () => {
+    await prisma.liveStream.deleteMany({ where: { id: liveStreamId, roomName: "" } }).catch(() => undefined);
+  };
 
   let room;
   try {
-    room = await createLiveStreamRoom({ name: `live-${liveStream.id}` });
-  } catch {
-    await prisma.liveStream.delete({ where: { id: liveStream.id } });
+    room = await createLiveStreamRoom({ name: `live-${liveStreamId}` });
+  } catch (err) {
+    await captureError(err, { action: "startLiveStream", step: "createRoom" });
+    await abandon();
     return { error: "call_service_unavailable" as const };
   }
 
@@ -122,66 +147,37 @@ export async function startLiveStream(formData: FormData) {
       userName: user.name ?? "Guest",
       isOwner: true,
     });
-  } catch {
+  } catch (err) {
+    await captureError(err, { action: "startLiveStream", step: "createToken" });
     await deleteCallRoom(room.name);
-    await prisma.liveStream.delete({ where: { id: liveStream.id } });
+    await abandon();
     return { error: "call_service_unavailable" as const };
   }
 
-  await prisma.liveStream.update({
-    where: { id: liveStream.id },
-    data: { roomName: room.name, roomUrl: room.url },
-  });
-  if (targetUserId) {
-    // A stream started "with" one specific person is for them alone — a
-    // single-recipient, happening-right-now invite, same shape as
-    // MISSED_CALL/MESSAGE, so it pushes as well as landing in the bell
-    // (unlike CIRCLE_LIVE/SUBSCRIPTION_LIVE's bulk bell-only fan-outs).
-    await prisma.notification.create({
-      data: {
-        recipientId: targetUserId,
-        actorId: user.id,
-        type: "LIVE_STREAM_INVITE",
-        liveStreamId: liveStream.id,
-      },
+  try {
+    await prisma.liveStream.update({
+      where: { id: liveStreamId },
+      data: { roomName: room.name, roomUrl: room.url },
     });
-    const liveUrl = `/live/${liveStream.id}`;
-    const invitePush = (locale: Locale) => ({
-      title: nameOrSomeone(user.name, locale),
-      body: activityLine("LIVE_STREAM_INVITE", locale),
-      url: liveUrl,
-    });
-    await sendPushToUser(targetUserId, invitePush);
-    await sendFcmActivityToUser(targetUserId, (locale) => ({ ...invitePush(locale), type: "LIVE_STREAM_INVITE" }));
-  } else if (circleId) {
-    // A stream scoped to a Circle/sub-circle is only for the users that
-    // scoping actually specifies — its own members — whether the Circle is
-    // PUBLIC or PRIVATE. Earlier this also fanned a PUBLIC Circle's stream
-    // out to the host's general subscriber base (SUBSCRIPTION_LIVE), same
-    // as an unscoped stream; that's gone now, so picking a Circle here
-    // means only that Circle's members are notified, full stop — not a
-    // wider audience the "who can watch" choice didn't actually name.
-    const members = await prisma.circleMembership.findMany({ where: { circleId }, select: { userId: true } });
-    const memberIds = members.map((m) => m.userId).filter((id) => id !== user.id);
-    if (memberIds.length > 0) {
-      await prisma.notification.createMany({
-        data: memberIds.map((recipientId) => ({
-          recipientId,
-          actorId: user.id,
-          type: "CIRCLE_LIVE" as const,
-          circleId,
-          liveStreamId: liveStream.id,
-        })),
-      });
-    }
-  } else {
-    // No Circle or specific person: announced to all the host's subscribers.
-    await notifySubscribers(user.id, "SUBSCRIPTION_LIVE", { liveStreamId: liveStream.id });
+  } catch (err) {
+    await captureError(err, { action: "startLiveStream", step: "attachRoom" });
+    await deleteCallRoom(room.name);
+    await abandon();
+    return { error: "call_service_unavailable" as const };
   }
-  await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+
+  // Everything else is secondary and runs after the host already has their answer: telling the audience
+  // (announceLiveStream: exactly once, retried by the end-inactive-streams cron if this run is lost or fails) and
+  // nudging open Home tabs. Neither can delay or fail going live.
+  after(async () => {
+    await announceLiveStream(liveStreamId);
+  });
+  after(async () => {
+    await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+  });
 
   revalidatePath("/home");
-  return { error: null, liveStreamId: liveStream.id, roomUrl: room.url, token };
+  return { error: null, liveStreamId, roomUrl: room.url, token };
 }
 
 /** Host-only: ends the stream and best-effort tears down the Daily room. */
@@ -218,27 +214,25 @@ export async function endLiveStream(liveStreamId: string) {
 export async function recordLiveStreamHeartbeat(liveStreamId: string) {
   const user = await requireVerifiedUser();
 
-  const liveStream = await prisma.liveStream.findUnique({ where: { id: liveStreamId } });
-  if (!liveStream || liveStream.status !== "LIVE") {
-    return { error: "not_found" as const };
-  }
-
-  const isHost = liveStream.hostId === user.id;
-  if (!isHost) {
-    const viewer = await prisma.liveStreamViewer.findUnique({
-      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
-      select: { role: true },
-    });
-    if (viewer?.role !== "COHOST") {
-      return { error: null };
-    }
-  }
-
-  await prisma.liveStream.update({
-    where: { id: liveStreamId },
+  // The host's beat is one guarded write on their own stream's row (nothing shared with any other stream).
+  const hostBeat = await prisma.liveStream.updateMany({
+    where: { id: liveStreamId, hostId: user.id, status: "LIVE" },
     data: { lastHostActivityAt: new Date() },
   });
-  return { error: null };
+  if (hostBeat.count > 0) return { error: null };
+
+  const viewer = await prisma.liveStreamViewer.findUnique({
+    where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+    select: { role: true },
+  });
+  if (viewer?.role !== "COHOST") {
+    return { error: null };
+  }
+  const coHostBeat = await prisma.liveStream.updateMany({
+    where: { id: liveStreamId, status: "LIVE" },
+    data: { lastHostActivityAt: new Date() },
+  });
+  return coHostBeat.count > 0 ? { error: null } : { error: "not_found" as const };
 }
 
 /**
@@ -292,7 +286,8 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
   // reachable-but-rare instead of the normal path for any transient blip.
   try {
     const liveStream = await prisma.liveStream.findUnique({ where: { id: liveStreamId } });
-    if (!liveStream || liveStream.status !== "LIVE") {
+    // No room yet: a start still in progress (or one that failed part-way), nothing to join.
+    if (!liveStream || liveStream.status !== "LIVE" || !liveStream.roomName) {
       return { error: "not_found" as const };
     }
     if (!(await canAccessLiveStream(liveStream, user))) {
@@ -530,10 +525,15 @@ export async function getActiveLiveStreams() {
     const streams = await prisma.liveStream.findMany({
       where: {
         status: "LIVE",
+        // A start still attaching its room isn't listed until it can be joined.
+        roomName: { not: "" },
         targetUserId: null,
         OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" } }],
       },
       orderBy: { startedAt: "desc" },
+      // Bounded: every open Home tab runs this on each live-streams signal, so its cost must not grow with how
+      // many people are live at once.
+      take: ACTIVE_LIVE_STREAMS_LIMIT,
       include: {
         host: { select: { id: true, name: true, avatarUrl: true } },
         // role: "VIEWER" also excludes the host's own row (stored as COHOST — see joinLiveStream).

@@ -24,7 +24,9 @@ async function handler() {
 export default handler;
 
 export const config = {
-  // Every 5 minutes — tighter than the 30-min inactivity window itself, so
-  // this check doesn't add its own slop on top.
-  schedule: "*/5 * * * *",
+  // Every minute: besides ending streams idle for 30 minutes, the route
+  // retries "X is live" announcements the start's own after() callback lost
+  // (due 30s after a start), and those should go out within a minute or two,
+  // not five. A tick with nothing to do is two cheap indexed queries.
+  schedule: "* * * * *",
 };
