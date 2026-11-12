@@ -16,7 +16,7 @@ export const fr2 = {
   },
   "difference-between-watching-joining-guest": {
     q: "Quelle est la différence entre regarder, rejoindre en tant qu'invité et rejoindre en tant que coanimateur ?",
-    a: "**Regarder** se fait en simple spectateur : aucun accès à la caméra ni au micro. **Invité** et **coanimateur** placent tous deux votre caméra et votre micro sur scène, dans une vue en écran partagé aux côtés de la personne qui anime le direct (coanimateur est prévu pour quelqu'un qui aide à présenter, invité pour quelqu'un qui passe brièvement, mais les deux fonctionnent de la même façon). Il y a 3 places sur scène au total, partagées entre invités et coanimateurs, en plus de la personne qui anime le direct. Le nombre de spectateurs n'est pas limité.",
+    a: "**Regarder** se fait en simple spectateur : aucun accès à la caméra ni au micro. **Invité** et **coanimateur** placent tous deux votre caméra et votre micro sur scène, dans une vue en écran partagé aux côtés de la personne qui anime le direct (coanimateur est prévu pour quelqu'un qui aide à présenter, invité pour quelqu'un qui passe brièvement, mais les deux fonctionnent de la même façon). Il y a 3 places sur scène au total, partagées entre invités et coanimateurs, en plus de la personne qui anime le direct. Un direct a aussi une limite au nombre de personnes qui peuvent le regarder en même temps : s'il est complet, un message vous l'indique et vous pouvez réessayer un peu plus tard. Vous regardez un direct à la fois : en commencer un autre vous fait quitter celui que vous regardiez.",
   },
   "host-mute-guest-co-host": {
     q: "La personne qui anime le direct peut-elle couper le micro d'un invité ou d'un coanimateur ?",

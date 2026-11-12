@@ -14,6 +14,7 @@ export const liveEn = {
     unavailable: "Couldn't connect — check your connection and try again.",
     network: "Couldn't connect — check your connection and try again.",
     stale_deployment: newVersionAvailable,
+    stream_full: "This live is full right now. Try again in a little while.",
     other: "Couldn't join the stream — try again.",
   },
   refresh: "Refresh",

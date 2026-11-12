@@ -16,7 +16,7 @@ export const pt2 = {
   },
   "difference-between-watching-joining-guest": {
     q: "Qual é a diferença entre assistir, entrar como convidado e entrar como coapresentador?",
-    a: "**Assistir** é apenas ver: sem acesso à câmera nem ao microfone. **Convidado** e **coapresentador** colocam sua câmera e seu microfone no palco, em uma tela dividida ao lado de quem transmite (coapresentador é pensado para quem ajuda a apresentar, e convidado para quem aparece rapidamente, mas os dois funcionam do mesmo jeito). São 3 vagas no palco no total, divididas entre convidados e coapresentadores, além de quem transmite. Para assistir não há limite.",
+    a: "**Assistir** é apenas ver: sem acesso à câmera nem ao microfone. **Convidado** e **coapresentador** colocam sua câmera e seu microfone no palco, em uma tela dividida ao lado de quem transmite (coapresentador é pensado para quem ajuda a apresentar, e convidado para quem aparece rapidamente, mas os dois funcionam do mesmo jeito). São 3 vagas no palco no total, divididas entre convidados e coapresentadores, além de quem transmite. Uma transmissão também tem um limite de quantas pessoas podem assistir ao mesmo tempo: se estiver lotada, você verá uma mensagem avisando e poderá tentar novamente daqui a pouco. Você assiste a uma transmissão por vez: ao começar a assistir outra, você sai da que estava assistindo.",
   },
   "host-mute-guest-co-host": {
     q: "Quem transmite pode silenciar um convidado ou um coapresentador?",

@@ -324,6 +324,8 @@ export const feed: typeof feedEn = {
     joinGuest: "الانضمام كضيف",
     joinCohost: "الانضمام كمقدّم مشارك",
     connecting: "جارٍ الاتصال…",
+    full: "ممتلئ",
+    fullPreview: "هذا البث ممتلئ الآن",
     titleLabel: "ما الذي يحدث؟",
     audience: "من يمكنه المشاهدة",
     everyone: "الجميع (يظهر في الرئيسية)",

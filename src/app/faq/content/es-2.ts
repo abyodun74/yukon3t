@@ -16,7 +16,7 @@ export const es2 = {
   },
   "difference-between-watching-joining-guest": {
     q: "¿Qué diferencia hay entre ver, unirse como invitado y unirse como coanfitrión?",
-    a: "**Ver** es solo mirar: sin acceso a la cámara ni al micrófono. Tanto **invitado** como **coanfitrión** ponen tu cámara y tu micrófono en el escenario, en una vista de pantalla dividida junto a quien transmite (coanfitrión está pensado para alguien que ayuda a presentar e invitado para alguien que pasa un momento, pero funcionan igual). Hay 3 lugares en el escenario en total, compartidos entre invitados y coanfitriones, además de quien transmite. Para ver no hay límite.",
+    a: "**Ver** es solo mirar: sin acceso a la cámara ni al micrófono. Tanto **invitado** como **coanfitrión** ponen tu cámara y tu micrófono en el escenario, en una vista de pantalla dividida junto a quien transmite (coanfitrión está pensado para alguien que ayuda a presentar e invitado para alguien que pasa un momento, pero funcionan igual). Hay 3 lugares en el escenario en total, compartidos entre invitados y coanfitriones, además de quien transmite. Una transmisión también tiene un límite de cuántas personas pueden verla a la vez: si está llena, verás un mensaje que lo indica y podrás intentarlo de nuevo en un rato. Ves una transmisión a la vez: al empezar a ver otra, sales de la que estabas viendo.",
   },
   "host-mute-guest-co-host": {
     q: "¿Quien transmite puede silenciar a un invitado o a un coanfitrión?",

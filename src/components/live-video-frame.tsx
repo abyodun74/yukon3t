@@ -5,7 +5,7 @@ import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff } from "lucid
 import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } from "@daily-co/daily-js";
 import { useCallsText } from "@/components/calls-text";
 import { format } from "@/lib/i18n/locales";
-import { trackDailyDestroy } from "@/lib/call-prewarm";
+import { createCallObjectWhenReady, trackDailyDestroy } from "@/lib/call-prewarm";
 import { trackIsOn } from "@/lib/daily-tracks";
 
 /**
@@ -72,17 +72,33 @@ export function LiveVideoFrame({
     // package touches browser globals at module load, so it must never be
     // evaluated during SSR of this "use client" component's initial
     // server-rendered pass.
-    import("@daily-co/daily-js").then(({ default: DailyIframe }) => {
+    import("@daily-co/daily-js").then(async ({ default: DailyIframe }) => {
       if (cancelled) return;
 
       // No container/iframe — createCallObject() (not createFrame()) is
       // Daily's "custom UI" mode: it drives the same underlying call but
       // renders nothing of its own, which is the whole point here.
-      // avoidEval: true loads the call-machine bundle via a <script> tag
-      // from Daily's CDN instead of a Function()-based eval — this app's
-      // CSP (src/proxy.ts) never allows 'unsafe-eval' in production, so
-      // without this the call object would fail to initialize at all.
-      call = DailyIframe.createCallObject({ dailyConfig: { avoidEval: true } });
+      // createCallObjectWhenReady (call-prewarm.ts) first waits for the
+      // previous instance's tracked destroy to finish: moving from one live
+      // stream straight into another (a new roomUrl/token on this same
+      // frame) tears the old room down in this effect's cleanup, and
+      // daily-js refuses a second instance until that destroy completes. It
+      // also evicts a leftover Home-feed preview, since the person is now
+      // in a room, and creates with avoidEval: true (this app's CSP never
+      // allows 'unsafe-eval').
+      let created: DailyCall | null;
+      try {
+        created = await createCallObjectWhenReady(DailyIframe, () => cancelled);
+      } catch (err) {
+        console.error("Daily call object create failed:", err);
+        if (!cancelled) setJoinError(true);
+        return;
+      }
+      if (!created || cancelled) {
+        if (created) void trackDailyDestroy(created.destroy());
+        return;
+      }
+      call = created;
       callRef.current = call;
 
       call.on("participant-joined", refreshParticipants);

@@ -323,6 +323,8 @@ export const feed: typeof feedEn = {
     joinGuest: "Entrar como convidado",
     joinCohost: "Entrar como coapresentador",
     connecting: "Conectando…",
+    full: "Lotada",
+    fullPreview: "Esta transmissão está lotada no momento",
     titleLabel: "O que está acontecendo?",
     audience: "Quem pode assistir",
     everyone: "Todos (aparece no Início)",

@@ -325,6 +325,8 @@ export const feed: typeof feedEn = {
     joinGuest: "Rejoindre en tant qu'invité",
     joinCohost: "Rejoindre en tant que coanimateur",
     connecting: "Connexion…",
+    full: "Complet",
+    fullPreview: "Ce direct est complet pour le moment",
     titleLabel: "Que se passe-t-il ?",
     audience: "Qui peut regarder",
     everyone: "Tout le monde (affiché sur l'Accueil)",

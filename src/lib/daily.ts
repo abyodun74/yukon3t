@@ -3,6 +3,7 @@
 // endpoints. The client only ever gets @daily-co/daily-js, for joining.
 import { CALL_ROOM_LIFETIME_SECONDS } from "@/lib/call-resilience";
 import { DailyApiError, dailyRequest } from "@/lib/daily-request";
+import { LIVE_ROOM_MAX_PARTICIPANTS } from "@/lib/live-viewer-cap";
 
 export function isCallingConfigured() {
   return Boolean(process.env.DAILY_API_KEY);
@@ -99,6 +100,28 @@ export async function createMeetingToken({
 
   const data = await res.json();
   return data.token as string;
+}
+
+/**
+ * Removes these users' sessions from a room (Daily's "eject participants" endpoint, by our user ids, which
+ * createMeetingToken sets as each token's user_id). Daily can't revoke a meeting token, so this is how a viewer who
+ * moved on to another live stream stops being a (billed) participant of the previous one even if their client never
+ * left it. Best-effort: retried by dailyRequest, and every failure is swallowed (the caller never waits on it).
+ */
+export async function ejectFromRoom(roomName: string, userIds: string[]) {
+  if (!roomName || userIds.length === 0) return;
+  try {
+    await dailyRequest(`https://api.daily.co/v1/rooms/${encodeURIComponent(roomName)}/eject`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_ids: userIds }),
+    });
+  } catch {
+    // Best-effort: the room's own exp, and the client having left it, end the session anyway.
+  }
 }
 
 // Deleting a room is best-effort (its own `exp` removes it either way), so it is not worth waiting long for.
@@ -245,6 +268,10 @@ export async function createLiveStreamRoom({
     enable_screenshare: true,
     eject_at_room_exp: true,
     enable_prejoin_ui: false,
+    // Daily's own hard ceiling on people in the room (billing protection): joinLiveStream enforces MAX_LIVE_VIEWERS
+    // per stream, and this backs it up for anything that reaches Daily without going through it (a leaked token
+    // reused while still valid). The headroom keeps the host, the stage and admins from ever being the ones refused.
+    max_participants: LIVE_ROOM_MAX_PARTICIPANTS,
   };
   try {
     // Cloud recording needs a Daily plan that supports it — attempted first

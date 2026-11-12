@@ -12,6 +12,7 @@ export const live: typeof liveEn = {
     unavailable: "No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.",
     network: "No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.",
     stale_deployment: newVersionAvailable,
+    stream_full: "Esta transmisión está llena en este momento. Inténtalo de nuevo en un rato.",
     other: "No se pudo entrar a la transmisión. Inténtalo de nuevo.",
   },
   refresh: "Actualizar",

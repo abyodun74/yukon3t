@@ -13,6 +13,7 @@ export const live: typeof liveEn = {
     unavailable: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
     network: "تعذّر الاتصال. تحقق من اتصالك ثم حاول مرة أخرى.",
     stale_deployment: newVersionAvailable,
+    stream_full: "هذا البث ممتلئ الآن. حاول مرة أخرى بعد قليل.",
     other: "تعذّر الانضمام إلى البث. حاول مرة أخرى.",
   },
   refresh: "تحديث",

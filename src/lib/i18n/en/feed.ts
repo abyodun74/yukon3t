@@ -328,6 +328,8 @@ export const feedEn = {
     joinGuest: "Join as guest",
     joinCohost: "Join as co-host",
     connecting: "Connecting…",
+    full: "Full",
+    fullPreview: "This live is full right now",
     titleLabel: "What's happening?",
     audience: "Who can watch",
     everyone: "Everyone — shown on Home",

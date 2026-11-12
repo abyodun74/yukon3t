@@ -809,7 +809,11 @@ const sections: Section[] = [
             host (co-host is meant for someone helping present, guest for
             someone dropping in briefly, but they work the same way). There
             are 3 stage spots total, shared between guests and co-hosts, on
-            top of the host — watching has no limit.
+            top of the host. A live also has a limit on how many people can
+            watch at once: if it&apos;s full, you&apos;ll see a message
+            saying so, and you can try again shortly. You watch one live at a
+            time: starting to watch another one leaves the one you were
+            watching.
           </>
         ),
       },

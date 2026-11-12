@@ -9,6 +9,7 @@ import {
   createLiveStreamRoom,
   createMeetingToken,
   deleteCallRoom,
+  ejectFromRoom,
   isCallingConfigured,
   listRoomRecordings,
   getRecordingAccessLink,
@@ -25,8 +26,18 @@ import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { liveChatPageQuery } from "@/lib/live-chat-page";
 import { announceLiveStream } from "@/lib/live-stream-announce";
 import { existingLiveDecision, liveStartLockKey } from "@/lib/live-stream-start";
+import {
+  LIVE_TOKEN_TTL_SECONDS,
+  holdsViewerSlot,
+  isStreamFull,
+  isViewerCapExempt,
+  liveViewerLockKey,
+  otherViewingsWhere,
+  slotHoldingViewerWhere,
+  viewerCapDecision,
+} from "@/lib/live-viewer-cap";
 
-/** Co-host + guest slots available per stream, on top of the host — unlimited viewers watch alongside them. */
+/** Co-host + guest slots available per stream, on top of the host — up to MAX_LIVE_VIEWERS (live-viewer-cap.ts) watch alongside them. */
 const MAX_STAGE_PARTICIPANTS = 3;
 
 /** Most live streams Home's "Live now" strip and feed cards list at once (newest first). */
@@ -295,42 +306,98 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
     }
 
     const isHost = liveStream.hostId === user.id;
+    const now = new Date();
+    // This person's own presence row on this stream, if any: what decides an already-approved stage role, whether
+    // they already hold a viewer slot (a reload or reconnect), and whether they're a co-host (exempt from the cap).
+    const existing = await prisma.liveStreamViewer.findUnique({
+      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+      select: { role: true, joinedAt: true },
+    });
     let role: "VIEWER" | "GUEST" | "COHOST" = "VIEWER";
+    // Only skip the approval flow when their existing role already covers
+    // what they're asking for now — COHOST covers any request (it's the
+    // higher tier: it also carries GUEST's canSend grant, plus recording),
+    // and an exact role match is obviously already covered. A GUEST
+    // asking to become COHOST is a real privilege escalation (recording
+    // access — see canRecord in live-stream-room.tsx) and must still go
+    // through a fresh approval below, not be silently satisfied by their
+    // old GUEST role. Already approved earlier on this same stream (e.g. a
+    // reconnect after a dropped connection, or asking again for the same
+    // role) rejoins straight onto the stage rather than making them ask again.
+    const alreadyOnStage =
+      !isHost && !!parsedRole.data && (existing?.role === "COHOST" || existing?.role === parsedRole.data);
+    if (alreadyOnStage) role = existing!.role;
+
+    // The viewer cap (live-viewer-cap.ts): counting who holds a slot and writing this person's row happen under one
+    // per-stream lock, so two people racing for the last slot can't both get it. The host, co-hosts and admins are
+    // always let in; someone who already holds a slot (a reload, a reconnect) is never refused or counted twice.
+    const exempt = isViewerCapExempt({ isHost, isAdmin: user.isAdmin, existingRole: existing?.role });
+    const alreadyHoldsSlot = holdsViewerSlot(existing, user.lastSeenAt, now);
+    const rowRole = isHost ? "COHOST" : role;
+    const claim = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${liveViewerLockKey(liveStreamId)}))`;
+      if (!exempt && !alreadyHoldsSlot) {
+        const othersHoldingSlots = await tx.liveStreamViewer.count({
+          where: { liveStreamId, userId: { notIn: [user.id, liveStream.hostId] }, ...slotHoldingViewerWhere(now) },
+        });
+        if (viewerCapDecision({ exempt, alreadyHoldsSlot, othersHoldingSlots }) === "full") return "full" as const;
+      }
+      await tx.liveStreamViewer.upsert({
+        where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+        create: { liveStreamId, userId: user.id, role: rowRole, joinedAt: now },
+        update: { joinedAt: now, role: rowRole },
+      });
+      // One viewing per person: getting into this stream ends their viewing of any other (its slot is free at once,
+      // and nobody is ever counted in two streams). Only after this stream's claim succeeded, so a refused (full)
+      // join leaves the previous viewing alone. Never a co-host seat, and never anything on a stream they host:
+      // hosting isn't a viewing, and watching someone else never ends their own live (otherViewingsWhere).
+      const left = await tx.liveStreamViewer.findMany({
+        where: otherViewingsWhere(user.id, liveStreamId),
+        select: { liveStreamId: true, liveStream: { select: { roomName: true, status: true } } },
+      });
+      if (left.length > 0) {
+        await tx.liveStreamViewer.deleteMany({
+          where: { ...otherViewingsWhere(user.id, liveStreamId), liveStreamId: { in: left.map((l) => l.liveStreamId) } },
+        });
+      }
+      return { left };
+    });
+    if (claim === "full") {
+      // Nothing written and no Daily token minted: a full stream costs one locked count, not a Daily API call.
+      return { error: "stream_full" as const };
+    }
+    if (claim.left.length > 0) {
+      // After the answer, never part of it: tell the streams they left (their counts moved) and take this person's
+      // session out of those rooms, since a Daily token can't be revoked and the server doesn't trust the client to
+      // have left. Both are best-effort and can't fail or slow this join.
+      const left = claim.left;
+      const userId = user.id;
+      after(async () => {
+        await Promise.allSettled(
+          left.flatMap((l) => [
+            publishLiveStreamSignal(l.liveStreamId, "presence"),
+            l.liveStream.status === "LIVE" ? ejectFromRoom(l.liveStream.roomName, [userId]) : Promise.resolve(),
+          ]),
+        );
+      });
+    }
+
     // Non-null only when this call just filed (or re-filed) a pending
     // request rather than landing directly on stage — the client uses this
     // to show a "waiting for the host" state instead of full stage
-    // controls.
+    // controls. Filed only once they're actually in, so a refused (full)
+    // join never leaves a request in front of the host.
     let pendingStageRequest: "GUEST" | "COHOST" | null = null;
-
-    if (!isHost && parsedRole.data) {
-      const existing = await prisma.liveStreamViewer.findUnique({
+    if (!isHost && parsedRole.data && !alreadyOnStage) {
+      // Capacity is checked at approval time (respondToStageRequest), not
+      // here — a request is allowed to sit pending even while the stage
+      // is momentarily full, in case a slot opens up.
+      await prisma.liveStreamStageRequest.upsert({
         where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
+        create: { liveStreamId, userId: user.id, role: parsedRole.data, status: "PENDING" },
+        update: { role: parsedRole.data, status: "PENDING", respondedAt: null },
       });
-      // Only skip the approval flow when their existing role already covers
-      // what they're asking for now — COHOST covers any request (it's the
-      // higher tier: it also carries GUEST's canSend grant, plus recording),
-      // and an exact role match is obviously already covered. A GUEST
-      // asking to become COHOST is a real privilege escalation (recording
-      // access — see canRecord in live-stream-room.tsx) and must still go
-      // through a fresh approval below, not be silently satisfied by their
-      // old GUEST role.
-      const alreadyOnStage = existing?.role === "COHOST" || existing?.role === parsedRole.data;
-      if (alreadyOnStage) {
-        // Already approved earlier on this same stream (e.g. a reconnect
-        // after a dropped connection, or asking again for the same role) —
-        // rejoin straight onto the stage rather than making them ask again.
-        role = existing!.role;
-      } else {
-        // Capacity is checked at approval time (respondToStageRequest), not
-        // here — a request is allowed to sit pending even while the stage
-        // is momentarily full, in case a slot opens up.
-        await prisma.liveStreamStageRequest.upsert({
-          where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
-          create: { liveStreamId, userId: user.id, role: parsedRole.data, status: "PENDING" },
-          update: { role: parsedRole.data, status: "PENDING", respondedAt: null },
-        });
-        pendingStageRequest = parsedRole.data;
-      }
+      pendingStageRequest = parsedRole.data;
     }
 
     let token: string;
@@ -350,16 +417,16 @@ export async function joinLiveStream(liveStreamId: string, requestedRole?: "GUES
         // restriction, and confirmed live that permissions.canSend alone
         // does not.
         isOwner: isHost || role === "GUEST" || role === "COHOST",
+        expiresInSeconds: LIVE_TOKEN_TTL_SECONDS,
       });
     } catch {
+      // A slot this call took (no row before) is given back; a refreshed existing row is left as it was claimed.
+      if (!existing) {
+        await prisma.liveStreamViewer.deleteMany({ where: { liveStreamId, userId: user.id } }).catch(() => undefined);
+      }
       return { error: "call_service_unavailable" as const };
     }
 
-    await prisma.liveStreamViewer.upsert({
-      where: { liveStreamId_userId: { liveStreamId, userId: user.id } },
-      create: { liveStreamId, userId: user.id, role: isHost ? "COHOST" : role },
-      update: { joinedAt: new Date(), role: isHost ? "COHOST" : role },
-    });
     // A plain watch-only join — a real viewer's or a Home feed card's
     // preview (live-stream-preview-embed.tsx), which are the same call —
     // only moves the counts, so it's "presence", which listeners throttle.
@@ -541,12 +608,25 @@ export async function getActiveLiveStreams() {
       },
     });
 
+    // Which of them are at the viewer cap, so a feed card can say "Full" instead of trying to play: one grouped count
+    // over at most ACTIVE_LIVE_STREAMS_LIMIT streams (LiveStreamViewer is indexed on liveStreamId).
+    const slotsHeld = new Map<string, number>();
+    if (streams.length > 0) {
+      const groups = await prisma.liveStreamViewer.groupBy({
+        by: ["liveStreamId"],
+        where: { liveStreamId: { in: streams.map((s) => s.id) }, ...slotHoldingViewerWhere(new Date()) },
+        _count: { _all: true },
+      });
+      for (const g of groups) slotsHeld.set(g.liveStreamId, g._count._all);
+    }
+
     return {
       streams: streams.map((s) => ({
         id: s.id,
         title: s.title,
         host: s.host,
         viewerCount: s._count.viewers,
+        full: isStreamFull(slotsHeld.get(s.id) ?? 0),
       })),
     };
   } catch {
@@ -558,8 +638,12 @@ export async function getActiveLiveStreams() {
  * Polled by the live room to show a live watching-viewer count plus how many
  * of the MAX_STAGE_PARTICIPANTS co-host/guest stage slots are filled. The
  * host is excluded from both counts (see joinLiveStream's doc comment).
+ * `withFull` (the Home feed card only) also answers whether the stream is at
+ * its viewer cap, so the card can stop showing "Full" once a slot opens; the
+ * room itself doesn't ask, so its frequent refetches cost no extra count.
  */
-export async function getLiveStreamViewerCount(liveStreamId: string) {
+export async function getLiveStreamViewerCount(liveStreamId: string, options?: { withFull?: boolean }) {
+  const empty = { count: 0, stageCount: 0, stageCapacity: MAX_STAGE_PARTICIPANTS, full: false };
   try {
     const user = await requireVerifiedViewer();
 
@@ -568,20 +652,25 @@ export async function getLiveStreamViewerCount(liveStreamId: string) {
       select: { hostId: true, circleId: true, targetUserId: true },
     });
     if (!liveStream || !(await canAccessLiveStream(liveStream, user))) {
-      return { count: 0, stageCount: 0, stageCapacity: MAX_STAGE_PARTICIPANTS };
+      return empty;
     }
 
-    const [count, stageCount] = await Promise.all([
+    const [count, stageCount, slotsHeld] = await Promise.all([
       prisma.liveStreamViewer.count({
         where: { liveStreamId, role: "VIEWER", userId: { not: liveStream.hostId } },
       }),
       prisma.liveStreamViewer.count({
         where: { liveStreamId, role: { in: ["GUEST", "COHOST"] }, userId: { not: liveStream.hostId } },
       }),
+      options?.withFull === true
+        ? prisma.liveStreamViewer.count({
+            where: { liveStreamId, userId: { not: liveStream.hostId }, ...slotHoldingViewerWhere(new Date()) },
+          })
+        : Promise.resolve(0),
     ]);
-    return { count, stageCount, stageCapacity: MAX_STAGE_PARTICIPANTS };
+    return { count, stageCount, stageCapacity: MAX_STAGE_PARTICIPANTS, full: isStreamFull(slotsHeld) };
   } catch {
-    return { count: 0, stageCount: 0, stageCapacity: MAX_STAGE_PARTICIPANTS };
+    return empty;
   }
 }
 

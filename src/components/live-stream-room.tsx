@@ -199,6 +199,8 @@ export function LiveStreamRoom({
   // retroactively for a recording already in progress.
   const wantsAutoPostRef = useRef(false);
   const lastCommentIdRef = useRef<string | undefined>(undefined);
+  // The role the last join asked for, so "Try again" on a full stream (stream_full) asks for the same thing again.
+  const lastJoinRoleRef = useRef<StageRole | undefined>(undefined);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   // Split from doJoin below: this only fires the request and reacts to its
@@ -214,6 +216,7 @@ export function LiveStreamRoom({
         promptSignUp();
         return;
       }
+      lastJoinRoleRef.current = selectedRole;
       joinLiveStream(liveStreamId, selectedRole)
         .then((result) => {
           if (result.error || !result.roomUrl || !result.token) {
@@ -793,7 +796,12 @@ export function LiveStreamRoom({
               type="button"
               onClick={() => {
                 setError(null);
-                if (isHost) {
+                if (error === "stream_full") {
+                  // The stream was at its viewer cap (live-viewer-cap.ts): one tap asks again for exactly what they
+                  // asked for before. Nothing retries on its own.
+                  setPhase("joining");
+                  requestJoin(lastJoinRoleRef.current);
+                } else if (isHost) {
                   setPhase("joining");
                   requestJoin();
                 } else if (initialRole) {

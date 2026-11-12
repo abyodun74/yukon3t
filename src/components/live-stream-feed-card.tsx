@@ -18,6 +18,8 @@ export type FeedLiveStream = {
   title: string;
   host: { id: string; name: string | null; avatarUrl: string | null };
   viewerCount: number;
+  /** At the viewer cap (MAX_LIVE_VIEWERS) when the list was read; kept current by the count refetch below. */
+  full: boolean;
 };
 
 // Most of the card has to actually be on screen before it counts as "being
@@ -63,6 +65,9 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
   const { t, locale } = useFeedText();
   const { t: shell } = useShellText();
   const [viewerCount, setViewerCount] = useState(stream.viewerCount);
+  // The latest server answer on whether the stream is at its viewer cap. A full stream's card shows "Full" and its
+  // preview doesn't try to play (LiveStreamPreviewEmbed's `full`); a later count saying a slot opened lets it try once.
+  const [full, setFull] = useState(stream.full);
   const containerRef = useRef<HTMLDivElement>(null);
   const [embedActive, setEmbedActive] = useState(false);
   const router = useRouter();
@@ -94,8 +99,11 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
   const countThrottle = useMemo(
     () =>
       createTrailingThrottle(() => {
-        getLiveStreamViewerCount(streamId)
-          .then((result) => setViewerCount(result.count))
+        getLiveStreamViewerCount(streamId, { withFull: true })
+          .then((result) => {
+            setViewerCount(result.count);
+            setFull(result.full);
+          })
           // Fired from a timer — a transient blip just waits for the next signal.
           .catch(() => {});
       }, COUNT_REFETCH_INTERVAL_MS),
@@ -131,10 +139,21 @@ export function LiveStreamFeedCard({ stream }: { stream: FeedLiveStream }) {
           <Eye size={13} />
           {plural(locale, t.live.watching, viewerCount)}
         </span>
+        {full && (
+          <span className="rounded-full border border-line px-2 py-0.5 text-[0.6875rem] font-semibold text-foreground-soft">
+            {t.live.full}
+          </span>
+        )}
       </div>
 
       <div className="mt-2.5 aspect-video overflow-hidden rounded-lg bg-black">
-        <LiveStreamPreviewEmbed liveStreamId={stream.id} hostId={stream.host.id} active={embedActive} />
+        <LiveStreamPreviewEmbed
+          liveStreamId={stream.id}
+          hostId={stream.host.id}
+          active={embedActive}
+          full={full}
+          onFull={() => setFull(true)}
+        />
       </div>
 
       <div className="mt-2.5 flex items-center gap-2.5">
