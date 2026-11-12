@@ -532,9 +532,14 @@ const sections: Section[] = [
             already works, just moderated by that platform rather than
             YuKon3t itself. For any other link, YuKon3t tells you so and you
             can still send it to a friend from the same dialog. This works in
-            the Android app; iPhone support comes with an app update (on
-            iPhone, after choosing YuKon3t, open YuKon3t to pick where it
-            goes).
+            the Android app and on iPhone (YuKon3t 1.2 or later) for photos,
+            screenshots, videos and links. On Android the dialog opens
+            straight away. On iPhone, after you pick YuKon3t in the share
+            sheet it saves what you shared and shows &ldquo;Saved. Open
+            YuKon3t to choose where to share it.&rdquo; Open YuKon3t and the
+            same dialog appears, where you choose where it goes: your Home
+            Feed, a Circle you belong to (the channels you can post in), a
+            message to a friend, or your Story or Muse.
           </>
         ),
       },
@@ -1305,7 +1310,15 @@ const sections: Section[] = [
             ringtone — pick one under Settings → Calls) and can accept or
             decline. Accepting connects you into the call right away, even
             if their phone was locked or the app was in the background when
-            it rang.
+            it rang. On iPhone (YuKon3t 1.2 or later), accepting on the
+            iPhone call screen answers in one step (tap Accept, or use the
+            slider if the phone is locked), with no second Accept inside the
+            app. If you&apos;re signed in on more than one iPhone, answering
+            on one stops the others ringing. To end a voice call while the
+            sound is coming through the earpiece, you can also press the
+            side button. On speaker, or in a video call, the side button
+            only locks the screen and the call carries on, so use the red
+            hang-up button to end it.
           </>
         ),
       },

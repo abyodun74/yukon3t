@@ -33,7 +33,7 @@ export const pt3 = {
   },
   "voice-video-calls-work": {
     q: "Como funcionam as chamadas de voz e de vídeo?",
-    a: "Toque no ícone de telefone ou de vídeo no perfil de uma conexão ou na sua conversa com ela. O celular dela toca (com o toque que você escolheu; escolha um em Configurações → «Chamadas») e ela pode aceitar ou recusar. Ao aceitar, vocês entram na chamada na hora, mesmo que o celular dela estivesse bloqueado ou o aplicativo em segundo plano quando tocou.",
+    a: "Toque no ícone de telefone ou de vídeo no perfil de uma conexão ou na sua conversa com ela. O celular dela toca (com o toque que você escolheu; escolha um em Configurações → «Chamadas») e ela pode aceitar ou recusar. Ao aceitar, vocês entram na chamada na hora, mesmo que o celular dela estivesse bloqueado ou o aplicativo em segundo plano quando tocou. No iPhone (YuKon3t 1.2 ou mais recente), aceitar na tela de chamada do iPhone atende em um só passo (toque em Aceitar, ou use o controle deslizante se o celular estiver bloqueado), sem um segundo Aceitar dentro do aplicativo. Se você estiver conectado em mais de um iPhone, atender em um faz os outros pararem de tocar. Para encerrar uma chamada de voz enquanto o som sai pelo alto-falante de ouvido, você também pode apertar o botão lateral. No viva-voz, ou em uma chamada de vídeo, o botão lateral só bloqueia a tela e a chamada continua, então use o botão vermelho de desligar para encerrá-la.",
   },
   "add-more-people-call": {
     q: "Posso adicionar mais pessoas a uma chamada?",
