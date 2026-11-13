@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { GiftArt } from "@/components/gift-art";
+import { GiftLottie } from "@/components/gift-lottie";
+import { resolveGiftAnimation } from "@/lib/gift-assets";
 import { useGiftsText } from "@/components/gifts-text";
 import { getLiveGiftEffects } from "@/app/actions/gifts";
 import { LIVE_GIFT_EFFECT_MS, createGiftEffectQueue } from "@/lib/gifts";
@@ -84,6 +86,16 @@ function Effect({ effect, reduce, label }: { effect: string; reduce: boolean; la
       <div className="absolute inset-x-0 top-1/3 flex flex-col items-center gap-2">
         <GiftArt assetKey={effect} name={label} size={72} eager />
         <span className="rounded-full bg-black/60 px-3 py-1 text-sm text-white">{label}</span>
+      </div>
+    );
+  }
+
+  // A Lottie live effect (Phase A, e.g. Level Up): at most LIVE_GIFT_EFFECT_MS long and never flashing more than three
+  // times a second (both checked for every file by gift-assets.test.ts); the queue's timer ends it either way.
+  if (resolveGiftAnimation(effect)) {
+    return (
+      <div className="absolute inset-x-0 top-1/4 flex justify-center">
+        <GiftLottie assetKey={effect} name={label} size={220} reduce={false} />
       </div>
     );
   }

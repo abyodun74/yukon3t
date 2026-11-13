@@ -251,7 +251,12 @@ describe("the holiday dataset stays on the server", () => {
   });
 
   it("only server code imports the holiday modules", () => {
-    const allowed = new Set(["src/lib/holidays-data.ts", "src/app/api/cron/holiday-reminders/route.ts"]);
+    const allowed = new Set([
+      "src/lib/holidays-data.ts",
+      "src/app/api/cron/holiday-reminders/route.ts",
+      // The gift occasion engine's server half (holidaysTodayForGifts); server-only like the cron.
+      "src/lib/gift-occasions-data.ts",
+    ]);
     const importers = files.filter(({ src }) => /from\s*["']@\/lib\/holidays(-data)?["']|from\s*["']\.\/holidays(-data)?["']/.test(src));
     for (const f of importers) {
       expect(f.src, f.path).not.toMatch(/^\s*["']use client["']/m);

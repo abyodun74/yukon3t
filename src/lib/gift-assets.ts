@@ -48,10 +48,84 @@ export const GIFT_SVG_ASSET_KEYS = [
   "gold-ring-frame",
   "confetti",
   "aurora-sweep",
+  // Phase A (the five universes, and the free kind words).
+  "heartbeat-note",
+  "paper-crane",
+  "forget-me-not",
+  "birthday-candle",
+  // Not a catalog item: the Birthday Candle once blown out in the open-gift overlay.
+  "birthday-candle-out",
+  "cake-slice",
+  "grad-cap",
+  "gold-star",
+  "gg-badge",
+  "level-up",
+  "trophy-frame",
+  "pixel-heart",
+  "gold-orchid",
+  "midnight-crystal-frame",
+  "lantern",
+  "shared-table",
+  "thank-you",
+  "appreciate-you",
+  "cheering-you-on",
+  "proud-of-you",
   "sparkle",
 ] as const;
 
 export type GiftSvgKey = (typeof GIFT_SVG_ASSET_KEYS)[number];
+
+/**
+ * An animated gift (Phase A): a Lottie JSON file served same-origin from public/gifts/lottie/, played by
+ * src/components/gift-lottie.tsx with lottie-web's light SVG player (no expression engine, no eval, no web worker),
+ * loaded lazily only when one of these renders large (the open-gift overlay, a live-room effect). Everywhere else, and
+ * whenever "reduce motion" is on, the item's static art is drawn instead: its SVG (same assetKey, the still that
+ * matches the animation's poster frame) or, for reduce motion inside the player, the frame at the "poster" marker.
+ *
+ * Every file must pass gift-assets.test.ts: under GIFT_LOTTIE_MAX_BYTES, no expressions, no image or font assets (shapes
+ * only, nothing fetched from anywhere), a "poster" marker inside the animation, a live effect no longer than
+ * LIVE_GIFT_EFFECT_MS and never flashing more than 3 times a second, and a `source` and `licence` recorded here.
+ * To swap in a commissioned or licensed animation: drop the .json in public/gifts/lottie/ under the same name (or add a
+ * new entry), set `source` and `licence` truthfully, add a "poster" marker in the editor (After Effects: a composition
+ * marker named "poster"; LottieFiles: a marker), export with "Bodymovin" expressions off and images not embedded, and
+ * run `npx vitest run src/lib/gift-assets.test.ts`.
+ */
+export type GiftLottieAsset = {
+  /** Same-origin path of the Lottie JSON. */
+  src: string;
+  /** Play once and hold the last frame (false), or loop while shown (true). */
+  loop: boolean;
+  /** Who made it. */
+  source: string;
+  /** Its licence (or "original work, owned by YuKon3t"). */
+  licence: string;
+};
+
+/** Largest Lottie file accepted. */
+export const GIFT_LOTTIE_MAX_BYTES = 150 * 1024;
+/** The marker name of the still shown with reduce motion on (and the frame a poster SVG must match). */
+export const GIFT_LOTTIE_POSTER_MARKER = "poster";
+
+/** Lottie animations, by assetKey. Each key is also a GIFT_SVG_ASSET_KEYS entry: its still. */
+export const GIFT_LOTTIE_ASSETS: Readonly<Record<string, GiftLottieAsset>> = {
+  "gold-orchid": {
+    src: "/gifts/lottie/gold-orchid.json",
+    loop: false,
+    source: "Hand-authored for YuKon3t, 2026-11 (Phase A pipeline proof)",
+    licence: "Original work, owned by YuKon3t",
+  },
+  "level-up": {
+    src: "/gifts/lottie/level-up.json",
+    loop: false,
+    source: "Hand-authored for YuKon3t, 2026-11 (Phase A pipeline proof)",
+    licence: "Original work, owned by YuKon3t",
+  },
+};
+
+/** The animation for `assetKey`, or null when it has none (it is drawn still). */
+export function resolveGiftAnimation(assetKey: string): GiftLottieAsset | null {
+  return Object.prototype.hasOwnProperty.call(GIFT_LOTTIE_ASSETS, assetKey) ? GIFT_LOTTIE_ASSETS[assetKey] : null;
+}
 
 export type ResolvedGiftArt =
   | { type: "svg"; key: GiftSvgKey }

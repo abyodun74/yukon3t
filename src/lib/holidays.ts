@@ -191,3 +191,15 @@ export function dueHolidays(country: string | null | undefined, timeZone: string
   const holidays = holidaysOn(cc, date);
   return holidays.length > 0 ? { cc, date, holidays } : null;
 }
+
+/**
+ * How many holidays (selectHolidays) of the account's own `country` fall on its local date at `now`, all day long (no
+ * HOLIDAY_REMINDER_HOUR: this only reorders the gift picker, src/lib/gift-occasions.ts, it sends nothing). 0 for no
+ * country, "Other / Not listed", or a country the dataset doesn't cover. Never says which holiday or what date.
+ */
+export function holidayCountToday(country: string | null | undefined, timeZone: string | null | undefined, now: Date): number {
+  const cc = countryCode(country);
+  if (!cc || !isHolidayCountry(cc)) return 0;
+  const local = localDateTime(now, timeZone);
+  return holidaysOn(cc, { year: local.year, month: local.month, day: local.day }).length;
+}

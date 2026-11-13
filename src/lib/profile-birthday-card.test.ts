@@ -228,6 +228,19 @@ describe("ProfileBirthdayCard (server render)", () => {
     expect(render({ kind: "visitor", wish: "none" })).not.toContain("Send a wish");
   });
 
+  it("puts Send a wish first and the page's Send a gift second (Phase A), and no gift unless the page passes one", () => {
+    const gift = createElement("button", { type: "button", "data-gift": "1" }, "Send a gift");
+    const html = renderToStaticMarkup(
+      createElement(ProfileBirthdayCard, { card: { kind: "visitor", wish: "available" }, person: { id: "owner", name: "Ada" }, giftAction: gift }),
+    );
+    expect(html.indexOf("Send a wish")).toBeGreaterThan(-1);
+    expect(html.indexOf('data-gift="1"')).toBeGreaterThan(html.indexOf("Send a wish"));
+    expect(render({ kind: "visitor", wish: "available" })).not.toContain("data-gift");
+    // The owner's own card never offers a gift to themselves.
+    const own = renderToStaticMarkup(createElement(ProfileBirthdayCard, { card: { kind: "own" }, person: { id: "owner", name: "Ada" }, giftAction: gift }));
+    expect(own).not.toContain("data-gift");
+  });
+
   it("is still: no animation or confetti, and never a year or an age", () => {
     for (const card of [{ kind: "own" }, { kind: "visitor", wish: "available" }] as Card[]) {
       const html = render(card);

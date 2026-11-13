@@ -199,6 +199,8 @@ describe("when Upstash is unavailable", () => {
     // Not senders, but on the same database fallback: digital gifts (app/actions/gifts.ts) must never be unlimited.
     "giftIntent",
     "giftToSameRecipient",
+    "giftFreeDaily",
+    "giftFreeToSameRecipient",
   ] as const;
 
   it("puts every email/SMS-sending limiter on the database fallback, and only paid ones on plain fail-closed", () => {
@@ -206,7 +208,7 @@ describe("when Upstash is unavailable", () => {
     expect([...FAIL_CLOSED_WITH_DB_FALLBACK].sort()).toEqual([...SENDERS].sort());
     for (const name of FAIL_CLOSED_NO_FALLBACK) expect(unavailableBehaviour(name)).toBe("closed");
     // Reads, feeds and the page limit keep failing open.
-    for (const name of ["pageRequest", "pageRequestDevice", "like", "museView", "avatarView", "pollList", "giftOpen"] as const) {
+    for (const name of ["pageRequest", "pageRequestDevice", "like", "museView", "avatarView", "pollList", "giftOpen", "giftCatalog"] as const) {
       expect(unavailableBehaviour(name)).toBe("open");
     }
   });

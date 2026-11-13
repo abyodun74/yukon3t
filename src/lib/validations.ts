@@ -252,6 +252,28 @@ export const giftSendIdSchema = z.string().cuid();
 export const giftItemSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 export const giftEquipKindSchema = z.enum(["FRAME", "BADGE"]);
 export const giftsFromSchema = z.object({ giftsFrom: z.enum(["EVERYONE", "CONNECTIONS", "NOBODY"]) });
+// Phase A (occasion-aware gifting).
+export const giftCatalogSchema = z.object({
+  recipientId: z.string().cuid(),
+  context: z.enum(["DIRECT", "CHAT", "LIVE"]).optional(),
+});
+export const giftFreeSchema = z.object({
+  productSku: giftSku,
+  recipientId: z.string().cuid(),
+  message: z.string().max(1000).nullable().optional(),
+  place: z
+    .union([
+      z.object({ context: z.literal("DIRECT") }),
+      z.object({ context: z.literal("CHAT"), conversationId: z.string().cuid() }),
+    ])
+    .optional(),
+});
+export const giftOwnedIdSchema = z.string().cuid();
+export const giftSelfOccasionKindSchema = z.enum(["GRADUATION", "NEW_JOB", "ACHIEVEMENT", "MILESTONE"]);
+export const giftOccasionSettingsSchema = z.object({
+  anniversaryOptIn: z.boolean(),
+  cultureOccasions: z.boolean(),
+});
 
 export const autoTranslateSchema = z.object({
   autoTranslate: z.boolean(),

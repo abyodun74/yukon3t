@@ -205,7 +205,17 @@ export default async function PublicProfilePage({
         </p>
       )}
 
-      {birthdayCard && <ProfileBirthdayCard card={birthdayCard} person={{ id: user.id, name: user.name }} />}
+      {birthdayCard && (
+        <ProfileBirthdayCard
+          card={birthdayCard}
+          person={{ id: user.id, name: user.name }}
+          giftAction={
+            gifts && !isOwnProfile ? (
+              <SendGiftButton recipientId={user.id} recipientName={user.name} place={{ context: "DIRECT" }} />
+            ) : null
+          }
+        />
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">

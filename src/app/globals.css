@@ -981,3 +981,119 @@ img[data-press-highlight] {
 :lang(ar) {
   letter-spacing: normal !important;
 }
+
+/* ---------- Gift universes (Phase A, src/lib/gift-universes.ts) ----------
+   The gift picker's five sections, each with its own look: a tinted header (mixed with the theme's own background
+   and text colours, so it works in light and dark alike), an accent for the selected gift, and one tiny ornament
+   motion. Every motion is slow or short, never flashes, and stops completely with reduce motion. */
+.gift-universe {
+  --gu-tint: color-mix(in oklab, var(--gu-hue) 14%, var(--surface));
+  --gu-ink: color-mix(in oklab, var(--gu-hue) 72%, var(--foreground));
+}
+.gift-universe-love {
+  --gu-hue: #d9577a;
+}
+.gift-universe-celebrate {
+  --gu-hue: #e8a01c;
+}
+.gift-universe-gaming {
+  --gu-hue: #2bd97a;
+}
+.gift-universe-culture {
+  --gu-hue: #c4572e;
+}
+/* Luxury is black and gold in both themes. */
+.gift-universe-luxury {
+  --gu-hue: #d4a73a;
+  --gu-tint: #14110b;
+  --gu-ink: #e9c86a;
+}
+.gift-universe-header {
+  background: var(--gu-tint);
+  color: var(--gu-ink);
+}
+.gift-universe-love .gift-universe-header {
+  border-radius: 1.25rem;
+}
+.gift-universe-gaming .gift-universe-header {
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.gift-universe-luxury .gift-universe-header {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+.gift-universe-selected {
+  border-color: var(--gu-hue);
+  background: var(--gu-tint);
+}
+.gift-universe-luxury .gift-universe-selected {
+  color: #f5ecd2;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Love: a slow bloom. */
+  .gift-universe-love .gift-universe-ornament {
+    animation: gift-bloom 4s ease-in-out infinite;
+  }
+  /* Celebrate: one burst when the section appears. */
+  .gift-universe-celebrate .gift-universe-ornament {
+    animation: gift-burst 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Gaming: a crisp level-up hop, once. */
+  .gift-universe-gaming .gift-universe-ornament {
+    animation: gift-hop 0.45s steps(3, end) both;
+  }
+  /* Luxury: a slow gold reveal, once. */
+  .gift-universe-luxury .gift-universe-ornament {
+    animation: gift-reveal 1.6s ease-out both;
+  }
+  /* Culture: a lantern's gentle sway. */
+  .gift-universe-culture .gift-universe-ornament {
+    animation: gift-sway 5s ease-in-out infinite;
+    transform-origin: 50% 0;
+  }
+}
+@keyframes gift-bloom {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+@keyframes gift-burst {
+  from {
+    transform: scale(0.4) rotate(-20deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes gift-hop {
+  0% {
+    transform: translateY(4px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes gift-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes gift-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}

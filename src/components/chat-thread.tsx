@@ -17,6 +17,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { GifPickerButton } from "@/components/gif-picker-button";
 import { GiftChatCard } from "@/components/gift-chat-card";
 import { SendGiftButton } from "@/components/profile-gifts";
+import { GiftOccasionChip } from "@/components/gift-occasion-chip";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import { summarizeReactionRows } from "@/lib/reactions";
@@ -2140,6 +2141,12 @@ export function ChatThread({
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* Digital gifts (Phase A): a dismissible suggestion on the other person's occasion day only (birthday, an
+          anniversary both opted in to, ...). Never in a secret chat, exactly like the gift button below. */}
+      {gifts?.recipient && !secret.active && (
+        <GiftOccasionChip recipientId={gifts.recipient.id} recipientName={gifts.recipient.name} conversationId={conversationId} />
       )}
 
       <EmojiTypeSuggestions text={content} onSelect={insertEmoji} />

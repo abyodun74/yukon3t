@@ -13,20 +13,51 @@ import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { canAccessLiveStream } from "@/lib/live-stream-access";
 import { holdsViewerSlot } from "@/lib/live-viewer-cap";
 import { deliverGiftPurchase } from "@/lib/gift-delivery";
+import { loadGiftOccasions } from "@/lib/gift-occasions-data";
+import {
+  SELF_OCCASION_COOLDOWN_MS,
+  buildGiftShelves,
+  selfOccasionRefusal,
+  type GiftShelves,
+  type OccasionKind,
+} from "@/lib/gift-occasions";
+import { GIFT_UNIVERSE_STYLES } from "@/lib/gift-universes";
+import {
+  GIFT_PRICE_CEILING_MINOR,
+  THANK_YOU_SKU,
+  giftPieceNumber,
+  type GiftRarityName,
+  type GiftUniverseName,
+} from "@/lib/gifts-data";
+import { localDateTime } from "@/lib/birthdays";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import {
   LIVE_GIFT_EFFECT_WINDOW_MS,
   canEquip,
+  freeShowcasePosition,
   giftMessageRefusal,
+  giftSelfOccasionLockKey,
+  giftShowcaseLockKey,
   giftSendRefusal,
   giftsEnabledFor,
+  inYearlyWindow,
+  isFreeGiftProduct,
   liveEffectFor,
   normalizeGiftMessage,
+  showcaseEligible,
+  thankYouRefusal,
+  type GiftContextValue,
   type GiftsFromValue,
 } from "@/lib/gifts";
 import {
+  giftCatalogSchema,
   giftEquipKindSchema,
+  giftFreeSchema,
   giftIntentSchema,
   giftItemSlugSchema,
+  giftOccasionSettingsSchema,
+  giftOwnedIdSchema,
+  giftSelfOccasionKindSchema,
   giftSendIdSchema,
   giftsFromSchema,
 } from "@/lib/validations";
@@ -42,41 +73,167 @@ export type GiftCatalogProduct = {
   isBox: boolean;
   priceMinor: number;
   currency: string;
-  items: (ItemView & { quantity: number })[];
+  universe: GiftUniverseName;
+  rarity: GiftRarityName;
+  /** A free kind-words gift (sent with sendFreeGift). */
+  free: boolean;
+  items: (ItemView & { quantity: number; piece: number | null })[];
 };
 
-/** The products the gift picker offers (active ones, in catalog order). */
-export async function getGiftCatalog(): Promise<{ error: "disabled" } | { error: null; products: GiftCatalogProduct[] }> {
+type Refusal = "disabled" | "unavailable" | "adult_only" | "not_accepting";
+
+/** Whether two people are accepted connections (either direction). */
+async function areConnected(aId: string, bId: string): Promise<boolean> {
+  const row = await prisma.connection.findFirst({
+    where: {
+      status: "ACCEPTED",
+      OR: [
+        { requesterId: aId, targetId: bId },
+        { requesterId: bId, targetId: aId },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
+const recipientSelect = { id: true, status: true, isAdmin: true, isGuestPreview: true, birthDate: true, giftsFrom: true } as const;
+
+type SendParty = { id: string; status: string; isAdmin: boolean; isGuestPreview: boolean; birthDate: Date | null };
+
+/** The send rules (blocks either way, age, the recipient's giftsFrom and gate) for `user` giving `recipient` a gift. */
+async function sendRulesRefusal(
+  user: SendParty,
+  recipient: SendParty & { giftsFrom: string },
+  context: GiftContextValue,
+): Promise<Refusal | "invalid" | null> {
+  const [blocked, connected] = await Promise.all([isBlockedEitherWay(user.id, recipient.id), areConnected(user.id, recipient.id)]);
+  const refusal = giftSendRefusal({
+    sender: user,
+    recipient: { ...recipient, giftsFrom: recipient.giftsFrom as GiftsFromValue },
+    connected,
+    blocked,
+    context,
+    now: new Date(),
+  });
+  if (refusal === "self") return "invalid";
+  return refusal;
+}
+
+/**
+ * The gift picker for one recipient: the products that may be offered and its shelves (src/lib/gift-occasions.ts).
+ * Every rule is checked first, on the server, exactly as a send would check it (gate, blocks either way, age, the
+ * recipient's giftsFrom): a refusal comes back instead of a catalog, so the picker can say so before anything is
+ * chosen. Products: active, every item active, in their yearly window (UTC date), under the price ceiling, a limited
+ * edition only while it has copies left (never said how many), price 0 only for an appreciation gift. Then the
+ * occasions for this recipient and viewer (computed now, never stored, never notified) decide the "Right now" shelf.
+ */
+export async function getGiftCatalog(
+  recipientId: string,
+  context: GiftContextValue = "DIRECT",
+): Promise<
+  { error: Refusal | "invalid" | "rate_limited" } | { error: null; products: GiftCatalogProduct[]; shelves: GiftShelves }
+> {
   const user = await requireVerifiedUser();
   if (!giftsEnabledFor(user)) return { error: "disabled" };
-  const products = await prisma.giftProduct.findMany({
-    where: { active: true },
-    orderBy: { sortOrder: "asc" },
-    select: {
-      sku: true,
-      isBox: true,
-      webPriceMinor: true,
-      currency: true,
-      items: {
-        where: { item: { active: true } },
-        select: { quantity: true, item: { select: { slug: true, kind: true, assetKey: true, sortOrder: true } } },
+  const parsed = giftCatalogSchema.safeParse({ recipientId, context });
+  if (!parsed.success || parsed.data.recipientId === user.id) return { error: "invalid" };
+  const where = parsed.data.context ?? "DIRECT";
+  if (!(await checkRateLimit("giftCatalog", user.id))) return { error: "rate_limited" };
+
+  const recipient = await prisma.user.findUnique({ where: { id: parsed.data.recipientId }, select: recipientSelect });
+  if (!recipient) return { error: "unavailable" };
+  const refusal = await sendRulesRefusal(user, recipient, where);
+  if (refusal) return { error: refusal };
+
+  const now = new Date();
+  const today = localDateTime(now, "UTC");
+  const [rows, occasions] = await Promise.all([
+    prisma.giftProduct.findMany({
+      where: { active: true, webPriceMinor: { lte: GIFT_PRICE_CEILING_MINOR } },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        sku: true,
+        isBox: true,
+        webPriceMinor: true,
+        currency: true,
+        universe: true,
+        rarity: true,
+        occasionTags: true,
+        availableFrom: true,
+        availableUntil: true,
+        items: {
+          select: {
+            quantity: true,
+            item: {
+              select: {
+                id: true,
+                slug: true,
+                kind: true,
+                assetKey: true,
+                sortOrder: true,
+                active: true,
+                rarity: true,
+                editionSize: true,
+                availableFrom: true,
+                availableUntil: true,
+              },
+            },
+          },
+        },
       },
-    },
-  });
-  return {
-    error: null,
-    products: products
-      .filter((p) => p.items.length > 0)
-      .map((p) => ({
-        sku: p.sku,
-        isBox: p.isBox,
-        priceMinor: p.webPriceMinor,
-        currency: p.currency,
-        items: [...p.items]
-          .sort((a, b) => a.item.sortOrder - b.item.sortOrder)
-          .map((row) => ({ slug: row.item.slug, kind: row.item.kind, assetKey: row.item.assetKey, quantity: row.quantity })),
+    }),
+    loadGiftOccasions(recipient.id, user, now),
+  ]);
+
+  // Limited editions that have given every copy are simply no longer offered (nothing says how many are left).
+  const limited = new Map<string, number>();
+  for (const product of rows) {
+    for (const { item } of product.items) {
+      if (item.rarity === "EDITION" && item.editionSize != null) limited.set(item.id, item.editionSize);
+    }
+  }
+  const soldOut = new Set<string>();
+  for (const [itemId, size] of limited) {
+    const given = await prisma.ownedGift.count({ where: { itemId, editionNumber: { not: null } } });
+    if (given >= size) soldOut.add(itemId);
+  }
+
+  const offered = rows.filter(
+    (p) =>
+      p.items.length > 0 &&
+      p.items.every(
+        (r) => r.item.active && !soldOut.has(r.item.id) && inYearlyWindow(r.item.availableFrom, r.item.availableUntil, today),
+      ) &&
+      inYearlyWindow(p.availableFrom, p.availableUntil, today) &&
+      (p.webPriceMinor > 0 || isFreeGiftProduct(p)),
+  );
+  const products: GiftCatalogProduct[] = offered.map((p) => ({
+    sku: p.sku,
+    isBox: p.isBox,
+    priceMinor: p.webPriceMinor,
+    currency: p.currency,
+    universe: p.universe,
+    rarity: p.rarity,
+    free: p.webPriceMinor === 0,
+    items: [...p.items]
+      .sort((a, b) => a.item.sortOrder - b.item.sortOrder)
+      .map((row) => ({
+        slug: row.item.slug,
+        kind: row.item.kind,
+        assetKey: row.item.assetKey,
+        quantity: row.quantity,
+        piece: giftPieceNumber(row.item.slug),
       })),
-  };
+  }));
+  const tagsBySku = new Map(offered.map((p) => [p.sku, p.occasionTags]));
+  const shelves = buildGiftShelves(
+    products.map((p) => ({ sku: p.sku, universe: p.universe, occasionTags: tagsBySku.get(p.sku) ?? [], free: p.free, items: p.items })),
+    occasions,
+    where,
+  );
+  const shown = new Set([...(shelves.rightNow?.skus ?? []), ...shelves.kindWords, ...shelves.universes.flatMap((u) => u.skus)]);
+  return { error: null, products: products.filter((p) => shown.has(p.sku)), shelves };
 }
 
 export type GiftIntentResult =
@@ -130,32 +287,25 @@ export async function createGiftIntent(
     }),
     prisma.giftProduct.findFirst({
       where: { sku: parsed.data.productSku, active: true, items: { some: {} }, NOT: { items: { some: { item: { active: false } } } } },
-      select: { id: true, currency: true },
+      select: { id: true, currency: true, webPriceMinor: true, universe: true, availableFrom: true, availableUntil: true },
     }),
   ]);
   if (!recipient) return { error: "unavailable" };
   if (!product) return { error: "invalid" };
+  // A free gift goes through sendFreeGift (its own, stricter limits); out of season isn't offered; and a public live
+  // room never gets a Love & Emotion gift.
+  if (product.webPriceMinor === 0 || product.webPriceMinor > GIFT_PRICE_CEILING_MINOR) return { error: "invalid" };
+  if (!inYearlyWindow(product.availableFrom, product.availableUntil, localDateTime(new Date(), "UTC"))) return { error: "invalid" };
+  if (where.context === "LIVE" && product.universe && !GIFT_UNIVERSE_STYLES[product.universe].inLiveRooms) {
+    return { error: "invalid" };
+  }
 
   // Where it is sent from. A chat: a 1:1 both are in, not secret (a server-written card can't go into one) and, if the
   // sender hid it, unlocked. A live stream: live, the recipient is its host, and the sender is in it right now (a row
   // that holds a viewer slot, so the viewer cap already admitted them; nothing here adds a viewer).
   if (where.context === "CHAT") {
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: where.conversationId },
-      select: { isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true, hiddenAt: true } } },
-    });
-    const mine = conversation?.members.find((m) => m.userId === user.id);
-    if (
-      !conversation ||
-      !mine ||
-      conversation.isGroup ||
-      conversation.members.length !== 2 ||
-      !conversation.members.some((m) => m.userId === recipientId) ||
-      isSecretChat(conversation)
-    ) {
-      return { error: "unavailable" };
-    }
-    if (await isMembershipLocked(mine, user.id)) return { error: "hidden_locked" };
+    const chatRefusal = await chatPlaceRefusal(user.id, recipientId, where.conversationId);
+    if (chatRefusal) return { error: chatRefusal };
   } else if (where.context === "LIVE") {
     const now = new Date();
     const stream = await prisma.liveStream.findUnique({
@@ -173,31 +323,7 @@ export async function createGiftIntent(
     }
   }
 
-  const [blocked, connected] = await Promise.all([
-    isBlockedEitherWay(user.id, recipientId),
-    prisma.connection
-      .findFirst({
-        where: {
-          status: "ACCEPTED",
-          OR: [
-            { requesterId: user.id, targetId: recipientId },
-            { requesterId: recipientId, targetId: user.id },
-          ],
-        },
-        select: { id: true },
-      })
-      .then(Boolean),
-  ]);
-  const refusal = giftSendRefusal({
-    sender: user,
-    recipient: { ...recipient, giftsFrom: recipient.giftsFrom as GiftsFromValue },
-    connected,
-    blocked,
-    context: where.context,
-    now: new Date(),
-  });
-  if (refusal === "disabled") return { error: "disabled" };
-  if (refusal === "self") return { error: "invalid" };
+  const refusal = await sendRulesRefusal(user, recipient, where.context);
   if (refusal) return { error: refusal };
 
   if (note !== null && !(await moderateText(note)).allowed) return { error: "moderation" };
@@ -235,6 +361,232 @@ export async function createGiftIntent(
   return { error: null, sendId: purchase.send!.id, delivered: outcome === "delivered" };
 }
 
+/** Why a gift card can't go into this chat: a 1:1 of these two people, not secret, and unlocked for the sender. */
+async function chatPlaceRefusal(
+  senderId: string,
+  recipientId: string,
+  conversationId: string,
+): Promise<"unavailable" | "hidden_locked" | null> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true, hiddenAt: true } } },
+  });
+  const mine = conversation?.members.find((m) => m.userId === senderId);
+  if (
+    !conversation ||
+    !mine ||
+    conversation.isGroup ||
+    conversation.members.length !== 2 ||
+    !conversation.members.some((m) => m.userId === recipientId) ||
+    isSecretChat(conversation)
+  ) {
+    return "unavailable";
+  }
+  if (await isMembershipLocked(mine, senderId)) return "hidden_locked";
+  return null;
+}
+
+export type FreeGiftResult =
+  | { error: null; sendId: string; delivered: boolean }
+  | {
+      error:
+        | "disabled"
+        | "invalid"
+        | "too_long"
+        | "rate_limited"
+        | "unavailable"
+        | "adult_only"
+        | "not_accepting"
+        | "moderation"
+        | "hidden_locked"
+        | "not_found"
+        | "already_thanked";
+    };
+
+/**
+ * Creates and delivers a FREE purchase: the same PENDING purchase + send as a paid gift, delivered by the same
+ * deliverGiftPurchase (which knows nothing about payment). Callers have checked every rule and limit first.
+ */
+async function createFreeSend(input: {
+  buyerId: string;
+  productId: string;
+  currency: string;
+  recipientId: string;
+  message: string | null;
+  context: "DIRECT" | "CHAT";
+  conversationId: string | null;
+  thanksForSendId?: string;
+}) {
+  const purchase = await prisma.giftPurchase.create({
+    data: {
+      buyerId: input.buyerId,
+      productId: input.productId,
+      provider: "FREE",
+      providerTxnId: randomUUID(),
+      status: "PENDING",
+      amountMinor: 0,
+      currency: input.currency,
+      rawRef: "free",
+      send: {
+        create: {
+          senderId: input.buyerId,
+          recipientId: input.recipientId,
+          message: input.message,
+          messageModeration: "PUBLISHED",
+          context: input.context,
+          conversationId: input.conversationId,
+          status: "AWAITING_PAYMENT",
+          ...(input.thanksForSendId ? { thanksForSendId: input.thanksForSendId } : {}),
+        },
+      },
+    },
+    select: { id: true, send: { select: { id: true } } },
+  });
+  const outcome = await deliverGiftPurchase(purchase.id);
+  revalidatePath(`/u/${input.recipientId}`);
+  return { sendId: purchase.send!.id, delivered: outcome === "delivered" };
+}
+
+/**
+ * A free "kind words" gift (Thank You, Appreciate You, Cheering You On, Proud of You): a product priced 0 that carries
+ * the appreciation tag, from a profile or a 1:1 chat (never a live room). Exactly the paid gift's rules (gate, blocks
+ * either way, age, the recipient's giftsFrom, the chat's), the note moderated, and stricter limits that fail closed
+ * with the database fallback (FREE_GIFT_DAILY_MAX in all, FREE_GIFT_PER_RECIPIENT_DAILY_MAX to one person a day). It
+ * never asks for, mentions or leads to a payment.
+ */
+export async function sendFreeGift(
+  productSku: string,
+  recipientId: string,
+  message: string | null,
+  place?: { context: "DIRECT" } | { context: "CHAT"; conversationId: string },
+): Promise<FreeGiftResult> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const parsed = giftFreeSchema.safeParse({ productSku, recipientId, message, place });
+  if (!parsed.success) return { error: "invalid" };
+  const where = parsed.data.place ?? { context: "DIRECT" as const };
+  const note = normalizeGiftMessage(parsed.data.message);
+  if (giftMessageRefusal(note)) return { error: "too_long" };
+  if (recipientId === user.id) return { error: "invalid" };
+
+  if (!(await checkRateLimit("giftFreeDaily", user.id))) return { error: "rate_limited" };
+  if (!(await checkRateLimit("giftFreeToSameRecipient", `${user.id}:${recipientId}`))) return { error: "rate_limited" };
+
+  const [recipient, product] = await Promise.all([
+    prisma.user.findUnique({ where: { id: recipientId }, select: recipientSelect }),
+    prisma.giftProduct.findFirst({
+      where: {
+        sku: parsed.data.productSku,
+        active: true,
+        webPriceMinor: 0,
+        items: { some: {} },
+        NOT: { items: { some: { item: { active: false } } } },
+      },
+      select: { id: true, currency: true, webPriceMinor: true, occasionTags: true },
+    }),
+  ]);
+  if (!recipient) return { error: "unavailable" };
+  if (!product || !isFreeGiftProduct(product)) return { error: "invalid" };
+
+  if (where.context === "CHAT") {
+    const chatRefusal = await chatPlaceRefusal(user.id, recipientId, where.conversationId);
+    if (chatRefusal) return { error: chatRefusal };
+  }
+  const refusal = await sendRulesRefusal(user, recipient, where.context);
+  if (refusal) return { error: refusal };
+  if (note !== null && !(await moderateText(note)).allowed) return { error: "moderation" };
+
+  const sent = await createFreeSend({
+    buyerId: user.id,
+    productId: product.id,
+    currency: product.currency,
+    recipientId,
+    message: note,
+    context: where.context,
+    conversationId: where.context === "CHAT" ? where.conversationId : null,
+  });
+  return { error: null, ...sent };
+}
+
+/**
+ * The recipient of a gift sends one free "Thank You" back for it, once per received gift (GiftSend.thanksForSendId is
+ * unique; a second try answers already_thanked). It lands as a card in the chat the gift came from when that chat can
+ * still take one, otherwise in the sender's Gifts area. Same rules and free limits as sendFreeGift; a Thank You can't
+ * itself be thanked. Nothing about it suggests buying anything.
+ */
+export async function sendThankYouGift(receivedSendId: string): Promise<FreeGiftResult> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const id = giftSendIdSchema.safeParse(receivedSendId);
+  if (!id.success) return { error: "not_found" };
+
+  const received = await prisma.giftSend.findUnique({
+    where: { id: id.data },
+    select: {
+      id: true,
+      recipientId: true,
+      senderId: true,
+      status: true,
+      thanksForSendId: true,
+      conversationId: true,
+      thankedBy: { select: { id: true } },
+    },
+  });
+  const why = thankYouRefusal({
+    userId: user.id,
+    received: received
+      ? {
+          recipientId: received.recipientId,
+          senderId: received.senderId,
+          status: received.status,
+          thanksForSendId: received.thanksForSendId,
+          thanked: received.thankedBy !== null,
+        }
+      : null,
+  });
+  if (why || !received?.senderId) return { error: why ?? "unavailable" };
+  const thankedId = received.senderId;
+
+  if (!(await checkRateLimit("giftFreeDaily", user.id))) return { error: "rate_limited" };
+  if (!(await checkRateLimit("giftFreeToSameRecipient", `${user.id}:${thankedId}`))) return { error: "rate_limited" };
+
+  const [recipient, product] = await Promise.all([
+    prisma.user.findUnique({ where: { id: thankedId }, select: recipientSelect }),
+    prisma.giftProduct.findFirst({
+      where: { sku: THANK_YOU_SKU, active: true, webPriceMinor: 0 },
+      select: { id: true, currency: true, webPriceMinor: true, occasionTags: true },
+    }),
+  ]);
+  if (!recipient) return { error: "unavailable" };
+  if (!product || !isFreeGiftProduct(product)) return { error: "invalid" };
+
+  // Back into the same chat when it can still take a card; otherwise straight to their Gifts area.
+  const conversationId =
+    received.conversationId && (await chatPlaceRefusal(user.id, thankedId, received.conversationId)) === null
+      ? received.conversationId
+      : null;
+  const refusal = await sendRulesRefusal(user, recipient, conversationId ? "CHAT" : "DIRECT");
+  if (refusal) return { error: refusal };
+
+  try {
+    const sent = await createFreeSend({
+      buyerId: user.id,
+      productId: product.id,
+      currency: product.currency,
+      recipientId: thankedId,
+      message: null,
+      context: conversationId ? "CHAT" : "DIRECT",
+      conversationId,
+      thanksForSendId: received.id,
+    });
+    revalidatePath(`/u/${user.id}`);
+    return { error: null, ...sent };
+  } catch (err) {
+    if (isUniqueConstraintError(err)) return { error: "already_thanked" };
+    throw err;
+  }
+}
+
 export type OpenedGift = {
   sendId: string;
   productSku: string;
@@ -242,6 +594,8 @@ export type OpenedGift = {
   message: string | null;
   senderName: string | null;
   items: ItemView[];
+  /** The copy numbers of any numbered (EDITION) items in it, for its recipient only. */
+  editions: { slug: string; number: number }[];
 };
 
 const giftViewSelect = {
@@ -251,6 +605,8 @@ const giftViewSelect = {
   recipientId: true,
   senderId: true,
   conversationId: true,
+  thanksForSendId: true,
+  thankedBy: { select: { id: true } },
   sender: { select: { name: true } },
   purchase: {
     select: {
@@ -291,6 +647,11 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
     revalidatePath(`/u/${user.id}`);
   }
   const { product } = send.purchase;
+  const numbered = await prisma.ownedGift.findMany({
+    where: { sendId: send.id, ownerId: user.id, editionNumber: { not: null } },
+    select: { editionNumber: true, item: { select: { slug: true } } },
+    orderBy: { editionNumber: "asc" },
+  });
   return {
     error: null,
     gift: {
@@ -300,6 +661,7 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
       message: send.message,
       senderName: send.sender?.name ?? null,
       items: itemsOf(product),
+      editions: (numbered ?? []).map((row) => ({ slug: row.item.slug, number: row.editionNumber! })),
     },
   };
 }
@@ -379,6 +741,10 @@ export type GiftChatCard = {
   status: "DELIVERED" | "OPENED" | "HIDDEN";
   message: string | null;
   items: ItemView[];
+  /** This gift is itself a free Thank You (never thanked back: no loops). */
+  isThankYou: boolean;
+  /** The recipient may still send one free Thank You back for it. */
+  canThank: boolean;
 };
 
 /**
@@ -415,6 +781,13 @@ export async function getGiftChatCard(sendId: string): Promise<{ error: "disable
       status: send.status === "HIDDEN_BY_RECIPIENT" ? "HIDDEN" : send.status,
       message: send.message,
       items: itemsOf(product),
+      isThankYou: send.thanksForSendId !== null,
+      canThank:
+        send.recipientId === user.id &&
+        send.senderId !== null &&
+        send.thanksForSendId === null &&
+        send.thankedBy === null &&
+        send.status !== "HIDDEN_BY_RECIPIENT",
     },
   };
 }
@@ -449,4 +822,160 @@ export async function getLiveGiftEffects(
     error: null,
     effects: sends.map((s) => ({ id: s.id, effect: liveEffectFor(s.purchase.product.items.map((row) => row.item)) })),
   };
+}
+
+// ---------- Phase A: the occasion chip, Settings, the showcase ----------
+
+/**
+ * The occasion chip a 1:1 chat composer may show: the best occasion for the other person, only on an occasion day (a
+ * "today" occasion, or a Circle event around now), and only when this viewer could send them a gift from this chat
+ * right now. A kind only (the chip words it): never a date. Nothing is stored and nobody is notified.
+ */
+export async function getGiftOccasionChip(
+  recipientId: string,
+  conversationId: string,
+): Promise<
+  { error: "disabled" | "invalid" | "rate_limited" } | { error: null; occasion: { kind: OccasionKind } | null }
+> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const r = giftCatalogSchema.safeParse({ recipientId });
+  const c = giftSendIdSchema.safeParse(conversationId);
+  if (!r.success || !c.success || recipientId === user.id) return { error: "invalid" };
+  if (!(await checkRateLimit("giftCatalog", user.id))) return { error: "rate_limited" };
+  if (await chatPlaceRefusal(user.id, recipientId, c.data)) return { error: null, occasion: null };
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId }, select: recipientSelect });
+  if (!recipient || (await sendRulesRefusal(user, recipient, "CHAT"))) return { error: null, occasion: null };
+  const occasions = await loadGiftOccasions(recipientId, user);
+  const top = occasions.find((o) => o.window === "today" || o.window === "around_now");
+  return { error: null, occasion: top ? { kind: top.kind } : null };
+}
+
+/** Settings -> Gifts: the connection-anniversary opt-in and the Culture occasion prompts switch. */
+export async function updateGiftOccasionSettings(formData: FormData) {
+  const user = await requireUser();
+  if (!giftsEnabledFor(user)) redirect("/settings?error=other");
+  const parsed = giftOccasionSettingsSchema.safeParse({
+    anniversaryOptIn: formData.get("anniversaryOptIn") === "on",
+    cultureOccasions: formData.get("cultureOccasions") === "on",
+  });
+  if (!parsed.success) redirect("/settings?error=invalid");
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { giftAnniversaryOptIn: parsed.data.anniversaryOptIn, giftCultureOccasions: parsed.data.cultureOccasions },
+    select: { id: true },
+  });
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+/**
+ * Settings -> Gifts -> My occasions: declare a graduation, a new job, an achievement or a milestone for the next 7
+ * days. Only about yourself, at most one per kind per 30 days (a removed one still counts), never notified to anyone,
+ * stored as a kind and a time only. Rows past the 30 days are deleted on the way.
+ */
+export async function declareGiftOccasion(formData: FormData) {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) redirect("/settings?error=other");
+  const kind = giftSelfOccasionKindSchema.safeParse(formData.get("kind"));
+  if (!kind.success) redirect("/settings?error=invalid");
+  if (!(await checkRateLimit("giftOccasionDeclare", user.id))) redirect("/settings?error=rate_limited");
+  const now = new Date();
+  const outcome = await prisma.$transaction(async (tx) => {
+    // One declaration at a time per person, so two quick taps can't both pass the 30-day check.
+    const lockKey = giftSelfOccasionLockKey(user.id);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    await tx.giftSelfOccasion.deleteMany({
+      where: { userId: user.id, declaredAt: { lt: new Date(now.getTime() - SELF_OCCASION_COOLDOWN_MS) } },
+    });
+    const existing = await tx.giftSelfOccasion.findMany({
+      where: { userId: user.id, kind: kind.data },
+      select: { kind: true, declaredAt: true },
+    });
+    if (selfOccasionRefusal(existing, kind.data, now)) return "too_soon" as const;
+    await tx.giftSelfOccasion.create({ data: { userId: user.id, kind: kind.data, declaredAt: now }, select: { id: true } });
+    return "ok" as const;
+  });
+  revalidatePath("/settings");
+  redirect(outcome === "ok" ? "/settings?saved=1" : "/settings?error=occasion_too_soon");
+}
+
+/** Settings -> Gifts -> My occasions: take a declaration down (it still counts toward the 30 days). */
+export async function removeGiftOccasion(formData: FormData) {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) redirect("/settings?error=other");
+  const kind = giftSelfOccasionKindSchema.safeParse(formData.get("kind"));
+  if (!kind.success) redirect("/settings?error=invalid");
+  await prisma.giftSelfOccasion.updateMany({
+    where: { userId: user.id, kind: kind.data, removedAt: null },
+    data: { removedAt: new Date() },
+  });
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+export type ShowcaseResult = { error: "disabled" | "not_owned" | "full" | "rate_limited" | null };
+
+/**
+ * Pins one of the user's own gifts (an OwnedGift: theirs, not revoked, from a gift they opened and haven't hidden) to
+ * their profile showcase, at most GIFT_SHOWCASE_MAX. Pins no longer eligible are cleared first. One change at a time
+ * per person (advisory lock), so two quick pins can't both take the last place.
+ */
+export async function pinGiftToShowcase(ownedGiftId: string): Promise<ShowcaseResult> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const id = giftOwnedIdSchema.safeParse(ownedGiftId);
+  if (!id.success) return { error: "not_owned" };
+  if (!(await checkRateLimit("giftOpen", user.id))) return { error: "rate_limited" };
+  const outcome = await prisma.$transaction(async (tx): Promise<ShowcaseResult["error"]> => {
+    const lockKey = giftShowcaseLockKey(user.id);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    const owned = await tx.ownedGift.findUnique({
+      where: { id: id.data },
+      select: { id: true, ownerId: true, revokedAt: true, send: { select: { status: true } } },
+    });
+    if (
+      !owned ||
+      !showcaseEligible({ ownerId: owned.ownerId, userId: user.id, revokedAt: owned.revokedAt, sendStatus: owned.send.status })
+    ) {
+      return "not_owned";
+    }
+    const pins = await tx.giftShowcasePin.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        ownedGiftId: true,
+        position: true,
+        ownedGift: { select: { ownerId: true, revokedAt: true, send: { select: { status: true } } } },
+      },
+    });
+    if (pins.some((p) => p.ownedGiftId === owned.id)) return null;
+    const stale = pins.filter(
+      (p) =>
+        !showcaseEligible({
+          ownerId: p.ownedGift.ownerId,
+          userId: user.id,
+          revokedAt: p.ownedGift.revokedAt,
+          sendStatus: p.ownedGift.send.status,
+        }),
+    );
+    if (stale.length > 0) await tx.giftShowcasePin.deleteMany({ where: { id: { in: stale.map((p) => p.id) } } });
+    const position = freeShowcasePosition(pins.filter((p) => !stale.includes(p)).map((p) => p.position));
+    if (position === null) return "full";
+    await tx.giftShowcasePin.create({ data: { userId: user.id, ownedGiftId: owned.id, position }, select: { id: true } });
+    return null;
+  });
+  if (outcome === null) revalidatePath(`/u/${user.id}`);
+  return { error: outcome };
+}
+
+/** Takes a gift off the user's own showcase. */
+export async function unpinGiftFromShowcase(ownedGiftId: string): Promise<ShowcaseResult> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const id = giftOwnedIdSchema.safeParse(ownedGiftId);
+  if (!id.success) return { error: "not_owned" };
+  await prisma.giftShowcasePin.deleteMany({ where: { userId: user.id, ownedGiftId: id.data } });
+  revalidatePath(`/u/${user.id}`);
+  return { error: null };
 }

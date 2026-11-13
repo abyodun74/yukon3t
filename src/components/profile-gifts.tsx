@@ -8,7 +8,17 @@ import { GiftOpenOverlay } from "@/components/gift-open-overlay";
 import { GiftPickerSheet, type GiftPickerPlace } from "@/components/gift-picker-sheet";
 import { useGiftsText } from "@/components/gifts-text";
 import { ReportModal } from "@/components/report-form";
-import { equipGift, hideGift, openGift, unequipGift, type OpenedGift } from "@/app/actions/gifts";
+import {
+  equipGift,
+  hideGift,
+  openGift,
+  pinGiftToShowcase,
+  sendThankYouGift,
+  unequipGift,
+  unpinGiftFromShowcase,
+  type OpenedGift,
+} from "@/app/actions/gifts";
+import { giftPieceNumber } from "@/lib/gifts-data";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { format } from "@/lib/i18n/locales";
 import type { ProfileGiftsView } from "@/lib/gift-profile";
@@ -83,6 +93,9 @@ export function ProfileFrameLabel({ frame }: { frame: { slug: string } }) {
  * The profile's Gifts area (#gifts). Its owner sees every delivered gift (new ones first to open), who sent each, and
  * can open, hide or report one, and wear or take off a frame or badge they own. A visitor sees only opened gifts and
  * never who sent them.
+ *
+ * Phase A: the showcase (up to 3 pinned gifts, first on the section; visitors see the items, never the sender or an
+ * edition number), Pin / Unpin on the owner's opened gifts, and the owner's one free "Say thank you" per received gift.
  */
 export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView; isOwner: boolean }) {
   const { locale, dir, t } = useGiftsText();
@@ -125,7 +138,7 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
     });
   }
 
-  if (!isOwner && view.gifts.length === 0) return null;
+  if (!isOwner && view.gifts.length === 0 && view.showcase.length === 0) return null;
 
   return (
     <section id="gifts" lang={locale} dir={dir} className="mt-8 scroll-mt-20" aria-labelledby="profile-gifts-heading">
@@ -137,6 +150,44 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
         <p role="alert" className="mt-2 text-sm text-danger">
           {error}
         </p>
+      )}
+
+      {(view.showcase.length > 0 || isOwner) && (
+        <div className="mt-3" aria-labelledby="profile-gifts-showcase">
+          <h3 id="profile-gifts-showcase" className="text-xs font-semibold text-foreground-soft">
+            {t.showcase.heading}
+          </h3>
+          {isOwner && <p className="text-xs text-foreground-soft">{t.showcase.hint}</p>}
+          {view.showcase.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-3">
+              {view.showcase.map((item, i) => {
+                const name = giftItemName(t, item.slug);
+                const piece = giftPieceNumber(item.slug);
+                return (
+                  <li key={item.ownedGiftId ?? `${item.slug}-${i}`} className="flex w-24 flex-col items-center gap-1 text-center text-xs">
+                    <GiftArt assetKey={item.assetKey} name={name} size={56} />
+                    <span className="font-medium">{name}</span>
+                    {piece !== null && <span className="text-[10px] text-foreground-soft">{format(t.pieceLabel, { number: piece })}</span>}
+                    {isOwner && item.editionNumber != null && (
+                      <span className="text-[10px] font-semibold">{format(t.editionLabel, { number: item.editionNumber })}</span>
+                    )}
+                    {isOwner && item.ownedGiftId && (
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => run(() => unpinGiftFromShowcase(item.ownedGiftId!))}
+                        className="rounded-full border border-line px-2 py-0.5 hover:border-accent"
+                      >
+                        {t.showcase.unpin}
+                        <span className="sr-only">: {name}</span>
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       )}
 
       {isOwner && view.wearable.length > 0 && (
@@ -227,6 +278,41 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
                 )}
                 {isOwner && isNew && (
                   <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold">{t.profile.newGift}</span>
+                )}
+                {isOwner && gift.thankable && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => run(() => sendThankYouGift(gift.sendId))}
+                    className="rounded-full border border-line px-2.5 py-1 hover:border-accent"
+                  >
+                    {t.thankYou.button}
+                    <span className="sr-only">: {name}</span>
+                  </button>
+                )}
+                {isOwner && gift.owned && gift.owned.length > 0 && (
+                  <span className="mt-1 flex flex-wrap justify-center gap-1">
+                    {gift.owned.map((copy) => {
+                      const copyName = giftItemName(t, copy.slug);
+                      return (
+                        <button
+                          key={copy.id}
+                          type="button"
+                          disabled={isPending}
+                          aria-pressed={copy.pinned}
+                          onClick={() => run(() => (copy.pinned ? unpinGiftFromShowcase(copy.id) : pinGiftToShowcase(copy.id)))}
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            copy.pinned ? "bg-accent-soft font-semibold" : "border border-line hover:border-accent"
+                          }`}
+                        >
+                          {copy.pinned ? t.showcase.pinned : t.showcase.pin}
+                          {gift.owned!.length > 1 && <span>: {copyName}</span>}
+                          {copy.editionNumber != null && <span> · {format(t.editionLabel, { number: copy.editionNumber })}</span>}
+                          {gift.owned!.length === 1 && <span className="sr-only">: {copyName}</span>}
+                        </button>
+                      );
+                    })}
+                  </span>
                 )}
               </li>
             );

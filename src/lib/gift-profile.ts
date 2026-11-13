@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { giftsEnabledFor, giftVisibleOnProfile, isEquippableKind } from "@/lib/gifts";
+import { giftsEnabledFor, giftVisibleOnProfile, isEquippableKind, showcaseEligible } from "@/lib/gifts";
 
 // What a profile shows of digital gifts (src/lib/gifts.ts): the frame around the avatar, the badge by the name, and
 // the Gifts area. Server-only; the page hands the result to client components, so it carries only what they render.
@@ -16,7 +16,14 @@ export type ProfileGift = {
   items: ItemView[];
   /** Owner only: the sender's name (null: no name), or "deleted" when their account is gone. Visitors: undefined. */
   sender?: { name: string | null } | "deleted";
+  /** Owner only, opened gifts: each owned copy, to pin to the showcase (and its edition number, if numbered). */
+  owned?: { id: string; slug: string; assetKey: string; editionNumber: number | null; pinned: boolean }[];
+  /** Owner only: a free Thank You can still be sent back for it. */
+  thankable?: boolean;
 };
+
+/** One gift on the profile showcase. Visitors get the item only: never the sender, never an edition number. */
+export type ShowcaseGift = ItemView & { ownedGiftId?: string; editionNumber?: number | null };
 
 export type ProfileGiftsView = {
   frame: ItemView | null;
@@ -24,6 +31,8 @@ export type ProfileGiftsView = {
   gifts: ProfileGift[];
   /** Owner only: the frames and badges they own (unrevoked), to wear or take off. */
   wearable: ItemView[];
+  /** Up to GIFT_SHOWCASE_MAX pinned gifts, in position order; revoked or hidden ones are left out. */
+  showcase: ShowcaseGift[];
 };
 
 const PROFILE_GIFTS_LIMIT = 50;
@@ -45,7 +54,7 @@ export async function loadProfileGifts(
   if (!isOwner && blockedEitherWay) return null;
 
   const equippedIds = [owner.equippedFrameItemId, owner.equippedBadgeItemId].filter((id): id is string => id !== null);
-  const [equipped, sends, owned] = await Promise.all([
+  const [equipped, sends, owned, pins] = await Promise.all([
     equippedIds.length
       ? prisma.giftItem.findMany({ where: { id: { in: equippedIds } }, select: { id: true, ...itemSelect } })
       : [],
@@ -57,7 +66,19 @@ export async function loadProfileGifts(
         id: true,
         status: true,
         senderId: true,
+        thanksForSendId: true,
+        thankedBy: { select: { id: true } },
         sender: { select: { name: true } },
+        // The owner's own copies (to pin); for a visitor the filter matches nothing, so nothing is read.
+        owned: {
+          where: isOwner ? { ownerId: owner.id, revokedAt: null } : { id: { in: [] } },
+          select: {
+            id: true,
+            editionNumber: true,
+            showcasePin: { select: { id: true } },
+            item: { select: { slug: true, assetKey: true } },
+          },
+        },
         purchase: {
           select: { product: { select: { sku: true, isBox: true, items: { select: { item: { select: itemSelect } } } } } },
         },
@@ -70,6 +91,22 @@ export async function loadProfileGifts(
           select: { item: { select: itemSelect } },
         })
       : [],
+    prisma.giftShowcasePin.findMany({
+      where: { userId: owner.id },
+      orderBy: { position: "asc" },
+      select: {
+        ownedGift: {
+          select: {
+            id: true,
+            ownerId: true,
+            revokedAt: true,
+            editionNumber: true,
+            send: { select: { status: true } },
+            item: { select: itemSelect },
+          },
+        },
+      },
+    }),
   ]);
 
   const view = (item: ItemView & { sortOrder?: number }): ItemView => ({ slug: item.slug, kind: item.kind, assetKey: item.assetKey });
@@ -87,12 +124,36 @@ export async function loadProfileGifts(
         productSku: send.purchase.product.sku,
         isBox: send.purchase.product.isBox,
         items: [...send.purchase.product.items].sort((a, b) => a.item.sortOrder - b.item.sortOrder).map(({ item }) => view(item)),
-        ...(isOwner ? { sender: send.sender ? { name: send.sender.name } : ("deleted" as const) } : {}),
+        ...(isOwner
+          ? {
+              sender: send.sender ? { name: send.sender.name } : ("deleted" as const),
+              owned:
+                send.status === "OPENED"
+                  ? send.owned.map((row) => ({
+                      id: row.id,
+                      slug: row.item.slug,
+                      assetKey: row.item.assetKey,
+                      editionNumber: row.editionNumber,
+                      pinned: row.showcasePin !== null,
+                    }))
+                  : [],
+              thankable: send.senderId !== null && send.thanksForSendId === null && send.thankedBy === null,
+            }
+          : {}),
       })),
     wearable: owned
       .map(({ item }) => item)
       .filter((item) => isEquippableKind(item.kind))
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map(view),
+    showcase: pins
+      .map(({ ownedGift }) => ownedGift)
+      .filter((row) =>
+        showcaseEligible({ ownerId: row.ownerId, userId: owner.id, revokedAt: row.revokedAt, sendStatus: row.send.status }),
+      )
+      .map((row) => ({
+        ...view(row.item),
+        ...(isOwner ? { ownedGiftId: row.id, editionNumber: row.editionNumber } : {}),
+      })),
   };
 }

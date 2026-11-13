@@ -353,6 +353,11 @@ model User {
   giftsFrom                    GiftsFrom        @default(CONNECTIONS)
   equippedFrameItemId          String?
   equippedBadgeItemId          String?
+  // Phase A occasion-aware gifting (src/lib/gift-occasions.ts), Settings -> Gifts. giftAnniversaryOptIn: show our
+  // connection anniversary in the gift picker (only when BOTH people opted in; off by default).
+  // giftCultureOccasions: let holidays (and other Culture prompts) reorder the picker for people sending me a gift.
+  giftAnniversaryOptIn         Boolean          @default(false)
+  giftCultureOccasions         Boolean          @default(true)
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -484,6 +489,8 @@ model User {
   ownedGifts        OwnedGift[]
   equippedFrameItem GiftItem?      @relation("EquippedFrame", fields: [equippedFrameItemId], references: [id], onDelete: SetNull)
   equippedBadgeItem GiftItem?      @relation("EquippedBadge", fields: [equippedBadgeItemId], references: [id], onDelete: SetNull)
+  giftSelfOccasions GiftSelfOccasion[]
+  giftShowcasePins  GiftShowcasePin[]
 
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
@@ -3565,6 +3572,33 @@ enum GiftPurchaseProvider {
   STRIPE
   APPLE
   GOOGLE
+  // Phase A: a free gift (a GiftProduct with webPriceMinor 0, e.g. "Thank You"); no payment exists or ever will.
+  FREE
+}
+
+// Phase A ("occasion-aware gifting"): which of the five gift universes an item or product belongs to (the picker's
+// sections, src/lib/gift-universes.ts). Cosmetic grouping only.
+enum GiftUniverse {
+  LOVE
+  CELEBRATE
+  GAMING
+  LUXURY
+  CULTURE
+}
+
+// STANDARD / PREMIUM are labels; EDITION items get a sequential OwnedGift.editionNumber at delivery (never random).
+enum GiftRarity {
+  STANDARD
+  PREMIUM
+  EDITION
+}
+
+// What a person may declare about themselves (GiftSelfOccasion): never notified, only reorders the gift picker.
+enum GiftSelfOccasionKind {
+  GRADUATION
+  NEW_JOB
+  ACHIEVEMENT
+  MILESTONE
 }
 
 enum GiftPurchaseStatus {
@@ -3601,6 +3635,16 @@ model GiftItem {
   active    Boolean      @default(true)
   sortOrder Int          @default(0)
   createdAt DateTime     @default(now())
+  // Phase A catalog metadata (src/lib/gifts-data.ts). availableFrom / availableUntil are a yearly window as "MM-DD"
+  // (both null: always): a seasonal item comes back every year and is never described as gone for good.
+  universe       GiftUniverse @default(CELEBRATE)
+  collection     String       @default("classic")
+  occasionTags   String[]     @default([])
+  rarity         GiftRarity   @default(STANDARD)
+  // EDITION only: how many numbered copies exist at most (null: an open edition). Never shown as "N left".
+  editionSize    Int?
+  availableFrom  String?
+  availableUntil String?
 
   productItems   GiftProductItem[]
   owned          OwnedGift[]
@@ -3620,6 +3664,13 @@ model GiftProduct {
   active          Boolean  @default(true)
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
+  // Phase A catalog metadata (see GiftItem). A product with webPriceMinor 0 is a free gift (sent by sendFreeGift).
+  universe        GiftUniverse @default(CELEBRATE)
+  collection      String       @default("classic")
+  occasionTags    String[]     @default([])
+  rarity          GiftRarity   @default(STANDARD)
+  availableFrom   String?
+  availableUntil  String?
 
   items     GiftProductItem[]
   purchases GiftPurchase[]
@@ -3682,8 +3733,13 @@ model GiftSend {
   deliveredAt       DateTime?
   openedAt          DateTime?
   revokedAt         DateTime?
+  // Phase A: this send is the free "Thank You" its recipient sent back for that received gift. Unique, so a received
+  // gift can be thanked once (sendThankYouGift).
+  thanksForSendId   String?          @unique
 
   purchase     GiftPurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  thanksFor    GiftSend?     @relation("GiftThanks", fields: [thanksForSendId], references: [id], onDelete: SetNull)
+  thankedBy    GiftSend?     @relation("GiftThanks")
   sender       User?         @relation("GiftSender", fields: [senderId], references: [id], onDelete: SetNull)
   recipient    User          @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -3704,11 +3760,47 @@ model OwnedGift {
   sendId    String
   createdAt DateTime  @default(now())
   revokedAt DateTime?
+  // Phase A: an EDITION item's copy number, 1, 2, 3... in delivery order (deliverGiftPurchase, under a per-item
+  // advisory lock). Null for every other item. Cosmetic: no cash value, not transferable.
+  editionNumber Int?
 
-  owner User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  item  GiftItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  send  GiftSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  owner       User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  item        GiftItem         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  send        GiftSend         @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  showcasePin GiftShowcasePin?
 
+  @@unique([itemId, editionNumber])
   @@index([ownerId, revokedAt])
   @@index([sendId])
+}
+
+// Phase A: an occasion a person declared about themselves (Settings -> Gifts -> My occasions): a graduation, a new
+// job, an achievement or a milestone. Shown only as a reason in the gift picker for 7 days (src/lib/gift-occasions.ts),
+// never notified to anyone. At most one per kind per 30 days: a removed one (removedAt) still counts until then, and
+// rows older than that are deleted when the person declares again. Nothing else is stored: no text, no date.
+model GiftSelfOccasion {
+  id         String               @id @default(cuid())
+  userId     String
+  kind       GiftSelfOccasionKind
+  declaredAt DateTime             @default(now())
+  removedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, declaredAt])
+}
+
+// Phase A: up to three owned gifts pinned to a profile's showcase (src/lib/gift-profile.ts). Visitors see the items,
+// never who sent them; a revoked or hidden gift is left out when read. position is 0..2.
+model GiftShowcasePin {
+  id          String   @id @default(cuid())
+  userId      String
+  ownedGiftId String   @unique
+  position    Int
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedGift OwnedGift @relation(fields: [ownedGiftId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, position])
 }

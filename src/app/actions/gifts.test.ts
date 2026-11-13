@@ -65,7 +65,8 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: (...a: unknown[]) => sendUpdateMany(...a),
     },
     giftItem: { findUnique: async () => item },
-    ownedGift: { findMany: async () => ownedRows },
+    // openGift asks for a send's numbered copies (none here); equipGift for the user's copies of an item.
+    ownedGift: { findMany: async (args?: { where?: { sendId?: string } }) => (args?.where?.sendId ? [] : ownedRows) },
     conversationMember: { findUnique: async () => ({ hiddenAt: null }) },
   },
 }));
@@ -134,7 +135,7 @@ describe("the gate (giftsEnabledFor): non-admins get nothing from any action", (
     user = { ...user, isAdmin: false };
   });
   it("refuses every gift action", async () => {
-    expect(await getGiftCatalog()).toEqual({ error: "disabled" });
+    expect(await getGiftCatalog(BOB)).toEqual({ error: "disabled" });
     expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "disabled" });
     expect(await openGift(SEND)).toEqual({ error: "disabled" });
     expect(await hideGift(SEND)).toEqual({ error: "disabled" });

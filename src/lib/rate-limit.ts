@@ -336,6 +336,14 @@ const limiterDefinitions = {
   giftIntent: makeLimiter(10, "1 h"),
   giftToSameRecipient: makeLimiter(3, "24 h"),
   giftOpen: makeLimiter(120, "10 m"),
+  // Phase A (app/actions/gifts.ts). Free gifts and Thank Yous: giftFreeDaily per sender (FREE_GIFT_DAILY_MAX) and
+  // giftFreeToSameRecipient per sender x recipient (FREE_GIFT_PER_RECIPIENT_DAILY_MAX), both on the database
+  // fallback: free must never mean unlimited. giftCatalog: opening the picker (it reads occasions), fails open.
+  // giftOccasionDeclare: declaring / removing a self-declared occasion, per user.
+  giftFreeDaily: makeLimiter(20, "24 h"),
+  giftFreeToSameRecipient: makeLimiter(3, "24 h"),
+  giftCatalog: makeLimiter(60, "10 m"),
+  giftOccasionDeclare: makeLimiter(10, "24 h"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(
@@ -363,6 +371,8 @@ export const FAIL_CLOSED_WITH_DB_FALLBACK: ReadonlySet<LimiterName> = new Set<Li
   "accountReauth", // password re-entry before data export / account deletion
   "giftIntent", // a gift asked for (a payment from Phase 2 on): never unlimited during an Upstash outage
   "giftToSameRecipient", // gifts from one sender to one person a day: the anti-harassment cap must hold
+  "giftFreeDaily", // free gifts: free must never mean unlimited
+  "giftFreeToSameRecipient", // free gifts to one person a day: the same anti-harassment cap
 ]);
 
 /**

@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { expandProductItems, giftSendRefusal, giftsHref, liveEffectFor, type GiftsFromValue } from "@/lib/gifts";
+import {
+  expandProductItems,
+  giftSendRefusal,
+  giftsHref,
+  liveEffectFor,
+  nextEditionNumber,
+  type GiftsFromValue,
+} from "@/lib/gifts";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { afterMessageSent } from "@/lib/after-message-sent";
 import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-chats";
@@ -63,7 +70,13 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       status: true,
       product: {
         select: {
-          items: { select: { itemId: true, quantity: true, item: { select: { kind: true, assetKey: true } } } },
+          items: {
+            select: {
+              itemId: true,
+              quantity: true,
+              item: { select: { kind: true, assetKey: true, rarity: true, editionSize: true } },
+            },
+          },
         },
       },
       send: {
@@ -102,6 +115,11 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
   }
 
   const itemIds = expandProductItems(purchase.product.items);
+  const editionItems = new Map(
+    purchase.product.items
+      .filter((row) => row.item.rarity === "EDITION")
+      .map((row) => [row.itemId, row.item.editionSize ?? null] as const),
+  );
   const outcome = await prisma.$transaction(async (tx): Promise<GiftDeliveryOutcome> => {
     const claimed = await tx.giftPurchase.updateMany({
       where: { id: purchase.id, status: "PENDING" },
@@ -115,9 +133,39 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       });
       return "undeliverable";
     }
+    // Numbered editions: each EDITION copy takes the next number of its item, in delivery order, under a per-item
+    // advisory lock held to the end of this transaction, so two deliveries can never take the same number (the unique
+    // (itemId, editionNumber) key backs it up). A limited edition that has given every copy makes the gift
+    // undeliverable, like any other refusal at delivery.
+    const numbers = new Map<string, number[]>();
+    for (const [itemId, editionSize] of editionItems) {
+      const copies = itemIds.filter((id) => id === itemId).length;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${giftEditionLockKey(itemId)}))`;
+      const max = await tx.ownedGift.aggregate({ where: { itemId }, _max: { editionNumber: true } });
+      let current = max._max.editionNumber ?? null;
+      const taken: number[] = [];
+      for (let i = 0; i < copies; i++) {
+        const next = nextEditionNumber(current, editionSize);
+        if (next === null) {
+          await tx.giftSend.updateMany({
+            where: { id: send.id, status: "AWAITING_PAYMENT" },
+            data: { status: "UNDELIVERABLE" },
+          });
+          return "undeliverable";
+        }
+        taken.push(next);
+        current = next;
+      }
+      numbers.set(itemId, taken);
+    }
     await tx.giftSend.update({ where: { id: send.id }, data: { status: "DELIVERED", deliveredAt: now } });
     await tx.ownedGift.createMany({
-      data: itemIds.map((itemId) => ({ ownerId: send.recipient.id, itemId, sendId: send.id })),
+      data: itemIds.map((itemId) => ({
+        ownerId: send.recipient.id,
+        itemId,
+        sendId: send.id,
+        ...editionField(numbers.get(itemId)?.shift()),
+      })),
     });
     return "delivered";
   });
@@ -134,6 +182,16 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
     });
   }
   return outcome;
+}
+
+/** An owned copy's edition number, only for a numbered (EDITION) copy. */
+function editionField(number: number | undefined): { editionNumber?: number } {
+  return number === undefined ? {} : { editionNumber: number };
+}
+
+/** The advisory-lock key that serializes one EDITION item's numbering. */
+export function giftEditionLockKey(itemId: string): string {
+  return `gift-edition:${itemId}`;
 }
 
 async function bestEffort(step: string, sendId: string, run: () => Promise<unknown>) {

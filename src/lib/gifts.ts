@@ -134,6 +134,98 @@ export function giftsHref(recipientId: string): string {
   return `/u/${recipientId}#gifts`;
 }
 
+// ---------- Phase A: free gifts, editions, seasons, the showcase ----------
+
+/** Free gifts (sendFreeGift, sendThankYouGift) one sender may send in 24 hours, in all (limiter giftFreeDaily). */
+export const FREE_GIFT_DAILY_MAX = 20;
+/** Free gifts from one sender to one person in 24 hours (limiter giftFreeToSameRecipient). */
+export const FREE_GIFT_PER_RECIPIENT_DAILY_MAX = 3;
+/** The occasion tag a free gift must carry: free gifts are appreciation only. */
+export const FREE_GIFT_TAG = "appreciation";
+/** At most this many owned gifts pinned to a profile's showcase. */
+export const GIFT_SHOWCASE_MAX = 3;
+
+/** Whether a product is a free gift: price 0 and an appreciation sentiment. Anything else at 0 is not sendable. */
+export function isFreeGiftProduct(product: { webPriceMinor: number; occasionTags: readonly string[] }): boolean {
+  return product.webPriceMinor === 0 && product.occasionTags.includes(FREE_GIFT_TAG);
+}
+
+/**
+ * The next copy number of an EDITION item: the highest number already given plus one, in delivery order (never
+ * random). Null when a limited edition (`editionSize`) has given all its copies: the delivery is then refused like any
+ * other undeliverable gift, and the catalog simply stops offering it (never "only N left").
+ */
+export function nextEditionNumber(currentMax: number | null, editionSize: number | null | undefined): number | null {
+  const next = (currentMax ?? 0) + 1;
+  if (editionSize != null && next > editionSize) return null;
+  return next;
+}
+
+const MONTH_DAY = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+
+/**
+ * Whether a yearly window ("MM-DD" to "MM-DD", inclusive, either end may be open) contains this month and day. A
+ * window may wrap the new year ("12-01" to "01-15"). Both null: always available. A malformed bound is treated as
+ * open-ended. Seasonal gifts come back every year.
+ */
+export function inYearlyWindow(
+  from: string | null | undefined,
+  until: string | null | undefined,
+  date: { month: number; day: number },
+): boolean {
+  const start = from && MONTH_DAY.test(from) ? from : null;
+  const end = until && MONTH_DAY.test(until) ? until : null;
+  if (!start && !end) return true;
+  const today = `${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
+  if (start && end) return start <= end ? today >= start && today <= end : today >= start || today <= end;
+  if (start) return today >= start;
+  return today <= end!;
+}
+
+/**
+ * Why the recipient of `received` can't send it a free Thank You, or null. Only its recipient; only a gift that was
+ * delivered (opened or not, even hidden); not a Thank You itself (no loops); not one already thanked; and only while
+ * its sender's account still exists.
+ */
+export function thankYouRefusal(input: {
+  userId: string;
+  received: { recipientId: string; senderId: string | null; status: string; thanksForSendId: string | null; thanked: boolean } | null;
+}): "not_found" | "already_thanked" | "unavailable" | null {
+  const { received } = input;
+  if (!received || received.recipientId !== input.userId) return "not_found";
+  if (!["DELIVERED", "OPENED", "HIDDEN_BY_RECIPIENT"].includes(received.status)) return "not_found";
+  if (received.thanksForSendId !== null) return "unavailable";
+  if (received.thanked) return "already_thanked";
+  if (!received.senderId) return "unavailable";
+  return null;
+}
+
+/** Whether an owned gift may be on its owner's showcase: theirs, not revoked, and a gift still shown (opened). */
+export function showcaseEligible(input: {
+  ownerId: string;
+  userId: string;
+  revokedAt: Date | null;
+  sendStatus: string;
+}): boolean {
+  return input.ownerId === input.userId && input.revokedAt === null && input.sendStatus === "OPENED";
+}
+
+/** The advisory-lock key that serializes one person's showcase changes (pinGiftToShowcase). */
+export function giftShowcaseLockKey(userId: string): string {
+  return "gift-showcase:" + userId;
+}
+
+/** The advisory-lock key that serializes one person's self-declared occasions (declareGiftOccasion). */
+export function giftSelfOccasionLockKey(userId: string): string {
+  return "gift-self-occasion:" + userId;
+}
+
+/** The first free showcase position (0..GIFT_SHOWCASE_MAX-1), or null when it is full. */
+export function freeShowcasePosition(taken: number[]): number | null {
+  for (let p = 0; p < GIFT_SHOWCASE_MAX; p++) if (!taken.includes(p)) return p;
+  return null;
+}
+
 /** A store price for display, e.g. "$0.99", in the reader's language. */
 export function giftPriceLabel(minor: number, currency: string, locale: string): string {
   try {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Cake, Check } from "lucide-react";
 import { useUiText } from "@/components/ui-text";
@@ -14,8 +14,20 @@ import { format } from "@/lib/i18n/locales";
  * a visitor in the chosen audience sees whose birthday it is and, when their own reminder allows it, "Send a wish",
  * which opens the same quick-wish sheet as /birthdays. Still, with no animation or confetti, so there is nothing to
  * turn off for reduced motion. Says "today" only: never a date, a year or an age.
+ *
+ * Phase A: when digital gifts are on for both people, the page passes its "Send a gift" button (`giftAction`, rendered
+ * only where giftsEnabledFor allows); a visitor's calls to action are then "Send a wish" first and "Send a gift"
+ * second. The gift picker opens on its "Right now" shelf (the birthday occasion), every rule checked on the server.
  */
-export function ProfileBirthdayCard({ card, person }: { card: Card; person: { id: string; name: string | null } }) {
+export function ProfileBirthdayCard({
+  card,
+  person,
+  giftAction = null,
+}: {
+  card: Card;
+  person: { id: string; name: string | null };
+  giftAction?: ReactNode;
+}) {
   const { t: ui, dir, locale } = useUiText();
   const t = ui.birthdays;
   const headingId = useId();
@@ -51,20 +63,23 @@ export function ProfileBirthdayCard({ card, person }: { card: Card; person: { id
             <p dir="auto" className="mt-1 text-sm text-foreground-soft">
               {format(t.profileCard.visitorBody, { name })}
             </p>
-            {wished ? (
-              <p className="mt-2 flex items-center gap-1 text-sm text-success">
-                <Check size={14} aria-hidden />
-                {t.wished}
-              </p>
-            ) : card.wish === "available" ? (
-              <button
-                type="button"
-                onClick={() => setSheetOpen(true)}
-                className="mt-3 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
-              >
-                {t.profileCard.sendWish}
-              </button>
-            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {wished ? (
+                <p className="flex items-center gap-1 text-sm text-success">
+                  <Check size={14} aria-hidden />
+                  {t.wished}
+                </p>
+              ) : card.wish === "available" ? (
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(true)}
+                  className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
+                >
+                  {t.profileCard.sendWish}
+                </button>
+              ) : null}
+              {giftAction}
+            </div>
           </>
         )}
       </div>

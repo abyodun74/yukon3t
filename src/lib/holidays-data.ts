@@ -15,6 +15,7 @@ import {
   HOLIDAY_MAX_PER_RUN,
   HOLIDAY_RECIPIENT_ACTIVE_MS,
   dueHolidays,
+  holidayCountToday,
   holidayCountryLabel,
   holidayName,
   type DueHolidays,
@@ -172,4 +173,16 @@ export async function sendHolidayReminders(now = new Date()) {
     }
   }
   return totals;
+}
+
+/**
+ * For the gift occasion engine's server half (src/lib/gift-occasions-data.ts): the number of the recipient's own
+ * country's holidays today on their calendar (holidayCountToday). Kept here so the dataset stays behind this module.
+ */
+export function holidaysTodayForGifts(country: string | null | undefined, timeZone: string | null | undefined, now: Date): number {
+  try {
+    return holidayCountToday(country, timeZone, now);
+  } catch {
+    return 0;
+  }
 }

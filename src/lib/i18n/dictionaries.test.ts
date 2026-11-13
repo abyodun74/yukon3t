@@ -150,6 +150,8 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "feed.createPicker.story",
     // A mobile phone number is "Mobile" in French too.
     "invite.phoneKinds.mobile",
+    // "Occasions" (Settings -> Gifts) is the French word too.
+    "settings.gifts.occasionsHeading",
   ],
   pt: [
     "onboarding.bio",

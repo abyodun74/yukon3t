@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { Sheet } from "@/components/sheet";
 import { GiftArt } from "@/components/gift-art";
+import { GiftLottie } from "@/components/gift-lottie";
 import { useGiftsText } from "@/components/gifts-text";
-import { resolveGiftArt } from "@/lib/gift-assets";
+import { resolveGiftAnimation, resolveGiftArt } from "@/lib/gift-assets";
+import { giftPieceNumber } from "@/lib/gifts-data";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { format } from "@/lib/i18n/locales";
 import type { OpenedGift } from "@/app/actions/gifts";
@@ -15,6 +18,10 @@ import type { OpenedGift } from "@/app/actions/gifts";
  * motion" on (the OS setting, which MotionConfig also honours app-wide) the contents are simply shown, with no
  * movement at all. What was opened is announced to screen readers through a polite live region; there is no sound.
  * Only the recipient ever sees this, so it may say who sent the gift.
+ *
+ * Phase A: a single gift with a Lottie animation (gift-lottie.tsx) plays it, large; with reduce motion it shows the
+ * animation's poster still. A numbered (EDITION) item shows its copy number, a Luxury atelier piece its piece number,
+ * both to the recipient only. The Birthday Candle can be blown out with a tap (a still change, no animation).
  */
 export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; onClose: () => void }) {
   const { locale, dir, t } = useGiftsText();
@@ -22,7 +29,14 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
   const names = gift ? gift.items.map((item) => giftItemName(t, item.slug)) : [];
   const listFormat = new Intl.ListFormat(locale, { style: "long", type: "conjunction" });
   // A single gift whose art is a picture (a photo, not a small drawing) is shown large enough to see.
-  const artSize = gift?.items.length === 1 && resolveGiftArt(gift.items[0].assetKey).type === "image" ? 160 : 56;
+  const single = gift?.items.length === 1 ? gift.items[0] : null;
+  const animated = single && resolveGiftAnimation(single.assetKey) ? single : null;
+  const artSize = single && (resolveGiftArt(single.assetKey).type === "image" || animated) ? 160 : 56;
+  const [blown, setBlown] = useState<string | null>(null);
+  const hasCandle = gift?.items.some((item) => item.slug === "birthday-candle") ?? false;
+  // The Birthday Candle, once blown out, is drawn without its flame.
+  const artKey = (item: { slug: string; assetKey: string }) =>
+    item.slug === "birthday-candle" && gift && blown === gift.sendId ? "birthday-candle-out" : item.assetKey;
 
   return (
     <Sheet open={gift !== null} onClose={onClose} title={t.open.title} lang={locale} dir={dir} panelClassName="max-w-sm">
@@ -53,9 +67,12 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
               </m.div>
             )}
             <div className="relative flex flex-wrap items-end justify-center gap-3">
-              {gift.items.map((item, i) =>
+              {animated ? (
+                <GiftLottie assetKey={animated.assetKey} name={names[0]} size={artSize} reduce={Boolean(reduce)} />
+              ) : (
+                gift.items.map((item, i) =>
                 reduce ? (
-                  <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={names[i]} size={artSize} eager />
+                  <GiftArt key={`${item.slug}-${i}`} assetKey={artKey(item)} name={names[i]} size={artSize} eager />
                 ) : (
                   <m.div
                     key={`${item.slug}-${i}`}
@@ -63,20 +80,47 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
                     animate={{ y: 0, scale: 1, opacity: 1 }}
                     transition={{ delay: 0.55 + i * 0.12, type: "spring", stiffness: 420, damping: 22 }}
                   >
-                    <GiftArt assetKey={item.assetKey} name={names[i]} size={artSize} eager />
+                    <GiftArt
+                      assetKey={artKey(item)}
+                      name={names[i]}
+                      size={artSize}
+                      eager
+                    />
                   </m.div>
                 ),
+                )
               )}
             </div>
           </div>
 
           <ul className="mt-4 space-y-0.5 text-sm">
-            {gift.items.map((item, i) => (
-              <li key={`${item.slug}-${i}`}>
-                {names[i]} <span className="text-xs text-foreground-soft">· {t.kinds[item.kind]}</span>
-              </li>
-            ))}
+            {gift.items.map((item, i) => {
+              const piece = giftPieceNumber(item.slug);
+              const edition = gift.editions.find((e) => e.slug === item.slug);
+              return (
+                <li key={`${item.slug}-${i}`}>
+                  {names[i]} <span className="text-xs text-foreground-soft">· {t.kinds[item.kind]}</span>
+                  {piece !== null && (
+                    <span className="text-xs text-foreground-soft"> · {format(t.pieceLabel, { number: piece })}</span>
+                  )}
+                  {edition && (
+                    <span className="text-xs font-semibold"> · {format(t.editionLabel, { number: edition.number })}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          {gift.editions.length > 0 && <p className="mt-1 text-xs text-foreground-soft">{t.editionNote}</p>}
+          {hasCandle && (
+            <button
+              type="button"
+              onClick={() => setBlown(gift.sendId)}
+              disabled={blown === gift.sendId}
+              className="mt-3 rounded-full border border-line px-3 py-1 text-xs font-semibold hover:border-accent disabled:opacity-70"
+            >
+              <span aria-live="polite">{blown === gift.sendId ? t.candle.blown : t.candle.blow}</span>
+            </button>
+          )}
           {gift.message && (
             <p dir="auto" className="mt-3 w-full break-words rounded-lg bg-surface px-3 py-2 text-sm ph-no-capture">
               {gift.message}

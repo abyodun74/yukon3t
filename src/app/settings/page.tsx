@@ -4,7 +4,8 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, updateNotificationAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
 import { setBirthDateOnce, updateBirthdaySharing } from "@/app/actions/birthdays";
-import { updateGiftsFrom } from "@/app/actions/gifts";
+import { declareGiftOccasion, removeGiftOccasion, updateGiftOccasionSettings, updateGiftsFrom } from "@/app/actions/gifts";
+import { loadMySelfOccasions } from "@/lib/gift-occasions-data";
 import { giftsEnabledFor } from "@/lib/gifts";
 import { BIRTHDAY_DEFAULT_AUDIENCE, birthdaySettingsView } from "@/lib/birthdays";
 import { MIN_AGE } from "@/lib/validation-constants";
@@ -54,6 +55,8 @@ export default async function SettingsPage({
   const hasPassword = Boolean(await getPasswordHash(user.id));
   const passwordResetRequired = hasPassword && (await isPasswordResetRequired(user.id));
   const translationAvailable = isTranslationConfigured();
+  // Settings -> Gifts -> My occasions (Phase A): kinds only, never when.
+  const myOccasions = giftsEnabledFor(user) ? await loadMySelfOccasions(user.id) : null;
   // "Share my birthday" is on by default (BOTH): "Turn off" is always there, and "Turn on" (or changing who is
   // reminded) only where it can apply now (birthdaySettingsView: a birth date on the account and BIRTHDAY_MIN_AGE).
   // An account with no birth date gets the one-time "Add your date of birth" form (setBirthDateOnce) instead.
@@ -370,6 +373,103 @@ export default async function SettingsPage({
                 className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
               />
             </form>
+
+            {/* Occasion-aware gifting (src/lib/gift-occasions.ts): these only reorder the gift picker for people
+                sending this person a gift; nothing here ever notifies anyone. */}
+            <h3 className="mt-6 text-sm font-semibold">{t.gifts.occasionsHeading}</h3>
+            <p className="mt-1 text-sm text-foreground-soft">{t.gifts.occasionsIntro}</p>
+            <form action={updateGiftOccasionSettings} className="mt-3 space-y-3">
+              <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="anniversaryOptIn"
+                  defaultChecked={user.giftAnniversaryOptIn}
+                  aria-describedby="settings-gift-anniversary-hint"
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium">{t.gifts.anniversaryOptIn}</span>
+                  <span id="settings-gift-anniversary-hint" className="mt-0.5 block text-foreground-soft">
+                    {t.gifts.anniversaryHint}
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="cultureOccasions"
+                  defaultChecked={user.giftCultureOccasions}
+                  aria-describedby="settings-gift-culture-hint"
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium">{t.gifts.cultureOccasions}</span>
+                  <span id="settings-gift-culture-hint" className="mt-0.5 block text-foreground-soft">
+                    {t.gifts.cultureHint}
+                  </span>
+                </span>
+              </label>
+              <SubmitButton
+                label={t.gifts.saveOccasions}
+                pendingLabel={t.saving}
+                offlineMessage={offlineMessage}
+                className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+              />
+            </form>
+
+            {myOccasions && (
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold">{t.gifts.myOccasionsHeading}</h3>
+                <p className="mt-1 text-sm text-foreground-soft">{t.gifts.myOccasionsIntro}</p>
+                {myOccasions.showing.length === 0 ? (
+                  <p className="mt-2 text-sm text-foreground-soft">{t.gifts.none}</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {myOccasions.showing.map((kind) => (
+                      <li key={kind} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+                        <span>
+                          <span className="block font-medium">{t.gifts.occasionKinds[kind]}</span>
+                          <span className="block text-xs text-foreground-soft">{t.gifts.showing}</span>
+                        </span>
+                        <form action={removeGiftOccasion}>
+                          <input type="hidden" name="kind" value={kind} />
+                          <SubmitButton
+                            label={t.gifts.remove}
+                            pendingLabel={t.saving}
+                            offlineMessage={offlineMessage}
+                            className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:border-danger hover:text-danger"
+                          />
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {myOccasions.available.length > 0 && (
+                  <form action={declareGiftOccasion} className="mt-3 flex flex-wrap items-end gap-2">
+                    <label className="min-w-0 flex-1 text-sm">
+                      <span className="block font-medium">{t.gifts.myOccasionsLabel}</span>
+                      <select
+                        name="kind"
+                        className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-base sm:text-sm"
+                      >
+                        {myOccasions.available.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {t.gifts.occasionKinds[kind]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <SubmitButton
+                      label={t.gifts.declare}
+                      pendingLabel={t.saving}
+                      offlineMessage={offlineMessage}
+                      className="rounded-lg border border-line px-4 py-2 text-sm font-semibold hover:border-accent hover:text-accent"
+                    />
+                  </form>
+                )}
+                <p className="mt-2 text-xs text-foreground-soft">{t.gifts.limitNote}</p>
+              </div>
+            )}
           </CollapsibleSection>
         )}
 
