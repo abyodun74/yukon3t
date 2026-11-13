@@ -8,6 +8,8 @@ describe("liveStreamSignalKind", () => {
     expect(liveStreamSignalKind({ kind: "stage" })).toBe("stage");
     // A digital gift was delivered on the stream (deliverGiftPurchase): only the gift-effect layer refetches.
     expect(liveStreamSignalKind({ kind: "gift" })).toBe("gift");
+    // A challenge changed (Gift Universe Phase B): the challenge panel and the winner-moment layer refetch.
+    expect(liveStreamSignalKind({ kind: "challenge" })).toBe("challenge");
   });
 
   it("returns null (full refetch) for a focus resync, an old server's empty payload, or an unknown kind", () => {

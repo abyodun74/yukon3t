@@ -47,6 +47,7 @@ export const push: typeof pushEn = {
     BIRTHDAY_TODAY: "يحتفل اليوم بعيد ميلاده",
     BIRTHDAY_WISHES: "هنّأك بعيد ميلادك",
     GIFT_RECEIVED: "أرسل إليك هدية",
+    CHALLENGE_RESULT: "أعلن فوزك في تحدٍّ",
   },
   birthday: {
     title: "أعياد ميلاد اليوم",

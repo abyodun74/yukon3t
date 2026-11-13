@@ -47,7 +47,11 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
           </p>
           <p className="text-sm font-semibold">{giftProductName(t, { sku: gift.productSku, isBox: gift.isBox, items: gift.items })}</p>
           <p className="text-xs text-foreground-soft">
-            {gift.senderName ? format(t.open.from, { name: gift.senderName }) : t.open.fromSomeone}
+            {gift.isAward
+              ? t.open.fromAward
+              : gift.senderName
+                ? format(t.open.from, { name: gift.senderName })
+                : t.open.fromSomeone}
           </p>
 
           <div className="relative mt-4 flex min-h-28 w-full items-end justify-center" aria-hidden>
@@ -78,7 +82,7 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
                     key={`${item.slug}-${i}`}
                     initial={{ y: 28, scale: 0.6, opacity: 0 }}
                     animate={{ y: 0, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.55 + i * 0.12, type: "spring", stiffness: 420, damping: 22 }}
+                    transition={{ delay: 0.55 + i * 0.12, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <GiftArt
                       assetKey={artKey(item)}

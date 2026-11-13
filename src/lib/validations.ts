@@ -275,6 +275,22 @@ export const giftOccasionSettingsSchema = z.object({
   cultureOccasions: z.boolean(),
 });
 
+// Challenges (Gift Universe Phase B, app/actions/challenges.ts; rules in src/lib/challenges.ts). The exact length rules
+// (CHALLENGE_TITLE_MAX / CHALLENGE_DESCRIPTION_MAX, after trimming) are challengeTextRefusal's; these only bound input.
+export const challengeIdSchema = z.string().cuid();
+export const challengeCreateSchema = z.object({
+  place: z.union([
+    z.object({ context: z.literal("CIRCLE"), circleId: z.string().cuid() }),
+    z.object({ context: z.literal("LIVE"), liveStreamId: z.string().cuid() }),
+  ]),
+  title: z.string().max(400),
+  description: z.string().max(2000).nullable().optional(),
+});
+export const challengeWinnersSchema = z.object({
+  challengeId: z.string().cuid(),
+  winnerIds: z.array(z.string().cuid()).min(1).max(10),
+});
+
 export const autoTranslateSchema = z.object({
   autoTranslate: z.boolean(),
 });
@@ -700,7 +716,7 @@ export const correctionSchema = z.object({
 });
 
 export const reportSchema = z.object({
-  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT", "GIFT"]),
+  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT", "GIFT", "CHALLENGE"]),
   targetId: z.string().cuid(),
   // No reportedUserId: whom a report is about is derived on the server from the target (src/lib/report-target.ts).
   reasonCategory: z.enum(reportReasonCategoryValues).optional().default("OTHER"),

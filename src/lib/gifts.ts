@@ -100,6 +100,22 @@ export function giftSendRefusal(input: {
   return null;
 }
 
+/**
+ * Why a SYSTEM_AWARD (Phase B: the Champion badge the app gives a challenge winner) can't be delivered, or null. An
+ * award is not from a person, so the person-to-person rules don't apply: no block check, no giftsFrom (NOBODY means
+ * "nobody may send me gifts", and nobody is sending one), and no age rule (those protect a minor from strangers and
+ * from live-room gifting; an award has no sender and is cosmetic). What still applies: the recipient's account is
+ * ACTIVE (not suspended, banned or deleted), not the guest identity, and gifts are on for them.
+ */
+export function systemAwardRefusal(recipient: {
+  status: string;
+  isAdmin: boolean;
+  isGuestPreview: boolean;
+}): "unavailable" | null {
+  if (recipient.status !== "ACTIVE" || recipient.isGuestPreview || !giftsEnabledFor(recipient)) return "unavailable";
+  return null;
+}
+
 /** Items a product's contents give, one entry per copy: a box gives each contained item `quantity` times. */
 export function expandProductItems(contents: { itemId: string; quantity: number }[]): string[] {
   const out: string[] = [];
@@ -148,6 +164,14 @@ export const GIFT_SHOWCASE_MAX = 3;
 /** Whether a product is a free gift: price 0 and an appreciation sentiment. Anything else at 0 is not sendable. */
 export function isFreeGiftProduct(product: { webPriceMinor: number; occasionTags: readonly string[] }): boolean {
   return product.webPriceMinor === 0 && product.occasionTags.includes(FREE_GIFT_TAG);
+}
+
+/**
+ * Whether a product is an award (Phase B): price 0, an "award." sku and never an appreciation gift. Only the app gives
+ * one (a SYSTEM_AWARD purchase, src/lib/challenge-awards.ts); the picker never offers it and no send action accepts it.
+ */
+export function isAwardProduct(product: { sku: string; webPriceMinor: number; occasionTags: readonly string[] }): boolean {
+  return product.webPriceMinor === 0 && product.sku.startsWith("award.") && !product.occasionTags.includes(FREE_GIFT_TAG);
 }
 
 /**
@@ -249,13 +273,18 @@ export function giftVisibleOnProfile(input: { status: string; viewerIsRecipient:
 }
 
 /**
- * One live stream's on-screen gift effects: one at a time, in arrival order, each id once however many times a refetch
+ * One live stream's on-screen effects: one at a time, in arrival order, each id once however many times a refetch
  * returns it, at most LIVE_GIFT_QUEUE_MAX waiting (a burst beyond that is dropped, newest first). `play` starts an
  * effect and the caller calls `done()` when it has finished (a timer in the overlay); `clear` empties it (unmount).
+ * Gift effects and (Phase B) challenge winner moments share this one queue, so only one effect ever plays at a time;
+ * give each kind its own id space (a winner moment's id is "<challengeId>:<decided time>").
  */
-export function createGiftEffectQueue(play: (effect: { id: string; effect: string }) => void, max = LIVE_GIFT_QUEUE_MAX) {
+export function createGiftEffectQueue<T extends { id: string; effect: string } = { id: string; effect: string }>(
+  play: (effect: T) => void,
+  max = LIVE_GIFT_QUEUE_MAX,
+) {
   const seen = new Set<string>();
-  const waiting: { id: string; effect: string }[] = [];
+  const waiting: T[] = [];
   let playing = false;
 
   function next() {
@@ -269,7 +298,7 @@ export function createGiftEffectQueue(play: (effect: { id: string; effect: strin
   }
 
   return {
-    push(effects: { id: string; effect: string }[]) {
+    push(effects: T[]) {
       for (const effect of effects) {
         if (seen.has(effect.id)) continue;
         seen.add(effect.id);

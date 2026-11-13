@@ -38,6 +38,8 @@ import { CirclePostFab } from "@/components/circle-post-fab";
 import { PollSection } from "@/components/poll-section";
 import { circlePollWhere, getCirclePollAccess, loadPollPage } from "@/lib/polls-data";
 import { CircleEventsSection } from "@/components/circle-events-section";
+import { CircleChallengesSection } from "@/components/circle-challenges-section";
+import { challengesEnabledFor } from "@/lib/challenges";
 import { circleEventsWhere, loadCircleEventPage } from "@/lib/circle-events-data";
 import { loadCircleMemberPage } from "@/lib/circle-members-data";
 import type { CircleMemberPage } from "@/lib/circle-members";
@@ -397,6 +399,10 @@ export default async function CirclePage({
           )}
 
           <CircleEventsSection circleId={circle.id} events={eventPage.events} hasMore={eventPage.hasMore} />
+
+          {/* Challenges (Gift Universe Phase B): members only, and only while challengesEnabledFor is on for the viewer
+              (listCircleChallenges and every challenge action re-check both on the server). */}
+          {isMember && challengesEnabledFor(me) && <CircleChallengesSection circleId={circle.id} />}
 
           {pollAccess && (
             <PollSection

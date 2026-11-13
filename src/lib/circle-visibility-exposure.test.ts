@@ -82,6 +82,17 @@ describe("the Circle page", () => {
     }
   });
 
+  it("shows Challenges (Gift Universe Phase B) to members only, after the 404 gate, and lists them for members only", () => {
+    const gate = page.indexOf("if (!canSeeCircle(circle, { isMember, hasStandingInvite: !!myInvite })) notFound();");
+    const mount = page.indexOf("{isMember && challengesEnabledFor(me) && <CircleChallengesSection");
+    expect(mount).toBeGreaterThan(gate);
+    // listCircleChallenges answers "unavailable" without a membership row, site admins included (no isCircleAdmin).
+    const actions = readFileSync(join(SRC, "app", "actions", "challenges.ts"), "utf8");
+    const list = actions.slice(actions.indexOf("export async function listCircleChallenges"));
+    expect(list.slice(0, list.indexOf("\n}\n"))).toMatch(/if \(!circle \|\| !membership\) return \{ error: "unavailable" \};/);
+    expect(actions).not.toMatch(/isCircleAdmin\(/);
+  });
+
   it("never lets isCircleAdmin's site-admin shortcut open a PRIVATE Circle", () => {
     expect(page).toContain("const canModerate = !isPrivateNonMember && isCircleAdmin(");
   });

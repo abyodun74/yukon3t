@@ -344,6 +344,15 @@ const limiterDefinitions = {
   giftFreeToSameRecipient: makeLimiter(3, "24 h"),
   giftCatalog: makeLimiter(60, "10 m"),
   giftOccasionDeclare: makeLimiter(10, "24 h"),
+  // Gift Universe Phase B: challenges (app/actions/challenges.ts). A declared win gives a gift and promotes paid gifts,
+  // so fake wins are the abuse to stop: challengeCreate per host, challengeDeclare per declarer (declaring and changing
+  // winners), challengeJoin per person (joining and leaving); all three on the database fallback. challengeManage
+  // (cancelling) and challengeList (reading a list, the live room's moments) fail open like any ordinary limiter.
+  challengeCreate: makeLimiter(3, "24 h"),
+  challengeDeclare: makeLimiter(5, "24 h"),
+  challengeJoin: makeLimiter(30, "24 h"),
+  challengeManage: makeLimiter(30, "1 h"),
+  challengeList: makeLimiter(120, "10 m"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(
@@ -373,6 +382,9 @@ export const FAIL_CLOSED_WITH_DB_FALLBACK: ReadonlySet<LimiterName> = new Set<Li
   "giftToSameRecipient", // gifts from one sender to one person a day: the anti-harassment cap must hold
   "giftFreeDaily", // free gifts: free must never mean unlimited
   "giftFreeToSameRecipient", // free gifts to one person a day: the same anti-harassment cap
+  "challengeCreate", // challenges a host opens a day: a win promotes paid gifts, so never unlimited
+  "challengeDeclare", // results a declarer gives a day (each gives awards): the anti-farming cap must hold
+  "challengeJoin", // challenges a person joins (or leaves) a day
 ]);
 
 /**

@@ -9,6 +9,8 @@ let viewerRow: Record<string, unknown> | null;
 let connection: { respondedAt: Date | null } | null;
 let events: { id: string; eventAt: Date }[];
 let failQuery: boolean;
+let wins: { challenge: Record<string, unknown> }[];
+let blocks: { blockerId: string; blockedId: string }[];
 const holidaysTodayForGifts = vi.fn(() => 1);
 const loadCircleEventAccess = vi.fn(async () => ({}) as unknown);
 const captureError = vi.fn();
@@ -31,6 +33,8 @@ vi.mock("@/lib/prisma", () => ({
     circleMembership: { findMany: async () => [] },
     post: { findMany: async () => events },
     giftSelfOccasion: { findMany: async () => [] },
+    challengeWinner: { findMany: async () => wins },
+    block: { findMany: async () => blocks },
   },
 }));
 
@@ -59,6 +63,8 @@ beforeEach(() => {
   viewerRow = { giftAnniversaryOptIn: true };
   connection = { respondedAt: new Date("2025-11-13T08:00:00Z") };
   events = [];
+  wins = [];
+  blocks = [];
 });
 
 describe("loadGiftOccasions", () => {
@@ -107,5 +113,64 @@ describe("loadGiftOccasions", () => {
     holidaysTodayForGifts.mockReturnValueOnce(0);
     const out = await loadGiftOccasions("r", VIEWER, NOW);
     expect(out.map((o) => o.kind)).toEqual(["CONNECTION_ANNIVERSARY"]);
+  });
+});
+
+// Phase B: a host-declared challenge win, visible to this viewer, is the CHALLENGE_WIN occasion (Gaming only).
+describe("loadGiftOccasions: challenge wins", () => {
+  const HOUR = 60 * 60_000;
+  const member = (yes: boolean) => (yes ? [{ id: "m" }] : []);
+  const circleWin = (visibility: string, viewerIsMember: boolean, over: Record<string, unknown> = {}) => ({
+    challenge: {
+      decidedAt: new Date(NOW.getTime() - 2 * HOUR),
+      hostId: "host",
+      circle: { visibility, members: member(viewerIsMember) },
+      liveStream: null,
+      ...over,
+    },
+  });
+
+  it("counts a win in a public Circle, and in a private one only for its members", async () => {
+    wins = [circleWin("PUBLIC", false)];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).toContain("CHALLENGE_WIN");
+    wins = [circleWin("PRIVATE", false)];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).not.toContain("CHALLENGE_WIN");
+    wins = [circleWin("PRIVATE", true)];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).toContain("CHALLENGE_WIN");
+  });
+
+  it("never across a block with the challenge's host, and never past 72h", async () => {
+    wins = [circleWin("PUBLIC", true)];
+    blocks = [{ blockerId: "host", blockedId: "viewer" }];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).not.toContain("CHALLENGE_WIN");
+    blocks = [];
+    wins = [circleWin("PUBLIC", true, { decidedAt: new Date(NOW.getTime() - 73 * HOUR) })];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).not.toContain("CHALLENGE_WIN");
+  });
+
+  it("follows the stream's audience for a live challenge", async () => {
+    const live = (stream: Record<string, unknown>) => ({
+      challenge: { decidedAt: new Date(NOW.getTime() - HOUR), hostId: "host", circle: null, liveStream: stream },
+    });
+    wins = [live({ hostId: "host", targetUserId: null, circle: null })];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).toContain("CHALLENGE_WIN");
+    wins = [live({ hostId: "host", targetUserId: "someone-else", circle: null })];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).not.toContain("CHALLENGE_WIN");
+    wins = [live({ hostId: "host", targetUserId: null, circle: { visibility: "PRIVATE", members: [] } })];
+    expect((await loadGiftOccasions("r", VIEWER, NOW)).map((o) => o.kind)).not.toContain("CHALLENGE_WIN");
+  });
+
+  it("returns only the kind and a coarse window: no title, no Circle, no date", async () => {
+    wins = [circleWin("PUBLIC", true, { title: "Secret Circle Cup" } as never)];
+    const out = await loadGiftOccasions("r", VIEWER, NOW);
+    const win = out.find((o) => o.kind === "CHALLENGE_WIN")!;
+    expect(win).toEqual({
+      kind: "CHALLENGE_WIN",
+      universes: ["GAMING"],
+      tags: ["tournament_win", "achievement"],
+      reasonKey: "CHALLENGE_WIN",
+      window: "this_week",
+    });
+    expect(JSON.stringify(out)).not.toMatch(/Secret|Circle Cup|\d/);
   });
 });

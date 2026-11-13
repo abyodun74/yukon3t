@@ -492,6 +492,13 @@ model User {
   giftSelfOccasions GiftSelfOccasion[]
   giftShowcasePins  GiftShowcasePin[]
 
+  // Gift Universe Phase B: Challenges (src/lib/challenges.ts).
+  challengesHosted       Challenge[]            @relation("ChallengeHost")
+  challengesDecided      Challenge[]            @relation("ChallengeDecider")
+  challengesCancelled    Challenge[]            @relation("ChallengeCanceller")
+  challengeParticipation ChallengeParticipant[]
+  challengeWins          ChallengeWinner[]
+
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
   // equality filters, ordered by trustScore) — without this, that query
@@ -629,6 +636,7 @@ model Circle {
   liveStreams   LiveStream[]
   polls         Poll[]
   eventSeries   EventSeries[]
+  challenges    Challenge[]
 
   @@index([category], type: Gin)
   @@index([parentId])
@@ -1578,6 +1586,11 @@ enum NotificationType {
   // recipient's own Gifts area (/u/<recipientId>#gifts). conversationId is set for a gift sent from a chat, so a hidden
   // chat hides it like a message; it is also one of HIDDEN_PEER_NOTIFICATION_TYPES.
   GIFT_RECEIVED
+  // "<name> declared you a winner of a challenge": Gift Universe Phase B (src/lib/challenges.ts). One bell row per
+  // winner when a challenge is decided (actorId = the person who declared it; challengeId set, plus circleId or
+  // liveStreamId so a PRIVATE Circle's row hides from a non-member like any other). Removed again if the winner is
+  // taken off within 24h, or the challenge is cancelled or reversed. Never names the challenge or the Circle.
+  CHALLENGE_RESULT
 }
 
 model Notification {
@@ -1596,6 +1609,8 @@ model Notification {
   subscriptionId String?
   liveStreamId   String?
   channelId      String?
+  // CHALLENGE_RESULT only: the challenge it is about (deleted with it).
+  challengeId    String?
   // Dynamic system-generated text for notification types that can't be
   // expressed by NOTIFICATION_VERB's single static-per-type string alone —
   // currently VIDEO_MODERATION_FAILED/VIDEO_FLAGGED_FOR_REVIEW (the
@@ -1622,12 +1637,14 @@ model Notification {
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
   channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  challenge    Challenge?       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   birthdayWishDigest BirthdayWishDigest?
 
   @@index([recipientId, readAt])
   @@index([recipientId, createdAt])
   @@index([postId])
   @@index([commentId])
+  @@index([challengeId])
   @@index([storyId])
   @@index([subscriptionId])
   @@index([connectionId])
@@ -1988,6 +2005,7 @@ model LiveStream {
   comments       LiveStreamComment[]
   recordingPosts LiveStreamRecordingPost[]
   giftSends      GiftSend[]
+  challenges     Challenge[]
 
   @@index([status])
   @@index([hostId])
@@ -2923,6 +2941,9 @@ enum ReportTargetType {
   COMMENT
   // A received gift (GiftSend id): only its recipient can report it; the accused is the sender.
   GIFT
+  // A challenge (Challenge id): reported by one of its participants; the accused is its host. Resolving it with
+  // "remove" cancels the challenge and revokes its awards (src/lib/challenge-awards.ts).
+  CHALLENGE
 }
 
 enum ReportStatus {
@@ -2996,6 +3017,12 @@ enum AuditAction {
   // the admin themselves (AuditLog needs a user); the reason names the platform.
   APP_VERSION_POLICY_UPDATED
   APP_UPDATE_NOTICE_SENT
+  // Gift Universe Phase B (src/app/actions/challenges.ts): every result of a challenge is on the record. The target is
+  // the person who acted (the declarer, or whoever cancelled); the reason names the challenge and the winners' ids.
+  // An admin reversal from the moderation queue is CONTENT_REMOVED, like every other report removal.
+  CHALLENGE_DECIDED
+  CHALLENGE_RESULT_EDITED
+  CHALLENGE_CANCELLED
 }
 
 model AuditLog {
@@ -3574,6 +3601,9 @@ enum GiftPurchaseProvider {
   GOOGLE
   // Phase A: a free gift (a GiftProduct with webPriceMinor 0, e.g. "Thank You"); no payment exists or ever will.
   FREE
+  // Phase B: an award the app itself gives (the free Champion badge for a challenge winner, src/lib/challenge-awards.ts).
+  // No buyer and no sender (GiftSend.senderId null): it is not from a person, so it can't be thanked or reported as one.
+  SYSTEM_AWARD
 }
 
 // Phase A ("occasion-aware gifting"): which of the five gift universes an item or product belongs to (the picker's
@@ -3746,6 +3776,8 @@ model GiftSend {
   liveStream   LiveStream?   @relation(fields: [liveStreamId], references: [id], onDelete: SetNull)
   owned        OwnedGift[]
   chatMessage  Message?
+  // Phase B: the challenge win this send is the Champion award for (SYSTEM_AWARD only).
+  challengeAward ChallengeWinner?
 
   @@index([recipientId, createdAt])
   @@index([senderId, createdAt])
@@ -3803,4 +3835,88 @@ model GiftShowcasePin {
   ownedGift OwnedGift @relation(fields: [ownedGiftId], references: [id], onDelete: Cascade)
 
   @@unique([userId, position])
+}
+
+// ---------- Challenges (Gift Universe Phase B, src/lib/challenges.ts) ----------
+//
+// The smallest honest "Gaming Arena": a challenge is a title a host puts up in a Circle they run (owner / co-admin) or
+// on their own live stream, people join it, and the host DECLARES who won. The app has no game, no score, no ranking
+// and no bracket, and stores none: a result is a human's declaration, on the record (AuditLog), editable by the
+// declarer for 24h and reversible by moderators. Winners are unranked (no place, no points). Each winner gets the free
+// Champion badge (a SYSTEM_AWARD gift) and, for 72h, a CHALLENGE_WIN gift occasion (src/lib/gift-occasions.ts).
+// Admin-only behind challengesEnabledFor (Phase B). Migration 20261115120400_challenges (CHECKs: one context, text
+// lengths).
+
+enum ChallengeStatus {
+  OPEN
+  DECIDED
+  CANCELLED
+}
+
+model Challenge {
+  id               String          @id @default(cuid())
+  // <= 80 characters, moderated before saving (src/lib/moderation.ts); the description (optional) <= 280.
+  title            String
+  description      String?
+  // Who put it up. Kept (null) when their account is deleted, so a decided Circle challenge keeps its result.
+  hostId           String?
+  // Exactly one host context (CHECK constraint Challenge_one_context in the migration).
+  circleId         String?
+  liveStreamId     String?
+  status           ChallengeStatus @default(OPEN)
+  createdAt        DateTime        @default(now())
+  decidedAt        DateTime?
+  decidedById      String?
+  // decidedAt + 24h: until then the declarer may change the winners or cancel; after it, only moderators can act.
+  editableUntil    DateTime?
+  cancelledAt      DateTime?
+  cancelledById    String?
+  // Cancelled by a site admin from the moderation queue (a reversal), not by the host.
+  cancelledByAdmin Boolean         @default(false)
+
+  host          User?                  @relation("ChallengeHost", fields: [hostId], references: [id], onDelete: SetNull)
+  decidedBy     User?                  @relation("ChallengeDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  cancelledBy   User?                  @relation("ChallengeCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  circle        Circle?                @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  liveStream    LiveStream?            @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  participants  ChallengeParticipant[]
+  winners       ChallengeWinner[]
+  notifications Notification[]
+
+  @@index([circleId, status, createdAt])
+  @@index([liveStreamId, status, createdAt])
+  @@index([hostId, status, createdAt])
+  @@index([decidedById, decidedAt])
+}
+
+// Someone who joined a challenge. Deleted with their account (the challenge stays).
+model ChallengeParticipant {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  joinedAt    DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@index([userId, joinedAt])
+}
+
+// A declared winner. Unranked on purpose: no place, no rank, no score. awardSendId is the Champion badge given for it
+// (one per winner row, set once: the idempotency key of the award). A winner taken off within 24h loses the row and
+// the award is revoked (never deleted).
+model ChallengeWinner {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  createdAt   DateTime @default(now())
+  awardSendId String?  @unique
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  awardSend GiftSend? @relation(fields: [awardSendId], references: [id], onDelete: SetNull)
+
+  @@unique([challengeId, userId])
+  @@index([userId, createdAt])
 }

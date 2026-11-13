@@ -65,8 +65,9 @@ export async function loadReportedContent(
   const collabIds = idsOf("COLLAB_POST");
   const userIds = idsOf("USER");
   const giftIds = idsOf("GIFT");
+  const challengeIds = idsOf("CHALLENGE");
 
-  const [posts, comments, messages, circles, collabs, users, gifts] = await Promise.all([
+  const [posts, comments, messages, circles, collabs, users, gifts, challenges] = await Promise.all([
     postIds.length
       ? run(() =>
           prisma.post.findMany({
@@ -160,6 +161,26 @@ export async function loadReportedContent(
               context: true,
               sender: authorSelect,
               purchase: { select: { product: { select: { sku: true } } } },
+            },
+          }),
+        )
+      : [],
+    challengeIds.length
+      ? run(() =>
+          prisma.challenge.findMany({
+            where: { id: { in: challengeIds } },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              decidedAt: true,
+              editableUntil: true,
+              cancelledByAdmin: true,
+              liveStreamId: true,
+              host: authorSelect,
+              circle: { select: { slug: true, visibility: true } },
+              _count: { select: { participants: true, winners: true } },
             },
           }),
         )
@@ -291,6 +312,37 @@ export async function loadReportedContent(
       mediaLabel: null,
       links: [],
       href: null,
+    });
+  }
+
+  // A reported challenge (Gift Universe Phase B): its title and description, where it is, and what was declared. The
+  // remove action cancels it and revokes every award it gave (src/lib/challenge-revoke.ts).
+  for (const challenge of challenges) {
+    const notes = [
+      `Challenge ${challenge.status}${challenge.cancelledByAdmin ? " (reversed by a moderator)" : ""}: ${challenge._count.participants} joined, ${challenge._count.winners} declared winner(s).`,
+      challenge.circle
+        ? `In a ${challenge.circle.visibility} Circle${challenge.circle.visibility === "PRIVATE" ? " (its page opens for members only, see /admin/circles)" : ""}.`
+        : "On a live stream.",
+    ];
+    if (challenge.decidedAt) {
+      notes.push(`Decided ${challenge.decidedAt.toISOString()}; the host could change it until ${challenge.editableUntil?.toISOString() ?? "-"}.`);
+    }
+    if (!challenge.host) notes.push("The host's account has been deleted.");
+    out.set(reportedContentKey({ targetType: "CHALLENGE", targetId: challenge.id }), {
+      exists: true,
+      author: challenge.host,
+      text: cap(challenge.description ? `${challenge.title}\n\n${challenge.description}` : challenge.title),
+      notes,
+      imageUrl: null,
+      mediaLabel: null,
+      links: [],
+      href: challenge.circle
+        ? challenge.circle.visibility === "PRIVATE"
+          ? "/admin/circles"
+          : `/circles/${challenge.circle.slug}#challenges`
+        : challenge.liveStreamId
+          ? `/live/${challenge.liveStreamId}`
+          : null,
     });
   }
 

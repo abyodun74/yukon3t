@@ -29,6 +29,7 @@ import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { useLiveText } from "@/components/live-text";
 import { LiveGiftLayer } from "@/components/live-gift-layer";
 import { SendGiftButton } from "@/components/profile-gifts";
+import { LiveChallengePanel } from "@/components/live-challenge-panel";
 import { formatDuration } from "@/lib/format-date";
 import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
 
@@ -129,6 +130,7 @@ export function LiveStreamRoom({
   recordingAutoPostAvailable,
   giftsEnabled = false,
   giftHost = null,
+  challengesEnabled = false,
 }: {
   liveStreamId: string;
   isHost: boolean;
@@ -142,10 +144,14 @@ export function LiveStreamRoom({
   giftsEnabled?: boolean;
   /** Set when the viewer may send the host a gift from here (gifts on for both; never for the host themself). */
   giftHost?: { id: string; name: string | null } | null;
+  /** Challenges are on for the viewer (challengesEnabledFor): the challenge panel and its winner moments. */
+  challengesEnabled?: boolean;
 }) {
   const { locale, t } = useLiveText();
   // Bumped by a "gift" live-stream signal (and by a full refetch): LiveGiftLayer asks which effects to play.
   const [giftSignal, setGiftSignal] = useState(0);
+  // Bumped by a "challenge" live-stream signal (and by a full refetch): the challenge panel and the winner moments.
+  const [challengeSignal, setChallengeSignal] = useState(0);
   const { isGuest, promptSignUp } = useGuestPreview();
   const [phase, setPhase] = useState<"choosing" | "joining" | "active" | "error">(
     initiallyEnded ? "error" : isHost || initialRole ? "joining" : "choosing",
@@ -421,12 +427,17 @@ export function LiveStreamRoom({
           // A digital gift arrived: only the effect layer refetches (and only if gifts are on for this viewer).
           if (giftsEnabled) setGiftSignal((n) => n + 1);
           return;
+        case "challenge":
+          // A challenge changed (Gift Universe Phase B): the panel and the winner-moment layer refetch.
+          if (challengesEnabled) setChallengeSignal((n) => n + 1);
+          return;
         default:
           if (giftsEnabled) setGiftSignal((n) => n + 1);
+          if (challengesEnabled) setChallengeSignal((n) => n + 1);
           await refetch();
       }
     },
-    [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch, giftsEnabled],
+    [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch, giftsEnabled, challengesEnabled],
   );
 
   // Fires immediately once joined (still needed since a realtime subscription
@@ -1253,9 +1264,25 @@ export function LiveStreamRoom({
               className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
             />
           )}
+          {/* Challenges (Gift Universe Phase B): the host starts one and declares winners; viewers join. */}
+          {challengesEnabled && phase === "active" && (
+            <LiveChallengePanel
+              liveStreamId={liveStreamId}
+              signal={challengeSignal}
+              className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
+            />
+          )}
         </div>
       </div>
-      {giftsEnabled && phase === "active" && <LiveGiftLayer liveStreamId={liveStreamId} signal={giftSignal} />}
+      {(giftsEnabled || challengesEnabled) && phase === "active" && (
+        <LiveGiftLayer
+          liveStreamId={liveStreamId}
+          signal={giftSignal}
+          challengeSignal={challengeSignal}
+          gifts={giftsEnabled}
+          challenges={challengesEnabled}
+        />
+      )}
 
       {!isHost && !pendingStageRole && declinedNotice && (
         <div

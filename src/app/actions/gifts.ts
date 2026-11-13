@@ -593,6 +593,8 @@ export type OpenedGift = {
   isBox: boolean;
   message: string | null;
   senderName: string | null;
+  /** Phase B: an award the app gave (a challenge win's Champion badge): there is no sender. */
+  isAward: boolean;
   items: ItemView[];
   /** The copy numbers of any numbered (EDITION) items in it, for its recipient only. */
   editions: { slug: string; number: number }[];
@@ -610,6 +612,7 @@ const giftViewSelect = {
   sender: { select: { name: true } },
   purchase: {
     select: {
+      provider: true,
       product: {
         select: {
           sku: true,
@@ -660,6 +663,7 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
       isBox: product.isBox,
       message: send.message,
       senderName: send.sender?.name ?? null,
+      isAward: send.purchase.provider === "SYSTEM_AWARD",
       items: itemsOf(product),
       editions: (numbered ?? []).map((row) => ({ slug: row.item.slug, number: row.editionNumber! })),
     },

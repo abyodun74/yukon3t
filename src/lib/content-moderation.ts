@@ -3,8 +3,18 @@ import { prisma, type TransactionClient } from "@/lib/prisma";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { countPublishedInThread } from "@/lib/comment-count";
 import { revokeGiftSend } from "@/lib/gift-revoke";
+import { cancelChallengeInTx } from "@/lib/challenge-revoke";
 
-type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE" | "GIFT";
+type ModeratableTargetType =
+  | "USER"
+  | "POST"
+  | "MESSAGE"
+  | "CIRCLE"
+  | "COLLAB_POST"
+  | "COMMENT"
+  | "MUSE"
+  | "GIFT"
+  | "CHALLENGE";
 
 /**
  * Removes the underlying content behind a report or a flagged-content review,
@@ -155,6 +165,16 @@ export async function removeModeratedContent(
       revalidatePath(`/u/${revoked.recipientId}`);
       // An account already deleted can't carry an audit row; the gift is still revoked.
       return revoked.senderId ? { authorId: revoked.senderId, mediaUrlsToDelete: [] } : null;
+    }
+    case "CHALLENGE": {
+      // A reported challenge (Gift Universe Phase B) is reversed, not deleted: CANCELLED by an admin, every Champion
+      // award it gave revoked, its winners' bell rows removed, which also ends its CHALLENGE_WIN gift occasion. The
+      // caller writes the CONTENT_REMOVED audit row against its host in the same transaction.
+      const cancelled = await cancelChallengeInTx(tx, targetId, { userId: null, byAdmin: true });
+      if (!cancelled) return null;
+      for (const winnerId of cancelled.winnerIds) revalidatePath(`/u/${winnerId}`);
+      if (cancelled.circleId) revalidatePath("/circles/[slug]", "page");
+      return cancelled.hostId ? { authorId: cancelled.hostId, mediaUrlsToDelete: [] } : null;
     }
     case "USER":
     default:

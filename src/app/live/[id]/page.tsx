@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { LiveStreamRoom } from "@/components/live-stream-room";
 import { giftsEnabledFor } from "@/lib/gifts";
+import { challengesEnabledFor } from "@/lib/challenges";
 import { canAccessLiveStream } from "@/lib/live-stream-access";
 
 const VALID_ROLES = ["VIEWER", "GUEST", "COHOST"] as const;
@@ -59,6 +60,9 @@ export default async function LivePage({
       recordingAutoPostAvailable={!liveStream.targetUserId}
       giftsEnabled={giftsOn}
       giftHost={giftHost}
+      // Challenges (Gift Universe Phase B): the panel and winner moments, only while challengesEnabledFor is on for the
+      // viewer; every challenge action re-checks it, and that the viewer is in the stream.
+      challengesEnabled={challengesEnabledFor(me)}
     />
   );
 }

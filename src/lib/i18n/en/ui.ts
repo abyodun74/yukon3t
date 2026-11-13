@@ -101,6 +101,7 @@ export const uiEn = {
       MESSAGE: "Report this message",
       POST: "Report post",
       GIFT: "Report gift",
+      CHALLENGE: "Report challenge",
     },
     sent: "Reported. Our team reviews reports within 24 hours.",
     reason: "Reason",

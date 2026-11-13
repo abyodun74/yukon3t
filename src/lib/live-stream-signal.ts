@@ -12,7 +12,10 @@
  */
 // "gift": a digital gift was delivered on this stream (deliverGiftPurchase, src/lib/gift-delivery.ts); the room asks
 // getLiveGiftEffects which effects to play. Like every kind, it says nothing about who sent what.
-export const LIVE_STREAM_SIGNAL_KINDS = ["comment", "presence", "stage", "gift"] as const;
+// "challenge" (Gift Universe Phase B): this stream's challenges changed (one was put up, joined, left, decided, changed
+// or cancelled; app/actions/challenges.ts). The challenge panel refetches listLiveChallenges and the effect layer asks
+// getLiveChallengeMoments whether a winner moment is due. It names nobody and carries no title.
+export const LIVE_STREAM_SIGNAL_KINDS = ["comment", "presence", "stage", "gift", "challenge"] as const;
 
 /**
  * The global `live-streams` signal (any stream starting or ending, heard by every open Home tab at once) is

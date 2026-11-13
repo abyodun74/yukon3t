@@ -7,25 +7,50 @@ import { GiftArt } from "@/components/gift-art";
 import { GiftLottie } from "@/components/gift-lottie";
 import { resolveGiftAnimation } from "@/lib/gift-assets";
 import { useGiftsText } from "@/components/gifts-text";
+import { useChallengesText } from "@/components/challenges-text";
 import { getLiveGiftEffects } from "@/app/actions/gifts";
+import { getLiveChallengeMoments } from "@/app/actions/challenges";
 import { LIVE_GIFT_EFFECT_MS, createGiftEffectQueue } from "@/lib/gifts";
+import { CHALLENGE_WINNER_EFFECT } from "@/lib/challenges";
+import { format, plural } from "@/lib/i18n/locales";
+
+/** One thing the layer plays: a gift effect, or (Phase B) a challenge's winner moment, which carries its wording. */
+type LayerEffect = { id: string; effect: string; title?: string; winnerCount?: number; youWon?: boolean };
 
 /**
- * Digital-gift effects over a live stream (src/lib/gifts.ts). A plain DOM layer on top of the video: it never
- * touches the Daily call object (there is only ever one Daily instance, owned by the live frame). Each `signal` bump
- * (the room heard a "gift" live-stream signal, or joined) asks getLiveGiftEffects what arrived in the last few
- * seconds; effects then play one at a time from a small queue (createGiftEffectQueue). Names nobody: who sent a gift
- * to whom is never shown here. Reduced motion: a still picture and a line of text instead of the animation.
+ * Effects over a live stream: digital-gift effects (src/lib/gifts.ts) and, from Gift Universe Phase B, a challenge's
+ * "winner moment" (src/lib/challenges.ts). A plain DOM layer on top of the video: it never touches the Daily call
+ * object (there is only ever one Daily instance, owned by the live frame). A `giftSignal` bump (a "gift" live-stream
+ * signal, or joining) asks getLiveGiftEffects what arrived in the last few seconds; a `challengeSignal` bump (a
+ * "challenge" signal) asks getLiveChallengeMoments for results declared in the last few seconds. Both feed ONE queue
+ * (createGiftEffectQueue), so only one effect ever plays at a time, each at most LIVE_GIFT_EFFECT_MS (3.2 s). Names
+ * nobody: who sent a gift to whom, or who won, is never shown here (a winner moment says the challenge's title, how many
+ * won, and "You won" to a winner). Reduced motion: a still picture and a line of text instead of the animation.
  */
-export function LiveGiftLayer({ liveStreamId, signal }: { liveStreamId: string; signal: number }) {
+export function LiveGiftLayer({
+  liveStreamId,
+  signal,
+  challengeSignal = 0,
+  gifts = true,
+  challenges = false,
+}: {
+  liveStreamId: string;
+  signal: number;
+  challengeSignal?: number;
+  /** Gifts are on for the viewer (giftsEnabledFor). */
+  gifts?: boolean;
+  /** Challenges are on for the viewer (challengesEnabledFor). */
+  challenges?: boolean;
+}) {
   const { locale, dir, t } = useGiftsText();
+  const { t: ct } = useChallengesText();
   const reduce = useReducedMotion();
-  const [current, setCurrent] = useState<{ id: string; effect: string } | null>(null);
+  const [current, setCurrent] = useState<LayerEffect | null>(null);
   // One queue for the life of the room. Its timer lives in the same closure (not a ref), so nothing here is read
   // during render.
   const [player] = useState(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const queue = createGiftEffectQueue((effect) => {
+    const queue = createGiftEffectQueue<LayerEffect>((effect) => {
       setCurrent(effect);
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
@@ -45,6 +70,7 @@ export function LiveGiftLayer({ liveStreamId, signal }: { liveStreamId: string; 
   useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
+    if (!gifts) return undefined;
     let cancelled = false;
     getLiveGiftEffects(liveStreamId)
       .then((result) => {
@@ -54,15 +80,77 @@ export function LiveGiftLayer({ liveStreamId, signal }: { liveStreamId: string; 
     return () => {
       cancelled = true;
     };
-  }, [liveStreamId, signal, player]);
+  }, [liveStreamId, signal, player, gifts]);
+
+  useEffect(() => {
+    if (!challenges) return undefined;
+    let cancelled = false;
+    getLiveChallengeMoments(liveStreamId)
+      .then((result) => {
+        if (!cancelled && result.error === null) player.queue.push(result.moments);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [liveStreamId, challengeSignal, player, challenges]);
+
+  const isMoment = current?.effect === CHALLENGE_WINNER_EFFECT;
+  const announce = !current
+    ? ""
+    : isMoment
+      ? format(ct.moment.announce, { title: current.title ?? "" })
+      : t.live.effectArrived;
 
   return (
     <div lang={locale} dir={dir} className="pointer-events-none fixed inset-0 z-[65] overflow-hidden">
       <p className="sr-only" aria-live="polite">
-        {current ? t.live.effectArrived : ""}
+        {announce}
       </p>
-      {current && <Effect key={current.id} effect={current.effect} reduce={Boolean(reduce)} label={t.live.effectArrived} />}
+      {current &&
+        (isMoment ? (
+          <WinnerMoment key={current.id} moment={current} reduce={Boolean(reduce)} />
+        ) : (
+          <Effect key={current.id} effect={current.effect} reduce={Boolean(reduce)} label={t.live.effectArrived} />
+        ))}
     </div>
+  );
+}
+
+/**
+ * A challenge's winner moment: one card that fades and rises in, holds, and fades out within LIVE_GIFT_EFFECT_MS. No
+ * flashing (a single fade in and out, nothing repeats), and a still card with reduced motion.
+ */
+function WinnerMoment({ moment, reduce }: { moment: LayerEffect; reduce: boolean }) {
+  const { locale, dir, t } = useChallengesText();
+  const card = (
+    <div
+      lang={locale}
+      dir={dir}
+      className="mx-auto flex max-w-[80vw] flex-col items-center gap-1 rounded-2xl bg-black/70 px-5 py-4 text-center text-white backdrop-blur-md"
+    >
+      <GiftArt assetKey={CHALLENGE_WINNER_EFFECT} name={t.moment.title} size={reduce ? 56 : 72} eager />
+      <p className="text-base font-semibold">{moment.youWon ? t.moment.you : t.moment.title}</p>
+      {moment.title && (
+        <p dir="auto" className="max-w-full truncate text-sm text-white/85">
+          {moment.title}
+        </p>
+      )}
+      {typeof moment.winnerCount === "number" && moment.winnerCount > 0 && (
+        <p className="text-xs text-white/70">{plural(locale, t.moment.winners, moment.winnerCount)}</p>
+      )}
+    </div>
+  );
+  if (reduce) return <div className="absolute inset-x-0 top-1/3 flex justify-center px-4">{card}</div>;
+  return (
+    <m.div
+      className="absolute inset-x-0 top-1/3 flex justify-center px-4"
+      initial={{ opacity: 0, y: 24, scale: 0.94 }}
+      animate={{ opacity: [0, 1, 1, 0], y: [24, 0, 0, -12], scale: [0.94, 1, 1, 1] }}
+      transition={{ duration: 3, times: [0, 0.15, 0.85, 1], ease: "easeOut" }}
+    >
+      {card}
+    </m.div>
   );
 }
 

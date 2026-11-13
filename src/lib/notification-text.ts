@@ -93,6 +93,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   HOLIDAY_TODAY: "Today is a public holiday in your country",
   // deliverGiftPurchase (src/lib/gift-delivery.ts): to the recipient only, who is the one person told who sent it.
   GIFT_RECEIVED: "sent you a gift",
+  // Gift Universe Phase B (actions/challenges.ts): to each declared winner, once. Never names the challenge or Circle.
+  CHALLENGE_RESULT: "declared you a winner of a challenge",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

@@ -4,6 +4,7 @@ import { eligibleBirthdayRecipients } from "@/lib/birthdays-data";
 import { profileBirthdayToday, type BirthdayAudience } from "@/lib/birthdays";
 import { holidaysTodayForGifts } from "@/lib/holidays-data";
 import { loadCircleEventAccess } from "@/lib/circle-events-data";
+import { loadVisibleChallengeWins } from "@/lib/challenges-data";
 import {
   EVENT_OCCASION_WINDOW_MS,
   SELF_OCCASION_COOLDOWN_MS,
@@ -66,7 +67,7 @@ export async function loadGiftOccasions(recipientId: string, viewer: Viewer, now
       timeZone: recipient.timeZone,
     };
 
-    const [birthdayEligible, connection, sharedCircles, events, selfRows] = await Promise.all([
+    const [birthdayEligible, connection, sharedCircles, events, selfRows, challengeWins] = await Promise.all([
       // The card's own rule first (no query on any other day), then the same audience check the card uses.
       profileBirthdayToday(birthdayOwner, now)
         ? eligibleBirthdayRecipients(birthdayOwner, now, [viewer.id]).then((rows) => rows.some((r) => r.id === viewer.id))
@@ -105,6 +106,8 @@ export async function loadGiftOccasions(recipientId: string, viewer: Viewer, now
         where: { userId: recipient.id, removedAt: null, declaredAt: { gte: new Date(now.getTime() - SELF_OCCASION_WINDOW_MS) } },
         select: { kind: true, declaredAt: true },
       }),
+      // Phase B: the recipient's current challenge wins that this viewer may see (times only).
+      loadVisibleChallengeWins(recipient.id, viewer.id, now),
     ]);
 
     // An event counts only if the viewer may open it (canViewPost plus a private channel's allow-list).
@@ -137,6 +140,7 @@ export async function loadGiftOccasions(recipientId: string, viewer: Viewer, now
         : null,
       sharedCircleJoins: sharedCircles.map((row) => row.joinedAt),
       visibleEventStarts,
+      visibleChallengeWins: challengeWins,
     };
     return occasionsFor(occasionRecipient, occasionViewer, now);
   } catch (err) {

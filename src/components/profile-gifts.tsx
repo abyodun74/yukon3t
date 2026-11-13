@@ -239,9 +239,11 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
                 <span className="font-medium">{name}</span>
                 {isOwner && gift.sender && (
                   <span className="text-foreground-soft">
-                    {gift.sender === "deleted"
-                      ? t.profile.fromDeleted
-                      : format(t.profile.from, { name: gift.sender.name ?? t.open.fromSomeone })}
+                    {gift.sender === "award"
+                      ? t.profile.fromAward
+                      : gift.sender === "deleted"
+                        ? t.profile.fromDeleted
+                        : format(t.profile.from, { name: gift.sender.name ?? t.open.fromSomeone })}
                   </span>
                 )}
                 {isOwner && (
@@ -266,14 +268,17 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
                       {t.profile.hide}
                       <span className="sr-only">: {name}</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setReporting(gift.sendId)}
-                      className="rounded-full border border-line px-2.5 py-1 hover:border-danger hover:text-danger"
-                    >
-                      {t.profile.report}
-                      <span className="sr-only">: {name}</span>
-                    </button>
+                    {/* An award (Phase B) has no sender to report; the challenge itself is reportable instead. */}
+                    {gift.sender !== "award" && (
+                      <button
+                        type="button"
+                        onClick={() => setReporting(gift.sendId)}
+                        className="rounded-full border border-line px-2.5 py-1 hover:border-danger hover:text-danger"
+                      >
+                        {t.profile.report}
+                        <span className="sr-only">: {name}</span>
+                      </button>
+                    )}
                   </span>
                 )}
                 {isOwner && isNew && (

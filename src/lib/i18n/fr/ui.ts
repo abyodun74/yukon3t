@@ -90,6 +90,7 @@ export const ui: typeof uiEn = {
       MESSAGE: "Signaler ce message",
       POST: "Signaler la publication",
       GIFT: "Signaler le cadeau",
+      CHALLENGE: "Signaler le défi",
     },
     sent: "Signalement envoyé. Notre équipe examine les signalements sous 24 heures.",
     reason: "Motif",

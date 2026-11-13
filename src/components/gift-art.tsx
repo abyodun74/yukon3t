@@ -278,6 +278,21 @@ export function GiftArt({ assetKey, name, size = 48, className, eager = false }:
           <path d="M20 46h24M24 51h16" stroke="#FF3DCB" strokeWidth="3" strokeLinecap="square" />
         </svg>
       );
+    case "arena-champion":
+    case "challenge-winner":
+      // Phase B: the challenge winner's award (and the live room's winner moment). A still picture: no animation,
+      // nothing that flashes.
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#14102B" />
+          <circle cx="32" cy="32" r="25" fill="none" stroke="#39FF88" strokeWidth="2" strokeDasharray="3 3" />
+          <path d="M22 17h20v9a10 10 0 0 1-20 0z" fill="#FFD34D" stroke="#C98612" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M22 20h-5a5 5 0 0 0 5 7M42 20h5a5 5 0 0 1-5 7" fill="none" stroke="#FFD34D" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M29 36h6v6h-6z" fill="#C98612" />
+          <path d="M23 46h18v-3a2 2 0 0 0-2-2H25a2 2 0 0 0-2 2z" fill="#33D6FF" />
+          <path d="M32 20l1.8 3.6 4 .6-2.9 2.8.7 4L32 29.1 28.4 31l.7-4-2.9-2.8 4-.6z" fill="#FFFFFF" />
+        </svg>
+      );
     case "pixel-heart":
       return (
         <svg {...common}>

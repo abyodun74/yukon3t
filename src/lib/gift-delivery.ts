@@ -6,6 +6,7 @@ import {
   giftsHref,
   liveEffectFor,
   nextEditionNumber,
+  systemAwardRefusal,
   type GiftsFromValue,
 } from "@/lib/gifts";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
@@ -68,6 +69,7 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
     select: {
       id: true,
       status: true,
+      provider: true,
       product: {
         select: {
           items: {
@@ -97,7 +99,12 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
   const { send } = purchase;
 
   let refused = true;
-  if (send.sender && send.recipient) {
+  const systemAward = purchase.provider === "SYSTEM_AWARD";
+  if (systemAward) {
+    // Phase B: an award the app gives (a challenge winner's Champion badge) has no sender, so only the recipient's own
+    // standing is checked (systemAwardRefusal explains why the person-to-person rules don't apply).
+    refused = !send.recipient || send.sender !== null || systemAwardRefusal(send.recipient) !== null;
+  } else if (send.sender && send.recipient) {
     const [blocked, connected] = await Promise.all([
       isBlockedEitherWay(send.sender.id, send.recipient.id),
       areConnected(send.sender.id, send.recipient.id),
@@ -170,7 +177,8 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
     return "delivered";
   });
 
-  if (outcome === "delivered" && send.sender) {
+  // An award notifies nobody here: the challenge's own CHALLENGE_RESULT notice is the winner's one notice.
+  if (outcome === "delivered" && send.sender && !systemAward) {
     await afterGiftDelivered({
       sendId: send.id,
       sender: send.sender,

@@ -29,6 +29,7 @@ export const GIFT_CATALOG_SEED_MIGRATIONS = [
   "20261113120000_gift_luxury_red_rose",
   "20261114120200_gift_catalog_metadata",
   "20261114120300_gift_universe_catalog_seed",
+  "20261115120500_gift_arena_champion_award",
 ] as const;
 
 /** No gift, box or edition costs more than this (USD cents). */
@@ -120,6 +121,9 @@ export const GIFT_ITEMS = [
   { slug: "appreciate-you", kind: "STICKER", assetKey: "appreciate-you", sortOrder: 310, universe: "LOVE", collection: "kind-words", occasionTags: ["appreciation"], rarity: "STANDARD" },
   { slug: "cheering-you-on", kind: "STICKER", assetKey: "cheering-you-on", sortOrder: 320, universe: "CELEBRATE", collection: "kind-words", occasionTags: ["appreciation"], rarity: "STANDARD" },
   { slug: "proud-of-you", kind: "STICKER", assetKey: "proud-of-you", sortOrder: 330, universe: "CELEBRATE", collection: "kind-words", occasionTags: ["appreciation"], rarity: "STANDARD" },
+  // Phase B (20261115120500_gift_arena_champion_award): the badge the app awards every declared winner of a challenge
+  // (src/lib/challenge-awards.ts). Never sold, never sendable by a person.
+  { slug: "arena-champion", kind: "BADGE", assetKey: "arena-champion", sortOrder: 600, universe: "GAMING", collection: "arena", occasionTags: ["tournament_win"], rarity: "STANDARD" },
 ] as const satisfies readonly GiftItemDef[];
 
 export type GiftItemSlug = (typeof GIFT_ITEMS)[number]["slug"];
@@ -235,10 +239,17 @@ export const GIFT_PRODUCTS: readonly GiftProductDef[] = [
   single("free.appreciate-you", "appreciate-you", 0, 510),
   single("free.cheering-you-on", "cheering-you-on", 0, 520),
   single("free.proud-of-you", "proud-of-you", 0, 530),
+  // Phase B: awards (price 0, "award." skus): given by the app only (SYSTEM_AWARD), never offered or sendable.
+  single("award.arena-champion", "arena-champion", 0, 600),
 ];
 
 /** The free product a recipient sends back to thank someone for a gift (sendThankYouGift). */
 export const THANK_YOU_SKU = "free.thank-you";
+
+/** Award products start with this; the app gives them (SYSTEM_AWARD), nobody sends them. */
+export const GIFT_AWARD_SKU_PREFIX = "award.";
+/** The badge every declared winner of a challenge receives (src/lib/challenge-awards.ts). */
+export const CHAMPION_AWARD_SKU = "award.arena-champion";
 
 /** The fixed database id of a catalog row (the seed migration uses the same ids, so re-running it updates in place). */
 export function giftItemId(slug: string): string {

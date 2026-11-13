@@ -1,6 +1,7 @@
 import { celebrationDay, localDateTime, profileBirthdayToday, type ProfileBirthdayOwner } from "@/lib/birthdays";
 import { GIFT_UNIVERSES, GIFT_UNIVERSE_STYLES } from "@/lib/gift-universes";
 import type { GiftOccasionTag, GiftUniverseName } from "@/lib/gifts-data";
+import { CHALLENGE_WIN_OCCASION_WINDOW_MS, challengeWinWindowStart } from "@/lib/challenges";
 
 // The occasion engine (Phase A, "occasion-aware gifting"): which occasions make a gift to `recipient` timely for
 // `viewer` right now. Pure and client-safe (it never imports the holiday dataset; the server half,
@@ -13,8 +14,8 @@ import type { GiftOccasionTag, GiftUniverseName } from "@/lib/gifts-data";
 //
 // Ranking is deterministic: score = source weight (verified 3 > host-declared 2 > self-declared 1) x closeness of the
 // window (1 at the occasion itself, down to 0.5 at the window's edge), ties broken by the fixed order of
-// OCCASION_REGISTRY. Adding an occasion kind is one registry entry (a later phase registers Challenges / tournament
-// wins there; nothing here promotes the Gaming universe yet).
+// OCCASION_REGISTRY. Adding an occasion kind is one registry entry. Phase B registered CHALLENGE_WIN (a host-declared
+// challenge win, src/lib/challenges.ts), the only occasion that promotes the Gaming universe.
 
 export const SELF_OCCASION_KINDS = ["GRADUATION", "NEW_JOB", "ACHIEVEMENT", "MILESTONE"] as const;
 export type SelfOccasionKind = (typeof SELF_OCCASION_KINDS)[number];
@@ -64,6 +65,12 @@ export type OccasionViewer = {
   sharedCircleJoins: Date[];
   /** Start times of the recipient's own Circle events that the viewer can see. */
   visibleEventStarts: Date[];
+  /**
+   * Phase B: when each challenge the recipient currently wins (DECIDED, not cancelled or reversed, they are still a
+   * declared winner) was decided, for challenges the viewer may see (canViewerSeeChallenge: the Circle's or stream's
+   * visibility, no block with its host). Times only: never a title, a Circle or a host.
+   */
+  visibleChallengeWins?: Date[];
 };
 
 export type OccasionKind =
@@ -76,7 +83,8 @@ export type OccasionKind =
   | "SELF_GRADUATION"
   | "SELF_NEW_JOB"
   | "SELF_ACHIEVEMENT"
-  | "SELF_MILESTONE";
+  | "SELF_MILESTONE"
+  | "CHALLENGE_WIN";
 
 /** One occasion, as any surface may see it. `reasonKey` is gifts.occasions.reasons.<reasonKey> in the dictionary. */
 export type Occasion = {
@@ -203,7 +211,27 @@ export const OCCASION_REGISTRY: readonly OccasionDefinition[] = [
   { kind: "SELF_NEW_JOB", source: "self", universes: ["CELEBRATE"], tags: ["achievement", "appreciation"], evaluate: selfDeclared("NEW_JOB") },
   { kind: "SELF_ACHIEVEMENT", source: "self", universes: ["CELEBRATE"], tags: ["achievement"], evaluate: selfDeclared("ACHIEVEMENT") },
   { kind: "SELF_MILESTONE", source: "self", universes: ["CELEBRATE", "LOVE"], tags: ["achievement", "anniversary"], evaluate: selfDeclared("MILESTONE") },
+  {
+    // Phase B: a challenge win, declared by a host (weight 2), for 72h from the decision. One window per 72h per
+    // recipient (challengeWinWindowStart): winning again inside it neither restarts nor extends it. The only occasion
+    // that promotes Gaming; its gifts tagged tournament_win lead the "Right now" shelf (OCCASION_LEAD_TAG).
+    kind: "CHALLENGE_WIN",
+    source: "host",
+    universes: ["GAMING"],
+    tags: ["tournament_win", "achievement"],
+    evaluate: ({ viewer, now }) => {
+      const start = challengeWinWindowStart(viewer.visibleChallengeWins ?? [], now);
+      if (!start) return null;
+      const age = now.getTime() - start.getTime();
+      return { closeness: 1 - (age / CHALLENGE_WIN_OCCASION_WINDOW_MS) * 0.5, window: "this_week" };
+    },
+  },
 ];
+
+/** Occasions whose products carrying this tag go first on the "Right now" shelf (before the rest that match). */
+export const OCCASION_LEAD_TAG: Readonly<Partial<Record<OccasionKind, GiftOccasionTag>>> = {
+  CHALLENGE_WIN: "tournament_win",
+};
 
 /** The fixed tie-break order (the registry's). */
 export const OCCASION_KIND_ORDER: readonly OccasionKind[] = OCCASION_REGISTRY.map((d) => d.kind);
@@ -292,7 +320,13 @@ export function buildGiftShelves(products: ShelfProduct[], occasions: Occasion[]
   if (shown.length > 0) {
     const skus: string[] = [];
     for (const occasion of shown) {
-      for (const product of paid) {
+      // An occasion with a lead tag (a challenge win: tournament_win) puts the products carrying it first, in catalog
+      // order, then the rest of its matches. Stable, so everything else keeps the catalog order.
+      const lead = OCCASION_LEAD_TAG[occasion.kind];
+      const ordered = lead
+        ? [...paid.filter((p) => p.occasionTags.includes(lead)), ...paid.filter((p) => !p.occasionTags.includes(lead))]
+        : paid;
+      for (const product of ordered) {
         if (skus.length >= RIGHT_NOW_SHELF_MAX) break;
         if (skus.includes(product.sku)) continue;
         if (!occasion.universes.includes(product.universe) || !GIFT_UNIVERSE_STYLES[product.universe].promotable) continue;

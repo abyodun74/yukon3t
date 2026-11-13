@@ -14,7 +14,9 @@ import {
   type OccasionViewer,
   type ShelfProduct,
 } from "@/lib/gift-occasions";
-import { GIFT_PRODUCTS } from "@/lib/gifts-data";
+import { CHAMPION_AWARD_SKU, GIFT_PRODUCTS } from "@/lib/gifts-data";
+import { isAwardProduct } from "@/lib/gifts";
+import { CHALLENGE_WIN_OCCASION_WINDOW_MS } from "@/lib/challenges";
 
 // The occasion engine (src/lib/gift-occasions.ts): each kind, the recipient-local day across time zones, the opt-ins
 // and switches, deterministic ranking, privacy of what comes out, and that it never throws.
@@ -206,9 +208,11 @@ describe("ranking", () => {
     );
     expect(kinds(mixed)).toEqual(["JOINED_ANNIVERSARY", "SELF_MILESTONE"]);
   });
-  it("never promotes the Gaming universe in this phase, and registers no tournament / challenge kind", () => {
+  it("only a challenge win promotes the Gaming universe (Phase B registers exactly one such kind)", () => {
     for (const o of everything()) expect(o.universes).not.toContain("GAMING");
-    expect(OCCASION_KIND_ORDER.some((k) => /TOURNAMENT|CHALLENGE/.test(k))).toBe(false);
+    const gaming = OCCASION_REGISTRY.filter((d) => d.universes.includes("GAMING")).map((d) => d.kind);
+    expect(gaming).toEqual(["CHALLENGE_WIN"]);
+    expect(OCCASION_KIND_ORDER.filter((k) => /TOURNAMENT|CHALLENGE/.test(k))).toEqual(["CHALLENGE_WIN"]);
   });
 });
 
@@ -245,7 +249,8 @@ describe("privacy and robustness", () => {
 });
 
 describe("buildGiftShelves", () => {
-  const products: ShelfProduct[] = GIFT_PRODUCTS.map((p) => ({
+  // The picker never receives an award (getGiftCatalog offers price 0 only for appreciation gifts).
+  const products: ShelfProduct[] = GIFT_PRODUCTS.filter((p) => !isAwardProduct(p)).map((p) => ({
     sku: p.sku,
     universe: p.universe,
     occasionTags: p.occasionTags,
@@ -275,9 +280,34 @@ describe("buildGiftShelves", () => {
     }
   });
 
-  it("never puts Gaming on Right now, even if an occasion lists it", () => {
-    const gaming: Occasion = { kind: "SELF_ACHIEVEMENT", universes: ["GAMING"], tags: ["tournament_win"], reasonKey: "SELF_ACHIEVEMENT", window: "this_week" };
-    expect(buildGiftShelves(products, [gaming], "DIRECT").rightNow).toBeNull();
+  it("puts Gaming on Right now only for a challenge win, tournament_win gifts first, paid only (never the award)", () => {
+    const win = occasionsFor(recipient(), viewer({ visibleChallengeWins: [new Date(NOW.getTime() - 60 * 60_000)] }), NOW);
+    expect(kinds(win)).toEqual(["CHALLENGE_WIN"]);
+    const shelves = buildGiftShelves(products, win, "DIRECT");
+    const skus = shelves.rightNow!.skus;
+    expect(skus.length).toBeGreaterThan(0);
+    const tagged = (sku: string) => GIFT_PRODUCTS.find((x) => x.sku === sku)!.occasionTags.includes("tournament_win");
+    // Every tournament_win gift comes before any other match.
+    const firstOther = skus.findIndex((sku) => !tagged(sku));
+    if (firstOther !== -1) expect(skus.slice(firstOther).some(tagged)).toBe(false);
+    expect(tagged(skus[0])).toBe(true);
+    for (const sku of skus) {
+      const p = GIFT_PRODUCTS.find((x) => x.sku === sku)!;
+      expect(p.universe).toBe("GAMING");
+      expect(p.webPriceMinor).toBeGreaterThan(0);
+      expect(sku).not.toBe(CHAMPION_AWARD_SKU);
+    }
+    // Self-declared achievements never list Gaming, so nothing else puts it on the shelf.
+    const achievement = occasionsFor(recipient({ selfDeclared: [{ kind: "ACHIEVEMENT", declaredAt: NOW }] }), viewer(), NOW);
+    const other = buildGiftShelves(products, achievement, "DIRECT").rightNow?.skus ?? [];
+    for (const sku of other) expect(GIFT_PRODUCTS.find((x) => x.sku === sku)!.universe).not.toBe("GAMING");
+  });
+
+  it("keeps the catalog order for occasions without a lead tag", () => {
+    const shelves = buildGiftShelves(products, [birthday], "DIRECT");
+    const order = GIFT_PRODUCTS.map((p) => p.sku);
+    const idx = shelves.rightNow!.skus.map((sku) => order.indexOf(sku));
+    expect(idx).toEqual([...idx].sort((a, b) => a - b));
   });
 
   it("in a live room: live effects only, never Love & Emotion, never free", () => {
@@ -291,5 +321,53 @@ describe("buildGiftShelves", () => {
       expect(p.webPriceMinor).toBeGreaterThan(0);
     }
     expect(shelves.universes.map((u) => u.universe)).not.toContain("LOVE");
+  });
+});
+
+describe("CHALLENGE_WIN (Phase B)", () => {
+  const HOUR = 60 * 60_000;
+  const win = (hoursAgo: number) => new Date(NOW.getTime() - hoursAgo * HOUR);
+
+  it("applies for 72h from a visible win, host-declared weight, promoting Gaming only, with a coarse window", () => {
+    const out = occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(1)] }), NOW);
+    expect(out).toEqual([
+      { kind: "CHALLENGE_WIN", universes: ["GAMING"], tags: ["tournament_win", "achievement"], reasonKey: "CHALLENGE_WIN", window: "this_week" },
+    ]);
+    expect(kinds(occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(71.9)] }), NOW))).toEqual(["CHALLENGE_WIN"]);
+    expect(occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(72.1)] }), NOW)).toEqual([]);
+    expect(occasionsFor(recipient(), viewer({ visibleChallengeWins: [] }), NOW)).toEqual([]);
+    expect(occasionsFor(recipient(), viewer(), NOW)).toEqual([]);
+    // A future "win" (clock skew) is ignored.
+    expect(occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(-2)] }), NOW)).toEqual([]);
+  });
+
+  it("is one window per 72h per recipient: more wins inside it never extend it", () => {
+    // First win 70h ago opens the window; a win 10h ago is inside it and neither restarts nor extends it.
+    const out = occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(10), win(70)] }), NOW);
+    expect(kinds(out)).toEqual(["CHALLENGE_WIN"]);
+    const later = new Date(NOW.getTime() + 3 * HOUR); // 73h after the first win
+    expect(occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(10), win(70)] }), later)).toEqual([]);
+    // A win after the window closed opens a new one.
+    expect(kinds(occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(100), win(5)] }), NOW))).toEqual(["CHALLENGE_WIN"]);
+    expect(CHALLENGE_WIN_OCCASION_WINDOW_MS).toBe(72 * HOUR);
+  });
+
+  it("ranks below verified occasions of the day and above self-declared ones", () => {
+    const out = occasionsFor(
+      recipient({ joinedAt: new Date("2025-11-13T00:00:00Z"), selfDeclared: [{ kind: "ACHIEVEMENT", declaredAt: NOW }] }),
+      viewer({ visibleChallengeWins: [win(1)] }),
+      NOW,
+    );
+    expect(kinds(out)).toEqual(["JOINED_ANNIVERSARY", "CHALLENGE_WIN", "SELF_ACHIEVEMENT"]);
+  });
+
+  it("never leaks a date, a title or a Circle, and never throws on bad input", () => {
+    const out = occasionsFor(recipient(), viewer({ visibleChallengeWins: [win(3)] }), NOW);
+    expect(JSON.stringify(out)).not.toMatch(/\d/);
+    for (const o of out) expect(Object.keys(o).sort()).toEqual(["kind", "reasonKey", "tags", "universes", "window"]);
+    const bad = viewer({ visibleChallengeWins: [new Date("nope"), null as never, undefined as never, "x" as never] });
+    expect(() => occasionsFor(recipient(), bad, NOW)).not.toThrow();
+    expect(occasionsFor(recipient(), bad, NOW)).toEqual([]);
+    expect(occasionsFor(recipient(), viewer({ visibleChallengeWins: null as never }), NOW)).toEqual([]);
   });
 });

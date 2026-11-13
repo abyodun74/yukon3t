@@ -196,6 +196,15 @@ async function ReportsQueueSection({ limit }: SectionProps) {
               frame or badge it put on their profile); the purchase record is kept.
             </p>
           )}
+          {report.targetType === "CHALLENGE" && (
+            // Challenges (Gift Universe Phase B, src/lib/challenges.ts): reported by someone who took part; the accused
+            // is its host. A result is a host's declaration, never a score.
+            <p className="mt-1 text-xs text-foreground-soft">
+              Challenge report, filed by a participant. &ldquo;Cancel challenge / revoke awards&rdquo; cancels it (even
+              after the host&rsquo;s 24-hour edit window), revokes every Arena Champion badge it gave and ends its
+              Gaming gift promotion; the record of what was declared is kept.
+            </p>
+          )}
           <ReportedContentPreview
             content={contents ? contents.get(reportedContentKey(report)) : undefined}
             recordedAccusedId={report.reportedUserId}

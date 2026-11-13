@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  CHAMPION_AWARD_SKU,
+  GIFT_AWARD_SKU_PREFIX,
   GIFT_CATALOG_SEED_MIGRATIONS,
   GIFT_ITEMS,
   GIFT_OCCASION_TAGS,
@@ -14,7 +16,7 @@ import {
   type GiftItemDef,
   type GiftProductDef,
 } from "@/lib/gifts-data";
-import { isFreeGiftProduct } from "@/lib/gifts";
+import { isAwardProduct, isFreeGiftProduct } from "@/lib/gifts";
 import { DICTIONARIES } from "@/lib/i18n/dictionaries";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/locales";
 
@@ -129,9 +131,14 @@ describe("gift catalog", () => {
       expect(product.webPriceMinor, product.sku).toBeLessThanOrEqual(GIFT_PRICE_CEILING_MINOR);
       expect(product.webPriceMinor, product.sku).toBeGreaterThanOrEqual(0);
       if (product.webPriceMinor === 0) {
-        expect(isFreeGiftProduct(product), product.sku).toBe(true);
-        expect(product.sku.startsWith("free."), product.sku).toBe(true);
+        // Price 0 is either a free kind word (appreciation, "free.") or an award (Phase B, "award.": only the app gives
+        // it). Never both, never anything else.
+        expect(isFreeGiftProduct(product) !== isAwardProduct(product), product.sku).toBe(true);
+        if (isFreeGiftProduct(product)) expect(product.sku.startsWith("free."), product.sku).toBe(true);
+        else expect(product.sku.startsWith(GIFT_AWARD_SKU_PREFIX), product.sku).toBe(true);
         expect(product.isBox, product.sku).toBe(false);
+      } else {
+        expect(product.sku.startsWith(GIFT_AWARD_SKU_PREFIX), product.sku).toBe(false);
       }
     }
     expect(GIFT_PRODUCTS.find((p) => p.sku === THANK_YOU_SKU)?.webPriceMinor).toBe(0);
@@ -181,9 +188,22 @@ describe("gift catalog", () => {
     });
     const singles = GIFT_PRODUCTS.filter((p) => !p.isBox);
     expect(Math.max(...singles.map((p) => p.webPriceMinor))).toBe(999);
-    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words; 16 Phase 1 products + 19 singles + 4 boxes.
-    expect(GIFT_ITEMS).toHaveLength(32);
-    expect(GIFT_PRODUCTS).toHaveLength(39);
+    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words + the Phase B award; 16 Phase 1 products + 19 singles +
+    // 4 boxes + the award.
+    expect(GIFT_ITEMS).toHaveLength(33);
+    expect(GIFT_PRODUCTS).toHaveLength(40);
+  });
+
+  it("has the Arena Champion award (Phase B): a free Gaming badge only the app gives, tagged tournament_win", () => {
+    const item = GIFT_ITEMS.find((i) => i.slug === "arena-champion");
+    expect(item).toMatchObject({ kind: "BADGE", assetKey: "arena-champion", universe: "GAMING", collection: "arena", rarity: "STANDARD" });
+    expect(item?.occasionTags).toEqual(["tournament_win"]);
+    const award = GIFT_PRODUCTS.find((p) => p.sku === CHAMPION_AWARD_SKU)!;
+    expect(award).toMatchObject({ webPriceMinor: 0, isBox: false, universe: "GAMING", items: [{ slug: "arena-champion", quantity: 1 }] });
+    expect(isAwardProduct(award)).toBe(true);
+    expect(isFreeGiftProduct(award)).toBe(false);
+    // Seeded by its own, newest migration.
+    expect(GIFT_CATALOG_SEED_MIGRATIONS.at(-1)).toBe("20261115120500_gift_arena_champion_award");
   });
 
   it.each(SUPPORTED_LOCALES)("names every item and box in %s", (locale) => {

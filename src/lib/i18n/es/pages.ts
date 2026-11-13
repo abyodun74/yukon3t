@@ -121,6 +121,7 @@ export const pages: typeof pagesEn = {
       BIRTHDAY_TODAY: "Hoy es el cumpleaños de {name}",
       BIRTHDAY_WISHES: "{name} te deseó feliz cumpleaños",
       GIFT_RECEIVED: "{name} te envió un regalo",
+      CHALLENGE_RESULT: "{name} anunció tu victoria en un reto",
       BIRTHDAY_SHARING_ON:
         "Tu cumpleaños (solo el día y el mes, nunca el año) ahora se comparte con tus contactos y los miembros de tus Circles. Puedes desactivarlo en Ajustes.",
       HOLIDAY_TODAY: "Hoy es día festivo en tu país",

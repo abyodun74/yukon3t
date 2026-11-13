@@ -2,6 +2,7 @@ import type { Dictionary } from "@/lib/i18n/en";
 import { account } from "@/lib/i18n/pt/account";
 import { advertise } from "@/lib/i18n/pt/advertise";
 import { calls } from "@/lib/i18n/pt/calls";
+import { challenges } from "@/lib/i18n/pt/challenges";
 import { circles } from "@/lib/i18n/pt/circles";
 import { collab } from "@/lib/i18n/pt/collab";
 import { feed } from "@/lib/i18n/pt/feed";
@@ -39,5 +40,6 @@ export const pt: Dictionary = {
   vocab,
   push,
   gifts,
+  challenges,
   ...account,
 };

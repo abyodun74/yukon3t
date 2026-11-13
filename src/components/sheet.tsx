@@ -216,11 +216,13 @@ function DialogPanel({
   );
 }
 
-// Slightly underdamped — the apple-design skill's own "drawer/sheet"
-// reference row (damping ~0.8, response ~0.3): a little settle motion
-// feels right here specifically because a bottom sheet's enter is a
-// physical "arriving" motion, not a static element fading into place.
-const SHEET_SPRING = { type: "spring" as const, damping: 0.8, duration: 0.3 };
+// Critically damped (damping 1): the sheet glides in and stops exactly on
+// its final position with no overshoot or settle wobble. The owner asked for
+// no bouncing when anything opens, so keep damping >= 1 (sheet-springs.test.ts).
+const SHEET_SPRING = { type: "spring" as const, damping: 1, duration: 0.3 };
+// Release spring-back after a short drag: critically damped for the default
+// stiffness (2*sqrt(600) ~ 49), so it returns to rest without wobbling.
+const SHEET_DRAG_TRANSITION = { bounceStiffness: 600, bounceDamping: 50 };
 // Past this downward drag distance (or a fast-enough downward flick,
 // DISMISS_VELOCITY below, regardless of distance), the sheet dismisses
 // instead of springing back — same "use velocity, not just position, to
@@ -267,6 +269,7 @@ function BottomSheetPanel({
       transition={SHEET_SPRING}
       drag="y"
       dragConstraints={{ top: 0, bottom: 0 }}
+      dragTransition={SHEET_DRAG_TRANSITION}
       // Free movement downward (1 = no added resistance — there's really
       // nothing below to "hold it back" except the dismiss decision
       // itself), real rubber-band resistance upward (there's nowhere

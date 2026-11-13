@@ -189,6 +189,13 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: {}, href: "/u/me#gifts" },
     { data: chat, href: "/u/me#gifts" },
   ],
+  // A challenge win: the Circle's Challenges section; a live challenge (the stream ends) opens the winner's Gifts area,
+  // where the Arena Champion badge is, never the stream.
+  CHALLENGE_RESULT: [
+    { data: circle, href: "/circles/runners#challenges" },
+    { data: live, href: "/u/me#gifts" },
+    { data: {}, href: "/u/me#gifts" },
+  ],
 };
 
 describe("notificationHref for every notification type", () => {

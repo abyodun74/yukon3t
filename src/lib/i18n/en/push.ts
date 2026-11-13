@@ -50,6 +50,7 @@ export const pushEn = {
     BIRTHDAY_TODAY: "has a birthday today",
     BIRTHDAY_WISHES: "wished you a happy birthday",
     GIFT_RECEIVED: "sent you a gift",
+    CHALLENGE_RESULT: "declared you a winner of a challenge",
   },
   // The birthday-reminders cron's one push for a recipient with several birthdays on the same day (birthdayPush).
   birthday: {

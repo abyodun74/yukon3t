@@ -90,6 +90,7 @@ export const ui: typeof uiEn = {
       MESSAGE: "Denunciar esta mensagem",
       POST: "Denunciar publicação",
       GIFT: "Denunciar presente",
+      CHALLENGE: "Denunciar desafio",
     },
     sent: "Denúncia enviada. Nossa equipe analisa as denúncias em até 24 horas.",
     reason: "Motivo",

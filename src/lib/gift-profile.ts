@@ -14,8 +14,11 @@ export type ProfileGift = {
   productSku: string;
   isBox: boolean;
   items: ItemView[];
-  /** Owner only: the sender's name (null: no name), or "deleted" when their account is gone. Visitors: undefined. */
-  sender?: { name: string | null } | "deleted";
+  /**
+   * Owner only: the sender's name (null: no name), "deleted" when their account is gone, or "award" for an award the
+   * app gave (Phase B: a challenge win's Champion badge, which has no sender). Visitors: undefined.
+   */
+  sender?: { name: string | null } | "deleted" | "award";
   /** Owner only, opened gifts: each owned copy, to pin to the showcase (and its edition number, if numbered). */
   owned?: { id: string; slug: string; assetKey: string; editionNumber: number | null; pinned: boolean }[];
   /** Owner only: a free Thank You can still be sent back for it. */
@@ -80,7 +83,10 @@ export async function loadProfileGifts(
           },
         },
         purchase: {
-          select: { product: { select: { sku: true, isBox: true, items: { select: { item: { select: itemSelect } } } } } },
+          select: {
+            provider: true,
+            product: { select: { sku: true, isBox: true, items: { select: { item: { select: itemSelect } } } } },
+          },
         },
       },
     }),
@@ -126,7 +132,12 @@ export async function loadProfileGifts(
         items: [...send.purchase.product.items].sort((a, b) => a.item.sortOrder - b.item.sortOrder).map(({ item }) => view(item)),
         ...(isOwner
           ? {
-              sender: send.sender ? { name: send.sender.name } : ("deleted" as const),
+              sender:
+                send.purchase.provider === "SYSTEM_AWARD"
+                  ? ("award" as const)
+                  : send.sender
+                    ? { name: send.sender.name }
+                    : ("deleted" as const),
               owned:
                 send.status === "OPENED"
                   ? send.owned.map((row) => ({

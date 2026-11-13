@@ -6,6 +6,7 @@
 import { accountEn } from "@/lib/i18n/en/account";
 import { advertiseEn } from "@/lib/i18n/en/advertise";
 import { callsEn } from "@/lib/i18n/en/calls";
+import { challengesEn } from "@/lib/i18n/en/challenges";
 import { circlesEn } from "@/lib/i18n/en/circles";
 import { collabEn } from "@/lib/i18n/en/collab";
 import { feedEn } from "@/lib/i18n/en/feed";
@@ -27,6 +28,7 @@ export {
   accountEn,
   advertiseEn,
   callsEn,
+  challengesEn,
   circlesEn,
   collabEn,
   feedEn,
@@ -64,6 +66,7 @@ export const en = {
   vocab: vocabEn,
   push: pushEn,
   gifts: giftsEn,
+  challenges: challengesEn,
   ...accountEn,
 };
 

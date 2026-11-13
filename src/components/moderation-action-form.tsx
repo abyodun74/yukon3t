@@ -10,6 +10,7 @@ const CONTENT_LABELS: Record<string, string> = {
   CIRCLE: "Delete the Circle",
   COLLAB_POST: "Close the collab post",
   GIFT: "Revoke the gift",
+  CHALLENGE: "Cancel challenge / revoke awards",
 };
 
 // Ban/suspend act on the *user*, not just the reported content, and can't be

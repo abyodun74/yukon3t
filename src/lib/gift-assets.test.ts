@@ -93,6 +93,17 @@ describe("GiftArt", () => {
   });
 });
 
+describe("Arena Champion award art (Phase B)", () => {
+  it("is an in-repo SVG under 8 KB, a static frame (no animation, no external reference)", () => {
+    const html = renderToStaticMarkup(createElement(GiftArt, { assetKey: "arena-champion", name: "Arena Champion", size: 64 }));
+    expect(html).toMatch(/^<svg/);
+    expect(Buffer.byteLength(html, "utf8")).toBeLessThanOrEqual(8 * 1024);
+    expect(html).not.toMatch(/<animate|<set|<script|href=|url\(/i);
+    expect(resolveGiftArt("arena-champion")).toEqual({ type: "svg", key: "arena-champion" });
+    expect(resolveGiftArt("challenge-winner")).toEqual({ type: "svg", key: "challenge-winner" });
+  });
+});
+
 describe("Luxury Red Rose names", () => {
   const expected: Record<string, string> = {
     en: "Luxury Red Rose",

@@ -201,6 +201,10 @@ describe("when Upstash is unavailable", () => {
     "giftToSameRecipient",
     "giftFreeDaily",
     "giftFreeToSameRecipient",
+    // Challenges (Gift Universe Phase B): a declared win gives a gift and promotes paid gifts, never unlimited.
+    "challengeCreate",
+    "challengeDeclare",
+    "challengeJoin",
   ] as const;
 
   it("puts every email/SMS-sending limiter on the database fallback, and only paid ones on plain fail-closed", () => {
@@ -208,7 +212,7 @@ describe("when Upstash is unavailable", () => {
     expect([...FAIL_CLOSED_WITH_DB_FALLBACK].sort()).toEqual([...SENDERS].sort());
     for (const name of FAIL_CLOSED_NO_FALLBACK) expect(unavailableBehaviour(name)).toBe("closed");
     // Reads, feeds and the page limit keep failing open.
-    for (const name of ["pageRequest", "pageRequestDevice", "like", "museView", "avatarView", "pollList", "giftOpen", "giftCatalog"] as const) {
+    for (const name of ["pageRequest", "pageRequestDevice", "like", "museView", "avatarView", "pollList", "giftOpen", "giftCatalog", "challengeList", "challengeManage"] as const) {
       expect(unavailableBehaviour(name)).toBe("open");
     }
   });

@@ -11,8 +11,11 @@ import {
   giftsEnabledFor,
   giftsFromAllows,
   giftsHref,
+  isAwardProduct,
+  isFreeGiftProduct,
   liveEffectFor,
   normalizeGiftMessage,
+  systemAwardRefusal,
   type GiftParty,
   type GiftsFromValue,
 } from "@/lib/gifts";
@@ -221,5 +224,52 @@ describe("createGiftEffectQueue (one live stream's gift effects)", () => {
     queue.clear();
     expect(queue.size).toBe(0);
     expect(queue.playing).toBe(false);
+  });
+});
+
+// Gift Universe Phase B: challenge winner moments share the live room's one effect queue with gift effects.
+describe("createGiftEffectQueue with challenge winner moments", () => {
+  it("plays gifts and winner moments one at a time, in arrival order, each once", () => {
+    const played: string[] = [];
+    const queue = createGiftEffectQueue<{ id: string; effect: string; title?: string }>((e) => played.push(e.id));
+    queue.push([{ id: "gift-1", effect: "confetti" }]);
+    queue.push([{ id: "ch1:1700000000000", effect: "challenge-winner", title: "Cup" }]);
+    queue.push([{ id: "gift-1", effect: "confetti" }]); // a refetch returning it again
+    expect(played).toEqual(["gift-1"]);
+    expect(queue.playing).toBe(true);
+    queue.done();
+    expect(played).toEqual(["gift-1", "ch1:1700000000000"]);
+    queue.done();
+    expect(queue.playing).toBe(false);
+    // A later refetch of the same moment never replays it.
+    queue.push([{ id: "ch1:1700000000000", effect: "challenge-winner" }]);
+    expect(played).toHaveLength(2);
+  });
+
+  it("drops a burst beyond the queue's cap, whichever kind it is", () => {
+    const played: string[] = [];
+    const queue = createGiftEffectQueue((e) => played.push(e.id));
+    const burst = Array.from({ length: LIVE_GIFT_QUEUE_MAX + 3 }, (_, i) => ({ id: `m${i}`, effect: i % 2 ? "challenge-winner" : "sparkle" }));
+    queue.push(burst);
+    expect(queue.size).toBe(LIVE_GIFT_QUEUE_MAX - 1);
+  });
+});
+
+describe("system awards (Phase B)", () => {
+  const recipient = (over: Record<string, unknown> = {}) => ({ status: "ACTIVE", isAdmin: true, isGuestPreview: false, ...over });
+  it("only needs the recipient to be ACTIVE, not the guest identity, with gifts on (no sender rules apply)", () => {
+    expect(systemAwardRefusal(recipient())).toBeNull();
+    expect(systemAwardRefusal(recipient({ status: "SUSPENDED" }))).toBe("unavailable");
+    expect(systemAwardRefusal(recipient({ status: "BANNED" }))).toBe("unavailable");
+    expect(systemAwardRefusal(recipient({ isGuestPreview: true }))).toBe("unavailable");
+    expect(systemAwardRefusal(recipient({ isAdmin: false }))).toBe("unavailable");
+  });
+  it("tells an award from a free kind word", () => {
+    const award = { sku: "award.arena-champion", webPriceMinor: 0, occasionTags: ["tournament_win"] };
+    expect(isAwardProduct(award)).toBe(true);
+    expect(isFreeGiftProduct(award)).toBe(false);
+    expect(isAwardProduct({ ...award, webPriceMinor: 99 })).toBe(false);
+    expect(isAwardProduct({ ...award, sku: "free.thank-you", occasionTags: ["appreciation"] })).toBe(false);
+    expect(isAwardProduct({ ...award, occasionTags: ["appreciation"] })).toBe(false);
   });
 });

@@ -6,8 +6,9 @@ import type { GiftUniverseName } from "@/lib/gifts-data";
 // - LOVE (Love & Emotion): warm rose and blush, soft lines, slow blooms. Mostly private 1:1: never offered in a public
 //   live room.
 // - CELEBRATE (Celebrate & Inspire): a bright confetti palette and bursts.
-// - GAMING (Gaming Arena): neon arcade, crisp short level-up effects, trophy frames. No occasion promotes it in this
-//   phase (a later phase adds Challenges), so it is an ordinary shelf.
+// - GAMING (Gaming Arena): neon arcade, crisp short level-up effects, trophy frames. Phase B: promotable, but only one
+//   occasion lists it, a host-declared challenge win (CHALLENGE_WIN, src/lib/gift-occasions.ts); otherwise an
+//   ordinary shelf.
 // - LUXURY (Luxury Universe): black and gold, slow reveals, numbered pieces.
 // - CULTURE (Culture & Community): regional patterns and lanterns, neutral wording, no religious iconography; the
 //   recipient can turn its occasion prompts off (User.giftCultureOccasions).
@@ -22,14 +23,14 @@ export type GiftUniverseStyle = {
   ornament: "bloom" | "burst" | "pixel" | "diamond" | "lantern";
   /** May this universe be offered in a public live room? */
   inLiveRooms: boolean;
-  /** May an occasion put this universe on the "Right now" shelf in this phase? */
+  /** May an occasion put this universe on the "Right now" shelf? (Gaming: only CHALLENGE_WIN lists it.) */
   promotable: boolean;
 };
 
 export const GIFT_UNIVERSE_STYLES: Readonly<Record<GiftUniverseName, GiftUniverseStyle>> = {
   LOVE: { className: "gift-universe-love", ornament: "bloom", inLiveRooms: false, promotable: true },
   CELEBRATE: { className: "gift-universe-celebrate", ornament: "burst", inLiveRooms: true, promotable: true },
-  GAMING: { className: "gift-universe-gaming", ornament: "pixel", inLiveRooms: true, promotable: false },
+  GAMING: { className: "gift-universe-gaming", ornament: "pixel", inLiveRooms: true, promotable: true },
   LUXURY: { className: "gift-universe-luxury", ornament: "diamond", inLiveRooms: true, promotable: true },
   CULTURE: { className: "gift-universe-culture", ornament: "lantern", inLiveRooms: true, promotable: true },
 };

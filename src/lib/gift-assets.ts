@@ -70,6 +70,10 @@ export const GIFT_SVG_ASSET_KEYS = [
   "appreciate-you",
   "cheering-you-on",
   "proud-of-you",
+  // Phase B: the challenge winner's award badge (a static drawing; see gift-assets.test.ts for its size budget).
+  "arena-champion",
+  // Not a catalog item: the live room's winner moment (a challenge result), drawn like a gift effect.
+  "challenge-winner",
   "sparkle",
 ] as const;
 

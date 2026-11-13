@@ -1,17 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { getVisiblePostsWhere } from "@/lib/post-visibility";
-import { canSeeCircle } from "@/lib/circle-visibility";
+import { canSeeCircle, canSeeCircleContent } from "@/lib/circle-visibility";
 import { loadStandingCircleInvites } from "@/lib/circle-invite-data";
 import { canViewCollab } from "@/lib/collab-permissions";
 import { loadStandingCollabInvite } from "@/lib/collab-invites-server";
 import { giftsEnabledFor } from "@/lib/gifts";
+import { challengesEnabledFor } from "@/lib/challenges";
 
 // Who a report is about is always worked out here, on the server, from the reported thing itself: the client only
 // says what it reports (type + id), never whom. Before this, every type but MESSAGE took the accused user id from the
 // form, so anyone could file a report on someone else's post "against" a third person, and the admin queue (and a
 // SUSPEND/BAN, and the trust score) acted on that third person.
 
-export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "GIFT";
+export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "GIFT" | "CHALLENGE";
 
 type Reporter = { id: string; isAdmin: boolean };
 
@@ -49,6 +50,10 @@ export async function accusedUserIdOf(targetType: ReportTargetType, targetId: st
     case "GIFT": {
       const send = await prisma.giftSend.findUnique({ where: { id: targetId }, select: { senderId: true } });
       return send?.senderId ?? null;
+    }
+    case "CHALLENGE": {
+      const challenge = await prisma.challenge.findUnique({ where: { id: targetId }, select: { hostId: true } });
+      return challenge?.hostId ?? null;
     }
     default:
       return null;
@@ -166,6 +171,23 @@ async function visibleTargetAccused(
       if (!send || send.recipientId !== reporter.id) return null;
       if (send.status !== "DELIVERED" && send.status !== "OPENED" && send.status !== "HIDDEN_BY_RECIPIENT") return null;
       return send.senderId;
+    }
+    case "CHALLENGE": {
+      // A challenge is reported by someone who took part in it (a participant, which every winner is), while challenges
+      // are on for them and they can still see it: a PRIVATE Circle's only while they are still a member. The accused
+      // is its host (null once the host's account is gone: nothing to file against).
+      if (!challengesEnabledFor(reporter)) return null;
+      const challenge = await prisma.challenge.findUnique({
+        where: { id: targetId },
+        select: {
+          hostId: true,
+          circle: { select: { visibility: true, members: { where: { userId: reporter.id }, select: { id: true } } } },
+          participants: { where: { userId: reporter.id }, select: { id: true } },
+        },
+      });
+      if (!challenge || challenge.participants.length === 0) return null;
+      if (challenge.circle && !canSeeCircleContent(challenge.circle, challenge.circle.members.length > 0)) return null;
+      return challenge.hostId;
     }
     default:
       return null;

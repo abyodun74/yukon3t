@@ -13,7 +13,7 @@ type Party = {
   birthDate: Date | null;
   giftsFrom: "EVERYONE" | "CONNECTIONS" | "NOBODY";
 };
-type Purchase = { id: string; status: string; paidAt: Date | null; productId: string };
+type Purchase = { id: string; status: string; paidAt: Date | null; productId: string; provider?: string };
 type Send = {
   id: string;
   purchaseId: string;
@@ -69,6 +69,7 @@ vi.mock("@/lib/prisma", () => {
         return {
           id: p.id,
           status: p.status,
+          provider: p.provider ?? "ADMIN_GRANT",
           product: { items: products[p.productId] },
           send: send
             ? {
@@ -264,5 +265,52 @@ describe("deliverGiftPurchase", () => {
     expect(await deliverGiftPurchase("p1")).toBe("delivered");
     expect(owned).toHaveLength(1);
     expect(captureError).toHaveBeenCalled();
+  });
+});
+
+// Gift Universe Phase B: the Champion award of a challenge win is a SYSTEM_AWARD purchase with no sender, delivered by
+// this same function. It is not from a person: no block or giftsFrom check (and no age rule), but only to an ACTIVE,
+// non-guest recipient with gifts on; and it notifies nobody (the challenge's CHALLENGE_RESULT is the one notice).
+describe("deliverGiftPurchase: a system award", () => {
+  function award() {
+    setup({ senderId: null });
+    purchases.p1.provider = "SYSTEM_AWARD";
+  }
+
+  it("delivers once, with no sender, and sends no gift notice of its own", async () => {
+    award();
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+    expect(await deliverGiftPurchase("p1")).toBe("already_done");
+    expect(owned).toEqual([{ ownerId: "bob", itemId: "gift_item_wave", sendId: "s1" }]);
+    expect(notifications).toEqual([]);
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(publishEvent).not.toHaveBeenCalled();
+  });
+
+  it("ignores blocks and giftsFrom (nobody is sending it), but not the recipient's own standing", async () => {
+    award();
+    blocked = true;
+    users.bob.giftsFrom = "NOBODY";
+    connected = false;
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+
+    award();
+    users.bob.status = "SUSPENDED";
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
+
+    award();
+    users.bob.status = "ACTIVE";
+    users.bob.isAdmin = false; // gifts (and so challenges) are off for them
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
+
+    award();
+    users.bob.isAdmin = true;
+    users.bob.isGuestPreview = true;
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
+  });
+
+  it("never treats a person's gift whose sender is gone as an award", async () => {
+    setup({ senderId: null }); // ADMIN_GRANT with the sender's account deleted before delivery
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
   });
 });
