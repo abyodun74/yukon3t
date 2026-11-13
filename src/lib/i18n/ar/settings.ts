@@ -64,6 +64,16 @@ export const settings: typeof settingsEn = {
       save: "حفظ تاريخ ميلادي",
     },
   },
+  // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
+  gifts: {
+    heading: "الهدايا",
+    intro: "اختر من يمكنه إرسال الهدايا إليك. إذا كان عمرك أقل من 18 عامًا، فلن تتلقى الهدايا إلا من جهات تواصلك، ولا تتلقاها أبدًا في بث مباشر.",
+    label: "من يمكنه إرسال الهدايا إليّ",
+    EVERYONE: "الجميع",
+    CONNECTIONS: "جهات تواصلي",
+    NOBODY: "لا أحد",
+    save: "حفظ إعدادات الهدايا",
+  },
   notifications: {
     heading: "الإشعارات",
     intro: "تصلك إشعارات بالمكالمات الواردة والرسائل الجديدة حتى عندما لا يكون YuKon3t مفتوحًا في علامة تبويب.",

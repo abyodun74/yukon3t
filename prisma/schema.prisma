@@ -346,6 +346,13 @@ model User {
   // Nigeria" on the morning of each public holiday of the account's `country`. The recipient's own switch in
   // Settings -> Notifications, on by default with an explicit opt-out; under-18s get them too (nothing personal).
   holidayReminders             Boolean          @default(true)
+  // Digital gifts (src/lib/gifts.ts). giftsFrom is who may send this person a gift (Settings -> Gifts; CONNECTIONS by
+  // default). equippedFrameItemId / equippedBadgeItemId are a FRAME / BADGE item this person owns (an OwnedGift not
+  // revoked), shown around the avatar / next to the name on the profile; equipGift checks ownership, and revoking a
+  // gift unequips it. SetNull if the catalog item is ever deleted.
+  giftsFrom                    GiftsFrom        @default(CONNECTIONS)
+  equippedFrameItemId          String?
+  equippedBadgeItemId          String?
   ringtone        Ringtone        @default(CLASSIC)
 
   // Cheap "what's new" seen-tracking — compared against the latest
@@ -470,6 +477,13 @@ model User {
   birthdayWishesReceived    BirthdayWish[]       @relation("BirthdayWishCelebrant")
   birthdayWishDigests       BirthdayWishDigest[]
   holidayRemindersSent      HolidayReminder[]
+
+  giftPurchases     GiftPurchase[]
+  giftsSent         GiftSend[]     @relation("GiftSender")
+  giftsReceived     GiftSend[]     @relation("GiftRecipient")
+  ownedGifts        OwnedGift[]
+  equippedFrameItem GiftItem?      @relation("EquippedFrame", fields: [equippedFrameItemId], references: [id], onDelete: SetNull)
+  equippedBadgeItem GiftItem?      @relation("EquippedBadge", fields: [equippedBadgeItemId], references: [id], onDelete: SetNull)
 
   @@index([country])
   // Matches the discover page's actual query shape (status + discoverable
@@ -1552,6 +1566,11 @@ enum NotificationType {
   // silent push (one per recipient per day). messageData is a "holiday" notice carrying the holiday's and the
   // country's names. actorId is the recipient themself (system-generated, see notificationHasActor). Opens Home.
   HOLIDAY_TODAY
+  // "<name> sent you a gift": written by deliverGiftPurchase (src/lib/gift-delivery.ts) once a gift is delivered, to the
+  // recipient only (actorId = the sender; nobody else is ever told who sent a gift). Bell + push. Opens the
+  // recipient's own Gifts area (/u/<recipientId>#gifts). conversationId is set for a gift sent from a chat, so a hidden
+  // chat hides it like a message; it is also one of HIDDEN_PEER_NOTIFICATION_TYPES.
+  GIFT_RECEIVED
 }
 
 model Notification {
@@ -1961,6 +1980,7 @@ model LiveStream {
   notifications  Notification[]
   comments       LiveStreamComment[]
   recordingPosts LiveStreamRecordingPost[]
+  giftSends      GiftSend[]
 
   @@index([status])
   @@index([hostId])
@@ -2677,6 +2697,7 @@ model Conversation {
   joinRequests    GroupJoinRequest[]
   collabBoardPost CollabBoardPost?
   notifications   Notification[]
+  giftSends       GiftSend[]
 }
 
 model GroupJoinRequest {
@@ -2804,6 +2825,10 @@ model Message {
   // Nothing about where it came from or who wrote it is stored: the forwarded copy is the forwarder's own message.
   forwarded Boolean @default(false)
 
+  // A gift sent from this chat (src/lib/gifts.ts, context CHAT): the bubble renders the gift card for it. Written only
+  // through createNonE2eeMessage after the gift was delivered; one message per gift. SetNull if the send is deleted.
+  giftSendId String? @unique
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
@@ -2814,6 +2839,7 @@ model Message {
   viewOnceMedia ViewOnceMedia?
   translations ContentTranslation[]
   birthdayWish BirthdayWish?
+  giftSend     GiftSend?           @relation(fields: [giftSendId], references: [id], onDelete: SetNull)
 
   // Every message query filters on conversationId and sorts/paginates on
   // createdAt together (getConversationMessages, the collab board, the
@@ -2888,6 +2914,8 @@ enum ReportTargetType {
   CIRCLE
   COLLAB_POST
   COMMENT
+  // A received gift (GiftSend id): only its recipient can report it; the accused is the sender.
+  GIFT
 }
 
 enum ReportStatus {
@@ -3504,4 +3532,183 @@ model ContentTranslation {
   @@unique([commentId, targetLang, contentHash])
   @@unique([messageId, targetLang, contentHash])
   @@unique([eventAnnouncementId, targetLang, contentHash])
+}
+
+// ---------- Digital gifts (src/lib/gifts.ts) ----------
+//
+// Phase 1 (2026-11-12): free and admin-only behind giftsEnabledFor (src/lib/gifts.ts); no payments yet. A gift is
+// bought and sent in one step (no coins, no wallet), has no cash value, can't be cashed out and can't be passed on.
+// GiftItem is one thing a person can own (a sticker, a profile frame, a badge, a live-stream effect); GiftProduct is
+// what is sold (one item, or a box of several); a GiftPurchase is one buy of one product, and its GiftSend says who it
+// went to. deliverGiftPurchase (src/lib/gift-delivery.ts) is the only path from a PENDING purchase to OwnedGift rows.
+// The catalog is seeded by migration 20261112180300_gifts_catalog_seed (mirrors src/lib/gifts-data.ts).
+
+enum GiftItemKind {
+  STICKER
+  FRAME
+  BADGE
+  LIVE_EFFECT
+}
+
+// Who may send this person a gift (User.giftsFrom). An under-18 account only ever receives from accepted connections,
+// whatever this says (giftSendRefusal in src/lib/gifts.ts).
+enum GiftsFrom {
+  EVERYONE
+  CONNECTIONS
+  NOBODY
+}
+
+// How a purchase was paid. ADMIN_GRANT is Phase 1's free path (site admins, giftsEnabledFor); the store values are
+// for the later web (Stripe) and native (Apple / Google) phases and are unused until then.
+enum GiftPurchaseProvider {
+  ADMIN_GRANT
+  STRIPE
+  APPLE
+  GOOGLE
+}
+
+enum GiftPurchaseStatus {
+  PENDING
+  PAID
+  REFUNDED
+  REVOKED
+  // The provider's confirmation didn't match what was ordered (product, amount, currency): nothing is delivered.
+  MISMATCH
+}
+
+enum GiftSendContext {
+  DIRECT
+  CHAT
+  LIVE
+}
+
+enum GiftSendStatus {
+  AWAITING_PAYMENT
+  DELIVERED
+  OPENED
+  // The rules re-checked at delivery said no (a block, the recipient's giftsFrom, age): nothing was given.
+  UNDELIVERABLE
+  REVOKED
+  HIDDEN_BY_RECIPIENT
+}
+
+model GiftItem {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  kind      GiftItemKind
+  // Which built-in art (src/components/gift-art.tsx) draws it. Never a URL: every gift is drawn by the app itself.
+  assetKey  String
+  active    Boolean      @default(true)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  productItems   GiftProductItem[]
+  owned          OwnedGift[]
+  equippedFrames User[]            @relation("EquippedFrame")
+  equippedBadges User[]            @relation("EquippedBadge")
+}
+
+model GiftProduct {
+  id              String   @id @default(cuid())
+  sku             String   @unique
+  isBox           Boolean  @default(false)
+  // The web price in the currency's minor units (USD cents): the store price tier it matches.
+  webPriceMinor   Int
+  currency        String   @default("USD")
+  appleProductId  String?  @unique
+  googleProductId String?  @unique
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  items     GiftProductItem[]
+  purchases GiftPurchase[]
+}
+
+model GiftProductItem {
+  id        String @id @default(cuid())
+  productId String
+  itemId    String
+  quantity  Int    @default(1)
+
+  product GiftProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  item    GiftItem    @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, itemId])
+}
+
+// One buy of one product. Kept when the buyer deletes their account (buyerId set null), as the record of a payment.
+model GiftPurchase {
+  id            String               @id @default(cuid())
+  buyerId       String?
+  productId     String
+  provider      GiftPurchaseProvider
+  // The provider's own transaction id (ADMIN_GRANT: a fresh random id). Unique per provider, so one provider
+  // confirmation can never create or deliver a second purchase.
+  providerTxnId String
+  status        GiftPurchaseStatus   @default(PENDING)
+  amountMinor   Int
+  currency      String
+  // Opaque provider reference for support (a Stripe session id, a store receipt id). Never card data.
+  rawRef        String?
+  createdAt     DateTime             @default(now())
+  paidAt        DateTime?
+  refundedAt    DateTime?
+
+  buyer   User?       @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  product GiftProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  send    GiftSend?
+
+  @@unique([provider, providerTxnId])
+  @@index([buyerId, createdAt])
+}
+
+// Who a purchase was for. The message (<= 140 chars) was moderated before anything was created. Only the recipient
+// is ever shown who sent it. Deleted with the recipient's account; the sender's account going away leaves it
+// (senderId null) so the recipient keeps what they were given.
+model GiftSend {
+  id                String           @id @default(cuid())
+  purchaseId        String           @unique
+  senderId          String?
+  recipientId       String
+  message           String?
+  // The moderation verdict the message was stored under (always PUBLISHED today: a flagged message is refused).
+  messageModeration ModerationStatus @default(PUBLISHED)
+  context           GiftSendContext  @default(DIRECT)
+  conversationId    String?
+  liveStreamId      String?
+  status            GiftSendStatus   @default(AWAITING_PAYMENT)
+  createdAt         DateTime         @default(now())
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  revokedAt         DateTime?
+
+  purchase     GiftPurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  sender       User?         @relation("GiftSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipient    User          @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  liveStream   LiveStream?   @relation(fields: [liveStreamId], references: [id], onDelete: SetNull)
+  owned        OwnedGift[]
+  chatMessage  Message?
+
+  @@index([recipientId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([liveStreamId, deliveredAt])
+}
+
+// One item a person owns because of a delivered gift (a box gives one row per contained item x quantity).
+model OwnedGift {
+  id        String    @id @default(cuid())
+  ownerId   String
+  itemId    String
+  sendId    String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  owner User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  item  GiftItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  send  GiftSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, revokedAt])
+  @@index([sendId])
 }

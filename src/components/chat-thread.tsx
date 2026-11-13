@@ -15,6 +15,8 @@ import {
 } from "@/app/actions/messages";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { GifPickerButton } from "@/components/gif-picker-button";
+import { GiftChatCard } from "@/components/gift-chat-card";
+import { SendGiftButton } from "@/components/profile-gifts";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import { summarizeReactionRows } from "@/lib/reactions";
@@ -131,6 +133,8 @@ type MessageData = {
   isForwardedStory: boolean;
   // Forwarded from another chat (forwardMessage): shows a small "Forwarded" label, nothing about where it came from.
   forwarded: boolean;
+  // A digital gift sent from this chat (src/lib/gifts.ts): the bubble shows its card (GiftChatCard).
+  giftSendId?: string | null;
   // A "for your eyes only" photo/video: mediaUrl is always null (the file is in the private bucket and is fetched
   // once, through ViewOnceViewer), mediaType says which it is, and these say what the chip shows.
   viewOnce: boolean;
@@ -347,6 +351,7 @@ const MessageBubble = memo(function MessageBubble({
   onViewOnceOpened,
   secretActive,
   encryptForEdit,
+  giftsEnabled = false,
 }: {
   message: MessageData;
   mine: boolean;
@@ -367,6 +372,8 @@ const MessageBubble = memo(function MessageBubble({
   /** This is a secret (end-to-end encrypted) chat: edits must be encrypted, and corrections aren't offered. */
   secretActive: boolean;
   encryptForEdit: (text: string) => Promise<string>;
+  /** Digital gifts are on for the viewer (giftsEnabledFor): a gift message shows its card. */
+  giftsEnabled?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -751,6 +758,7 @@ const MessageBubble = memo(function MessageBubble({
             <p className="italic rtl:not-italic">{t.underReview}</p>
           ) : (
             <>
+              {message.giftSendId && giftsEnabled && <GiftChatCard giftSendId={message.giftSendId} />}
               {message.forwarded && (
                 <p
                   className={cn(
@@ -1009,7 +1017,7 @@ const MessageBubble = memo(function MessageBubble({
                   {t.forward}
                 </button>
               )}
-              {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && (
+              {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && !message.giftSendId && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -1035,7 +1043,7 @@ const MessageBubble = memo(function MessageBubble({
                   {t.report}
                 </button>
               )}
-              {mine && !message.viewOnce && (
+              {mine && !message.viewOnce && !message.giftSendId && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -1115,6 +1123,7 @@ export function ChatThread({
   conversationLabel,
   members: initialMembers,
   viewOnceAvailable = false,
+  gifts,
 }: {
   conversationId: string;
   initialMessages: MessageData[];
@@ -1124,6 +1133,11 @@ export function ChatThread({
   members: MemberData[];
   /** A 1:1 chat on a deployment whose private bucket is set up: the composer offers "View once" on a photo or video. */
   viewOnceAvailable?: boolean;
+  /**
+   * Digital gifts (src/lib/gifts.ts), from the page: `enabled` when giftsEnabledFor is on for the viewer (gift cards
+   * render), `recipient` when a gift can also be sent from here (a 1:1 whose other member has gifts on too).
+   */
+  gifts?: { enabled: boolean; recipient: { id: string; name: string | null } | null };
 }) {
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
@@ -2018,6 +2032,7 @@ export function ChatThread({
                   onReply={setReplyTarget}
                   onForward={handleForward}
                   onViewOnceOpened={handleViewOnceOpened}
+                  giftsEnabled={gifts?.enabled ?? false}
                 />
               </div>
             </div>
@@ -2281,6 +2296,17 @@ export function ChatThread({
                 setPendingGif(gifUrl);
               }}
             />
+            {/* Digital gifts: only where the page says gifts are on for both people, and never in a secret chat (a
+                gift card is written by the server, which can't encrypt it; createGiftIntent refuses one anyway). */}
+            {gifts?.recipient && !secret.active && (
+              <SendGiftButton
+                iconOnly
+                recipientId={gifts.recipient.id}
+                recipientName={gifts.recipient.name}
+                place={{ context: "CHAT", conversationId }}
+                className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"
+              />
+            )}
             <button
               type="button"
               onClick={() => setShowDictation(true)}

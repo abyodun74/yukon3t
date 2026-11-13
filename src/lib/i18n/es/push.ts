@@ -43,6 +43,7 @@ export const push: typeof pushEn = {
     NEW_MEMBER_JOINED: "Acaba de unirse a YuKon3t",
     BIRTHDAY_TODAY: "Cumple años hoy",
     BIRTHDAY_WISHES: "Te deseó feliz cumpleaños",
+    GIFT_RECEIVED: "Te envió un regalo",
   },
   birthday: {
     title: "Cumpleaños de hoy",

@@ -72,6 +72,17 @@ export const settingsEn = {
       save: "Save my date of birth",
     },
   },
+  // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
+  gifts: {
+    heading: "Gifts",
+    intro:
+      "Choose who can send you gifts. If you're under 18, you only receive gifts from your connections, never in a live stream.",
+    label: "Who can send me gifts",
+    EVERYONE: "Everyone",
+    CONNECTIONS: "My connections",
+    NOBODY: "Nobody",
+    save: "Save gift settings",
+  },
   notifications: {
     heading: "Notifications",
     intro: "Get notified about incoming calls and new messages even when YuKon3t isn't open in a tab.",

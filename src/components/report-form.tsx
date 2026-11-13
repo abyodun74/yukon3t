@@ -7,7 +7,7 @@ import { reportReasonCategoryValues } from "@/lib/validation-constants";
 import { Sheet } from "@/components/sheet";
 import { useUiText } from "@/components/ui-text";
 
-type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
+type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "GIFT";
 
 /**
  * The report dialog itself — shared by the per-post "⋯" menu and the
@@ -63,7 +63,7 @@ export function ReportModal({
       open={open}
       onClose={onClose}
       title={
-        targetType === "USER" || targetType === "COMMENT" || targetType === "MESSAGE"
+        targetType === "USER" || targetType === "COMMENT" || targetType === "MESSAGE" || targetType === "GIFT"
           ? t.titles[targetType]
           : t.titles.POST
       }

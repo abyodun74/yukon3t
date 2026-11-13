@@ -91,6 +91,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
     "Your birthday (day and month only, never the year) is now shared with your connections and members of your Circles. You can turn this off in Settings.",
   // System notice from the holiday-reminders cron; its messageData (a "holiday" notice) names the day and the country.
   HOLIDAY_TODAY: "Today is a public holiday in your country",
+  // deliverGiftPurchase (src/lib/gift-delivery.ts): to the recipient only, who is the one person told who sent it.
+  GIFT_RECEIVED: "sent you a gift",
 };
 
 // A reminder isn't "someone did something to you" — it's system-generated,

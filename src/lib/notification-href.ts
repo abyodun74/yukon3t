@@ -1,5 +1,6 @@
 import { decodeNotice } from "@/lib/notification-notice";
 import { birthdayWishHref } from "@/lib/birthdays";
+import { giftsHref } from "@/lib/gifts";
 
 // Where a notification leads when opened. Shared by the notification list
 // (components/notification-row.tsx) and markReadByTarget
@@ -69,7 +70,8 @@ export type NotificationData = {
     | "BIRTHDAY_TODAY"
     | "BIRTHDAY_WISHES"
     | "BIRTHDAY_SHARING_ON"
-    | "HOLIDAY_TODAY";
+    | "HOLIDAY_TODAY"
+    | "GIFT_RECEIVED";
   // Who the notification is for: the owner of the story a STORY_COMMENT / story SCREENSHOT_TAKEN is about.
   recipientId: string;
   readAt: Date | null;
@@ -127,6 +129,9 @@ export function notificationHref(notification: NotificationData) {
   if (notification.type === "BIRTHDAY_SHARING_ON") return BIRTHDAY_SETTINGS_HREF;
   // "Today is Independence Day in Nigeria": the Home feed (the holiday-reminders cron's push uses HOLIDAY_HREF too).
   if (notification.type === "HOLIDAY_TODAY") return HOLIDAY_HREF;
+  // "<name> sent you a gift": the recipient's own Gifts area, where it is opened (deliverGiftPurchase pushes the same
+  // URL). Before the conversationId check: a gift sent from a chat carries its chat, for the hidden-chat filter only.
+  if (notification.type === "GIFT_RECEIVED") return giftsHref(notification.recipientId);
   // The celebrant's combined wishes row: the latest wisher's chat while it is one wish, the inbox once several people
   // have written (a birthday_wishes notice). The first wish's push opens the same chat.
   if (notification.type === "BIRTHDAY_WISHES") {

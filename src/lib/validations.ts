@@ -233,6 +233,26 @@ export const birthdayWishSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+// Digital gifts (app/actions/gifts.ts, rules in src/lib/gifts.ts). The note's own length (GIFT_MESSAGE_MAX, counted
+// after trimming) is checked by giftMessageRefusal; this only bounds what is accepted at all.
+const giftSku = z.string().regex(/^[a-z0-9][a-z0-9.-]{0,63}$/);
+export const giftIntentSchema = z.object({
+  productSku: giftSku,
+  recipientId: z.string().cuid(),
+  message: z.string().max(1000).nullable().optional(),
+  place: z
+    .union([
+      z.object({ context: z.literal("DIRECT") }),
+      z.object({ context: z.literal("CHAT"), conversationId: z.string().cuid() }),
+      z.object({ context: z.literal("LIVE"), liveStreamId: z.string().cuid() }),
+    ])
+    .optional(),
+});
+export const giftSendIdSchema = z.string().cuid();
+export const giftItemSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
+export const giftEquipKindSchema = z.enum(["FRAME", "BADGE"]);
+export const giftsFromSchema = z.object({ giftsFrom: z.enum(["EVERYONE", "CONNECTIONS", "NOBODY"]) });
+
 export const autoTranslateSchema = z.object({
   autoTranslate: z.boolean(),
 });
@@ -658,7 +678,7 @@ export const correctionSchema = z.object({
 });
 
 export const reportSchema = z.object({
-  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT"]),
+  targetType: z.enum(["USER", "POST", "MESSAGE", "CIRCLE", "COLLAB_POST", "COMMENT", "GIFT"]),
   targetId: z.string().cuid(),
   // No reportedUserId: whom a report is about is derived on the server from the target (src/lib/report-target.ts).
   reasonCategory: z.enum(reportReasonCategoryValues).optional().default("OTHER"),

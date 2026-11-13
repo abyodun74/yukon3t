@@ -330,6 +330,12 @@ const limiterDefinitions = {
   // or scripting the action can't inflate an advertiser's numbers.
   adClick: makeLimiter(1, "10 m", "adClick"),
   adImpression: makeLimiter(1, "30 m", "adImpression"),
+  // Digital gifts (app/actions/gifts.ts). giftIntent: gifts asked for per sender (each one, from Phase 2, a payment);
+  // giftToSameRecipient: per sender x recipient a day, so nobody can bury one person in gifts. Both fail CLOSED with
+  // the database fallback (below). giftOpen: opening, hiding, equipping, per user; fails open like any ordinary limiter.
+  giftIntent: makeLimiter(10, "1 h"),
+  giftToSameRecipient: makeLimiter(3, "24 h"),
+  giftOpen: makeLimiter(120, "10 m"),
 } satisfies Record<string, ReturnType<typeof makeLimiter>>;
 
 export const rateLimiters = Object.fromEntries(
@@ -341,7 +347,8 @@ export type LimiterName = keyof typeof limiterDefinitions;
 /**
  * Limiters that FAIL CLOSED when Upstash errors or times out, and fall back to a counter in Postgres
  * (src/lib/rate-limit-db-fallback.ts) instead of letting the request through unlimited: each of these sends an email
- * or a text message (real money, and a way to flood someone's inbox or phone) or guards re-entering a password. If
+ * or a text message (real money, and a way to flood someone's inbox or phone), guards re-entering a password, or
+ * caps digital gifts (one is a payment from Phase 2 on, and the per-recipient cap is an anti-harassment rule). If
  * the fallback isn't available either (not registered in this runtime, or the database errors), the request is
  * refused like any rate-limited one. The fallback is a fixed window of the same length and size, so it is about as
  * strict as the Upstash sliding window.
@@ -354,6 +361,8 @@ export const FAIL_CLOSED_WITH_DB_FALLBACK: ReadonlySet<LimiterName> = new Set<Li
   "phoneVerifyRequest", // SMS code (Twilio charge per send)
   "deviceChallengeSend", // step-up email code (new-device sign-in, password change, hidden PIN reset, re-auth)
   "accountReauth", // password re-entry before data export / account deletion
+  "giftIntent", // a gift asked for (a payment from Phase 2 on): never unlimited during an Upstash outage
+  "giftToSameRecipient", // gifts from one sender to one person a day: the anti-harassment cap must hold
 ]);
 
 /**

@@ -189,6 +189,13 @@ async function ReportsQueueSection({ limit }: SectionProps) {
             <span>{report.createdAt.toLocaleString()}</span>
           </div>
           <p className="mt-2 break-words text-sm">{report.reason}</p>
+          {report.targetType === "GIFT" && (
+            // Digital gifts (src/lib/gifts.ts): only a gift's recipient can report it, and only they know who sent it.
+            <p className="mt-1 text-xs text-foreground-soft">
+              Gift report, filed by its recipient. &ldquo;Revoke the gift&rdquo; takes back every item it gave (and a
+              frame or badge it put on their profile); the purchase record is kept.
+            </p>
+          )}
           <ReportedContentPreview
             content={contents ? contents.get(reportedContentKey(report)) : undefined}
             recordedAccusedId={report.reportedUserId}

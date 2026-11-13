@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { LiveStreamRoom } from "@/components/live-stream-room";
+import { giftsEnabledFor } from "@/lib/gifts";
 import { canAccessLiveStream } from "@/lib/live-stream-access";
 
 const VALID_ROLES = ["VIEWER", "GUEST", "COHOST"] as const;
@@ -31,6 +32,18 @@ export default async function LivePage({
     ? (role as (typeof VALID_ROLES)[number])
     : undefined;
 
+  // Digital gifts (src/lib/gifts.ts): effects play for a viewer with gifts on; a gift can be sent to the host when gifts
+  // are on for both (createGiftIntent re-checks that the sender is in the stream, blocks, age and the host's rules).
+  const giftsOn = giftsEnabledFor(me);
+  const host =
+    giftsOn && me.id !== liveStream.hostId
+      ? await prisma.user.findUnique({
+          where: { id: liveStream.hostId },
+          select: { id: true, name: true, isAdmin: true, isGuestPreview: true },
+        })
+      : null;
+  const giftHost = host && giftsEnabledFor(host) ? { id: host.id, name: host.name } : null;
+
   return (
     <LiveStreamRoom
       liveStreamId={liveStream.id}
@@ -44,6 +57,8 @@ export default async function LivePage({
       // all for one (requestLiveStreamRecordingPost re-checks this
       // server-side too, regardless of what the client sends).
       recordingAutoPostAvailable={!liveStream.targetUserId}
+      giftsEnabled={giftsOn}
+      giftHost={giftHost}
     />
   );
 }

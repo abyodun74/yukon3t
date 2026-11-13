@@ -31,6 +31,11 @@ import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
 import { ProfileBirthdayCard } from "@/components/profile-birthday-card";
 import { loadProfileBirthdayCard } from "@/lib/birthdays-data";
+import { isBlockedEitherWay } from "@/lib/blocks";
+import { giftsEnabledFor } from "@/lib/gifts";
+import { loadProfileGifts } from "@/lib/gift-profile";
+import { GiftFrameOverlay } from "@/components/gift-art";
+import { ProfileFrameLabel, ProfileGiftBadge, ProfileGiftsSection, SendGiftButton } from "@/components/profile-gifts";
 
 /** "3 subscribers" with the number in bold, wherever the language's plural form puts it. */
 function BoldCount({ locale, forms, count }: { locale: Locale; forms: string; count: number }) {
@@ -164,6 +169,13 @@ export default async function PublicProfilePage({
         })
       : [],
   ]);
+  // Digital gifts (src/lib/gifts.ts): the frame, the badge and the Gifts area, only while gifts are on for both the
+  // viewer and the owner (giftsEnabledFor) and never across a block either way (loadProfileGifts).
+  const giftsOn = giftsEnabledFor(me) && giftsEnabledFor(user);
+  const gifts = giftsOn
+    ? await loadProfileGifts(user, me, isOwnProfile ? false : await isBlockedEitherWay(me.id, user.id))
+    : null;
+
   const storiesForRing = activeStories.map((s) => ({
     id: s.id,
     mediaType: s.mediaType,
@@ -197,21 +209,32 @@ export default async function PublicProfilePage({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">
-          <ProfileStoryRing
-            // A new ?story= deep link (a story notification tapped while already on this profile) must open the
-            // viewer again: the ring only reads initialStoryId when it mounts.
-            key={storyParam ?? ""}
-            userId={user.id}
-            avatarUrl={user.avatarUrl}
-            name={user.name}
-            stories={storiesForRing}
-            isOwner={isOwnProfile}
-            currentUserId={me.id}
-            online={online}
-            initialStoryId={storyParam}
-          />
+          <div className="relative shrink-0">
+            <ProfileStoryRing
+              // A new ?story= deep link (a story notification tapped while already on this profile) must open the
+              // viewer again: the ring only reads initialStoryId when it mounts.
+              key={storyParam ?? ""}
+              userId={user.id}
+              avatarUrl={user.avatarUrl}
+              name={user.name}
+              stories={storiesForRing}
+              isOwner={isOwnProfile}
+              currentUserId={me.id}
+              online={online}
+              initialStoryId={storyParam}
+            />
+            {gifts?.frame && (
+              <>
+                <GiftFrameOverlay assetKey={gifts.frame.assetKey} size={64} />
+                <ProfileFrameLabel frame={gifts.frame} />
+              </>
+            )}
+          </div>
           <div className="min-w-0">
-            <h1 dir="auto" className="break-words text-2xl font-semibold">{user.name}</h1>
+            <h1 className="flex flex-wrap items-center gap-2 break-words text-2xl font-semibold">
+              <span dir="auto">{user.name}</span>
+              {gifts?.badge && <ProfileGiftBadge badge={gifts.badge} />}
+            </h1>
             <p className="text-sm text-foreground-soft">
               {user.country ? countryName(user.country, locale) : dictionary.feed.people.unknownLocation}
             </p>
@@ -302,10 +325,15 @@ export default async function PublicProfilePage({
           {connection?.status === "ACCEPTED" && (
             <CallButton calleeId={user.id} calleeName={user.name} calleeAvatarUrl={user.avatarUrl} currentUserId={me.id} />
           )}
+          {gifts && (
+            <SendGiftButton recipientId={user.id} recipientName={user.name} place={{ context: "DIRECT" }} />
+          )}
           <ReportTrigger targetType="USER" targetId={user.id} label={t.reportAccount} />
           <BlockButton targetId={user.id} targetName={user.name} initiallyBlocked={false} />
         </div>
       )}
+
+      {gifts && <ProfileGiftsSection view={gifts} isOwner={isOwnProfile} />}
 
       <div className="mt-10 space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">

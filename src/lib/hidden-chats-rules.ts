@@ -69,6 +69,8 @@ export const HIDDEN_PEER_NOTIFICATION_TYPES = [
   "SCREENSHOT_TAKEN",
   "BIRTHDAY_TODAY",
   "BIRTHDAY_WISHES",
+  // A gift is a private exchange with its sender too (deliverGiftPurchase also skips the row and pushes neutrally).
+  "GIFT_RECEIVED",
 ] as const;
 
 export function isHiddenNotification(

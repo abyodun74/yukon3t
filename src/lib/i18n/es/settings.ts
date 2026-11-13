@@ -63,6 +63,17 @@ export const settings: typeof settingsEn = {
       save: "Guardar mi fecha de nacimiento",
     },
   },
+  // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
+  gifts: {
+    heading: "Regalos",
+    intro:
+      "Elige quién puede enviarte regalos. Si eres menor de 18 años, solo recibes regalos de tus contactos, nunca en una transmisión en vivo.",
+    label: "Quién puede enviarme regalos",
+    EVERYONE: "Todos",
+    CONNECTIONS: "Mis contactos",
+    NOBODY: "Nadie",
+    save: "Guardar ajustes de regalos",
+  },
   notifications: {
     heading: "Notificaciones",
     intro: "Recibe avisos de llamadas entrantes y mensajes nuevos aunque YuKon3t no esté abierto en una pestaña.",

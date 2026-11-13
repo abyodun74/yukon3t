@@ -10,7 +10,9 @@
  * Dependency-free on purpose, same as realtime-channels.ts — imported by
  * both the publishing Server Actions and the subscribing client components.
  */
-export const LIVE_STREAM_SIGNAL_KINDS = ["comment", "presence", "stage"] as const;
+// "gift": a digital gift was delivered on this stream (deliverGiftPurchase, src/lib/gift-delivery.ts); the room asks
+// getLiveGiftEffects which effects to play. Like every kind, it says nothing about who sent what.
+export const LIVE_STREAM_SIGNAL_KINDS = ["comment", "presence", "stage", "gift"] as const;
 
 /**
  * The global `live-streams` signal (any stream starting or ending, heard by every open Home tab at once) is

@@ -182,7 +182,7 @@ describe("visibleNotificationWhere", () => {
       {
         OR: [
           { actorId: { notIn: ["p1"] } },
-          { type: { notIn: ["MESSAGE", "MISSED_CALL", "SCREENSHOT_TAKEN", "BIRTHDAY_TODAY", "BIRTHDAY_WISHES"] } },
+          { type: { notIn: ["MESSAGE", "MISSED_CALL", "SCREENSHOT_TAKEN", "BIRTHDAY_TODAY", "BIRTHDAY_WISHES", "GIFT_RECEIVED"] } },
         ],
       },
     ]);

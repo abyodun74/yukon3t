@@ -4,13 +4,14 @@ import { canSeeCircle } from "@/lib/circle-visibility";
 import { loadStandingCircleInvites } from "@/lib/circle-invite-data";
 import { canViewCollab } from "@/lib/collab-permissions";
 import { loadStandingCollabInvite } from "@/lib/collab-invites-server";
+import { giftsEnabledFor } from "@/lib/gifts";
 
 // Who a report is about is always worked out here, on the server, from the reported thing itself: the client only
 // says what it reports (type + id), never whom. Before this, every type but MESSAGE took the accused user id from the
 // form, so anyone could file a report on someone else's post "against" a third person, and the admin queue (and a
 // SUSPEND/BAN, and the trust score) acted on that third person.
 
-export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT";
+export type ReportTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "GIFT";
 
 type Reporter = { id: string; isAdmin: boolean };
 
@@ -44,6 +45,10 @@ export async function accusedUserIdOf(targetType: ReportTargetType, targetId: st
     case "COLLAB_POST": {
       const collab = await prisma.collabBoardPost.findUnique({ where: { id: targetId }, select: { authorId: true } });
       return collab?.authorId ?? null;
+    }
+    case "GIFT": {
+      const send = await prisma.giftSend.findUnique({ where: { id: targetId }, select: { senderId: true } });
+      return send?.senderId ?? null;
     }
     default:
       return null;
@@ -149,6 +154,18 @@ async function visibleTargetAccused(
         if (!canViewCollab(collab, isParticipant, reporter, hasInvite)) return null;
       }
       return collab.authorId;
+    }
+    case "GIFT": {
+      // A gift is reported by the one person who knows who sent it: its recipient, while gifts are on for them and the
+      // gift is theirs to see (delivered, opened or hidden by them). The accused is the sender.
+      if (!giftsEnabledFor(reporter)) return null;
+      const send = await prisma.giftSend.findUnique({
+        where: { id: targetId },
+        select: { senderId: true, recipientId: true, status: true },
+      });
+      if (!send || send.recipientId !== reporter.id) return null;
+      if (send.status !== "DELIVERED" && send.status !== "OPENED" && send.status !== "HIDDEN_BY_RECIPIENT") return null;
+      return send.senderId;
     }
     default:
       return null;

@@ -9,6 +9,7 @@ import { callsEn } from "@/lib/i18n/en/calls";
 import { circlesEn } from "@/lib/i18n/en/circles";
 import { collabEn } from "@/lib/i18n/en/collab";
 import { feedEn } from "@/lib/i18n/en/feed";
+import { giftsEn } from "@/lib/i18n/en/gifts";
 import { inviteEn } from "@/lib/i18n/en/invite";
 import { liveEn } from "@/lib/i18n/en/live";
 import { messagesEn } from "@/lib/i18n/en/messages";
@@ -29,6 +30,7 @@ export {
   circlesEn,
   collabEn,
   feedEn,
+  giftsEn,
   inviteEn,
   liveEn,
   messagesEn,
@@ -61,6 +63,7 @@ export const en = {
   calls: callsEn,
   vocab: vocabEn,
   push: pushEn,
+  gifts: giftsEn,
   ...accountEn,
 };
 

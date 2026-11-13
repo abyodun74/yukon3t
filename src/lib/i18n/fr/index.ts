@@ -5,6 +5,7 @@ import { calls } from "@/lib/i18n/fr/calls";
 import { circles } from "@/lib/i18n/fr/circles";
 import { collab } from "@/lib/i18n/fr/collab";
 import { feed } from "@/lib/i18n/fr/feed";
+import { gifts } from "@/lib/i18n/fr/gifts";
 import { invite } from "@/lib/i18n/fr/invite";
 import { live } from "@/lib/i18n/fr/live";
 import { messages } from "@/lib/i18n/fr/messages";
@@ -37,5 +38,6 @@ export const fr: Dictionary = {
   calls,
   vocab,
   push,
+  gifts,
   ...account,
 };

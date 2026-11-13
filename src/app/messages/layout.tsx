@@ -1,4 +1,5 @@
 import { MessagesTextProvider } from "@/components/messages-text";
+import { GiftsTextProvider } from "@/components/gifts-text";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 // Where the wording of the client components under /messages comes from.
@@ -8,7 +9,9 @@ export default async function MessagesLayout({ children }: { children: React.Rea
 
   return (
     <MessagesTextProvider locale={locale} text={t.messages}>
-      {children}
+      <GiftsTextProvider locale={locale} text={t.gifts}>
+        {children}
+      </GiftsTextProvider>
     </MessagesTextProvider>
   );
 }

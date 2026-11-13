@@ -64,8 +64,9 @@ export async function loadReportedContent(
   const circleIds = idsOf("CIRCLE");
   const collabIds = idsOf("COLLAB_POST");
   const userIds = idsOf("USER");
+  const giftIds = idsOf("GIFT");
 
-  const [posts, comments, messages, circles, collabs, users] = await Promise.all([
+  const [posts, comments, messages, circles, collabs, users, gifts] = await Promise.all([
     postIds.length
       ? run(() =>
           prisma.post.findMany({
@@ -145,6 +146,21 @@ export async function loadReportedContent(
           prisma.user.findMany({
             where: { id: { in: userIds } },
             select: { id: true, name: true, username: true, status: true, bio: true, avatarUrl: true },
+          }),
+        )
+      : [],
+    giftIds.length
+      ? run(() =>
+          prisma.giftSend.findMany({
+            where: { id: { in: giftIds } },
+            select: {
+              id: true,
+              message: true,
+              status: true,
+              context: true,
+              sender: authorSelect,
+              purchase: { select: { product: { select: { sku: true } } } },
+            },
           }),
         )
       : [],
@@ -259,6 +275,22 @@ export async function loadReportedContent(
       mediaLabel: user.avatarUrl ? "Profile picture" : null,
       links: [],
       href: `/u/${user.id}`,
+    });
+  }
+
+  // A reported gift: the sender's note and what was sent (catalog sku; the art is the app's own, nothing uploaded).
+  for (const gift of gifts) {
+    const notes = [`Gift: ${gift.purchase.product.sku} (sent from ${gift.context})`, `Status: ${gift.status}`];
+    if (!gift.sender) notes.push("The sender's account has been deleted.");
+    out.set(reportedContentKey({ targetType: "GIFT", targetId: gift.id }), {
+      exists: true,
+      author: gift.sender,
+      text: cap(gift.message),
+      notes,
+      imageUrl: null,
+      mediaLabel: null,
+      links: [],
+      href: null,
     });
   }
 

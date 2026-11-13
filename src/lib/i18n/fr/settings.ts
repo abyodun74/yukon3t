@@ -63,6 +63,17 @@ export const settings: typeof settingsEn = {
       save: "Enregistrer ma date de naissance",
     },
   },
+  // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
+  gifts: {
+    heading: "Cadeaux",
+    intro:
+      "Choisissez qui peut vous offrir des cadeaux. Si vous avez moins de 18 ans, vous ne recevez des cadeaux que de vos relations, jamais pendant un direct.",
+    label: "Qui peut m'offrir des cadeaux",
+    EVERYONE: "Tout le monde",
+    CONNECTIONS: "Mes relations",
+    NOBODY: "Personne",
+    save: "Enregistrer les réglages des cadeaux",
+  },
   notifications: {
     heading: "Notifications",
     intro:

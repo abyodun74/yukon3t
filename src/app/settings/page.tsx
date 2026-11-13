@@ -4,6 +4,8 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { getPasswordHash, isPasswordResetRequired } from "@/lib/auth-guards";
 import { updatePrivacy, updateRingtone, updateNotificationAlerts, updateAutoTranslate, setPassword } from "@/app/actions/profile";
 import { setBirthDateOnce, updateBirthdaySharing } from "@/app/actions/birthdays";
+import { updateGiftsFrom } from "@/app/actions/gifts";
+import { giftsEnabledFor } from "@/lib/gifts";
 import { BIRTHDAY_DEFAULT_AUDIENCE, birthdaySettingsView } from "@/lib/birthdays";
 import { MIN_AGE } from "@/lib/validation-constants";
 import { BirthDateSelect } from "@/components/birth-date-select";
@@ -345,6 +347,31 @@ export default async function SettingsPage({
             />
           </form>
         </CollapsibleSection>
+
+        {/* Digital gifts (src/lib/gifts.ts): only while gifts are on for this account (giftsEnabledFor; Phase 1: site
+            admins). Under-18s only ever receive from connections whatever this says (giftSendRefusal). */}
+        {giftsEnabledFor(user) && (
+          <CollapsibleSection id="gifts" page="settings" title={t.gifts.heading}>
+            <p className="text-sm text-foreground-soft">{t.gifts.intro}</p>
+            <form action={updateGiftsFrom} className="mt-4 space-y-3">
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">{t.gifts.label}</legend>
+                {(["EVERYONE", "CONNECTIONS", "NOBODY"] as const).map((value) => (
+                  <label key={value} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+                    <input type="radio" name="giftsFrom" value={value} defaultChecked={user.giftsFrom === value} />
+                    <span>{t.gifts[value]}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <SubmitButton
+                label={t.gifts.save}
+                pendingLabel={t.saving}
+                offlineMessage={offlineMessage}
+                className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold hover:border-accent hover:text-accent"
+              />
+            </form>
+          </CollapsibleSection>
+        )}
 
         <CollapsibleSection id="language" page="settings" title={t.language.heading}>
           <p className="text-sm text-foreground-soft">{t.language.body}</p>

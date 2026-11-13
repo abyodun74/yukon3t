@@ -835,7 +835,8 @@ export async function editMessage(messageId: string, formData: FormData) {
     return { error: "deleted" as const };
   }
   // A view-once message is its media and nothing else: it is sent without text and stays that way.
-  if (message.viewOnce) {
+  // Nor is a gift card (Message.giftSendId, src/lib/gifts.ts): the server wrote it, there is no text to edit.
+  if (message.viewOnce || message.giftSendId) {
     return { error: "invalid" as const };
   }
   if (await isConversationLocked(user.id, message.conversationId)) {

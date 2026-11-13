@@ -184,6 +184,11 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: { messageData: 'holiday:["Independence Day","Nigeria"]' }, href: "/home" },
     { data: {}, href: "/home" },
   ],
+  // A gift: the recipient's own Gifts area, even when it came from a chat (the chat is only for the hidden-chat filter).
+  GIFT_RECEIVED: [
+    { data: {}, href: "/u/me#gifts" },
+    { data: chat, href: "/u/me#gifts" },
+  ],
 };
 
 describe("notificationHref for every notification type", () => {

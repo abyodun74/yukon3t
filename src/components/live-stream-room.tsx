@@ -27,6 +27,8 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { createCoalescer, createTrailingThrottle, liveStreamSignalKind } from "@/lib/live-stream-signal";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { useLiveText } from "@/components/live-text";
+import { LiveGiftLayer } from "@/components/live-gift-layer";
+import { SendGiftButton } from "@/components/profile-gifts";
 import { formatDuration } from "@/lib/format-date";
 import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
 
@@ -125,6 +127,8 @@ export function LiveStreamRoom({
   initiallyEnded,
   initialRole,
   recordingAutoPostAvailable,
+  giftsEnabled = false,
+  giftHost = null,
 }: {
   liveStreamId: string;
   isHost: boolean;
@@ -134,8 +138,14 @@ export function LiveStreamRoom({
   recordingAutoPostAvailable: boolean;
   /** Set only from a `?role=` deep link (see src/app/live/[id]/page.tsx) — e.g. LiveStreamFeedCard's Watch/Guest/Co-host buttons on Home. Skips the "choosing" screen entirely and auto-joins with this role instead, the same way isHost already auto-joins the host. Ignored for the host (isHost's own auto-join always wins — they're never shown a role choice regardless). Omitted for every other entry point (the existing "Live now" strip, a notification link, ...), which still get the normal choosing screen exactly as before. */
   initialRole?: Role;
+  /** Digital gifts are on for the viewer (giftsEnabledFor): gift effects play over the stream. */
+  giftsEnabled?: boolean;
+  /** Set when the viewer may send the host a gift from here (gifts on for both; never for the host themself). */
+  giftHost?: { id: string; name: string | null } | null;
 }) {
   const { locale, t } = useLiveText();
+  // Bumped by a "gift" live-stream signal (and by a full refetch): LiveGiftLayer asks which effects to play.
+  const [giftSignal, setGiftSignal] = useState(0);
   const { isGuest, promptSignUp } = useGuestPreview();
   const [phase, setPhase] = useState<"choosing" | "joining" | "active" | "error">(
     initiallyEnded ? "error" : isHost || initialRole ? "joining" : "choosing",
@@ -407,11 +417,16 @@ export function LiveStreamRoom({
           // approval moves someone between the two counts shown.
           await Promise.all([fetchViewerCount(), fetchStage()]);
           return;
+        case "gift":
+          // A digital gift arrived: only the effect layer refetches (and only if gifts are on for this viewer).
+          if (giftsEnabled) setGiftSignal((n) => n + 1);
+          return;
         default:
+          if (giftsEnabled) setGiftSignal((n) => n + 1);
           await refetch();
       }
     },
-    [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch],
+    [fetchComments, viewerCountThrottle, fetchViewerCount, fetchStage, refetch, giftsEnabled],
   );
 
   // Fires immediately once joined (still needed since a realtime subscription
@@ -1196,7 +1211,7 @@ export function LiveStreamRoom({
             </span>
           ))}
         </div>
-        <div className="pointer-events-auto relative">
+        <div className="pointer-events-auto relative flex items-center gap-2">
           {reactionPickerOpen && (
             <div className="chrome-scale absolute bottom-full mb-2 flex -translate-x-1/2 items-center gap-1 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-2 py-1.5 left-1/2">
               {QUICK_REACTIONS.map((emoji) => (
@@ -1227,8 +1242,20 @@ export function LiveStreamRoom({
           >
             <Smile size={16} />
           </button>
+          {/* Digital gifts: a gift to the host plays its effect for everyone watching (LiveGiftLayer). The picker is a
+              Sheet inside this z-[70] layer, so it opens above the video (z-[60]). Never for the host themself. */}
+          {giftHost && !isHost && phase === "active" && (
+            <SendGiftButton
+              iconOnly
+              recipientId={giftHost.id}
+              recipientName={giftHost.name}
+              place={{ context: "LIVE", liveStreamId }}
+              className="flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
+            />
+          )}
         </div>
       </div>
+      {giftsEnabled && phase === "active" && <LiveGiftLayer liveStreamId={liveStreamId} signal={giftSignal} />}
 
       {!isHost && !pendingStageRole && declinedNotice && (
         <div

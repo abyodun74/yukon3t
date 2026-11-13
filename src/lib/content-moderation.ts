@@ -2,8 +2,9 @@ import { revalidatePath } from "next/cache";
 import { prisma, type TransactionClient } from "@/lib/prisma";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { countPublishedInThread } from "@/lib/comment-count";
+import { revokeGiftSend } from "@/lib/gift-revoke";
 
-type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE";
+type ModeratableTargetType = "USER" | "POST" | "MESSAGE" | "CIRCLE" | "COLLAB_POST" | "COMMENT" | "MUSE" | "GIFT";
 
 /**
  * Removes the underlying content behind a report or a flagged-content review,
@@ -145,6 +146,15 @@ export async function removeModeratedContent(
       revalidatePath("/muse");
       revalidatePath(`/u/${muse.authorId}`);
       return { authorId: muse.authorId, mediaUrlsToDelete };
+    }
+    case "GIFT": {
+      // A reported gift is revoked (the send, every item it gave, and a frame/badge it put on the profile), not
+      // deleted: the purchase stays as the record of a payment. No files: gifts are drawn by the app.
+      const revoked = await revokeGiftSend(tx, targetId);
+      if (!revoked) return null;
+      revalidatePath(`/u/${revoked.recipientId}`);
+      // An account already deleted can't carry an audit row; the gift is still revoked.
+      return revoked.senderId ? { authorId: revoked.senderId, mediaUrlsToDelete: [] } : null;
     }
     case "USER":
     default:

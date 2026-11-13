@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ChatThread } from "@/components/chat-thread";
+import { giftsEnabledFor } from "@/lib/gifts";
 import { BackButton } from "@/components/back-button";
 import { CallButton } from "@/components/call-button";
 import { ChatOptionsMenu, ChatOptionsProvider } from "@/components/chat-options-menu";
@@ -97,6 +98,17 @@ export default async function ConversationPage({
   const hidden = membership.hiddenAt !== null;
 
   const other = conversation.members.find((m) => m.user.id !== me.id)?.user;
+  // Digital gifts (src/lib/gifts.ts): cards render while gifts are on for me; a gift can be sent from here only in a
+  // 1:1 whose other member has gifts on too (createGiftIntent re-checks everything, blocks and age included).
+  const giftsOn = giftsEnabledFor(me);
+  const giftRecipient =
+    giftsOn && !conversation.isGroup && other
+      ? await prisma.user.findUnique({ where: { id: other.id }, select: { isAdmin: true, isGuestPreview: true } })
+      : null;
+  const giftsProp = {
+    enabled: giftsOn,
+    recipient: other && giftRecipient && giftsEnabledFor(giftRecipient) ? { id: other.id, name: other.name } : null,
+  };
   const conversationLabel = conversation.isGroup
     ? (conversation.name ?? t.fallback.group)
     : (other?.name ?? t.fallback.conversation);
@@ -290,6 +302,7 @@ export default async function ConversationPage({
           conversationLabel={conversationLabel}
           members={members}
           viewOnceAvailable={!conversation.isGroup && isViewOnceConfigured()}
+          gifts={giftsProp}
         />
       </div>
     </div>
