@@ -93,6 +93,7 @@ export const gifts: typeof giftsEn = {
     "gold-ring-frame": { name: "Anel dourado", description: "Um anel dourado em volta da sua foto." },
     confetti: { name: "Confete", description: "Confete por toda a transmissão ao vivo." },
     "aurora-sweep": { name: "Onda de aurora", description: "Auroras boreais por toda a transmissão ao vivo." },
+    "luxury-red-rose": { name: "Rosa vermelha de luxo", description: "Um buquê de luxo de rosas vermelhas, atado com uma fita vermelha e dourada." },
   },
   boxes: {
     "box.say-hi": { name: "Diga oi", description: "Aceno, Toca aqui e Café." },

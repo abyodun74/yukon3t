@@ -1,18 +1,55 @@
 import { useId } from "react";
+import { resolveGiftArt } from "@/lib/gift-assets";
 
-// The art for every digital gift (src/lib/gifts-data.ts `assetKey`), drawn by the app as plain SVG: no files, no
-// uploads, nothing from another server. Decorative: the name next to it (or the caller's own label) is what a screen
-// reader announces, so every drawing here is aria-hidden. Works in server and client components alike.
+// The art for every digital gift (src/lib/gifts-data.ts `assetKey`), resolved by src/lib/gift-assets.ts to either an
+// SVG drawn here (no files, nothing from another server) or a raster picture served same-origin from public/gifts/.
+// The SVG drawings are decorative (aria-hidden): the name next to them, or the caller's own label, is what a screen
+// reader announces. A raster picture carries the item's localized name as its alt text, so callers always pass `name`.
+// Works in server and client components alike.
 
-type ArtProps = { assetKey: string; size?: number; className?: string };
+type ArtProps = {
+  assetKey: string;
+  /** The item's name in the reader's language (giftItemName): the alt text of a raster picture. */
+  name: string;
+  size?: number;
+  className?: string;
+  /** Load a raster picture straight away instead of lazily (for art that is on screen the moment it mounts). */
+  eager?: boolean;
+};
 
 /** The picture of one item (or the plain "sparkle" for anything unknown). */
-export function GiftArt({ assetKey, size = 48, className }: ArtProps) {
+export function GiftArt({ assetKey, name, size = 48, className, eager = false }: ArtProps) {
   const uid = useId().replace(/:/g, "");
-  const g = (name: string) => `${uid}-${name}`;
+  const g = (id: string) => `${uid}-${id}`;
   const common = { width: size, height: size, viewBox: "0 0 64 64", "aria-hidden": true as const, focusable: false as const, className };
+  const art = resolveGiftArt(assetKey);
 
-  switch (assetKey) {
+  if (art.type === "image") {
+    // An opaque photo: shown as a rounded square card with a hairline edge (the theme's own line colour, so it
+    // reads in light and dark mode alike), cropped to fill. Same-origin file, so the CSP's img-src 'self' covers it.
+    return (
+      <span
+        className={`inline-block shrink-0 overflow-hidden rounded-[22%] bg-surface shadow-sm ring-1 ring-line ${className ?? ""}`}
+        style={{ width: size, height: size }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- static same-origin asset, sized by srcSet; the app renders images with plain <img> */}
+        <img
+          src={art.thumbSrc}
+          srcSet={art.srcSet}
+          sizes={`${size}px`}
+          width={size}
+          height={size}
+          alt={name}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          draggable={false}
+          className="block h-full w-full object-cover"
+        />
+      </span>
+    );
+  }
+
+  switch (art.key) {
     case "wave":
       return (
         <svg {...common}>
@@ -91,7 +128,7 @@ export function GiftArt({ assetKey, size = 48, className }: ArtProps) {
     case "gold-ring-frame":
       return (
         <svg {...common}>
-          <FrameRing assetKey={assetKey} uid={uid} />
+          <FrameRing assetKey={art.key} uid={uid} />
           <circle cx="32" cy="32" r="18" fill="#D9DEE8" />
           <circle cx="32" cy="28" r="6" fill="#A5ADBD" />
           <path d="M20 44a12 9 0 0 1 24 0" fill="#A5ADBD" />
@@ -139,6 +176,7 @@ export function GiftArt({ assetKey, size = 48, className }: ArtProps) {
           <path d="M8 44c10-8 18 2 26-4s14-6 22-1" stroke={`url(#${g("sweep")})`} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.6" />
         </svg>
       );
+    case "sparkle":
     default:
       return (
         <svg {...common}>

@@ -6,7 +6,7 @@ import { Sheet } from "@/components/sheet";
 import { GiftArt } from "@/components/gift-art";
 import { useGiftsText } from "@/components/gifts-text";
 import { createGiftIntent, getGiftCatalog, type GiftCatalogProduct } from "@/app/actions/gifts";
-import { giftProductDescription, giftProductName } from "@/lib/gift-names";
+import { giftItemName, giftProductDescription, giftProductName } from "@/lib/gift-names";
 import { GIFT_MESSAGE_MAX, giftPriceLabel } from "@/lib/gifts";
 import { byCode, format } from "@/lib/i18n/locales";
 
@@ -123,7 +123,12 @@ export function GiftPickerSheet({
           )}
           <span className="flex -space-x-3 rtl:space-x-reverse">
             {product.items.slice(0, 4).map((item, i) => (
-              <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} size={product.isBox ? 32 : 44} />
+              <GiftArt
+                key={`${item.slug}-${i}`}
+                assetKey={item.assetKey}
+                name={giftItemName(t, item.slug)}
+                size={product.isBox ? 32 : 44}
+              />
             ))}
           </span>
           <span className="font-medium">{name}</span>

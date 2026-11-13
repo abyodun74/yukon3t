@@ -5,7 +5,7 @@ import { GiftArt } from "@/components/gift-art";
 import { GiftOpenOverlay } from "@/components/gift-open-overlay";
 import { useGiftsText } from "@/components/gifts-text";
 import { getGiftChatCard, openGift, type GiftChatCard as Card, type OpenedGift } from "@/app/actions/gifts";
-import { giftProductName } from "@/lib/gift-names";
+import { giftItemName, giftProductName } from "@/lib/gift-names";
 
 /**
  * A gift inside a chat (Message.giftSendId). The message itself carries nothing but the link; the card is loaded
@@ -65,7 +65,7 @@ export function GiftChatCard({ giftSendId }: { giftSendId: string }) {
     <div lang={locale} dir={dir} className="flex min-w-[12rem] items-center gap-3">
       <span className="flex shrink-0 -space-x-3 rtl:space-x-reverse">
         {card.items.slice(0, 3).map((item, i) => (
-          <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} size={40} />
+          <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={giftItemName(t, item.slug)} size={40} />
         ))}
       </span>
       <span className="min-w-0 flex-1">

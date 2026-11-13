@@ -64,10 +64,11 @@ export function SendGiftButton({
 /** The badge worn next to the profile name, with its name for screen readers and as a tooltip. */
 export function ProfileGiftBadge({ badge }: { badge: { slug: string; assetKey: string } }) {
   const { t } = useGiftsText();
-  const label = format(t.profile.badgeLabel, { name: giftItemName(t, badge.slug) });
+  const name = giftItemName(t, badge.slug);
+  const label = format(t.profile.badgeLabel, { name });
   return (
     <span role="img" aria-label={label} title={label} className="inline-flex shrink-0 align-middle">
-      <GiftArt assetKey={badge.assetKey} size={22} />
+      <GiftArt assetKey={badge.assetKey} name={name} size={22} eager />
     </span>
   );
 }
@@ -145,7 +146,7 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
             const name = giftItemName(t, item.slug);
             return (
               <li key={item.slug} className="flex items-center gap-2 rounded-xl border border-line px-2 py-1.5 text-xs">
-                <GiftArt assetKey={item.assetKey} size={28} />
+                <GiftArt assetKey={item.assetKey} name={name} size={28} />
                 <span>
                   <span className="block font-medium">{name}</span>
                   <span className="block text-foreground-soft">{t.kinds[item.kind]}</span>
@@ -181,7 +182,7 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
               <li key={gift.sendId} className="flex flex-col items-center gap-1 rounded-xl border border-line p-2 text-center text-xs">
                 <span className="flex -space-x-3 rtl:space-x-reverse">
                   {gift.items.slice(0, 3).map((item, i) => (
-                    <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} size={36} />
+                    <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={giftItemName(t, item.slug)} size={36} />
                   ))}
                 </span>
                 <span className="font-medium">{name}</span>

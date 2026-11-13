@@ -1,14 +1,24 @@
 // The digital-gift catalog (src/lib/gifts.ts), as data. Pure and client-safe. The database rows are seeded from
-// exactly this by migration 20261112180300_gifts_catalog_seed (gifts-data.test.ts checks that the SQL names every item,
-// product and box content listed here), and the actions read the database, never this file, for what can be sent: a
-// product an admin switches off (GiftProduct.active) can't be sent whatever this says.
+// exactly this by the catalog seed migrations (GIFT_CATALOG_SEED_MIGRATIONS; gifts-data.test.ts checks that together
+// they name every item, product and box content listed here), and the actions read the database, never this file,
+// for what can be sent: a product an admin switches off (GiftProduct.active) can't be sent whatever this says.
 //
 // Prices are the store price tiers in USD, in minor units (cents), as GiftProduct.webPriceMinor. Store product ids
 // (GiftProduct.appleProductId / googleProductId) are set in the payments phases, once the products exist in App Store
 // Connect and the Play Console.
 //
 // Names and descriptions are in the `gifts` dictionary (src/lib/i18n/<lang>/gifts.ts) under `items.<slug>` and
-// `products.<sku>`, in every language. Art is drawn by the app (src/components/gift-art.tsx) from `assetKey`.
+// `boxes.<sku>`, in every language. Art is resolved from `assetKey` by src/lib/gift-assets.ts (an SVG
+// drawn by src/components/gift-art.tsx, or a raster picture in public/gifts/).
+
+/**
+ * The migrations that seed this catalog, oldest first. Applied migrations are never edited: a new gift gets a new seed
+ * migration, added here.
+ */
+export const GIFT_CATALOG_SEED_MIGRATIONS = [
+  "20261112180300_gifts_catalog_seed",
+  "20261113120000_gift_luxury_red_rose",
+] as const;
 
 export type GiftItemKindName = "STICKER" | "FRAME" | "BADGE" | "LIVE_EFFECT";
 
@@ -35,6 +45,8 @@ export const GIFT_ITEMS = [
   { slug: "gold-ring-frame", kind: "FRAME", assetKey: "gold-ring-frame", sortOrder: 100 },
   { slug: "confetti", kind: "LIVE_EFFECT", assetKey: "confetti", sortOrder: 110 },
   { slug: "aurora-sweep", kind: "LIVE_EFFECT", assetKey: "aurora-sweep", sortOrder: 120 },
+  // Raster art (public/gifts/luxury-red-rose*.webp); the most premium single gift, listed last of the singles.
+  { slug: "luxury-red-rose", kind: "STICKER", assetKey: "luxury-red-rose", sortOrder: 130 },
 ] as const satisfies readonly GiftItemDef[];
 
 export type GiftItemSlug = (typeof GIFT_ITEMS)[number]["slug"];
@@ -61,6 +73,7 @@ export const GIFT_PRODUCTS = [
   single("frame.gold-ring", "gold-ring-frame", 299, 100),
   single("live.confetti", "confetti", 199, 110),
   single("live.aurora-sweep", "aurora-sweep", 499, 120),
+  single("gift-luxury-red-rose", "luxury-red-rose", 999, 130),
   {
     sku: "box.say-hi",
     isBox: true,

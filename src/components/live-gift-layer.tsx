@@ -82,7 +82,7 @@ function Effect({ effect, reduce, label }: { effect: string; reduce: boolean; la
   if (reduce) {
     return (
       <div className="absolute inset-x-0 top-1/3 flex flex-col items-center gap-2">
-        <GiftArt assetKey={effect} size={72} />
+        <GiftArt assetKey={effect} name={label} size={72} eager />
         <span className="rounded-full bg-black/60 px-3 py-1 text-sm text-white">{label}</span>
       </div>
     );
@@ -128,7 +128,7 @@ function Effect({ effect, reduce, label }: { effect: string; reduce: boolean; la
       animate={{ scale: [0.4, 1.15, 1], opacity: [0, 1, 1, 0], y: [40, 0, 0, -30] }}
       transition={{ duration: 2.6, times: [0, 0.3, 0.8, 1] }}
     >
-      <GiftArt assetKey={effect} size={96} />
+      <GiftArt assetKey={effect} name={label} size={96} eager />
     </m.div>
   );
 }

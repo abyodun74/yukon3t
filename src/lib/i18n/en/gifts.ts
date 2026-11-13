@@ -96,6 +96,7 @@ export const giftsEn = {
     "gold-ring-frame": { name: "Gold Ring", description: "A golden ring around your picture." },
     confetti: { name: "Confetti", description: "Confetti across a live stream." },
     "aurora-sweep": { name: "Aurora Sweep", description: "Northern lights across a live stream." },
+    "luxury-red-rose": { name: "Luxury Red Rose", description: "A luxury bouquet of red roses, tied with a red-and-gold ribbon." },
   },
   boxes: {
     "box.say-hi": { name: "Say Hi", description: "Wave, High Five and Coffee." },

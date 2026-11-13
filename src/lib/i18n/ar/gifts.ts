@@ -94,6 +94,7 @@ export const gifts: typeof giftsEn = {
     "gold-ring-frame": { name: "الحلقة الذهبية", description: "حلقة ذهبية حول صورتك." },
     confetti: { name: "قصاصات ملوّنة", description: "قصاصات ملوّنة على البث المباشر كله." },
     "aurora-sweep": { name: "موجة الشفق", description: "أضواء الشفق القطبي على البث المباشر كله." },
+    "luxury-red-rose": { name: "وردة حمراء فاخرة", description: "باقة فاخرة من الورود الحمراء مربوطة بشريط أحمر وذهبي." },
   },
   boxes: {
     "box.say-hi": { name: "قل مرحبًا", description: "تلويحة وكفّ بكفّ وقهوة." },

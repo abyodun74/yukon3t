@@ -5,6 +5,7 @@ import * as m from "motion/react-m";
 import { Sheet } from "@/components/sheet";
 import { GiftArt } from "@/components/gift-art";
 import { useGiftsText } from "@/components/gifts-text";
+import { resolveGiftArt } from "@/lib/gift-assets";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { format } from "@/lib/i18n/locales";
 import type { OpenedGift } from "@/app/actions/gifts";
@@ -20,6 +21,8 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
   const reduce = useReducedMotion();
   const names = gift ? gift.items.map((item) => giftItemName(t, item.slug)) : [];
   const listFormat = new Intl.ListFormat(locale, { style: "long", type: "conjunction" });
+  // A single gift whose art is a picture (a photo, not a small drawing) is shown large enough to see.
+  const artSize = gift?.items.length === 1 && resolveGiftArt(gift.items[0].assetKey).type === "image" ? 160 : 56;
 
   return (
     <Sheet open={gift !== null} onClose={onClose} title={t.open.title} lang={locale} dir={dir} panelClassName="max-w-sm">
@@ -33,7 +36,7 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
             {gift.senderName ? format(t.open.from, { name: gift.senderName }) : t.open.fromSomeone}
           </p>
 
-          <div className="relative mt-4 flex h-28 w-full items-end justify-center" aria-hidden>
+          <div className="relative mt-4 flex min-h-28 w-full items-end justify-center" aria-hidden>
             {!reduce && (
               <m.div
                 className="absolute bottom-0 h-16 w-24 rounded-lg bg-accent/80"
@@ -52,7 +55,7 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
             <div className="relative flex flex-wrap items-end justify-center gap-3">
               {gift.items.map((item, i) =>
                 reduce ? (
-                  <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} size={56} />
+                  <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={names[i]} size={artSize} eager />
                 ) : (
                   <m.div
                     key={`${item.slug}-${i}`}
@@ -60,7 +63,7 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
                     animate={{ y: 0, scale: 1, opacity: 1 }}
                     transition={{ delay: 0.55 + i * 0.12, type: "spring", stiffness: 420, damping: 22 }}
                   >
-                    <GiftArt assetKey={item.assetKey} size={56} />
+                    <GiftArt assetKey={item.assetKey} name={names[i]} size={artSize} eager />
                   </m.div>
                 ),
               )}
