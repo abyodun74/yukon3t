@@ -21,9 +21,9 @@ import {
 } from "@/lib/invite-contacts";
 import {
   buildInviteMessage,
-  buildInviteUrl,
   buildSmsInviteHref,
   buildWhatsAppInviteHref,
+  INVITE_STORE_LINKS,
 } from "@/lib/invite-link";
 
 // The Contact Picker API (navigator.contacts.select) is real but experimental
@@ -60,10 +60,9 @@ function rawFromNativeContacts(contacts: ContactPayload[]): RawInviteContact[] {
 
 export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null }) {
   const { locale, t } = useInviteText();
-  // The link and the full message are built in one place (invite-link.ts): always https://yukon3t.com/sign-up,
-  // whatever host this page was opened on.
-  const inviteUrl = buildInviteUrl();
-  const inviteMessage = buildInviteMessage(t.message, inviteUrl);
+  // The message (sentence + the App Store and Play Store links, one labelled line each) is built in one place
+  // (invite-link.ts) and is what text, WhatsApp, Share and Copy all send.
+  const inviteMessage = buildInviteMessage(t.message);
   // Read directly during render rather than via useEffect+setState — same
   // convention as ShareModal's canNativeShare/url: these are plain,
   // synchronous browser-API reads with nothing to subscribe to, so an
@@ -109,7 +108,7 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
   }, [displayedNativeRows, nativeSearch]);
 
   async function copyLink() {
-    setCopyStatus((await copyTextToClipboard(inviteUrl)) ? "copied" : "failed");
+    setCopyStatus((await copyTextToClipboard(inviteMessage)) ? "copied" : "failed");
     setTimeout(() => setCopyStatus("idle"), 2000);
   }
 
@@ -244,10 +243,19 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
     <div className="space-y-6">
       <div className="rounded-xl border border-line bg-surface p-4">
         <p className="text-sm font-medium">{t.linkHeading}</p>
+        <ul className="mt-2 flex flex-col gap-2">
+          {INVITE_STORE_LINKS.map((link) => (
+            <li key={link.label} className="flex min-w-0 items-center gap-2">
+              <span dir="ltr" className="w-16 shrink-0 text-start text-xs font-medium">
+                {link.label}
+              </span>
+              <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-background px-3 py-2 text-start text-xs text-foreground-soft">
+                {link.url}
+              </code>
+            </li>
+          ))}
+        </ul>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-background px-3 py-2 text-start text-xs text-foreground-soft">
-            {inviteUrl}
-          </code>
           <button
             type="button"
             onClick={copyLink}

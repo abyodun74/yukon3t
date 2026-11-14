@@ -1,27 +1,40 @@
-// The one place the "invite a friend" link and the text/WhatsApp/share payloads are built (invite-panel.tsx).
+// The one place the "invite a friend" message and the text/WhatsApp/share payloads are built (invite-panel.tsx).
 // Pure and client-safe.
 //
-// The link is always the canonical production address, never `window.location.origin`: that used to be the source,
-// so an invite sent from a Vercel preview, a *.vercel.app / *.netlify.app host or a local dev server carried that host
-// instead of yukon3t.com. The native apps load https://yukon3t.com (capacitor.config.ts), so they already sent the
-// right host, but a link copied anywhere else didn't. There is no referral or invite code in the app (nothing reads
-// one on sign-up), so the link carries no parameter.
+// The invite carries the real store links, not the web sign-up page: a friend who taps one lands straight on the app's
+// App Store or Play Store listing. Each link sits alone at the end of its own line, labelled with the platform name
+// ("iPhone" / "Android" are the same in every language), so SMS / WhatsApp / Messages make each tappable and the
+// recipient knows which one is theirs. There is no referral or invite code in the app, so the links carry no parameter.
 
-export const INVITE_ORIGIN = "https://yukon3t.com";
-export const INVITE_PATH = "/sign-up";
-
-/** https://yukon3t.com/sign-up */
-export function buildInviteUrl(): string {
-  return new URL(INVITE_PATH, INVITE_ORIGIN).toString();
-}
+import { APP_PACKAGE_ID } from "@/lib/app-version";
 
 /**
- * The full invite text: the localized sentence, then the link alone on its own line, so every SMS/WhatsApp/Messages
- * client turns it into a tappable link (no punctuation touching it, nothing after it).
+ * YuKon3t's App Store id (bundle id com.yukon3t.app). Source: Apple's iTunes lookup for that bundle id, which returned
+ * trackId 6813083874 ("Yukon3t"). The same id is what AppVersionPolicy.appStoreId holds when the owner sets it.
  */
-export function buildInviteMessage(sentence: string, url: string = buildInviteUrl()): string {
+export const APP_STORE_APP_ID = "6813083874";
+
+/** https://apps.apple.com/app/id6813083874 */
+export const APP_STORE_URL = `https://apps.apple.com/app/id${APP_STORE_APP_ID}`;
+
+/** https://play.google.com/store/apps/details?id=com.yukon3t.app */
+export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${APP_PACKAGE_ID}`;
+
+/** The two store links with the label each is shown and sent under. Platform names, never translated. */
+export const INVITE_STORE_LINKS = [
+  { label: "iPhone", url: APP_STORE_URL },
+  { label: "Android", url: PLAY_STORE_URL },
+] as const;
+
+/**
+ * The full invite text: the localized sentence, then one line per store ("iPhone: <App Store link>",
+ * "Android: <Play Store link>"). Each link is the last thing on its line with nothing touching it, and nothing follows
+ * the last one, so every messaging client turns them into tappable links.
+ */
+export function buildInviteMessage(sentence: string): string {
+  const links = INVITE_STORE_LINKS.map((l) => `${l.label}: ${l.url}`).join("\n");
   const text = sentence.trim();
-  return text ? `${text}\n${url}` : url;
+  return text ? `${text}\n${links}` : links;
 }
 
 /** Only "+" and digits survive: what an sms:/wa.me address may contain. Empty when there are no digits. */

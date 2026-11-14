@@ -9,7 +9,7 @@ export const invite: typeof inviteEn = {
   title: "Inviter des amis",
   intro: "Faites venir vos proches sur YuKon3t.",
   message: "Rejoins-moi sur YuKon3t pour créer des liens au-delà des cultures, des centres d'intérêt et des frontières :",
-  linkHeading: "Votre lien d'invitation",
+  linkHeading: "Vos liens d'invitation",
   copy: "Copier",
   copied: "Copié !",
   copyFailed: "Copie impossible",
@@ -19,7 +19,7 @@ export const invite: typeof inviteEn = {
   whatsAppLabel: "Inviter sur WhatsApp",
   textHeading: "Inviter par SMS ou WhatsApp",
   textIntro:
-    "Choisissez des contacts (si votre appareil le permet) ou saisissez un numéro, puis envoyez à chacun un SMS ou un message WhatsApp contenant votre lien d'invitation.",
+    "Choisissez des contacts (si votre appareil le permet) ou saisissez un numéro, puis envoyez à chacun un SMS ou un message WhatsApp contenant les liens de l'App Store et de Google Play.",
   openingContacts: "Ouverture des contacts…",
   chooseContacts: "Choisir parmi les contacts",
   phoneLabel: "Numéro de téléphone",

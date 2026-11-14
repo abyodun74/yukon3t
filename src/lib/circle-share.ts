@@ -7,10 +7,8 @@
 // admins' Invite flow) and the server answers a generic "unavailable" for it, so a crafted request can't put a private
 // Circle's name into a chat.
 
-import { INVITE_ORIGIN } from "@/lib/invite-link";
-
 /** Every shared Circle link uses the canonical production host (never a preview / *.netlify.app origin). */
-export const CIRCLE_SHARE_ORIGIN = INVITE_ORIGIN;
+export const CIRCLE_SHARE_ORIGIN = "https://yukon3t.com";
 
 /** May this Circle be shared through chats, the device share sheet or a copied link? PUBLIC ones only. */
 export function isCircleShareable(circle: { visibility: string }): boolean {

@@ -2595,10 +2595,11 @@ const sections: Section[] = [
             or another account); a person with several numbers shows each one
             with its type (mobile, home, work). Tap &ldquo;Invite&rdquo; to
             send a text or the WhatsApp button to send it on WhatsApp. The
-            message always includes the link https://yukon3t.com/sign-up,
-            which your friend can tap to join. You can also use
-            &ldquo;Share&rdquo; to send it through any app on your device,
-            or just copy the link and send it yourself.
+            message always includes the App Store link (iPhone) and the Play
+            Store link (Android), each on its own line, so your friend can
+            tap the one for their phone and install YuKon3t directly. You
+            can also use &ldquo;Share&rdquo; to send it through any app on
+            your device, or just copy the message and send it yourself.
           </>
         ),
       },

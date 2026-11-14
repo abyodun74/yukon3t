@@ -10,7 +10,7 @@ export const invite: typeof inviteEn = {
   title: "دعوة الأصدقاء",
   intro: "ادعُ من تعرفهم إلى YuKon3t.",
   message: "أدعوك للانضمام إليّ على YuKon3t للتواصل مع أشخاص من مختلف الثقافات والاهتمامات والبلدان:",
-  linkHeading: "رابط الدعوة الخاص بك",
+  linkHeading: "روابط الدعوة الخاصة بك",
   copy: "نسخ",
   copied: "تم النسخ!",
   copyFailed: "تعذّر النسخ",
@@ -20,7 +20,7 @@ export const invite: typeof inviteEn = {
   whatsAppLabel: "الدعوة عبر WhatsApp",
   textHeading: "الدعوة برسالة نصية أو عبر WhatsApp",
   textIntro:
-    "اختر من جهات اتصال هاتفك (حيثما كان ذلك متاحًا) أو أدخل رقمًا، ثم أرسل إلى كل شخص رسالة نصية أو رسالة WhatsApp تتضمن رابط دعوتك.",
+    "اختر من جهات اتصال هاتفك (حيثما كان ذلك متاحًا) أو أدخل رقمًا، ثم أرسل إلى كل شخص رسالة نصية أو رسالة WhatsApp تتضمن رابطي App Store وGoogle Play.",
   openingContacts: "جارٍ فتح جهات اتصال الهاتف…",
   chooseContacts: "اختيار من جهات اتصال الهاتف",
   phoneLabel: "رقم الهاتف",

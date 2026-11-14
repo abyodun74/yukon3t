@@ -8,7 +8,7 @@ export const invite: typeof inviteEn = {
   title: "Convidar amigos",
   intro: "Traga as pessoas que você conhece para o YuKon3t.",
   message: "Venha para o YuKon3t comigo e conecte-se com pessoas de outras culturas, interesses e países:",
-  linkHeading: "Seu link de convite",
+  linkHeading: "Seus links de convite",
   copy: "Copiar",
   copied: "Copiado!",
   copyFailed: "Não foi possível copiar",
@@ -18,7 +18,7 @@ export const invite: typeof inviteEn = {
   whatsAppLabel: "Convidar pelo WhatsApp",
   textHeading: "Convidar por mensagem de texto ou WhatsApp",
   textIntro:
-    "Escolha contatos (quando disponível) ou digite um número e envie a cada pessoa uma mensagem de texto ou de WhatsApp com seu link de convite.",
+    "Escolha contatos (quando disponível) ou digite um número e envie a cada pessoa uma mensagem de texto ou de WhatsApp com os links da App Store e do Google Play.",
   openingContacts: "Abrindo contatos…",
   chooseContacts: "Escolher dos contatos",
   phoneLabel: "Número de telefone",

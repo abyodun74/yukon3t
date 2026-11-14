@@ -98,7 +98,7 @@ export const pt4 = {
 
   "invite-someone-from-phones-contacts": {
     q: "Como convido alguém dos contatos do meu celular que ainda não está no YuKon3t?",
-    a: "Vá em Configurações → «Convidar amigos» → «Escolher dos contatos», ou digite um número. Cada número aparece uma só vez, mesmo que seu celular o tenha salvo várias vezes (do Google, do iCloud ou de outra conta); se uma pessoa tiver vários números, cada um aparece com o seu tipo (celular, casa, trabalho). Toque em «Convidar» para enviar uma mensagem de texto, ou no botão do WhatsApp para enviar pelo WhatsApp. A mensagem sempre inclui o link https://yukon3t.com/sign-up, que seu amigo pode tocar para entrar. Você também pode usar «Compartilhar» para enviar por qualquer aplicativo do seu dispositivo, ou simplesmente copiar o link e enviá-lo por conta própria.",
+    a: "Vá em Configurações → «Convidar amigos» → «Escolher dos contatos», ou digite um número. Cada número aparece uma só vez, mesmo que seu celular o tenha salvo várias vezes (do Google, do iCloud ou de outra conta); se uma pessoa tiver vários números, cada um aparece com o seu tipo (celular, casa, trabalho). Toque em «Convidar» para enviar uma mensagem de texto, ou no botão do WhatsApp para enviar pelo WhatsApp. A mensagem sempre inclui o link da App Store (iPhone) e o do Google Play (Android), cada um na sua própria linha, para que seu amigo toque no do seu celular e instale o YuKon3t diretamente. Você também pode usar «Compartilhar» para enviar por qualquer aplicativo do seu dispositivo, ou simplesmente copiar a mensagem e enviá-la por conta própria.",
   },
 
   "signed-new-phone-computer-wheres": {

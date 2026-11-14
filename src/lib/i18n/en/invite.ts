@@ -10,10 +10,10 @@ export const inviteEn = {
   controls: { phoneField: sharedEn.phoneField, phoneInvalid },
   title: "Invite friends",
   intro: "Bring people you know onto YuKon3t.",
-  // What the invited person receives (SMS, WhatsApp, the share sheet), followed on its own line by the link
-  // https://yukon3t.com/sign-up (src/lib/invite-link.ts).
+  // What the invited person receives (SMS, WhatsApp, the share sheet), followed by the App Store and Play Store links,
+  // each on its own labelled line (src/lib/invite-link.ts).
   message: "Join me on YuKon3t — connect across cultures, interests, and borders:",
-  linkHeading: "Your invite link",
+  linkHeading: "Your invite links",
   copy: "Copy",
   copied: "Copied!",
   copyFailed: "Couldn't copy",
@@ -24,7 +24,7 @@ export const inviteEn = {
   whatsAppLabel: "Invite on WhatsApp",
   textHeading: "Invite by text or WhatsApp",
   textIntro:
-    "Pick contacts (where supported) or enter a number, then send each one a text or WhatsApp message with your invite link.",
+    "Pick contacts (where supported) or enter a number, then send each one a text or WhatsApp message with the App Store and Play Store links.",
   openingContacts: "Opening contacts…",
   chooseContacts: "Choose from contacts",
   phoneLabel: "Phone number",
