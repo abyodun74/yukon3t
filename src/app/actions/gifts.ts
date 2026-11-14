@@ -15,7 +15,6 @@ import { holdsViewerSlot } from "@/lib/live-viewer-cap";
 import { deliverGiftPurchase } from "@/lib/gift-delivery";
 import { loadGiftOccasions } from "@/lib/gift-occasions-data";
 import {
-  SELF_OCCASION_COOLDOWN_MS,
   buildGiftShelves,
   selfOccasionRefusal,
   type GiftShelves,
@@ -889,9 +888,7 @@ export async function declareGiftOccasion(formData: FormData) {
     // One declaration at a time per person, so two quick taps can't both pass the 30-day check.
     const lockKey = giftSelfOccasionLockKey(user.id);
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
-    await tx.giftSelfOccasion.deleteMany({
-      where: { userId: user.id, declaredAt: { lt: new Date(now.getTime() - SELF_OCCASION_COOLDOWN_MS) } },
-    });
+    // Rows past their 30 days are deleted by the daily prune-gift-occasions cron; selfOccasionRefusal ignores them.
     const existing = await tx.giftSelfOccasion.findMany({
       where: { userId: user.id, kind: kind.data },
       select: { kind: true, declaredAt: true },

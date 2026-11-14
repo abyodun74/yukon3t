@@ -348,7 +348,8 @@ describe("self-declared occasions", () => {
     await expect(declareGiftOccasion(form("GRADUATION"))).rejects.toThrow("REDIRECT:/settings?saved=1");
     expect(selfCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: ME, kind: "GRADUATION" }) }));
     expect(executeRaw).toHaveBeenCalled();
-    expect(selfDeleteMany).toHaveBeenCalled();
+    // Rows past their 30 days are pruned by the daily prune-gift-occasions cron, not here.
+    expect(selfDeleteMany).not.toHaveBeenCalled();
   });
   it("at most one per kind per 30 days, rate-limited, and nothing else accepted", async () => {
     selfRows = [{ kind: "GRADUATION", declaredAt: new Date(Date.now() - 5 * 24 * 60 * 60_000) }];

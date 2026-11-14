@@ -3809,7 +3809,8 @@ model OwnedGift {
 // Phase A: an occasion a person declared about themselves (Settings -> Gifts -> My occasions): a graduation, a new
 // job, an achievement or a milestone. Shown only as a reason in the gift picker for 7 days (src/lib/gift-occasions.ts),
 // never notified to anyone. At most one per kind per 30 days: a removed one (removedAt) still counts until then, and
-// rows older than that are deleted when the person declares again. Nothing else is stored: no text, no date.
+// rows older than that are deleted by the daily prune-gift-occasions cron (declaredAt index). Nothing else is stored:
+// no text, no date.
 model GiftSelfOccasion {
   id         String               @id @default(cuid())
   userId     String
@@ -3820,6 +3821,7 @@ model GiftSelfOccasion {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, declaredAt])
+  @@index([declaredAt])
 }
 
 // Phase A: up to three owned gifts pinned to a profile's showcase (src/lib/gift-profile.ts). Visitors see the items,

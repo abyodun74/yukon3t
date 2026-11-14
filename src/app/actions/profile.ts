@@ -32,6 +32,7 @@ import { captchaErrorCode } from "@/lib/turnstile-shared";
 import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
+import { loadGiftExport } from "@/lib/gift-export";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
 import { isProfileComplete } from "@/lib/profile-complete";
@@ -535,8 +536,15 @@ export async function exportMyData(proof?: unknown) {
   // A private profile picture is stored as a same-origin path (/api/avatar/…); the file the user keeps gets the full
   // link to it on the site instead (it opens for them while signed in). A public URL is unchanged.
   if (data) data.avatarUrl = absoluteAvatarUrl(data.avatarUrl);
-  if (!data || (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0)) {
+  if (!data) {
     return { error: null, data: JSON.stringify(data, null, 2) };
+  }
+  // Gifts sent and received, owned items, showcase, settings, self-declared occasions and challenges: the user's own,
+  // only as the app shows them to them (src/lib/gift-export.ts), with the same hidden-chat rule and nobody blocked
+  // either way named. Exact selects there; nothing from the gift tables rides on the `include` above.
+  const giftsAndChallenges = await loadGiftExport(user.id, hidden);
+  if (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0) {
+    return { error: null, data: JSON.stringify({ ...data, giftsAndChallenges }, null, 2) };
   }
 
   // A report names who it is about and, for a message, which one (plus its text, from a secret chat): one about a
@@ -559,7 +567,7 @@ export async function exportMyData(proof?: unknown) {
       !(r.targetType === "USER" && hidden.peerIds.includes(r.targetId)) &&
       !(r.targetType === "MESSAGE" && hiddenMessageIds.has(r.targetId)),
   );
-  return { error: null, data: JSON.stringify({ ...data, reportsFiled }, null, 2) };
+  return { error: null, data: JSON.stringify({ ...data, reportsFiled, giftsAndChallenges }, null, 2) };
 }
 
 /**

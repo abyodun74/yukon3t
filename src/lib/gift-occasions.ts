@@ -24,6 +24,15 @@ export type SelfOccasionKind = (typeof SELF_OCCASION_KINDS)[number];
 export const SELF_OCCASION_WINDOW_MS = 7 * 24 * 60 * 60_000;
 /** At most one self-declared occasion of each kind in this long (a removed one still counts). */
 export const SELF_OCCASION_COOLDOWN_MS = 30 * 24 * 60 * 60_000;
+
+/**
+ * Self-declared occasions declared before this instant are past their 30 days (SELF_OCCASION_COOLDOWN_MS) and no
+ * longer matter to anything (selfOccasionRefusal only looks at the last 30 days, the picker at the last 7): the daily
+ * prune-gift-occasions cron deletes them. A row exactly at the cutoff is kept.
+ */
+export function selfOccasionRetentionCutoff(now: Date): Date {
+  return new Date(now.getTime() - SELF_OCCASION_COOLDOWN_MS);
+}
 /** A Circle event is an occasion from this long before it starts until this long after. */
 export const EVENT_OCCASION_WINDOW_MS = 24 * 60 * 60_000;
 /** At most this many reasons are shown at once (the "Right now" shelf's chips). */
