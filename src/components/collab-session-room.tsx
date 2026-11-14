@@ -16,7 +16,7 @@ import { useCallSession } from "@/lib/call-session";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { useGuestPreview } from "@/components/guest-preview";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
 import { MultiSelect } from "@/components/multi-select";
 import { COLLAB_CIRCLE_IDS_MAX, COLLAB_CIRCLE_INVITE_MAX } from "@/lib/collab-circle-invite";
@@ -331,15 +331,15 @@ export function CollabSessionRoom({
                   onChange={(e) => {
                     markNativePickerInactive();
                     uploadMaterial(e.target.files?.[0]);
+                    // Cleared so picking the same file again still fires `change`.
+                    e.target.value = "";
                   }}
                 />
                 <button
                   type="button"
                   disabled={uploading}
                   onClick={() => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    fileInputRef.current?.click();
+                    openFilePicker(fileInputRef.current);
                   }}
                   title={t.uploadHint}
                   className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"

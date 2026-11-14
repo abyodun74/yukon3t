@@ -7,7 +7,12 @@ import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameDetailed, probeVideoDuration, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import {
+  markNativePickerInactive,
+  openFilePicker,
+  canOpenPicker,
+  shouldUseAndroidNativePicker,
+} from "@/lib/native-picker-activity";
 import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
@@ -452,15 +457,24 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
    * the native picker and backed out with nothing selected — a no-op, same
    * as cancelling the file dialog.
    */
-  async function pickImagesOrFallback() {
-    if (isNativePickerActive()) return;
-    const native = await pickImagesNative(NATIVE_PICKER_LIMIT);
-    if (native) {
-      if (native.length > 0) void addFiles(native);
+  function pickImagesOrFallback() {
+    // Decided synchronously: anything but Capacitor Android with the
+    // GalleryPicker plugin (iOS above all) opens the <input> in this same
+    // tick — an `await` before `.click()` loses the user activation and
+    // WebKit silently drops the click.
+    if (!shouldUseAndroidNativePicker()) {
+      openFilePicker(imageInputRef.current);
       return;
     }
-    markNativePickerActive();
-    imageInputRef.current?.click();
+    if (!canOpenPicker()) return;
+    void (async () => {
+      const native = await pickImagesNative(NATIVE_PICKER_LIMIT);
+      if (native) {
+        if (native.length > 0) void addFiles(native);
+        return;
+      }
+      openFilePicker(imageInputRef.current);
+    })();
   }
 
   function removeItem(id: string) {
@@ -773,18 +787,14 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                       label: t.stories.upload.takePhoto,
                       icon: <Camera size={14} />,
                       onSelect: () => {
-                        if (isNativePickerActive()) return;
-                        markNativePickerActive();
-                        cameraInputRef.current?.click();
+                        openFilePicker(cameraInputRef.current);
                       },
                     },
                     {
                       label: t.stories.upload.addVideos,
                       icon: <Video size={14} />,
                       onSelect: () => {
-                        if (isNativePickerActive()) return;
-                        markNativePickerActive();
-                        videoInputRef.current?.click();
+                        openFilePicker(videoInputRef.current);
                       },
                     },
                   ]}
@@ -810,9 +820,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   label: t.stories.upload.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    cameraInputRef.current?.click();
+                    openFilePicker(cameraInputRef.current);
                   },
                 },
               ]}
@@ -828,9 +836,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   label: t.stories.upload.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    videoInputRef.current?.click();
+                    openFilePicker(videoInputRef.current);
                   },
                 },
               ]}

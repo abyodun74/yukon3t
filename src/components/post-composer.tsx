@@ -54,7 +54,12 @@ import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { pickVideoNative, uploadVideoNative } from "@/lib/native-video-picker";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import {
+  markNativePickerInactive,
+  openFilePicker,
+  canOpenPicker,
+  shouldUseAndroidNativePicker,
+} from "@/lib/native-picker-activity";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
 import { useUiText, useShellText } from "@/components/ui-text";
@@ -1468,31 +1473,35 @@ export function PostComposer({
               {
                 label: t.composer.uploadFromDevice,
                 icon: <Upload size={14} />,
-                onSelect: async () => {
-                  if (isNativePickerActive()) return;
-                  // Nicer native multi-select on Android (see
-                  // native-gallery-picker.ts); null means it didn't run
-                  // (iOS, web, or an older installed build), so fall back
-                  // to the plain <input type="file" multiple> below. An
-                  // empty (non-null) array means the user opened the
-                  // native picker and backed out with nothing selected —
-                  // a no-op, same as cancelling the file dialog.
-                  const native = await pickImagesNative(MAX_IMAGES - imageCount);
-                  if (native) {
-                    if (native.length > 0) await pickImages(native);
+                onSelect: () => {
+                  // Decided synchronously: anything but Capacitor Android
+                  // with the GalleryPicker plugin (iOS above all) opens the
+                  // <input> in this same tick — an `await` before `.click()`
+                  // loses the user activation and WebKit drops the click.
+                  if (!shouldUseAndroidNativePicker()) {
+                    openFilePicker(imageInputRef.current);
                     return;
                   }
-                  markNativePickerActive();
-                  imageInputRef.current?.click();
+                  if (!canOpenPicker()) return;
+                  // Nicer native multi-select on Android (see
+                  // native-gallery-picker.ts); null means it didn't run
+                  // (failed), so fall back to the plain <input>. An empty
+                  // (non-null) array means the user backed out — a no-op.
+                  void (async () => {
+                    const native = await pickImagesNative(MAX_IMAGES - imageCount);
+                    if (native) {
+                      if (native.length > 0) await pickImages(native);
+                      return;
+                    }
+                    openFilePicker(imageInputRef.current);
+                  })();
                 },
               },
               {
                 label: t.composer.takePhoto,
                 icon: <Camera size={14} />,
                 onSelect: () => {
-                  if (isNativePickerActive()) return;
-                  markNativePickerActive();
-                  cameraInputRef.current?.click();
+                  openFilePicker(cameraInputRef.current);
                 },
               },
               {
@@ -1517,15 +1526,21 @@ export function PostComposer({
               {
                 label: t.composer.uploadFromDevice,
                 icon: <Upload size={14} />,
-                onSelect: async () => {
-                  if (isNativePickerActive()) return;
-                  const native = await pickVideoNative();
-                  if (native) {
-                    await handleNativeVideoAttach(native);
+                onSelect: () => {
+                  // Same synchronous split as the photo picker above.
+                  if (!shouldUseAndroidNativePicker()) {
+                    openFilePicker(videoInputRef.current);
                     return;
                   }
-                  markNativePickerActive();
-                  videoInputRef.current?.click();
+                  if (!canOpenPicker()) return;
+                  void (async () => {
+                    const native = await pickVideoNative();
+                    if (native) {
+                      await handleNativeVideoAttach(native);
+                      return;
+                    }
+                    openFilePicker(videoInputRef.current);
+                  })();
                 },
               },
               {

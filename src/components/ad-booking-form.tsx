@@ -11,7 +11,7 @@ import { HONEYPOT_FIELD, FORM_TIMESTAMP_FIELD, currentTimeMs } from "@/lib/bot-p
 import { TURNSTILE_RESPONSE_FIELD } from "@/lib/turnstile-shared";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { INITIAL_TURNSTILE_STATE, heldSubmitMessage, type TurnstileState } from "@/lib/turnstile-lifecycle";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { useAdvertiseText } from "@/components/advertise-text";
 import { aroundPlaceholder, byCode, plural } from "@/lib/i18n/locales";
 import { normalizeVideoFile } from "@/lib/video-file";
@@ -380,6 +380,8 @@ export function AdBookingForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
         {/* accept must include the literal "image/*" — Capacitor's own
@@ -396,6 +398,8 @@ export function AdBookingForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
         {/* accept must include the literal "video/*" — confirmed live via
@@ -413,6 +417,8 @@ export function AdBookingForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickVideo(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
 
@@ -446,18 +452,14 @@ export function AdBookingForm() {
                   label: t.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    imageInputRef.current?.click();
+                    openFilePicker(imageInputRef.current);
                   },
                 },
                 {
                   label: t.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    cameraInputRef.current?.click();
+                    openFilePicker(cameraInputRef.current);
                   },
                 },
               ]}
@@ -470,9 +472,7 @@ export function AdBookingForm() {
                   label: t.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    videoInputRef.current?.click();
+                    openFilePicker(videoInputRef.current);
                   },
                 },
               ]}

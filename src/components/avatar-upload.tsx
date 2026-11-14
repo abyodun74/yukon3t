@@ -7,7 +7,7 @@ import { confirmPrivateAvatarUpload } from "@/app/actions/media";
 import { AVATAR_FULL_DIMENSION, AVATAR_THUMB_DIMENSION, AVATAR_THUMB_MAX_BYTES } from "@/lib/avatar-url";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { useProfileText } from "@/components/profile-text";
 import { byCode } from "@/lib/i18n/locales";
 
@@ -101,9 +101,7 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (isNativePickerActive()) return;
-          markNativePickerActive();
-          galleryInputRef.current?.click();
+          openFilePicker(galleryInputRef.current);
         }}
         // Leads with the visible "No photo" text when that's what's showing,
         // so the name still matches what a Voice Control user reads.
@@ -170,18 +168,14 @@ export function AvatarUpload({ currentUrl }: { currentUrl: string | null }) {
               label: t.fromGallery,
               icon: <Upload size={14} />,
               onSelect: () => {
-                if (isNativePickerActive()) return;
-                markNativePickerActive();
-                galleryInputRef.current?.click();
+                openFilePicker(galleryInputRef.current);
               },
             },
             {
               label: t.takePhoto,
               icon: <Camera size={14} />,
               onSelect: () => {
-                if (isNativePickerActive()) return;
-                markNativePickerActive();
-                cameraInputRef.current?.click();
+                openFilePicker(cameraInputRef.current);
               },
             },
           ]}

@@ -7,7 +7,7 @@ import { uploadFileDirect, resizeImageFile } from "@/lib/upload-client";
 import { confirmCircleCoverUpload } from "@/app/actions/circles";
 import { ImageCropModal } from "@/components/image-crop-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { useCirclesText } from "@/components/circles-text";
 import { byCode } from "@/lib/i18n/locales";
 
@@ -95,9 +95,7 @@ export function CircleCoverUpload({
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (isNativePickerActive()) return;
-          markNativePickerActive();
-          galleryInputRef.current?.click();
+          openFilePicker(galleryInputRef.current);
         }}
         aria-label={preview ? t.change : t.noPhotoChange}
         className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-line bg-surface disabled:opacity-50"
@@ -150,18 +148,14 @@ export function CircleCoverUpload({
               label: t.fromGallery,
               icon: <Upload size={14} />,
               onSelect: () => {
-                if (isNativePickerActive()) return;
-                markNativePickerActive();
-                galleryInputRef.current?.click();
+                openFilePicker(galleryInputRef.current);
               },
             },
             {
               label: t.takePhoto,
               icon: <Camera size={14} />,
               onSelect: () => {
-                if (isNativePickerActive()) return;
-                markNativePickerActive();
-                cameraInputRef.current?.click();
+                openFilePicker(cameraInputRef.current);
               },
             },
           ]}

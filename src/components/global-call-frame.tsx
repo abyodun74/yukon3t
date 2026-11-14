@@ -12,7 +12,7 @@ import { shareCollabMaterial, collabMaterialFromAppMessage, type SharedMaterial 
 import { broadcastCaptureAlert, captureAlertFromAppMessage } from "@/lib/capture-alert";
 import { onScreenCaptureDetected, type CaptureKind } from "@/lib/screen-capture-guard";
 import { useViewportDrag } from "@/lib/use-viewport-drag";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { useCallsText } from "@/components/calls-text";
 import { callLabel } from "@/lib/call-names";
 import type { callsEn } from "@/lib/i18n/en/calls";
@@ -407,6 +407,8 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
                 onChange={(e) => {
                   markNativePickerInactive();
                   uploadMaterial(e.target.files?.[0]);
+                  // Cleared so picking the same file again still fires `change`.
+                  e.target.value = "";
                 }}
               />
               <button
@@ -417,9 +419,7 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
                 // wrapper once a session is joined — this is the only
                 // reachable trigger for it once you're actually in the call.
                 onClick={() => {
-                  if (isNativePickerActive()) return;
-                  markNativePickerActive();
-                  fileInputRef.current?.click();
+                  openFilePicker(fileInputRef.current);
                 }}
                 title={t.uploadMaterial}
                 aria-label={t.uploadMaterial}

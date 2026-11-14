@@ -10,7 +10,7 @@ import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { cn } from "@/lib/utils";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { Sheet } from "@/components/sheet";
 import { useMuseText } from "@/components/muse-text";
 import { formatDuration } from "@/lib/format-date";
@@ -209,9 +209,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
           <button
             type="button"
             onClick={() => {
-              if (isNativePickerActive()) return;
-              markNativePickerActive();
-              fileInputRef.current?.click();
+              openFilePicker(fileInputRef.current);
             }}
             className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-line py-8 text-foreground-soft hover:border-accent hover:text-accent"
           >
@@ -289,9 +287,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
                   <button
                     type="button"
                     onClick={() => {
-                      if (isNativePickerActive()) return;
-                      markNativePickerActive();
-                      audioInputRef.current?.click();
+                      openFilePicker(audioInputRef.current);
                     }}
                     disabled={busy}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line py-3 text-foreground-soft hover:border-accent hover:text-accent disabled:opacity-60"

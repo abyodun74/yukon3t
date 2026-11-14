@@ -5,7 +5,7 @@ import { Camera, Upload, Video, X } from "lucide-react";
 import { createAnnouncement } from "@/app/actions/announcements";
 import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { normalizeVideoFile } from "@/lib/video-file";
 
 // Not imported from storage.ts — that module pulls in node:crypto/the AWS
@@ -200,6 +200,8 @@ export function CreateAnnouncementForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
         {/* accept must include the literal "image/*" — Capacitor's own
@@ -217,6 +219,8 @@ export function CreateAnnouncementForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickImage(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
         {/* accept must include the literal "video/*" — see ad-booking-form.tsx's
@@ -231,6 +235,8 @@ export function CreateAnnouncementForm() {
           onChange={(e) => {
             markNativePickerInactive();
             pickVideo(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
 
@@ -262,18 +268,14 @@ export function CreateAnnouncementForm() {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    imageInputRef.current?.click();
+                    openFilePicker(imageInputRef.current);
                   },
                 },
                 {
                   label: "Take a photo",
                   icon: <Camera size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    cameraInputRef.current?.click();
+                    openFilePicker(cameraInputRef.current);
                   },
                 },
               ]}
@@ -287,9 +289,7 @@ export function CreateAnnouncementForm() {
                   label: "Upload from device",
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    videoInputRef.current?.click();
+                    openFilePicker(videoInputRef.current);
                   },
                 },
               ]}

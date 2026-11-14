@@ -47,7 +47,7 @@ import { E2EE_MAX_PLAINTEXT_BYTES, isEncryptedContent } from "@/lib/e2ee/constan
 import { utf8ByteLength } from "@/lib/e2ee/crypto";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { formatClockTime, formatDateTime, formatDaySeparator } from "@/lib/format-date";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { getDraft, setDraft } from "@/lib/message-draft-storage";
 import { announce } from "@/lib/announce";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
@@ -2254,18 +2254,14 @@ export function ChatThread({
                   label: ui.media.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    imageInputRef.current?.click();
+                    openFilePicker(imageInputRef.current);
                   },
                 },
                 {
                   label: t.composer.takePhoto,
                   icon: <Camera size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    cameraInputRef.current?.click();
+                    openFilePicker(cameraInputRef.current);
                   },
                 },
               ]}
@@ -2278,9 +2274,7 @@ export function ChatThread({
                   label: ui.media.uploadFromDevice,
                   icon: <Upload size={14} />,
                   onSelect: () => {
-                    if (isNativePickerActive()) return;
-                    markNativePickerActive();
-                    videoFileInputRef.current?.click();
+                    openFilePicker(videoFileInputRef.current);
                   },
                 },
                 {

@@ -12,7 +12,7 @@ import { MediaPickerButton } from "@/components/media-picker-button";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { uploadFileDirect, captureVideoFrameFromFile } from "@/lib/upload-client";
-import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
+import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { announce } from "@/lib/announce";
 import { useUiText } from "@/components/ui-text";
 import type { uiEn } from "@/lib/i18n/en/ui";
@@ -248,6 +248,8 @@ export function CommentComposer({
           onChange={(e) => {
             markNativePickerInactive();
             pickVideo(e.target.files?.[0]);
+            // Cleared so picking the same file again still fires `change`.
+            e.target.value = "";
           }}
         />
         <GifPickerButton onSelect={setPendingGif} disabled={hasOtherMedia} />
@@ -281,9 +283,7 @@ export function CommentComposer({
               label: ui.media.uploadFromDevice,
               icon: <Upload size={14} />,
               onSelect: () => {
-                if (isNativePickerActive()) return;
-                markNativePickerActive();
-                videoInputRef.current?.click();
+                openFilePicker(videoInputRef.current);
               },
             },
             {
