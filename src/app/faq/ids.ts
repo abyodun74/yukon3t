@@ -13,6 +13,7 @@ export const FAQ_SECTION_IDS = [
   "connecting-messaging-calls",
   "hidden-chats",
   "circles-collab-boards",
+  "gifts",
   "advertising",
   "inviting-friends",
   "your-account-data",
@@ -143,6 +144,17 @@ export const FAQ_IDS = [
   "polls-circle-collab-board",
   "circle-events-coming-up",
   "event-organizer-tools",
+  // Gifts and challenges
+  "what-are-gifts-can-i-use",
+  "who-can-send-receive-gifts",
+  "who-sees-who-sent-gift",
+  "kind-words-free-thank-you",
+  "gift-picker-suggests-first",
+  "open-hide-wear-showcase-gifts",
+  "numbered-gifts-no-cash-value",
+  "gifts-during-live-stream",
+  "challenges-arena-champion",
+  "gift-animations-reduced-motion",
   // Advertising
   "advertise-yukon3t",
   // Inviting friends

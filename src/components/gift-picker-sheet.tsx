@@ -511,7 +511,7 @@ function useKeyboardViewport(active: boolean): { inset: number; height: number }
   return active ? state : null;
 }
 
-/** Each universe's small header mark (decorative; its motion is CSS, off with reduce motion). */
+/** Each universe's small header mark (decorative and static: nothing in the picker moves when it opens). */
 function UniverseOrnament({ ornament }: { ornament: GiftUniverseStyle["ornament"] }) {
   const common = { width: 22, height: 22, viewBox: "0 0 24 24", "aria-hidden": true as const, className: "gift-universe-ornament shrink-0" };
   switch (ornament) {

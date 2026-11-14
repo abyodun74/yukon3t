@@ -1,8 +1,8 @@
 import type { GiftUniverseName } from "@/lib/gifts-data";
 
 // The five gift universes (Phase A, "Yukon3t Gift Universe"): the gift picker's sections. Pure and client-safe. Each
-// has its own look in the picker (the `.gift-universe-*` classes in src/app/globals.css: header colours and one tiny
-// header motion, every one of them still under prefers-reduced-motion) and its own rules:
+// has its own look in the picker (the `.gift-universe-*` classes in src/app/globals.css: header colours and a static
+// header ornament; nothing in the picker moves when it opens, owner decision 2026-11-13) and its own rules:
 // - LOVE (Love & Emotion): warm rose and blush, soft lines, slow blooms. Mostly private 1:1: never offered in a public
 //   live room.
 // - CELEBRATE (Celebrate & Inspire): a bright confetti palette and bursts.

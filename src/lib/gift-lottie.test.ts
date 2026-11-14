@@ -173,16 +173,13 @@ describe("in-repo SVG art", () => {
   });
 });
 
-describe("reduced motion in the picker's universe styles", () => {
-  it("animates universe ornaments only under prefers-reduced-motion: no-preference, slowly, without flashing", () => {
+describe("the picker's universe styles", () => {
+  it("never animate: the ornaments are static, so nothing moves when the picker opens (owner decision 2026-11-13)", () => {
     const css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
-    const section = css.slice(css.indexOf("Gift universes (Phase A"));
-    expect(section.length).toBeGreaterThan(0);
-    const [before, after] = section.split("@media (prefers-reduced-motion: no-preference)");
-    expect(before).not.toMatch(/animation:/);
-    expect(after).toMatch(/animation:/);
-    // No ornament keyframe toggles opacity (no flashing).
-    const keyframes = after.slice(after.indexOf("@keyframes gift-bloom"));
-    expect(keyframes).not.toMatch(/opacity/);
+    const start = css.indexOf("Gift universes (Phase A");
+    expect(start).toBeGreaterThan(0);
+    const section = css.slice(start);
+    expect(section).not.toMatch(/\banimation(-name)?\s*:/);
+    expect(section).not.toMatch(/@keyframes/);
   });
 });

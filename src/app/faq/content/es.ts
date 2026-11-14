@@ -3,6 +3,7 @@ import { es1 } from "./es-1";
 import { es2 } from "./es-2";
 import { es3 } from "./es-3";
 import { es4 } from "./es-4";
+import { es5 } from "./es-5";
 
 // The FAQ in Spanish. Same conventions as src/lib/i18n/es. Every answer says what its English says in ../page.tsx,
 // no more and no less: these are factual, privacy and safety claims, so a change there is a change here.
@@ -21,10 +22,11 @@ export const es: FaqContent = {
     "connecting-messaging-calls": "Contactos, mensajes y llamadas",
     "hidden-chats": "Chats ocultos",
     "circles-collab-boards": "Circles y Collab Boards",
+    gifts: "Regalos y retos",
     advertising: "Publicidad",
     "inviting-friends": "Invitar amigos",
     "your-account-data": "Tu cuenta y tus datos",
     "privacy-safety-trust": "Privacidad, seguridad y confianza",
   },
-  items: { ...es1, ...es2, ...es3, ...es4 },
+  items: { ...es1, ...es2, ...es3, ...es4, ...es5 },
 };

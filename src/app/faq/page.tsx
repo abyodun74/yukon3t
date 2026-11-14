@@ -2235,6 +2235,214 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "gifts",
+    title: "Gifts and challenges",
+    items: [
+      {
+        id: "what-are-gifts-can-i-use",
+        q: "What are gifts, and can I use them yet?",
+        a: (
+          <>
+            Gifts are small digital items you can send someone:{" "}
+            <strong>stickers</strong>, <strong>profile frames</strong> (a ring
+            around a profile picture), <strong>badges</strong> (shown next to a
+            name) and <strong>live effects</strong> (a short animation over a
+            live stream). A <strong>gift box</strong> holds several of them, and
+            the picker always shows what&apos;s inside before you send it. Gifts
+            are grouped into five sections: Love &amp; Emotion, Celebrate &amp;
+            Inspire, Gaming Arena, Luxury Universe, and Culture &amp; Community.
+            <br />
+            <br />
+            Gifts are rolling out gradually, so you may not see them yet: a gift
+            can only be sent between two people who both have gifts. Paid gifts
+            are not available yet: there is no way to buy a gift today, and every
+            gift is free while gifts are being tested. Details will be added here
+            when purchasing opens.
+          </>
+        ),
+      },
+      {
+        id: "who-can-send-receive-gifts",
+        q: "Who can send me a gift, and who can I send one to?",
+        a: (
+          <>
+            You need to be 18 or older to send a gift; an account without a date
+            of birth on record counts as under 18. Someone under 18 can receive
+            gifts only from their accepted connections, and never during a live
+            stream. Nobody can send a gift to someone who has blocked them or
+            whom they have blocked.
+            <br />
+            <br />
+            Under Settings → Gifts you choose <strong>who can send me gifts</strong>:
+            Everyone, My connections (the starting setting) or Nobody. You can
+            add an optional note of up to 140 characters to a gift you send. The
+            note is checked by our automated moderation before anything is sent,
+            and a note that breaks our Community Guidelines is refused, so the
+            gift isn&apos;t sent until you change it.
+          </>
+        ),
+      },
+      {
+        id: "who-sees-who-sent-gift",
+        q: "Who can see who sent me a gift?",
+        a: (
+          <>
+            Only you. When you open a gift, it shows on your profile, but visitors
+            to your profile see the gift, never who sent it. A gift sent from a
+            1:1 chat also appears as a card in that chat, which only the two of
+            you can see. Gifts you haven&apos;t opened yet are visible only to
+            you, and nobody you&apos;ve blocked (or who has blocked you) sees
+            your gifts at all.
+          </>
+        ),
+      },
+      {
+        id: "kind-words-free-thank-you",
+        q: "What are kind words, and the free Thank You?",
+        a: (
+          <>
+            <strong>Kind words</strong> are four free gifts: Thank You,
+            Appreciate You, Cheering You On and Proud of You. You can send them
+            from a profile or a 1:1 chat (not in a live stream), following the
+            same rules as any gift, up to 20 a day in all and up to 3 a day to
+            the same person.
+            <br />
+            <br />
+            When you receive a gift, you can send one free{" "}
+            <strong>Thank You</strong> back for it, once per gift received. It
+            goes into the chat the gift came from when that&apos;s still
+            possible, otherwise to the sender&apos;s gifts. A Thank You
+            can&apos;t itself be thanked.
+          </>
+        ),
+      },
+      {
+        id: "gift-picker-suggests-first",
+        q: "Why does the gift picker suggest some gifts first?",
+        a: (
+          <>
+            On certain days, the picker puts gifts that suit an occasion first,
+            on a <strong>Right now</strong> shelf, with a short reason such as
+            &quot;It&apos;s their birthday today&quot;; in a 1:1 chat a small
+            gift idea you can dismiss may also appear. The occasions are: the
+            person&apos;s birthday (only if their birthday sharing includes you),
+            the anniversary of the day they joined YuKon3t, the anniversary of
+            your connection (only if you both turned that on under Settings →
+            Gifts), the anniversary of when they joined a Circle you&apos;re
+            both in, a public holiday in the country on their profile (only
+            with their holiday reminders and &quot;Culture occasion
+            prompts&quot; both on), around one of their Circle events you can
+            see, a challenge they won (for 72 hours), and something they shared
+            about themselves.
+            <br />
+            <br />
+            Under Settings → Gifts → My occasions you can share a graduation, a
+            new job, an achievement or a milestone: one of each kind every 30
+            days, shown for 7 days, and you can remove it at any time. No dates
+            or ages are ever shown. Occasions only change the order of the
+            picker: they never send anyone a notification. You can turn Culture
+            occasion prompts off in Settings → Gifts, and we never try to work
+            out anyone&apos;s religion: holidays come only from the country on a
+            profile.
+          </>
+        ),
+      },
+      {
+        id: "open-hide-wear-showcase-gifts",
+        q: "What can I do with a gift I've received?",
+        a: (
+          <>
+            You&apos;ll find your gifts in the Gifts area of your profile. You
+            can <strong>open</strong> a gift (from then on it shows on your
+            profile), <strong>hide</strong> it from your profile (what it gave
+            you stays yours), <strong>wear</strong> a frame or badge you own
+            (one of each at a time), and <strong>pin</strong> up to 3 opened
+            gifts to a showcase on your profile. You can also{" "}
+            <strong>report</strong> a gift: only its recipient can, and our
+            moderators can remove a gift that breaks the rules, which also takes
+            off any frame or badge it gave you.
+          </>
+        ),
+      },
+      {
+        id: "numbered-gifts-no-cash-value",
+        q: "What does the number on a gift mean, and are gifts worth money?",
+        a: (
+          <>
+            Some gifts are numbered editions: each copy gets the next number in
+            the order it was given (No. 1, No. 2, and so on), never at random.
+            The number is cosmetic and only you see it; visitors to your profile
+            see the gift without its number.
+            <br />
+            <br />
+            Gifts have no cash value. They can&apos;t be transferred, traded,
+            sold or cashed out, and a numbered gift is worth no more than any
+            other. See our{" "}
+            <a href="/legal/terms" className="text-accent hover:underline">
+              Terms of Service
+            </a>
+            .
+          </>
+        ),
+      },
+      {
+        id: "gifts-during-live-stream",
+        q: "What happens when someone sends a gift during a live stream?",
+        a: (
+          <>
+            Someone watching a live stream can send its host a gift that has a
+            live effect (kind words and Love &amp; Emotion gifts aren&apos;t
+            offered there). You need to be watching already, so sending a gift
+            doesn&apos;t take a place under the live&apos;s viewer limit. The
+            effect plays over the stream for a few seconds for everyone watching
+            who has gifts, only one at a time, and it never names who sent it
+            or to whom. Effects don&apos;t flash. A host under 18 can&apos;t
+            receive gifts in a live stream.
+          </>
+        ),
+      },
+      {
+        id: "challenges-arena-champion",
+        q: "What are challenges and the Arena Champion badge?",
+        a: (
+          <>
+            A <strong>challenge</strong> is something a Circle&apos;s owner or
+            co-admins put up in their Circle, or a host puts up during their own
+            live stream (for example &quot;Best trick shot tonight&quot;).
+            Members, or the people watching, join, and the host declares 1 to 10
+            winners from the people who joined, all equal: at least 2 people
+            besides the host must have joined, and the host can&apos;t pick
+            themselves. The host can change the winners or cancel the challenge
+            for 24 hours after declaring; then the result is locked. Every
+            declaration and change is logged.
+            <br />
+            <br />
+            Each winner gets the free <strong>Arena Champion</strong> badge and
+            one notification. A result is the host&apos;s own declaration:
+            there are no scores, rankings or leaderboards, and no prize of
+            value. Fake or farmed results aren&apos;t allowed, and the same host
+            can name the same person a winner at most 3 times in 7 days. Anyone
+            who took part can report a challenge, and our moderators can reverse
+            a result, which takes back its badges.
+          </>
+        ),
+      },
+      {
+        id: "gift-animations-reduced-motion",
+        q: "Do gift animations respect reduced motion?",
+        a: (
+          <>
+            Yes. With your device&apos;s reduce-motion setting on, gifts and
+            live effects show as still pictures instead of animations. Gift
+            animations are short, live effects last a few seconds, nothing
+            flashes, and gifts never play sound. When you open a gift, a screen
+            reader announces what was inside.
+          </>
+        ),
+      },
+    ],
+  },
+  {
     id: "advertising",
     title: "Advertising",
     hideInIosApp: true,

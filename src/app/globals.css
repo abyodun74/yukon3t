@@ -299,7 +299,7 @@ input,
 select,
 textarea {
   transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease,
-    box-shadow 200ms ease, transform 150ms ease, opacity 150ms ease;
+    box-shadow 200ms ease, transform 100ms ease-out, scale 100ms ease-out, opacity 150ms ease;
 }
 
 :focus-visible {
@@ -321,9 +321,17 @@ textarea {
    same pressed affordance. Not gated behind prefers-reduced-motion, same
    as the hover/focus color transitions above — it's a direct, instant
    response to the user's own touch, not an independently-playing motion
-   effect. */
+   effect.
+   No bounce (owner, 2026-11-13): a press goes down to 0.97 and back over
+   100ms ease-out, never above 1, never past its rest size on release. It
+   sets the `scale` property (not `transform`), and being unlayered CSS it
+   wins over any Tailwind `active:scale-*` utility on a button (those set
+   `scale` too, inside @layer utilities), so every button presses exactly
+   this much instead of the two multiplying (0.96 x 0.9 = 0.86 before),
+   and it no longer wipes out a button's own `transform`.
+   motion-defaults.test.ts checks these numbers. */
 button:not(:disabled):active {
-  transform: scale(0.96);
+  scale: 0.97;
 }
 
 /* Subtle animated accent behind every page (see RootLayout) — three large,
@@ -984,8 +992,8 @@ img[data-press-highlight] {
 
 /* ---------- Gift universes (Phase A, src/lib/gift-universes.ts) ----------
    The gift picker's five sections, each with its own look: a tinted header (mixed with the theme's own background
-   and text colours, so it works in light and dark alike), an accent for the selected gift, and one tiny ornament
-   motion. Every motion is slow or short, never flashes, and stops completely with reduce motion. */
+   and text colours, so it works in light and dark alike), a static header ornament and an accent for the selected
+   gift. Nothing in the picker animates on its own (see .gift-picker-panel below). */
 .gift-universe {
   --gu-tint: color-mix(in oklab, var(--gu-hue) 14%, var(--surface));
   --gu-ink: color-mix(in oklab, var(--gu-hue) 72%, var(--foreground));
@@ -1067,68 +1075,16 @@ img[data-press-highlight] {
   display: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  /* Love: a slow bloom. */
-  .gift-universe-love .gift-universe-ornament {
-    animation: gift-bloom 4s ease-in-out infinite;
-  }
-  /* Celebrate: one burst when the section appears. */
-  .gift-universe-celebrate .gift-universe-ornament {
-    animation: gift-burst 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  /* Gaming: a crisp level-up hop, once. */
-  .gift-universe-gaming .gift-universe-ornament {
-    animation: gift-hop 0.45s steps(3, end) both;
-  }
-  /* Luxury: a slow gold reveal, once. */
-  .gift-universe-luxury .gift-universe-ornament {
-    animation: gift-reveal 1.6s ease-out both;
-  }
-  /* Culture: a lantern's gentle sway. */
-  .gift-universe-culture .gift-universe-ornament {
-    animation: gift-sway 5s ease-in-out infinite;
-    transform-origin: 50% 0;
-  }
+/* The picker opens as one smooth slide of the sheet and then holds completely still (owner decision 2026-11-13):
+   the universe header ornaments are static drawings (their old bloom/burst/hop/reveal/sway animations, used nowhere
+   else, were removed), and gift-picker-layout.test.ts fails if any motion comes back inside the picker. Press feedback
+   inside it is the only movement: a small press-down (never above 1, no overshoot) over 100ms. */
+.gift-picker-panel button {
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
 }
-@keyframes gift-bloom {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-}
-@keyframes gift-burst {
-  from {
-    transform: scale(0.4) rotate(-20deg);
-  }
-  to {
-    transform: scale(1) rotate(0);
-  }
-}
-@keyframes gift-hop {
-  0% {
-    transform: translateY(4px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-@keyframes gift-reveal {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-@keyframes gift-sway {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(4deg);
-  }
+.gift-picker-panel button:not(:disabled):active {
+  /* Replaces the sitewide `scale: 0.97` press rather than multiplying with it. */
+  scale: 1;
+  transform: scale(0.98);
 }

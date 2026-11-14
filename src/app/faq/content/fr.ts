@@ -3,6 +3,7 @@ import { fr1 } from "./fr-1";
 import { fr2 } from "./fr-2";
 import { fr3 } from "./fr-3";
 import { fr4 } from "./fr-4";
+import { fr5 } from "./fr-5";
 
 // The FAQ in French. Same conventions as src/lib/i18n/fr. Every answer says what its English says in ../page.tsx,
 // no more and no less: these are factual, privacy and safety claims, so a change there is a change here.
@@ -21,10 +22,11 @@ export const fr: FaqContent = {
     "connecting-messaging-calls": "Relations, messages et appels",
     "hidden-chats": "Discussions masquées",
     "circles-collab-boards": "Circles et Collab Boards",
+    gifts: "Cadeaux et défis",
     advertising: "Publicité",
     "inviting-friends": "Inviter des amis",
     "your-account-data": "Votre compte et vos données",
     "privacy-safety-trust": "Confidentialité, sécurité et confiance",
   },
-  items: { ...fr1, ...fr2, ...fr3, ...fr4 },
+  items: { ...fr1, ...fr2, ...fr3, ...fr4, ...fr5 },
 };

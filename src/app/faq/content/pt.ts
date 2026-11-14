@@ -3,6 +3,7 @@ import { pt1 } from "./pt-1";
 import { pt2 } from "./pt-2";
 import { pt3 } from "./pt-3";
 import { pt4 } from "./pt-4";
+import { pt5 } from "./pt-5";
 
 // The FAQ in Portuguese. Same conventions as src/lib/i18n/pt. Every answer says what its English says in
 // ../page.tsx, no more and no less: these are factual, privacy and safety claims, so a change there is a change here.
@@ -21,10 +22,11 @@ export const pt: FaqContent = {
     "connecting-messaging-calls": "Conexões, mensagens e chamadas",
     "hidden-chats": "Conversas ocultas",
     "circles-collab-boards": "Circles e Collab Boards",
+    gifts: "Presentes e desafios",
     advertising: "Publicidade",
     "inviting-friends": "Convidar amigos",
     "your-account-data": "Sua conta e seus dados",
     "privacy-safety-trust": "Privacidade, segurança e confiança",
   },
-  items: { ...pt1, ...pt2, ...pt3, ...pt4 },
+  items: { ...pt1, ...pt2, ...pt3, ...pt4, ...pt5 },
 };

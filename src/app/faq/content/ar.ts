@@ -3,6 +3,7 @@ import { ar1 } from "./ar-1";
 import { ar2 } from "./ar-2";
 import { ar3 } from "./ar-3";
 import { ar4 } from "./ar-4";
+import { ar5 } from "./ar-5";
 
 // The FAQ in Arabic. Same conventions as src/lib/i18n/ar. Every answer says what its English says in ../page.tsx,
 // no more and no less: these are factual, privacy and safety claims, so a change there is a change here. The one
@@ -23,10 +24,11 @@ export const ar: FaqContent = {
     "connecting-messaging-calls": "التواصل والمراسلة والمكالمات",
     "hidden-chats": "المحادثات المخفية",
     "circles-collab-boards": "مجتمعات Circles ولوحات Collab Boards",
+    gifts: "الهدايا والتحديات",
     advertising: "الإعلان",
     "inviting-friends": "دعوة الأصدقاء",
     "your-account-data": "حسابك وبياناتك",
     "privacy-safety-trust": "الخصوصية والأمان والثقة",
   },
-  items: { ...ar1, ...ar2, ...ar3, ...ar4 },
+  items: { ...ar1, ...ar2, ...ar3, ...ar4, ...ar5 },
 };

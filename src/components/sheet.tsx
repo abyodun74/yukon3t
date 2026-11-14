@@ -184,12 +184,15 @@ function SheetBackdrop({
   );
 }
 
-// Critically damped (no overshoot) — the apple-design skill's default for
-// anything that didn't arrive via a flick/drag of its own. A plain fade+
-// scale from the panel's own center (not a fixed offset), same spatial
-// idea as a popover scaling from its trigger rather than an arbitrary
-// corner.
-const DIALOG_SPRING = { type: "spring" as const, damping: 1, duration: 0.35 };
+// No overshoot: a plain ease-out tween whose curve never passes its target
+// (every control point is within 0..1), so the dialog fades and scales up
+// from 0.97 and stops dead. A fade+scale from the panel's own center (not a
+// fixed offset), same spatial idea as a popover scaling from its trigger.
+// NOT a spring with `damping: 1`: in motion `damping` is the raw physics
+// coefficient (stiffness defaults to 100), so `damping: 1` is a damping
+// ratio of 0.05, a long wobble, and it also overrides `duration`. That is
+// what made every sheet bounce on open (sheet-springs.test.ts).
+const DIALOG_TRANSITION = { type: "tween" as const, duration: 0.2, ease: [0.22, 1, 0.36, 1] as const };
 
 function DialogPanel({
   onClose,
@@ -218,7 +221,7 @@ function DialogPanel({
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.97 }}
-      transition={DIALOG_SPRING}
+      transition={DIALOG_TRANSITION}
       onClick={(e) => e.stopPropagation()}
     >
       {title !== undefined && (
@@ -234,12 +237,14 @@ function DialogPanel({
   );
 }
 
-// Critically damped (damping 1): the sheet glides in and stops exactly on
-// its final position with no overshoot or settle wobble. The owner asked for
-// no bouncing when anything opens, so keep damping >= 1 (sheet-springs.test.ts).
-const SHEET_SPRING = { type: "spring" as const, damping: 1, duration: 0.3 };
-// Release spring-back after a short drag: critically damped for the default
-// stiffness (2*sqrt(600) ~ 49), so it returns to rest without wobbling.
+// The sheet glides up and stops exactly on its final position: an iOS-like
+// ease-out tween, no overshoot or settle wobble (the owner asked for no
+// bouncing when anything opens). Same exit path in reverse. See
+// DIALOG_TRANSITION for why this is not a `damping: 1` spring; any spring
+// here must have a damping ratio >= 1 (sheet-springs.test.ts).
+const SHEET_TRANSITION = { type: "tween" as const, duration: 0.3, ease: [0.32, 0.72, 0, 1] as const };
+// Release spring-back after a short drag: damping ratio
+// 50 / (2*sqrt(600)) ~ 1.02, so it returns to rest without wobbling.
 const SHEET_DRAG_TRANSITION = { bounceStiffness: 600, bounceDamping: 50 };
 // Past this downward drag distance (or a fast-enough downward flick,
 // DISMISS_VELOCITY below, regardless of distance), the sheet dismisses
@@ -298,7 +303,7 @@ function BottomSheetPanel({
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
-      transition={SHEET_SPRING}
+      transition={SHEET_TRANSITION}
       drag="y"
       dragListener={!dragFromHandle}
       dragControls={dragFromHandle ? dragControls : undefined}

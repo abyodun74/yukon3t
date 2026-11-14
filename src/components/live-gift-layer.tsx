@@ -225,8 +225,9 @@ function Effect({ effect, reduce, label }: { effect: string; reduce: boolean; la
     <m.div
       className="absolute inset-x-0 top-1/3 flex justify-center"
       initial={{ scale: 0.4, opacity: 0, y: 40 }}
-      animate={{ scale: [0.4, 1.15, 1], opacity: [0, 1, 1, 0], y: [40, 0, 0, -30] }}
-      transition={{ duration: 2.6, times: [0, 0.3, 0.8, 1] }}
+      // Grows to its full size and stops there (no 1.15 pop that settles back: no bounce, owner 2026-11-13).
+      animate={{ scale: [0.4, 1, 1, 1], opacity: [0, 1, 1, 0], y: [40, 0, 0, -30] }}
+      transition={{ duration: 2.6, times: [0, 0.3, 0.8, 1], ease: "easeOut" }}
     >
       <GiftArt assetKey={effect} name={label} size={96} eager />
     </m.div>
