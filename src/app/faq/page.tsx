@@ -2826,15 +2826,37 @@ const sections: Section[] = [
         q: "The security check keeps saying “Verifying…” and I can't sign in or sign up. What can I do?",
         a: (
           <>
-            Before you sign in, sign up, reset a password or start a guest
-            visit, you tap &ldquo;Verify you&apos;re human&rdquo; and a check
-            from our security provider, Cloudflare, runs. It usually takes a
-            few seconds, but on a slow connection it can take up to a
-            minute: after a few seconds you&apos;ll see &ldquo;Still
+            Before you sign in, sign up, reset a password, verify a new
+            device or start a guest visit, you tap &ldquo;Verify you&apos;re
+            human&rdquo; and a check from our security provider, Cloudflare,
+            runs. Nothing runs until you tap. It usually takes a few
+            seconds, but on a slow connection it can take up to a minute:
+            after a few seconds you&apos;ll see &ldquo;Still
             verifying…&rdquo; and a <strong>Try again</strong> button, and
             if it can&apos;t finish we tell you what went wrong instead of
             leaving it spinning. Tapping Try again doesn&apos;t clear what
-            you typed. If it keeps failing, try these in order:
+            you typed.
+            <br />
+            <br />
+            Sometimes Cloudflare asks you to tap a checkbox. The page
+            scrolls to it and says &ldquo;Tap the checkbox above to finish
+            the security check.&rdquo; Tap it; the minute doesn&apos;t run
+            while the checkbox is waiting for you.
+            <br />
+            <br />
+            You can leave the app during the check, for example to get a
+            code we emailed you, and come back: time away doesn&apos;t count
+            against it, and you stay on the same screen with what you typed.
+            When you&apos;re back, the check carries on, or starts again by
+            itself if you were away for a while.
+            <br />
+            <br />
+            A check you don&apos;t use expires after about 5 minutes. If you
+            see &ldquo;The security check expired&rdquo;, tap
+            &ldquo;Verify you&apos;re human&rdquo; again.
+            <br />
+            <br />
+            If it keeps failing, try these in order:
             <br />
             <br />
             1. Tap <strong>Try again</strong>, or switch between Wi-Fi and
