@@ -21,7 +21,10 @@
 // transformed, filtered or scrolling ancestor.
 
 export const OVERLAY_LAYERS = {
-  /** Ordinary page content. */
+  /**
+   * Ordinary page content. The Turnstile widget and Cloudflare's checkbox iframe live here, inline in their form and
+   * never inside a sheet or overlay (src/components/turnstile-widget-placement.test.ts).
+   */
   content: 0,
   /** nav.tsx's fixed bottom tab bar. */
   navBar: 30,

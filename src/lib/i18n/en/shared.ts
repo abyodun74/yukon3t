@@ -13,6 +13,8 @@ export const sharedEn = {
     stillChecking: "The security check is still running. Wait for it to finish, then try again.",
     slow: "Still verifying… this can take up to a minute on a slow connection.",
     retry: "Try again",
+    interactive: "Tap the checkbox above to finish the security check.",
+    expired: "The security check expired. Tap “Verify you're human” again.",
     blocked: "The security check couldn't load. A content blocker, an ad-blocking Private DNS, a VPN or the network may be blocking challenges.cloudflare.com. Turn it off or switch between Wi‑Fi and mobile data, then tap Try again.",
     stalled: "The security check didn't finish. Tap Try again. If it keeps happening, switch between Wi‑Fi and mobile data, or turn off any VPN, Private DNS or content blocker.",
     network: "The security check couldn't reach Cloudflare. Check your connection, then tap Try again. A VPN, Private DNS or content blocker can also cause this.",

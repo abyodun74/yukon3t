@@ -11,6 +11,8 @@ export const shared: typeof sharedEn = {
     stillChecking: "La vérification de sécurité est toujours en cours. Attendez qu'elle se termine, puis réessayez.",
     slow: "Vérification en cours… cela peut prendre jusqu'à une minute avec une connexion lente.",
     retry: "Réessayer",
+    interactive: "Touchez la case ci-dessus pour terminer la vérification de sécurité.",
+    expired: "La vérification de sécurité a expiré. Touchez à nouveau « Confirmez que vous êtes humain ».",
     blocked: "La vérification de sécurité n'a pas pu se charger. Un bloqueur de contenu, un DNS privé anti-pub, un VPN ou le réseau bloque peut-être challenges.cloudflare.com. Désactivez-le ou passez du Wi‑Fi aux données mobiles (ou l'inverse), puis touchez Réessayer.",
     stalled: "La vérification de sécurité ne s'est pas terminée. Touchez Réessayer. Si cela continue, passez du Wi‑Fi aux données mobiles (ou l'inverse), ou désactivez tout VPN, DNS privé ou bloqueur de contenu.",
     network: "La vérification de sécurité n'a pas pu joindre Cloudflare. Vérifiez votre connexion, puis touchez Réessayer. Un VPN, un DNS privé ou un bloqueur de contenu peut aussi en être la cause.",

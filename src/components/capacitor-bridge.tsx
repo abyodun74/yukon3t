@@ -47,6 +47,10 @@ const NO_HOME_RESET_PREFIXES = [
   "/reset-password",
   "/invite",
   "/legal",
+  // Device verification from Settings and the guest preview start: both carry a security check and (verify-device)
+  // an emailed code the person leaves the app to fetch; a reset to Home on return threw that away.
+  "/settings/verify-device",
+  "/try",
 ];
 
 /**

@@ -40,6 +40,11 @@ export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+/** "ios" / "android" inside the Capacitor app, "web" in a browser (telemetry only). */
+export function appPlatform(): string {
+  return Capacitor.getPlatform();
+}
+
 function hasFallbackCookie(): boolean {
   return document.cookie.split(";").some((part) => part.trim().startsWith(`${ATTEST_FALLBACK_COOKIE}=`));
 }

@@ -5,23 +5,36 @@ import { RotateCw, ShieldCheck } from "lucide-react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
 import {
   INITIAL_TURNSTILE_STATE,
+  RESUME_SETTLE_MS,
   SCRIPT_LOAD_ATTEMPTS,
   SCRIPT_RETRY_DELAY_MS,
   SCRIPT_TIMEOUT_MS,
   SLOW_AFTER_MS,
-  STALLED_AFTER_MS,
+  attemptTelemetry,
   autoRetryDelay,
   durationBucket,
   heldSubmitMessage,
+  heldSubmitReason,
+  isSuspendedTimer,
+  nextAttempt,
   nextTurnstileState,
+  shouldRerunOnResume,
+  stallDelayMs,
+  stallPhase,
+  startAttempt,
+  toTurnstilePlatform,
   turnstileStatus,
+  type TurnstileAttempt,
+  type TurnstileAttemptEvent,
   type TurnstileEvent,
   type TurnstileProblem,
   type TurnstileState,
+  type TurnstileStatusExtras,
   type TurnstileStrings,
 } from "@/lib/turnstile-lifecycle";
 import { APP_ATTEST_FIELD, APP_META_FIELD, appAttestMode } from "@/lib/app-attest-shared";
 import {
+  appPlatform,
   basicAppMeta,
   canAttest,
   getAppMeta,
@@ -54,6 +67,8 @@ type TurnstileApi = {
       "error-callback"?: (errorCode?: string) => boolean | void;
       "expired-callback"?: () => void;
       "timeout-callback"?: () => void;
+      "before-interactive-callback"?: () => void;
+      "after-interactive-callback"?: () => void;
       "unsupported-callback"?: () => void;
     },
   ) => string;
@@ -138,11 +153,18 @@ function loadTurnstileScript(): Promise<void> {
  *  - Cloudflare's own retry is off (`retry: "never"`): its "auto" retry loops forever, which is what showed people an
  *    endless "Verifying…". Instead a retriable error is re-run here at most twice (2s, 5s), then shown.
  *  - After 8s without a token: "Still verifying… can take up to a minute on a slow connection" + Try again.
- *    After 60s: stop, and say what to try.
- *  - An expired token / timed-out interactive challenge is refreshed by Cloudflare itself (`refresh-*: "auto"`).
+ *    After 60s of time the check could actually run (from execute(), page visible, Cloudflare not waiting on its own
+ *    checkbox): stop, and say what to try. The app going to the background pauses that clock; coming back leaves at
+ *    least 10s, and a check hidden 15s or more is re-run (same tap). See the stall clock in turnstile-lifecycle.ts.
+ *  - Cloudflare's own checkbox (an interactive challenge) is scrolled into view with "Tap the checkbox above".
+ *  - A timed-out interactive challenge is refreshed by Cloudflare itself (`refresh-timeout: "auto"`). An unused token
+ *    that expires (~300s) is NOT re-run (`refresh-expired: "never"`): back to the button with "expired, tap again",
+ *    so the check only ever runs after a tap.
  *  - Config errors (unknown hostname 110200, bad site key) and unsupported browsers get their own message and are
  *    reported (Sentry for config, PostHog `turnstile_failed` for everything; `turnstile_verified` with a duration
- *    bucket for the success rate).
+ *    bucket for the success rate; both with platform / visible time / background / interactive / widget_loaded).
+ *    `turnstile_incomplete` (not a failure) records a submit held before any tap (`not_started`), an expired token,
+ *    and leaving the page mid-check.
  *
  * Two ways to consume the token:
  *  - Inside a <form>: Cloudflare writes it into a hidden `cf-turnstile-response` input, so a server-action form needs
@@ -202,6 +224,9 @@ export function TurnstileWidget({
   const startCheckRef = useRef<(() => void) | null>(null);
   const discardTokenRef = useRef<(() => void) | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Cloudflare's checkbox showing / an unused token that just expired (status line and held-submit sentence).
+  const [extras, setExtras] = useState<TurnstileStatusExtras>({});
+  const extrasRef = useRef<TurnstileStatusExtras>({});
 
   const mounted = useSyncExternalStore(subscribeToNothing, () => true, () => false);
   const native = useSyncExternalStore(subscribeToNothing, isNativeApp, () => false);
@@ -240,15 +265,40 @@ export function TurnstileWidget({
     let slowTimer: ReturnType<typeof setTimeout> | undefined;
     let stalledTimer: ReturnType<typeof setTimeout> | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let resumeTimer: ReturnType<typeof setTimeout> | undefined;
     let startedAt = 0;
     // Whether execute() has run on this widget since it was rendered: later runs reset it first.
     let executed = false;
     let widgetPromise: Promise<string | null> | null = null;
+    // The current tap's stall clock and telemetry (turnstile-lifecycle.ts); null before the first tap.
+    let attempt: TurnstileAttempt | null = null;
+    // Cloudflare's iframe was seen loading, or answered at all, on this page (telemetry only).
+    let widgetLoaded = false;
+    // Held-submit telemetry is capped per mount.
+    let heldReports = 0;
+
+    function setExtrasNow(next: TurnstileStatusExtras) {
+      extrasRef.current = next;
+      if (!cancelled) setExtras(next);
+    }
 
     function clearTimers() {
       clearTimeout(slowTimer);
       clearTimeout(stalledTimer);
       clearTimeout(retryTimer);
+      clearTimeout(resumeTimer);
+    }
+
+    function platform() {
+      return toTurnstilePlatform(appPlatform());
+    }
+
+    function capture(event: string, props: Record<string, string | number | boolean | null>) {
+      try {
+        capturePostHogEvent(event, props);
+      } catch {
+        // Telemetry never affects the check.
+      }
     }
 
     function apply(event: TurnstileEvent): { prev: TurnstileState; next: TurnstileState } {
@@ -274,6 +324,8 @@ export function TurnstileWidget({
           native: isNativeApp(),
           online: navigator.onLine,
           path: window.location.pathname,
+          phase_when_stalled: problem === "stalled" ? stallPhase(attempt) : null,
+          ...attemptTelemetry(attempt, Date.now(), { platform: platform(), widgetLoaded }),
         });
         // Our own setup is wrong (e.g. 110200: this hostname isn't on the site key's allowed list): owner action.
         if (problem === "config") {
@@ -287,17 +339,83 @@ export function TurnstileWidget({
       }
     }
 
+    // Feeds the attempt's stall clock and re-arms (or pauses) the stall timer to match.
+    function updateAttempt(event: TurnstileAttemptEvent) {
+      if (!attempt) return;
+      attempt = nextAttempt(attempt, event);
+      scheduleStall();
+    }
+
+    function scheduleStall() {
+      clearTimeout(stalledTimer);
+      if (cancelled || !attempt || stateRef.current.phase !== "checking") return;
+      const now = Date.now();
+      const delay = stallDelayMs(attempt, now);
+      if (delay === null) return; // paused: not executed yet, in the background, or waiting on Cloudflare's checkbox
+      const dueAt = now + delay;
+      stalledTimer = setTimeout(() => onStallTimer(dueAt), delay);
+    }
+
+    function onStallTimer(dueAt: number) {
+      if (cancelled || !attempt || stateRef.current.phase !== "checking") return;
+      const now = Date.now();
+      if (document.visibilityState === "hidden") {
+        updateAttempt({ type: "hidden", now });
+        return;
+      }
+      if (isSuspendedTimer(dueAt, now)) {
+        // Frozen with a suspended app and no visibilitychange reached us: a return from the background, not a stall.
+        attempt = nextAttempt(attempt, { type: "hidden", now: dueAt });
+        onVisible(now);
+        return;
+      }
+      const remaining = stallDelayMs(attempt, now);
+      if (remaining === null || remaining > 0) {
+        scheduleStall();
+        return;
+      }
+      const { next } = apply({ type: "stalled" });
+      if (next.phase === "error") {
+        resetWidget();
+        report("stalled", null);
+      }
+    }
+
+    // Back in the foreground mid-check: the clock resumes with at least RESUME_GRACE_MS left, and a check hidden long
+    // enough is re-run once things settle (unless a token or Cloudflare's checkbox turned up meanwhile).
+    function onVisible(now: number) {
+      updateAttempt({ type: "visible", now });
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        if (cancelled || !attempt || stateRef.current.phase !== "checking") return;
+        if (!shouldRerunOnResume(attempt)) return;
+        updateAttempt({ type: "rerun", now: Date.now() });
+        setExtrasNow({});
+        runWidget();
+      }, RESUME_SETTLE_MS);
+    }
+
+    function handleVisibilityChange() {
+      if (!attempt || stateRef.current.phase !== "checking") return;
+      if (document.visibilityState === "hidden") {
+        clearTimeout(resumeTimer);
+        updateAttempt({ type: "hidden", now: Date.now() });
+      } else {
+        onVisible(Date.now());
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cloudflare's iframe finishing its load (load doesn't bubble, but a capturing listener on an ancestor sees it).
+    function handleFrameLoad(e: Event) {
+      if ((e.target as Element | null)?.tagName === "IFRAME") widgetLoaded = true;
+    }
+    container.addEventListener("load", handleFrameLoad, true);
+
     function armTimers() {
       clearTimeout(slowTimer);
-      clearTimeout(stalledTimer);
       slowTimer = setTimeout(() => apply({ type: "slow" }), SLOW_AFTER_MS);
-      stalledTimer = setTimeout(() => {
-        const { next } = apply({ type: "stalled" });
-        if (next.phase === "error") {
-          resetWidget();
-          report("stalled", null);
-        }
-      }, STALLED_AFTER_MS);
+      scheduleStall();
     }
 
     function resetWidget() {
@@ -339,47 +457,80 @@ export function TurnstileWidget({
         appearance: "execute",
         execution: "execute",
         retry: "never",
-        "refresh-expired": "auto",
+        // An expired, unused token is not re-run behind the person's back: the check only runs after a tap.
+        "refresh-expired": "never",
         "refresh-timeout": "auto",
         ...(locale ? { language: WIDGET_LANGUAGES[locale] } : {}),
         callback: (token) => {
           if (cancelled) return;
+          widgetLoaded = true;
           tokenRef.current = token;
           onTokenRef.current?.(token);
           clearTimers();
           const { prev } = apply({ type: "token" });
+          setExtrasNow({});
           if (prev.phase === "checking") {
-            try {
-              capturePostHogEvent("turnstile_verified", {
-                duration: durationBucket(Date.now() - startedAt),
-                retries: prev.autoRetries,
-                native: isNativeApp(),
-              });
-            } catch {
-              // Telemetry never affects the check.
-            }
+            capture("turnstile_verified", {
+              duration: durationBucket(Date.now() - startedAt),
+              retries: prev.autoRetries,
+              native: isNativeApp(),
+              ...attemptTelemetry(attempt, Date.now(), { platform: platform(), widgetLoaded }),
+            });
           }
         },
         "error-callback": (code) => {
-          if (!cancelled) onWidgetError(code ?? null);
+          if (cancelled) return true;
+          if (code) widgetLoaded = true;
+          if (extrasRef.current.interactive) {
+            updateAttempt({ type: "interactiveEnd", now: Date.now() });
+            setExtrasNow({});
+          }
+          onWidgetError(code ?? null);
           return true; // handled here: no retry loop of Cloudflare's own
         },
-        // Cloudflare refreshes these itself; until a new token arrives there is none to submit.
+        // ~300s after it was issued, unused: back to the button (refresh-expired "never").
         "expired-callback": () => {
           if (cancelled) return;
           tokenRef.current = null;
           onTokenRef.current?.(null);
-          if (stateRef.current.phase === "verified") {
-            startedAt = Date.now();
-            apply({ type: "refreshing" });
-            armTimers();
+          const { prev, next } = apply({ type: "expired" });
+          if (prev.phase === "verified" && next.phase === "idle") {
+            clearTimers();
+            resetWidget();
+            attempt = null;
+            setExtrasNow({ expired: true });
+            capture("turnstile_incomplete", {
+              reason: "expired",
+              native: isNativeApp(),
+              platform: platform(),
+              path: window.location.pathname,
+            });
           }
         },
+        // An interactive challenge nobody answered in time: Cloudflare re-runs it (refresh-timeout "auto").
         "timeout-callback": () => {
           if (cancelled) return;
           tokenRef.current = null;
           onTokenRef.current?.(null);
           apply({ type: "refreshing" });
+        },
+        // Cloudflare wants a tap on its own checkbox: that waits on the person, so the stall clock pauses, and the
+        // checkbox is brought into view (it can sit under the keyboard or below the fold on a phone).
+        "before-interactive-callback": () => {
+          if (cancelled) return;
+          widgetLoaded = true;
+          updateAttempt({ type: "interactiveStart", now: Date.now() });
+          setExtrasNow({ interactive: true });
+          try {
+            container.scrollIntoView({ block: "center" });
+          } catch {
+            // Best effort.
+          }
+        },
+        "after-interactive-callback": () => {
+          if (cancelled) return;
+          updateAttempt({ type: "interactiveEnd", now: Date.now() });
+          setExtrasNow({});
         },
         "unsupported-callback": () => {
           if (!cancelled) onWidgetError("110500");
@@ -410,6 +561,7 @@ export function TurnstileWidget({
             if (executed) window.turnstile!.reset(widgetId);
             window.turnstile!.execute(widgetId);
             executed = true;
+            updateAttempt({ type: "executed", now: Date.now() });
           } catch {
             onWidgetError(null);
           }
@@ -427,7 +579,9 @@ export function TurnstileWidget({
       tokenRef.current = null;
       onTokenRef.current?.(null);
       resetWidget();
+      attempt = null;
       apply({ type: "spent" });
+      setExtrasNow({});
     }
     discardTokenRef.current = discardToken;
 
@@ -447,8 +601,10 @@ export function TurnstileWidget({
       clearTimers();
       tokenRef.current = null;
       startedAt = Date.now();
+      attempt = startAttempt(startedAt, document.visibilityState !== "hidden");
       apply({ type: "start" });
       setNotice(null);
+      setExtrasNow({});
       armTimers();
       runWidget();
     }
@@ -521,7 +677,17 @@ export function TurnstileWidget({
       if (!tokenRef.current) {
         // Never sent without a token: the server would only reject it. Say why instead.
         e.preventDefault();
-        setNotice(heldSubmitMessage(stateRef.current, stringsRef.current));
+        setNotice(heldSubmitMessage(stateRef.current, stringsRef.current, extrasRef.current));
+        const reason = heldSubmitReason(stateRef.current, extrasRef.current);
+        if (reason && heldReports < 3) {
+          heldReports++;
+          capture("turnstile_incomplete", {
+            reason: reason === "not_started" ? "not_started" : `submitted_while_${reason}`,
+            native: isNativeApp(),
+            platform: platform(),
+            path: window.location.pathname,
+          });
+        }
         return;
       }
       if (observedToken && attestInput) {
@@ -537,10 +703,22 @@ export function TurnstileWidget({
     form?.addEventListener("focusin", handleFocus);
 
     return () => {
+      // Left the page (or the widget remounted) while a check was still running: not a failure of the check.
+      if (attempt && stateRef.current.phase === "checking") {
+        capture("turnstile_incomplete", {
+          reason: "left_during_check",
+          phase_when_stalled: stallPhase(attempt),
+          native: isNativeApp(),
+          path: window.location.pathname,
+          ...attemptTelemetry(attempt, Date.now(), { platform: platform(), widgetLoaded }),
+        });
+      }
       cancelled = true;
       clearTimers();
       startCheckRef.current = null;
       discardTokenRef.current = null;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      container.removeEventListener("load", handleFrameLoad, true);
       form?.removeEventListener("submit", handleSubmit);
       form?.removeEventListener("focusin", handleFocus);
       if (widgetIdRef.current) {
@@ -555,6 +733,8 @@ export function TurnstileWidget({
       // A remount (locale change, Strict Mode) starts from the button again.
       stateRef.current = INITIAL_TURNSTILE_STATE;
       setState(INITIAL_TURNSTILE_STATE);
+      extrasRef.current = {};
+      setExtras({});
     };
   }, [siteKey, locale, mounted, attest]);
 
@@ -567,7 +747,7 @@ export function TurnstileWidget({
 
   if (!siteKey || !mounted) return null;
 
-  const status = turnstileStatus(state, strings);
+  const status = turnstileStatus(state, strings, extras);
   const message = notice ?? status.text;
   const isError = Boolean(notice) || status.tone === "error";
 
