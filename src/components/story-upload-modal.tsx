@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Camera, Loader2, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
-import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameDetailed, probeVideoDuration, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { pickImagesNative } from "@/lib/native-gallery-picker";
 import { markNativePickerActive, markNativePickerInactive, isNativePickerActive } from "@/lib/native-picker-activity";
@@ -14,6 +14,15 @@ import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
 import { normalizeVideoFile } from "@/lib/video-file";
+import {
+  STORY_DEVICE_ACCEPT,
+  durationVerdict,
+  isUploadableImageType,
+  normalizeMediaType,
+  safeUploadName,
+} from "@/lib/media-file";
+import { reportMediaUploadFailure } from "@/lib/media-upload-diagnostics";
+import { useStoryUploadText } from "@/components/story-upload-text";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 // Kept in sync with storage.ts's MAX_VIDEO_BYTES — duplicated locally rather
@@ -24,6 +33,12 @@ const MAX_VIDEO_BYTES = 2048 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+/** Error codes worded by the storyUpload dictionary rather than feed.stories.upload.errors. */
+const STORY_UPLOAD_CODES = ["frameFailed", "imageUnreadable", "unsupportedFile", "fileReadFailed"] as const;
+type StoryUploadCode = (typeof STORY_UPLOAD_CODES)[number];
+function isStoryUploadCode(code: string): code is StoryUploadCode {
+  return (STORY_UPLOAD_CODES as readonly string[]).includes(code);
+}
 // createStory has no batch endpoint — each item is its own upload + DB row —
 // and story creation itself has no rate limit (unlimited uploads over
 // time). There's deliberately no cap on how many items one picker
@@ -44,7 +59,13 @@ type StoryItem = {
   mediaType: "IMAGE" | "VIDEO";
   previewUrl: string;
   upload: UploadState;
+  /** The probed length (diagnostics only; Infinity/unknown is allowed through, the server doesn't need it). */
+  durationSeconds: number | null;
 };
+
+/** A picked file that couldn't be added: the error code, and what a failure report may say about it. */
+type ProcessError = { error: string; step: string; file: File; duration?: number | null };
+type ProcessResult = { item: StoryItem } | ProcessError;
 
 
 function makeId() {
@@ -164,74 +185,71 @@ async function renderTextStoryImage(text: string, colors: { bg: string; fg: stri
   return new File([buffer], "story-text.png", { type: "image/png" });
 }
 
-async function processImageFile(f: File): Promise<{ item: StoryItem } | { error: string }> {
-  if (!IMAGE_TYPES.includes(f.type)) return { error: "imageType" };
-  const resized = await resizeImageFile(f);
-  if (resized.size > MAX_IMAGE_BYTES) return { error: "imageTooLarge" };
+/**
+ * A picked photo, made uploadable: its real type is worked out case-insensitively from the type or extension
+ * (normalizeMediaType: an empty type, `.HEIC`, `image/jpg`), then it is decoded and re-encoded on a canvas
+ * (resizeImageFile: long side <= 1920px, so iOS's canvas-area limit is never reached, and HEIC/HEIF become WebP, or
+ * PNG on Safari, which can't encode WebP). Anything still not JPEG/PNG/WebP afterwards couldn't be decoded here.
+ */
+async function processImageFile(raw: File): Promise<ProcessResult> {
+  const normalized = normalizeMediaType(raw.type, raw.name);
+  if (!normalized || normalized.kind !== "image") return { error: "unsupportedFile", step: "image_type", file: raw };
+  // GIFs aren't a Story image type, and drawing one would silently keep only its first frame.
+  if (normalized.type === "image/gif") return { error: "imageType", step: "image_type", file: raw };
+  const typed =
+    raw.type === normalized.type ? raw : new File([raw], safeUploadName("image", normalized.type), { type: normalized.type });
+  const resized = await resizeImageFile(typed);
+  if (!isUploadableImageType(resized.type)) return { error: "imageUnreadable", step: "image_decode", file: raw };
+  if (resized.size > MAX_IMAGE_BYTES) return { error: "imageTooLarge", step: "image_size", file: raw };
   return {
-    item: { id: makeId(), file: resized, mediaType: "IMAGE", previewUrl: URL.createObjectURL(resized), upload: { status: "uploading" } },
+    item: {
+      id: makeId(),
+      file: resized,
+      mediaType: "IMAGE",
+      previewUrl: URL.createObjectURL(resized),
+      upload: { status: "uploading" },
+      durationSeconds: null,
+    },
   };
 }
 
 /**
- * Wraps the same <video> metadata-probe pattern the single-file version
- * used, as a Promise so it composes with Promise.all across a multi-file
- * selection (see addVideos below).
+ * A picked video, made uploadable: type normalized (`.MP4`/`.MOV` in any case, an empty type, `video/x-m4v`), size
+ * checked, and its length read with probeVideoDuration, which also handles the Infinity an iPhone screen recording
+ * reports until scanned. A length that can't be read on this device lets the video through (createStory doesn't
+ * need it); only a known length over the cap refuses it.
  */
-function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error: string }> {
-  return new Promise((resolve) => {
-    const f = normalizeVideoFile(rawFile);
-    if (!f) {
-      resolve({ error: "videoType" });
-      return;
-    }
-    if (f.size > MAX_VIDEO_BYTES) {
-      resolve({ error: "videoTooLarge" });
-      return;
-    }
+async function processVideoFile(raw: File): Promise<ProcessResult> {
+  const f = normalizeVideoFile(raw);
+  if (!f) return { error: "videoType", step: "video_type", file: raw };
+  if (f.size > MAX_VIDEO_BYTES) return { error: "videoTooLarge", step: "video_size", file: raw };
+  const duration = await probeVideoDuration(f);
+  if (durationVerdict(duration, MAX_VIDEO_SECONDS) === "too_long") {
+    return { error: "videoTooLong", step: "video_duration", file: raw, duration };
+  }
+  return {
+    item: {
+      id: makeId(),
+      file: f,
+      mediaType: "VIDEO",
+      previewUrl: URL.createObjectURL(f),
+      upload: { status: "uploading" },
+      durationSeconds: duration,
+    },
+  };
+}
 
-    const probeUrl = URL.createObjectURL(f);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.src = probeUrl;
-
-    // Some Android devices/codecs never fire loadedmetadata for a file this
-    // <video> element can't decode (nor onerror, in a few cases) — without
-    // this, picking such a video did nothing at all: no preview, no error,
-    // the modal just sat there looking broken. A duration probe failure is
-    // a client-side nicety, not a security boundary, so it fails open
-    // (lets the video through unchecked) rather than blocking the upload.
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      URL.revokeObjectURL(probeUrl);
-    };
-    const toItem = (): { item: StoryItem } => ({
-      item: { id: makeId(), file: f, mediaType: "VIDEO", previewUrl: URL.createObjectURL(f), upload: { status: "uploading" } },
-    });
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      finish();
-      resolve(toItem());
-    }, 4000);
-
-    probe.onloadedmetadata = () => {
-      if (settled) return;
-      finish();
-      if (Number.isFinite(probe.duration) && probe.duration > MAX_VIDEO_SECONDS) {
-        resolve({ error: "videoTooLong" });
-        return;
-      }
-      resolve(toItem());
-    };
-    probe.onerror = () => {
-      if (settled) return;
-      finish();
-      resolve(toItem());
-    };
-  });
+/** Routes one picked file (from any of the inputs) to the photo or video path; never rejects. */
+async function processPickedFile(raw: File): Promise<ProcessResult> {
+  try {
+    const normalized = normalizeMediaType(raw.type, raw.name);
+    if (normalized?.kind === "video") return await processVideoFile(raw);
+    if (normalized?.kind === "image") return await processImageFile(raw);
+    return { error: "unsupportedFile", step: "pick_type", file: raw };
+  } catch {
+    // A file the picker already invalidated (ERR_UPLOAD_FILE_CHANGED-style) or any other read failure.
+    return { error: "fileReadFailed", step: "pick_read", file: raw };
+  }
 }
 
 /**
@@ -247,6 +265,9 @@ function processVideoFile(rawFile: File): Promise<{ item: StoryItem } | { error:
  */
 export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t, locale } = useFeedText();
+  const { t: storyText } = useStoryUploadText();
+  // Per item: whatever part of a video Story already reached storage, so a retry only redoes what failed.
+  const uploadedPartsRef = useRef(new Map<string, { videoUrl?: string; thumbUrl?: string }>());
   const [items, setItems] = useState<StoryItem[]>([]);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +330,21 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, upload } : i)));
   }
 
+  /** The words for an error code from either dictionary (story-specific photo/video problems, or the shared ones). */
+  function errorMessage(code: string): string {
+    if (isStoryUploadCode(code)) return storyText[code];
+    if (code === "videoTooLong") return plural(locale, t.stories.upload.errors.videoTooLong, MAX_VIDEO_SECONDS);
+    return byCode(t.stories.upload.errors, code);
+  }
+
+  /** Marks one tile failed, says why under the grid (a tile's own title isn't visible on a phone) and reports it. */
+  function failItem(item: StoryItem, step: string, code: string) {
+    const message = errorMessage(code);
+    setItemUpload(item.id, { status: "error", message });
+    setError(format(storyText.failedItem, { message }));
+    reportMediaUploadFailure({ surface: "story", step, code, file: item.file, duration: item.durationSeconds });
+  }
+
   /**
    * Uploads a single item's media to R2 the moment it's added, rather than
    * waiting for "Share" — the longer a picked video sits before it's
@@ -321,6 +357,12 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
    * flow's pick-then-immediately-tap-Share, so starting each upload
    * immediately keeps that gap as small as it was before. Retried by
    * tapping the failed item's own retry control, not by re-picking it.
+   *
+   * A video Story needs its still frame (createStory refuses one without:
+   * `frame_required`), so a video whose frame couldn't be made is a failed
+   * tile right here, with its own message, instead of a tile that looked
+   * ready and only failed after "Share". Whatever already went up (the video,
+   * or the frame) is kept for the retry, which only redoes the missing part.
    */
   async function startUpload(item: StoryItem) {
     // Also covers the retry path (the failed tile's own onClick, below):
@@ -332,80 +374,93 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     if (item.mediaType === "IMAGE") {
       const result = await uploadFileDirect(item.file, "story-image");
       if (!result.ok) {
-        setItemUpload(item.id, { status: "error", message: byCode(t.stories.upload.errors, result.error) });
+        failItem(item, "image_upload", result.error);
         return;
       }
       setItemUpload(item.id, { status: "done", mediaUrl: result.publicUrl });
       return;
     }
 
-    const [videoResult, thumb] = await Promise.all([
-      uploadFileDirect(item.file, "story-video"),
-      captureVideoFrameFromFile(item.file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
-    ]);
-    if (!videoResult.ok) {
-      setItemUpload(item.id, { status: "error", message: byCode(t.stories.upload.errors, videoResult.error) });
+    type Part = { ok: true; url: string } | { ok: false; error: string; step: string };
+    const kept = uploadedPartsRef.current.get(item.id) ?? {};
+    const videoPart: Promise<Part> = kept.videoUrl
+      ? Promise.resolve({ ok: true, url: kept.videoUrl })
+      : uploadFileDirect(item.file, "story-video").then((r) =>
+          r.ok ? { ok: true, url: r.publicUrl } : { ok: false, error: r.error, step: "video_upload" },
+        );
+    const framePart: Promise<Part> = kept.thumbUrl
+      ? Promise.resolve({ ok: true, url: kept.thumbUrl })
+      : captureVideoFrameDetailed(item.file).then(async (captured): Promise<Part> => {
+          if (!captured.frame) {
+            return { ok: false, error: "frameFailed", step: `frame_capture_${captured.reason ?? "unknown"}` };
+          }
+          const up = await uploadFileDirect(captured.frame, "video-thumb");
+          return up.ok ? { ok: true, url: up.publicUrl } : { ok: false, error: up.error, step: "thumb_upload" };
+        });
+    const [video, frame] = await Promise.all([videoPart, framePart]);
+    uploadedPartsRef.current.set(item.id, {
+      videoUrl: video.ok ? video.url : undefined,
+      thumbUrl: frame.ok ? frame.url : undefined,
+    });
+    if (!video.ok) {
+      failItem(item, video.step, video.error);
       return;
     }
-    setItemUpload(item.id, {
-      status: "done",
-      mediaUrl: videoResult.publicUrl,
-      mediaThumbnailUrl: thumb?.ok ? thumb.publicUrl : undefined,
-    });
+    if (!frame.ok) {
+      failItem(item, frame.step, frame.error);
+      return;
+    }
+    setItemUpload(item.id, { status: "done", mediaUrl: video.url, mediaThumbnailUrl: frame.url });
   }
 
-  function addResults(results: ({ item: StoryItem } | { error: string })[]) {
+  function addResults(results: ProcessResult[]) {
     const newItems = results.filter((r): r is { item: StoryItem } => "item" in r).map((r) => r.item);
-    // processImageFile / processVideoFile answer with a key of t.stories.upload.errors.
-    const messages = [
-      ...new Set(
-        results
-          .filter((r): r is { error: string } => "error" in r)
-          .map((r) =>
-            r.error === "videoTooLong"
-              ? plural(locale, t.stories.upload.errors.videoTooLong, MAX_VIDEO_SECONDS)
-              : byCode(t.stories.upload.errors, r.error),
-          ),
-      ),
-    ];
+    const failures = results.filter((r): r is ProcessError => "error" in r);
+    for (const failure of failures) {
+      reportMediaUploadFailure({
+        surface: "story",
+        step: failure.step,
+        code: failure.error,
+        file: failure.file,
+        duration: failure.duration,
+      });
+    }
+    const messages = [...new Set(failures.map((r) => errorMessage(r.error)))];
     if (newItems.length) {
       setItems((prev) => [...prev, ...newItems]);
-      for (const item of newItems) startUpload(item);
+      for (const item of newItems) void startUpload(item);
     }
     setError(messages.length ? messages.join(" ") : null);
   }
 
-  async function addImages(fileList: FileList | File[] | null) {
+  /** Every input (photos+videos, videos, camera) and the Android native photo picker land here. */
+  async function addFiles(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
+    // Copied out before the input is cleared (the FileList is live).
     const incoming = Array.from(fileList);
-    const results = await Promise.all(incoming.map(processImageFile));
+    const results = await Promise.all(incoming.map(processPickedFile));
     addResults(results);
   }
 
   /**
    * Nicer native multi-select on Android (see native-gallery-picker.ts);
    * null means it didn't run (iOS, web, or an older installed build), so
-   * the caller falls back to the plain <input type="file" multiple>. An
-   * empty (non-null) array means the user opened the native picker and
-   * backed out with nothing selected — a no-op, same as cancelling the
-   * file dialog.
+   * the caller falls back to the plain <input type="file" multiple>, which
+   * takes photos AND videos (STORY_DEVICE_ACCEPT): on iPhone this is the
+   * only picker, and a photos-only accept list hid every video, screen
+   * recordings included. An empty (non-null) array means the user opened
+   * the native picker and backed out with nothing selected — a no-op, same
+   * as cancelling the file dialog.
    */
   async function pickImagesOrFallback() {
     if (isNativePickerActive()) return;
     const native = await pickImagesNative(NATIVE_PICKER_LIMIT);
     if (native) {
-      if (native.length > 0) addImages(native);
+      if (native.length > 0) void addFiles(native);
       return;
     }
     markNativePickerActive();
     imageInputRef.current?.click();
-  }
-
-  async function addVideos(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
-    const incoming = Array.from(fileList);
-    const results = await Promise.all(incoming.map(processVideoFile));
-    addResults(results);
   }
 
   function removeItem(id: string) {
@@ -426,10 +481,15 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
 
     try {
       const result = await createStory(fd);
-      if (result.error) return { ok: false as const, message: byCode(t.stories.upload.errors, result.error) };
+      if (result.error) {
+        reportMediaUploadFailure({ surface: "story", step: "create_story", code: result.error, file: item.file, duration: item.durationSeconds });
+        return { ok: false as const, message: errorMessage(result.error === "frame_required" ? "frameFailed" : result.error) };
+      }
       return { ok: true as const };
     } catch (err) {
-      return { ok: false as const, message: looksLikeStaleServerActionError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network") };
+      const code = looksLikeStaleServerActionError(err) ? "stale_deployment" : "network";
+      reportMediaUploadFailure({ surface: "story", step: "create_story", code, file: item.file, duration: item.durationSeconds });
+      return { ok: false as const, message: byCode(t.stories.upload.errors, code) };
     }
   }
 
@@ -600,15 +660,20 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
           </div>
         ) : (
           <>
+        {/* "Upload from device" when Android's native photo picker isn't
+            there (always on iPhone): photos AND videos. It used to list the
+            three exact image types, which made iOS hide every video (screen
+            recordings included) from this picker. `image/*` also keeps iOS
+            converting HEIC photos to JPEG on the way in. */}
         <input
           ref={imageInputRef}
           type="file"
-          accept={IMAGE_TYPES.join(",")}
+          accept={STORY_DEVICE_ACCEPT}
           multiple
           className="hidden"
           onChange={(e) => {
             markNativePickerInactive();
-            addImages(e.target.files);
+            void addFiles(e.target.files);
             e.target.value = "";
           }}
         />
@@ -625,7 +690,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
           className="hidden"
           onChange={(e) => {
             markNativePickerInactive();
-            addImages(e.target.files);
+            void addFiles(e.target.files);
             e.target.value = "";
           }}
         />
@@ -644,7 +709,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
           className="hidden"
           onChange={(e) => {
             markNativePickerInactive();
-            addVideos(e.target.files);
+            void addFiles(e.target.files);
             e.target.value = "";
           }}
         />
@@ -658,7 +723,8 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
                   <img src={item.previewUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <>
-                    <video src={item.previewUrl} muted className="h-full w-full object-cover" />
+                    {/* #t=0.1 + preload: iOS otherwise paints nothing for a paused, never-played <video> (a black tile). */}
+                    <video src={`${item.previewUrl}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                     <Video size={14} className="absolute bottom-1 start-1 text-white drop-shadow" />
                   </>
                 )}

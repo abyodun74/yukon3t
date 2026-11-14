@@ -13,7 +13,10 @@ import { sendToConversations } from "@/app/actions/share-to-chats";
 import { createPost, getShareTargetCircles } from "@/app/actions/circles";
 import { createStory } from "@/app/actions/stories";
 import { createMuse } from "@/app/actions/muse";
-import { uploadFileDirect, captureVideoFrameFromFile, withRetry } from "@/lib/upload-client";
+import { uploadFileDirect, captureVideoFrameDetailed, probeVideoDuration, withRetry } from "@/lib/upload-client";
+import { normalizeVideoFile } from "@/lib/video-file";
+import { normalizeMediaType, safeUploadName, wholeSeconds } from "@/lib/media-file";
+import { reportMediaUploadFailure } from "@/lib/media-upload-diagnostics";
 import { looksLikeStaleServerActionError } from "@/lib/stale-build";
 import {
   addOptimisticPost,
@@ -91,21 +94,23 @@ function extractFirstUrl(text: string | null): string | null {
   return text.match(/\bhttps?:\/\/\S+/i)?.[0] ?? null;
 }
 
-function probeVideoDuration(file: File): Promise<number | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.src = url;
-    probe.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(probe.duration) ? Math.round(probe.duration) : null);
-    };
-    probe.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-  });
+/**
+ * A shared video's length in whole seconds (Muse needs an integer), or null when this device can't read it. Uses
+ * upload-client's probeVideoDuration, which handles the Infinity an iPhone screen recording reports until scanned
+ * (the local probe this replaced returned null for those, which hid "Post to Muse" for every screen recording).
+ */
+function probeWholeSeconds(file: File): Promise<number | null> {
+  return probeVideoDuration(file).then((d) => (d === null ? null : wholeSeconds(d)));
+}
+
+/**
+ * A shared photo with a type the server and resizeImageFile understand: the iOS Share Extension and Android content
+ * providers can hand over an empty/generic type or an alias (image/jpg). Kept as-is when already right.
+ */
+function normalizeSharedImage(file: File): File {
+  const normalized = normalizeMediaType(file.type, file.name);
+  if (!normalized || normalized.kind !== "image" || normalized.type === file.type) return file;
+  return new File([file], safeUploadName("image", normalized.type), { type: normalized.type });
 }
 
 function newRequestId(): string {
@@ -122,12 +127,33 @@ function newRequestId(): string {
  */
 async function uploadShare(share: PendingShareMedia): Promise<UploadOutcome> {
   if (share.video) {
+    // .MP4/.MOV in any case, an empty or aliased type (video/x-m4v): the upload sends file.type as the object's
+    // Content-Type, which the server checks against its exact allow-list.
+    const video = normalizeVideoFile(share.video);
+    if (!video) {
+      reportMediaUploadFailure({ surface: "share-target", step: "video_type", code: "invalid", file: share.video });
+      return { ok: false, error: "invalid" };
+    }
     const [videoResult, thumbnailResult, duration] = await Promise.all([
-      uploadFileDirect(share.video, "post-video"),
-      captureVideoFrameFromFile(share.video).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
-      probeVideoDuration(share.video),
+      uploadFileDirect(video, "post-video"),
+      captureVideoFrameDetailed(video).then((captured) => {
+        if (captured.frame) return uploadFileDirect(captured.frame, "video-thumb");
+        // Story, Muse and chats can refuse a video with no still: say why in the report, not just "frame_required".
+        reportMediaUploadFailure({
+          surface: "share-target",
+          step: `frame_capture_${captured.reason ?? "unknown"}`,
+          code: "frame_required",
+          file: video,
+          duration: captured.rawDuration,
+        });
+        return null;
+      }),
+      probeWholeSeconds(video),
     ]);
-    if (!videoResult.ok) return { ok: false, error: videoResult.error };
+    if (!videoResult.ok) {
+      reportMediaUploadFailure({ surface: "share-target", step: "video_upload", code: videoResult.error, file: video, duration });
+      return { ok: false, error: videoResult.error };
+    }
     return {
       ok: true,
       media: {
@@ -140,9 +166,14 @@ async function uploadShare(share: PendingShareMedia): Promise<UploadOutcome> {
     };
   }
   if (share.images.length === 0) return { ok: true, media: { mediaType: "NONE", mediaUrls: [] } };
-  const uploaded = await Promise.all(share.images.map((f) => uploadFileDirect(f, "post-image")));
-  const failed = uploaded.find((u) => !u.ok);
-  if (failed && !failed.ok) return { ok: false, error: failed.error };
+  const images = share.images.map(normalizeSharedImage);
+  const uploaded = await Promise.all(images.map((f) => uploadFileDirect(f, "post-image")));
+  const failedIndex = uploaded.findIndex((u) => !u.ok);
+  const failed = failedIndex >= 0 ? uploaded[failedIndex] : null;
+  if (failed && !failed.ok) {
+    reportMediaUploadFailure({ surface: "share-target", step: "image_upload", code: failed.error, file: images[failedIndex] });
+    return { ok: false, error: failed.error };
+  }
   return {
     ok: true,
     media: { mediaType: "IMAGE", mediaUrls: uploaded.map((u) => (u.ok ? u.publicUrl : "")).filter(Boolean) },
@@ -268,7 +299,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   useEffect(() => {
     if (!share?.video) return;
     let cancelled = false;
-    probeVideoDuration(share.video).then((d) => {
+    probeWholeSeconds(share.video).then((d) => {
       if (!cancelled) setVideoDurationSeconds(d);
     });
     return () => {
@@ -532,6 +563,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
     if (postCaption) fd.set("caption", postCaption.slice(0, STORY_CAPTION_MAX_CHARS));
     const result = await createStory(fd);
     if (result.error) {
+      reportMediaUploadFailure({ surface: "share-target", step: "create_story", code: result.error, file: current.video ?? current.images[0] ?? null });
       setStatus("error");
       setErrorText(publishError(result.error));
       return;

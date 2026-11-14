@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { getMuseById } from "@/app/actions/muse";
 import { MuseFeed } from "@/components/muse-feed";
+import { parseFocusCommentId } from "@/lib/muse-comment-threads";
 
 /**
  * Shareable permalink for a single Muse (see recordMuseShare/shareMuse in
@@ -13,11 +14,20 @@ import { MuseFeed } from "@/components/muse-feed";
  * already past by definition, so this always resumes into whatever comes
  * next chronologically) rather than dead-ending the feed at one video.
  */
-export default async function MusePermalinkPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function MusePermalinkPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ comment?: string | string[] }>;
+}) {
   const { id } = await params;
+  // ?comment=<id>: a comment / reply notification (museCommentHref) opens the comments on that thread. The thread is
+  // loaded by getMuseCommentThread under the viewer's own visibility rules, so an id here grants nothing.
+  const focusCommentId = parseFocusCommentId((await searchParams).comment);
   const me = await getOnboardedUserOrRedirect();
   const { item } = await getMuseById(id);
   if (!item) notFound();
 
-  return <MuseFeed initialItems={[item]} initialCursor={item.id} currentUserId={me.id} />;
+  return <MuseFeed initialItems={[item]} initialCursor={item.id} currentUserId={me.id} focusCommentId={focusCommentId} />;
 }

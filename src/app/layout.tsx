@@ -31,6 +31,8 @@ import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { ShellTextProvider, UiTextProvider } from "@/components/ui-text";
+import { CommentToolsTextProvider } from "@/components/comment-tools-text";
+import { StoryUploadTextProvider } from "@/components/story-upload-text";
 import { CallsTextProvider } from "@/components/calls-text";
 import { localeDirection } from "@/lib/i18n/locales";
 import { ContentTranslationProvider } from "@/components/content-translation";
@@ -257,8 +259,10 @@ export default async function RootLayout({
             also lazy-loads motion's animation code (see its comment). */}
         <MotionProvider>
           <UiTextProvider locale={locale} text={dictionary.ui}>
+          <CommentToolsTextProvider locale={locale} text={dictionary.commentTools}>
           <ShellTextProvider locale={locale} text={dictionary.shell}>
           <CallsTextProvider locale={locale} text={session?.user ? dictionary.calls : undefined}>
+          <StoryUploadTextProvider locale={locale} text={dictionary.storyUpload}>
           <CallSessionProvider>
           <ContentTranslationProvider available={translationAvailable} autoTranslate={autoTranslate}>
             <AppSplash />
@@ -324,8 +328,10 @@ export default async function RootLayout({
             </footer>
           </ContentTranslationProvider>
           </CallSessionProvider>
+          </StoryUploadTextProvider>
           </CallsTextProvider>
           </ShellTextProvider>
+          </CommentToolsTextProvider>
           </UiTextProvider>
         </MotionProvider>
       </body>

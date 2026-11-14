@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock, Plus } from "lucide-react";
 import { CircleMembershipButton } from "@/components/circle-membership-button";
+import { CircleLongPress } from "@/components/circle-long-press";
 import { format, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
@@ -84,7 +85,12 @@ export async function SubCircleList({
             const isMember = sub.members.length > 0;
             const count = sub._count.members;
             return (
-              <li key={sub.id} className="min-w-0 rounded-xl border border-line p-4">
+              <li key={sub.id} className="min-w-0">
+                <CircleLongPress
+                  circle={{ id: sub.id, slug: sub.slug, name: sub.name, visibility: sub.visibility }}
+                  canInvite={sub.createdById === viewerId || sub.members[0]?.role === "MODERATOR"}
+                  className="h-full rounded-xl border border-line p-4"
+                >
                 <Link href={`/circles/${sub.slug}`} className="flex items-center gap-3 hover:text-accent">
                   {sub.coverImageUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -114,6 +120,7 @@ export async function SubCircleList({
                     hasPendingInvite={invited.has(sub.id)}
                   />
                 </div>
+                </CircleLongPress>
               </li>
             );
           })}

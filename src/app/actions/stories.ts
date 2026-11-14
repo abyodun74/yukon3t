@@ -729,6 +729,10 @@ export async function deleteStoryComment(commentId: string) {
     return { error: "forbidden" as const };
   }
 
-  await prisma.storyComment.delete({ where: { id: commentId } });
+  // deleteMany: a doubled delete (two taps, two tabs) answers not_found instead of throwing on the missing row.
+  const { count } = await prisma.storyComment.deleteMany({ where: { id: commentId } });
+  if (count === 0) {
+    return { error: "not_found" as const };
+  }
   return { error: null };
 }

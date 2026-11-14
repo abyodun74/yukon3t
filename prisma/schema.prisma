@@ -413,6 +413,7 @@ model User {
   museVideos     Muse[]
   museReactions  MuseReaction[]
   museComments   MuseComment[]
+  museCommentLikes MuseCommentLike[]
   museShares     MuseShare[]
   museReposts    MuseRepost[]
 
@@ -1611,6 +1612,9 @@ model Notification {
   channelId      String?
   // CHALLENGE_RESULT only: the challenge it is about (deleted with it).
   challengeId    String?
+  // MUSE_COMMENT / COMMENT_REPLY about a Muse comment: the comment or reply it is about, so the link opens the
+  // Muse's comments on that thread (museCommentHref). Deleted with the comment.
+  museCommentId  String?
   // Dynamic system-generated text for notification types that can't be
   // expressed by NOTIFICATION_VERB's single static-per-type string alone —
   // currently VIDEO_MODERATION_FAILED/VIDEO_FLAGGED_FOR_REVIEW (the
@@ -1638,6 +1642,7 @@ model Notification {
   liveStream   LiveStream?      @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
   channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   challenge    Challenge?       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  museComment  MuseComment?     @relation(fields: [museCommentId], references: [id], onDelete: Cascade)
   birthdayWishDigest BirthdayWishDigest?
 
   @@index([recipientId, readAt])
@@ -1650,6 +1655,7 @@ model Notification {
   @@index([connectionId])
   @@index([actorId])
   @@index([museId])
+  @@index([museCommentId])
 }
 
 enum CollabStatus {
@@ -2471,22 +2477,56 @@ model MuseReaction {
   @@index([userId])
 }
 
-// Flat, text-only comments (no threading/replies, no GIF/audio/video
-// attachments) — mirrors StoryComment's shape, not Comment's (which is
-// threaded and hard-wired to Post via CommentComposer/CommentCard).
+// Text-only comments (no GIF/audio/video attachments) with ONE level of
+// threading: a reply's parentId is always a top-level comment (replying to a
+// reply attaches to the same thread; see resolveReplyTarget in
+// src/lib/muse-comment-threads.ts). Kept separate from Post's Comment (which
+// is hard-wired to Post via CommentComposer/CommentCard). Reply and like
+// counts are not columns: they are counted per page at read time
+// (src/lib/muse-comments-data.ts) under the viewer's own visibility rules,
+// so they are exact by construction. Muse.commentCount counts every
+// PUBLISHED comment, replies included, and is changed only inside the
+// write's transaction (actions/muse-comments.ts). Deleting a comment deletes
+// its replies (cascade).
 model MuseComment {
   id               String           @id @default(cuid())
   museId           String
   authorId         String
+  // Null for a top-level comment; the thread's top-level comment for a reply.
+  parentId         String?
+  // "" for a GIF-only comment (a CHECK keeps every row non-empty text or a GIF).
   content          String           @db.Text
+  // A Giphy GIF picked in the composer (https, *.giphy.com only: isGiphyUrl), never an upload of ours. Same column as
+  // Comment.gifUrl.
+  gifUrl           String?
   moderationStatus ModerationStatus @default(PUBLISHED)
   createdAt        DateTime         @default(now())
 
-  muse   Muse @relation(fields: [museId], references: [id], onDelete: Cascade)
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  muse          Muse              @relation(fields: [museId], references: [id], onDelete: Cascade)
+  author        User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent        MuseComment?      @relation("MuseCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       MuseComment[]     @relation("MuseCommentReplies")
+  likes         MuseCommentLike[]
+  notifications Notification[]
 
   @@index([museId, createdAt])
   @@index([authorId])
+  // A thread's replies, oldest first, cursor-paginated (getMuseCommentReplies), and the per-page reply counts.
+  @@index([parentId, createdAt])
+}
+
+// One like (heart) per user per Muse comment or reply. Counted at read time per page (no counter column).
+model MuseCommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment MuseComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([userId])
 }
 
 enum AdMediaType {

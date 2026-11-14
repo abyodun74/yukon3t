@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteComment, editComment, hideComment, toggleCommentReaction } from "@/app/actions/comments";
 import { ReportTrigger } from "@/components/report-form";
+import { CommentDeleteDialog, useConfirmAction } from "@/components/confirm-dialog";
+import { countDescendants } from "@/lib/confirm-action";
 import { CommentComposer } from "@/components/comment-composer";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
@@ -19,6 +21,13 @@ import type { CommentNode } from "@/lib/comment-tree";
 // Beyond this depth, replies stop indenting further (they'd otherwise run
 // off the edge of the page on a long chain) but stay nested logically.
 const MAX_VISUAL_DEPTH = 4;
+
+function countPublishedReplies(node: CommentNode): number {
+  return node.replies.reduce(
+    (sum, reply) => sum + (reply.moderationStatus === "PUBLISHED" ? 1 : 0) + countPublishedReplies(reply),
+    0,
+  );
+}
 
 export function CommentCard({
   comment,
@@ -66,6 +75,24 @@ export function CommentCard({
     enabled: !editing && !removed && !deleted,
   });
   const t = ui.comments;
+
+  // Delete asks first (CommentDeleteDialog); nothing is deleted on the first tap.
+  const confirmDelete = useConfirmAction<string>(async (commentId) => {
+    const result = await deleteComment(commentId);
+    // not_found: already deleted (a second tab, the post's owner at the same moment) -- gone either way, but it was
+    // counted off by whoever deleted it, so the count stays.
+    if (result.error === "not_found") {
+      setDeleted(true);
+      return;
+    }
+    if (result.error) return false;
+    setDeleted(true);
+    router.refresh();
+    // Mirrors deleteComment's own removedPublishedCount: this comment (unless already hidden) plus every
+    // still-published reply under it, at any depth -- deleting a parent takes the whole chain down with it.
+    const removedCount = (removed ? 0 : 1) + countPublishedReplies(comment);
+    if (removedCount > 0) onCommentCountChange?.(-removedCount);
+  });
 
   if (deleted) return null;
 
@@ -241,24 +268,8 @@ export function CommentCard({
             {canDelete && (
               <button
                 type="button"
-                disabled={isPending}
-                onClick={() => {
-                  startTransition(async () => {
-                    const result = await deleteComment(comment.id);
-                    if (!result.error) {
-                      setDeleted(true);
-                      router.refresh();
-                      // Mirrors deleteComment's own removedPublishedCount:
-                      // this comment (unless already hidden) plus any
-                      // still-published direct replies — deleting a parent
-                      // takes its replies down with it.
-                      const removedCount =
-                        (removed ? 0 : 1) +
-                        comment.replies.filter((r) => r.moderationStatus === "PUBLISHED").length;
-                      if (removedCount > 0) onCommentCountChange?.(-removedCount);
-                    }
-                  });
-                }}
+                disabled={isPending || confirmDelete.state.pending}
+                onClick={() => confirmDelete.request(comment.id)}
                 className="text-xs text-foreground-soft hover:text-danger"
               >
                 {t.delete}
@@ -292,6 +303,11 @@ export function CommentCard({
           <ReactionBar reactions={reactions} onToggle={toggleReaction} />
         </>
       )}
+      <CommentDeleteDialog
+        flow={confirmDelete}
+        isReply={() => depth > 0}
+        replyCount={() => countDescendants(comment)}
+      />
       {replying && (
         <CommentComposer
           postId={postId}

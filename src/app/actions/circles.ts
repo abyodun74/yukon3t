@@ -1499,6 +1499,8 @@ export async function getMyCircles() {
           name: true,
           slug: true,
           coverImageUrl: true,
+          // The Circle switcher's long-press share sheet: a PRIVATE Circle is never shared (src/lib/circle-share.ts).
+          visibility: true,
           // Only a main Circle the caller may see names it: a PRIVATE one they aren't in doesn't exist for them.
           parent: { select: { name: true, visibility: true, members: { where: { userId: user.id }, select: { id: true } } } },
         },

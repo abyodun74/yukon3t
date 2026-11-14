@@ -3,20 +3,24 @@ import { account } from "@/lib/i18n/fr/account";
 import { advertise } from "@/lib/i18n/fr/advertise";
 import { calls } from "@/lib/i18n/fr/calls";
 import { challenges } from "@/lib/i18n/fr/challenges";
+import { circleShare } from "@/lib/i18n/fr/circleShare";
 import { circles } from "@/lib/i18n/fr/circles";
 import { collab } from "@/lib/i18n/fr/collab";
+import { commentTools } from "@/lib/i18n/fr/commentTools";
 import { feed } from "@/lib/i18n/fr/feed";
 import { gifts } from "@/lib/i18n/fr/gifts";
 import { invite } from "@/lib/i18n/fr/invite";
 import { live } from "@/lib/i18n/fr/live";
 import { messages } from "@/lib/i18n/fr/messages";
 import { muse } from "@/lib/i18n/fr/muse";
+import { museComments } from "@/lib/i18n/fr/museComments";
 import { pages } from "@/lib/i18n/fr/pages";
 import { profile } from "@/lib/i18n/fr/profile";
 import { push } from "@/lib/i18n/fr/push";
 import { settings } from "@/lib/i18n/fr/settings";
 import { shared } from "@/lib/i18n/fr/shared";
 import { shell } from "@/lib/i18n/fr/shell";
+import { storyUpload } from "@/lib/i18n/fr/storyUpload";
 import { ui } from "@/lib/i18n/fr/ui";
 import { vocab } from "@/lib/i18n/fr/vocab";
 
@@ -35,11 +39,15 @@ export const fr: Dictionary = {
   circles,
   collab,
   muse,
+  museComments,
   live,
   calls,
   vocab,
   push,
   gifts,
   challenges,
+  circleShare,
+  commentTools,
+  storyUpload,
   ...account,
 };

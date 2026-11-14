@@ -93,8 +93,18 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: {}, href: "/u/me" },
   ],
   MUSE_LIKE: [{ data: muse, href: "/muse/m1" }],
-  MUSE_COMMENT: [{ data: muse, href: "/muse/m1" }],
-  COMMENT_REPLY: [{ data: post, href: "/post/p1" }],
+  // A Muse comment (or reply) to the Muse's owner: the Muse with its comments open on that thread. Older rows (no
+  // museCommentId) keep opening the Muse.
+  MUSE_COMMENT: [
+    { data: muse, href: "/muse/m1" },
+    { data: { ...muse, museCommentId: "cm1" }, href: "/muse/m1?comment=cm1" },
+  ],
+  // A reply to the reader's post comment opens the post; one to their Muse comment opens that Muse's thread.
+  COMMENT_REPLY: [
+    { data: post, href: "/post/p1" },
+    { data: { ...muse, museCommentId: "cm2" }, href: "/muse/m1?comment=cm2" },
+    { data: muse, href: "/muse/m1" },
+  ],
   POST_REPOST: [{ data: post, href: "/post/p1" }],
   POST_SHARE: [{ data: post, href: "/post/p1" }],
   MUSE_REPOST: [{ data: muse, href: "/muse/m1" }],

@@ -46,7 +46,12 @@ export function MuseViewerOverlay({
       pushedRef.current = true;
       window.history.pushState({ museViewer: true }, "");
     }
-    const onPopState = () => onClosedRef.current();
+    // Back from a Muse's open comments lands on this viewer's own entry again (MuseFeed adds one for the comments on
+    // top of it): that closes the comments only. Any other back leaves the viewer.
+    const onPopState = () => {
+      if ((window.history.state as { museViewer?: boolean } | null)?.museViewer) return;
+      onClosedRef.current();
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);

@@ -15,6 +15,8 @@ import { afterMessageSent } from "@/lib/after-message-sent";
 import { sendToEachChat } from "@/lib/share-to-chats-server";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
+import { canSeeCircle } from "@/lib/circle-visibility";
+import { circleShareMessage, isCircleShareable } from "@/lib/circle-share";
 
 /**
  * "Send to a friend" from the post share sheet (the post's link) and from sharing in from another app (its text and/or
@@ -220,4 +222,74 @@ export async function shareMuseToConversations(museId: string, conversationIds: 
     });
   }
   return { ...result, shareCount: updated.shareCount };
+}
+
+/**
+ * Shares a Circle to 1-SHARE_MAX_RECIPIENTS of the caller's chats (the long-press / Share sheet on a Circle,
+ * circle-share-sheet.tsx). Only a PUBLIC Circle is ever shared (owner decision, see src/lib/circle-share.ts): a PRIVATE
+ * one doesn't exist for non-members and is invite-only, so it, a missing one and one the caller can't see all answer
+ * the same generic "unavailable" a send that reached no chat answers, before any chat is touched, and nothing about it
+ * (name, picture) can be put into a chat by a crafted request. The browser sends ids only; the message is built here
+ * (circleShareMessage: the Circle's name and its public link, nothing a non-member can't already see) and is never
+ * free text, so there is nothing new to moderate (the name passed moderateText when the Circle was created or
+ * renamed). Every destination is checked on its own (sendToEachChat: member, hidden-chat lock, blocks either way,
+ * active peer, never a secret chat, `messageSend` per copy) and written only through createNonE2eeMessage, with the
+ * usual notifications (afterMessageSent). Answers counts only.
+ */
+export async function shareCircleToConversations(circleId: string, conversationIds: string[]) {
+  const user = await requireVerifiedUser();
+
+  const ids = shareToChatsSchema.safeParse(conversationIds);
+  if (!ids.success || typeof circleId !== "string" || !circleId) {
+    return { error: "invalid" as const };
+  }
+  const targetIds = uniqueShareTargets(ids.data);
+
+  if (!(await checkRateLimit("shareToChats", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const circle = await prisma.circle.findUnique({
+    where: { id: circleId },
+    select: {
+      name: true,
+      slug: true,
+      visibility: true,
+      members: { where: { userId: user.id }, select: { id: true } },
+    },
+  });
+  if (
+    !circle ||
+    !canSeeCircle(circle, { isMember: circle.members.length > 0 }) ||
+    !isCircleShareable(circle)
+  ) {
+    return { error: "unavailable" as const };
+  }
+  const content = circleShareMessage(circle);
+
+  const tally = await sendToEachChat({
+    userId: user.id,
+    targetIds,
+    send: async (target) => {
+      const created = await createNonE2eeMessage({
+        conversationId: target.id,
+        senderId: user.id,
+        content,
+        mediaType: "NONE",
+        moderationStatus: "PUBLISHED",
+      });
+      if (created.error) return created.error;
+      await afterMessageSent({
+        user,
+        conversationId: target.id,
+        memberIds: target.members.map((m) => m.userId),
+        secret: false,
+        content,
+        mediaType: "NONE",
+      });
+      return null;
+    },
+  });
+
+  return shareToChatsResult(tally);
 }

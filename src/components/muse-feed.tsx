@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
+// The small `m` components: animation code is loaded lazily by MotionProvider (root layout).
+import * as m from "motion/react-m";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye, Pause, Play } from "lucide-react";
@@ -9,15 +12,13 @@ import {
   getMuseForPost,
   getMuseReactionSummary,
   toggleMuseReaction,
-  getMuseComments,
-  createMuseComment,
-  deleteMuseComment,
   deleteMuse,
   toggleMuseRepost,
   recordMuseView,
 } from "@/app/actions/muse";
 import { MuseShareModal } from "@/components/muse-share-modal";
-import { UserLink, UserAvatar } from "@/components/user-link";
+import { MuseCommentsSheet } from "@/components/muse-comments-sheet";
+import { UserLink } from "@/components/user-link";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { ReactionBar } from "@/components/reaction-bar";
 import { SubscribeButton } from "@/components/subscribe-button";
@@ -26,14 +27,19 @@ import { cn } from "@/lib/utils";
 import type { ReactionSummary } from "@/lib/reactions";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
-import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useMuseText } from "@/components/muse-text";
 import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText, useUiText } from "@/components/ui-text";
-import { formatShortAge } from "@/lib/format-date";
 import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
+import {
+  FULL_FRAME,
+  MUSE_COMMENTS_INSTANT,
+  MUSE_COMMENTS_TRANSITION,
+  museCommentsFrame,
+  type MuseCommentsFrame,
+} from "@/lib/muse-comments-layout";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -74,13 +80,6 @@ type MuseItem = {
   seedPostId?: string;
 };
 
-type MuseCommentData = {
-  id: string;
-  content: string;
-  createdAt: Date;
-  author: { id: string; name: string | null; avatarUrl: string | null };
-};
-
 /** "1,204 views": the plural form for `count`, with the number grouped the reader's way. */
 function countLabel(locale: Locale, forms: string, count: number) {
   return plural(locale, forms, count).replace(String(count), count.toLocaleString(intlLocale(locale) ?? []));
@@ -113,6 +112,7 @@ export function MuseFeed({
   currentUserId,
   seedPost,
   onClose,
+  focusCommentId = null,
 }: {
   initialItems: MuseItem[];
   initialCursor: string | null;
@@ -121,6 +121,8 @@ export function MuseFeed({
   seedPost?: MuseSeedPost;
   /** Set when shown as an overlay over another page rather than as /muse: the cards get a close button. */
   onClose?: () => void;
+  /** /muse/<id>?comment=<commentId> (a comment or reply notification): open the first Muse's comments on that thread. */
+  focusCommentId?: string | null;
 }) {
   const router = useRouter();
   const { t } = useMuseText();
@@ -152,9 +154,18 @@ export function MuseFeed({
   // computed, after that return.
   const [rememberedShareMuse, setRememberedShareMuse] = useState<MuseItem | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
+  // Comments open: that card's video shrinks into a rounded card at the top (MuseCard's media frame) and the sheet
+  // takes the rest of the screen. The feed can't be swiped meanwhile, and back / Escape / the handle close the comments
+  // first, through a history entry of their own (same pattern as MuseViewerOverlay's).
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
-  const [comments, setComments] = useState<MuseCommentData[] | null>(null);
-  const commentsDialogRef = useDialogFocus<HTMLDivElement>(commentsOpenForId !== null, () => setCommentsOpenForId(null));
+  const [commentsFocusId, setCommentsFocusId] = useState<string | null>(null);
+  const [commentsFrame, setCommentsFrame] = useState<MuseCommentsFrame | null>(null);
+  const reducedMotion = Boolean(useReducedMotion());
+  const feedRef = useRef<HTMLDivElement>(null);
+  // Measures the status bar (and, on /muse, the header) the card must stay below: the same inset the cards' own top
+  // controls clear, read from CSS because env(safe-area-inset-top) has no JS API.
+  const topInsetProbeRef = useRef<HTMLDivElement>(null);
+  const commentsHistoryRef = useRef(false);
 
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -222,34 +233,77 @@ export function MuseFeed({
     return result.reactions;
   }
 
-  async function openComments(museId: string) {
+  const measureCommentsFrame = useCallback(() => {
+    const feed = feedRef.current;
+    if (!feed) return null;
+    return museCommentsFrame({
+      width: feed.clientWidth,
+      height: feed.clientHeight,
+      topInset: topInsetProbeRef.current?.offsetHeight ?? 0,
+    });
+  }, []);
+
+  function openComments(museId: string, focusId: string | null = null) {
+    if (commentsOpenForId) return;
+    setCommentsFrame(measureCommentsFrame());
+    setCommentsFocusId(focusId);
     setCommentsOpenForId(museId);
-    setComments(null);
-    const result = await getMuseComments(museId);
-    setComments(result.comments);
-  }
-
-  async function postComment(museId: string, content: string): Promise<boolean> {
-    if (isGuest) {
-      promptSignUp();
-      return false;
+    if (!commentsHistoryRef.current) {
+      commentsHistoryRef.current = true;
+      // Same URL (Next.js doesn't navigate); the state keeps whatever the entry had (MuseViewerOverlay's marker).
+      window.history.pushState({ ...(window.history.state ?? {}), museComments: true }, "");
     }
-    const fd = new FormData();
-    fd.set("content", content);
-    const result = await createMuseComment(museId, fd);
-    if (result.error || !result.comment) return false;
-    setComments((prev) => [...(prev ?? []), result.comment]);
-    setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, commentCount: it.commentCount + 1 } : it)));
-    return true;
   }
 
-  async function removeComment(museId: string, commentId: string) {
-    await deleteMuseComment(commentId);
-    setComments((prev) => (prev ? prev.filter((c) => c.id !== commentId) : prev));
-    setItems((prev) =>
-      prev.map((it) => (it.id === museId ? { ...it, commentCount: Math.max(0, it.commentCount - 1) } : it)),
-    );
-  }
+  /** Close button, Escape, a drag down, a tap on the video: back through the comments' own history entry. */
+  const requestCloseComments = useCallback(() => {
+    // One back per opening: a double tap on Close must not also leave the viewer or the page.
+    if (commentsHistoryRef.current) {
+      commentsHistoryRef.current = false;
+      window.history.back();
+    } else {
+      setCommentsOpenForId(null);
+      setCommentsFocusId(null);
+    }
+  }, []);
+
+  // The back button (browser, Android) closes the comments before anything else.
+  useEffect(() => {
+    if (!commentsOpenForId) return;
+    const onPopState = () => {
+      if ((window.history.state as { museComments?: boolean } | null)?.museComments) return;
+      commentsHistoryRef.current = false;
+      setCommentsOpenForId(null);
+      setCommentsFocusId(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [commentsOpenForId]);
+
+  // Rotation, a resized window, an Android keyboard resizing the WebView: the card and sheet follow the new screen.
+  useEffect(() => {
+    if (!commentsOpenForId) return;
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setCommentsFrame(measureCommentsFrame()));
+    };
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", update);
+    };
+  }, [commentsOpenForId, measureCommentsFrame]);
+
+  // A comment / reply notification: open that Muse's comments on its thread once the card is on screen.
+  const focusOpenedRef = useRef(false);
+  useEffect(() => {
+    if (focusOpenedRef.current || !focusCommentId || !items[0] || items[0].seedPostId) return;
+    focusOpenedRef.current = true;
+    openComments(items[0].id, focusCommentId);
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Author-only — removes the Muse outright (see deleteMuse's own doc comment). Optimistic: the card disappears immediately, no confirm-then-wait round trip. */
   async function removeMuse(museId: string) {
@@ -364,13 +418,19 @@ export function MuseFeed({
         // ordinary feed (mouse wheel, trackpad, natural touch drag) instead
         // of requiring a deliberate swipe gesture past a fixed threshold.
         // As an overlay, overscroll-contain keeps a fling past either end from scrolling the page underneath.
-        className={cn("fixed inset-0 z-10 select-none overflow-y-scroll bg-black", onClose && "overscroll-contain")}
-        style={{ scrollSnapType: "y mandatory" }}
+        // While comments are open the feed can't be scrolled to another Muse (overflow hidden keeps the position).
+        ref={feedRef}
+        className={cn("fixed inset-0 z-10 select-none bg-black", onClose && "overscroll-contain")}
+        style={{ scrollSnapType: "y mandatory", overflowY: commentsOpenForId ? "hidden" : "scroll" }}
       >
         {items.map((item) => (
           <MuseCard
             key={item.id === seedItemId ? "seed" : item.id}
             item={item}
+            commentsOpen={commentsOpenForId === item.id}
+            commentsFrame={commentsOpenForId === item.id ? commentsFrame : null}
+            reducedMotion={reducedMotion}
+            onCloseComments={requestCloseComments}
             onClose={onClose}
             muted={muted}
             soundBlocked={soundBlocked}
@@ -418,37 +478,35 @@ export function MuseFeed({
         )}
 
       {/*
-       * A true sibling of the scrollable feed above, not nested inside it —
-       * an element positioned+z-indexed inside that container would be
-       * confined to ITS stacking context (any positioned element creates
-       * one), so no z-index on a descendant could ever paint above
-       * nav.tsx's bottom tab bar (z-30) or header (z-40) regardless of the
-       * value used. This sheet is a deliberate temporary takeover (same as
-       * StoryViewer's own modal), so it's fine — expected, even — for it to
-       * cover the tab bar while open.
+       * A true sibling of the scrollable feed above, not nested inside it: an element positioned+z-indexed inside that
+       * container would be confined to ITS stacking context, so it could never paint above nav.tsx's bottom tab bar
+       * (z-30) or header (z-40). The sheet covers the tab bar while open, like StoryViewer's own modal.
        */}
-      {commentsMuse && (
-        <div
-          ref={commentsDialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t.comments.title}
-          tabIndex={-1}
-          className="fixed inset-0 z-50 flex items-end bg-black/40 outline-none"
-          onClick={() => setCommentsOpenForId(null)}
-        >
-          <div className="w-full" onClick={(e) => e.stopPropagation()}>
-            <MuseCommentsPanel
-              comments={comments}
-              currentUserId={currentUserId}
-              isMuseOwner={commentsMuse.author.id === currentUserId}
-              onClose={() => setCommentsOpenForId(null)}
-              onPost={(content) => postComment(commentsMuse.id, content)}
-              onDelete={(commentId) => removeComment(commentsMuse.id, commentId)}
-            />
-          </div>
-        </div>
-      )}
+      <MuseCommentsSheet
+        open={commentsMuse !== undefined}
+        museId={commentsMuse?.id ?? ""}
+        museAuthorName={commentsMuse?.author.name ?? null}
+        commentCount={commentsMuse?.commentCount ?? 0}
+        currentUserId={currentUserId}
+        isMuseOwner={commentsMuse?.author.id === currentUserId}
+        focusCommentId={commentsFocusId}
+        sheetHeight={commentsFrame?.sheetHeight ?? 0}
+        reducedMotion={reducedMotion}
+        onClose={requestCloseComments}
+        onCountChange={(count) =>
+          setItems((prev) => prev.map((it) => (it.id === commentsOpenForId ? { ...it, commentCount: count } : it)))
+        }
+      />
+      <div
+        ref={topInsetProbeRef}
+        aria-hidden
+        className="pointer-events-none invisible fixed start-0 top-0 w-px"
+        style={{
+          height: onClose
+            ? "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))"
+            : "calc(var(--top-bar-height) + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px)))",
+        }}
+      />
     </>
   );
 }
@@ -466,6 +524,10 @@ export function MuseFeed({
  */
 function MuseCard({
   item,
+  commentsOpen,
+  commentsFrame,
+  reducedMotion,
+  onCloseComments,
   onClose,
   muted,
   soundBlocked,
@@ -481,6 +543,12 @@ function MuseCard({
   onView,
 }: {
   item: MuseItem;
+  /** This card's comments are open: its video sits in a rounded card at the top and its controls step aside. */
+  commentsOpen: boolean;
+  /** Where the video goes while comments are open (museCommentsFrame); null when they're closed. */
+  commentsFrame: MuseCommentsFrame | null;
+  reducedMotion: boolean;
+  onCloseComments: () => void;
   /** Shown as an overlay (MuseViewerOverlay): a close button, and no header or tab bar to clear. */
   onClose?: () => void;
   muted: boolean;
@@ -523,6 +591,8 @@ function MuseCard({
   const lowData = useNetworkQuality() === "slow";
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // will-change only while the frame is actually moving, so the video layer isn't kept promoted the rest of the time.
+  const [frameMoving, setFrameMoving] = useState(false);
   const isOwner = item.author.id === currentUserId;
   // The feed post the viewer opened on (not a Muse): only its video, author and caption are shown.
   const isSeedPost = Boolean(item.seedPostId);
@@ -643,12 +713,32 @@ function MuseCard({
 
   const isEmbed = item.mediaType === "EMBED";
 
+  // While comments are open the feed can't scroll, but a resize (rotation, an Android keyboard shrinking the WebView,
+  // which shortens every h-dvh card) could leave it between two cards: keep this one exactly in view.
+  useEffect(() => {
+    const section = sectionRef.current;
+    const feed = section?.parentElement;
+    // The feed itself only (it is the section's offsetParent: fixed); scrollIntoView would move outer scrollers too.
+    if (commentsFrame && section && feed && feed.scrollTop !== section.offsetTop) {
+      feed.scrollTo({ top: section.offsetTop, behavior: "instant" });
+    }
+  }, [commentsFrame]);
+
+  // The media frame's target: full screen, or the rounded card at the top while comments are open. Only transform and
+  // clip-path change (never the box's size), so the <video> inside is not re-laid out, remounted or restarted.
+  const frameTarget = commentsOpen && commentsFrame ? commentsFrame : FULL_FRAME;
+
   return (
     <section
       ref={sectionRef}
       style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
       className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black"
       onClick={() => {
+        // With comments open, a tap on the video (or around it) closes them, like the handle does.
+        if (commentsOpen) {
+          onCloseComments();
+          return;
+        }
         // An embed's play/pause lives inside the source platform's own
         // iframe player, entirely outside this app's control (no shared JS
         // control API across Instagram/TikTok/etc.) — this tap-to-pause
@@ -659,52 +749,74 @@ function MuseCard({
         setPaused((p) => !p);
       }}
     >
-      {isEmbed && item.embedProvider && item.embedId ? (
-        // Instagram/TikTok/etc.'s own player, complete with their own
-        // branding/controls — this app doesn't control its playback (see
-        // Muse.mediaType's own doc comment on the trust boundary this
-        // implies). Autoplay (muted) is requested via embedSrc's own query
-        // params for providers that document one — best-effort, not a
-        // guarantee, same as any other cross-origin embed.
-        <iframe
-          ref={embedRef}
-          src={embedIframeSrc}
-          className="absolute inset-0 h-full w-full border-0"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-          title={item.author.name ? format(t.embedTitle, { name: item.author.name }) : t.embedTitleUnnamed}
-        />
-      ) : isNearby ? (
-        <video
-          ref={videoRef}
-          aria-label={item.author.name ? format(t.videoLabel, { name: item.author.name }) : t.videoLabelUnnamed}
-          src={item.videoUrl ?? undefined}
-          poster={item.videoThumbnailUrl ?? undefined}
-          preload={lowData && !isVisible ? "none" : undefined}
-          // Always muted when a separate audioUrl is replacing the video's
-          // own sound (playing both would double up), otherwise follows the
-          // shared mute toggle — same source either way, never both at once.
-          muted={Boolean(item.audioUrl) || muted || soundBlocked}
-          loop
-          playsInline
-          className="absolute inset-0 h-full w-full object-contain"
-        />
-      ) : item.videoThumbnailUrl ? (
-        // Scrolled far enough away that the real <video> (and whatever it
-        // was still buffering/decoding) has been torn down entirely — see
-        // isNearby's own doc comment. Its poster frame in a plain <img>
-        // costs essentially nothing to keep mounted by comparison, and
-        // means scrolling back doesn't first show a blank black card before
-        // the real video re-mounts and starts loading again.
-        // eslint-disable-next-line @next/next/no-img-element -- a poster frame, not something next/image needs to optimize
-        <img
-          src={item.videoThumbnailUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full object-contain"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-black" />
-      )}
+      {/* The media frame: always rendered, around whichever of iframe / video / poster this card shows, so opening
+          or closing comments moves this wrapper and never the media element itself (muse-feed-video.test.ts). */}
+      <m.div
+        className="absolute inset-0 overflow-hidden bg-black"
+        style={{ originX: 0.5, originY: 0.5, willChange: frameMoving ? "transform, clip-path" : undefined }}
+        initial={false}
+        animate={{ y: frameTarget.y, scale: frameTarget.scale, clipPath: frameTarget.clipPath }}
+        transition={reducedMotion ? MUSE_COMMENTS_INSTANT : MUSE_COMMENTS_TRANSITION}
+        onAnimationStart={() => setFrameMoving(true)}
+        onAnimationComplete={() => setFrameMoving(false)}
+      >
+        {isEmbed && item.embedProvider && item.embedId ? (
+          // Instagram/TikTok/etc.'s own player, complete with their own
+          // branding/controls — this app doesn't control its playback (see
+          // Muse.mediaType's own doc comment on the trust boundary this
+          // implies). Autoplay (muted) is requested via embedSrc's own query
+          // params for providers that document one — best-effort, not a
+          // guarantee, same as any other cross-origin embed.
+          <iframe
+            ref={embedRef}
+            src={embedIframeSrc}
+            className="absolute inset-0 h-full w-full border-0"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            title={item.author.name ? format(t.embedTitle, { name: item.author.name }) : t.embedTitleUnnamed}
+          />
+        ) : isNearby ? (
+          <video
+            ref={videoRef}
+            aria-label={item.author.name ? format(t.videoLabel, { name: item.author.name }) : t.videoLabelUnnamed}
+            src={item.videoUrl ?? undefined}
+            poster={item.videoThumbnailUrl ?? undefined}
+            preload={lowData && !isVisible ? "none" : undefined}
+            // Always muted when a separate audioUrl is replacing the video's
+            // own sound (playing both would double up), otherwise follows the
+            // shared mute toggle — same source either way, never both at once.
+            muted={Boolean(item.audioUrl) || muted || soundBlocked}
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : item.videoThumbnailUrl ? (
+          // Scrolled far enough away that the real <video> (and whatever it
+          // was still buffering/decoding) has been torn down entirely — see
+          // isNearby's own doc comment. Its poster frame in a plain <img>
+          // costs essentially nothing to keep mounted by comparison, and
+          // means scrolling back doesn't first show a blank black card before
+          // the real video re-mounts and starts loading again.
+          // eslint-disable-next-line @next/next/no-img-element -- a poster frame, not something next/image needs to optimize
+          <img
+            src={item.videoThumbnailUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-black" />
+        )}
+
+        {!isEmbed && paused && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+            <div className="rounded-full bg-black/40 p-4 text-white">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </div>
+        )}
+      </m.div>
       {item.audioUrl && isNearby && (
         <audio
           ref={audioRef}
@@ -715,23 +827,21 @@ function MuseCard({
         />
       )}
 
-      {!isEmbed && soundBlocked && (
+      {!isEmbed && soundBlocked && !commentsOpen && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-10 flex justify-center px-4 pt-12">
           <p role="status" className="rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">{t.tapForSound}</p>
         </div>
       )}
 
-      {!isEmbed && paused && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
-          <div className="rounded-full bg-black/40 p-4 text-white">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
-        </div>
-      )}
-
-      <div className="relative flex flex-1 flex-col justify-between">
+      {/* The card's own controls step aside (a plain fade) while its comments are open, and can't be reached. */}
+      <div
+        className={cn(
+          "relative flex flex-1 flex-col justify-between transition-opacity duration-300 ease-out motion-reduce:transition-none",
+          commentsOpen && "pointer-events-none opacity-0",
+        )}
+        aria-hidden={commentsOpen || undefined}
+        inert={commentsOpen}
+      >
         <div
           // This card sits at z-10, deliberately below nav.tsx's sticky
           // header — so a plain safe-area spacer isn't enough here, the
@@ -918,115 +1028,5 @@ function MuseCard({
         </div>
       </div>
     </section>
-  );
-}
-
-/** Bottom-sheet comment thread — same shape as story-viewer.tsx's StoryCommentsPanel, adapted for Muse's getMuseComments/createMuseComment/deleteMuseComment. */
-function MuseCommentsPanel({
-  comments,
-  currentUserId,
-  isMuseOwner,
-  onClose,
-  onPost,
-  onDelete,
-}: {
-  comments: MuseCommentData[] | null;
-  currentUserId: string;
-  isMuseOwner: boolean;
-  onClose: () => void;
-  onPost: (content: string) => Promise<boolean>;
-  onDelete: (commentId: string) => void;
-}) {
-  const { locale, t: muse } = useMuseText();
-  const t = muse.comments;
-  const [text, setText] = useState("");
-  const [isPosting, setIsPosting] = useState(false);
-  const [error, setError] = useState(false);
-
-  async function send() {
-    const trimmed = text.trim();
-    if (!trimmed || isPosting) return;
-    setIsPosting(true);
-    setError(false);
-    const ok = await onPost(trimmed);
-    setIsPosting(false);
-    if (ok) {
-      setText("");
-      // Closes the whole sheet right after a successful post instead of
-      // leaving it open for a manual X tap — this panel is a transient
-      // overlay on top of the Muse itself (not a persistent thread like
-      // Feed's own comment section), so "post your reaction and get back
-      // to watching" is the expected flow here.
-      onClose();
-    } else {
-      setError(true);
-    }
-  }
-
-  return (
-    <div className="flex max-h-[70vh] flex-col rounded-t-2xl bg-surface p-4">
-      <div className="flex shrink-0 items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
-          {comments ? format(t.titleCount, { count: comments.length }) : t.title}
-        </p>
-        <button type="button" onClick={onClose} aria-label={t.close} className="text-foreground-soft">
-          <X size={16} />
-        </button>
-      </div>
-      <ul className="mt-2 flex-1 space-y-3 overflow-y-auto">
-        {comments === null && <li className="text-sm text-foreground-soft">{t.loading}</li>}
-        {comments?.length === 0 && <li className="text-sm text-foreground-soft">{t.empty}</li>}
-        {comments?.map((c) => (
-          <li key={c.id} className="flex items-start gap-2">
-            <UserAvatar avatarUrl={c.author.avatarUrl} name={c.author.name} size={28} />
-            <div className="min-w-0 flex-1">
-              <p className="break-words text-sm">
-                <bdi className="font-medium">{c.author.name ?? t.someone}</bdi> <bdi>{c.content}</bdi>
-              </p>
-              <p className="text-[0.6875rem] text-foreground-soft">{formatShortAge(c.createdAt, locale)}</p>
-            </div>
-            {(c.author.id === currentUserId || isMuseOwner) && (
-              <button
-                type="button"
-                onClick={() => onDelete(c.id)}
-                aria-label={t.delete}
-                className="shrink-0 p-1 text-foreground-soft hover:text-danger"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3 flex shrink-0 items-center gap-2">
-        <input
-          aria-label={t.add}
-          dir="auto"
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              send();
-            }
-          }}
-          maxLength={1000}
-          placeholder={t.placeholder}
-          className="flex-1 rounded-full border border-line bg-background px-4 py-2 text-sm outline-none focus:border-accent"
-        />
-        <button
-          type="button"
-          disabled={!text.trim() || isPosting}
-          onClick={send}
-          aria-label={t.postLabel}
-          className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:opacity-50"
-        >
-          {t.post}
-        </button>
-      </div>
-      {error && <p role="alert" className="mt-1 text-xs text-danger">{t.failed}</p>}
-      <SafeAreaBottomSpacer />
-    </div>
   );
 }

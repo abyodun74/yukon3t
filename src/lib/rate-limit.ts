@@ -154,6 +154,9 @@ const limiterDefinitions = {
   // blowing through a whole page of the feed at once, not just deliberate
   // taps like the buckets above.
   museView: makeLimiter(120, "1 m"),
+  // Paging a Muse's comments and opening reply threads (actions/muse-comments.ts): one call per page or "View
+  // replies" tap, so generous; fails open like every read limiter. Writes use `comment` (posting) and `like`.
+  museCommentList: makeLimiter(120, "1 m", "museCommentList"),
   liveStreamStart: makeLimiter(5, "10 m"),
   liveStreamJoin: makeLimiter(30, "1 m"),
   liveStreamComment: makeLimiter(20, "1 m"),

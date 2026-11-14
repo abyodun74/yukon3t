@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { UserAvatar } from "@/components/user-link";
+import { CircleLongPress } from "@/components/circle-long-press";
 import { cn } from "@/lib/utils";
 
 type CircleSummary = {
@@ -7,6 +8,7 @@ type CircleSummary = {
   name: string;
   slug: string;
   coverImageUrl: string | null;
+  visibility: "PUBLIC" | "PRIVATE";
   /** Set only for a sub-circle — its main Circle's name, so the tooltip reads "Main › Sub". */
   parentName?: string | null;
 };
@@ -30,8 +32,12 @@ export function CircleSwitcher({
       {circles.map((circle) => {
         const active = circle.id === activeCircleId;
         return (
-          <Link
+          <CircleLongPress
             key={circle.id}
+            circle={{ id: circle.id, slug: circle.slug, name: circle.name, visibility: circle.visibility }}
+            className="shrink-0"
+          >
+          <Link
             href={`/circles/${circle.slug}`}
             title={circle.parentName ? `${circle.parentName} › ${circle.name}` : circle.name}
             // The avatar's own alt would read as "<Circle>'s profile photo".
@@ -46,6 +52,7 @@ export function CircleSwitcher({
           >
             <UserAvatar avatarUrl={circle.coverImageUrl} name={circle.name} size={48} />
           </Link>
+          </CircleLongPress>
         );
       })}
     </div>

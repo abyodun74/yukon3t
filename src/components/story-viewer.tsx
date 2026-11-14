@@ -25,6 +25,7 @@ import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { CommentDeleteDialog, useConfirmAction } from "@/components/confirm-dialog";
 import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText } from "@/components/ui-text";
@@ -380,11 +381,15 @@ export function StoryViewer({
     return true;
   }
 
-  async function handleDeleteComment(commentId: string) {
+  // The x on a comment opens "Delete this comment?" (CommentDeleteDialog below); nothing is deleted on that tap.
+  const confirmDeleteComment = useConfirmAction<string>(async (commentId) => {
     const result = await deleteStoryComment(commentId);
-    if (!result.error) {
-      setComments((prev) => (prev ?? []).filter((c) => c.id !== commentId));
-    }
+    // not_found: already gone (deleted elsewhere at the same moment); drop it from the list either way.
+    if (result.error && result.error !== "not_found") return false;
+    setComments((prev) => (prev ?? []).filter((c) => c.id !== commentId));
+  });
+  function handleDeleteComment(commentId: string) {
+    confirmDeleteComment.request(commentId);
   }
 
   async function handleDelete() {
@@ -418,6 +423,7 @@ export function StoryViewer({
         direction === "prev" && "story-glide-prev",
       )}
     >
+      <CommentDeleteDialog flow={confirmDeleteComment} isReply={() => false} replyCount={() => 0} />
       <div key={story.id} className="story-media-in absolute inset-0 flex items-center justify-center">
         {story.mediaType === "IMAGE" ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -445,7 +451,9 @@ export function StoryViewer({
             className="max-h-full max-w-full object-contain"
             onTimeUpdate={(e) => {
               const el = e.currentTarget;
-              if (el.duration) setProgress(el.currentTime / el.duration);
+              // An iPhone screen recording can report Infinity until it has played through: no progress then
+              // (onEnded still advances), rather than a bar stuck at 0 or NaN.
+              if (Number.isFinite(el.duration) && el.duration > 0) setProgress(el.currentTime / el.duration);
             }}
             onEnded={next}
           />

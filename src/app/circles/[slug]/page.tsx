@@ -15,6 +15,7 @@ import { CircleInviteManager } from "@/components/circle-invite-manager";
 import { CircleInviteResponse } from "@/components/circle-invite-response";
 import { ChannelList } from "@/components/channel-list";
 import { CircleSwitcher } from "@/components/circle-switcher";
+import { CircleShareButton } from "@/components/circle-long-press";
 import { ChannelSettingsModal } from "@/components/channel-settings-modal";
 import { CircleDetailsEditModal } from "@/components/circle-details-edit-modal";
 import { SubCircleList } from "@/components/sub-circle-list";
@@ -330,6 +331,14 @@ export default async function CirclePage({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* The explicit way to the long-press share sheet (accessible, discoverable). A PRIVATE Circle's sheet only
+              says it is shared by invite; an invitee who isn't a member yet doesn't get it. */}
+          {!isPrivateNonMember && (
+            <CircleShareButton
+              circle={{ id: circle.id, slug: circle.slug, name: circle.name, visibility: circle.visibility }}
+              canInvite={canInvite}
+            />
+          )}
           <CircleMembershipButton
             circleId={circle.id}
             isMember={isMember}

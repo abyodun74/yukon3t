@@ -4,6 +4,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { visibleCircleWhere } from "@/lib/circle-visibility";
 import { CirclesNewFab } from "@/components/circles-new-fab";
+import { CircleLongPress } from "@/components/circle-long-press";
 import { vocabName } from "@/lib/i18n/language-names";
 import { plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -49,10 +50,15 @@ export default async function CirclesPage() {
           const isOwner = circle.createdById === me.id;
           const isCoAdmin = !isOwner && circle.members[0]?.role === "MODERATOR";
           return (
-            <Link
+            <CircleLongPress
               key={circle.id}
+              circle={{ id: circle.id, slug: circle.slug, name: circle.name, visibility: circle.visibility }}
+              canInvite={isOwner || isCoAdmin}
+              className="flex min-w-0"
+            >
+            <Link
               href={`/circles/${circle.slug}`}
-              className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
+              className="min-w-0 flex-1 rounded-xl border border-line p-4 hover:border-accent"
             >
               <div className="flex items-center gap-3">
                 {circle.coverImageUrl && (
@@ -97,6 +103,7 @@ export default async function CirclesPage() {
                 {circle._count.subCircles > 0 && ` · ${plural(locale, t.subCircles, circle._count.subCircles)}`}
               </p>
             </Link>
+            </CircleLongPress>
           );
         })}
         {circles.length === 0 && (

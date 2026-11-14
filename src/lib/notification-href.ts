@@ -2,6 +2,7 @@ import { decodeNotice } from "@/lib/notification-notice";
 import { birthdayWishHref } from "@/lib/birthdays";
 import { giftsHref } from "@/lib/gifts";
 import { challengeResultHref } from "@/lib/challenges";
+import { museCommentHref } from "@/lib/muse-comment-threads";
 
 // Where a notification leads when opened. Shared by the notification list
 // (components/notification-row.tsx) and markReadByTarget
@@ -91,6 +92,9 @@ export type NotificationData = {
   liveStreamId: string | null;
   channel: { slug: string } | null;
   museId: string | null;
+  // A Muse comment / reply notice: the comment or reply it is about (opens the Muse's comments on that thread).
+  // Optional: rows from before it existed, and every other type, have none.
+  museCommentId?: string | null;
   storyId: string | null;
 };
 
@@ -164,6 +168,13 @@ export function notificationHref(notification: NotificationData) {
   // Reshare feature — see muse-feed.tsx's shareMuse) that also continues
   // into the normal feed on further scroll; falls back to the plain /muse
   // feed on the off chance museId is somehow missing.
+  // A comment or reply on a Muse (MUSE_COMMENT to its owner, COMMENT_REPLY to the person answered): the Muse with its
+  // comments open on that thread (createMuseComment pushes the same URL). A post comment's COMMENT_REPLY carries a
+  // postId and was handled above.
+  if ((notification.type === "MUSE_COMMENT" || notification.type === "COMMENT_REPLY") && notification.museId && notification.museCommentId) {
+    return museCommentHref(notification.museId, notification.museCommentId);
+  }
+  if (notification.type === "COMMENT_REPLY" && notification.museId) return `/muse/${notification.museId}`;
   if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
       notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
       notification.type === "SUBSCRIPTION_MUSE" || notification.type === "VIDEO_FLAGGED_FOR_REVIEW") {

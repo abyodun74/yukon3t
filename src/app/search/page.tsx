@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { visibleCircleWhere } from "@/lib/circle-visibility";
+import { CircleLongPress } from "@/components/circle-long-press";
 import { TrustBadge } from "@/components/trust-badge";
 import { PostCard } from "@/components/post-card";
 import { SearchPostsList } from "@/components/search-posts-list";
@@ -367,10 +368,14 @@ export default async function SearchPage({
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {circles.map((circle) => (
-              <Link
+              <CircleLongPress
                 key={circle.id}
+                circle={{ id: circle.id, slug: circle.slug, name: circle.name, visibility: circle.visibility }}
+                className="flex min-w-0"
+              >
+              <Link
                 href={`/circles/${circle.slug}`}
-                className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
+                className="min-w-0 flex-1 rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">
                   {circle.category
@@ -383,6 +388,7 @@ export default async function SearchPage({
                   {plural(locale, t.members, circle._count.members)}
                 </p>
               </Link>
+              </CircleLongPress>
             ))}
           </div>
         </div>
@@ -508,10 +514,14 @@ export default async function SearchPage({
               <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.circles}</h3>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {smart.circles.map((circle) => (
-                  <Link
+                  <CircleLongPress
                     key={circle.id}
+                    circle={{ id: circle.id, slug: circle.slug, name: circle.name, visibility: circle.visibility }}
+                    className="flex min-w-0"
+                  >
+                  <Link
                     href={`/circles/${circle.slug}`}
-                    className="min-w-0 rounded-xl border border-line p-4 hover:border-accent"
+                    className="min-w-0 flex-1 rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-teal">{circle.category
                     .map((category) => vocabName(category, dictionary.vocab.circleCategories))
@@ -522,6 +532,7 @@ export default async function SearchPage({
                       {plural(locale, t.members, circle._count.members)}
                     </p>
                   </Link>
+                  </CircleLongPress>
                 ))}
               </div>
             </div>

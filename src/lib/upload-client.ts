@@ -14,6 +14,16 @@ import { holdReload, looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
 import { backoffDelayMs } from "@/lib/fetch-retry";
 import { putAttemptOutcome, WRITE_ONCE_UPLOAD_PROTOCOL } from "@/lib/write-once-upload";
+import {
+  FRAME_CAPTURE_INITIAL,
+  frameCanvasSize,
+  frameCaptureStep,
+  isBlankFrame,
+  usableDuration,
+  type FrameCaptureEvent,
+  type FrameCaptureState,
+  type FrameFailureReason,
+} from "@/lib/media-file";
 
 type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
@@ -612,151 +622,276 @@ export function discardUpload(file: File) {
     .catch(() => {});
 }
 
-function captureVideoFrame(video: HTMLVideoElement): Promise<File | null> {
+// Overall ceiling for one poster-frame grab, and how long a seek may go unanswered before falling back to playing
+// the muted clip. 12s, not the old 4s: an iPhone decoding a large HEVC screen recording from a blob: URL in a hidden
+// element can take several seconds to answer its first seek, and a Story video with no frame is refused.
+const FRAME_CAPTURE_TIMEOUT_MS = 12_000;
+const FRAME_SEEK_STALL_MS = 3_500;
+const PROBE_TIMEOUT_MS = 8_000;
+
+/** A hidden <video> set up the way iOS WebKit needs to decode it without a user gesture or fullscreen. */
+function hiddenProbeVideo(preload: "auto" | "metadata"): HTMLVideoElement {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.defaultMuted = true;
+  video.playsInline = true;
+  video.setAttribute("muted", "");
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.preload = preload;
+  return video;
+}
+
+function releaseProbeVideo(video: HTMLVideoElement, url: string) {
+  try {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+  } catch {
+    // Already torn down.
+  }
+  URL.revokeObjectURL(url);
+}
+
+export type FrameCaptureResult = {
+  frame: File | null;
+  /** Why there is no frame (diagnostics only). */
+  reason: FrameFailureReason | null;
+  /** The duration the element reported, raw (Infinity for a not-yet-scanned screen recording). */
+  rawDuration: number | null;
+};
+
+/**
+ * Grabs one still (JPEG, long side <= 1920px) from a local video File with its own hidden <video>, independent of
+ * any upload, so callers run it alongside the upload. The sequencing rules (metadata -> seek about a second in ->
+ * draw; a seek that never answers -> play muted and grab the first painted frame; a blank still -> one retry later;
+ * timeout/error -> a reason) are the pure frameCaptureStep in media-file.ts; this only wires the element to it.
+ * Never throws and always frees its object URL. Story/Muse/view-once refuse a video with no frame, so the reason is
+ * returned for the caller to report.
+ */
+export function captureVideoFrameDetailed(file: File): Promise<FrameCaptureResult> {
   return new Promise((resolve) => {
-    const canvas = document.createElement("canvas");
-    // Capped the same as resizeImageFile above — a 4K phone video would
-    // otherwise produce a multi-MB 4K thumbnail frame for what's just a
-    // small poster image, and risk tripping video-thumb's 3MB size limit.
-    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      resolve(null);
-      return;
-    }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(
-      // See resizeImageFile above for why this reads into a plain
-      // ArrayBuffer instead of wrapping the canvas.toBlob() Blob directly.
-      (blob) => {
-        if (!blob) {
-          resolve(null);
+    const url = URL.createObjectURL(file);
+    const video = hiddenProbeVideo("auto");
+    let state: FrameCaptureState = FRAME_CAPTURE_INITIAL;
+    let rawDuration: number | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+
+    const finish = (frame: File | null, reason: FrameFailureReason | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(overallTimer);
+      if (stallTimer) clearTimeout(stallTimer);
+      video.onloadedmetadata = video.onloadeddata = video.onseeked = video.ontimeupdate = video.onerror = null;
+      releaseProbeVideo(video, url);
+      resolve({ frame, reason, rawDuration });
+    };
+
+    const armStall = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => dispatch({ type: "seek_stalled" }), FRAME_SEEK_STALL_MS);
+    };
+
+    const draw = () => {
+      const size = frameCanvasSize(video.videoWidth, video.videoHeight, MAX_IMAGE_DIMENSION);
+      const ctx = size ? (canvas ??= document.createElement("canvas")).getContext("2d") : null;
+      if (!size || !canvas || !ctx) {
+        dispatch({ type: "encode_failed" });
+        return;
+      }
+      canvas.width = size.width;
+      canvas.height = size.height;
+      let blank = false;
+      try {
+        ctx.drawImage(video, 0, 0, size.width, size.height);
+        // A small sample is enough to tell "nothing painted yet" from a real frame.
+        const sample = document.createElement("canvas");
+        sample.width = 16;
+        sample.height = 16;
+        const sctx = sample.getContext("2d");
+        if (sctx) {
+          sctx.drawImage(canvas, 0, 0, 16, 16);
+          blank = isBlankFrame(sctx.getImageData(0, 0, 16, 16).data);
+        }
+      } catch {
+        dispatch({ type: "encode_failed" });
+        return;
+      }
+      dispatch({ type: "drawn", blank });
+    };
+
+    const encode = () => {
+      if (!canvas) {
+        finish(null, "encode_failed");
+        return;
+      }
+      canvas.toBlob(
+        // See resizeImageFile above for why this reads into a plain ArrayBuffer instead of wrapping the Blob directly.
+        (blob) => {
+          if (!blob) {
+            finish(null, "encode_failed");
+            return;
+          }
+          blob
+            .arrayBuffer()
+            .then((buf) => finish(new File([buf], "thumb.jpg", { type: "image/jpeg" }), null))
+            .catch(() => finish(null, "encode_failed"));
+        },
+        "image/jpeg",
+        IMAGE_RESIZE_QUALITY,
+      );
+    };
+
+    function dispatch(event: FrameCaptureEvent) {
+      if (settled) return;
+      const previous = state;
+      state = frameCaptureStep(state, event);
+      if (state === previous) return;
+      switch (state.phase) {
+        case "seeking": {
+          armStall();
+          const target = state.target;
+          try {
+            if (Math.abs(video.currentTime - target) < 0.01 && video.readyState >= 2) {
+              // Already there: no seeked event would come.
+              queueMicrotask(() => dispatch({ type: "frame_ready" }));
+            } else {
+              video.currentTime = target;
+            }
+          } catch {
+            dispatch({ type: "seek_stalled" });
+          }
           return;
         }
-        blob
-          .arrayBuffer()
-          .then((buf) => resolve(new File([buf], "thumb.jpg", { type: "image/jpeg" })))
-          .catch(() => resolve(null));
-      },
-      "image/jpeg",
-      IMAGE_RESIZE_QUALITY,
-    );
+        case "playing":
+          armStall();
+          video.ontimeupdate = () => {
+            if (video.currentTime > 0 && video.readyState >= 2) {
+              video.ontimeupdate = null;
+              video.pause();
+              dispatch({ type: "frame_ready" });
+            }
+          };
+          void video.play().catch(() => dispatch({ type: "seek_stalled" }));
+          return;
+        case "drawing":
+          if (stallTimer) clearTimeout(stallTimer);
+          if (video.readyState >= 2) {
+            draw();
+          } else {
+            armStall();
+            video.onloadeddata = () => {
+              video.onloadeddata = null;
+              if (state.phase === "drawing") draw();
+            };
+          }
+          return;
+        case "done":
+          encode();
+          return;
+        case "failed":
+          finish(null, state.reason);
+          return;
+        default:
+          return;
+      }
+    }
+
+    const overallTimer = setTimeout(() => dispatch({ type: "timeout" }), FRAME_CAPTURE_TIMEOUT_MS);
+    const onMetadata = () => {
+      rawDuration = Number.isNaN(video.duration) ? null : video.duration;
+      // iOS can report 0x0 at loadedmetadata for some files; loadeddata (below) tries again with real dimensions.
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        dispatch({ type: "metadata", duration: video.duration, width: video.videoWidth, height: video.videoHeight });
+      }
+    };
+    video.onloadedmetadata = onMetadata;
+    video.onloadeddata = () => {
+      if (state.phase === "loading") {
+        rawDuration = Number.isNaN(video.duration) ? null : video.duration;
+        dispatch({ type: "metadata", duration: video.duration, width: video.videoWidth, height: video.videoHeight });
+      }
+    };
+    video.onseeked = () => dispatch({ type: "seeked" });
+    video.onerror = () => dispatch({ type: "error" });
+    video.src = url;
+    try {
+      video.load();
+    } catch {
+      dispatch({ type: "error" });
+    }
   });
 }
 
-/**
- * Self-contained frame grab from a local File (its own hidden <video>, not
- * one the caller has to wire up) — this has no dependency on the file having
- * been uploaded anywhere yet, so callers can run it in parallel with the
- * network upload of that same file instead of waiting for it to finish.
- */
+/** captureVideoFrameDetailed without the reason: the still, or null when none could be made. */
 export function captureVideoFrameFromFile(file: File): Promise<File | null> {
-  return new Promise((resolve) => {
-    const probeUrl = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.src = probeUrl;
-    probe.muted = true;
-    probe.playsInline = true;
-
-    // Same Android quirk story-upload-modal.tsx's own metadata probe already
-    // documents and guards against: some devices/codecs never fire
-    // onloadeddata/onseeked (nor onerror) for a video this hidden <video>
-    // element can't decode. Without this timeout, this promise hung
-    // forever — every caller awaits it inside a Promise.all alongside the
-    // actual video upload, so a stuck thumbnail capture blocked the whole
-    // upload from ever reaching "done" even though the video itself had
-    // already finished uploading. Thumbnail capture is a nicety, not a
-    // requirement, so this fails open (resolves null — no thumbnail)
-    // instead of blocking indefinitely.
-    let settled = false;
-    const finish = (result: File | null) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      URL.revokeObjectURL(probeUrl);
-      resolve(result);
-    };
-    const timeout = setTimeout(() => finish(null), 4000);
-
-    probe.onloadeddata = () => {
-      probe.currentTime = Math.min(1, probe.duration / 2);
-    };
-    probe.onseeked = async () => {
-      const frame = await captureVideoFrame(probe);
-      finish(frame);
-    };
-    probe.onerror = () => finish(null);
-  });
+  return captureVideoFrameDetailed(file).then((r) => r.frame);
 }
 
 /**
  * Resolves a local video File's real, finite duration in seconds — or null
  * if it genuinely can't be determined. Exists because of a well-documented
- * Chromium/WebView behavior: a video file with no (or an unreliable)
- * Duration box/element — most commonly a WebM Blob straight out of
- * MediaRecorder (see video-recorder-modal.tsx, Post's own in-app "record
- * live" option), but also plenty of ordinary picked files: anything
- * re-encoded/forwarded through another app (chat apps, some camera
- * firmwares) can ship the same incomplete metadata — reads `<video>.duration`
- * as Infinity at `loadedmetadata` instead of a real number. The fix is also
- * well-documented: seeking near the end forces the browser to actually scan
- * the file, after which `duration` reads correctly.
+ * WebKit/Chromium behavior: a video file with no (or an unreliable)
+ * duration in its header — a WebM Blob straight out of MediaRecorder (see
+ * video-recorder-modal.tsx), an iPhone screen recording (ReplayKit writes a
+ * variable-frame-rate file), and plenty of files re-encoded/forwarded
+ * through other apps — reads `<video>.duration` as Infinity (or NaN) at
+ * `loadedmetadata` instead of a real number. Seeking far past the end forces
+ * the browser to scan the file, after which `duration` reads correctly
+ * (durationchange / timeupdate / seeked, whichever this engine fires).
  *
- * REAL BUG this fixes, confirmed from a live report: muse-composer.tsx's
- * own probe used to just bail out (`if (!Number.isFinite(duration)) return`)
- * on an Infinity duration, leaving its `videoDurationSeconds` state stuck at
- * null forever — which permanently disabled the "Post Muse" button with no
- * error message at all, for a video that was genuinely well under the 3-
- * minute cap (Muse has no in-app recorder, so this was hit by an ordinary
- * picked file). Unlike Post (whose own duration check is advisory only — a
- * post still submits without one), Muse's server action *requires*
- * videoDurationSeconds for a VIDEO Muse, so this probe actually has to
- * succeed, not just fail open.
+ * Muse's server action *requires* videoDurationSeconds for a VIDEO Muse, so
+ * this has to succeed, not just fail open (an earlier version bailed out on
+ * Infinity and left Muse's Post button disabled with no message). The
+ * element is muted + playsinline with an explicit load(): without those, iOS
+ * WKWebView may never load a detached element's metadata at all.
  */
 export function probeVideoDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
-    const probeUrl = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.src = probeUrl;
-    probe.muted = true;
-    probe.preload = "metadata";
+    const url = URL.createObjectURL(file);
+    const probe = hiddenProbeVideo("metadata");
 
-    // Same reasoning as captureVideoFrameFromFile's own timeout: some
-    // devices/codecs never fire any of these events for a video this hidden
-    // element can't decode, and the Infinity-duration workaround below adds
-    // a second async step (a seek) that could itself hang just as easily.
     let settled = false;
     const finish = (result: number | null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      URL.revokeObjectURL(probeUrl);
+      probe.onloadedmetadata = probe.ondurationchange = probe.ontimeupdate = probe.onseeked = probe.onerror = null;
+      releaseProbeVideo(probe, url);
       resolve(result);
     };
-    const timeout = setTimeout(() => finish(null), 4000);
+    const timeout = setTimeout(() => finish(null), PROBE_TIMEOUT_MS);
 
+    let scanning = false;
+    const check = () => {
+      const d = usableDuration(probe.duration);
+      if (d !== null) finish(d);
+    };
     probe.onloadedmetadata = () => {
-      if (Number.isFinite(probe.duration)) {
+      if (usableDuration(probe.duration) !== null) {
         finish(probe.duration);
         return;
       }
-      // Force the browser to scan the file for its real duration. A huge
-      // currentTime clamps to the file's actual end, firing durationchange
-      // (sometimes also timeupdate) with a now-finite duration — listening
-      // for both covers the browsers that only fire one or the other.
-      const onResolved = () => {
-        if (!Number.isFinite(probe.duration)) return;
-        probe.removeEventListener("durationchange", onResolved);
-        probe.removeEventListener("timeupdate", onResolved);
-        finish(probe.duration);
-      };
-      probe.addEventListener("durationchange", onResolved);
-      probe.addEventListener("timeupdate", onResolved);
-      probe.currentTime = Number.MAX_SAFE_INTEGER;
+      if (scanning) return;
+      scanning = true;
+      probe.ondurationchange = check;
+      probe.ontimeupdate = check;
+      probe.onseeked = check;
+      try {
+        probe.currentTime = 1e101;
+      } catch {
+        finish(null);
+      }
     };
     probe.onerror = () => finish(null);
+    probe.src = url;
+    try {
+      probe.load();
+    } catch {
+      finish(null);
+    }
   });
 }
 

@@ -48,7 +48,8 @@ export function CircleInviteManager({
   }
 
   return (
-    <div className="mt-8">
+    // #circle-invites: the Circle share sheet's "Invite people" (a PRIVATE Circle is shared by invite only).
+    <div id="circle-invites" className="mt-8 scroll-mt-20">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
         {format(t.heading, { count: invites.length })}
       </h2>

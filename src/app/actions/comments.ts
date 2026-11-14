@@ -330,16 +330,24 @@ export async function deleteComment(commentId: string) {
   // Counted inside the transaction and over the whole reply chain, not just
   // direct replies: the delete cascades to every depth, and each of those
   // replies was counted when it was published.
-  await prisma.$transaction(async (tx) => {
+  // A doubled delete (two taps that both got past the client's confirmation, two tabs, the author and a moderator at
+  // once) deletes once: deleteMany waits for the first transaction's row lock and then finds nothing, so only the
+  // delete that removed the row counts the thread off; the other answers not_found instead of throwing.
+  const deleted = await prisma.$transaction(async (tx) => {
     const removedPublishedCount = await countPublishedInThread(tx, commentId);
-    await tx.comment.delete({ where: { id: commentId } });
+    const { count } = await tx.comment.deleteMany({ where: { id: commentId } });
+    if (count === 0) return false;
     if (removedPublishedCount > 0) {
       await tx.post.update({
         where: { id: comment.postId },
         data: { commentCount: { decrement: removedPublishedCount } },
       });
     }
+    return true;
   });
+  if (!deleted) {
+    return { error: "not_found" };
+  }
 
   // A voice/video comment's actual file(s) otherwise keep sitting in R2
   // forever, unreferenced — same cleanup discipline as

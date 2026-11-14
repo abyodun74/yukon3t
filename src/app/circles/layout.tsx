@@ -1,5 +1,6 @@
 import { CirclesTextProvider } from "@/components/circles-text";
 import { ChallengesTextProvider } from "@/components/challenges-text";
+import { CircleShareTextProvider } from "@/components/circle-share-text";
 import { FeedLayout } from "@/components/feed-layout";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
@@ -11,7 +12,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <FeedLayout>
       <CirclesTextProvider locale={locale} text={t.circles}>
         <ChallengesTextProvider locale={locale} text={t.challenges}>
-          {children}
+          <CircleShareTextProvider locale={locale} text={t.circleShare}>
+            {children}
+          </CircleShareTextProvider>
         </ChallengesTextProvider>
       </CirclesTextProvider>
     </FeedLayout>

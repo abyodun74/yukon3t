@@ -7,20 +7,24 @@ import { accountEn } from "@/lib/i18n/en/account";
 import { advertiseEn } from "@/lib/i18n/en/advertise";
 import { callsEn } from "@/lib/i18n/en/calls";
 import { challengesEn } from "@/lib/i18n/en/challenges";
+import { circleShareEn } from "@/lib/i18n/en/circleShare";
 import { circlesEn } from "@/lib/i18n/en/circles";
 import { collabEn } from "@/lib/i18n/en/collab";
+import { commentToolsEn } from "@/lib/i18n/en/commentTools";
 import { feedEn } from "@/lib/i18n/en/feed";
 import { giftsEn } from "@/lib/i18n/en/gifts";
 import { inviteEn } from "@/lib/i18n/en/invite";
 import { liveEn } from "@/lib/i18n/en/live";
 import { messagesEn } from "@/lib/i18n/en/messages";
 import { museEn } from "@/lib/i18n/en/muse";
+import { museCommentsEn } from "@/lib/i18n/en/museComments";
 import { pagesEn } from "@/lib/i18n/en/pages";
 import { profileEn } from "@/lib/i18n/en/profile";
 import { pushEn } from "@/lib/i18n/en/push";
 import { settingsEn } from "@/lib/i18n/en/settings";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import { shellEn } from "@/lib/i18n/en/shell";
+import { storyUploadEn } from "@/lib/i18n/en/storyUpload";
 import { uiEn } from "@/lib/i18n/en/ui";
 import { vocabEn } from "@/lib/i18n/en/vocab";
 
@@ -29,20 +33,24 @@ export {
   advertiseEn,
   callsEn,
   challengesEn,
+  circleShareEn,
   circlesEn,
   collabEn,
+  commentToolsEn,
   feedEn,
   giftsEn,
   inviteEn,
   liveEn,
   messagesEn,
   museEn,
+  museCommentsEn,
   pagesEn,
   profileEn,
   pushEn,
   settingsEn,
   sharedEn,
   shellEn,
+  storyUploadEn,
   uiEn,
   vocabEn,
 };
@@ -61,12 +69,16 @@ export const en = {
   circles: circlesEn,
   collab: collabEn,
   muse: museEn,
+  museComments: museCommentsEn,
   live: liveEn,
   calls: callsEn,
   vocab: vocabEn,
   push: pushEn,
   gifts: giftsEn,
   challenges: challengesEn,
+  circleShare: circleShareEn,
+  commentTools: commentToolsEn,
+  storyUpload: storyUploadEn,
   ...accountEn,
 };
 
