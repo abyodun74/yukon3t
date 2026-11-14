@@ -34,6 +34,7 @@ import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { loadGiftExport } from "@/lib/gift-export";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
+import { likeGroupsTouchedByUser, recomputeLikeGroups } from "@/lib/like-groups";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
 import { isProfileComplete } from "@/lib/profile-complete";
 import { verifyAccountReauth } from "@/lib/account-reauth";
@@ -605,7 +606,11 @@ export async function deleteMyAccount(proof?: unknown) {
   // owned rows via the Prisma schema's onDelete: Cascade relations; the
   // files behind them are collected first and removed after (account-media.ts).
   const media = await collectAccountMedia(user.id, user.avatarUrl);
+  // Shared Feed/Muse like counts (src/lib/like-groups.ts) this account's likes or posts were part of: recounted once
+  // the cascade has removed them, so every member keeps one exact count.
+  const likeGroups = await likeGroupsTouchedByUser(user.id);
   await prisma.user.delete({ where: { id: user.id } });
+  await recomputeLikeGroups(likeGroups);
   await deleteAccountMedia(user.id, media);
   await signOut({ redirectTo: "/" });
 }

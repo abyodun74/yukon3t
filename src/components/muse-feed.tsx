@@ -33,6 +33,7 @@ import { useShellText, useUiText } from "@/components/ui-text";
 import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
+import { announceLikeGroup, useLikeGroupSync } from "@/lib/like-group-sync";
 import {
   FULL_FRAME,
   MUSE_COMMENTS_INSTANT,
@@ -76,6 +77,10 @@ type MuseItem = {
   isReposted: boolean;
   isFollowingAuthor: boolean;
   sharedPostId: string | null;
+  /** Set when this Muse shares one like count with the feed post(s) of the same video (src/lib/like-groups.ts). */
+  likeGroupId?: string | null;
+  /** Client only: bumped when another card of the group changed the like, so this card re-reads its emoji summary. */
+  likeSyncVersion?: number;
   // Only on the card a Home feed video opened the viewer on (museSeedItem): that post, not a Muse.
   seedPostId?: string;
 };
@@ -170,6 +175,8 @@ export function MuseFeed({
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  const [likeSyncSource] = useState(() => Symbol("muse-feed-like"));
+
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
@@ -227,11 +234,40 @@ export function MuseFeed({
     }
     const result = await toggleMuseReaction(museId, emoji);
     if (result.reactions) {
-      const total = result.reactions.reduce((sum, r) => sum + r.count, 0);
-      setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, likeCount: total } : it)));
+      // The server's count: for a Muse sharing its likes with Home (likeGroupId) it is the group's, not this Muse's
+      // own reaction total.
+      const likeCount = result.likeCount;
+      const myReaction = result.reactions.find((r) => r.reactedByMe)?.emoji ?? null;
+      const liked = myReaction !== null;
+      const likeGroupId = items.find((it) => it.id === museId)?.likeGroupId ?? null;
+      setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, likeCount, myReaction } : it)));
+      if (likeGroupId) {
+        const change = { likeGroupId, liked, likeCount };
+        applyGroupLike(change, museId);
+        // A post card of the same video (Home under this viewer) takes the same answer.
+        announceLikeGroup({ ...change, source: likeSyncSource });
+      }
     }
     return result.reactions;
   }
+
+  /** Another card of the group changed the like: same count everywhere, and the cards re-read their emoji summary. */
+  function applyGroupLike(change: { likeGroupId: string; liked: boolean; likeCount: number }, exceptId: string | null) {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.likeGroupId === change.likeGroupId && it.id !== exceptId
+          ? {
+              ...it,
+              likeCount: change.likeCount,
+              myReaction: change.liked ? (it.myReaction ?? "❤️") : null,
+              likeSyncVersion: (it.likeSyncVersion ?? 0) + 1,
+            }
+          : it,
+      ),
+    );
+  }
+  // A like on a post card of the same video (Home stays mounted under this viewer) updates this feed's cards too.
+  useLikeGroupSync("any", likeSyncSource, (change) => applyGroupLike(change, null));
 
   const measureCommentsFrame = useCallback(() => {
     const feed = feedRef.current;
@@ -628,7 +664,8 @@ function MuseCard({
     return () => {
       cancelled = true;
     };
-  }, [item.id, isSeedPost]);
+    // likeSyncVersion: the like changed on another card of the same video (like-group-sync.ts).
+  }, [item.id, isSeedPost, item.likeSyncVersion]);
 
   useEffect(() => {
     const el = sectionRef.current;

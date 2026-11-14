@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Forward, X } from "lucide-react";
 import { getShareableConversations, shareStoryToConversations } from "@/app/actions/stories";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
 import { SendToChatsPicker } from "@/components/send-to-chats-picker";
@@ -66,6 +67,9 @@ export function StoryShareButton({
   }
 
   const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
+  // Opened from the Story viewer: the sheet layer, raised one above the viewer (src/lib/overlay-layers.ts), portaled
+  // to the root overlay host.
+  const sheetZ = useOverlayZ("sheet");
 
   return (
     <>
@@ -79,13 +83,15 @@ export function StoryShareButton({
       </button>
 
       {open && (
+        <OverlayPortal z={sheetZ}>
         <div
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
           tabIndex={-1}
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 outline-none"
+          className="fixed inset-0 flex items-end justify-center bg-black/60 outline-none"
+          style={{ zIndex: sheetZ }}
           onClick={close}
         >
           <div
@@ -123,6 +129,7 @@ export function StoryShareButton({
             />
           </div>
         </div>
+        </OverlayPortal>
       )}
     </>
   );

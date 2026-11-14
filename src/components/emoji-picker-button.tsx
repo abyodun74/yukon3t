@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { useOverlayHost, useOverlayZ } from "@/components/overlay-root";
 import { useUiText } from "@/components/ui-text";
 import dynamic from "next/dynamic";
 import { Plus, Smile } from "lucide-react";
@@ -53,7 +54,7 @@ export function EmojiPickerButton({
   quickReactions,
   triggerVariant = "smile",
   triggerClassName,
-  popupZClass = "z-50",
+  popupZClass,
   onOpenChange,
 }: {
   onSelect: (emoji: string) => void;
@@ -63,7 +64,7 @@ export function EmojiPickerButton({
    */
   triggerVariant?: "smile" | "plus";
   triggerClassName?: string;
-  /** Stacking class for the popup — full-screen overlays (Stories, live) sit above z-50 and need a higher one. */
+  /** Stacking class for the popup. Normally omitted: the popup takes the sheet layer, raised one above whatever overlay it was opened from (Story viewer, live room, a sheet), src/lib/overlay-layers.ts. */
   popupZClass?: string;
   /** Fires when the popup opens/closes (a Story pauses while someone picks an emoji). */
   onOpenChange?: (open: boolean) => void;
@@ -77,6 +78,9 @@ export function EmojiPickerButton({
   quickReactions?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  // Portaled to the root overlay host, on the sheet layer (one above the overlay it was opened from).
+  const overlayHost = useOverlayHost();
+  const popupZ = useOverlayZ("sheet");
   const { t } = useUiText();
   const skippedFirstOpenChange = useRef(false);
   useEffect(() => {
@@ -277,8 +281,8 @@ export function EmojiPickerButton({
             role="dialog"
             aria-label={t.reactions.picker}
             tabIndex={-1}
-            className={`fixed ${popupZClass} flex flex-col overflow-hidden rounded-lg shadow-lg outline-none`}
-            style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
+            className={`fixed ${popupZClass ?? ""} flex flex-col overflow-hidden rounded-lg shadow-lg outline-none`}
+            style={{ zIndex: popupZClass ? undefined : popupZ, top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             {!showFullPicker && quickReactions ? (
               // Compact WhatsApp-style quick-reaction row — no
@@ -369,7 +373,7 @@ export function EmojiPickerButton({
               </>
             )}
           </div>,
-          document.body,
+          overlayHost ?? document.body,
         )}
     </>
   );

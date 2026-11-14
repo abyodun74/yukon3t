@@ -27,6 +27,7 @@ import { useCallsText } from "@/components/calls-text";
 import { answeredCallLabel, callLabel, isPrivateCaller } from "@/lib/call-names";
 import { aroundPlaceholder } from "@/lib/i18n/locales";
 import { UserAvatar } from "@/components/user-link";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 
 type IncomingCall = {
   id: string;
@@ -71,6 +72,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const [ringtone, setRingtone] = useState<RingtoneId>("CLASSIC");
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const { startSession, endSession, hangUp, session } = useCallSession();
+  // The ring card sits on the incoming-call layer (src/lib/overlay-layers.ts): above every sheet, viewer and an active
+  // call's own UI, portaled to the root overlay host.
+  const ringZ = useOverlayZ("incomingCall");
   const sessionKeyRef = useRef<string | null>(null);
   useEffect(() => {
     sessionKeyRef.current = session?.key ?? null;
@@ -609,7 +613,13 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const [beforeName, afterName] = aroundPlaceholder(sentence, "name");
 
   return (
-    <div className="fixed inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-50 mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg" role="group" aria-label={t.label}>
+    <OverlayPortal z={ringZ}>
+    <div
+      className="fixed inset-x-0 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] mx-auto w-fit rounded-xl border border-line bg-surface p-4 shadow-lg"
+      style={{ zIndex: ringZ }}
+      role="group"
+      aria-label={t.label}
+    >
       {/* role="alert": an incoming call is the one thing here worth
           interrupting a screen reader for — without it the banner appears
           silently and the call rings out unanswered. */}
@@ -642,5 +652,6 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
         </button>
       </div>
     </div>
+    </OverlayPortal>
   );
 }

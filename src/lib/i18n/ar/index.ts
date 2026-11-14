@@ -20,6 +20,7 @@ import { push } from "@/lib/i18n/ar/push";
 import { settings } from "@/lib/i18n/ar/settings";
 import { shared } from "@/lib/i18n/ar/shared";
 import { shell } from "@/lib/i18n/ar/shell";
+import { postUpload } from "@/lib/i18n/ar/postUpload";
 import { storyUpload } from "@/lib/i18n/ar/storyUpload";
 import { ui } from "@/lib/i18n/ar/ui";
 import { vocab } from "@/lib/i18n/ar/vocab";
@@ -49,5 +50,6 @@ export const ar: Dictionary = {
   circleShare,
   commentTools,
   storyUpload,
+  postUpload,
   ...account,
 };

@@ -4,9 +4,12 @@ import { AnimatePresence, useDragControls, useIsPresent, type PanInfo } from "mo
 // The small `m` components: animation and drag code is loaded lazily by MotionProvider (root layout).
 import * as m from "motion/react-m";
 import { X } from "lucide-react";
-import { useId, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
 import { hapticImpact } from "@/lib/haptics";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { registerOverlay, type OverlayKind } from "@/lib/overlay-registry";
+import type { OverlayLayer } from "@/lib/overlay-layers";
+import { OverlayPortal, useOverlayLang, useOverlayZ } from "@/components/overlay-root";
 import { useUiText } from "@/components/ui-text";
 
 type SheetVariant = "dialog" | "bottom-sheet";
@@ -44,6 +47,15 @@ type SheetVariant = "dialog" | "bottom-sheet";
  * dialog is named after its title (or `ariaLabel`, for a sheet that renders
  * its own heading), focus moves into it on open and back to whatever opened
  * it on close — see useDialogFocus.
+ *
+ * Layering (2026-11-14): every sheet is portaled into the root overlay host
+ * (#overlay-root, src/components/overlay-root.tsx) instead of rendering inside
+ * whatever opened it, and takes its z-index from the one overlay scale
+ * (src/lib/overlay-layers.ts): `layer` ("sheet" by default, "confirm" for
+ * ConfirmDialog), raised to one above the overlay it was opened from (a sheet
+ * from the Story viewer, from a call, from another sheet). While open it is
+ * registered in the overlay registry (src/lib/overlay-registry.ts), so a
+ * starting call closes it (`closeOnCallStart`, on by default).
  */
 export function Sheet({
   open,
@@ -57,6 +69,10 @@ export function Sheet({
   panelStyle,
   bodyClassName,
   dragFromHandle = false,
+  layer = "sheet",
+  closeOnCallStart = true,
+  onExitComplete,
+  stopEventPropagation = false,
   lang,
   dir,
 }: {
@@ -81,17 +97,45 @@ export function Sheet({
   /** For a sheet whose wording is in the reader's language while the screen under it is English (see ui-text.tsx): a sheet inside an already-translated screen inherits both and passes neither. */
   lang?: string;
   dir?: "ltr" | "rtl";
+  /** Which tier of the overlay scale (src/lib/overlay-layers.ts) this sheet sits on: "sheet" (pickers, menus, forms) or "confirm" (ConfirmDialog). Opened from inside another overlay it always lands one above that overlay. */
+  layer?: Extract<OverlayLayer, "sheet" | "confirm">;
+  /** Closed (through onClose) when a call starts, so a started call never sits behind the sheet that started it. Off only for a sheet whose onClose has side effects a call start must not trigger (CallButton's own "Calling…" sheet, whose onClose cancels the call). */
+  closeOnCallStart?: boolean;
+  /** Runs once the close animation has finished and the sheet is gone from the screen: lets a caller open the next overlay only after this one has left (create picker -> Story composer). */
+  onExitComplete?: () => void;
+  /** Stops taps and pointer events inside the sheet from reaching the React tree that rendered it (a portal still bubbles React events through it): for a dialog opened from a tappable surface (Story viewer tap zones, a post card). */
+  stopEventPropagation?: boolean;
 }) {
   const titleId = useId();
   const dialogRef = useDialogFocus<HTMLDivElement>(open, onClose);
-  return (
-    <AnimatePresence>
+  const z = useOverlayZ(layer);
+  // A portaled sheet can't inherit lang/dir from the part of the page that opened it, so an English part
+  // (EnglishOnly) hands them over through context; explicit props win.
+  const inherited = useOverlayLang();
+  const sheetLang = lang ?? inherited?.lang;
+  const sheetDir = dir ?? inherited?.dir;
+  // Registered while open, so closeAllOverlays() (a call starting) can close it. The latest onClose is read through
+  // a ref: callers pass inline arrows, and re-registering on every render would be pointless churn.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+  useEffect(() => {
+    if (!open || !closeOnCallStart) return undefined;
+    const kind: OverlayKind = layer === "confirm" ? "confirm" : "sheet";
+    return registerOverlay(() => onCloseRef.current(), kind);
+  }, [open, closeOnCallStart, layer]);
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  const content = (
+    <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <SheetBackdrop
           dialogRef={dialogRef}
+          zIndex={z}
+          safeAreaPadding={variant !== "bottom-sheet"}
           className={
             variant === "bottom-sheet"
-              ? `fixed inset-0 z-50 flex items-end justify-center bg-black/60 outline-none ${responsive ? "sm:items-center sm:p-4" : ""}`
+              ? `fixed inset-0 flex items-end justify-center bg-black/60 outline-none ${responsive ? "sm:items-center sm:p-4" : ""}`
               : // items-start + the panel's own my-auto (see DialogPanel), not
                 // items-center: both center a panel that fits, but when the
                 // panel is taller than the screen (a long form at a large
@@ -99,13 +143,15 @@ export function Sheet({
                 // Close button — above the viewport where no scroll can
                 // reach it. Auto margins collapse to 0 instead, so the panel
                 // starts at the top and this backdrop scrolls to the rest.
-                "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
+                // Top/bottom gutters come from SheetBackdrop's safe-area
+                // padding (Dynamic Island / status bar, home indicator).
+                "fixed inset-0 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 px-4 outline-none"
           }
           onClose={onClose}
           labelledBy={title !== undefined ? titleId : undefined}
           label={title !== undefined ? undefined : ariaLabel}
-          lang={lang}
-          dir={dir}
+          lang={sheetLang}
+          dir={sheetDir}
         >
           {variant === "bottom-sheet" ? (
             <BottomSheetPanel
@@ -129,11 +175,30 @@ export function Sheet({
       )}
     </AnimatePresence>
   );
+  return (
+    <OverlayPortal z={z}>
+      {stopEventPropagation ? (
+        <div className="contents" onClick={stop} onPointerDown={stop} onPointerUp={stop}>
+          {content}
+        </div>
+      ) : (
+        content
+      )}
+    </OverlayPortal>
+  );
 }
+
+// The dialog variant's top/bottom gutters: never under the Dynamic Island / status bar or the home indicator
+// (viewport-fit=cover, so env() is the real inset; --status-bar-inset-top / --safe-area-inset-bottom are the
+// Android edge-to-edge fallbacks nav.tsx also uses).
+const SAFE_AREA_PADDING: CSSProperties = {
+  paddingTop: "max(1rem, env(safe-area-inset-top), var(--status-bar-inset-top, 0px))",
+  paddingBottom: "max(1rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))",
+};
 
 /**
  * The full-screen backdrop, and the dialog element itself. AnimatePresence keeps it mounted after `open` turns false,
- * for as long as its exit animation takes: still covering the whole screen at z-50, but fading to nothing. From that
+ * for as long as its exit animation takes: still covering the whole screen at its layer, but fading to nothing. From that
  * moment it must stop being in the way, or it is an invisible layer catching every tap and scroll (each one landing
  * on onClose again, for a sheet that is already closed) until the animation is done; and for good if that animation
  * never finishes, which is what a page whose animation frames have stopped (a WebView paused in the background) can
@@ -142,6 +207,8 @@ export function Sheet({
  */
 function SheetBackdrop({
   dialogRef,
+  zIndex,
+  safeAreaPadding,
   className,
   onClose,
   labelledBy,
@@ -151,6 +218,8 @@ function SheetBackdrop({
   children,
 }: {
   dialogRef: Ref<HTMLDivElement>;
+  zIndex: number;
+  safeAreaPadding: boolean;
   className: string;
   onClose: () => void;
   labelledBy?: string;
@@ -164,7 +233,7 @@ function SheetBackdrop({
     <m.div
       ref={dialogRef}
       className={className}
-      style={isPresent ? undefined : { pointerEvents: "none" }}
+      style={{ zIndex, ...(safeAreaPadding ? SAFE_AREA_PADDING : null), ...(isPresent ? null : { pointerEvents: "none" as const }) }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

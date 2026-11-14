@@ -261,7 +261,7 @@ function UpdateRequired({
       aria-labelledby="app-update-required-title"
       aria-describedby="app-update-required-body"
       tabIndex={-1}
-      className="fixed inset-0 z-[55] flex flex-col items-center justify-center overflow-y-auto bg-background px-6 text-center outline-none"
+      className="fixed inset-0 z-[var(--z-blocking)] flex flex-col items-center justify-center overflow-y-auto bg-background px-6 text-center outline-none"
       style={{
         paddingTop: "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px), 1.5rem)",
         paddingBottom: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px), 1.5rem)",

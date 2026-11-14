@@ -3,12 +3,41 @@
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
-import { createPost, confirmPostDeviceChallenge } from "@/app/actions/circles";
+import { confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { abortMultipartUpload, addImageFromUrl, completeMultipartUpload, startNativeVideoUpload } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
-import { uploadFileDirect, uploadVideoWithThumb, resizeImageFile, withRetry, probeVideoDuration } from "@/lib/upload-client";
+import {
+  uploadFileDirect,
+  uploadVideoWithThumb,
+  resizeImageFile,
+  withRetry,
+  probeVideoDuration,
+  releaseUploads,
+  type ClientUploadResult,
+} from "@/lib/upload-client";
 import { useEagerUploads } from "@/lib/use-eager-uploads";
-import { looksLikeStaleServerActionError } from "@/lib/stale-build";
+import {
+  attemptLeaseMs,
+  createAttemptController,
+  draftFingerprint,
+  newRequestKey,
+  retryAdvice,
+  type AttemptBodyResult,
+  type AttemptController,
+  type AttemptFailure,
+  type AttemptStep,
+  type CreateAnswer,
+  type RetryAdvice,
+} from "@/lib/post-submit-attempt";
+import { submitCreatePost } from "@/lib/post-create-client";
+import {
+  stashFailedPostDraft,
+  subscribeFailedPostDraft,
+  takeFailedPostDraft,
+  type FailedPostDraft,
+} from "@/lib/failed-post-draft";
+import { reportMediaUploadFailure } from "@/lib/media-upload-diagnostics";
+import { usePostUploadText } from "@/components/post-upload-text";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
@@ -67,6 +96,24 @@ const EMBED_PROVIDER_LABELS: Record<EmbedProvider, string> = {
 };
 
 
+/** The attempt step a failed upload maps to (upload-client.ts's ClientUploadResult step). */
+function uploadFailureStep(result: ClientUploadResult): AttemptStep {
+  if (result.ok) return "upload";
+  switch (result.step) {
+    case "read":
+      return "read";
+    case "presign":
+      return "presign";
+    case "put":
+    case "multipart":
+      return "put";
+    case "exception":
+      return "exception";
+    default:
+      return "upload";
+  }
+}
+
 // datetime-local inputs want "YYYY-MM-DDTHH:mm" in the viewer's own local
 // time — Date#toISOString() is UTC, so the offset has to be subtracted out
 // by hand rather than just slicing the ISO string.
@@ -102,6 +149,7 @@ export function PostComposer({
 }) {
   const { t, locale } = useFeedText();
   const { t: shell } = useShellText();
+  const { t: postUpload } = usePostUploadText();
   const placeholder = placeholderProp ?? (circleId ? t.composer.circlePlaceholder : t.composer.placeholder);
   // A whole number of minutes is said in minutes, anything else in seconds.
   const inMinutesOrSeconds = (seconds: number, minuteForms: string, secondForms: string) =>
@@ -188,9 +236,18 @@ export function PostComposer({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  // Set synchronously the moment a submission starts and cleared when it settles: a second tap that lands before React
-  // has re-rendered the disabled Post button (isPending / status) is dropped instead of creating the post twice.
-  const submittingRef = useRef(false);
+  // The submit lock and idempotency key (post-submit-attempt.ts): begin() is synchronous, so a second tap that lands
+  // before React has re-rendered the disabled Post button is dropped instead of creating the post twice; every attempt
+  // is settled in a finally (and by its lease if it hangs), so a failure never leaves the composer locked.
+  const attemptRef = useRef<AttemptController | null>(null);
+  function attempts(): AttemptController {
+    attemptRef.current ??= createAttemptController();
+    return attemptRef.current;
+  }
+  // What the person can do about the last failure (shows Retry for "retry"/"wait"); null when there is none.
+  const [failureAdvice, setFailureAdvice] = useState<RetryAdvice | null>(null);
+  // Whether the composer holds nothing right now (read by the failed-draft restore below, outside render).
+  const composerEmptyRef = useRef(true);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +260,71 @@ export function PostComposer({
   // Attached media lives only in this component's state — a stale-build
   // reload (lib/stale-build-client.ts) would silently empty the composer.
   useReloadHold("work", imageCount > 0 || hasOtherMedia || isPending || status === "uploading");
+
+  useEffect(() => {
+    composerEmptyRef.current =
+      imageCount === 0 && !hasOtherMedia && !isEvent && !deviceChallenge && !contentRef.current?.value.trim();
+  });
+
+  // A Home/profile post that couldn't be sent comes back here (failed-post-draft.ts): right away when this composer
+  // is on screen and empty, or when it next mounts (the failed card's Retry opens it). Never into a Circle composer.
+  useEffect(() => {
+    if (circleId) return;
+    function restoreFailedDraft() {
+      Promise.resolve().then(() => {
+        // Not while another post from here is on its way, nor over something the person has started writing.
+        if (!composerEmptyRef.current || attempts().isLocked()) return;
+        const draft = takeFailedPostDraft();
+        if (draft) applyFailedDraft(draft);
+      });
+    }
+    restoreFailedDraft();
+    return subscribeFailedPostDraft(restoreFailedDraft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/subscribe-only; applyFailedDraft only calls setters
+  }, [circleId]);
+
+  function applyFailedDraft(draft: FailedPostDraft) {
+    if (contentRef.current) contentRef.current.value = draft.content;
+    setSuggestionText(draft.content);
+    const visibility = formRef.current?.elements.namedItem("visibility");
+    if (draft.visibility && visibility instanceof HTMLSelectElement) visibility.value = draft.visibility;
+    setImages(draft.images);
+    setUrlImages(draft.urlImages);
+    setVideo(draft.video);
+    setVideoDurationSeconds(draft.videoDurationSeconds);
+    setNativeVideoUpload(draft.nativeVideoUpload);
+    setEmbedUrl(draft.embedUrl);
+    setPendingGif(draft.pendingGif);
+    setStatus("error");
+    setErrorText(draft.message);
+    setFailureAdvice(draft.advice);
+    removeOptimisticPost(draft.localId);
+    announce(postUpload.restored);
+  }
+
+  /** The one sentence for a failure: specific where we know what happened, the composer's existing wording otherwise. */
+  function failureMessage(failure: AttemptFailure, attempt: number): string {
+    switch (failure.code) {
+      case "file_unreadable":
+        return postUpload.repick;
+      case "timeout":
+        return postUpload.timeout;
+      case "network":
+        return postUpload.network;
+      case "upload_failed":
+        return failure.step === "exception" ? postUpload.somethingWrong : postUpload.uploadFailed;
+      case "server_error":
+        return postUpload.serverError;
+      case "exception":
+        return postUpload.somethingWrong;
+      case "unauthorized":
+        return postUpload.unauthorized;
+      case "rate_limited":
+        return attempt >= 2 ? postUpload.rateLimitedRetry : t.composer.errors.rate_limited;
+      default:
+        return byCode(t.composer.errors, failure.code);
+    }
+  }
 
   function insertEmoji(emoji: string) {
     const el = contentRef.current;
@@ -561,7 +683,7 @@ export function PostComposer({
   }
 
   async function uploadAll(): Promise<
-    | { error: string }
+    | { error: string; step: AttemptStep }
     | {
         mediaType: "NONE" | "IMAGE" | "VIDEO" | "EMBED" | "LINK" | "GIF";
         mediaUrls: string[];
@@ -585,7 +707,7 @@ export function PostComposer({
         ? await Promise.all(images.map((file) => uploadFileDirect(file, "post-image")))
         : [];
       const failed = results.find((r) => !r.ok);
-      if (failed && !failed.ok) return { error: failed.error };
+      if (failed && !failed.ok) return { error: failed.error, step: uploadFailureStep(failed) };
       return {
         mediaType: "IMAGE",
         mediaUrls: [...results.map((r) => (r.ok ? r.publicUrl : "")), ...urlImages],
@@ -613,7 +735,7 @@ export function PostComposer({
       // needed to wait for the other.
       // Uploading started when the video was attached (see useEagerUploads), so this usually just collects the result.
       const [videoResult, thumbnailUrl] = await uploadVideoWithThumb(video, "post-video");
-      if (!videoResult.ok) return { error: videoResult.error };
+      if (!videoResult.ok) return { error: videoResult.error, step: uploadFailureStep(videoResult) };
 
       return {
         mediaType: "VIDEO",
@@ -640,51 +762,21 @@ export function PostComposer({
   }
 
   /**
-   * Submits an already-built, already-media-uploaded FormData to createPost
-   * and handles every outcome, including the device-verification pause —
-   * shared by the normal submit path and confirmDeviceCode's resubmission
-   * below so neither has to duplicate the retry/result handling.
+   * Applies createPost's answer (post-create-client.ts) for an already-built, already-media-uploaded FormData, shared
+   * by the normal submit and confirmDeviceCode's resubmission. Success and the device step-up are handled here; a
+   * failure is returned for the caller to report.
    *
-   * `optimisticId`, when set, means the composer already reset its own
-   * fields and handed a placeholder to optimistic-posts-store the moment
-   * Post was tapped (see the action handler below) — its own inline
-   * status/error UI is no longer what the user is looking at, so every
-   * outcome here reports through that placeholder instead. Absent for
-   * confirmDeviceCode's resubmission and for a Circle post (see the action
-   * handler for why those two stay on the old blocking behavior), where the
-   * composer itself is still the thing to update.
+   * `optimisticId`, when set, means the composer already reset its own fields and handed a placeholder to
+   * optimistic-posts-store the moment Post was tapped, so a success or a held post reports through that placeholder.
+   * Absent for confirmDeviceCode's resubmission and for a Circle post or an event, where the composer itself is still
+   * the thing to update.
    */
-  async function submitPostFormData(fd: FormData, optimisticId?: string) {
-    let result;
-    try {
-      // By this point any media has already been uploaded — a single
-      // transient failure here (a brief 503 from the server, a
-      // dropped packet) would otherwise throw away that upload and
-      // show a scary "couldn't reach the server" error for something
-      // a moment's retry would have gotten past. Same retry helper
-      // uploadFileDirect already uses for exactly this reason. A
-      // stale Server Action id (this tab open since before a
-      // redeploy) is excluded from retrying — see looksLikeStaleServerActionError.
-      result = await withRetry(
-        () => createPost(fd),
-        3,
-        1000,
-        false,
-        (err) => !looksLikeStaleServerActionError(err),
-      );
-    } catch (err) {
-      // A rejected server-action call (e.g. no connectivity) would
-      // otherwise be an uncaught exception that crashes the whole
-      // page instead of showing a normal composer error.
-      const message = looksLikeStaleServerActionError(err) ? t.composer.errors.stale_deployment : byCode(t.composer.errors, "network");
-      if (optimisticId) markOptimisticPostError(optimisticId, message);
-      else {
-        setStatus("error");
-        setErrorText(message);
-      }
-      return;
-    }
-    if (result.error === "device_verification_required" && result.challengeId) {
+  function handleCreateAnswer(
+    answer: CreateAnswer,
+    fd: FormData,
+    optimisticId?: string,
+  ): AttemptBodyResult<"posted" | "held" | "device"> {
+    if (answer.kind === "device") {
       // Held, not failed — don't clear the draft or the uploaded media
       // reference. The composer switches to a small inline code-entry
       // step; confirmDeviceCode resubmits this same fd once it passes.
@@ -696,47 +788,43 @@ export function PostComposer({
       // composer already looks reset/empty at this point.
       if (optimisticId) removeOptimisticPost(optimisticId);
       setStatus("idle");
-      setDeviceChallenge({ id: result.challengeId, fd });
-      return;
+      setDeviceChallenge({ id: answer.challengeId, fd });
+      return { ok: true, value: "device" };
     }
-    if (result.error) {
-      const message = byCode(t.composer.errors, result.error);
-      if (optimisticId) markOptimisticPostError(optimisticId, message);
-      else {
-        setStatus("error");
-        setErrorText(message);
-      }
+    if (answer.kind === "error") {
+      return { ok: false, failure: { step: "create", code: answer.code, outcome: answer.outcome } };
+    }
+    // Stored, but hidden until an admin looks at it: say so instead of a silent "posted" (or, as before this,
+    // a refusal), so the person knows it isn't lost and doesn't need re-uploading.
+    if (answer.held) {
+      if (optimisticId) markOptimisticPostHeld(optimisticId, t.composer.heldForReview);
+      else setNoticeText(t.composer.heldForReview);
+      announce(t.composer.heldForReview);
     } else {
-      // Stored, but hidden until an admin looks at it: say so instead of a silent "posted" (or, as before this,
-      // a refusal), so the person knows it isn't lost and doesn't need re-uploading.
-      const held = "held" in result && result.held;
-      if (held) {
-        if (optimisticId) markOptimisticPostHeld(optimisticId, t.composer.heldForReview);
-        else setNoticeText(t.composer.heldForReview);
-        announce(t.composer.heldForReview);
-      } else {
-        if (optimisticId) removeOptimisticPost(optimisticId);
-        announce(t.composer.posted);
-      }
-      setStatus("idle");
-      setImages([]);
-      setUrlImages([]);
-      setVideo(null);
-      setVideoDurationSeconds(null);
-      setNativeVideoUpload(null);
-      setEmbedUrl(null);
-      setPendingGif(null);
-      setIsEvent(false);
-      setEventAt("");
-      setEventLocation("");
-      setEventRepeat("NONE");
-      setRepeatEnds("count");
-      setRepeatCount("4");
-      setRepeatUntil("");
-      setSuggestionText("");
-      formRef.current?.reset();
-      router.refresh();
+      if (optimisticId) removeOptimisticPost(optimisticId);
+      announce(t.composer.posted);
     }
+    setStatus("idle");
+    setErrorText(null);
+    setFailureAdvice(null);
+    setImages([]);
+    setUrlImages([]);
+    setVideo(null);
+    setVideoDurationSeconds(null);
+    setNativeVideoUpload(null);
+    setEmbedUrl(null);
+    setPendingGif(null);
+    setIsEvent(false);
+    setEventAt("");
+    setEventLocation("");
+    setEventRepeat("NONE");
+    setRepeatEnds("count");
+    setRepeatCount("4");
+    setRepeatUntil("");
+    setSuggestionText("");
+    formRef.current?.reset();
+    router.refresh();
+    return { ok: true, value: answer.held ? "held" : "posted" };
   }
 
   /**
@@ -770,7 +858,13 @@ export function PostComposer({
       setDeviceChallenge(null);
       setDeviceCode("");
       setStatus("uploading");
-      await submitPostFormData(fd);
+      // Same FormData, same clientRequestId: a resubmission createPost already stored answers success.
+      const outcome = handleCreateAnswer(await submitCreatePost(fd), fd);
+      if (!outcome.ok) {
+        setStatus("error");
+        setErrorText(failureMessage(outcome.failure, 1));
+        setFailureAdvice(null);
+      }
     } catch {
       setDeviceChallengeError(byCode(t.composer.deviceErrors, "network"));
     } finally {
@@ -783,22 +877,25 @@ export function PostComposer({
       ref={formRef}
       className="rounded-xl border border-line p-4"
       action={(fd) => {
-        if (submittingRef.current) return;
+        if (attempts().isLocked()) return;
         const content = String(fd.get("content") ?? "").trim();
         if (!content && imageCount === 0 && !video && !nativeVideoUpload && !embedUrl && !pendingGif && !isEvent) {
           setStatus("error");
           setErrorText(t.composer.errors.empty);
+          setFailureAdvice(null);
           return;
         }
         if (isEvent) {
           if (!eventAt || new Date(eventAt) <= new Date()) {
             setStatus("error");
             setErrorText(t.composer.errors.eventDate);
+            setFailureAdvice(null);
             return;
           }
           if (!eventLocation.trim()) {
             setStatus("error");
             setErrorText(t.composer.errors.eventLocation);
+            setFailureAdvice(null);
             return;
           }
           if (circleId && eventRepeat !== "NONE") {
@@ -810,11 +907,13 @@ export function PostComposer({
                   ? t.composer.errors.repeat_too_long
                   : t.composer.errors.repeat_too_short,
               );
+              setFailureAdvice(null);
               return;
             }
             if (repeatEnds === "until" && !repeatUntil) {
               setStatus("error");
               setErrorText(t.composer.errors.repeat_invalid);
+              setFailureAdvice(null);
               return;
             }
             fd.set("eventRepeat", eventRepeat);
@@ -832,15 +931,48 @@ export function PostComposer({
         // timezone) if we sent it unconverted — silently shifting the
         // event time by the server/client UTC offset.
         if (isEvent && eventAt) fd.set("eventAt", new Date(eventAt).toISOString());
-        // One key per submission, kept by every retry of it (withRetry in submitPostFormData, the device-code resubmit):
-        // createPost answers a key it has already posted with success instead of a second post.
-        fd.set(
-          "clientRequestId",
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
-        );
-        submittingRef.current = true;
+
+        // This render's draft, kept for the attempt: the optimistic path below clears the composer straight away, and a
+        // failure puts exactly this back (failed-post-draft.ts).
+        const visibility = fd.get("visibility");
+        const draft = {
+          content,
+          visibility: typeof visibility === "string" ? visibility : null,
+          images,
+          urlImages,
+          video,
+          videoDurationSeconds,
+          nativeVideoUpload,
+          embedUrl,
+          pendingGif,
+        };
+        const files = [...images, ...(video ? [video] : [])];
+        // One idempotency key per draft: a new one for every new attempt, except a retry of the same draft after an
+        // attempt whose outcome is unknown (createPost may have stored it), which reuses it so createPost answers
+        // success instead of posting twice (post-submit-attempt.ts).
+        const ticket = attempts().begin({
+          fingerprint: draftFingerprint({
+            content,
+            fields: {
+              visibility: draft.visibility,
+              circleId,
+              channelId,
+              eventAt: isEvent ? String(fd.get("eventAt") ?? "") : null,
+              eventLocation: isEvent ? eventLocation.trim() : null,
+              eventRepeat: String(fd.get("eventRepeat") ?? ""),
+              eventRepeatCount: String(fd.get("eventRepeatCount") ?? ""),
+              eventRepeatUntil: String(fd.get("eventRepeatUntil") ?? ""),
+              nativeVideo: nativeVideoUpload?.videoUrl,
+            },
+            files,
+            urls: [...urlImages, embedUrl, pendingGif],
+          }),
+          leaseMs: attemptLeaseMs(files.reduce((sum, f) => sum + f.size, 0)),
+          newKey: newRequestKey,
+        });
+        if (!ticket) return;
+        const { attempt, reusedKey } = ticket;
+        fd.set("clientRequestId", ticket.key);
 
         // Optimistic path: a plain Home post (not a Circle post — Circle
         // pages don't render PostFeedSection/ProfilePostsList, nothing
@@ -848,13 +980,10 @@ export function PostComposer({
         // oddly as a "Posting…" media-style card) shows up in the feed the
         // instant Post is tapped instead of the composer sitting on
         // "Uploading…"/"Posting…" until the whole round trip finishes. See
-        // optimistic-posts-store.ts / submitPostFormData's own doc comment.
-        const optimisticId =
-          !circleId && !isEvent
-            ? typeof crypto !== "undefined" && "randomUUID" in crypto
-              ? crypto.randomUUID()
-              : `${Date.now()}-${Math.random()}`
-            : null;
+        // optimistic-posts-store.ts / handleCreateAnswer's own doc comment.
+        const optimisticId = !circleId && !isEvent ? newRequestKey() : null;
+        // Where this composer is, for the failed card's Retry on Home (the author's profile).
+        const retryHref = `${window.location.pathname}?compose=1`;
 
         if (optimisticId) {
           const preview = buildOptimisticPreview();
@@ -885,31 +1014,27 @@ export function PostComposer({
           setPendingGif(null);
           setSuggestionText("");
           formRef.current?.reset();
+          setStatus("idle");
         } else {
           setStatus("uploading");
-          setErrorText(null);
         }
+        setErrorText(null);
+        setFailureAdvice(null);
         setNoticeText(null);
 
         startTransition(async () => {
-          try {
-            await uploadAndSubmit();
-          } finally {
-            submittingRef.current = false;
-          }
+          const result = await attempts().execute(ticket, ({ signal }) => uploadAndSubmit(signal));
+          if (result.status === "failed") onAttemptFailed(result.failure);
         });
 
-        async function uploadAndSubmit() {
+        async function uploadAndSubmit(signal: AbortSignal): Promise<AttemptBodyResult<"posted" | "held" | "device">> {
           const media = await uploadAll();
           if ("error" in media) {
-            const message = byCode(t.composer.errors, media.error);
-            if (optimisticId) markOptimisticPostError(optimisticId, message);
-            else {
-              setStatus("error");
-              setErrorText(message);
-            }
-            return;
+            return { ok: false, failure: { step: media.step, code: media.error, outcome: "no_post" } };
           }
+          // The attempt's lease ran out while uploading: it has already been reported as a timeout, so never send a
+          // createPost the person was told didn't happen.
+          if (signal.aborted) return { ok: false, failure: { step: "timeout", code: "timeout", outcome: "no_post" } };
           fd.set("mediaType", media.mediaType);
           fd.set("mediaUrls", JSON.stringify(media.mediaUrls));
           if (media.videoUrl) fd.set("videoUrl", media.videoUrl);
@@ -917,7 +1042,49 @@ export function PostComposer({
           if (media.videoDurationSeconds) fd.set("videoDurationSeconds", String(media.videoDurationSeconds));
           if (media.embedUrl) fd.set("embedUrl", media.embedUrl);
 
-          await submitPostFormData(fd, optimisticId ?? undefined);
+          return handleCreateAnswer(await submitCreatePost(fd, { signal }), fd, optimisticId ?? undefined);
+        }
+
+        function onAttemptFailed(failure: AttemptFailure) {
+          // Nothing was posted (or it's unknown and the retry will find out): hand the uploads back so a retry reuses
+          // what is already stored and removing an attachment deletes it.
+          releaseUploads(files);
+          const advice = retryAdvice(failure);
+          const message = failureMessage(failure, attempt);
+          reportMediaUploadFailure({
+            surface: "post",
+            step: failure.step,
+            code: failure.code,
+            file: files[0] ?? null,
+            duration: videoDurationSeconds,
+            attempt,
+            reusedKey,
+          });
+          // A file that can't be read any more can't be retried: it has to be picked again.
+          const keepFiles = advice !== "repick";
+          if (optimisticId) {
+            const replaced = stashFailedPostDraft({
+              ...draft,
+              images: keepFiles ? draft.images : [],
+              video: keepFiles ? draft.video : null,
+              videoDurationSeconds: keepFiles ? draft.videoDurationSeconds : null,
+              localId: optimisticId,
+              message,
+              advice,
+            });
+            if (replaced) markOptimisticPostError(replaced, t.post.postFailed);
+            // Shown until a composer takes the draft back (right away if this one is on screen and empty).
+            markOptimisticPostError(optimisticId, message, retryHref);
+          } else {
+            setStatus("error");
+            setErrorText(message);
+            setFailureAdvice(advice);
+            if (!keepFiles) {
+              setImages([]);
+              setVideo(null);
+              setVideoDurationSeconds(null);
+            }
+          }
         }
       }}
     >
@@ -1244,7 +1411,11 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => {
               markNativePickerInactive();
-              pickImages(e.target.files);
+              // Copied before the input is cleared (clearing empties the live FileList), and cleared so picking the
+              // same photo again, e.g. after a failed post, still fires `change` (iOS fires none for an unchanged value).
+              const picked = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              pickImages(picked);
             }}
           />
           {/* accept must include the literal "image/*" — Capacitor's own
@@ -1262,7 +1433,9 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => {
               markNativePickerInactive();
-              pickImages(e.target.files);
+              const picked = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              pickImages(picked);
             }}
           />
           {/* accept must include the literal "video/*" — confirmed live via
@@ -1282,7 +1455,9 @@ export function PostComposer({
             className="hidden"
             onChange={(e) => {
               markNativePickerInactive();
-              pickVideo(e.target.files?.[0]);
+              const picked = e.target.files?.[0];
+              e.target.value = "";
+              pickVideo(picked);
             }}
           />
           <MediaPickerButton
@@ -1469,6 +1644,18 @@ export function PostComposer({
               className="ml-1.5 font-medium underline"
             >
               {t.composer.refresh}
+            </button>
+          )}
+          {(failureAdvice === "retry" || failureAdvice === "wait") && (
+            <button
+              type="button"
+              // The same draft through the same submit path: the attempt lock and key policy apply, and uploads that
+              // already finished are reused, so only the step that failed runs again.
+              onClick={() => formRef.current?.requestSubmit()}
+              disabled={isPending}
+              className="ms-1.5 font-medium underline disabled:opacity-50"
+            >
+              {isPending ? postUpload.retrying : postUpload.retry}
             </button>
           )}
         </p>

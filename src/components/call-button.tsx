@@ -7,6 +7,8 @@ import { useCallSession } from "@/lib/call-session";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { startRingback, stopRingback } from "@/lib/ringback";
 import { Sheet } from "@/components/sheet";
+import { OverlayPortal, useOverlayZ, useParentOverlayLayer } from "@/components/overlay-root";
+import { closeAllOverlays } from "@/lib/overlay-registry";
 import { UserAvatar } from "@/components/user-link";
 import { useRealtimeEvent } from "@/lib/realtime-client";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
@@ -44,6 +46,10 @@ export function CallButton({
   const t = calls.button;
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
   const { startSession, endSession, outgoingRingRef } = useCallSession();
+  // Set when this button is itself inside a sheet or viewer: closing that overlay at ring time would unmount this
+  // component and cancel the ring, so the overlays are closed when the call connects instead (startSession).
+  const insideOverlay = useParentOverlayLayer() !== null;
+  const toastZ = useOverlayZ("toast");
 
   // The "ringing"/"duplicate" dialogs below now stay mounted through their
   // own close animation (Sheet's AnimatePresence — see that file), but
@@ -250,6 +256,10 @@ export function CallButton({
       return;
     }
     const resolvedType = (result.type as CallType) ?? type;
+    // The call is starting: every picker, sheet and list dialog that is open closes now, so the "Calling…" sheet and
+    // then the call itself are never under one (src/lib/overlay-registry.ts). The "Calling…" sheet opens below,
+    // after this, so it isn't closed by it.
+    if (!insideOverlay) closeAllOverlays();
     // Starts joining the Daily room right now, while the callee's phone is
     // still ringing, instead of waiting for them to accept — see
     // call-prewarm.ts for why only the caller's side can do this safely.
@@ -332,6 +342,8 @@ export function CallButton({
       <Sheet
         open={state.phase === "ringing"}
         onClose={cancel}
+        // Its onClose cancels the call: a call starting (closeAllOverlays) must never run it.
+        closeOnCallStart={false}
         panelClassName="max-w-xs text-center"
         ariaLabel={calleeName ? format(t.callingLabel, { name: calleeName }) : t.callingLabelUnnamed}
       >
@@ -386,9 +398,17 @@ export function CallButton({
       </Sheet>
 
       {state.phase === "ended" && (
-        <div className="fixed inset-x-0 bottom-4 z-50 mx-auto w-fit rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg">
-          {endedMessage}
-        </div>
+        // A toast: portaled to the root overlay host on the toast layer, so it isn't trapped inside the row or header
+        // this button sits in.
+        <OverlayPortal z={toastZ}>
+          <div
+            role="status"
+            className="fixed inset-x-0 mx-auto w-fit rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg"
+            style={{ zIndex: toastZ, bottom: "calc(1rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
+          >
+            {endedMessage}
+          </div>
+        </OverlayPortal>
       )}
     </>
   );

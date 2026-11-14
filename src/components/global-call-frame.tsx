@@ -17,6 +17,8 @@ import { useCallsText } from "@/components/calls-text";
 import { callLabel } from "@/lib/call-names";
 import type { callsEn } from "@/lib/i18n/en/calls";
 import { byCode, format } from "@/lib/i18n/locales";
+import { callFrameLayer } from "@/lib/overlay-layers";
+import { OverlayPortal } from "@/components/overlay-root";
 
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/jpeg,image/png,image/webp";
 
@@ -133,8 +135,14 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
     roster?.participants.filter((p) => p.status === "RINGING" || p.status === "JOINED").map((p) => p.userId),
   );
 
+  // The call's place in the overlay scale (src/lib/overlay-layers.ts): a 1:1 / group / Collab call is on the call
+  // layer, above every picker, sheet and viewer, so a call started from a sheet or list is always the thing on top
+  // (the start also closes those, see call-session.tsx). Only a live stream's video stays low, under the live room's
+  // own controls. Portaled to the root overlay host, like every overlay.
+  const layer = callFrameLayer(session.renderer);
+
   return (
-    <>
+    <OverlayPortal z={layer.controls}>
       <div
         ref={widgetRef}
         className={
@@ -142,13 +150,13 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
             ? // chrome-scale: this floating widget is video, not text — sized in
               // rem it would be wider than the screen at a large iOS text size
               // (see globals.css).
-              `chrome-scale fixed z-[60] h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${minimizedDrag.position ? "" : " right-4"}`
-            : "fixed inset-0 z-[60] bg-black"
+              `chrome-scale fixed h-40 w-64 overflow-hidden rounded-xl border border-line bg-black shadow-lg${minimizedDrag.position ? "" : " right-4"}`
+            : "fixed inset-0 bg-black"
         }
         // bottom offset as an inline style, not a `bottom-*` Tailwind
         // utility — that wasn't taking effect here for reasons that didn't
         // reproduce for any other utility on this same element (right-4/
-        // h-40/w-64/z-[60] all applied correctly); this is a guaranteed-to-
+        // h-40/w-64 all applied correctly); this is a guaranteed-to-
         // work fallback. 5rem clears the mobile bottom nav (layout.tsx's
         // `pb-16` on signed-in users) — a bit more clearance than strictly
         // needed on desktop, not worth a resize-aware breakpoint for.
@@ -162,9 +170,9 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
         style={
           minimized
             ? minimizedDrag.position
-              ? { left: minimizedDrag.position.left, top: minimizedDrag.position.top }
-              : { bottom: "5rem" }
-            : undefined
+              ? { zIndex: layer.frame, left: minimizedDrag.position.left, top: minimizedDrag.position.top }
+              : { zIndex: layer.frame, bottom: "5rem" }
+            : { zIndex: layer.frame }
         }
       >
         {session.renderer === "custom" ? (
@@ -288,10 +296,10 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
         )}
 
         {!minimized && captureAlert && (
-          // Sits above the sharedMaterial panel below (z-[75] > z-[70]) so a
+          // Sits above the sharedMaterial panel below (z-20 > z-[15], both inside this wrapper's own stacking context) so a
           // capture alert is never hidden behind an open material preview —
           // this is a security-relevant notice, it should always win.
-          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[75] flex justify-center">
+          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-20 flex justify-center">
             <div
               role="alert"
               className="pointer-events-auto flex items-center gap-2 rounded-lg border border-danger/40 bg-danger px-3 py-2 text-sm font-medium text-white shadow-lg"
@@ -315,9 +323,10 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
           // A floating panel over the call, not inside Daily's own iframe —
           // that's cross-origin, so this is the only place content Daily
           // didn't render itself can actually appear "in" the session. Sits
-          // above the video (z-[60] on the wrapper) but below the Leave/
-          // Minimize/Upload controls (z-[80]) so those stay reachable.
-          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[70] flex justify-center">
+          // above the video (inside the wrapper's own stacking context) but
+          // below the Leave/Minimize/Upload controls (the controls layer,
+          // a sibling of the wrapper) so those stay reachable.
+          <div className="pointer-events-none fixed inset-x-4 top-[calc(1rem+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[15] flex justify-center">
             <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
               <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
                 <span dir="auto" className="min-w-0 truncate text-xs font-medium">{sharedMaterial.name}</span>
@@ -357,11 +366,11 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
       </div>
 
       {!minimized && (
-        // Rendered as a SIBLING of the z-[60] video wrapper above, not a
+        // Rendered as a SIBLING of the video wrapper above, not a
         // descendant — `position: fixed` + `z-index` establishes a new
         // stacking context, so a high z-index on a *descendant* can never
         // out-rank a sibling of its ancestor (e.g. LiveStreamRoom's
-        // top-corner Record/Screenshot/viewer-count bars, z-[70]) no matter
+        // top-corner Record/Screenshot/viewer-count bars, viewer layer) no matter
         // how large that descendant's own z-index is. This has to sit at
         // the same level as that div to actually win. Bottom-right since
         // every corner near the top is already spoken for between those
@@ -380,8 +389,8 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
         // no-op elsewhere — same pattern nav.tsx's bottom tab bar and
         // live-video-frame.tsx's control tray already use.
         <div
-          className="fixed right-4 z-[80] flex items-center gap-2"
-          style={{ bottom: "calc(1rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
+          className="fixed right-4 flex items-center gap-2"
+          style={{ zIndex: layer.controls, bottom: "calc(1rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
         >
           {uploadError && (
             <span className="max-w-[10rem] truncate rounded-md bg-danger/90 px-2 py-1 text-xs text-white">
@@ -472,6 +481,6 @@ export function GlobalCallFrame({ mediaBaseUrl }: { mediaBaseUrl: string | null 
           onInvited={refreshRoster}
         />
       )}
-    </>
+    </OverlayPortal>
   );
 }

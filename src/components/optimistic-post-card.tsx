@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { X } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { removeOptimisticPost, type OptimisticPost } from "@/lib/optimistic-posts-store";
+import { dropFailedPostDraft } from "@/lib/failed-post-draft";
 import { useFeedText } from "@/components/feed-text";
+import { usePostUploadText } from "@/components/post-upload-text";
 
 /**
  * The "still sending" placeholder PostFeedSection/ProfilePostsList render at
@@ -23,6 +26,7 @@ import { useFeedText } from "@/components/feed-text";
  */
 export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
   const { t } = useFeedText();
+  const { t: postUpload } = usePostUploadText();
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
       <div className="flex items-start justify-between gap-2">
@@ -39,7 +43,15 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
               ) : post.status === "held" ? (
                 <span role="status">{post.noticeMessage}</span>
               ) : (
-                <span role="alert" className="text-danger">{post.errorMessage ?? t.post.postFailed}</span>
+                <span role="alert" className="text-danger">
+                  {post.errorMessage ?? t.post.postFailed}
+                  {/* Only on a screen without the composer (Home): the draft is waiting in it, see failed-post-draft.ts. */}
+                  {post.retryHref && (
+                    <Link href={post.retryHref} className="ms-1.5 font-medium underline">
+                      {postUpload.retry}
+                    </Link>
+                  )}
+                </span>
               )}
             </p>
           </div>
@@ -47,7 +59,10 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
         {post.status !== "sending" && (
           <button
             type="button"
-            onClick={() => removeOptimisticPost(post.localId)}
+            onClick={() => {
+              dropFailedPostDraft(post.localId);
+              removeOptimisticPost(post.localId);
+            }}
             aria-label={t.post.dismiss}
             className="text-foreground-soft hover:text-danger"
           >

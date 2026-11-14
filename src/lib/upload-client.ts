@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  requestUploadUrls,
   startMultipartUpload,
   completeMultipartUpload,
   abortMultipartUpload,
@@ -14,6 +13,7 @@ import { holdReload, looksLikeStaleServerActionError } from "@/lib/stale-build";
 import { VIEW_ONCE_FRAME_CONTENT_TYPE, type ViewOnceMediaType } from "@/lib/view-once";
 import { backoffDelayMs } from "@/lib/fetch-retry";
 import { putAttemptOutcome, WRITE_ONCE_UPLOAD_PROTOCOL } from "@/lib/write-once-upload";
+import { UPLOAD_ROUTE_HEADER } from "@/lib/upload-route-guard";
 import {
   FRAME_CAPTURE_INITIAL,
   frameCanvasSize,
@@ -25,9 +25,16 @@ import {
   type FrameFailureReason,
 } from "@/lib/media-file";
 
-type ClientUploadResult =
+/**
+ * Where a failed upload stopped (diagnostics, and so a composer can tell "pick the file again" from "try again"):
+ * read = the picked file can't be read any more (iOS removed its temporary copy), presign = getting the upload URL,
+ * put = sending the bytes, multipart = the parallel video path, exception = something threw.
+ */
+export type UploadFailureStep = "read" | "presign" | "put" | "multipart" | "exception";
+
+export type ClientUploadResult =
   | { ok: true; publicUrl: string; key: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; step?: UploadFailureStep };
 
 // Kinds where the source is typically a raw phone-camera photo (often
 // several MB) but only ever needs to render as a feed thumbnail, cover
@@ -59,6 +66,38 @@ export function resizeImageFile(file: File): Promise<File> {
  * function rather than an optional parameter on purpose: resizeImageFile is passed straight to Array.map, whose
  * index argument would otherwise become the cap.
  */
+// Files this module already produced by resizing (resizeImageToMax's output, and nothing else): an upload of one of
+// them skips a second decode + re-encode. Composers resize at pick time and the upload used to decode the same image
+// again, which on an iPhone is a second full-size bitmap in memory per photo.
+const resizedOutputs = new WeakSet<File>();
+
+// How long an image may take to decode before the resize gives up and keeps the original. An iPhone's <img> decode of
+// a large HEIC can stall without ever firing load or error, which used to hang the pick (and the upload behind it).
+const IMAGE_DECODE_TIMEOUT_MS = 20_000;
+
+/** Frees a canvas's backing store now instead of at garbage collection (iOS caps total canvas memory per page). */
+function releaseCanvas(canvas: HTMLCanvasElement | null | undefined) {
+  if (!canvas) return;
+  try {
+    canvas.width = 0;
+    canvas.height = 0;
+  } catch {
+    // Already gone.
+  }
+}
+
+/** Drops an <img>'s decoded bitmap and its handlers. */
+function releaseImage(img: HTMLImageElement | null | undefined) {
+  if (!img) return;
+  img.onload = null;
+  img.onerror = null;
+  try {
+    img.removeAttribute("src");
+  } catch {
+    // Already gone.
+  }
+}
+
 export async function resizeImageToMax(file: File, maxDimension: number): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
   // Drawing onto a <canvas> only ever captures a single frame — running an
@@ -70,12 +109,15 @@ export async function resizeImageToMax(file: File, maxDimension: number): Promis
   if (file.type === "image/gif") return file;
 
   const objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+  let canvas: HTMLCanvasElement | null = null;
+  const timers: { decode?: ReturnType<typeof setTimeout> } = {};
   try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("image_load_failed"));
-      el.src = objectUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("image_load_failed"));
+      timers.decode = setTimeout(() => reject(new Error("image_load_timeout")), IMAGE_DECODE_TIMEOUT_MS);
+      img.src = objectUrl;
     });
 
     const { naturalWidth: width, naturalHeight: height } = img;
@@ -88,12 +130,13 @@ export async function resizeImageToMax(file: File, maxDimension: number): Promis
     // within the cap — e.g. a same-size JPEG/PNG/HEIC-as-JPEG being
     // converted to WebP for its own sake, not because it's oversized.
     const scale = withinCap ? 1 : maxDimension / Math.max(width, height);
-    const canvas = document.createElement("canvas");
+    canvas = document.createElement("canvas");
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) return file;
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const target = canvas;
 
     // Re-encodes everything as WebP — meaningfully smaller than JPEG or PNG
     // at the same visual quality, and (unlike JPEG) still preserves
@@ -105,7 +148,7 @@ export async function resizeImageToMax(file: File, maxDimension: number): Promis
     // returned type below rather than assumed, so that fallback can never
     // produce a mismatched extension/content-type.
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", IMAGE_RESIZE_QUALITY),
+      target.toBlob(resolve, "image/webp", IMAGE_RESIZE_QUALITY),
     );
     if (!blob) return file;
 
@@ -120,10 +163,15 @@ export async function resizeImageToMax(file: File, maxDimension: number): Promis
     // URL.createObjectURL on this return value) and the upload.
     const buf = await blob.arrayBuffer();
     const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
-    return new File([buf], file.name.replace(/\.\w+$/, `.${ext}`), { type: blob.type });
+    const resized = new File([buf], file.name.replace(/\.\w+$/, `.${ext}`), { type: blob.type });
+    resizedOutputs.add(resized);
+    return resized;
   } catch {
     return file;
   } finally {
+    clearTimeout(timers.decode);
+    releaseCanvas(canvas);
+    releaseImage(img);
     URL.revokeObjectURL(objectUrl);
   }
 }
@@ -293,6 +341,31 @@ const MAX_BATCH = 12; // matches requestUploadBatchSchema
 let pendingPresigns: PendingPresign[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * One batch of presigned URLs from POST /api/uploads/presign, with its own timeout. Not the requestUploadUrls Server
+ * Action any more: a tab's Server Actions run one at a time with no timeout, so one that never settled (an iPhone
+ * request suspended with the app and never failed on resume) blocked every later upload until a reload. Resolves with
+ * the action's answer, or rejects (network, timeout, 5xx) so withRetry in uploadToStorage tries again.
+ */
+async function presignViaRoute(items: { kind: string; contentType: string }[]) {
+  const res = await fetchWithTimeout(
+    "/api/uploads/presign",
+    {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", [UPLOAD_ROUTE_HEADER]: "1" },
+      body: JSON.stringify({ items, protocol: WRITE_ONCE_UPLOAD_PROTOCOL }),
+    },
+    MIN_ATTEMPT_TIMEOUT_MS,
+  );
+  // The route isn't on this server: a newer client than the deploy answering it.
+  if (res.status === 404) return { error: "stale_deployment" as const };
+  if (res.status === 401 || res.status === 403) return { error: "unauthorized" as const };
+  if (!res.ok) throw new Error(`presign_${res.status}`);
+  return (await res.json()) as { error: string | null; items?: PresignResult[] };
+}
+
 async function flushPresigns() {
   flushTimer = null;
   const all = pendingPresigns;
@@ -300,10 +373,7 @@ async function flushPresigns() {
   for (let i = 0; i < all.length; i += MAX_BATCH) {
     const chunk = all.slice(i, i + MAX_BATCH);
     try {
-      const res = await requestUploadUrls(
-        chunk.map((p) => p.item),
-        WRITE_ONCE_UPLOAD_PROTOCOL,
-      );
+      const res = await presignViaRoute(chunk.map((p) => p.item));
       const items = "items" in res ? res.items : null;
       if (items) {
         chunk.forEach((p, idx) => p.resolve(items[idx] ?? { error: "invalid" }));
@@ -390,7 +460,7 @@ async function uploadMultipart(file: File, kind: UploadKind, contentType: string
   await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, partUrls.length) }, worker));
   if (failed) {
     abort();
-    return { ok: false, error: "network" };
+    return { ok: false, error: "network", step: "multipart" };
   }
 
   const doneFd = new FormData();
@@ -401,23 +471,41 @@ async function uploadMultipart(file: File, kind: UploadKind, contentType: string
     const done = await withRetry(() => withTimeout(completeMultipartUpload(doneFd), 60_000), 3, 800);
     if (done.error) {
       abort();
-      return { ok: false, error: "upload_failed" };
+      return { ok: false, error: "upload_failed", step: "multipart" };
     }
   } catch {
     abort();
-    return { ok: false, error: "network" };
+    return { ok: false, error: "network", step: "multipart" };
   }
   return { ok: true, publicUrl, key };
 }
 
 // Every upload in this module goes through here, so this is also where a
 // stale-build reload is held off until the transfer has finished.
+// Never rejects: an exception anywhere below (a File read the browser refuses, a DOM error) is a failed upload with
+// step "exception", so a composer awaiting it always gets an answer and can release its submit lock.
 async function uploadNow(file: File, kind: UploadKind, requestUrlFn?: RequestUploadUrlFn): Promise<ClientUploadResult> {
   const release = holdReload("work");
   try {
     return await uploadToStorage(file, kind, requestUrlFn);
+  } catch {
+    return { ok: false, error: "upload_failed", step: "exception" };
   } finally {
     release();
+  }
+}
+
+/**
+ * Whether the picked file can still be read. On an iPhone a picked photo/video is a temporary copy that iOS can remove
+ * (after the app was in the background, under memory pressure); every later read of that same File then fails, so a
+ * retry of it can never work and the person has to pick it again. One byte is enough to tell.
+ */
+export async function isFileReadable(file: Blob): Promise<boolean> {
+  try {
+    await file.slice(0, 1).arrayBuffer();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -429,7 +517,9 @@ async function uploadToStorage(
   // no signed-in user to attribute the upload to there.
   requestUrlFn: RequestUploadUrlFn = requestUploadUrlBatched,
 ): Promise<ClientUploadResult> {
-  const uploadFile = RESIZABLE_KINDS.includes(kind) ? await resizeImageFile(file) : file;
+  if (!(await isFileReadable(file))) return { ok: false, error: "file_unreadable", step: "read" };
+  // A file this module already resized (at pick time) isn't decoded and re-encoded a second time.
+  const uploadFile = RESIZABLE_KINDS.includes(kind) && !resizedOutputs.has(file) ? await resizeImageFile(file) : file;
 
   // Big videos go up as parallel, individually-retried parts. Only on the signed-in path (the public /advertise flow
   // passes its own presign function and has no multipart counterpart), and only when multipart could be started —
@@ -457,10 +547,10 @@ async function uploadToStorage(
       (err) => !looksLikeStaleServerActionError(err),
     );
   } catch (err) {
-    return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network" };
+    return { ok: false, error: looksLikeStaleServerActionError(err) ? "stale_deployment" : "network", step: "presign" };
   }
   if (result.error || !result.uploadUrl || !result.publicUrl || !result.key || !result.headers) {
-    return { ok: false, error: result.error ?? "invalid" };
+    return { ok: false, error: result.error ?? "invalid", step: "presign" };
   }
   // Narrowed into their own const bindings — a closure over the `let
   // result` above can't be trusted by TS to keep the narrowing from the
@@ -483,7 +573,12 @@ async function uploadToStorage(
   // contiguous in-memory buffer risks exhausting the WebView's heap, so
   // video keeps streaming straight from the File/Blob as before.
   const isVideo = VIDEO_KINDS.has(kind);
-  const putBody: BodyInit = isVideo ? uploadFile : await uploadFile.arrayBuffer();
+  let putBody: BodyInit;
+  try {
+    putBody = isVideo ? uploadFile : await uploadFile.arrayBuffer();
+  } catch {
+    return { ok: false, error: "file_unreadable", step: "read" };
+  }
 
   let stored: boolean;
   try {
@@ -524,11 +619,14 @@ async function uploadToStorage(
       isVideo,
     );
   } catch {
-    return { ok: false, error: "network" };
+    // Every PUT attempt failed in transit. If the file itself has become unreadable meanwhile (iOS removed its
+    // temporary copy), say so: retrying the same File can never work.
+    if (!(await isFileReadable(uploadFile))) return { ok: false, error: "file_unreadable", step: "read" };
+    return { ok: false, error: "network", step: "put" };
   }
 
   if (!stored) {
-    return { ok: false, error: "upload_failed" };
+    return { ok: false, error: "upload_failed", step: "put" };
   }
 
   return { ok: true, publicUrl, key };
@@ -544,23 +642,47 @@ type EagerEntry = {
   main: Promise<ClientUploadResult>;
   /** Only for videos: the poster frame, captured and uploaded alongside. */
   thumb: Promise<ClientUploadResult | null> | null;
-  /** Set once a submit has taken the result — from then on the upload belongs to a post and must never be discarded. */
+  /**
+   * Set while a submit holds the result: the upload may belong to a post, so it is never discarded. A submit that
+   * failed without creating a post hands it back with releaseUploads (so a retry reuses the stored file instead of
+   * sending it again, and removing the attachment afterwards deletes it).
+   */
   consumed: boolean;
 };
+// A WeakMap keyed by the picked File: an entry lives exactly as long as something still holds that File.
 const eagerUploads = new WeakMap<File, EagerEntry>();
 
-function startEntry(file: File, kind: UploadKind, withThumb: boolean): EagerEntry {
+function startEntry(
+  file: File,
+  kind: UploadKind,
+  withThumb: boolean,
+  reuseThumb: Promise<ClientUploadResult | null> | null = null,
+): EagerEntry {
   const entry: EagerEntry = {
     kind,
     main: uploadNow(file, kind),
-    thumb: withThumb
-      ? captureVideoFrameFromFile(file).then((frame) => (frame ? uploadNow(frame, "video-thumb") : null))
-      : null,
+    thumb:
+      reuseThumb ??
+      (withThumb
+        ? captureVideoFrameFromFile(file)
+            .then((frame) => (frame ? uploadNow(frame, "video-thumb") : null))
+            .catch(() => null)
+        : null),
     consumed: false,
   };
   eagerUploads.set(file, entry);
   return entry;
 }
+
+// Failures that a second try of the same File, right now, can't fix.
+const NOT_WORTH_AN_IMMEDIATE_RETRY = new Set([
+  "file_unreadable",
+  "stale_deployment",
+  "rate_limited",
+  "unauthorized",
+  "not_configured",
+  "too_large",
+]);
 
 /** Begin uploading `file` now (idempotent). Fire and forget — never throws. */
 export function prefetchUpload(file: File, kind: UploadKind, options: { withThumb?: boolean } = {}) {
@@ -584,9 +706,17 @@ export async function uploadFileDirect(
     entry.consumed = true;
     const result = await entry.main;
     if (result.ok) return result;
-    eagerUploads.delete(file); // the early attempt failed (e.g. offline) — try again now, from scratch
+    if (NOT_WORTH_AN_IMMEDIATE_RETRY.has(result.error)) {
+      eagerUploads.delete(file); // a later attempt starts over instead of getting this answer again
+      return result;
+    }
   }
-  return uploadNow(file, kind);
+  // No upload yet, or the earlier one failed (e.g. offline): from scratch, with a new presigned URL and key (a
+  // write-once key is never PUT again on purpose). Kept as this file's entry, so a later retry of the same post can
+  // reuse it if this one succeeds and only the post itself fails.
+  const fresh = startEntry(file, kind, false);
+  fresh.consumed = true;
+  return fresh.main;
 }
 
 /** A video and its poster frame, uploaded together — reusing whatever prefetchUpload already got done. */
@@ -599,10 +729,26 @@ export async function uploadVideoWithThumb(
   entry.consumed = true;
   const [video, thumb] = await Promise.all([entry.main, entry.thumb ?? Promise.resolve(null)]);
   if (video.ok) return [video, thumb];
-  eagerUploads.delete(file);
-  const retry = startEntry(file, kind, true);
+  if (NOT_WORTH_AN_IMMEDIATE_RETRY.has(video.error)) {
+    eagerUploads.delete(file); // a later attempt starts over instead of getting this answer again
+    return [video, thumb];
+  }
+  // Again from scratch (new presigned URL and key), keeping the poster frame if that part already worked.
+  const retry = startEntry(file, kind, true, thumb?.ok ? Promise.resolve(thumb) : null);
   retry.consumed = true;
   return Promise.all([retry.main, retry.thumb ?? Promise.resolve(null)]);
+}
+
+/**
+ * A submit that took these files failed without creating a post: hand their uploads back. Whatever is already stored
+ * stays as each file's entry, so retrying the same post reuses it (only the failed step runs again), and removing the
+ * attachment afterwards deletes it like any other abandoned pick.
+ */
+export function releaseUploads(files: Iterable<File>) {
+  for (const file of files) {
+    const entry = eagerUploads.get(file);
+    if (entry) entry.consumed = false;
+  }
 }
 
 /**
@@ -612,8 +758,10 @@ export async function uploadVideoWithThumb(
 export function discardUpload(file: File) {
   const entry = eagerUploads.get(file);
   if (!entry) return;
-  eagerUploads.delete(file);
+  // Taken by a submit that hasn't settled (the composer clears its attachments the moment Post is tapped): its fate
+  // is that submit's. The entry stays so a failed submit can put the file back and reuse what was uploaded.
   if (entry.consumed) return;
+  eagerUploads.delete(file);
   void Promise.all([entry.main, entry.thumb ?? Promise.resolve(null)])
     .then((results) => {
       const keys = results.flatMap((r) => (r?.ok ? [r.key] : []));
@@ -686,6 +834,10 @@ export function captureVideoFrameDetailed(file: File): Promise<FrameCaptureResul
       if (stallTimer) clearTimeout(stallTimer);
       video.onloadedmetadata = video.onloadeddata = video.onseeked = video.ontimeupdate = video.onerror = null;
       releaseProbeVideo(video, url);
+      // Every path (frame, failure, timeout) frees the drawing canvas now: iOS caps total canvas memory per page, and
+      // canvases left for the garbage collector after a failed capture made later captures fail too.
+      releaseCanvas(canvas);
+      canvas = null;
       resolve({ frame, reason, rawDuration });
     };
 
@@ -704,10 +856,10 @@ export function captureVideoFrameDetailed(file: File): Promise<FrameCaptureResul
       canvas.width = size.width;
       canvas.height = size.height;
       let blank = false;
+      // A small sample is enough to tell "nothing painted yet" from a real frame.
+      const sample = document.createElement("canvas");
       try {
         ctx.drawImage(video, 0, 0, size.width, size.height);
-        // A small sample is enough to tell "nothing painted yet" from a real frame.
-        const sample = document.createElement("canvas");
         sample.width = 16;
         sample.height = 16;
         const sctx = sample.getContext("2d");
@@ -718,6 +870,8 @@ export function captureVideoFrameDetailed(file: File): Promise<FrameCaptureResul
       } catch {
         dispatch({ type: "encode_failed" });
         return;
+      } finally {
+        releaseCanvas(sample);
       }
       dispatch({ type: "drawn", blank });
     };

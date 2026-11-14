@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useReducer, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Clapperboard, ImagePlus, Plus, SquarePen } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,16 @@ import { Sheet } from "@/components/sheet";
 import { StoryUploadModal } from "@/components/story-upload-modal";
 import { MuseComposer } from "@/components/muse-composer";
 import { useFeedText } from "@/components/feed-text";
-import { CREATE_PICKER_KINDS, PROFILE_COMPOSER_ID, feedComposeHref, type CreatePickerKind } from "@/lib/create-picker";
+import {
+  CREATE_FLOW_CLOSED,
+  CREATE_PICKER_HANDOFF_MAX_MS,
+  CREATE_PICKER_KINDS,
+  PROFILE_COMPOSER_ID,
+  createFlowReducer,
+  createFlowView,
+  feedComposeHref,
+  type CreatePickerKind,
+} from "@/lib/create-picker";
 
 /** Scrolls to and focuses the own-profile composer when it is on this screen; false when it isn't. */
 function focusProfileComposer(): boolean {
@@ -26,21 +35,31 @@ function focusProfileComposer(): boolean {
  * modal, the profile post composer (scrolled to and focused here, or reached via /u/<id>?compose=1 from elsewhere),
  * and the Muse composer. Owns the picker and both modals so its callers only place the button.
  *
+ * Choosing Story or Muse is a hand-off (createFlowReducer, src/lib/create-picker.ts): the picker closes first and the
+ * composer opens once the picker has left the screen (its Sheet's onExitComplete, or CREATE_PICKER_HANDOFF_MAX_MS),
+ * never both at once. All three render through the root overlay host (Sheet portals), never inside the story tray's
+ * horizontal scroller or the avatar this button sits on.
+ *
  * `buttonClassName` positions the 44px tap target around the small visible badge.
  */
 export function CreatePickerButton({ userId, buttonClassName }: { userId: string; buttonClassName: string }) {
   const { t } = useFeedText();
   const text = t.createPicker;
   const router = useRouter();
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [storyOpen, setStoryOpen] = useState(false);
-  const [museOpen, setMuseOpen] = useState(false);
+  const [flow, dispatch] = useReducer(createFlowReducer, CREATE_FLOW_CLOSED);
+  const { pickerOpen, composer } = createFlowView(flow);
+
+  // The hand-off's backstop: the composer opens even if the picker's exit animation never reports finishing.
+  const handingOff = flow.phase === "handoff";
+  useEffect(() => {
+    if (!handingOff) return undefined;
+    const timer = window.setTimeout(() => dispatch({ type: "handoffTimeout" }), CREATE_PICKER_HANDOFF_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [handingOff]);
 
   function choose(kind: CreatePickerKind) {
-    setPickerOpen(false);
-    if (kind === "story") setStoryOpen(true);
-    else if (kind === "muse") setMuseOpen(true);
-    else if (!focusProfileComposer()) router.push(feedComposeHref(userId));
+    dispatch({ type: "choose", kind });
+    if (kind === "feed" && !focusProfileComposer()) router.push(feedComposeHref(userId));
   }
 
   const options: Record<CreatePickerKind, { label: string; hint: string; icon: ReactNode; iconClassName: string }> = {
@@ -54,7 +73,7 @@ export function CreatePickerButton({ userId, buttonClassName }: { userId: string
       <button
         type="button"
         data-guest-block
-        onClick={() => setPickerOpen(true)}
+        onClick={() => dispatch({ type: "open" })}
         aria-label={text.open}
         aria-haspopup="dialog"
         className={cn("absolute flex h-11 w-11 items-center justify-center", buttonClassName)}
@@ -66,7 +85,8 @@ export function CreatePickerButton({ userId, buttonClassName }: { userId: string
 
       <Sheet
         open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => dispatch({ type: "dismiss" })}
+        onExitComplete={() => dispatch({ type: "pickerExited" })}
         variant="bottom-sheet"
         responsive
         title={text.title}
@@ -96,8 +116,8 @@ export function CreatePickerButton({ userId, buttonClassName }: { userId: string
         </ul>
       </Sheet>
 
-      <StoryUploadModal open={storyOpen} onClose={() => setStoryOpen(false)} />
-      <MuseComposer open={museOpen} onClose={() => setMuseOpen(false)} />
+      <StoryUploadModal open={composer === "story"} onClose={() => dispatch({ type: "composerClosed" })} />
+      <MuseComposer open={composer === "muse"} onClose={() => dispatch({ type: "composerClosed" })} />
     </>
   );
 }

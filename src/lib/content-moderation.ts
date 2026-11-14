@@ -4,6 +4,7 @@ import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { countPublishedInThread } from "@/lib/comment-count";
 import { revokeGiftSend } from "@/lib/gift-revoke";
 import { cancelChallengeInTx } from "@/lib/challenge-revoke";
+import { lockLikeGroup, recomputeLikeGroup } from "@/lib/like-groups";
 
 type ModeratableTargetType =
   | "USER"
@@ -41,6 +42,8 @@ export async function removeModeratedContent(
     case "POST": {
       const post = await tx.post.findUnique({ where: { id: targetId } });
       if (!post) return null;
+      // Group lock before any row is deleted: a like toggle takes it before touching rows (no lock-order deadlock).
+      if (post.likeGroupId) await lockLikeGroup(tx, post.likeGroupId);
 
       // A multi-photo post is one Post row per photo (albumId); removing it
       // removes every photo, as deletePost does — otherwise the rest of a
@@ -55,6 +58,8 @@ export async function removeModeratedContent(
         await tx.post.deleteMany({ where: { id: { in: siblings.map((s) => s.id) } } });
       }
       await tx.post.delete({ where: { id: targetId } });
+      // Shared one like count with a Muse (like-groups.ts): recount what the other members still hold.
+      if (post.likeGroupId) await recomputeLikeGroup(tx, post.likeGroupId);
 
       const mediaUrlsToDelete = [
         ...post.mediaUrls,
@@ -147,7 +152,9 @@ export async function removeModeratedContent(
       const muse = await tx.muse.findUnique({ where: { id: targetId } });
       if (!muse) return null;
 
+      if (muse.likeGroupId) await lockLikeGroup(tx, muse.likeGroupId);
       await tx.muse.delete({ where: { id: targetId } });
+      if (muse.likeGroupId) await recomputeLikeGroup(tx, muse.likeGroupId);
 
       const mediaUrlsToDelete = [muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl].filter(
         (url): url is string => Boolean(url),

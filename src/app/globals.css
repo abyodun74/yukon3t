@@ -29,6 +29,31 @@
   --shadow-md: 0 8px 24px rgba(60, 40, 20, 0.1), 0 2px 8px rgba(60, 40, 20, 0.06);
 }
 
+/* The overlay layer scale: the CSS half of src/lib/overlay-layers.ts (OVERLAY_LAYERS, same names, same numbers;
+   overlay-layers.test.ts keeps them equal). Use as `z-[var(--z-sheet)]`, never a bare z-50 / z-[70] on an overlay.
+   Lowest to highest: page < tab bar < FAB < header < sheets/pickers < live video < live effects < viewers/composers
+   < live call controls < confirm < blocking screens < active call < call controls < incoming ring < toasts
+   < splash < context menu. Every overlay is portaled into #overlay-root (layout.tsx), so these compare directly. */
+:root {
+  --z-content: 0;
+  --z-nav-bar: 30;
+  --z-floating: 35;
+  --z-header: 40;
+  --z-sheet: 50;
+  --z-live-video: 60;
+  --z-live-effects: 65;
+  --z-viewer: 70;
+  --z-live-controls: 80;
+  --z-confirm: 90;
+  --z-blocking: 95;
+  --z-call: 100;
+  --z-call-controls: 105;
+  --z-incoming-call: 110;
+  --z-toast: 120;
+  --z-system: 130;
+  --z-context-menu: 140;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -475,7 +500,7 @@ button:not(:disabled):active {
 .app-splash {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-system);
   isolation: isolate;
   display: flex;
   align-items: center;
@@ -602,7 +627,7 @@ button:not(:disabled):active {
 }
 
 .inbox-row {
-  animation: inbox-row-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: inbox-row-in 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   animation-delay: var(--row-delay, 0ms);
 }
 
@@ -638,7 +663,7 @@ button:not(:disabled):active {
 }
 
 .animate-message-in {
-  animation: message-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: message-in 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* Story viewer — swiping to the next/previous author's story stack glides
@@ -665,11 +690,11 @@ button:not(:disabled):active {
 }
 
 .story-glide-next {
-  animation: story-glide-in-from-right 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: story-glide-in-from-right 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .story-glide-prev {
-  animation: story-glide-in-from-left 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: story-glide-in-from-left 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* A single story-to-story advance within the same author gets a lighter
@@ -687,7 +712,7 @@ button:not(:disabled):active {
 }
 
 .story-media-in {
-  animation: story-media-in 220ms ease-out both;
+  animation: story-media-in 220ms ease-out backwards;
 }
 
 /* Live stream reactions — Daily's own built-in reaction picker is
@@ -722,7 +747,12 @@ button:not(:disabled):active {
    own bespoke keyframes. Plays once per mount — since every one of those
    lists keys its rows by a stable id (post id, connection id, etc.), a row
    that's already on screen never remounts (and so never replays this) when
-   more rows are appended above or below it by polling or auto-load-more. */
+   more rows are appended above or below it by polling or auto-load-more.
+   Fill mode `backwards`, not `both` (2026-11-14): `both` kept `transform: translateY(0)` on every row forever, and any
+   transform makes the row the containing block and stacking context of every `position: fixed` thing inside it. The
+   "Calling…" sheet of a Connections row was positioned inside that one row and painted under the rows after it (a
+   started call hid behind the Connections list). The entrance animations here all end on the element's own resting
+   style, so `backwards` looks the same and leaves nothing behind. overlay-layers.test.ts guards it. */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -735,7 +765,7 @@ button:not(:disabled):active {
 }
 
 .animate-rise-in {
-  animation: rise-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise-in 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* Sentinel "Loading more..." text at the bottom of an auto-loading list —
@@ -784,7 +814,7 @@ button:not(:disabled):active {
 }
 
 .animate-modal-panel-in {
-  animation: modal-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: modal-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* OfflineBanner (offline-banner.tsx) — slides down from under the header
@@ -802,7 +832,7 @@ button:not(:disabled):active {
 }
 
 .animate-offline-banner-in {
-  animation: offline-banner-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: offline-banner-in 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* A loaded <img> fades in from its own placeholder background instead of
@@ -1087,4 +1117,19 @@ img[data-press-highlight] {
   /* Replaces the sitewide `scale: 0.97` press rather than multiplying with it. */
   scale: 1;
   transform: scale(0.98);
+}
+
+/* A dialog panel that is never taller than what is visible (Story composer, src/components/story-upload-modal.tsx):
+   the space between the safe areas (Dynamic Island / status bar on top, home indicator below, viewport-fit=cover)
+   minus the backdrop's own 1rem gutters, with its own scroll so the action buttons are always reachable. `dvh` follows
+   the browser bars; 100vh is the fallback for older engines. */
+.overlay-panel-bounded {
+  max-height: calc(100vh - 2rem);
+  max-height: calc(
+    100dvh - max(1rem, env(safe-area-inset-top), var(--status-bar-inset-top, 0px)) -
+      max(1rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)) - 1rem
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }

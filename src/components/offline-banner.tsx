@@ -32,7 +32,7 @@ export function OfflineBanner() {
   if (!retrying) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-40 flex justify-center px-4 pt-2">
+    <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-[var(--z-toast)] flex justify-center px-4 pt-2">
       <p
         role="status"
         className="animate-offline-banner-in flex items-center gap-2 rounded-full bg-surface/95 px-3 py-1.5 text-xs font-medium text-foreground-soft shadow-md ring-1 ring-line"

@@ -28,6 +28,8 @@ type EmbeddedPostRow = {
   eventPreviousAt?: Date | null;
   createdAt: Date;
   editedAt: Date | null;
+  // Shared Feed/Muse like count (like-groups.ts); optional so a narrower select still fits.
+  likeGroupId?: string | null;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -94,6 +96,7 @@ const embeddedPostSelect = {
   eventPreviousAt: true,
   createdAt: true,
   editedAt: true,
+  likeGroupId: true,
   likeCount: true,
   commentCount: true,
   repostCount: true,
@@ -226,6 +229,8 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       membersOnly: isMembersOnly(post.circle?.visibility, post.channel?.visibility),
       author: post.author,
       likeCount: target.likeCount,
+      // The same video on Muse shares this count: lets PostCard keep in step with a Muse card on screen.
+      likeGroupId: target.likeGroupId ?? null,
       commentCount: target.commentCount,
       repostCount: target.repostCount,
       shareCount: target.shareCount,

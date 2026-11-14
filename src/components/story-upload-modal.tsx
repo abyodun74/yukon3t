@@ -572,13 +572,12 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
   const anyUploading = items.some((i) => i.upload.status === "uploading");
 
   return (
-    // relative + z-[70] (not Sheet's own default z-50) establishes a new
-    // stacking context at that level, same reasoning/trick as
-    // muse-share-modal.tsx's own wrapper — this needs to sit above
-    // whatever z-[6x] chrome the triggering surface (profile story ring,
-    // the home story tray) already has.
-    <div className="relative z-[70]">
-      <Sheet open={open} onClose={onClose} title={t.stories.addToStory}>
+    // Portaled by Sheet into the root overlay host (src/components/overlay-root.tsx) on the sheet layer: never inside
+    // the Home story tray's horizontal scroller or the avatar that opened it. It used to sit in a `relative z-[70]`
+    // wrapper there, a stacking context inside that scroller, which is where it came up invisible on iPhone
+    // (2026-11-14). The panel is bounded to the space between the safe areas and scrolls by itself, so Share is
+    // always reachable (.overlay-panel-bounded, globals.css).
+    <Sheet open={open} onClose={onClose} title={t.stories.addToStory} panelClassName="overlay-panel-bounded">
         {/* Switching modes mid-batch would mean juggling two unrelated
             in-progress flows (uploaded media items vs. a typed draft) at
             once, so the toggle itself only shows before either has
@@ -614,7 +613,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
         {mode === "text" ? (
           <div className="mt-3">
             <div
-              className="relative flex aspect-[9/16] w-full items-center justify-center overflow-hidden rounded-lg p-6"
+              // Story-shaped (9:16) but never taller than about half the visible screen, so the colours and Share
+              // stay on screen with the keyboard up; the posted image is drawn at its own fixed size regardless.
+              className="relative mx-auto flex aspect-[9/16] h-[min(55dvh,36rem)] max-w-full items-center justify-center overflow-hidden rounded-lg p-6"
               style={{ backgroundColor: TEXT_STORY_BACKGROUNDS[textBgIndex].bg }}
             >
               <textarea dir="auto"
@@ -761,6 +762,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
             {!isPending && (
               <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-line">
                 <MediaPickerButton
+                  // Opens downward: the panel scrolls (overlay-panel-bounded), and a menu opening upward from near its top
+                  // would be cut off by it; downward it just extends the scroll.
+                  menuPlacement="bottom"
                   icon={<Upload size={16} />}
                   title={t.stories.upload.addMore}
                   options={[
@@ -791,6 +795,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
         ) : (
           <div className="mt-3 flex items-center justify-center gap-4 rounded-lg border border-dashed border-line py-10">
             <MediaPickerButton
+                  // Opens downward: the panel scrolls (overlay-panel-bounded), and a menu opening upward from near its top
+                  // would be cut off by it; downward it just extends the scroll.
+                  menuPlacement="bottom"
               icon={<Upload size={18} />}
               title={t.stories.upload.addPhotos}
               options={[
@@ -811,6 +818,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               ]}
             />
             <MediaPickerButton
+                  // Opens downward: the panel scrolls (overlay-panel-bounded), and a menu opening upward from near its top
+                  // would be cut off by it; downward it just extends the scroll.
+                  menuPlacement="bottom"
               icon={<Video size={18} />}
               title={t.stories.upload.addVideos}
               options={[
@@ -866,7 +876,6 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
         <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">{t.stories.upload.disappears}</p>
           </>
         )}
-      </Sheet>
-    </div>
+    </Sheet>
   );
 }

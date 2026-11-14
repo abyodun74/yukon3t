@@ -7,6 +7,7 @@ import { hideConversation, unhideConversation } from "@/app/actions/hidden-chats
 import { SetHiddenPinForm } from "@/components/hidden-chats-panel";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useMessagesText } from "@/components/messages-text";
 
 type ChatOptions = {
@@ -36,15 +37,20 @@ function SetPinDialog({ onClose, onPinSet }: { onClose: () => void; onPinSet: ()
   const titleId = useId();
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
   const t = useMessagesText().t.options;
+  // Sheet layer (src/lib/overlay-layers.ts), portaled to the root overlay host: the chat header that opens it is
+  // sticky and blurred, which would otherwise position this fixed dialog inside the header.
+  const sheetZ = useOverlayZ("sheet");
 
   return (
+    <OverlayPortal z={sheetZ}>
     <div
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
       tabIndex={-1}
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 outline-none sm:items-center sm:p-4"
+      className="fixed inset-0 flex items-end justify-center bg-black/60 outline-none sm:items-center sm:p-4"
+      style={{ zIndex: sheetZ }}
       onClick={onClose}
     >
       <div
@@ -64,6 +70,7 @@ function SetPinDialog({ onClose, onPinSet }: { onClose: () => void; onPinSet: ()
         </button>
       </div>
     </div>
+    </OverlayPortal>
   );
 }
 

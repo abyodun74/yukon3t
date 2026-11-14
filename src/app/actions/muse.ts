@@ -28,6 +28,15 @@ import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import type { ReactionSummary } from "@/lib/reactions";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
+import {
+  inheritGroupLikers,
+  isGroupLiker,
+  likeVisibleMembers,
+  lockLikeGroup,
+  recomputeLikeGroup,
+  recomputeLikeGroups,
+  unlikeGroup,
+} from "@/lib/like-groups";
 
 /**
  * Creates a new short-form public Muse video. Modeled closely on createStory
@@ -286,6 +295,7 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       isReposted: m.reposts.length > 0,
       isFollowingAuthor: followingIds.has(m.authorId),
       sharedPostId: m.sharedPostId,
+      likeGroupId: m.likeGroupId,
     })),
     nextCursor,
   };
@@ -370,6 +380,7 @@ async function museItemForViewer(id: string, user: { id: string; isAdmin: boolea
       isReposted: m.reposts.length > 0,
       isFollowingAuthor,
       sharedPostId: m.sharedPostId,
+      likeGroupId: m.likeGroupId,
     },
   };
 }
@@ -387,6 +398,9 @@ export async function deleteMuse(id: string) {
   }
 
   await prisma.muse.delete({ where: { id } });
+  // Its reactions went with it; the feed post(s) of the same video keep their own likes, and the shared count drops
+  // only by people who had liked nothing else in the group.
+  if (muse.likeGroupId) await recomputeLikeGroups([muse.likeGroupId]);
   // A Muse's video can be shared with the post it came from, or reshared to Home / a Story / a message — only delete
   // the files nothing else still uses.
   await deleteMediaIfUnreferenced([muse.videoUrl, muse.videoThumbnailUrl, muse.audioUrl]);
@@ -445,26 +459,61 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
     return { error: "not_found" as const };
   }
 
-  const existing = await prisma.museReaction.findUnique({
-    where: { museId_userId: { museId, userId: user.id } },
-  });
-
-  const myNewEmoji = existing?.emoji === emoji ? null : emoji;
-  if (existing?.emoji === emoji) {
-    await prisma.$transaction([
-      prisma.museReaction.delete({ where: { id: existing.id } }),
-      prisma.muse.update({ where: { id: museId }, data: { likeCount: { decrement: 1 } } }),
+  // A reaction of any emoji is this Muse's "like" (likeCount). Switching emoji keeps the like; only a new one notifies.
+  let likeCount: number;
+  let newLiker: boolean;
+  if (muse.likeGroupId) {
+    // The same video on Home (its reshare posts, or the post it was shared from): one like for the whole group
+    // (src/lib/like-groups.ts).
+    const groupId = muse.likeGroupId;
+    const [visiblePostsWhere, blockedIds] = await Promise.all([
+      getVisiblePostsWhere(user.id),
+      getBlockedEitherWayIds(user.id),
     ]);
-  } else if (existing) {
-    await prisma.museReaction.update({ where: { id: existing.id }, data: { emoji } });
+    ({ likeCount, newLiker } = await prisma.$transaction(async (tx) => {
+      await lockLikeGroup(tx, groupId);
+      const existing = await tx.museReaction.findUnique({
+        where: { museId_userId: { museId, userId: user.id } },
+        select: { id: true, emoji: true },
+      });
+      if (existing?.emoji === emoji) {
+        await unlikeGroup(tx, groupId, user.id);
+        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false };
+      }
+      if (existing) {
+        await tx.museReaction.update({ where: { id: existing.id }, data: { emoji } });
+        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false };
+      }
+      const wasLiker = await isGroupLiker(tx, groupId, user.id);
+      await tx.museReaction.create({ data: { museId, userId: user.id, emoji } });
+      await likeVisibleMembers(tx, { groupId, userId: user.id, visiblePostsWhere, blockedIds });
+      return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: !wasLiker };
+    }));
+    revalidatePath("/home");
   } else {
-    await prisma.$transaction([
-      prisma.museReaction.create({ data: { museId, userId: user.id, emoji } }),
-      prisma.muse.update({ where: { id: museId }, data: { likeCount: { increment: 1 } } }),
-    ]);
+    const existing = await prisma.museReaction.findUnique({
+      where: { museId_userId: { museId, userId: user.id } },
+    });
+    newLiker = !existing;
+    if (existing?.emoji === emoji) {
+      const [, updated] = await prisma.$transaction([
+        prisma.museReaction.delete({ where: { id: existing.id } }),
+        prisma.muse.update({ where: { id: museId }, data: { likeCount: { decrement: 1 } } }),
+      ]);
+      likeCount = updated.likeCount;
+    } else if (existing) {
+      await prisma.museReaction.update({ where: { id: existing.id }, data: { emoji } });
+      likeCount = muse.likeCount;
+    } else {
+      const [, updated] = await prisma.$transaction([
+        prisma.museReaction.create({ data: { museId, userId: user.id, emoji } }),
+        prisma.muse.update({ where: { id: museId }, data: { likeCount: { increment: 1 } } }),
+      ]);
+      likeCount = updated.likeCount;
+    }
   }
 
-  if (myNewEmoji && muse.authorId !== user.id) {
+  if (newLiker && muse.authorId !== user.id) {
     await prisma.notification.create({
       data: { recipientId: muse.authorId, actorId: user.id, type: "MUSE_LIKE", museId },
     });
@@ -474,7 +523,7 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
   const reactions = await museReactionSummary(museId, user.id);
 
   revalidatePath("/muse");
-  return { error: null, reactions };
+  return { error: null, reactions, likeCount };
 }
 
 // A Muse's comments and replies: actions/muse-comments.ts.
@@ -547,8 +596,11 @@ export async function toggleMuseRepost(museId: string) {
 
   if (existing) {
     const updated = await prisma.$transaction(async (tx) => {
+      if (muse.likeGroupId) await lockLikeGroup(tx, muse.likeGroupId);
       if (existing.postId) await tx.post.deleteMany({ where: { id: existing.postId, authorId: user.id } });
       await tx.museRepost.delete({ where: { id: existing.id } });
+      // The post's likes went with it; the Muse keeps its own (recount: someone who liked only that post is gone).
+      if (muse.likeGroupId) await recomputeLikeGroup(tx, muse.likeGroupId);
       return tx.muse.update({ where: { id: museId }, data: { repostCount: { decrement: 1 } } });
     });
     // The file stays: the Muse itself still uses it.
@@ -562,6 +614,14 @@ export async function toggleMuseRepost(museId: string) {
   let repostCount: number;
   try {
     ({ postId, repostCount } = await prisma.$transaction(async (tx) => {
+      // The reshare post joins the Muse's like group (src/lib/like-groups.ts): one like count for the same video on
+      // Home and on Muse. A Muse's first reshare starts the group under the Muse's own id.
+      // Lock first, before any row is written (a like toggle takes the lock before touching rows).
+      const likeGroupId = muse.likeGroupId ?? muse.id;
+      await lockLikeGroup(tx, likeGroupId);
+      if (!muse.likeGroupId) {
+        await tx.muse.updateMany({ where: { id: museId, likeGroupId: null }, data: { likeGroupId } });
+      }
       // Already moderated when the Muse was published, so the copy skips a
       // second pass (videoModeratedAt) — except an EMBED Muse, which was
       // never ours to Hive-scan in the first place (see mediaType's own doc
@@ -578,6 +638,7 @@ export async function toggleMuseRepost(museId: string) {
                 embedId: muse.embedId,
                 visibility: "PUBLIC",
                 moderationStatus: "PUBLISHED",
+                likeGroupId,
               },
             })
           : await tx.post.create({
@@ -591,9 +652,13 @@ export async function toggleMuseRepost(museId: string) {
                 visibility: "PUBLIC",
                 moderationStatus: "PUBLISHED",
                 videoModeratedAt: new Date(),
+                likeGroupId,
               },
             });
       await tx.museRepost.create({ data: { userId: user.id, museId, postId: post.id } });
+      // Everyone who already liked the video (on the Muse or another reshare) has liked this post too.
+      await inheritGroupLikers(tx, likeGroupId, { kind: "post", id: post.id, authorId: user.id });
+      await recomputeLikeGroup(tx, likeGroupId);
       const updated = await tx.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } });
       return { postId: post.id, repostCount: updated.repostCount };
     }));

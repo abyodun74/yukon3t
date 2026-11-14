@@ -15,6 +15,7 @@ import {
 } from "@/lib/storage";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { inheritGroupLikers, lockLikeGroup, recomputeLikeGroup } from "@/lib/like-groups";
 import type { Prisma } from "@/generated/prisma/client";
 import type { EmbedProvider } from "@/lib/video-embed";
 
@@ -301,9 +302,18 @@ export async function shareToMuse(postId: string) {
     videoNeedsManualReview && isStreamConfigured() ? await createStreamCopy(root.videoUrl!) : null;
 
   const { museId, shareCount } = await prisma.$transaction(async (tx) => {
+    // The Muse joins the post's like group (src/lib/like-groups.ts): one like count for the same video on Home and on
+    // Muse. A post's first share to Muse starts the group under the post's own id.
+    // Lock first, before any row is written (a like toggle takes the lock before touching rows).
+    const likeGroupId = root.likeGroupId ?? root.id;
+    await lockLikeGroup(tx, likeGroupId);
+    if (!root.likeGroupId) {
+      await tx.post.updateMany({ where: { id: rootId, likeGroupId: null }, data: { likeGroupId } });
+    }
     const muse = await tx.muse.create({
       data: {
         authorId: user.id,
+        likeGroupId,
         ...(isEmbed
           ? { mediaType: "EMBED" as const, embedProvider: root.embedProvider!, embedId: root.embedId! }
           : {
@@ -326,6 +336,9 @@ export async function shareToMuse(postId: string) {
         videoLongReviewNeeded: videoNeedsManualReview,
       },
     });
+    // Everyone who already liked the video has liked this Muse too.
+    await inheritGroupLikers(tx, likeGroupId, { kind: "muse", id: muse.id, authorId: user.id });
+    await recomputeLikeGroup(tx, likeGroupId);
     const count = await applyShareEffect(tx, root, user.id);
     return { museId: muse.id, shareCount: count };
   });

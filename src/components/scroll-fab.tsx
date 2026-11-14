@@ -121,7 +121,7 @@ export function ScrollFab({
     <div
       ref={containerRef}
       className={cn(
-        "fixed bottom-24 end-4 z-[35] flex flex-col items-end gap-2 transition-all duration-200 md:bottom-6 md:end-6",
+        "fixed bottom-24 end-4 z-[var(--z-floating)] flex flex-col items-end gap-2 transition-all duration-200 md:bottom-6 md:end-6",
         shown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",
       )}
     >

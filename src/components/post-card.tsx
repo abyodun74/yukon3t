@@ -7,6 +7,7 @@ import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
 import { toggleLike, togglePostReaction } from "@/app/actions/likes";
+import { announceLikeGroup, useLikeGroupSync } from "@/lib/like-group-sync";
 import { editPost } from "@/app/actions/posts";
 import { EventRsvpButtons, useEventRsvp, useRsvpCountsLine } from "@/components/event-rsvp";
 import type { RsvpStatus } from "@/lib/rsvp";
@@ -131,6 +132,8 @@ export type PostCardData = EmbeddedPost & {
   // True for a PRIVATE Circle's (or a private channel's) post — members-only, so it can't be reposted or shared out.
   // A PUBLIC Circle's post is general/public and stays shareable.
   membersOnly?: boolean;
+  /** Set when this post shares one like count with the same video on Muse (src/lib/like-groups.ts). */
+  likeGroupId?: string | null;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -855,6 +858,12 @@ export function PostCard({
 
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
+  // The same video on Muse (a Muse viewer open over Home, another card of it): one like, kept in step both ways.
+  const [likeSyncSource] = useState(() => Symbol("post-card-like"));
+  useLikeGroupSync(post.likeGroupId ?? null, likeSyncSource, (change) => {
+    setLiked(change.liked);
+    setLikeCount(change.likeCount);
+  });
   const [reactions, setReactions] = useState(post.reactions);
   const [reposted, setReposted] = useState(post.repostedByMe);
   const [repostCount, setRepostCount] = useState(post.repostCount);
@@ -986,10 +995,16 @@ export function PostCard({
     setLikeCount((c) => c + (nextLiked ? 1 : -1));
     startLikeTransition(async () => {
       const result = await toggleLike(interactionTargetId);
-      if (result.error) {
+      if (result.error || typeof result.liked !== "boolean" || typeof result.likeCount !== "number") {
         setLiked(!nextLiked);
         setLikeCount((c) => c + (nextLiked ? -1 : 1));
+        return;
       }
+      // The server's own answer: for a post sharing its likes with Muse the count can move by more than one.
+      const change = { liked: result.liked, likeCount: result.likeCount };
+      setLiked(change.liked);
+      setLikeCount(change.likeCount);
+      if (post.likeGroupId) announceLikeGroup({ likeGroupId: post.likeGroupId, ...change, source: likeSyncSource });
     });
   }
 

@@ -1,4 +1,5 @@
 import { FeedTextProvider } from "@/components/feed-text";
+import { PostUploadTextProvider } from "@/components/post-upload-text";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 /**
@@ -10,7 +11,9 @@ export async function FeedLayout({ children }: { children: React.ReactNode }) {
   const t = await getDictionary();
   return (
     <FeedTextProvider locale={locale} text={t.feed}>
-      {children}
+      <PostUploadTextProvider locale={locale} text={t.postUpload}>
+        {children}
+      </PostUploadTextProvider>
     </FeedTextProvider>
   );
 }

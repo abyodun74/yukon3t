@@ -394,7 +394,7 @@ export function LinkCopyMenu({ labels }: { labels: Labels }) {
       role="menu"
       aria-label={labels.label}
       data-no-link-menu
-      className="link-copy-menu fixed z-[300] min-w-40 max-w-[min(18rem,calc(100vw-24px))] rounded-xl border border-line bg-surface p-1 text-sm text-foreground shadow-[var(--shadow-md)]"
+      className="link-copy-menu fixed z-[var(--z-context-menu)] min-w-40 max-w-[min(18rem,calc(100vw-24px))] rounded-xl border border-line bg-surface p-1 text-sm text-foreground shadow-[var(--shadow-md)]"
       style={{
         left: position?.left ?? 0,
         top: position?.top ?? 0,

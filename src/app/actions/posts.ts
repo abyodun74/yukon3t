@@ -6,6 +6,7 @@ import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
+import { likeGroupIdsOf, recomputeLikeGroups } from "@/lib/like-groups";
 import { postSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
@@ -107,6 +108,10 @@ export async function deletePost(postId: string) {
         : []),
     ]),
   ]);
+
+  // A post that shared one like count with a Muse (src/lib/like-groups.ts): its likes went with it, the Muse keeps
+  // its own, and the shared count is recounted.
+  await recomputeLikeGroups(likeGroupIdsOf(albumPosts));
 
   const mediaUrls = albumPosts.flatMap((p) => [
     ...p.mediaUrls,

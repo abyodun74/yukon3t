@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { Sheet } from "@/components/sheet";
+import { useOverlayHost } from "@/components/overlay-root";
 import { useCommentToolsText } from "@/components/comment-tools-text";
 import { createConfirmAction, deleteCommentMessage, type ConfirmAction, type ConfirmRun } from "@/lib/confirm-action";
 import { useBackDismiss } from "@/lib/use-back-dismiss";
 
 /**
  * A confirmation before a destructive action, built on the shared Sheet dialog (its fade + scale tween, no bounce,
- * its focus return and Escape). Portaled to <body> above every full-screen overlay (the Story viewer and the Muse
- * viewer sit at z-70), so it also works from inside a transformed panel such as the Muse comments sheet.
+ * its focus return and Escape). The Sheet portals it into the root overlay host on the `confirm` layer
+ * (src/lib/overlay-layers.ts), above every sheet and full-screen viewer (Story, Muse, the Muse comments sheet inside
+ * it), so it also works from inside a transformed panel such as the Muse comments sheet.
  *
  * Focus lands on Cancel, the safe choice. Escape, the back button, the backdrop and Cancel all cancel. While the
  * action runs both buttons are disabled (nothing can be confirmed twice or dismissed half way) and Delete says so.
@@ -41,7 +42,7 @@ export function ConfirmDialog({
   const { locale, dir } = useCommentToolsText();
   const cancelRef = useRef<HTMLButtonElement>(null);
   // Server and hydration render nothing (no document to portal into); the client renders the portal afterwards.
-  const mounted = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const mounted = useOverlayHost() !== null;
 
   useBackDismiss(open, onCancel);
 
@@ -50,17 +51,10 @@ export function ConfirmDialog({
     if (open && mounted) cancelRef.current?.focus({ preventScroll: true });
   }, [open, mounted]);
 
-  if (!mounted) return null;
-  return createPortal(
+  return (
     // A portal still bubbles React events through the tree it was rendered in (a post card, the Story viewer's tap
-    // zones, the Muse feed): taps on the dialog stop here.
-    <div
-      className="relative z-[90]"
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
-    >
-      <Sheet open={open} onClose={onCancel} title={title} lang={locale} dir={dir}>
+    // zones, the Muse feed): stopEventPropagation stops taps on the dialog there.
+    <Sheet open={open} onClose={onCancel} title={title} lang={locale} dir={dir} layer="confirm" stopEventPropagation>
         <div>
           <p className="text-sm text-foreground-soft">{message}</p>
           {error && (
@@ -89,9 +83,7 @@ export function ConfirmDialog({
             </button>
           </div>
         </div>
-      </Sheet>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }
 
@@ -142,8 +134,4 @@ export function CommentDeleteDialog<T>({
       onCancel={() => flow.cancel()}
     />
   );
-}
-
-function subscribeNothing() {
-  return () => {};
 }

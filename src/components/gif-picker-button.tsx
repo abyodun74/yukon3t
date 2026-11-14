@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOverlayHost, useOverlayZ } from "@/components/overlay-root";
 import { Search, Sticker } from "lucide-react";
 import { searchGiphyGifs, trendingGiphyGifs } from "@/app/actions/gifs";
 import { computePopoverPosition, type PopoverPosition } from "@/lib/popover-position";
@@ -34,6 +35,9 @@ export function GifPickerButton({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // Portaled to the root overlay host, on the sheet layer (one above the overlay it was opened from).
+  const overlayHost = useOverlayHost();
+  const popupZ = useOverlayZ("sheet");
   const { locale, dir, t } = useUiText();
   const [position, setPosition] = useState<PopoverPosition | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -121,8 +125,8 @@ export function GifPickerButton({
             ref={popupRef}
             lang={locale}
             dir={dir}
-            className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
-            style={{ top: position.top, left: position.left, width: position.width, height: position.height }}
+            className="fixed flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
+            style={{ zIndex: popupZ, top: position.top, left: position.left, width: position.width, height: position.height }}
           >
             <GifSearchPanel
               autoFocus
@@ -132,7 +136,7 @@ export function GifPickerButton({
               }}
             />
           </div>,
-          document.body,
+          overlayHost ?? document.body,
         )}
     </>
   );

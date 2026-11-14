@@ -1,5 +1,6 @@
 "use client";
 
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -179,6 +180,9 @@ export function StoryViewer({
   const pointerStartXRef = useRef(0);
   const router = useRouter();
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+  // A full-screen viewer (src/lib/overlay-layers.ts), portaled to the root overlay host: it opens from the Home story
+  // tray's horizontal scroller and from a profile's avatar, and must not be positioned or clipped by either.
+  const viewerZ = useOverlayZ("viewer");
 
   const story = stories[index];
   useScreenshotContext(story ? { type: "story", id: story.id } : null);
@@ -408,6 +412,7 @@ export function StoryViewer({
   if (!story) return null;
 
   return (
+    <OverlayPortal z={viewerZ}>
     <div
       ref={dialogRef}
       role="dialog"
@@ -417,8 +422,9 @@ export function StoryViewer({
       aria-modal="true"
       aria-label={format(t.stories.viewer.label, { index: index + 1, total: stories.length, name: authorName })}
       tabIndex={-1}
+      style={{ zIndex: viewerZ }}
       className={cn(
-        "fixed inset-0 z-[70] overflow-hidden bg-black outline-none",
+        "fixed inset-0 overflow-hidden bg-black outline-none",
         direction === "next" && "story-glide-next",
         direction === "prev" && "story-glide-prev",
       )}
@@ -713,7 +719,6 @@ export function StoryViewer({
             <EmojiPickerButton
               triggerVariant="plus"
               triggerClassName="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
-              popupZClass="z-[80]"
               onOpenChange={setEmojiOpen}
               onSelect={handleReact}
             />
@@ -739,6 +744,7 @@ export function StoryViewer({
         </div>
       )}
     </div>
+    </OverlayPortal>
   );
 }
 

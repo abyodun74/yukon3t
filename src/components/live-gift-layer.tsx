@@ -103,7 +103,7 @@ export function LiveGiftLayer({
       : t.live.effectArrived;
 
   return (
-    <div lang={locale} dir={dir} className="pointer-events-none fixed inset-0 z-[65] overflow-hidden">
+    <div lang={locale} dir={dir} className="pointer-events-none fixed inset-0 z-[var(--z-live-effects)] overflow-hidden">
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>

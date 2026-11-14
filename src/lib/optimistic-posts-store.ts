@@ -25,6 +25,11 @@ export type OptimisticPost = {
   status: "sending" | "error" | "held";
   errorMessage?: string;
   noticeMessage?: string;
+  /**
+   * Set on a failed post whose draft is parked in failed-post-draft.ts: where its composer is (the author's profile),
+   * so the card can offer Retry from Home, where there is no composer.
+   */
+  retryHref?: string;
 };
 
 // Same plain-module-state-plus-listeners shape as share-target-store.ts —
@@ -52,8 +57,8 @@ export function removeOptimisticPost(localId: string) {
   emit();
 }
 
-export function markOptimisticPostError(localId: string, message: string) {
-  posts = posts.map((p) => (p.localId === localId ? { ...p, status: "error", errorMessage: message } : p));
+export function markOptimisticPostError(localId: string, message: string, retryHref?: string) {
+  posts = posts.map((p) => (p.localId === localId ? { ...p, status: "error", errorMessage: message, retryHref } : p));
   emit();
 }
 

@@ -5,6 +5,7 @@ import { Eye, X } from "lucide-react";
 import { getViewOnceContentType, openViewOnceMessage, finishViewOnceMessage } from "@/app/actions/view-once";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { viewOnceCanPlay, type ViewOnceMediaType } from "@/lib/view-once";
 import { useMessagesText } from "@/components/messages-text";
 import type { messagesEn } from "@/lib/i18n/en/messages";
@@ -58,6 +59,8 @@ export function ViewOnceViewer({
   const [phase, setPhase] = useState<Phase>({ step: "confirm" });
   const t = useMessagesText().t.thread.viewOnce;
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+  // A full-screen viewer (src/lib/overlay-layers.ts), portaled to the root overlay host.
+  const viewerZ = useOverlayZ("viewer");
   const objectUrlRef = useRef<string | null>(null);
   const aliveRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
@@ -184,6 +187,7 @@ export function ViewOnceViewer({
   const blockSave = (e: { preventDefault: () => void }) => e.preventDefault();
 
   return (
+    <OverlayPortal z={viewerZ}>
     <div
       ref={dialogRef}
       role="dialog"
@@ -193,8 +197,8 @@ export function ViewOnceViewer({
       tabIndex={-1}
       onContextMenu={blockSave}
       // ph-no-capture: private media, kept out of session replay like every message bubble.
-      className="ph-no-capture animate-modal-backdrop-in fixed inset-0 z-50 flex select-none items-center justify-center bg-black p-4 outline-none"
-      style={{ WebkitTouchCallout: "none" }}
+      className="ph-no-capture animate-modal-backdrop-in fixed inset-0 flex select-none items-center justify-center bg-black p-4 outline-none"
+      style={{ zIndex: viewerZ, WebkitTouchCallout: "none" }}
     >
       <button
         type="button"
@@ -296,5 +300,6 @@ export function ViewOnceViewer({
         />
       )}
     </div>
+    </OverlayPortal>
   );
 }

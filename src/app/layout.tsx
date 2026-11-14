@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { OVERLAY_ROOT_ID } from "@/lib/overlay-layers";
 import { MotionProvider } from "@/components/motion-provider";
 import { AppSplash } from "@/components/app-splash";
 import { RegisterServiceWorker } from "@/components/register-sw";
@@ -334,6 +335,11 @@ export default async function RootLayout({
           </CommentToolsTextProvider>
           </UiTextProvider>
         </MotionProvider>
+        {/* The one root host every overlay (sheets, pickers, viewers, the call UI, toasts) is portaled into
+            (src/components/overlay-root.tsx): last in <body>, unstyled, so an overlay's z-index from the layer scale
+            (src/lib/overlay-layers.ts) is compared in body's stacking context only, never trapped in a transformed,
+            scrolling or stacking-context ancestor of whatever opened it. */}
+        <div id={OVERLAY_ROOT_ID} />
       </body>
     </html>
   );

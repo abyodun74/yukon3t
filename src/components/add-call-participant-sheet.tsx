@@ -7,6 +7,7 @@ import { getMyConnectionsForPicker } from "@/app/actions/connections";
 import { CALL_MAX_PARTICIPANTS } from "@/lib/call-resilience";
 import { captureError } from "@/lib/error-tracking";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useOverlayZ } from "@/components/overlay-root";
 import { useCallsText } from "@/components/calls-text";
 import type { callsEn } from "@/lib/i18n/en/calls";
 import { format } from "@/lib/i18n/locales";
@@ -39,9 +40,10 @@ function inviteErrorMessage(code: string, name: string | null, t: typeof callsEn
  * Picking someone rings them (inviteToCall) and closes the sheet; a refusal
  * is shown inline instead.
  *
- * Hand-rolled rather than <Sheet>, same as story-share-button.tsx: it opens
- * over the fullscreen call (z-[60], controls at z-[80]), above where Sheet's
- * own z-50 backdrop sits.
+ * Hand-rolled rather than <Sheet>, same as story-share-button.tsx. It opens
+ * over the fullscreen call: GlobalCallFrame renders it inside its overlay
+ * portal at the call-controls layer, so useOverlayZ("sheet") puts it one
+ * above the call's controls (src/lib/overlay-layers.ts).
  */
 export function AddCallParticipantSheet({
   open,
@@ -58,6 +60,7 @@ export function AddCallParticipantSheet({
   onInvited: () => void;
 }) {
   const { t: calls } = useCallsText();
+  const zIndex = useOverlayZ("sheet");
   const t = calls.add;
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -114,7 +117,8 @@ export function AddCallParticipantSheet({
       aria-modal="true"
       aria-labelledby={titleId}
       tabIndex={-1}
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 outline-none sm:items-center sm:p-4"
+      className="fixed inset-0 flex items-end justify-center bg-black/60 outline-none sm:items-center sm:p-4"
+      style={{ zIndex }}
       onClick={close}
     >
       <div

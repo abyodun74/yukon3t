@@ -3,7 +3,16 @@
 import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { canViewPost } from "@/lib/post-visibility";
+import { revalidatePath } from "next/cache";
+import { canViewPost, getVisiblePostsWhere } from "@/lib/post-visibility";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
+import {
+  isGroupLiker,
+  likeVisibleMembers,
+  lockLikeGroup,
+  recomputeLikeGroup,
+  unlikeGroup,
+} from "@/lib/like-groups";
 import { isEmojiOnly } from "@/lib/emoji";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { filterCircleContentViewers } from "@/lib/circle-permissions";
@@ -27,6 +36,36 @@ export async function toggleLike(postId: string) {
   }
   if (!(await canViewPost(postId, user.id))) {
     return { error: "not_found" };
+  }
+
+  // The same video on Muse (a Muse's reshare post, or a post shared to Muse): one like for the whole group.
+  if (post.likeGroupId) {
+    const groupId = post.likeGroupId;
+    const [visiblePostsWhere, blockedIds] = await Promise.all([
+      getVisiblePostsWhere(user.id),
+      getBlockedEitherWayIds(user.id),
+    ]);
+    const result = await prisma.$transaction(async (tx) => {
+      await lockLikeGroup(tx, groupId);
+      const mine = await tx.like.findUnique({
+        where: { userId_postId: { userId: user.id, postId } },
+        select: { id: true },
+      });
+      if (mine) {
+        await unlikeGroup(tx, groupId, user.id);
+        return { liked: false, likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false };
+      }
+      const wasLiker = await isGroupLiker(tx, groupId, user.id);
+      await tx.like.create({ data: { userId: user.id, postId } });
+      await likeVisibleMembers(tx, { groupId, userId: user.id, visiblePostsWhere, blockedIds });
+      return { liked: true, likeCount: await recomputeLikeGroup(tx, groupId), newLiker: !wasLiker };
+    });
+    // Only the surface tapped notifies, and only someone new to the group: a like already counted on the Muse side
+    // (or added there by this one) never notifies again.
+    if (result.newLiker) await notifyPostLike(post, user);
+    revalidatePostViews(post);
+    revalidatePath("/muse");
+    return { error: null, liked: result.liked, likeCount: result.likeCount };
   }
 
   const existing = await prisma.like.findUnique({
@@ -53,6 +92,16 @@ export async function toggleLike(postId: string) {
     }),
   ]);
 
+  await notifyPostLike(post, user);
+
+  revalidatePostViews(post);
+  return { error: null, liked: true, likeCount: updated.likeCount };
+}
+
+async function notifyPostLike(
+  post: { id: string; authorId: string; circleId: string | null },
+  user: { id: string; name: string | null },
+) {
   // An author who has left the post's PRIVATE Circle no longer sees it (lib/circle-visibility.ts): no bell row, no push.
   if (
     post.authorId !== user.id &&
@@ -68,9 +117,6 @@ export async function toggleLike(postId: string) {
     });
     await pushActivityNotification(post.authorId, "POST_LIKE", user.name, `/post/${post.id}`);
   }
-
-  revalidatePostViews(post);
-  return { error: null, liked: true, likeCount: updated.likeCount };
 }
 
 /**

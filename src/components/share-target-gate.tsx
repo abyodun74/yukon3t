@@ -639,7 +639,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   return (
     <div
       ref={dialogRef}
-      className="animate-modal-backdrop-in fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
+      className="animate-modal-backdrop-in fixed inset-0 z-[var(--z-blocking)] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 p-4 outline-none"
       onClick={busy ? undefined : close}
       role="dialog"
       aria-modal="true"

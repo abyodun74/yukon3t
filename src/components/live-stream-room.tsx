@@ -1,5 +1,7 @@
 "use client";
 
+import { OverlayLayerProvider } from "@/components/overlay-root";
+import { OVERLAY_LAYERS } from "@/lib/overlay-layers";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, Users, X } from "lucide-react";
@@ -904,7 +906,9 @@ export function LiveStreamRoom({
   const canRecord = isHost || role === "COHOST";
 
   return (
-    <>
+    // Sheets, pickers and popups opened from the room (gift picker, challenges, the emoji picker) stack above its
+    // controls (viewer layer) and GlobalCallFrame's Leave/Minimize bar (live-controls layer): src/lib/overlay-layers.ts.
+    <OverlayLayerProvider z={OVERLAY_LAYERS.liveControls}>
       {/* A single wrapping flex row, not two independently `fixed` corners —
           the old left-anchored info pill and right-anchored button column
           had no shared container, so nothing stopped them overlapping once
@@ -923,7 +927,7 @@ export function LiveStreamRoom({
           chrome above the page). env() is 0 anywhere that isn't
           edge-to-edge, so both of these are no-ops there. */}
       <div
-        className="fixed inset-x-0 z-[70] flex flex-wrap items-start justify-between gap-2 px-3"
+        className="fixed inset-x-0 z-[var(--z-viewer)] flex flex-wrap items-start justify-between gap-2 px-3"
         style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
         <div className="flex flex-wrap items-center gap-3 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs text-white">
@@ -1090,7 +1094,7 @@ export function LiveStreamRoom({
 
       {!isHost && pendingStageRole && (
         <div
-          className="fixed inset-x-0 z-[70] flex justify-center px-3"
+          className="fixed inset-x-0 z-[var(--z-viewer)] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
           <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
@@ -1117,7 +1121,7 @@ export function LiveStreamRoom({
         // gesture, so being approved never leaves someone stuck camera-off
         // with no way to fix it themselves.
         <div
-          className="fixed inset-x-0 z-[70] flex flex-col items-center gap-1 px-3"
+          className="fixed inset-x-0 z-[var(--z-viewer)] flex flex-col items-center gap-1 px-3"
           style={{ top: "calc(6.5rem + env(safe-area-inset-top))" }}
         >
           <button
@@ -1143,7 +1147,7 @@ export function LiveStreamRoom({
         cross-origin prebuilt iframe): Daily's own bottom-center control
         tray (mute/camera/leave — hiding that isn't an option, it's the
         only way to mute/unmute during the stream) and GlobalCallFrame's
-        own bottom-right Leave/Minimize buttons (z-[80]). The
+        own bottom-right Leave/Minimize buttons (live-controls layer). The
         `calc(7rem + env(safe-area-inset-bottom))` bottom offset sits this
         whole block above Daily's tray height rather than trying to dodge it
         horizontally, which would be guessing at a width this app has no way
@@ -1157,7 +1161,7 @@ export function LiveStreamRoom({
         alone isn't reliable enough on Android here.
       */}
       <div
-        className="pointer-events-none fixed inset-x-3 z-[70] flex flex-col items-start gap-2"
+        className="pointer-events-none fixed inset-x-3 z-[var(--z-viewer)] flex flex-col items-start gap-2"
         style={{ bottom: "calc(7rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
         <div className="max-h-[32vh] w-full max-w-[75%] overflow-y-auto sm:max-w-xs">
@@ -1208,7 +1212,7 @@ export function LiveStreamRoom({
         control next to it rather than competing for the same corner.
       */}
       <div
-        className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2"
+        className="pointer-events-none fixed inset-x-0 z-[var(--z-viewer)] flex flex-col items-center gap-2"
         style={{ bottom: "calc(7rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
       >
         <div className="flex h-16 flex-col-reverse items-center overflow-hidden">
@@ -1240,7 +1244,6 @@ export function LiveStreamRoom({
               <EmojiPickerButton
                 triggerVariant="plus"
                 triggerClassName="rounded-full border border-white/30 p-2 text-white hover:bg-white/20"
-                popupZClass="z-[90]"
                 onSelect={sendReaction}
               />
             </div>
@@ -1254,7 +1257,7 @@ export function LiveStreamRoom({
             <Smile size={16} />
           </button>
           {/* Digital gifts: a gift to the host plays its effect for everyone watching (LiveGiftLayer). The picker is a
-              Sheet inside this z-[70] layer, so it opens above the video (z-[60]). Never for the host themself. */}
+              Sheet opened inside the room's overlay layer, so it opens above the video and the room's controls. Never for the host themself. */}
           {giftHost && !isHost && phase === "active" && (
             <SendGiftButton
               iconOnly
@@ -1286,7 +1289,7 @@ export function LiveStreamRoom({
 
       {!isHost && !pendingStageRole && declinedNotice && (
         <div
-          className="fixed inset-x-0 z-[70] flex justify-center px-3"
+          className="fixed inset-x-0 z-[var(--z-viewer)] flex justify-center px-3"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
           <div className="flex max-w-full items-center gap-2 rounded-full hig-material-dark bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white">
@@ -1302,6 +1305,6 @@ export function LiveStreamRoom({
           </div>
         </div>
       )}
-    </>
+    </OverlayLayerProvider>
   );
 }

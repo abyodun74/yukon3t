@@ -187,12 +187,8 @@ export function MuseShareModal({
   }
 
   return (
-    // relative + z-[60] (not Sheet's own default z-50) establishes a new
-    // stacking context at that level — this needs to sit above the Muse
-    // feed's own overlays (e.g. its toast at z-[55]), same stacking-context
-    // nesting trick used wherever else in the app a fixed-position overlay
-    // needs a non-default layer without Sheet itself needing a z-index prop.
-    <div className="relative z-[60]">
+    // Sheet portals itself to the root overlay host; opened from the Muse viewer it lands one layer above it
+    // (src/lib/overlay-layers.ts), so no stacking-context wrapper is needed here any more.
       <Sheet open={open} onClose={onClose} title={view === "root" ? t.title : feed.share.sendToFriend}>
         {notice && <p role="alert" className="break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{notice}</p>}
 
@@ -279,6 +275,5 @@ export function MuseShareModal({
           </div>
         )}
       </Sheet>
-    </div>
   );
 }

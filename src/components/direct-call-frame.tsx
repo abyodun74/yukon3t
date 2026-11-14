@@ -1062,7 +1062,7 @@ export function DirectCallFrame({
       )}
 
       {/* Fills the same bottom-tray footprint Daily's Prebuilt tray used to
-          — GlobalCallFrame's own Leave/Minimize bar (bottom-right, z-[80])
+          — GlobalCallFrame's own Leave/Minimize bar (bottom-right, call-controls layer)
           sits above this, same as it does over CallFrame's iframe. Falls
           back to var(--safe-area-inset-bottom) alongside env() — see
           nav.tsx's comment on why the plain env() alone isn't reliable

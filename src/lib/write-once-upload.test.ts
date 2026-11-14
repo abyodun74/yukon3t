@@ -60,7 +60,9 @@ describe("every PUT to a presigned public-media URL sends the write-once header"
     // Multipart part URLs (die with the upload id on completion) and the two private buckets (server-side copy to a
     // final key) are not createUploadUrl URLs.
     expect(Object.keys(byUrl).sort()).toEqual(["partUrls[index]", "uploadUrl", "url"].sort());
-    expect(text).toMatch(/requestUploadUrls\(\s*chunk\.map\(\(p\) => p\.item\),\s*WRITE_ONCE_UPLOAD_PROTOCOL,?\s*\)/);
+    // Presigning goes through the /api/uploads/presign route (which calls requestUploadUrls), still with the protocol.
+    expect(text).toMatch(/presignViaRoute\(chunk\.map\(\(p\) => p\.item\)\)/);
+    expect(text).toMatch(/body: JSON\.stringify\(\{ items, protocol: WRITE_ONCE_UPLOAD_PROTOCOL \}\)/);
     expect(text).toMatch(/!result\.headers\)/);
     expect(text).toMatch(/putAttemptOutcome\(res\.status, attempt\)/);
   });

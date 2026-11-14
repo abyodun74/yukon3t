@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { MuseFeed } from "@/components/muse-feed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { suspendAutoplayOnView } from "@/lib/use-autoplay-on-view";
 import type { MuseSeedPost } from "@/lib/muse-from-feed";
 
@@ -38,6 +39,7 @@ export function MuseViewerOverlay({
     window.history.back();
   }
   const dialogRef = useDialogFocus<HTMLDivElement>(true, close);
+  const viewerZ = useOverlayZ("viewer");
 
   const pushedRef = useRef(false);
   useEffect(() => {
@@ -59,17 +61,21 @@ export function MuseViewerOverlay({
   useEffect(() => suspendAutoplayOnView(), []);
 
   return (
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Muse"
-      tabIndex={-1}
-      // Above nav.tsx's header and tab bar, like StoryViewer. Also the stacking context for MuseFeed's own layers
-      // (its comments sheet, share sheet and toast), so they still paint above its cards.
-      className="fixed inset-0 z-[70] bg-black outline-none"
-    >
-      <MuseFeed initialItems={[]} initialCursor={null} currentUserId={currentUserId} seedPost={seedPost} onClose={close} />
-    </div>
+    <OverlayPortal z={viewerZ}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Muse"
+        tabIndex={-1}
+        // The viewer layer (src/lib/overlay-layers.ts), portaled to the root overlay host: above nav.tsx's header and
+        // tab bar, like StoryViewer. Also the stacking context for MuseFeed's own layers (its comments sheet and
+        // toast), so they still paint above its cards; its sheets portal one layer above this.
+        className="fixed inset-0 bg-black outline-none"
+        style={{ zIndex: viewerZ }}
+      >
+        <MuseFeed initialItems={[]} initialCursor={null} currentUserId={currentUserId} seedPost={seedPost} onClose={close} />
+      </div>
+    </OverlayPortal>
   );
 }

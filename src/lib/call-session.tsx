@@ -1,5 +1,6 @@
 "use client";
 
+import { closeAllOverlays, sessionStartClosesOverlays } from "@/lib/overlay-registry";
 import {
   createContext,
   useCallback,
@@ -153,6 +154,11 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   useReloadHold("call", session !== null);
 
   const startSession = useCallback((next: StartSessionInput) => {
+    // A new call closes every picker, sheet and list dialog that is open (the Connections list's "Calling…" sheet, a
+    // share sheet, the create picker...), so nothing can stay on top of or behind it; the call UI itself is on the call
+    // layer above everything else (src/lib/overlay-layers.ts). Checked before the same-key early return, which it
+    // also covers: a second start of the same call closes nothing twice.
+    if (sessionStartClosesOverlays(sessionRef.current?.key, next)) closeAllOverlays();
     if (sessionRef.current?.key === next.key) {
       setMinimized(false);
       return;

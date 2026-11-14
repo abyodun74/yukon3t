@@ -6,6 +6,7 @@ import { ZoomableImage } from "@/components/zoomable-image";
 import { saveMediaToGallery } from "@/lib/save-to-gallery";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { cn } from "@/lib/utils";
 import { blockImageSave, PROTECTED_IMAGE_CLASS } from "@/lib/protected-image";
 import { useSecureWindow } from "@/lib/secure-window";
@@ -116,12 +117,17 @@ export function Lightbox({
   // the hook only lets the topmost open dialog answer it, so a sheet opened
   // over this lightbox closes alone instead of taking the lightbox with it.
   const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+  // A full-screen viewer (src/lib/overlay-layers.ts), portaled to the root overlay host: it opens from post cards,
+  // chat bubbles and profile avatars, any of which can sit in a transformed or scrolling container.
+  const viewerZ = useOverlayZ("viewer");
 
   return (
+    <OverlayPortal z={viewerZ}>
     <div
       ref={dialogRef}
+      style={{ zIndex: viewerZ }}
       className={cn(
-        "animate-modal-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 outline-none",
+        "animate-modal-backdrop-in fixed inset-0 flex items-center justify-center bg-black/90 p-4 outline-none",
         protect && PROTECTED_IMAGE_CLASS,
       )}
       onClick={onClose}
@@ -199,5 +205,6 @@ export function Lightbox({
         />
       )}
     </div>
+    </OverlayPortal>
   );
 }

@@ -18,7 +18,7 @@ const PANEL_REFETCH_MS = 2_000;
  * challenges, where the host starts one and declares winners, and viewers in the room join or leave. Rendered only
  * when challengesEnabledFor is on for the viewer (src/app/live/[id]/page.tsx); every action re-checks it, and that the
  * viewer is in the stream. `signal` is bumped by each "challenge" live-stream signal; the open sheet refetches then
- * (throttled). Like the gift picker, the Sheet sits inside the room's z-[70] control layer, above the video.
+ * (throttled). Like the gift picker, the Sheet opens one layer above the room's controls (LiveStreamRoom's OverlayLayerProvider), above the video.
  */
 export function LiveChallengePanel({
   liveStreamId,

@@ -24,6 +24,7 @@ import { pushEn } from "@/lib/i18n/en/push";
 import { settingsEn } from "@/lib/i18n/en/settings";
 import { sharedEn } from "@/lib/i18n/en/shared";
 import { shellEn } from "@/lib/i18n/en/shell";
+import { postUploadEn } from "@/lib/i18n/en/postUpload";
 import { storyUploadEn } from "@/lib/i18n/en/storyUpload";
 import { uiEn } from "@/lib/i18n/en/ui";
 import { vocabEn } from "@/lib/i18n/en/vocab";
@@ -51,6 +52,7 @@ export {
   sharedEn,
   shellEn,
   storyUploadEn,
+  postUploadEn,
   uiEn,
   vocabEn,
 };
@@ -79,6 +81,7 @@ export const en = {
   circleShare: circleShareEn,
   commentTools: commentToolsEn,
   storyUpload: storyUploadEn,
+  postUpload: postUploadEn,
   ...accountEn,
 };
 

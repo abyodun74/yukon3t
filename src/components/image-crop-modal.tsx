@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useUiText } from "@/components/ui-text";
 
 // Hand-rolled rather than a library (react-easy-crop, cropperjs, etc.) —
@@ -51,6 +52,8 @@ export function ImageCropModal({
     if (!isBusy) onCancel();
   });
 
+  // Sheet layer (src/lib/overlay-layers.ts), portaled to the root overlay host like every dialog.
+  const sheetZ = useOverlayZ("sheet");
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const maxScale = minScale * 4;
@@ -222,6 +225,7 @@ export function ImageCropModal({
     // centering when the panel fits, but a panel taller than the screen (large
     // iOS text size) stays scrollable from its top instead of having its
     // title and buttons pushed out of reach — see sheet.tsx.
+    <OverlayPortal z={sheetZ}>
     <div
       ref={dialogRef}
       role="dialog"
@@ -230,7 +234,8 @@ export function ImageCropModal({
       tabIndex={-1}
       lang={locale}
       dir={dir}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 p-4 outline-none"
+      className="fixed inset-0 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 p-4 outline-none"
+      style={{ zIndex: sheetZ }}
     >
       <div className="my-auto w-full max-w-sm rounded-xl bg-surface p-4 shadow-xl">
         <p id={titleId} className="mb-3 text-sm font-medium">{title ?? t.crop.title}</p>
@@ -296,5 +301,6 @@ export function ImageCropModal({
         </div>
       </div>
     </div>
+    </OverlayPortal>
   );
 }
