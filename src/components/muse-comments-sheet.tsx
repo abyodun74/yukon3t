@@ -664,6 +664,7 @@ function MuseCommentsPanel({
           <div className="flex min-w-0 flex-1 items-center rounded-full border border-line bg-background pe-1 focus-within:border-accent">
             <input
               ref={inputRef}
+              data-ring-on-wrapper
               aria-label={replyTarget ? t.replyLabel : t.composerLabel}
               dir="auto"
               type="text"

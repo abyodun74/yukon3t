@@ -114,6 +114,7 @@ export function MultiSelect({
         ))}
         <input
           type="text"
+          data-ring-on-wrapper
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}

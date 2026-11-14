@@ -332,6 +332,16 @@ textarea {
   outline-offset: 2px;
 }
 
+/* A text field inside a wrapper that draws its own focus ring (`focus-within:border-accent` on a rounded pill or box)
+   must not also get the keyboard-focus outline above: that draws a square orange box inside the rounded wrapper (the
+   Muse comments composer on Android). Tailwind's `outline-none` cannot do this on its own because the rule above is
+   unlayered and so beats every utility, hence the explicit attribute. src/components/focus-ring-wrapper.test.ts
+   fails when a `focus-within:border-accent` wrapper holds a field without it. */
+input[data-ring-on-wrapper]:focus-visible,
+textarea[data-ring-on-wrapper]:focus-visible {
+  outline: none;
+}
+
 /* Tap feedback on every button sitewide — a couple of components already
    hand-rolled their own active:scale-* for this (messages-inbox-list.tsx,
    submit-button.tsx); this makes it universal instead of something each
