@@ -109,8 +109,8 @@ export async function deletePost(postId: string) {
     ]),
   ]);
 
-  // A post that shared one like count with a Muse (src/lib/like-groups.ts): its likes went with it, the Muse keeps
-  // its own, and the shared count is recounted.
+  // A post that shared one like count with its author's own Muse (src/lib/like-groups.ts): its likes went with it,
+  // the Muse keeps its own, and only that group's count is recounted.
   await recomputeLikeGroups(likeGroupIdsOf(albumPosts));
 
   const mediaUrls = albumPosts.flatMap((p) => [

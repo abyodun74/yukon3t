@@ -858,7 +858,8 @@ export function PostCard({
 
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
-  // The same video on Muse (a Muse viewer open over Home, another card of it): one like, kept in step both ways.
+  // The author's own copy of this video on Muse (same like group: a Muse viewer open over Home, another card of it):
+  // one like, kept in step both ways. Someone else's copy has another group (or none) and never syncs with this card.
   const [likeSyncSource] = useState(() => Symbol("post-card-like"));
   useLikeGroupSync(post.likeGroupId ?? null, likeSyncSource, (change) => {
     setLiked(change.liked);

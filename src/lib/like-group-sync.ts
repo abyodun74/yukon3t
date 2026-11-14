@@ -3,9 +3,10 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Keeps every on-screen card of one like group (src/lib/like-groups.ts: a Muse and the feed post(s) of the same video)
- * in step: Home stays mounted under the Muse viewer, so a like in the viewer must show on the post card underneath,
- * and two Muses of the same video in one feed share their count. The card that changed announces the server's answer
+ * Keeps every on-screen card of one like group (src/lib/like-groups.ts: one person's Muse and their own feed copy of
+ * the same video; groups are single-author) in step: Home stays mounted under the Muse viewer, so a like in the viewer
+ * must show on the same group's post card underneath. Cards of different groups (someone else's copy of the video,
+ * which has its own group or none) never take each other's changes. The card that changed announces the server's answer
  * (the caller's liked state and the group's count); every other card of the group takes it. Same tab only, like
  * rsvp-sync.ts; nothing leaves the page.
  */
@@ -28,6 +29,20 @@ export function announceLikeGroup(change: LikeGroupChange) {
 }
 
 /**
+ * Whether a card listening on `listening` takes `change`: only another card's announcement, and only for its own group
+ * (`"any"`: a list holding many cards, which filters per card by likeGroupId itself). Groups are single-author, so a
+ * card never takes a change from someone else's copy of the same video.
+ */
+export function likeGroupChangeApplies(
+  listening: string | null | "any",
+  source: symbol,
+  change: LikeGroupChange | null | undefined,
+): change is LikeGroupChange {
+  if (!listening || !change || change.source === source) return false;
+  return listening === "any" || change.likeGroupId === listening;
+}
+
+/**
  * Calls `onChange` for every change announced by another card. `likeGroupId` narrows it to one group (a card); null
  * listens to nothing; omit it (`"any"`) to hear every group (a list that holds many cards).
  */
@@ -44,8 +59,7 @@ export function useLikeGroupSync(
     if (!likeGroupId) return;
     function listener(e: Event) {
       const change = (e as CustomEvent<LikeGroupChange>).detail;
-      if (!change || change.source === source) return;
-      if (likeGroupId === "any" || change.likeGroupId === likeGroupId) handler.current(change);
+      if (likeGroupChangeApplies(likeGroupId, source, change)) handler.current(change);
     }
     window.addEventListener(EVENT_NAME, listener);
     return () => window.removeEventListener(EVENT_NAME, listener);

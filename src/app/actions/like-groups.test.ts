@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Like groups (src/lib/like-groups.ts): a Muse and the feed post(s) of the same video share ONE like count. These run
+// Like groups (src/lib/like-groups.ts): ONE person's Muse and their own feed copy of the same video share ONE like
+// count; a copy someone else makes is independent (same-author rule, owner decision 2026-11-14). These run
 // the real actions (toggleLike, toggleMuseReaction, toggleMuseRepost, shareToMuse, deleteMuse) against a small
 // in-memory database that emulates the Prisma calls they make, the raw SQL in like-groups.ts and the per-group advisory
 // lock, so concurrency, visibility, blocks and notifications are checked on real data rather than on call shapes.
@@ -304,6 +305,10 @@ function makeClient(lock: (key: string) => Promise<void>) {
           if (!db.likes.some((l) => l.userId === d.userId && l.postId === d.postId)) db.likes.push({ id: newId("clike"), ...d });
         }
       },
+      async delete({ where }: { where: { id: string } }) {
+        await log("like.delete");
+        db.likes = db.likes.filter((l) => l.id !== where.id);
+      },
       async deleteMany({ where }: { where: W }) {
         await log("like.deleteMany");
         const before = db.likes.length;
@@ -452,12 +457,14 @@ vi.mock("@/lib/channel-permissions", () => ({ canAccessChannel: vi.fn() }));
 const { toggleLike } = await import("@/app/actions/likes");
 const { toggleMuseReaction, toggleMuseRepost, deleteMuse } = await import("@/app/actions/muse");
 const { shareToMuse } = await import("@/app/actions/shares");
+const { likeGroupForNewMember } = await import("@/lib/like-groups");
 
 const MUSE_AUTHOR = "cmuseauthor01";
 const RESHARER = "cresharer0001";
 const A = "cuserA0000001";
 const B = "cuserB0000001";
 const C = "cuserC0000001";
+const D = "cuserD0000001";
 
 function as(id: string) {
   currentUser = { id, name: id, isAdmin: false };
@@ -508,14 +515,24 @@ function addPost(overrides: Partial<Post> = {}): Post {
   db.posts.set(p.id, p);
   return p;
 }
-/** A Muse reshared to Home by RESHARER through the real action: the group both directions start from. */
-async function museWithReshare() {
-  const muse = addMuse();
-  as(RESHARER);
-  const res = await toggleMuseRepost(muse.id);
+/** `userId` reshares the Muse to Home through the real action; answers the Muse and the reshare post. */
+async function reshareAs(userId: string, museId: string) {
+  as(userId);
+  const res = await toggleMuseRepost(museId);
   if (!("reposted" in res) || !res.reposted) throw new Error("reshare failed");
-  const postId = db.museReposts.find((r) => r.museId === muse.id)!.postId!;
-  return { muse: db.muses.get(muse.id)!, post: db.posts.get(postId)! };
+  const postId = db.museReposts.find((r) => r.museId === museId && r.userId === userId)!.postId!;
+  return { muse: db.muses.get(museId)!, post: db.posts.get(postId)! };
+}
+/** A Muse its own author reshared to Home: a same-author group. */
+const museWithOwnReshare = () => reshareAs(MUSE_AUTHOR, addMuse().id);
+/** Someone else (RESHARER) reshared MUSE_AUTHOR's Muse to Home: an independent post. */
+const museWithOtherReshare = () => reshareAs(RESHARER, addMuse().id);
+/** `userId` shares the post to Muse through the real action; answers the new Muse. */
+async function shareAs(userId: string, postId: string) {
+  as(userId);
+  const res = await shareToMuse(postId);
+  if (res.error) throw new Error(`share failed: ${res.error}`);
+  return db.muses.get((res as { museId: string }).museId)!;
 }
 const countsOf = (...ids: string[]) => ids.map((id) => (db.posts.get(id) ?? db.muses.get(id))!.likeCount);
 const likedPost = (userId: string, postId: string) => db.likes.some((l) => l.userId === userId && l.postId === postId);
@@ -536,34 +553,66 @@ beforeEach(() => {
   as(A);
 });
 
-describe("group resolution", () => {
-  it("a Muse's reshare post joins the Muse's group, named after the Muse", async () => {
-    const { muse, post } = await museWithReshare();
+describe("likeGroupForNewMember", () => {
+  it("joins the source's group only when the creator is the source's author", () => {
+    expect(likeGroupForNewMember({ id: "src", authorId: A, likeGroupId: null }, A)).toBe("src");
+    expect(likeGroupForNewMember({ id: "src", authorId: A, likeGroupId: "g1" }, A)).toBe("g1");
+    expect(likeGroupForNewMember({ id: "src", authorId: A, likeGroupId: "g1" }, B)).toBeNull();
+    expect(likeGroupForNewMember({ id: "src", authorId: A, likeGroupId: null }, B)).toBeNull();
+  });
+});
+
+describe("group resolution (same author only)", () => {
+  it("the Muse's author resharing it: the reshare post joins the Muse's group, named after the Muse", async () => {
+    const { muse, post } = await museWithOwnReshare();
     expect(muse.likeGroupId).toBe(muse.id);
     expect(post.likeGroupId).toBe(muse.id);
   });
 
-  it("a post shared to Muse and the Muse made from it form one group, named after the post", async () => {
+  it("a post's author sharing it to Muse: post and Muse form one group, named after the post", async () => {
     const post = addPost({ authorId: C });
-    as(A);
-    const res = await shareToMuse(post.id);
-    expect(res.error).toBeNull();
-    const muse = db.muses.get((res as { museId: string }).museId)!;
+    const muse = await shareAs(C, post.id);
     expect(db.posts.get(post.id)!.likeGroupId).toBe(post.id);
     expect(muse.likeGroupId).toBe(post.id);
   });
 
-  it("a reshare post shared to Muse again stays in the same group", async () => {
-    const { muse, post } = await museWithReshare();
-    as(B);
-    const res = await shareToMuse(post.id);
-    expect(db.muses.get((res as { museId: string }).museId)!.likeGroupId).toBe(muse.id);
+  it("someone else's feed reshare of my Muse gets no group, and the Muse stays ungrouped", async () => {
+    const { muse, post } = await museWithOtherReshare();
+    expect(post.likeGroupId).toBeNull();
+    expect(muse.likeGroupId).toBeNull();
+    expect(calls).not.toContain("lock");
+  });
+
+  it("someone else's Muse made from my post gets no group, and my post stays ungrouped", async () => {
+    const post = addPost({ authorId: C });
+    const muse = await shareAs(A, post.id);
+    expect(muse.likeGroupId).toBeNull();
+    expect(db.posts.get(post.id)!.likeGroupId).toBeNull();
+    expect(calls).not.toContain("lock");
+  });
+
+  it("someone else's copy of an already-grouped item stays out of that group", async () => {
+    const { muse, post } = await museWithOwnReshare();
+    const copy = await shareAs(B, post.id);
+    expect(copy.likeGroupId).toBeNull();
+    const other = await reshareAs(B, muse.id);
+    expect(other.post.likeGroupId).toBeNull();
+    expect(db.muses.get(muse.id)!.likeGroupId).toBe(muse.id);
+  });
+
+  it("chain A's post -> B's Muse -> B's reshare: B's pair is one group, A's post independent", async () => {
+    const aPost = addPost({ authorId: A });
+    const bMuse = await shareAs(B, aPost.id);
+    const { post: bPost } = await reshareAs(B, bMuse.id);
+    expect(db.muses.get(bMuse.id)!.likeGroupId).toBe(bMuse.id);
+    expect(bPost.likeGroupId).toBe(bMuse.id);
+    expect(db.posts.get(aPost.id)!.likeGroupId).toBeNull();
   });
 });
 
-describe("one like across Feed and Muse", () => {
-  it("a reaction on the Muse likes the reshare post too, with the same count", async () => {
-    const { muse, post } = await museWithReshare();
+describe("same-author pair: one like across Feed and Muse", () => {
+  it("a reaction on the Muse likes the author's reshare post too, with the same count", async () => {
+    const { muse, post } = await museWithOwnReshare();
     as(A);
     const res = await toggleMuseReaction(muse.id, "😂");
     expect(res).toMatchObject({ error: null, likeCount: 1 });
@@ -572,8 +621,9 @@ describe("one like across Feed and Muse", () => {
     expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
   });
 
-  it("a like on the reshare post shows on the Muse as a heart, with the same count", async () => {
-    const { muse, post } = await museWithReshare();
+  it("a like on the author's post shows on their Muse made from it as a heart, with the same count", async () => {
+    const post = addPost({ authorId: C });
+    const muse = await shareAs(C, post.id);
     as(A);
     expect(await toggleLike(post.id)).toEqual({ error: null, liked: true, likeCount: 1 });
     expect(reactedMuse(A, muse.id)?.emoji).toBe(HEART);
@@ -581,7 +631,7 @@ describe("one like across Feed and Muse", () => {
   });
 
   it("unliking on either side removes the like from every member", async () => {
-    const { muse, post } = await museWithReshare();
+    const { muse, post } = await museWithOwnReshare();
     as(A);
     await toggleLike(post.id);
     // The Muse side now holds a heart: picking the heart again is the unlike.
@@ -596,7 +646,7 @@ describe("one like across Feed and Muse", () => {
   });
 
   it("changing the emoji on the Muse keeps the like and the count", async () => {
-    const { muse, post } = await museWithReshare();
+    const { muse, post } = await museWithOwnReshare();
     as(A);
     await toggleMuseReaction(muse.id, "😂");
     expect(await toggleMuseReaction(muse.id, "🔥")).toMatchObject({ likeCount: 1 });
@@ -605,18 +655,17 @@ describe("one like across Feed and Muse", () => {
   });
 
   it("counts distinct people: overlapping likers on both sides count once", async () => {
-    const { muse, post } = await museWithReshare();
-    // Before groups existed: A liked both, B only the post, C only the Muse.
+    const { muse, post } = await museWithOwnReshare();
     db.likes.push({ id: "l1", userId: A, postId: post.id }, { id: "l2", userId: B, postId: post.id });
     db.reactions.push({ id: "r1", museId: muse.id, userId: A, emoji: "😂" }, { id: "r2", museId: muse.id, userId: C, emoji: "🔥" });
-    as("cuserD0000001");
+    as(D);
     expect(await toggleLike(post.id)).toEqual({ error: null, liked: true, likeCount: 4 });
     expect(countsOf(muse.id, post.id)).toEqual([4, 4]);
   });
 
   it("keeps every member's counter equal to the distinct likers under concurrent likes", async () => {
-    const { muse, post } = await museWithReshare();
-    const second = addPost({ authorId: B, likeGroupId: muse.id });
+    const { muse, post } = await museWithOwnReshare();
+    const second = addPost({ authorId: MUSE_AUTHOR, likeGroupId: muse.id });
     const users = Array.from({ length: 8 }, (_, i) => `cconc${String(i).padStart(8, "0")}`);
     await Promise.all(
       users.map(async (u, i) => {
@@ -641,9 +690,79 @@ describe("one like across Feed and Muse", () => {
   });
 });
 
+describe("someone else's copy: independent", () => {
+  it("another user's Muse copy of my post has its own count, with no sibling likes either way", async () => {
+    const post = addPost({ authorId: C });
+    const copy = await shareAs(A, post.id);
+    as(B);
+    expect(await toggleLike(post.id)).toEqual({ error: null, liked: true, likeCount: 1 });
+    expect(reactedMuse(B, copy.id)).toBeUndefined();
+    as(D);
+    expect(await toggleMuseReaction(copy.id, "🔥")).toMatchObject({ error: null, likeCount: 1 });
+    expect(likedPost(D, post.id)).toBe(false);
+    expect(countsOf(post.id, copy.id)).toEqual([1, 1]);
+    as(B);
+    await toggleMuseReaction(copy.id, "😂");
+    expect(countsOf(post.id, copy.id)).toEqual([1, 2]);
+  });
+
+  it("another user's feed reshare of my Muse has its own count, with no sibling likes either way", async () => {
+    const { muse, post } = await museWithOtherReshare();
+    as(A);
+    expect(await toggleMuseReaction(muse.id, "😂")).toMatchObject({ likeCount: 1 });
+    expect(likedPost(A, post.id)).toBe(false);
+    as(B);
+    expect(await toggleLike(post.id)).toEqual({ error: null, liked: true, likeCount: 1 });
+    expect(reactedMuse(B, muse.id)).toBeUndefined();
+    expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
+  });
+
+  it("a new cross-author copy starts at zero likers even when the source is liked", async () => {
+    const muse = addMuse();
+    as(A);
+    await toggleMuseReaction(muse.id, "😂");
+    const { post } = await reshareAs(RESHARER, muse.id);
+    expect(db.likes.filter((l) => l.postId === post.id)).toEqual([]);
+    expect(countsOf(muse.id, post.id)).toEqual([1, 0]);
+
+    const source = addPost({ authorId: C });
+    as(A);
+    await toggleLike(source.id);
+    const copy = await shareAs(B, source.id);
+    expect(db.reactions.filter((r) => r.museId === copy.id)).toEqual([]);
+    expect(countsOf(source.id, copy.id)).toEqual([1, 0]);
+  });
+
+  it("unliking one side leaves the independent copy's like alone", async () => {
+    const { muse, post } = await museWithOtherReshare();
+    as(A);
+    await toggleMuseReaction(muse.id, "😂");
+    await toggleLike(post.id);
+    expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
+    expect(await toggleLike(post.id)).toEqual({ error: null, liked: false, likeCount: 0 });
+    expect(reactedMuse(A, muse.id)?.emoji).toBe("😂");
+    expect(countsOf(muse.id, post.id)).toEqual([1, 0]);
+  });
+
+  it("chain A's post -> B's Muse -> B's reshare: likes move only within B's pair", async () => {
+    const aPost = addPost({ authorId: A });
+    const bMuse = await shareAs(B, aPost.id);
+    const { post: bPost } = await reshareAs(B, bMuse.id);
+    as(C);
+    await toggleMuseReaction(bMuse.id, "🔥");
+    expect(likedPost(C, bPost.id)).toBe(true);
+    expect(likedPost(C, aPost.id)).toBe(false);
+    as(D);
+    await toggleLike(aPost.id);
+    expect(reactedMuse(D, bMuse.id)).toBeUndefined();
+    expect(likedPost(D, bPost.id)).toBe(false);
+    expect(countsOf(aPost.id, bMuse.id, bPost.id)).toEqual([1, 1, 1]);
+  });
+});
+
 describe("notifications", () => {
-  it("notifies the owner of the side liked, once per liker for the group, never for propagated likes", async () => {
-    const { muse, post } = await museWithReshare();
+  it("same-author pair: the owner hears once per liker for the group, never for propagated likes", async () => {
+    const { muse, post } = await museWithOwnReshare();
     db.notifications = [];
     pushActivityNotification.mockClear();
     as(A);
@@ -653,13 +772,13 @@ describe("notifications", () => {
 
     as(B);
     await toggleLike(post.id);
-    expect(db.notifications.slice(1)).toEqual([{ recipientId: RESHARER, actorId: B, type: "POST_LIKE", postId: post.id }]);
+    expect(db.notifications.slice(1)).toEqual([{ recipientId: MUSE_AUTHOR, actorId: B, type: "POST_LIKE", postId: post.id }]);
     expect(pushActivityNotification).toHaveBeenCalledTimes(2);
   });
 
   it("does not notify again when someone already counted likes another member", async () => {
-    const { muse, post } = await museWithReshare();
-    // A liked the Muse before the reshare post existed in their view (hidden), so the post holds no like of theirs.
+    const { muse, post } = await museWithOwnReshare();
+    // A liked the Muse while the reshare post was hidden from them, so the post holds no like of theirs.
     db.hiddenFrom.set(post.id, new Set([A]));
     as(A);
     await toggleMuseReaction(muse.id, "😂");
@@ -670,11 +789,23 @@ describe("notifications", () => {
     expect(db.notifications).toEqual([]);
     expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
   });
+
+  it("cross-author copies: each like notifies only the owner of what was liked", async () => {
+    const { muse, post } = await museWithOtherReshare();
+    db.notifications = [];
+    as(A);
+    await toggleMuseReaction(muse.id, "😂");
+    await toggleLike(post.id);
+    expect(db.notifications).toEqual([
+      { recipientId: MUSE_AUTHOR, actorId: A, type: "MUSE_LIKE", museId: muse.id },
+      { recipientId: RESHARER, actorId: A, type: "POST_LIKE", postId: post.id },
+    ]);
+  });
 });
 
 describe("visibility and blocks", () => {
   it("never creates a like on a member the liker can't see, but counts them once everywhere", async () => {
-    const { muse, post } = await museWithReshare();
+    const { muse, post } = await museWithOwnReshare();
     db.hiddenFrom.set(post.id, new Set([A]));
     as(A);
     await toggleMuseReaction(muse.id, "😂");
@@ -682,17 +813,18 @@ describe("visibility and blocks", () => {
     expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
   });
 
-  it("never adds a reaction to a Muse whose author is blocked either way with the liker", async () => {
-    const { muse, post } = await museWithReshare();
+  it("someone blocked either way with the author can like no member of the group", async () => {
+    const { muse, post } = await museWithOwnReshare();
     db.blocks.push([MUSE_AUTHOR, A]);
     as(A);
-    await toggleLike(post.id);
-    expect(reactedMuse(A, muse.id)).toBeUndefined();
-    expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
+    expect(await toggleLike(post.id)).toEqual({ error: "not_found" });
+    expect(await toggleMuseReaction(muse.id, "😂")).toEqual({ error: "not_found" });
+    expect(db.likes).toEqual([]);
+    expect(db.reactions).toEqual([]);
   });
 
   it("refuses a like on a post the viewer can't see", async () => {
-    const { post } = await museWithReshare();
+    const { post } = await museWithOwnReshare();
     db.hiddenFrom.set(post.id, new Set([A]));
     as(A);
     expect(await toggleLike(post.id)).toEqual({ error: "not_found" });
@@ -701,50 +833,61 @@ describe("visibility and blocks", () => {
 });
 
 describe("members joining and leaving", () => {
-  it("a new reshare inherits the group's likers and count at once (minus people blocked with the resharer)", async () => {
+  it("the author's own reshare inherits the group's likers and count at once (minus people blocked with them)", async () => {
     const muse = addMuse();
     as(A);
     await toggleMuseReaction(muse.id, "😂");
     as(B);
     await toggleMuseReaction(muse.id, "🔥");
-    db.blocks.push([RESHARER, B]);
-    as(RESHARER);
-    await toggleMuseRepost(muse.id);
-    const postId = db.museReposts[0].postId!;
-    expect(likedPost(A, postId)).toBe(true);
-    expect(likedPost(B, postId)).toBe(false);
-    expect(countsOf(muse.id, postId)).toEqual([2, 2]);
+    db.blocks.push([MUSE_AUTHOR, B]);
+    const { post } = await reshareAs(MUSE_AUTHOR, muse.id);
+    expect(likedPost(A, post.id)).toBe(true);
+    expect(likedPost(B, post.id)).toBe(false);
+    expect(countsOf(muse.id, post.id)).toEqual([2, 2]);
   });
 
-  it("a Muse shared from a liked post inherits its likers as hearts", async () => {
+  it("the author's own Muse from their liked post inherits its likers as hearts", async () => {
     const post = addPost({ authorId: C });
     as(A);
     await toggleLike(post.id); // ordinary post at this point: no group yet
-    as(B);
-    const res = await shareToMuse(post.id);
-    const museId = (res as { museId: string }).museId;
-    expect(reactedMuse(A, museId)?.emoji).toBe(HEART);
-    expect(countsOf(museId, post.id)).toEqual([1, 1]);
+    const muse = await shareAs(C, post.id);
+    expect(reactedMuse(A, muse.id)?.emoji).toBe(HEART);
+    expect(countsOf(muse.id, post.id)).toEqual([1, 1]);
   });
 
-  it("undoing the reshare deletes only that post's likes; the Muse keeps its own and is recounted", async () => {
-    const { muse, post } = await museWithReshare();
+  it("undoing the author's own reshare deletes only that post's likes; the Muse is recounted", async () => {
+    const { muse, post } = await museWithOwnReshare();
     as(A);
     await toggleLike(post.id);
     // B could see only the post: their like lives only there.
-    db.blocks.push([MUSE_AUTHOR, B]);
-    as(B);
-    await toggleLike(post.id);
-    expect(countsOf(muse.id)).toEqual([2]);
-    as(RESHARER);
+    db.likes.push({ id: "lb", userId: B, postId: post.id });
+    as(C);
+    await toggleLike(post.id); // the recount picks B up too
+    expect(countsOf(muse.id)).toEqual([3]);
+    as(MUSE_AUTHOR);
     await toggleMuseRepost(muse.id);
     expect(db.posts.has(post.id)).toBe(false);
     expect(reactedMuse(A, muse.id)?.emoji).toBe(HEART);
-    expect(countsOf(muse.id)).toEqual([1]);
+    expect(countsOf(muse.id)).toEqual([2]);
   });
 
-  it("deleting the Muse keeps the reshare post's likes and its count", async () => {
-    const { muse, post } = await museWithReshare();
+  it("undoing someone else's reshare leaves the Muse's likes, count and group alone", async () => {
+    const { muse, post } = await museWithOtherReshare();
+    as(A);
+    await toggleMuseReaction(muse.id, "😂");
+    as(B);
+    await toggleLike(post.id);
+    calls.length = 0;
+    as(RESHARER);
+    await toggleMuseRepost(muse.id);
+    expect(db.posts.has(post.id)).toBe(false);
+    expect(calls).not.toContain("lock");
+    expect(countsOf(muse.id)).toEqual([1]);
+    expect(db.muses.get(muse.id)!.likeGroupId).toBeNull();
+  });
+
+  it("deleting the Muse keeps the author's reshare post's likes and its count", async () => {
+    const { muse, post } = await museWithOwnReshare();
     as(A);
     await toggleMuseReaction(muse.id, "😂");
     as(MUSE_AUTHOR);
@@ -752,19 +895,34 @@ describe("members joining and leaving", () => {
     expect(likedPost(A, post.id)).toBe(true);
     expect(countsOf(post.id)).toEqual([1]);
   });
+
+  it("deleting someone else's Muse copy never recounts the source post", async () => {
+    const post = addPost({ authorId: C });
+    as(A);
+    await toggleLike(post.id);
+    const copy = await shareAs(B, post.id);
+    as(D);
+    await toggleMuseReaction(copy.id, "🔥");
+    calls.length = 0;
+    as(B);
+    expect(await deleteMuse(copy.id)).toEqual({ error: null });
+    expect(calls).not.toContain("lock");
+    expect(countsOf(post.id)).toEqual([1]);
+    expect(likedPost(A, post.id)).toBe(true);
+  });
 });
 
 describe("batching", () => {
   it("a like costs the same number of queries whatever the group's size", async () => {
-    const small = await museWithReshare();
+    const small = await museWithOwnReshare();
     as(A);
     calls.length = 0;
     await toggleLike(small.post.id);
     const smallCalls = calls.length;
 
-    const big = await museWithReshare();
-    for (let i = 0; i < 25; i++) addPost({ authorId: `cbig${String(i).padStart(9, "0")}`, likeGroupId: big.muse.id });
-    for (let i = 0; i < 10; i++) addMuse({ authorId: `cbm${String(i).padStart(10, "0")}`, likeGroupId: big.muse.id });
+    const big = await museWithOwnReshare();
+    for (let i = 0; i < 25; i++) addPost({ authorId: MUSE_AUTHOR, likeGroupId: big.muse.id });
+    for (let i = 0; i < 10; i++) addMuse({ authorId: MUSE_AUTHOR, likeGroupId: big.muse.id });
     as(A);
     calls.length = 0;
     await toggleLike(big.post.id);

@@ -77,7 +77,7 @@ type MuseItem = {
   isReposted: boolean;
   isFollowingAuthor: boolean;
   sharedPostId: string | null;
-  /** Set when this Muse shares one like count with the feed post(s) of the same video (src/lib/like-groups.ts). */
+  /** Set when this Muse shares one like count with its author's own feed copy of the video (src/lib/like-groups.ts). */
   likeGroupId?: string | null;
   /** Client only: bumped when another card of the group changed the like, so this card re-reads its emoji summary. */
   likeSyncVersion?: number;
@@ -234,8 +234,8 @@ export function MuseFeed({
     }
     const result = await toggleMuseReaction(museId, emoji);
     if (result.reactions) {
-      // The server's count: for a Muse sharing its likes with Home (likeGroupId) it is the group's, not this Muse's
-      // own reaction total.
+      // The server's count: for a Muse sharing its likes with its author's own feed copy (likeGroupId) it is the
+      // group's, not this Muse's own reaction total.
       const likeCount = result.likeCount;
       const myReaction = result.reactions.find((r) => r.reactedByMe)?.emoji ?? null;
       const liked = myReaction !== null;
@@ -244,7 +244,7 @@ export function MuseFeed({
       if (likeGroupId) {
         const change = { likeGroupId, liked, likeCount };
         applyGroupLike(change, museId);
-        // A post card of the same video (Home under this viewer) takes the same answer.
+        // A card of the same group (the author's own feed copy, on Home under this viewer) takes the same answer.
         announceLikeGroup({ ...change, source: likeSyncSource });
       }
     }

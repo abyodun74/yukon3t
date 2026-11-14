@@ -229,7 +229,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       membersOnly: isMembersOnly(post.circle?.visibility, post.channel?.visibility),
       author: post.author,
       likeCount: target.likeCount,
-      // The same video on Muse shares this count: lets PostCard keep in step with a Muse card on screen.
+      // The author's own Muse copy of this video shares this count: lets PostCard keep in step with that Muse's card.
       likeGroupId: target.likeGroupId ?? null,
       commentCount: target.commentCount,
       repostCount: target.repostCount,

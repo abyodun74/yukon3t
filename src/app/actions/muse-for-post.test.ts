@@ -97,6 +97,15 @@ describe("getMuseForPost", () => {
     expect(museRepostFindFirst).toHaveBeenCalledWith({ where: { userId: RESHARER, postId: POST }, select: { museId: true } });
   });
 
+  it("hands back the Muse's own like group, so its card syncs only with cards of that group", async () => {
+    // Someone else's reshare has no group (like-groups.ts, same-author rule): the Muse card must not take its likes.
+    museFindUnique.mockResolvedValue(muse({ likeGroupId: null }));
+    expect((await getMuseForPost(POST)).item).toMatchObject({ id: MUSE, likeGroupId: null });
+    // The Muse's own author's reshare: both are in the Muse's group.
+    museFindUnique.mockResolvedValue(muse({ likeGroupId: MUSE }));
+    expect((await getMuseForPost(POST)).item).toMatchObject({ id: MUSE, likeGroupId: MUSE });
+  });
+
   it("looks nothing else up for a post the viewer can't see", async () => {
     postFindFirst.mockResolvedValue(null);
     expect(await getMuseForPost(POST)).toEqual({ error: "not_found", item: null });

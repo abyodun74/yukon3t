@@ -38,7 +38,8 @@ export async function toggleLike(postId: string) {
     return { error: "not_found" };
   }
 
-  // The same video on Muse (a Muse's reshare post, or a post shared to Muse): one like for the whole group.
+  // The author's own copy of the same video on Muse (their reshare post of their Muse, or their post they shared to
+  // Muse): one like for the whole same-author group. Other people's copies are independent.
   if (post.likeGroupId) {
     const groupId = post.likeGroupId;
     const [visiblePostsWhere, blockedIds] = await Promise.all([

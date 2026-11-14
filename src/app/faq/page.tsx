@@ -1121,19 +1121,22 @@ const sections: Section[] = [
       },
       {
         id: "muse-feed-copy-same-likes",
-        q: "Why do a Muse and a post of the same video show the same likes?",
+        q: "When do a Muse and a post of the same video share one like count?",
         a: (
           <>
-            When a Muse is reshared to Home, or a video post is shared to
-            Muse, the Muse and the post show the same video, so they share
-            one like count: the number of different people who liked either
-            of them, with nobody counted twice. Liking one shows as liked on
-            the other too (wherever you can see it), and unliking removes
-            your like from both. On a Muse, any emoji reaction counts as a
-            like, and changing your emoji doesn&apos;t change the count. Only
-            the owner of the one you tapped is notified, and only the first
-            time you like any of them. Ordinary reposts of a post already
-            count their likes on the original post.
+            Your own Muse and your own feed copy of it share one like count:
+            when you reshare your Muse to Home, or share your own video post
+            to Muse, the two show the same number, the different people who
+            liked either of them, with nobody counted twice. Liking one shows
+            as liked on the other too (wherever you can see it), and unliking
+            removes your like from both. A copy someone else makes (their
+            reshare of your Muse, or their Muse made from your post) has its
+            own count: likes on it stay on it, and likes on yours stay on
+            yours. On a Muse, any emoji reaction counts as a like, and
+            changing your emoji doesn&apos;t change the count. The owner is
+            notified only the first time you like either of their two copies.
+            Ordinary reposts of a post already count their likes on the
+            original post.
           </>
         ),
       },

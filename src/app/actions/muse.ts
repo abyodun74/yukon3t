@@ -31,6 +31,7 @@ import { captureError } from "@/lib/error-tracking";
 import {
   inheritGroupLikers,
   isGroupLiker,
+  likeGroupForNewMember,
   likeVisibleMembers,
   lockLikeGroup,
   recomputeLikeGroup,
@@ -311,7 +312,9 @@ export async function getMuseById(id: string) {
  * The Muse a Home video post plays, for opening that post in the Muse viewer (MuseViewerOverlay): the Muse it is a
  * reshare of (toggleMuseRepost's post). `item: null` when the post isn't one, or the viewer can't see the post or the
  * Muse; the viewer then shows the post itself. Matched on the resharer as well, which keeps it on MuseRepost's
- * (userId, museId) index.
+ * (userId, museId) index. The Muse comes with its own likeGroupId, so its card syncs likes only with cards of its own
+ * group: the post card underneath when the Muse's author made that reshare, never someone else's reshare (which has
+ * no group and keeps its own count).
  */
 export async function getMuseForPost(postId: string) {
   const user = await requireVerifiedViewer();
@@ -398,8 +401,8 @@ export async function deleteMuse(id: string) {
   }
 
   await prisma.muse.delete({ where: { id } });
-  // Its reactions went with it; the feed post(s) of the same video keep their own likes, and the shared count drops
-  // only by people who had liked nothing else in the group.
+  // Its reactions went with it; the author's own feed copy (same group) keeps its likes, and the shared count drops
+  // only by people who had liked nothing else in the group. Other people's copies are independent and untouched.
   if (muse.likeGroupId) await recomputeLikeGroups([muse.likeGroupId]);
   // A Muse's video can be shared with the post it came from, or reshared to Home / a Story / a message — only delete
   // the files nothing else still uses.
@@ -463,8 +466,8 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
   let likeCount: number;
   let newLiker: boolean;
   if (muse.likeGroupId) {
-    // The same video on Home (its reshare posts, or the post it was shared from): one like for the whole group
-    // (src/lib/like-groups.ts).
+    // The author's own copy of the same video on Home (their reshare post, or their post it was made from): one like
+    // for the whole same-author group (src/lib/like-groups.ts). Other people's copies are never in it.
     const groupId = muse.likeGroupId;
     const [visiblePostsWhere, blockedIds] = await Promise.all([
       getVisiblePostsWhere(user.id),
@@ -595,12 +598,19 @@ export async function toggleMuseRepost(museId: string) {
   });
 
   if (existing) {
+    // Only the reshare post's own group is recounted: the Muse's author's own reshare shares the Muse's group;
+    // anyone else's reshare is independent (no group), so the Muse's count is untouched.
+    const resharePost = existing.postId
+      ? await prisma.post.findUnique({ where: { id: existing.postId }, select: { likeGroupId: true } })
+      : null;
+    const groupId = resharePost?.likeGroupId ?? null;
     const updated = await prisma.$transaction(async (tx) => {
-      if (muse.likeGroupId) await lockLikeGroup(tx, muse.likeGroupId);
+      if (groupId) await lockLikeGroup(tx, groupId);
       if (existing.postId) await tx.post.deleteMany({ where: { id: existing.postId, authorId: user.id } });
       await tx.museRepost.delete({ where: { id: existing.id } });
-      // The post's likes went with it; the Muse keeps its own (recount: someone who liked only that post is gone).
-      if (muse.likeGroupId) await recomputeLikeGroup(tx, muse.likeGroupId);
+      // The post's likes went with it; the rest of its group keeps its own (recount: someone who liked only that post
+      // is gone).
+      if (groupId) await recomputeLikeGroup(tx, groupId);
       return tx.muse.update({ where: { id: museId }, data: { repostCount: { decrement: 1 } } });
     });
     // The file stays: the Muse itself still uses it.
@@ -614,13 +624,16 @@ export async function toggleMuseRepost(museId: string) {
   let repostCount: number;
   try {
     ({ postId, repostCount } = await prisma.$transaction(async (tx) => {
-      // The reshare post joins the Muse's like group (src/lib/like-groups.ts): one like count for the same video on
-      // Home and on Muse. A Muse's first reshare starts the group under the Muse's own id.
+      // The Muse's own author resharing it: the reshare post joins the Muse's like group (src/lib/like-groups.ts), one
+      // like count for their video on Home and on Muse; their first reshare starts the group under the Muse's id.
+      // Anyone else's reshare is an independent post (no group: its own likes, its own count, nothing inherited).
       // Lock first, before any row is written (a like toggle takes the lock before touching rows).
-      const likeGroupId = muse.likeGroupId ?? muse.id;
-      await lockLikeGroup(tx, likeGroupId);
-      if (!muse.likeGroupId) {
-        await tx.muse.updateMany({ where: { id: museId, likeGroupId: null }, data: { likeGroupId } });
+      const likeGroupId = likeGroupForNewMember(muse, user.id);
+      if (likeGroupId) {
+        await lockLikeGroup(tx, likeGroupId);
+        if (!muse.likeGroupId) {
+          await tx.muse.updateMany({ where: { id: museId, likeGroupId: null }, data: { likeGroupId } });
+        }
       }
       // Already moderated when the Muse was published, so the copy skips a
       // second pass (videoModeratedAt) — except an EMBED Muse, which was
@@ -656,9 +669,11 @@ export async function toggleMuseRepost(museId: string) {
               },
             });
       await tx.museRepost.create({ data: { userId: user.id, museId, postId: post.id } });
-      // Everyone who already liked the video (on the Muse or another reshare) has liked this post too.
-      await inheritGroupLikers(tx, likeGroupId, { kind: "post", id: post.id, authorId: user.id });
-      await recomputeLikeGroup(tx, likeGroupId);
+      if (likeGroupId) {
+        // Everyone who already liked the author's video (on the Muse or their other copy) has liked this post too.
+        await inheritGroupLikers(tx, likeGroupId, { kind: "post", id: post.id, authorId: user.id });
+        await recomputeLikeGroup(tx, likeGroupId);
+      }
       const updated = await tx.muse.update({ where: { id: museId }, data: { repostCount: { increment: 1 } } });
       return { postId: post.id, repostCount: updated.repostCount };
     }));

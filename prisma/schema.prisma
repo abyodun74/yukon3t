@@ -981,11 +981,12 @@ model Post {
   // shareToCircle in actions/shares.ts).
   sharedPostId String?
 
-  // Like group (src/lib/like-groups.ts): the same video shown on both Feed and Muse shares ONE like count. Set on a
-  // Muse's reshare post (toggleMuseRepost), on a post shared to Muse (shareToMuse) and on the Muse(s) involved; the
-  // value is the id of the item the group started from (no FK). Every member's likeCount is the number of distinct
-  // people who liked any member, and a like/unlike on one member is applied to every member the liker can see.
-  // Null = an ordinary post whose likes are its own.
+  // Like group (src/lib/like-groups.ts): ONE person's copies of the same video on Feed and Muse share ONE like count.
+  // Same author only (owner decision 2026-11-14): set on a Muse's reshare post made by the Muse's own author
+  // (toggleMuseRepost), on a post its own author shared to Muse (shareToMuse) and on the Muse(s) involved; a copy made
+  // by someone else has no group. The value is the id of the item the group started from (no FK). Every member's
+  // likeCount is the number of distinct people who liked any member, and a like/unlike on one member is applied to
+  // every member the liker can see. Null = an ordinary post whose likes are its own.
   likeGroupId String?
 
   likeCount    Int @default(0)
@@ -2403,8 +2404,8 @@ model Muse {
   // way — this only affects the "View original post" attribution link).
   sharedPostId String?
 
-  // Like group shared with the feed post(s) showing the same video: see Post.likeGroupId. Muse.likeCount is then the
-  // group's distinct-liker count (a reaction of any emoji counts as a like).
+  // Like group shared with its author's own feed copy of the same video (same author only): see Post.likeGroupId.
+  // Muse.likeCount is then the group's distinct-liker count (a reaction of any emoji counts as a like).
   likeGroupId String?
 
   author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)

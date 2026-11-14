@@ -58,7 +58,7 @@ export async function removeModeratedContent(
         await tx.post.deleteMany({ where: { id: { in: siblings.map((s) => s.id) } } });
       }
       await tx.post.delete({ where: { id: targetId } });
-      // Shared one like count with a Muse (like-groups.ts): recount what the other members still hold.
+      // Shared one like count with its author's own Muse (like-groups.ts): recount what that group's other members hold.
       if (post.likeGroupId) await recomputeLikeGroup(tx, post.likeGroupId);
 
       const mediaUrlsToDelete = [

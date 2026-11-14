@@ -3,15 +3,20 @@ import { prisma, type TransactionClient } from "@/lib/prisma";
 import { captureError } from "@/lib/error-tracking";
 
 /**
- * Like groups: the same video shown on Feed and on Muse has ONE like count.
+ * Like groups: ONE person's copies of the same video, on Feed and on Muse, have ONE like count.
  *
- * Members of a group (Post.likeGroupId / Muse.likeGroupId, migration 20261119130000_like_groups):
- * - a Muse and every post made by resharing it to Home (toggleMuseRepost; MuseRepost.postId),
- * - a video post shared to Muse (shareToMuse) and every Muse made from it (Muse.sharedPostId),
- * - transitively (a reshare post shared to Muse again joins the same group).
- * The value is the id of the item the group started from (`likeGroupId ?? id`, deterministic), with no FK, so
- * deleting that item leaves the group intact. Ordinary reposts and shares of a post (repostOfId / sharedPostId) are
- * NOT members: PostCard already sends their likes to the original post (interactionTargetId).
+ * Same-author rule (owner decision 2026-11-14: "each user's Muse copy has its own like count"). A group only ever
+ * links items created by the SAME person (same authorId), so every group is single-author:
+ * - a Muse and the feed post its own author made by resharing it to Home (toggleMuseRepost; MuseRepost.postId),
+ * - a video post and the Muse its own author made from it (shareToMuse; Muse.sharedPostId),
+ * - transitively, but only along such same-author links.
+ * A copy made by someone else (another person's Muse from my post, another person's feed reshare of my Muse) is NOT
+ * a member: it starts with no group, its own likes and its own count, and nothing propagates either way
+ * (likeGroupForNewMember decides this at create time). Ordinary reposts and shares of a post (repostOfId /
+ * sharedPostId) are not members either: PostCard already sends their likes to the original post (interactionTargetId).
+ * Columns Post.likeGroupId / Muse.likeGroupId (migrations 20261119130000_like_groups, regrouped same-author only by
+ * 20261120120000_like_groups_same_author). The value is the id of the item the group started from, with no FK, so
+ * deleting that item leaves the group intact.
  *
  * A like is a post `Like` or a `MuseReaction` of any emoji. Rules (all applied under a per-group advisory lock, inside
  * one transaction, so concurrent likes on different members serialize):
@@ -20,8 +25,21 @@ import { captureError } from "@/lib/error-tracking";
  * - unliking removes the person's like from every member;
  * - every member's likeCount = the number of DISTINCT people with a like on ANY member (recomputeLikeGroup), so the
  *   number is identical everywhere and nobody is counted twice.
- * Only the surface tapped notifies its owner, and only when the person wasn't already a liker of the group.
+ * Only the surface tapped notifies its owner (the same person for every member), and only when the person wasn't
+ * already a liker of the group.
  */
+
+/**
+ * The like group a new copy joins: the source's group (or a new one named after the source) when the person making
+ * the copy is the source's own author, otherwise null (an independent item: own likes, own count, nothing inherited).
+ */
+export function likeGroupForNewMember(
+  source: { id: string; authorId: string; likeGroupId: string | null },
+  creatorId: string,
+): string | null {
+  if (source.authorId !== creatorId) return null;
+  return source.likeGroupId ?? source.id;
+}
 
 export const GROUP_LIKE_EMOJI = "❤️";
 
@@ -107,10 +125,11 @@ export async function unlikeGroup(tx: TransactionClient, groupId: string, userId
 }
 
 /**
- * A member just added to a group (a new reshare post, a new Muse shared from a post) gets the group's existing likers
- * at once, so it shows the group's count and each liker sees it liked. Public by construction (both are created
- * PUBLIC / on the public Muse feed), so the only rule is no block either way with the new member's author. One
- * set-based insert; call with the group locked, then recomputeLikeGroup.
+ * A member just added to a group (the author's own reshare post of their Muse, or the author's own Muse made from
+ * their post; never someone else's copy, see likeGroupForNewMember) gets the group's existing likers at once, so it
+ * shows the group's count and each liker sees it liked. Public by construction (both are created PUBLIC / on the
+ * public Muse feed), so the only rule is no block either way with the new member's author. One set-based insert;
+ * call with the group locked, then recomputeLikeGroup.
  */
 export async function inheritGroupLikers(
   tx: TransactionClient,
