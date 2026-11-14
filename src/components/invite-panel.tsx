@@ -11,6 +11,7 @@ import { useInviteText } from "@/components/invite-text";
 import { isValidE164 } from "@/lib/phone-number";
 import { plural } from "@/lib/i18n/locales";
 import { copyTextToClipboard } from "@/lib/copy-image";
+import { detectPickerPlatform } from "@/lib/native-picker-activity";
 import { canShareNatively, shareNative } from "@/lib/native-share";
 import {
   buildInviteContactRows,
@@ -344,45 +345,51 @@ export function InvitePanel({ defaultCountry }: { defaultCountry?: string | null
             {contacts.map((c) => (
               <div
                 key={c.id}
-                className="animate-rise-in flex items-center gap-2 rounded-lg border border-line px-3 py-2"
+                className="animate-rise-in flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-line px-3 py-2"
               >
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-32">
                   {c.name && <p dir="auto" className="truncate text-sm font-medium">{c.name}</p>}
                   <p className="truncate text-start text-xs text-foreground-soft">
                     <span dir="ltr">{c.display}</span>
                     {phoneKindLabel(c) && <span dir="auto"> · {phoneKindLabel(c)}</span>}
                   </p>
                 </div>
-                <a
-                  href={buildSmsInviteHref(c.tel, inviteMessage)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink"
-                >
-                  <MessageSquareText size={13} />
-                  {t.invite}
-                </a>
-                {c.e164 && (
+                <div className="flex shrink-0 items-center gap-2">
                   <a
-                    href={buildWhatsAppInviteHref(inviteMessage, c.e164)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={t.whatsAppLabel}
-                    title={t.whatsAppLabel}
-                    className="flex shrink-0 items-center rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-accent hover:text-accent"
+                    href={buildSmsInviteHref(c.tel, inviteMessage)}
+                    aria-label={`${t.textButton} ${c.name ?? c.display}`}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-ink"
                   >
-                    <MessageCircle size={13} />
+                    <MessageSquareText size={13} />
+                    {t.textButton}
                   </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeContact(c.id)}
-                  aria-label={t.remove}
-                  className="shrink-0 text-foreground-soft hover:text-danger"
-                >
-                  <X size={14} />
-                </button>
+                  {c.e164 && (
+                    <a
+                      href={buildWhatsAppInviteHref(inviteMessage, c.e164)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${t.whatsApp} ${c.name ?? c.display}`}
+                      className="flex shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-xs font-medium hover:border-accent hover:text-accent"
+                    >
+                      <MessageCircle size={13} />
+                      {t.whatsApp}
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeContact(c.id)}
+                    aria-label={t.remove}
+                    className="shrink-0 text-foreground-soft hover:text-danger"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
+        )}
+        {contacts.length > 0 && detectPickerPlatform() !== "ios" && (
+          <p className="mt-2 text-xs text-foreground-soft">{t.textHint}</p>
         )}
       </div>
 

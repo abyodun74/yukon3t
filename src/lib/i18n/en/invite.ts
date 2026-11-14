@@ -30,6 +30,9 @@ export const inviteEn = {
   phoneLabel: "Phone number",
   add: "Add",
   invite: "Invite",
+  // Visible label of the contact row's sms: action (the WhatsApp one reuses `whatsApp`), then a one-line hint for Android's "open with" chooser.
+  textButton: "Text",
+  textHint: "If your phone asks how to open it, choose Messages.",
   remove: "Remove",
   pickerTitle: "Choose contacts",
   searchContacts: "Search contacts",

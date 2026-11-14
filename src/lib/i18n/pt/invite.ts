@@ -24,6 +24,9 @@ export const invite: typeof inviteEn = {
   phoneLabel: "Número de telefone",
   add: "Adicionar",
   invite: "Convidar",
+  // Visible label of the contact row's sms: action (the WhatsApp one reuses `whatsApp`), then a one-line hint for Android's "open with" chooser.
+  textButton: "SMS",
+  textHint: "Se o seu celular perguntar com qual aplicativo abrir, escolha Mensagens.",
   remove: "Remover",
   pickerTitle: "Escolher contatos",
   searchContacts: "Buscar contatos",

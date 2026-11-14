@@ -2593,8 +2593,13 @@ const sections: Section[] = [
             contacts,&rdquo; or type a number. Each number shows up once,
             however many times your phone has it saved (from Google, iCloud
             or another account); a person with several numbers shows each one
-            with its type (mobile, home, work). Tap &ldquo;Invite&rdquo; to
-            send a text or the WhatsApp button to send it on WhatsApp. The
+            with its type (mobile, home, work). Each contact has a
+            &ldquo;Text&rdquo; button and a &ldquo;WhatsApp&rdquo; button: tap
+            &ldquo;Text&rdquo; to send a normal text message, or
+            &ldquo;WhatsApp&rdquo; to send it on WhatsApp. On Android your
+            phone may ask how to open the text; choose Messages. If WhatsApp
+            says a number isn&apos;t on WhatsApp, go back and tap
+            &ldquo;Text&rdquo; to send a normal text instead. The
             message always includes the App Store link (iPhone) and the Play
             Store link (Android), each on its own line, so your friend can
             tap the one for their phone and install YuKon3t directly. You
