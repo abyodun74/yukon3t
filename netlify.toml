@@ -2,6 +2,12 @@
   command = "sh scripts/migrate-if-production.sh && next build --webpack"
   publish = ".next"
 
+# The type-check step of `next build --webpack` ran out of Node's default heap (about 2 GB) on 2026-11-14
+# ("JavaScript heap out of memory" -> "Failed to type check"), failing every Netlify build. Netlify build
+# machines have more memory than that default allows Node to use; raise the ceiling for the build only.
+[build.environment]
+  NODE_OPTIONS = "--max-old-space-size=6144"
+
 # Next.js 16 defaults to Turbopack, but Netlify's Next.js Runtime edge
 # function bundler fails on Turbopack's compiled middleware output
 # (a "[turbopack]_runtime.js" chunk it can't resolve). Webpack output is
