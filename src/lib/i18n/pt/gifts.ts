@@ -21,6 +21,10 @@ export const gifts: typeof giftsEn = {
   retry: "Tentar de novo",
   close: "Fechar",
   selected: "Selecionado",
+  selectedGift: "Presente escolhido",
+  noneSelected: "Escolha um presente acima.",
+  universesNav: "Ir para uma seção",
+  giftListLabel: "Presentes para escolher",
   kinds: {
     STICKER: "Figurinha",
     FRAME: "Moldura do perfil",

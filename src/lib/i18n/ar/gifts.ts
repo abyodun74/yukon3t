@@ -22,6 +22,10 @@ export const gifts: typeof giftsEn = {
   retry: "إعادة المحاولة",
   close: "إغلاق",
   selected: "محدّدة",
+  selectedGift: "الهدية المختارة",
+  noneSelected: "اختر هدية من الأعلى.",
+  universesNav: "الانتقال إلى قسم",
+  giftListLabel: "هدايا للاختيار منها",
   kinds: {
     STICKER: "ملصق",
     FRAME: "إطار الملف الشخصي",

@@ -1,10 +1,10 @@
 "use client";
 
-import { AnimatePresence, useIsPresent, type PanInfo } from "motion/react";
+import { AnimatePresence, useDragControls, useIsPresent, type PanInfo } from "motion/react";
 // The small `m` components: animation and drag code is loaded lazily by MotionProvider (root layout).
 import * as m from "motion/react-m";
 import { X } from "lucide-react";
-import { useId, type ReactNode, type Ref } from "react";
+import { useId, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
 import { hapticImpact } from "@/lib/haptics";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { useUiText } from "@/components/ui-text";
@@ -54,6 +54,9 @@ export function Sheet({
   ariaLabel,
   children,
   panelClassName,
+  panelStyle,
+  bodyClassName,
+  dragFromHandle = false,
   lang,
   dir,
 }: {
@@ -69,6 +72,12 @@ export function Sheet({
   children: ReactNode;
   /** Extra width/sizing classes for the panel — each modal's own content decides this (max-w-sm vs max-w-md, etc.). */
   panelClassName?: string;
+  /** bottom-sheet only: extra inline style for the panel (merged after its own safe-area padding), e.g. CSS variables a caller's panel class reads. */
+  panelStyle?: CSSProperties;
+  /** bottom-sheet only: replaces the default "px-4 pb-4" wrapper around `children` (a sheet that lays out its own fixed header/scroll/footer regions passes a flex column here). */
+  bodyClassName?: string;
+  /** bottom-sheet only: drag-to-dismiss starts only from the grabber and title row, never from the content. For a sheet whose content scrolls: a whole-panel drag sets touch-action pan-x on the panel, so a downward swipe inside the list would move the sheet instead of scrolling it. Off by default, so every other sheet keeps its whole-panel drag. */
+  dragFromHandle?: boolean;
   /** For a sheet whose wording is in the reader's language while the screen under it is English (see ui-text.tsx): a sheet inside an already-translated screen inherits both and passes neither. */
   lang?: string;
   dir?: "ltr" | "rtl";
@@ -99,7 +108,16 @@ export function Sheet({
           dir={dir}
         >
           {variant === "bottom-sheet" ? (
-            <BottomSheetPanel onClose={onClose} title={title} titleId={titleId} responsive={responsive} panelClassName={panelClassName}>
+            <BottomSheetPanel
+              onClose={onClose}
+              title={title}
+              titleId={titleId}
+              responsive={responsive}
+              panelClassName={panelClassName}
+              panelStyle={panelStyle}
+              bodyClassName={bodyClassName}
+              dragFromHandle={dragFromHandle}
+            >
               {children}
             </BottomSheetPanel>
           ) : (
@@ -236,6 +254,9 @@ function BottomSheetPanel({
   titleId,
   responsive,
   panelClassName,
+  panelStyle,
+  bodyClassName,
+  dragFromHandle,
   children,
 }: {
   onClose: () => void;
@@ -243,9 +264,20 @@ function BottomSheetPanel({
   titleId: string;
   responsive?: boolean;
   panelClassName?: string;
+  panelStyle?: CSSProperties;
+  bodyClassName?: string;
+  dragFromHandle?: boolean;
   children: ReactNode;
 }) {
   const closeLabel = useUiText().t.close;
+  const dragControls = useDragControls();
+  // dragFromHandle: the grabber and title row start the drag themselves (the panel's own listener is off). A press on
+  // a button there (Close) is left alone so it stays a plain tap.
+  function startHandleDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    if ((e.target as Element | null)?.closest?.("button, a, input, textarea, select")) return;
+    dragControls.start(e);
+  }
+  const handleProps = dragFromHandle ? { onPointerDown: startHandleDrag, style: { touchAction: "none" as const } } : {};
   // Only handles the DISMISS decision — a non-dismissing release needs no
   // code of its own: dragConstraints={{top:0, bottom:0}} already makes
   // motion auto-spring the panel back to y:0 the instant the drag ends,
@@ -262,12 +294,14 @@ function BottomSheetPanel({
   return (
     <m.div
       className={`hig-material w-full ${widthOverride ? "" : "max-w-lg"} rounded-t-2xl border-t border-x border-line bg-surface/90 backdrop-blur-xl ${responsive ? "sm:rounded-2xl sm:max-w-sm" : ""} ${panelClassName ?? ""}`}
-      style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))", ...panelStyle }}
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
       transition={SHEET_SPRING}
       drag="y"
+      dragListener={!dragFromHandle}
+      dragControls={dragFromHandle ? dragControls : undefined}
       dragConstraints={{ top: 0, bottom: 0 }}
       dragTransition={SHEET_DRAG_TRANSITION}
       // Free movement downward (1 = no added resistance — there's really
@@ -281,19 +315,21 @@ function BottomSheetPanel({
       {/* Drag handle — a visual affordance, not the only draggable area;
           the whole panel is the drag target (motion's `drag` prop above
           applies to this entire m.div), matching how a real iOS
-          sheet can be dragged from its header, not just a tiny grabber. */}
-      <div className="flex justify-center pb-1 pt-2" aria-hidden>
+          sheet can be dragged from its header, not just a tiny grabber.
+          With dragFromHandle, only this grabber and the title row start
+          the drag (see startHandleDrag), so scrollable content scrolls. */}
+      <div className="flex shrink-0 justify-center pb-1 pt-2" aria-hidden {...handleProps}>
         <div className="h-1 w-9 rounded-full bg-foreground-soft/30" />
       </div>
       {title !== undefined && (
-        <div className="flex items-center justify-between gap-2 px-4 pb-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2" {...handleProps}>
           <h2 id={titleId} className="min-w-0 text-sm font-semibold">{title}</h2>
           <button type="button" onClick={onClose} aria-label={closeLabel} className="shrink-0 text-foreground-soft hover:text-danger">
             <X size={18} aria-hidden />
           </button>
         </div>
       )}
-      <div className="px-4 pb-4">{children}</div>
+      <div className={bodyClassName ?? "px-4 pb-4"}>{children}</div>
     </m.div>
   );
 }

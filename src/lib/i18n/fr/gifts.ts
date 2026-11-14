@@ -21,6 +21,10 @@ export const gifts: typeof giftsEn = {
   retry: "Réessayer",
   close: "Fermer",
   selected: "Sélectionné",
+  selectedGift: "Cadeau choisi",
+  noneSelected: "Choisissez un cadeau ci-dessus.",
+  universesNav: "Aller à une section",
+  giftListLabel: "Cadeaux à choisir",
   kinds: {
     STICKER: "Autocollant",
     FRAME: "Cadre de profil",

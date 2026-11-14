@@ -24,6 +24,10 @@ export const giftsEn = {
   retry: "Try again",
   close: "Close",
   selected: "Selected",
+  selectedGift: "Selected gift",
+  noneSelected: "Choose a gift above.",
+  universesNav: "Jump to a section",
+  giftListLabel: "Gifts to choose from",
   kinds: {
     STICKER: "Sticker",
     FRAME: "Profile frame",

@@ -1031,6 +1031,41 @@ img[data-press-highlight] {
 .gift-universe-luxury .gift-universe-selected {
   color: #f5ecd2;
 }
+/* The section chips under the picker's title: each in its universe's colours, the current one ringed. */
+.gift-universe-chip {
+  background: var(--gu-tint);
+  color: var(--gu-ink);
+  border-color: color-mix(in oklab, var(--gu-hue) 35%, transparent);
+}
+.gift-universe-chip[aria-current="true"] {
+  border-color: var(--gu-hue);
+  box-shadow: inset 0 0 0 1px var(--gu-hue);
+}
+
+/* The gift picker's panel (src/components/gift-picker-sheet.tsx): never taller than what is visible, leaving a small
+   gap above it (plus the notch) so it still reads as a sheet. `dvh` follows the browser bars and, on Android, the
+   keyboard; on iOS the keyboard only shrinks the visual viewport, so the picker sets --gift-kb (keyboard height) and
+   --gift-vvh (visible height) from window.visualViewport while it is open. 100vh is the fallback for old engines. */
+.gift-picker-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+  max-height: min(calc(100dvh - env(safe-area-inset-top) - 2rem), calc(var(--gift-vvh, 100dvh) - 1rem));
+  margin-bottom: var(--gift-kb, 0px);
+}
+.gift-picker-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+}
+.gift-picker-chips {
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.gift-picker-chips::-webkit-scrollbar {
+  display: none;
+}
 
 @media (prefers-reduced-motion: no-preference) {
   /* Love: a slow bloom. */
