@@ -468,13 +468,46 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "photo-video-upload-failed",
+        q: "My photo or video didn't upload. What should I do?",
+        a: (
+          <>
+            If a post can&apos;t be sent, it goes back into the composer with
+            your text, audience and attachments, a message saying what went
+            wrong, and a <strong>Retry</strong> button. Retry redoes only
+            what didn&apos;t finish: a photo or video that already uploaded
+            isn&apos;t uploaded again, and if the post may already have gone
+            through, retrying never posts it twice. If the message says the
+            photo or video can&apos;t be read any more, choose it again and
+            tap Post. In the Story composer, a photo or video that can&apos;t
+            be posted gets its own message saying why and what to try (for
+            example, a JPEG or PNG copy of a photo that won&apos;t open).
+            iPhone screen recordings, .MP4 videos and HEIC photos are
+            supported.
+            <br />
+            <br />
+            When an upload fails, the app sends us a short technical note so
+            we can find the cause: which step failed, the error code, the
+            kind of file, its approximate size or length, and whether you
+            were on Android, iPhone or the web. It never includes the file,
+            its name or what&apos;s in it.
+          </>
+        ),
+      },
+      {
         id: "delete-post-report-someone-elses",
-        q: "How do I delete a post, or report someone else's?",
+        q: "How do I delete a post or a comment, or report someone else's post?",
         a: (
           <>
             Open the &ldquo;⋯&rdquo; menu on any post for delete (your own
             posts) or report (anyone&apos;s). Reports go to our moderation
             queue and are reviewed with a stated reason either way.
+            Deleting a comment or a reply, on a post, a Muse or a Story,
+            always asks you to confirm first (&ldquo;Delete this
+            comment?&rdquo;), and says when its replies will be deleted
+            with it. Cancel is the default, and nothing is deleted until you
+            tap Delete. That includes comments you remove from under your
+            own post or Muse.
           </>
         ),
       },
@@ -927,7 +960,9 @@ const sections: Section[] = [
             &ldquo;Story&rdquo; to add one — the same &ldquo;+&rdquo; also
             offers &ldquo;Feed post&rdquo; and &ldquo;Muse&rdquo;. Anyone
             who can see your profile can view your Story while it&apos;s
-            active.
+            active. In the Story composer, &ldquo;Upload from device&rdquo;
+            lets you pick a photo or a video, including an iPhone screen
+            recording.
           </>
         ),
       },
@@ -1085,6 +1120,24 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "muse-feed-copy-same-likes",
+        q: "Why do a Muse and a post of the same video show the same likes?",
+        a: (
+          <>
+            When a Muse is reshared to Home, or a video post is shared to
+            Muse, the Muse and the post show the same video, so they share
+            one like count: the number of different people who liked either
+            of them, with nobody counted twice. Liking one shows as liked on
+            the other too (wherever you can see it), and unliking removes
+            your like from both. On a Muse, any emoji reaction counts as a
+            like, and changing your emoji doesn&apos;t change the count. Only
+            the owner of the one you tapped is notified, and only the first
+            time you like any of them. Ordinary reposts of a post already
+            count their likes on the original post.
+          </>
+        ),
+      },
+      {
         id: "view-count-muse-mean",
         q: "What does the view count on a Muse mean?",
         a: (
@@ -1115,9 +1168,47 @@ const sections: Section[] = [
         a: (
           <>
             Yes — the same quick-reaction row as posts and Stories (tap the +
-            at the end of it for every emoji), plus a public comment thread (tap the comment icon
-            to open it as a sheet from the bottom). The creator, the
-            commenter, or an admin can remove any comment.
+            at the end of it for every emoji), plus a public comment thread.
+            Tap the comment icon: the video keeps playing in a small rounded
+            card at the top while the comments fill the lower part of the
+            screen. Tap the video, drag the handle at the top of the comments
+            down, or go back to return to the full-screen video. The creator,
+            the commenter, or an admin can remove any comment.
+          </>
+        ),
+      },
+      {
+        id: "muse-comment-replies-likes-gifs",
+        q: "How do replies, likes, emoji and GIFs work in Muse comments?",
+        a: (
+          <>
+            Tap <strong>Reply</strong> under a comment to answer it: the box
+            shows &ldquo;Replying to&rdquo; with the person&apos;s name and
+            starts with their @username (you can cancel the reply). Replies
+            sit under the comment they answer, one level deep: replying to a
+            reply adds yours to the same thread and @mentions the person you
+            answered. Tap &ldquo;View replies&rdquo; to open a thread and
+            &ldquo;Hide replies&rdquo; to close it. Tap the heart next to a
+            comment or reply to like it; the number next to it is how many
+            people liked it.
+            <br />
+            <br />
+            Next to the comment box, the emoji button opens a full emoji
+            picker where the keyboard was, and the GIF button opens a GIF
+            search (GIFs come from GIPHY). A comment or reply can be text, a
+            GIF, or both. Emoji you used recently are listed first and are
+            kept only on your device. The person you replied to gets a
+            notification, and the Muse&apos;s creator gets one notification
+            per new comment or reply, never two for the same one.
+            <br />
+            <br />
+            You can delete your own comments and replies, and the
+            Muse&apos;s creator can delete any comment or reply on their
+            Muse; deleting a comment deletes its replies too. Comments and
+            replies from accounts you&apos;ve blocked (or that blocked you),
+            or that are no longer active, aren&apos;t shown, and text our
+            automated screen flags isn&apos;t posted. Muse comments can&apos;t
+            be edited; to report one, report the person who wrote it.
           </>
         ),
       },
@@ -1324,7 +1415,9 @@ const sections: Section[] = [
             sound is coming through the earpiece, you can also press the
             side button. On speaker, or in a video call, the side button
             only locks the screen and the call carries on, so use the red
-            hang-up button to end it.
+            hang-up button to end it. Starting or answering a call closes any
+            menu, picker or list that was open, so the call always shows on
+            top.
           </>
         ),
       },
@@ -1868,7 +1961,28 @@ const sections: Section[] = [
             again.
             A sub-circle is its own Circle, so invite people to it from its
             own page. Making the Circle public cancels pending invites, since
-            anyone can join it then.
+            anyone can join it then. A private Circle can&apos;t be shared as
+            a link or in chats: an invite is the only way to bring someone
+            in.
+          </>
+        ),
+      },
+      {
+        id: "share-circle",
+        q: "How do I share a Circle?",
+        a: (
+          <>
+            Press and hold a Circle wherever Circles are listed (or
+            right-click it), or tap &ldquo;Share Circle&rdquo; on its
+            page. <strong>Share in chats</strong> sends it to up to 5 of your chats
+            at once (secret chats aren&apos;t listed), <strong>Share
+            via…</strong> opens your device&apos;s share sheet, and{" "}
+            <strong>Copy link</strong> copies its link. The message carries
+            only the Circle&apos;s name and link, and anyone who opens the
+            link while signed out is asked to sign in first. Only public
+            Circles can be shared: a private Circle is invite-only, so its
+            share sheet says so instead, and its owner and co-admins add
+            people with &ldquo;Invite people&rdquo; on its page.
           </>
         ),
       },

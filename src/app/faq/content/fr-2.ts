@@ -45,7 +45,7 @@ export const fr2 = {
 
   story: {
     q: "Qu'est-ce qu'une story ?",
-    a: "Une photo, une courte vidéo (2 minutes maximum) ou un texte saisi ou collé, affiché sur votre profil, qui disparaît automatiquement au bout de 24 heures. Touchez le « + » sur votre propre photo de profil (« Votre story » dans Accueil, ou sur votre profil) et choisissez « Story » pour en ajouter une ; ce même « + » propose aussi « Publication » et « Muse ». Toute personne qui peut voir votre profil peut consulter votre story tant qu'elle est active.",
+    a: "Une photo, une courte vidéo (2 minutes maximum) ou un texte saisi ou collé, affiché sur votre profil, qui disparaît automatiquement au bout de 24 heures. Touchez le « + » sur votre propre photo de profil (« Votre story » dans Accueil, ou sur votre profil) et choisissez « Story » pour en ajouter une ; ce même « + » propose aussi « Publication » et « Muse ». Toute personne qui peut voir votre profil peut consulter votre story tant qu'elle est active. Dans l'éditeur de story, « Importer depuis l'appareil » vous permet de choisir une photo ou une vidéo, y compris un enregistrement d'écran de l'iPhone.",
   },
   "post-text-only-story": {
     q: "Puis-je publier une story composée uniquement de texte ?",
@@ -84,6 +84,10 @@ export const fr2 = {
     q: "Puis-je partager une publication sur Muse ?",
     a: "Oui. Toute publication contenant une vidéo (5 minutes maximum) peut être partagée sur Muse : ouvrez le menu de partage de cette publication et touchez « Partager sur Muse ». Elle devient un nouveau Muse à votre nom, qui crédite l'original par un lien « Voir la publication d'origine » ; l'auteur de l'original reçoit une notification et un partage lui est compté, comme lorsque vous la partagez dans votre story ou dans un Circle. Les publications sans vidéo (texte, photo, lien, contenu intégré, GIF) ne peuvent pas être partagées sur Muse : il n'existe pas de format Muse sans vidéo.",
   },
+  "muse-feed-copy-same-likes": {
+    q: "Pourquoi un Muse et une publication de la même vidéo affichent-ils les mêmes J'aime ?",
+    a: "Quand un Muse est repartagé dans Accueil, ou qu'une publication vidéo est partagée sur Muse, le Muse et la publication montrent la même vidéo : ils partagent donc un seul compteur de J'aime, le nombre de personnes différentes qui ont aimé l'un ou l'autre, sans compter personne deux fois. Aimer l'un l'affiche aussi comme aimé sur l'autre (là où vous pouvez le voir), et retirer votre J'aime le retire des deux. Sur un Muse, toute réaction emoji compte comme un J'aime, et changer d'emoji ne change pas le compteur. Seule la personne qui a publié celui que vous avez touché est notifiée, et seulement la première fois que vous aimez l'un d'eux. Les republications ordinaires d'une publication comptent déjà leurs J'aime sur la publication d'origine.",
+  },
   "view-count-muse-mean": {
     q: "Que signifie le nombre de vues d'un Muse ?",
     a: "L'icône d'œil sous la légende compte le nombre de fois où ce Muse a été vu, y compris par vous. C'est un total cumulé, et non un nombre de spectateurs uniques.",
@@ -94,7 +98,11 @@ export const fr2 = {
   },
   "react-comment-muse": {
     q: "Puis-je réagir à un Muse ou le commenter ?",
-    a: "Oui. Vous y trouvez la même rangée de réactions rapides que pour les publications et les stories (touchez le + à son extrémité pour tous les emojis), ainsi qu'un fil de commentaires publics (touchez l'icône de commentaire pour l'ouvrir dans un panneau venant du bas). Le créateur, l'auteur du commentaire ou un administrateur peuvent retirer n'importe quel commentaire.",
+    a: "Oui. Vous y trouvez la même rangée de réactions rapides que pour les publications et les stories (touchez le + à son extrémité pour tous les emojis), ainsi qu'un fil de commentaires publics. Touchez l'icône de commentaire : la vidéo continue de jouer dans une petite carte arrondie en haut, pendant que les commentaires occupent le bas de l'écran. Touchez la vidéo, faites glisser vers le bas la barre en haut des commentaires, ou revenez en arrière pour retrouver la vidéo en plein écran. Le créateur, l'auteur du commentaire ou un administrateur peuvent retirer n'importe quel commentaire.",
+  },
+  "muse-comment-replies-likes-gifs": {
+    q: "Comment fonctionnent les réponses, les J'aime, les emojis et les GIF dans les commentaires d'un Muse ?",
+    a: "Touchez **Répondre** sous un commentaire pour y répondre : le champ affiche « En réponse à » avec le nom de la personne et commence par son @nom d'utilisateur (vous pouvez annuler la réponse). Les réponses s'affichent sous le commentaire auquel elles répondent, sur un seul niveau : répondre à une réponse ajoute la vôtre au même fil et mentionne avec @ la personne à qui vous répondez. Touchez « Voir les réponses » pour ouvrir un fil et « Masquer les réponses » pour le fermer. Touchez le cœur à côté d'un commentaire ou d'une réponse pour l'aimer ; le nombre à côté indique combien de personnes l'ont aimé.\n\nÀ côté du champ de commentaire, le bouton emoji ouvre un sélecteur d'emojis complet à la place du clavier, et le bouton GIF ouvre une recherche de GIF (les GIF viennent de GIPHY). Un commentaire ou une réponse peut être du texte, un GIF ou les deux. Les emojis utilisés récemment s'affichent en premier et ne sont enregistrés que sur votre appareil. La personne à qui vous avez répondu reçoit une notification, et le créateur du Muse reçoit une notification par nouveau commentaire ou nouvelle réponse, jamais deux pour le même.\n\nVous pouvez supprimer vos propres commentaires et réponses, et le créateur du Muse peut supprimer n'importe quel commentaire ou réponse sur son Muse ; supprimer un commentaire supprime aussi ses réponses. Les commentaires et réponses des comptes que vous avez bloqués, ou qui vous ont bloqué, ou qui ne sont plus actifs ne s'affichent pas, et un texte signalé par notre contrôle automatique n'est pas publié. Les commentaires d'un Muse ne peuvent pas être modifiés ; pour en signaler un, signalez la personne qui l'a écrit.",
   },
   "need-keep-scrolling-see-theres": {
     q: "Dois-je continuer à faire défiler pour savoir s'il y en a d'autres ?",

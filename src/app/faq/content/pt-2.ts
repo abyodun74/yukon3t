@@ -45,7 +45,7 @@ export const pt2 = {
 
   story: {
     q: "O que é um story?",
-    a: "Uma foto, um vídeo curto (de até 2 minutos) ou um texto digitado ou colado, exibido no seu perfil, que desaparece automaticamente depois de 24 horas. Toque no «+» da sua própria foto de perfil («Seu story» no Início, ou no seu perfil) e escolha «Story» para adicionar um; esse mesmo «+» também oferece «Publicação» e «Muse». Qualquer pessoa que possa ver seu perfil pode ver seu story enquanto estiver ativo.",
+    a: "Uma foto, um vídeo curto (de até 2 minutos) ou um texto digitado ou colado, exibido no seu perfil, que desaparece automaticamente depois de 24 horas. Toque no «+» da sua própria foto de perfil («Seu story» no Início, ou no seu perfil) e escolha «Story» para adicionar um; esse mesmo «+» também oferece «Publicação» e «Muse». Qualquer pessoa que possa ver seu perfil pode ver seu story enquanto estiver ativo. No editor de stories, «Enviar do dispositivo» permite escolher uma foto ou um vídeo, inclusive uma gravação de tela do iPhone.",
   },
   "post-text-only-story": {
     q: "Posso publicar um story só de texto?",
@@ -84,6 +84,10 @@ export const pt2 = {
     q: "Posso compartilhar uma publicação no Muse?",
     a: "Sim. Qualquer publicação com vídeo (de até 5 minutos) pode ser compartilhada no Muse: abra o menu de compartilhar da publicação e toque em «Compartilhar no Muse». Ela vira um novo Muse no seu nome, dando crédito ao original com um link «Ver a publicação original»; quem publicou o original recebe uma notificação e ganha um compartilhamento na contagem, como ao compartilhá-la no seu story ou em um Circle. Publicações sem vídeo (texto, foto, link, conteúdo incorporado, GIF) não podem ser compartilhadas no Muse: não existe formato de Muse sem vídeo.",
   },
+  "muse-feed-copy-same-likes": {
+    q: "Por que um Muse e uma publicação do mesmo vídeo mostram as mesmas curtidas?",
+    a: "Quando um Muse é compartilhado de novo no Início, ou uma publicação com vídeo é compartilhada no Muse, o Muse e a publicação mostram o mesmo vídeo, então compartilham uma única contagem de curtidas: o número de pessoas diferentes que curtiram qualquer um dos dois, sem contar ninguém duas vezes. Curtir um também aparece como curtido no outro (onde você puder vê-lo), e descurtir remove sua curtida dos dois. Em um Muse, qualquer reação com emoji conta como curtida, e trocar o emoji não muda a contagem. Só quem publicou aquele em que você tocou recebe notificação, e só na primeira vez que você curte qualquer um deles. As republicações comuns de uma publicação já contam as curtidas na publicação original.",
+  },
   "view-count-muse-mean": {
     q: "O que significa a contagem de visualizações de um Muse?",
     a: "O ícone de olho abaixo da legenda conta quantas vezes aquele Muse foi visto, incluindo as vezes em que você mesmo o viu. É um total acumulado, não uma contagem de espectadores únicos.",
@@ -94,7 +98,11 @@ export const pt2 = {
   },
   "react-comment-muse": {
     q: "Posso reagir ou comentar em um Muse?",
-    a: "Sim. Há a mesma fileira de reações rápidas das publicações e dos stories (toque no + no fim dela para ver todos os emojis), além de uma lista de comentários públicos (toque no ícone de comentários para abri-la como um painel que sobe de baixo). Quem criou o Muse, quem escreveu o comentário ou um administrador podem remover qualquer comentário.",
+    a: "Sim. Há a mesma fileira de reações rápidas das publicações e dos stories (toque no + no fim dela para ver todos os emojis), além de uma lista de comentários públicos. Toque no ícone de comentários: o vídeo continua tocando em um pequeno cartão arredondado no topo, enquanto os comentários ocupam a parte de baixo da tela. Toque no vídeo, arraste para baixo a barra no topo dos comentários ou volte para retornar ao vídeo em tela cheia. Quem criou o Muse, quem escreveu o comentário ou um administrador podem remover qualquer comentário.",
+  },
+  "muse-comment-replies-likes-gifs": {
+    q: "Como funcionam as respostas, as curtidas, os emojis e os GIFs nos comentários de um Muse?",
+    a: "Toque em **Responder** embaixo de um comentário para respondê-lo: a caixa mostra «Respondendo a» com o nome da pessoa e começa com o @usuário dela (você pode cancelar a resposta). As respostas ficam embaixo do comentário que respondem, em um só nível: responder a uma resposta coloca a sua no mesmo fio e menciona com @ a pessoa a quem você respondeu. Toque em «Ver respostas» para abrir um fio e em «Ocultar respostas» para fechá-lo. Toque no coração ao lado de um comentário ou de uma resposta para curtir; o número ao lado mostra quantas pessoas curtiram.\n\nAo lado da caixa de comentário, o botão de emoji abre um seletor completo de emojis no lugar do teclado, e o botão de GIF abre uma busca de GIFs (os GIFs vêm do GIPHY). Um comentário ou uma resposta pode ser texto, um GIF ou os dois. Os emojis usados recentemente aparecem primeiro e ficam salvos só no seu dispositivo. A pessoa a quem você respondeu recebe uma notificação, e quem criou o Muse recebe uma notificação por comentário ou resposta nova, nunca duas pelo mesmo.\n\nVocê pode excluir seus próprios comentários e respostas, e quem criou o Muse pode excluir qualquer comentário ou resposta no seu Muse; excluir um comentário exclui também as respostas dele. Comentários e respostas de contas que você bloqueou (ou que bloquearam você) ou que não estão mais ativas não aparecem, e um texto sinalizado pela nossa verificação automática não é publicado. Os comentários de um Muse não podem ser editados; para denunciar um, denuncie a pessoa que o escreveu.",
   },
   "need-keep-scrolling-see-theres": {
     q: "Preciso continuar rolando para saber se há mais?",
