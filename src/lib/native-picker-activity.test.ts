@@ -287,7 +287,7 @@ describe("Android (existing Activity hand-off semantics)", () => {
     expect(isNativePickerActive()).toBe(false);
   });
 
-  it("the resume backstop still force-clears", () => {
+  it("force-clearing (cancel detection, the failsafe) drops the guard and its listeners", () => {
     const a = input();
     openFilePicker(a);
     resolveStuckImperativePicker();

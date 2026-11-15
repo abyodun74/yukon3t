@@ -8,16 +8,16 @@ import { FCM_TOKEN_STORAGE_KEY } from "@/lib/fcm-token-storage";
 import { getNativeAppInfo } from "@/lib/native-app-info";
 import { VOIP_TOKEN_STORAGE_KEY } from "@/lib/voip-token-storage";
 import { markReadByTarget } from "@/app/actions/notifications";
-import { isNativePickerActive, resolveStuckImperativePicker } from "@/lib/native-picker-activity";
+import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
 import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
-import { useCallSession } from "@/lib/call-session";
 import { useUiText } from "@/components/ui-text";
 import { QUIET_NOTIFICATION_CHANNEL_ID, QUIET_NOTIFICATION_CHANNEL_IMPORTANCE } from "@/lib/quiet-push";
 import { launchUrlKey, openedUrlTarget, type OpenedUrlTarget } from "@/lib/app-links";
 import { isRepeatOpen } from "@/lib/opened-url-dedupe";
+import { isLandingPath, planAppReturn, shouldRefreshOnReturn } from "@/lib/app-resume";
 import {
   claimLaunchUrl,
   clearPushTap,
@@ -26,39 +26,6 @@ import {
   rememberPushTap,
   safeInAppPath,
 } from "@/lib/push-target";
-
-// How long the resume listener waits before sending a returning user to
-// /home. On iOS the notification-tap event can arrive just after "resume";
-// this gives it time to be recorded (lib/push-target.ts) so the reset stands
-// down instead of racing the tap's own navigation.
-const RESUME_HOME_RESET_DELAY_MS = 600;
-
-// Set when a link that opened the app is loaded as a document (an emailed
-// sign-in or reset link, see openLinked below): the resume reset to /home
-// stands down while that load is under way.
-const LEAVING_FOR_DOCUMENT_MS = 10_000;
-let leavingForDocumentAt = 0;
-
-// Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
-// auth/onboarding flows the user hasn't finished yet, where landing them on
-// /home would either bounce them straight back out (unauthenticated) or
-// skip a step they're mid-way through. Everything else (the whole signed-in
-// app surface: /home, /muse, /messages, /circles, a profile, /post/[id],
-// ...) is fair game — see the resume listener below.
-const NO_HOME_RESET_PREFIXES = [
-  "/sign-in",
-  "/sign-up",
-  "/onboarding",
-  "/verify-email",
-  "/forgot-password",
-  "/reset-password",
-  "/invite",
-  "/legal",
-  // Device verification from Settings and the guest preview start: both carry a security check and (verify-device)
-  // an emailed code the person leaves the app to fetch; a reset to Home on return threw that away.
-  "/settings/verify-device",
-  "/try",
-];
 
 /**
  * Native-app-only wiring for the Capacitor iOS/Android build (see
@@ -95,30 +62,21 @@ export function CapacitorBridge() {
   useEffect(() => {
     quietChannelTextRef.current = { name: birthdayText.quietChannelName, description: birthdayText.quietChannelDescription };
   }, [birthdayText]);
-  // Mirrors the current pathname into a ref so the resume listener below
-  // (created once, inside the stable [router]-only effect) can read
-  // wherever the user actually is *right now* instead of wherever they were
-  // when the listener was first attached — same "ref mirror kept current
-  // by its own effect" pattern MuseFeed's itemsRef uses for the same reason.
-  const pathnameRef = useRef(pathname);
-  useEffect(() => {
-    pathnameRef.current = pathname;
-  }, [pathname]);
-  // A tapped push notification (lib/push-target.ts): once the app is on its
-  // page the tap is done with, so a later resume resets to Home as usual. If
-  // it isn't there — the page was reloaded onto a new build before the tap's
-  // navigation finished, and the plugin doesn't hand the tap to the reloaded
-  // page again — go there now. Runs on mount and on every navigation.
+  // A tapped push notification or an opened link (lib/push-target.ts): once
+  // the app is on its page the tap is done with. If it isn't there and the
+  // app is on a landing page (Home or "/": a cold start from the tap, or a
+  // stale-build reload that cut the tap's own navigation short, and the
+  // plugin doesn't hand the tap to the reloaded page again), go there now.
+  // Never away from a page the user has chosen since (planAppReturn,
+  // lib/app-resume.ts). Runs on mount and on every navigation.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const target = pendingPushTap();
     if (!target) return;
-    if (isAtPushTarget(target, `${window.location.pathname}${window.location.search}`)) {
-      clearPushTap();
-    } else if (pathname === "/home" || pathname === "/") {
-      // Only from where a resume reset or a reload lands, never away from a page the user has since chosen.
-      router.replace(target);
-    }
+    const location = `${window.location.pathname}${window.location.search}`;
+    const plan = planAppReturn({ pendingTap: target, location, onLandingPage: isLandingPath(pathname) });
+    if (plan.kind === "open") router.replace(plan.path);
+    else if (isAtPushTarget(target, location)) clearPushTap();
   }, [pathname, router]);
 
   // Fires when the user taps a push notification — sendFcmActivityToUser
@@ -137,8 +95,9 @@ export function CapacitorBridge() {
     let cancelled = false;
 
     function openTapped(url: string) {
-      // Recorded before navigating, so the resume reset and a stale-build
-      // reload that run at this same moment go here too (push-target.ts).
+      // Recorded before navigating, so a stale-build reload that runs at this
+      // same moment goes here too, and a reload onto a landing page picks the
+      // tap up again (push-target.ts, app-resume.ts).
       rememberPushTap(url);
       router.push(url);
       // Tapping a push opens that one thing, so only the notifications
@@ -179,8 +138,8 @@ export function CapacitorBridge() {
         // reset link (#token): loaded as a document in this WebView. Not
         // recorded as a push tap: the token must not sit in sessionStorage,
         // and the page this lands on is the callback's redirect, not the
-        // path itself. leavingForDocumentAt keeps the resume reset away.
-        leavingForDocumentAt = Date.now();
+        // path itself. Nothing on resume navigates, so this load is never
+        // overridden.
         window.location.assign(target.path);
         return;
       }
@@ -209,14 +168,6 @@ export function CapacitorBridge() {
       urlOpenListener?.remove();
     };
   }, [router]);
-
-  // Same ref-mirror reasoning, for whether a call/live session is up right
-  // now — also read by the resume listener below.
-  const { session: callSession, outgoingRingRef } = useCallSession();
-  const callSessionActiveRef = useRef(callSession !== null);
-  useEffect(() => {
-    callSessionActiveRef.current = callSession !== null;
-  }, [callSession]);
 
   // Not native-gated, unlike the rest of this component — this app-wide
   // "only one video plays at a time" rule applies equally to the plain web
@@ -291,7 +242,10 @@ export function CapacitorBridge() {
 
     let tokenListener: { remove: () => void } | undefined;
     let resumeListener: { remove: () => void } | undefined;
-    let resumeResetTimer: ReturnType<typeof setTimeout> | undefined;
+    let pauseListener: { remove: () => void } | undefined;
+    // When the app last went to the background (App "pause"); null while it's
+    // in the foreground or before the first pause.
+    let pausedAt: number | null = null;
     let cancelled = false;
 
     async function setupNotifications(promptNow: boolean) {
@@ -357,73 +311,43 @@ export function CapacitorBridge() {
       // without waiting for any of this.
     }
 
-    // Resets navigation to /home every time the app is brought to the
-    // foreground — tapping the launcher icon, switching back via Recents,
-    // or returning from another app all fire "resume" (same set of "opened
-    // the app" triggers MainActivity.onResume's own notification-clearing
-    // already documents), covering the gap a plain cold start doesn't:
-    // Capacitor's WebView isn't torn down on a simple backgrounding, so
-    // without this, resuming mid-session would otherwise leave the user
-    // wherever they last scrolled to instead of landing back on Home.
-    // Skipped on an auth/onboarding route (see NO_HOME_RESET_PREFIXES) and
-    // when already on /home, so this never fights an in-progress sign-in
-    // flow or bounces someone already there.
+    // Coming back to the app (launcher icon, Recents, returning from another
+    // app; Capacitor's WebView isn't torn down by backgrounding) keeps the
+    // screen the user left: a chat thread, a profile, a Circle, Settings, a
+    // composer. Nothing here navigates (owner rule; why the old reset to
+    // /home existed and what replaced it: lib/app-resume.ts), so there is
+    // nothing a call or an outgoing ring, a push tap / opened link (their own
+    // navigation, above), an auth flow or the Android photo picker (whose
+    // Activity closing fires "resume" too) needs protecting from here.
     //
-    // Also skipped while a native picker (photo/video picker, camera
-    // capture) is in flight — confirmed live that this "resume" event fires
-    // just as reliably from a picker/camera Activity closing and handing
-    // control back to MainActivity as it does from a real app-switch, and
-    // without this guard it silently yanked the user (and their in-progress
-    // upload) back to Home the instant any picker returned, from any page
-    // other than Home — breaking photo AND video attach everywhere except
-    // Home, with no error, just a vanished composer. See
-    // native-picker-activity.ts.
-    //
-    // And skipped for the whole of a call or live session, and while an
-    // outgoing call is ringing — see the guard inside the listener.
-    //
-    // And skipped when the app was opened by tapping a push notification:
-    // that tap's own navigation is where the user asked to go. On Android the
-    // tap event arrives before "resume", so this reset used to land last and
-    // send them to /home instead; on iOS it can arrive just after, which is
-    // what the short delay below is for (lib/push-target.ts).
+    // What a return does:
+    //  - the stale-build check, which reloads the SAME page onto a newer
+    //    deploy (lib/stale-build-client.ts; it shares its throttle with
+    //    stale-build-reload.tsx's visibilitychange check, so whichever fires
+    //    first is the only request, and it holds off for calls, uploads,
+    //    open sheets and unsent text);
+    //  - after a longer absence (shouldRefreshOnReturn), the route's server
+    //    data is re-read in place with router.refresh(), which keeps client
+    //    state (a draft, scroll, an open sheet). Live parts already resync
+    //    themselves on visibilitychange (useRealtimeEvent).
     import("@capacitor/app").then(({ App }) => {
       if (cancelled) return;
+      App.addListener("pause", () => {
+        pausedAt = Date.now();
+      }).then((h) => {
+        if (cancelled) h.remove();
+        else pauseListener = h;
+      });
       App.addListener("resume", () => {
-        // The WebView outlives many deploys in the background. Shares its
-        // throttle with the visibilitychange check in stale-build-reload.tsx,
-        // so whichever of the two fires first on a resume is the only request.
-        void reloadIfStale("foreground");
-        if (isNativePickerActive()) {
-          // The picker/camera Activity closing is exactly what just fired
-          // this resume — confirmed reliable either way a pick ends,
-          // including a cancel (see native-picker-activity.ts's module doc
-          // comment) — but the WebView's own change/cancel event on the
-          // <input> that opened it isn't equally guaranteed to follow,
-          // particularly on a cancelled chooser on some Android WebView
-          // versions. A short grace delay lets a genuine change event (the
-          // normal case) clear the guard itself first; if it's still up
-          // after that, force it closed rather than leaving every later
-          // attach attempt silently blocked for up to a minute (see
-          // resolveStuckImperativePicker for the full reasoning).
-          setTimeout(resolveStuckImperativePicker, 1000);
-          return;
-        }
-        // Coming back to the app mid-call (or while your own outgoing call
-        // is still ringing) is exactly when being moved somewhere else is
-        // least wanted — and for the ringing case it was actively harmful:
-        // the navigation unmounted the CallButton that owned the ring (see
-        // outgoingRingRef on CallSessionContext).
-        clearTimeout(resumeResetTimer);
-        resumeResetTimer = setTimeout(() => {
-          if (pendingPushTap()) return;
-          if (Date.now() - leavingForDocumentAt < LEAVING_FOR_DOCUMENT_MS) return;
-          if (callSessionActiveRef.current || outgoingRingRef.current) return;
-          const current = pathnameRef.current;
-          if (current === "/home") return;
-          if (NO_HOME_RESET_PREFIXES.some((prefix) => current.startsWith(prefix))) return;
-          router.push("/home");
-        }, RESUME_HOME_RESET_DELAY_MS);
+        const awayMs = pausedAt === null ? null : Date.now() - pausedAt;
+        pausedAt = null;
+        // Read now: by the time the build check answers, a picker that just
+        // handed control back may have settled already.
+        const pickerActive = isNativePickerActive();
+        void reloadIfStale("foreground").then((reloading) => {
+          if (cancelled) return;
+          if (shouldRefreshOnReturn({ awayMs, pickerActive, reloading })) router.refresh();
+        });
       }).then((h) => {
         if (cancelled) h.remove();
         else resumeListener = h;
@@ -483,11 +407,9 @@ export function CapacitorBridge() {
       requestPermissionNowRef.current = null;
       tokenListener?.remove();
       resumeListener?.remove();
-      clearTimeout(resumeResetTimer);
+      pauseListener?.remove();
     };
-    // outgoingRingRef is a ref object owned by CallSessionProvider — the
-    // same identity for the life of the app, so listing it changes nothing.
-  }, [router, outgoingRingRef]);
+  }, [router]);
 
   // Reacts to the in-session client-side navigation that lands on /home —
   // /home?onboarded=1 specifically is completeOnboarding's redirect (see

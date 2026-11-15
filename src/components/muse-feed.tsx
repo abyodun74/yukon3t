@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useReducedMotion } from "motion/react";
 // The small `m` components: animation code is loaded lazily by MotionProvider (root layout).
 import * as m from "motion/react-m";
@@ -33,6 +33,7 @@ import { useShellText, useUiText } from "@/components/ui-text";
 import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
+import { backOutOfLayerThen, internalNavigationFromClick } from "@/lib/viewer-history";
 import { announceLikeGroup, useLikeGroupSync } from "@/lib/like-group-sync";
 import {
   FULL_FRAME,
@@ -117,6 +118,7 @@ export function MuseFeed({
   currentUserId,
   seedPost,
   onClose,
+  onNavigate,
   focusCommentId = null,
 }: {
   initialItems: MuseItem[];
@@ -126,6 +128,11 @@ export function MuseFeed({
   seedPost?: MuseSeedPost;
   /** Set when shown as an overlay over another page rather than as /muse: the cards get a close button. */
   onClose?: () => void;
+  /**
+   * Set with onClose: an in-app link inside the viewer (the author's name, "View original", a name in the comments) is
+   * handed here instead of navigating itself, so the viewer leaves its history entries first (MuseViewerOverlay).
+   */
+  onNavigate?: (href: string) => void;
   /** /muse/<id>?comment=<commentId> (a comment or reply notification): open the first Muse's comments on that thread. */
   focusCommentId?: string | null;
 }) {
@@ -303,6 +310,28 @@ export function MuseFeed({
     }
   }, []);
 
+  // A link inside the feed (its own and those in the sheets portaled from it, which React bubbles here). Over another
+  // page (MuseViewerOverlay) it goes through onNavigate, which leaves the viewer's history entries before navigating.
+  // On /muse with the comments open, the comments' own entries (and their picker panel's) are left first, so Back from
+  // the destination returns to /muse itself rather than to a copy of it with the sheet's entry still on top.
+  function handleLinkClickCapture(e: MouseEvent<HTMLDivElement>) {
+    if (!onNavigate && !commentsHistoryRef.current) return;
+    const href = internalNavigationFromClick(e);
+    if (!href) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (onNavigate) {
+      onNavigate(href);
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    backOutOfLayerThen(
+      () => Boolean((window.history.state as { museComments?: boolean } | null)?.museComments),
+      () => router.push(href),
+    );
+  }
+
   // The back button (browser, Android) closes the comments before anything else.
   useEffect(() => {
     if (!commentsOpenForId) return;
@@ -441,7 +470,8 @@ export function MuseFeed({
   const displayedShareMuse = shareMuse ?? rememberedShareMuse;
 
   return (
-    <>
+    // display: contents: only here to catch link clicks (handleLinkClickCapture); it adds no box of its own.
+    <div className="contents" onClickCapture={handleLinkClickCapture}>
       <div
         // Deliberately BELOW nav.tsx's bottom tab bar (z-30) and header
         // (z-40) rather than covering them the way StoryViewer/live-stream-
@@ -543,7 +573,7 @@ export function MuseFeed({
             : "calc(var(--top-bar-height) + max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px)))",
         }}
       />
-    </>
+    </div>
   );
 }
 

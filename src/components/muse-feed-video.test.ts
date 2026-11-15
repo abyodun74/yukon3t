@@ -56,9 +56,29 @@ describe("the Muse card's video across the comments transition", () => {
     expect(feed).toMatch(/overflowY: commentsOpenForId \? "hidden" : "scroll"/);
   });
 
-  it("closes comments before the viewer on back: their own history entry, which the overlay ignores", () => {
+  it("closes comments before the viewer on back: their own history entry, on top of the viewer's", () => {
+    // The comments entry copies the state under it, so the viewer's marker survives and its pop is ignored.
     expect(feed).toMatch(/pushState\(\{ \.\.\.\(window\.history\.state \?\? \{\}\), museComments: true \}/);
-    expect(overlay).toMatch(/history\.state as \{ museViewer\?: boolean \} \| null\)\?\.museViewer\) return;/);
+    // The overlay uses the shared viewer history (the Story viewer's), for every close.
+    expect(overlay).toMatch(/const \{ close, closeThen \} = useViewerHistory\(onClosed\)/);
+    expect(overlay).toMatch(/useDialogFocus<HTMLDivElement>\(true, close\)/);
+    expect(overlay).toMatch(/onClose=\{close\}/);
+    expect(overlay).not.toMatch(/pushState|popstate/);
+  });
+
+  it("routes in-app links through the history-consuming close, then navigates", () => {
+    expect(overlay).toMatch(/closeThen\(\(\) => router\.push\(href\)\)/);
+    expect(overlay).toMatch(/onNavigate=\{navigate\}/);
+    expect(feed).toMatch(/onClickCapture=\{handleLinkClickCapture\}/);
+    expect(feed).toMatch(/internalNavigationFromClick\(e\)/);
+    expect(feed).toMatch(/e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
+    // On /muse with the comments open: their entries are left first.
+    expect(feed).toMatch(/backOutOfLayerThen\(/);
+  });
+
+  it("closes the emoji/GIF panel before the comments sheet (its own back entry and Escape step)", () => {
+    expect(sheet).toMatch(/useBackDismiss\(panel !== null,/);
+    expect(sheet).toMatch(/useDialogFocus<HTMLDivElement>\(true, \(\) => \(panel !== null \? setPanel\(null\) : onClose\(\)\)\)/);
   });
 });
 

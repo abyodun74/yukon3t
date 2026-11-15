@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { internalNavigationHref, storyHistoryPopAction } from "./story-viewer-history";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { backOutOfLayerThen, internalNavigationHref, viewerHistoryPopAction } from "./viewer-history";
 
 // A small model of the history stack the viewer and the layers inside it build: each entry is the set of markers its
 // state carries (a layer's entry copies the one under it and adds its own marker, as useBackDismiss does).
@@ -13,7 +13,7 @@ function simulate(stack: Entry[], { closing }: { closing: boolean }) {
     stack.pop();
     const current = stack[stack.length - 1] ?? new Set<string>();
     popped.push([...current].join("+") || "page");
-    const action = storyHistoryPopAction({ onOwnEntry: current.has("viewer"), closing });
+    const action = viewerHistoryPopAction({ onOwnEntry: current.has("viewer"), closing });
     if (action === "close") {
       open = false;
       break;
@@ -23,18 +23,18 @@ function simulate(stack: Entry[], { closing }: { closing: boolean }) {
   return { open, depth: stack.length, popped };
 }
 
-describe("storyHistoryPopAction", () => {
+describe("viewerHistoryPopAction", () => {
   it("closes once back leaves the viewer's own entry", () => {
-    expect(storyHistoryPopAction({ onOwnEntry: false, closing: false })).toBe("close");
-    expect(storyHistoryPopAction({ onOwnEntry: false, closing: true })).toBe("close");
+    expect(viewerHistoryPopAction({ onOwnEntry: false, closing: false })).toBe("close");
+    expect(viewerHistoryPopAction({ onOwnEntry: false, closing: true })).toBe("close");
   });
 
   it("stays open when back only closed a layer above it", () => {
-    expect(storyHistoryPopAction({ onOwnEntry: true, closing: false })).toBe("ignore");
+    expect(viewerHistoryPopAction({ onOwnEntry: true, closing: false })).toBe("ignore");
   });
 
   it("keeps going back while closing until past its own entry", () => {
-    expect(storyHistoryPopAction({ onOwnEntry: true, closing: true })).toBe("back");
+    expect(viewerHistoryPopAction({ onOwnEntry: true, closing: true })).toBe("back");
   });
 });
 
@@ -127,7 +127,7 @@ describe("open viewer -> tap author -> back", () => {
   function closeViewerThen(h: ReturnType<typeof makeHistory>, after: () => void) {
     for (;;) {
       const now = h.back();
-      const action = storyHistoryPopAction({ onOwnEntry: now.markers.has("viewer"), closing: true });
+      const action = viewerHistoryPopAction({ onOwnEntry: now.markers.has("viewer"), closing: true });
       if (action === "close") break;
     }
     after();
@@ -163,6 +163,130 @@ describe("open viewer -> tap author -> back", () => {
 describe("emoji picker back entry", () => {
   it("back with the emoji picker open closes only the picker; the viewer stays", () => {
     // The picker's entry copies the viewer's marker, so after its pop the viewer is still on its own entry.
-    expect(storyHistoryPopAction({ onOwnEntry: true, closing: false })).toBe("ignore");
+    expect(viewerHistoryPopAction({ onOwnEntry: true, closing: false })).toBe("ignore");
+  });
+});
+
+describe("open Muse viewer -> tap author/link -> back", () => {
+  // The same browser-like history as above, for the Muse viewer over Home (MuseViewerOverlay, useViewerHistory) with
+  // MuseFeed's comments entry and the comments sheet's emoji/GIF panel entry (useBackDismiss) on top. Each layer's
+  // entry copies the markers under it, as the real code does.
+  type Url = { url: string; markers: Set<string> };
+  function makeHistory(start: string) {
+    const entries: Url[] = [{ url: start, markers: new Set() }];
+    let index = 0;
+    return {
+      get current() {
+        return entries[index];
+      },
+      push(entry: Url) {
+        entries.splice(index + 1);
+        entries.push(entry);
+        index = entries.length - 1;
+      },
+      back() {
+        index = Math.max(0, index - 1);
+        return entries[index];
+      },
+      urls: () => entries.slice(0, index + 1).map((e) => e.url),
+    };
+  }
+  function closeViewerThen(h: ReturnType<typeof makeHistory>, after: () => void) {
+    for (;;) {
+      const now = h.back();
+      if (viewerHistoryPopAction({ onOwnEntry: now.markers.has("viewer"), closing: true }) === "close") break;
+    }
+    after();
+  }
+  const open = (h: ReturnType<typeof makeHistory>, ...markers: string[]) =>
+    h.push({ url: h.current.url, markers: new Set([...h.current.markers, ...markers]) });
+
+  it("tapping the author's name returns to Home on Back, with no orphan Home entry", () => {
+    const h = makeHistory("/home");
+    open(h, "viewer");
+    closeViewerThen(h, () => h.push({ url: "/u/author", markers: new Set() }));
+    expect(h.urls()).toEqual(["/home", "/u/author"]);
+    expect(h.back()).toEqual({ url: "/home", markers: new Set() });
+  });
+
+  it("a link in the comments, with the emoji/GIF panel open, still lands on the page entry", () => {
+    const h = makeHistory("/home");
+    open(h, "viewer");
+    open(h, "museComments");
+    open(h, "panel");
+    closeViewerThen(h, () => h.push({ url: "/u/commenter", markers: new Set() }));
+    expect(h.urls()).toEqual(["/home", "/u/commenter"]);
+    expect(h.back().markers.size).toBe(0);
+  });
+
+  it("Back closes the panel, then the comments sheet, then the viewer, one layer per press", () => {
+    const h = makeHistory("/home");
+    open(h, "viewer");
+    open(h, "museComments");
+    open(h, "panel");
+    const layersAfterBack = () => {
+      const now = h.back();
+      const action = viewerHistoryPopAction({ onOwnEntry: now.markers.has("viewer"), closing: false });
+      return { action, comments: now.markers.has("museComments"), panel: now.markers.has("panel") };
+    };
+    expect(layersAfterBack()).toEqual({ action: "ignore", comments: true, panel: false }); // panel closes
+    expect(layersAfterBack()).toEqual({ action: "ignore", comments: false, panel: false }); // sheet closes
+    expect(layersAfterBack()).toEqual({ action: "close", comments: false, panel: false }); // viewer closes
+    expect(h.urls()).toEqual(["/home"]);
+  });
+});
+
+describe("backOutOfLayerThen (/muse with the comments open -> tap a name -> back)", () => {
+  type State = Record<string, unknown> | null;
+  // A fake window whose history.back() fires popstate a tick later, like a browser.
+  function installWindow(stack: State[]) {
+    const listeners = new Set<() => void>();
+    let index = stack.length - 1;
+    const win = {
+      history: {
+        get state() {
+          return stack[index];
+        },
+        back: vi.fn(() => {
+          setTimeout(() => {
+            index = Math.max(0, index - 1);
+            for (const l of [...listeners]) l();
+          }, 0);
+        }),
+      },
+      addEventListener: (type: string, l: () => void) => type === "popstate" && listeners.add(l),
+      removeEventListener: (type: string, l: () => void) => type === "popstate" && listeners.delete(l),
+      get index() {
+        return index;
+      },
+    };
+    vi.stubGlobal("window", win);
+    return win;
+  }
+  const onComments = () => Boolean((window.history.state as { museComments?: boolean } | null)?.museComments);
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("goes back past the comments and panel entries, then navigates once", async () => {
+    vi.useFakeTimers();
+    const win = installWindow([{ page: 1 }, { page: 1, museComments: true }, { page: 1, museComments: true, panel: true }]);
+    const after = vi.fn();
+    backOutOfLayerThen(onComments, after);
+    await vi.runAllTimersAsync();
+    expect(win.index).toBe(0);
+    expect(win.history.back).toHaveBeenCalledTimes(2);
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates at once when no layer entry is on top", async () => {
+    vi.useFakeTimers();
+    const win = installWindow([{ page: 1 }]);
+    const after = vi.fn();
+    backOutOfLayerThen(onComments, after);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(win.history.back).not.toHaveBeenCalled();
   });
 });

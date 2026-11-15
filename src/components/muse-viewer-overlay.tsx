@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { MuseFeed } from "@/components/muse-feed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { suspendAutoplayOnView } from "@/lib/use-autoplay-on-view";
+import { useViewerHistory } from "@/lib/viewer-history";
 import type { MuseSeedPost } from "@/lib/muse-from-feed";
 
 /**
@@ -12,10 +14,14 @@ import type { MuseSeedPost } from "@/lib/muse-from-feed";
  * carries on into the Muse feed. The feed stays mounted underneath, so closing lands exactly where the reader was,
  * with nothing reloaded.
  *
- * Opening adds one history entry (same URL, so Next.js doesn't navigate), which is what lets the browser's and
- * Android's back button close it: Capacitor's Android shell goes back in the WebView's history when nothing handles
- * the button. The close button and Escape go back through that same entry rather than closing directly, so it never
- * lingers behind. aria-modal keeps nav.tsx's swipe-between-tabs out of gestures made in here.
+ * History is the shared viewer handling (useViewerHistory, src/lib/viewer-history.ts, the same as the Story viewer's):
+ * opening adds one same-URL entry, which is what lets the browser's and Android's back button close it (Capacitor's
+ * Android shell goes back in the WebView's history when nothing handles the button). The comments sheet, its emoji/GIF
+ * panel, a confirmation and the Share sheet each add their own entry on top, so back closes those first. The close
+ * button and Escape go back through every entry rather than closing directly, so none lingers behind; an in-app link
+ * inside it (the author's name, "View original", a name in the comments) does the same and then navigates from the
+ * page's own entry, so Back from the destination returns to Home. aria-modal keeps nav.tsx's swipe-between-tabs out of
+ * gestures made in here.
  */
 export function MuseViewerOverlay({
   seedPost,
@@ -26,37 +32,17 @@ export function MuseViewerOverlay({
   currentUserId: string;
   onClosed: () => void;
 }) {
-  const onClosedRef = useRef(onClosed);
-  useEffect(() => {
-    onClosedRef.current = onClosed;
-  });
-
-  // One back per opening: a double tap on close must not also leave /home.
-  const closingRef = useRef(false);
-  function close() {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    window.history.back();
-  }
+  const { close, closeThen } = useViewerHistory(onClosed);
+  const router = useRouter();
   const dialogRef = useDialogFocus<HTMLDivElement>(true, close);
   const viewerZ = useOverlayZ("viewer");
 
-  const pushedRef = useRef(false);
-  useEffect(() => {
-    // A ref, not the effect alone: React's development double-run of effects would otherwise push two entries.
-    if (!pushedRef.current) {
-      pushedRef.current = true;
-      window.history.pushState({ museViewer: true }, "");
-    }
-    // Back from a Muse's open comments lands on this viewer's own entry again (MuseFeed adds one for the comments on
-    // top of it): that closes the comments only. Any other back leaves the viewer.
-    const onPopState = () => {
-      if ((window.history.state as { museViewer?: boolean } | null)?.museViewer) return;
-      onClosedRef.current();
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  function navigate(href: string) {
+    // The soft keyboard (a comment being typed) goes down with the viewer.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && dialogRef.current?.contains(active)) active.blur();
+    closeThen(() => router.push(href));
+  }
 
   useEffect(() => suspendAutoplayOnView(), []);
 
@@ -74,7 +60,14 @@ export function MuseViewerOverlay({
         className="fixed inset-0 bg-black outline-none"
         style={{ zIndex: viewerZ }}
       >
-        <MuseFeed initialItems={[]} initialCursor={null} currentUserId={currentUserId} seedPost={seedPost} onClose={close} />
+        <MuseFeed
+          initialItems={[]}
+          initialCursor={null}
+          currentUserId={currentUserId}
+          seedPost={seedPost}
+          onClose={close}
+          onNavigate={navigate}
+        />
       </div>
     </OverlayPortal>
   );

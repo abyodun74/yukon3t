@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { startCall, getCallStatus, endCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
+import { useReloadHold } from "@/lib/stale-build-client";
 import { prewarmCall, cancelPrewarm } from "@/lib/call-prewarm";
 import { startRingback, stopRingback } from "@/lib/ringback";
 import { Sheet } from "@/components/sheet";
@@ -45,7 +46,7 @@ export function CallButton({
   const { t: calls } = useCallsText();
   const t = calls.button;
   const [state, setState] = useState<OutgoingState>({ phase: "idle" });
-  const { startSession, endSession, outgoingRingRef } = useCallSession();
+  const { startSession, endSession } = useCallSession();
   // Set when this button is itself inside a sheet or viewer: closing that overlay at ring time would unmount this
   // component and cancel the ring, so the overlays are closed when the call connects instead (startSession).
   const insideOverlay = useParentOverlayLayer() !== null;
@@ -101,18 +102,13 @@ export function CallButton({
     };
   }, []);
 
-  // Tells the native app's reset-to-Home on resume (capacitor-bridge.tsx)
-  // to stand down while this is ringing — that navigation is the most
-  // common way this component would get unmounted mid-ring in the first
-  // place (switching apps for a moment while waiting for an answer).
+  // Unmounting mid-ring cancels the call (above), so a stale-build reload,
+  // which a return to the app can trigger (switching apps for a moment while
+  // waiting for an answer is common), waits until the ring is over, like it
+  // does for a call in progress. Returning to the app itself never navigates
+  // away from here any more (lib/app-resume.ts).
   const isRinging = state.phase === "ringing";
-  useEffect(() => {
-    if (!isRinging) return undefined;
-    outgoingRingRef.current = true;
-    return () => {
-      outgoingRingRef.current = false;
-    };
-  }, [isRinging, outgoingRingRef]);
+  useReloadHold("call", isRinging);
 
   // Hands the fullscreen/minimizable UI off to the root-mounted
   // GlobalCallFrame the moment the call connects, so navigating away doesn't

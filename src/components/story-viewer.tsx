@@ -41,7 +41,7 @@ import {
   velocityBetween,
   type GestureAxis,
 } from "@/lib/story-dismiss-gesture";
-import { internalNavigationHref } from "@/lib/story-viewer-history";
+import { internalNavigationFromClick } from "@/lib/viewer-history";
 import { CommentDeleteDialog, useConfirmAction } from "@/components/confirm-dialog";
 import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
@@ -244,7 +244,7 @@ export function StoryViewer({
   const userPaused = story ? userPausedForId === story.id : false;
   const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing;
   // A panel shown inside the viewer. Back closes it before the viewer (its own same-URL history entry, on top of the
-  // viewer's: src/lib/story-viewer-history.ts).
+  // viewer's: src/lib/viewer-history.ts).
   const panelOpen = showComments || showViewers || confirmingDelete;
   const panelOpenRef = useRef(panelOpen);
   useEffect(() => {
@@ -273,18 +273,8 @@ export function StoryViewer({
   // Links inside the viewer (its own and those in sheets portaled from it, which React bubbles here) go through
   // onNavigate: the viewer leaves its history entries, then the destination is pushed from the page's own entry.
   function handleLinkClickCapture(e: MouseEvent<HTMLDivElement>) {
-    if (!onNavigate || e.defaultPrevented) return;
-    const anchor = (e.target as Element | null)?.closest?.("a[href]");
-    if (!(anchor instanceof HTMLAnchorElement)) return;
-    const href = internalNavigationHref({
-      href: anchor.href,
-      origin: window.location.origin,
-      currentPath: `${window.location.pathname}${window.location.search}`,
-      target: anchor.target,
-      download: anchor.hasAttribute("download"),
-      button: e.button,
-      modifier: e.metaKey || e.ctrlKey || e.shiftKey || e.altKey,
-    });
+    if (!onNavigate) return;
+    const href = internalNavigationFromClick(e);
     if (!href) return;
     e.preventDefault();
     e.stopPropagation();

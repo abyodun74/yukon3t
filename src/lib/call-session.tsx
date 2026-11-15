@@ -105,13 +105,6 @@ type CallSessionContextValue = {
    * one "left-meeting" event.
    */
   reconnectingRef: MutableRefObject<boolean>;
-  /**
-   * True while a CallButton has an outgoing call ringing — there's no
-   * session yet at that point, but the native app's reset-to-Home on resume
-   * (capacitor-bridge.tsx) has to leave it alone just the same: navigating
-   * unmounts the CallButton that owns the ring.
-   */
-  outgoingRingRef: MutableRefObject<boolean>;
 };
 
 const CallSessionContext = createContext<CallSessionContextValue | null>(null);
@@ -149,7 +142,6 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     dailyCallRef.current = dailyCall;
   });
   const reconnectingRef = useRef(false);
-  const outgoingRingRef = useRef(false);
   // A stale-build reload would hang up the call or drop the live stream.
   useReloadHold("call", session !== null);
 
@@ -270,7 +262,6 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         minimize,
         expand,
         reconnectingRef,
-        outgoingRingRef,
       }}
     >
       {children}

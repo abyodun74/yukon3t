@@ -1338,11 +1338,26 @@ export function ChatThread({
   // delivered/read), all publish onto this same conversationId's channel —
   // see actions/messages.ts. Also refetches once on tab-focus-regain as a
   // safety net (see useRealtimeEvent's own doc comment).
-  useRealtimeEvent(REALTIME_CHANNELS.conversation(conversationId), "changed", () => {
-    refetch();
-    // Someone may have just turned secret chat on or off, or reset their keys.
-    void secret.refresh();
-  });
+  //
+  // Returning to the app keeps this thread open (lib/app-resume.ts), so the
+  // return is what catches up on everything missed: the visibility resync is
+  // "immediate" (no jitter: the missed messages are the first thing seen),
+  // and a signal that arrives while the app is in the background (Android
+  // can keep the WebView's JS running for a while) is not fetched then,
+  // because getConversationMessages marks what it returns as read, and nobody
+  // is reading. The resync on return fetches it, and marks it read, once the
+  // thread is actually on screen.
+  useRealtimeEvent(
+    REALTIME_CHANNELS.conversation(conversationId),
+    "changed",
+    () => {
+      if (document.visibilityState === "hidden") return;
+      refetch();
+      // Someone may have just turned secret chat on or off, or reset their keys.
+      void secret.refresh();
+    },
+    { resync: "immediate" },
+  );
 
   // Message ids that should ease in on this render — tracked separately
   // from messages.length because a refetch can also replace the whole array

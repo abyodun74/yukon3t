@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
-import { useStoryViewerHistory } from "@/lib/story-viewer-history";
+import { useViewerHistory } from "@/lib/viewer-history";
 
 export type StoryTrayAuthorGroup = {
   authorId: string;
@@ -47,7 +47,7 @@ export function StoryTrayViewer({
   const [direction, setDirection] = useState<"next" | "prev" | undefined>(groups.length > 1 ? "next" : undefined);
   // The viewer's one history entry lives here, not in StoryViewer, which remounts per person (see the comment above).
   // Every way out (X, Escape, a drag down, back, the end of the last story) goes through it.
-  const { close, closeThen } = useStoryViewerHistory(onClose);
+  const { close, closeThen } = useViewerHistory(onClose);
   const router = useRouter();
   // A link inside the viewer (the author's name, "View post"): leave the viewer's history entries first, then navigate
   // from the page's own entry, so Back from the destination lands on the page that was open, not an orphan copy.

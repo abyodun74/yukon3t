@@ -74,7 +74,7 @@ describe("Story viewer drag down to close", () => {
 
 describe("Story viewer back / Escape", () => {
   it("owns one history entry above the per-person viewer, used by every close", () => {
-    expect(trayViewer).toMatch(/const \{ close, closeThen \} = useStoryViewerHistory\(onClose\)/);
+    expect(trayViewer).toMatch(/const \{ close, closeThen \} = useViewerHistory\(onClose\)/);
     expect(trayViewer).toMatch(/onClose=\{close\}/);
     // The end of the last person's stories closes through it too.
     expect(trayViewer).toMatch(/if \(authorIndex \+ 1 >= groups\.length\) \{\s*close\(\);/);
@@ -90,7 +90,7 @@ describe("Story viewer back / Escape", () => {
     expect(trayViewer).toMatch(/closeThen\(\(\) => router\.push\(href\)\)/);
     expect(trayViewer).toMatch(/onNavigate=\{navigate\}/);
     expect(viewer).toMatch(/onClickCapture=\{handleLinkClickCapture\}/);
-    expect(viewer).toMatch(/internalNavigationHref\(/);
+    expect(viewer).toMatch(/internalNavigationFromClick\(e\)/);
     expect(viewer).toMatch(/e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
   });
 

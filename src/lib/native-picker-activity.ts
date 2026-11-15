@@ -10,16 +10,18 @@ import { Capacitor } from "@capacitor/core";
  *
  * Why the guard exists (ANDROID): a picker hands off to a separate system
  * Activity via startActivityForResult. That handoff pauses/resumes
- * MainActivity exactly like backgrounding/returning to the app does —
- * Capacitor's App "resume" event fires the same way for both — so anything
- * reacting to "resume" as a proxy for "the user came back to the app" (see
- * capacitor-bridge.tsx's force-navigate-to-Home-on-resume) needs to tell the
- * two apart, or every picker invocation outside /home gets its host page
- * yanked to Home mid-pick (confirmed live: this silently broke photo AND
- * video attach from any page other than Home). It also doubles as a
- * re-entrancy guard on Android: repeated taps used to queue several
- * concurrent native Activity launches, each one competing for the same
- * requestUploadUrl rate-limit budget.
+ * MainActivity exactly like backgrounding/returning to the app does
+ * (Capacitor's App "pause"/"resume" and the page's visibilitychange fire the
+ * same way for both), so anything reacting to "the user left / came back"
+ * must tell the two apart: hidden-relock.tsx (must not re-lock hidden chats
+ * under the picker), stale-build-client.ts (must not reload the composer
+ * waiting on the pick) and capacitor-bridge.tsx's return refresh (skipped
+ * for a picker's resume). Returning to the app no longer navigates anywhere
+ * (lib/app-resume.ts), so the old reason, the resume-to-Home reset yanking
+ * the composer away mid-pick, is gone. It is also the re-entrancy guard on
+ * Android: repeated taps used to queue several concurrent native Activity
+ * launches, each one competing for the same requestUploadUrl rate-limit
+ * budget.
  *
  * Why it must NOT block on iOS (2026-11-14, owner's iPhone screen recording):
  * iOS presents the Photo Library / Take Photo / Choose Files sheet over the
@@ -131,7 +133,7 @@ export function shouldUseAndroidNativePicker(): boolean {
 /**
  * "A picker may be on screen right now." Read by capacitor-bridge.tsx's
  * resume handler, hidden-relock.tsx and stale-build-client.ts so they don't
- * navigate, relock or reload under an open picker. On iOS the imperative
+ * refresh, relock or reload under an open picker. On iOS the imperative
  * track is never raised, so this is never true because of an `<input>`
  * chooser there. Taps go through `openFilePicker` / `canOpenPicker`.
  */
@@ -140,11 +142,10 @@ export function isNativePickerActive() {
 }
 
 // How long to keep the guard up after a native pick call itself resolves.
-// Confirmed live: dropping the guard the instant the pick promise settles
-// still let a photo pick get yanked to Home — the Activity-transition
-// "resume" event and the plugin's own result message aren't guaranteed to
-// arrive at the WebView in a fixed order, so a resume that lands a beat
-// after the result still needs to see the guard up.
+// The Activity-transition "resume" / visibilitychange and the plugin's own
+// result message aren't guaranteed to arrive at the WebView in a fixed order
+// (confirmed live), so a resume that lands a beat after the result still
+// needs to see the guard up.
 export const SETTLE_MS = 1500;
 
 /** After a cancel signal, how long a real `change` (already in flight) gets to arrive first. */
@@ -154,7 +155,7 @@ export const CANCEL_GRACE_MS = 800;
  * Failsafe for a pick that never reports back at all. Android keeps the old
  * 60s, because a genuine slow pick there (browsing the gallery, a big video)
  * is a separate Activity whose return must still see the guard up; cancel
- * detection and the resume backstop clear a dismissed chooser far sooner.
+ * detection clears a dismissed chooser far sooner.
  * Elsewhere 15s. Either way the timer is re-armed while the document is
  * hidden (the chooser is on top of us), up to IMPERATIVE_FAILSAFE_MAX_MS.
  */
@@ -224,8 +225,8 @@ function startFailsafe() {
  * `<input>` element. Calls `.click()` nowhere.
  */
 export function markNativePickerActive() {
-  // iOS: the sheet never backgrounds the app (no "resume" to protect
-  // against) and gives no reliable close signal, so the imperative track is
+  // iOS: the sheet never backgrounds the app (no "resume" or hidden page to
+  // tell apart) and gives no reliable close signal, so the imperative track is
   // never raised there. See the module doc comment.
   if (pickerPlatform() === "ios") return;
   clearSettle();
@@ -251,8 +252,8 @@ export function markNativePickerInactive() {
 
 /**
  * Force-clears just the imperative track (never the promise one). Used by
- * cancel detection, the failsafe, and capacitor-bridge.tsx's Android
- * "resume" backstop.
+ * cancel detection (which also covers the document becoming visible again
+ * when the chooser's Activity closes) and the failsafe.
  */
 export function resolveStuckImperativePicker() {
   imperativeActive = false;

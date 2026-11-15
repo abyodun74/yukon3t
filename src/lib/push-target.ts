@@ -2,20 +2,19 @@
 // into the app can move the user off it.
 //
 // The native app (components/capacitor-bridge.tsx) gets the tap as a `notificationActionPerformed` event carrying the
-// push's `url` data field (lib/fcm.ts). Two other things run at that same moment, and both used to win over the tap:
-//  - the "resume" listener, which sends a returning user back to /home; on Android the tap event arrives *before*
-//    resume (onNewIntent runs before onResume), so the reset overrode the tap whenever the user had left Home;
-//  - the stale-build check (lib/stale-build-client.ts), which reloads a WebView left behind by a deploy, i.e. on most
-//    first opens after a deploy; the reload threw away the navigation still in flight, and the plugin doesn't deliver
-//    the tap again to the reloaded page.
-// So a tap is recorded here (memory + sessionStorage, which survives that reload) for PUSH_TAP_TTL_MS: the resume reset
-// stands down while one is pending, a stale-build reload goes to it instead of reloading the old page, and the bridge
-// re-applies it after a reload. It is cleared once the app is on that page.
+// push's `url` data field (lib/fcm.ts); a link that opened the app (appUrlOpen / the launch URL, lib/app-links.ts) is
+// recorded the same way. The stale-build check (lib/stale-build-client.ts) runs at that same moment: it reloads a
+// WebView left behind by a deploy, i.e. on most first opens after a deploy, and used to throw away the navigation still
+// in flight (the plugin doesn't deliver the tap again to the reloaded page). (Returning to the app used to send everyone
+// to /home too, which overrode taps on Android, where the tap arrives before "resume"; that reset is gone, see
+// lib/app-resume.ts.) So a tap is recorded here (memory + sessionStorage, which survives that reload) for
+// PUSH_TAP_TTL_MS: a stale-build reload goes to it instead of reloading the old page, and the bridge re-applies it
+// after a reload onto a landing page (planAppReturn). It is cleared once the app is on that page.
 //
 // The pure parts (safeInAppPath, parsePushTap, isPushTapPending) are unit-tested; the store functions only touch
 // sessionStorage inside try/catch, so blocked storage just means the in-memory copy is used.
 
-/** How long a tap keeps the resume reset and a stale-build reload away. Long enough for a slow cold start. */
+/** How long a tap steers a stale-build reload (and a reload onto Home) to its page. Long enough for a slow cold start. */
 export const PUSH_TAP_TTL_MS = 20_000;
 export const PUSH_TAP_KEY = "yukon3t:push-tap";
 
