@@ -7,6 +7,11 @@
 # machines have more memory than that default allows Node to use; raise the ceiling for the build only.
 [build.environment]
   NODE_OPTIONS = "--max-old-space-size=6144"
+  # Netlify's secrets scan fails the build when the VALUE of a secret-looking environment variable shows up in the repo
+  # or the build output. APNS_TEAM_ID holds the Apple Team ID (3465L6ZHRJ), which is public by design: it is in the
+  # /.well-known/apple-app-site-association file every iPhone downloads (src/lib/app-links.ts), so the scan flagged that
+  # file on 2026-11-15 and failed the build. Skip only this one key; every other secret is still scanned.
+  SECRETS_SCAN_OMIT_KEYS = "APNS_TEAM_ID"
 
 # Next.js 16 defaults to Turbopack, but Netlify's Next.js Runtime edge
 # function bundler fails on Turbopack's compiled middleware output
