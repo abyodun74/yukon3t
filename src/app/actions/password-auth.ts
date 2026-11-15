@@ -76,7 +76,7 @@ async function issuePasswordResetLink(userId: string): Promise<string> {
   await prisma.passwordResetToken.create({
     data: { userId, token: hashResetToken(token), expires: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
   });
-  return resetPasswordUrl(process.env.NEXT_PUBLIC_APP_URL, token);
+  return resetPasswordUrl(token, { appUrl: process.env.NEXT_PUBLIC_APP_URL, nodeEnv: process.env.NODE_ENV });
 }
 
 /**

@@ -16,11 +16,12 @@ import { reloadIfStale } from "@/lib/stale-build-client";
 import { useCallSession } from "@/lib/call-session";
 import { useUiText } from "@/components/ui-text";
 import { QUIET_NOTIFICATION_CHANNEL_ID, QUIET_NOTIFICATION_CHANNEL_IMPORTANCE } from "@/lib/quiet-push";
+import { launchUrlKey, openedUrlTarget, type OpenedUrlTarget } from "@/lib/app-links";
+import { isRepeatOpen } from "@/lib/opened-url-dedupe";
 import {
   claimLaunchUrl,
   clearPushTap,
   isAtPushTarget,
-  notificationDeepLinkPath,
   pendingPushTap,
   rememberPushTap,
   safeInAppPath,
@@ -31,6 +32,12 @@ import {
 // this gives it time to be recorded (lib/push-target.ts) so the reset stands
 // down instead of racing the tap's own navigation.
 const RESUME_HOME_RESET_DELAY_MS = 600;
+
+// Set when a link that opened the app is loaded as a document (an emailed
+// sign-in or reset link, see openLinked below): the resume reset to /home
+// stands down while that load is under way.
+const LEAVING_FOR_DOCUMENT_MS = 10_000;
+let leavingForDocumentAt = 0;
 
 // Route prefixes a "just opened the app" reset-to-Home shouldn't touch —
 // auth/onboarding flows the user hasn't finished yet, where landing them on
@@ -151,21 +158,46 @@ export function CapacitorBridge() {
       else listener = handle;
     })().catch(() => {});
 
-    // Notifications the Android app builds itself (the native "Missed call"
-    // one) open MainActivity with yukon3t://open?path=... instead of raising
-    // notificationActionPerformed (notificationDeepLinkPath, push-target.ts).
-    // Cold start: the launch URL (once per app session, claimLaunchUrl);
-    // app already running (foreground or background): appUrlOpen, which
-    // Android delivers through onNewIntent before onResume, like a push tap.
+    // A URL that opened the app (openedUrlTarget, app-links.ts): a
+    // https://yukon3t.com/... link tapped in another app (iOS universal link /
+    // Android App Link, once the installed build claims the domain), or the
+    // yukon3t://open?path=... link of a notification the Android app builds
+    // itself (the native "Missed call" one, which can't raise
+    // notificationActionPerformed). Cold start: the launch URL (once per app
+    // session, claimLaunchUrl); app already running (foreground or
+    // background): appUrlOpen, which Android delivers through onNewIntent
+    // before onResume, like a push tap. iOS also replays a cold start's
+    // universal link as appUrlOpen, hence the short repeat check.
+    function openLinked(url: string, target: OpenedUrlTarget) {
+      if (isRepeatOpen(url, Date.now())) return;
+      if (target.fromNotification) {
+        openTapped(target.path);
+        return;
+      }
+      if (target.documentLoad) {
+        // An emailed sign-in link (/api/auth/callback/...) or a password
+        // reset link (#token): loaded as a document in this WebView. Not
+        // recorded as a push tap: the token must not sit in sessionStorage,
+        // and the page this lands on is the callback's redirect, not the
+        // path itself. leavingForDocumentAt keeps the resume reset away.
+        leavingForDocumentAt = Date.now();
+        window.location.assign(target.path);
+        return;
+      }
+      rememberPushTap(target.path);
+      router.push(target.path);
+    }
     (async () => {
       const { App } = await import("@capacitor/app");
       if (cancelled) return;
       const launch = await App.getLaunchUrl().catch(() => undefined);
-      const launchPath = notificationDeepLinkPath(launch?.url);
-      if (!cancelled && launch?.url && launchPath && claimLaunchUrl(launch.url)) openTapped(launchPath);
+      const launchTarget = openedUrlTarget(launch?.url);
+      if (!cancelled && launch?.url && launchTarget && claimLaunchUrl(launchUrlKey(launch.url, launchTarget))) {
+        openLinked(launch.url, launchTarget);
+      }
       const handle = await App.addListener("appUrlOpen", (event) => {
-        const path = notificationDeepLinkPath(event.url);
-        if (path) openTapped(path);
+        const target = openedUrlTarget(event.url);
+        if (target) openLinked(event.url, target);
       });
       if (cancelled) handle.remove();
       else urlOpenListener = handle;
@@ -385,6 +417,7 @@ export function CapacitorBridge() {
         clearTimeout(resumeResetTimer);
         resumeResetTimer = setTimeout(() => {
           if (pendingPushTap()) return;
+          if (Date.now() - leavingForDocumentAt < LEAVING_FOR_DOCUMENT_MS) return;
           if (callSessionActiveRef.current || outgoingRingRef.current) return;
           const current = pathnameRef.current;
           if (current === "/home") return;

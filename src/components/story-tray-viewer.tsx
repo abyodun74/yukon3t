@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
+import { useStoryViewerHistory } from "@/lib/story-viewer-history";
 
 export type StoryTrayAuthorGroup = {
   authorId: string;
@@ -29,16 +31,27 @@ export type StoryTrayAuthorGroup = {
 export function StoryTrayViewer({
   groups,
   startAuthorIndex,
+  startStoryIndex = 0,
   currentUserId,
   onClose,
 }: {
   groups: StoryTrayAuthorGroup[];
   startAuthorIndex: number;
+  /** The story to start on within the first person's stack (a profile's `?story=` deep link); later people start at 0. */
+  startStoryIndex?: number;
   currentUserId: string;
   onClose: () => void;
 }) {
   const [authorIndex, setAuthorIndex] = useState(startAuthorIndex);
-  const [direction, setDirection] = useState<"next" | "prev">("next");
+  // A single person (a profile's own story ring) opens without the sideways glide, as it always has.
+  const [direction, setDirection] = useState<"next" | "prev" | undefined>(groups.length > 1 ? "next" : undefined);
+  // The viewer's one history entry lives here, not in StoryViewer, which remounts per person (see the comment above).
+  // Every way out (X, Escape, a drag down, back, the end of the last story) goes through it.
+  const { close, closeThen } = useStoryViewerHistory(onClose);
+  const router = useRouter();
+  // A link inside the viewer (the author's name, "View post"): leave the viewer's history entries first, then navigate
+  // from the page's own entry, so Back from the destination lands on the page that was open, not an orphan copy.
+  const navigate = (href: string) => closeThen(() => router.push(href));
   const group = groups[authorIndex];
   if (!group) return null;
 
@@ -49,7 +62,7 @@ export function StoryTrayViewer({
     // component's setState from within it triggers React's "Cannot update
     // a component while rendering a different component" warning.
     if (authorIndex + 1 >= groups.length) {
-      onClose();
+      close();
       return;
     }
     setDirection("next");
@@ -68,7 +81,7 @@ export function StoryTrayViewer({
     <StoryViewer
       key={group.authorId}
       stories={group.stories}
-      startIndex={0}
+      startIndex={authorIndex === startAuthorIndex ? startStoryIndex : 0}
       authorId={group.authorId}
       authorName={group.authorName}
       authorAvatarUrl={group.authorAvatarUrl}
@@ -77,7 +90,8 @@ export function StoryTrayViewer({
       direction={direction}
       onNextAuthor={goToNextAuthor}
       onPrevAuthor={goToPrevAuthor}
-      onClose={onClose}
+      onClose={close}
+      onNavigate={navigate}
     />
   );
 }

@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { protectedImageProps } from "@/lib/protected-image";
 import { useImageFallback } from "@/lib/use-image-fallback";
 import { avatarFullSizeUrl } from "@/lib/avatar-url";
-import { StoryViewer, type StoryData } from "@/components/story-viewer";
+import { type StoryData } from "@/components/story-viewer";
+import { StoryTrayViewer } from "@/components/story-tray-viewer";
 import { CreatePickerButton } from "@/components/create-picker-sheet";
 import { Lightbox } from "@/components/lightbox";
 import { useProfileText } from "@/components/profile-text";
@@ -120,13 +121,12 @@ export function ProfileStoryRing({
       </div>
 
       {viewerOpen && hasStories && (
-        <StoryViewer
-          stories={stories}
-          startIndex={startIndex}
-          authorId={userId}
-          authorName={name}
-          authorAvatarUrl={avatarUrl}
-          isOwner={isOwner}
+        // Through StoryTrayViewer (one person) for the viewer's history entry: back, Escape, the X and a drag down
+        // all close it the same way as from the Home tray.
+        <StoryTrayViewer
+          groups={[{ authorId: userId, authorName: name, authorAvatarUrl: avatarUrl, isMe: isOwner, hasUnseen: false, stories }]}
+          startAuthorIndex={0}
+          startStoryIndex={startIndex}
           currentUserId={currentUserId}
           onClose={() => setViewerOpen(false)}
         />

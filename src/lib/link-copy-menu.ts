@@ -16,6 +16,8 @@
  * (`classifyPressTarget`) only use `closest` / `getAttribute` / `tagName`, which tests stub.
  */
 
+import { canonicalUrl, inAppPathFor } from "@/lib/app-links";
+
 /** How long a finger has to stay down on a link before the menu opens. */
 export const LONG_PRESS_DELAY_MS = 480;
 /** How far (px, either axis) a finger may drift before it counts as a scroll/swipe instead of a press. */
@@ -113,7 +115,9 @@ export function externalCopyUrl(value: string | null | undefined): string | null
 /**
  * What the text copied for a link's `href` should be: the absolute URL for web links (relative ones resolved
  * against `baseUrl`), the bare address for `mailto:`, the bare number for `tel:`/`sms:`. `null` for anything not
- * worth copying (`javascript:`, an empty href, a bare in-page `#` placeholder).
+ * worth copying (`javascript:`, an empty href, a bare in-page `#` placeholder). A link to a YuKon3t page is always
+ * copied as https://yukon3t.com/... (canonicalUrl), even when the page is served from a preview host, so the link
+ * opens the app wherever it is pasted.
  */
 export function linkCopyText(href: string | null | undefined, baseUrl: string): string | null {
   const raw = (href ?? "").trim();
@@ -140,7 +144,8 @@ export function linkCopyText(href: string | null | undefined, baseUrl: string): 
     decoded = decoded.replace(/^\/\//, "").trim();
     return decoded || null;
   }
-  return url.href;
+  const inApp = inAppPathFor(url.href, baseUrl);
+  return inApp ? canonicalUrl(inApp) : url.href;
 }
 
 /**

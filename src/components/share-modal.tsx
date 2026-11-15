@@ -9,6 +9,7 @@ import { getMyConversationsForShare } from "@/app/actions/messages";
 import { sendToConversations } from "@/app/actions/share-to-chats";
 import { getMyCircles } from "@/app/actions/circles";
 import { canShareNatively, shareNative } from "@/lib/native-share";
+import { canonicalUrl } from "@/lib/app-links";
 import { watermarkImageFile } from "@/lib/watermark";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
@@ -122,7 +123,7 @@ export function ShareModal({
     videoDurationSeconds !== null &&
     videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS;
 
-  const url = typeof window !== "undefined" ? `${window.location.origin}/post/${postId}` : "";
+  const url = canonicalUrl(`/post/${postId}`);
   // The native path (Android Intent.ACTION_SEND / iOS UIActivityViewController,
   // via @capacitor/share) is checked first since WebView support for the
   // Web Share API varies by the device's installed system WebView build and

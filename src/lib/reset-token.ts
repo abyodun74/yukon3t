@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { CANONICAL_ORIGIN } from "@/lib/app-links";
 
 /**
  * Password-reset tokens. The emailed link carries the token in the URL fragment (`/reset-password#token=...`), which
@@ -19,7 +20,11 @@ export function hashResetToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-/** The link emailed to the account owner. `appUrl` is NEXT_PUBLIC_APP_URL. */
-export function resetPasswordUrl(appUrl: string | undefined, token: string): string {
-  return `${appUrl ?? ""}/reset-password#token=${encodeURIComponent(token)}`;
+/**
+ * The link emailed to the account owner: always https://yukon3t.com in production (never a preview / Vercel /
+ * Netlify host, so an installed app can open it), NEXT_PUBLIC_APP_URL (else the same origin) in development.
+ */
+export function resetPasswordUrl(token: string, env: { appUrl?: string; nodeEnv?: string } = {}): string {
+  const origin = env.nodeEnv === "production" ? CANONICAL_ORIGIN : env.appUrl || CANONICAL_ORIGIN;
+  return `${origin.replace(/\/$/, "")}/reset-password#token=${encodeURIComponent(token)}`;
 }

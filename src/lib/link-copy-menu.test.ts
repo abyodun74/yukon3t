@@ -32,6 +32,13 @@ describe("linkCopyText", () => {
     expect(linkCopyText("#section", BASE)).toBe("https://yukon3t.com/messages/abc#section");
   });
 
+  it("copies a link to a YuKon3t page as https://yukon3t.com/..., whatever host serves the page", () => {
+    const preview = "https://yukon3t-git-main.vercel.app/home";
+    expect(linkCopyText("/u/alice", preview)).toBe("https://yukon3t.com/u/alice");
+    expect(linkCopyText("https://www.yukon3t.com/post/1?x=2#c", preview)).toBe("https://yukon3t.com/post/1?x=2#c");
+    expect(linkCopyText("https://example.com/u/alice", preview)).toBe("https://example.com/u/alice");
+  });
+
   it("copies the bare address / number for mailto, tel and sms", () => {
     expect(linkCopyText("mailto:hi@example.com?subject=Hello", BASE)).toBe("hi@example.com");
     expect(linkCopyText("MAILTO:a%40b.com", BASE)).toBe("a@b.com");

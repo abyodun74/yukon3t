@@ -1,7 +1,7 @@
 "use client";
 
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, Eye, Trash2, Send, MessageCircle, Pause, Play } from "lucide-react";
@@ -26,6 +26,22 @@ import { QUICK_REACTIONS } from "@/lib/emoji";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useBackDismiss } from "@/lib/use-back-dismiss";
+import {
+  STORY_DISMISS_DURATION_MS,
+  STORY_DISMISS_EASING,
+  canStartStoryDismiss,
+  decideStoryDismiss,
+  dismissOffset,
+  dismissVisual,
+  lockGestureAxis,
+  releaseIntent,
+  releaseVelocity,
+  startsOnControl,
+  velocityBetween,
+  type GestureAxis,
+} from "@/lib/story-dismiss-gesture";
+import { internalNavigationHref } from "@/lib/story-viewer-history";
 import { CommentDeleteDialog, useConfirmAction } from "@/components/confirm-dialog";
 import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
@@ -98,6 +114,13 @@ function SafeAreaBottomSpacer() {
   return <div aria-hidden style={{ height: "max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))" }} />;
 }
 
+/** The top inset the header keeps clear of: the iPhone notch / Dynamic Island, or Android's status bar. */
+const SAFE_AREA_TOP = "max(env(safe-area-inset-top), var(--status-bar-inset-top, 0px))";
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+}
+
 /**
  * Full-screen Instagram-style story viewer: one segmented progress bar per
  * story, images auto-advance on a timer, videos advance on `ended`, and
@@ -116,6 +139,7 @@ export function StoryViewer({
   direction,
   onNextAuthor,
   onPrevAuthor,
+  onNavigate,
 }: {
   stories: StoryData[];
   startIndex: number;
@@ -132,6 +156,11 @@ export function StoryViewer({
   onNextAuthor?: () => void;
   /** A rightward swipe calls this when provided — the tray wrapper uses it to move to the previous person's stack. No-op (not undefined-guarded to onClose) if there's nobody before this one. */
   onPrevAuthor?: () => void;
+  /**
+   * An in-app link inside the viewer (the author's name, "View post") is handed here instead of navigating itself:
+   * StoryTrayViewer leaves the viewer's history entries first, so no orphan same-URL entry stays behind the destination.
+   */
+  onNavigate?: (href: string) => void;
 }) {
   const { t, locale, dir } = useFeedText();
   const { t: shell } = useShellText();
@@ -157,8 +186,13 @@ export function StoryViewer({
   // next story always plays it.
   const [userPausedForId, setUserPausedForId] = useState<string | null>(null);
   const [replyFocused, setReplyFocused] = useState(false);
+  // On its way out (X, Escape, a drag down): holds the story still while the close animation / history pop runs.
+  const [closing, setClosing] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // Bumped to close the emoji picker from here (back, Escape): EmojiPickerButton owns its open state, and a remount is
+  // its close (its unmount reports onOpenChange(false), which resumes the story).
+  const [emojiPickerKey, setEmojiPickerKey] = useState(0);
   // Keyed by story id rather than plain booleans — switching stories then
   // naturally "resets" these (the id no longer matches) without needing an
   // effect to synchronously reset state on every story change.
@@ -178,8 +212,26 @@ export function StoryViewer({
   const seenRef = useRef<Set<string>>(new Set());
   const pointerDownAtRef = useRef(0);
   const pointerStartXRef = useRef(0);
+  // The pointer on the tap zones, for drag-down-to-close (src/lib/story-dismiss-gesture.ts). Null between touches.
+  const gestureRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    axis: GestureAxis | null;
+    allowDismiss: boolean;
+    lastY: number;
+    lastT: number;
+    velocityY: number;
+  } | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
-  const dialogRef = useDialogFocus<HTMLDivElement>(true, onClose);
+  // Escape closes an open panel first (comments, "Seen by", the delete confirmation), then the viewer. A sheet opened
+  // from here (Share, a confirmation) is its own dialog on top and answers Escape itself.
+  const dialogRef = useDialogFocus<HTMLDivElement>(true, () => {
+    if (emojiOpenRef.current) closeEmojiPicker();
+    else if (panelOpenRef.current) closePanels();
+    else handleClose();
+  });
   // A full-screen viewer (src/lib/overlay-layers.ts), portaled to the root overlay host: it opens from the Home story
   // tray's horizontal scroller and from a profile's avatar, and must not be positioned or clipped by either.
   const viewerZ = useOverlayZ("viewer");
@@ -190,7 +242,106 @@ export function StoryViewer({
   const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
   const userPaused = story ? userPausedForId === story.id : false;
-  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen;
+  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing;
+  // A panel shown inside the viewer. Back closes it before the viewer (its own same-URL history entry, on top of the
+  // viewer's: src/lib/story-viewer-history.ts).
+  const panelOpen = showComments || showViewers || confirmingDelete;
+  const panelOpenRef = useRef(panelOpen);
+  useEffect(() => {
+    panelOpenRef.current = panelOpen;
+  });
+  // Anything over the story that owns the touch: no drag-down-to-close starts while one is open.
+  const layerOpen = panelOpen || shareOpen || emojiOpen;
+
+  function closePanels() {
+    setCommentsOpenForId(null);
+    setViewersOpenForId(null);
+    setDeleteConfirmForId(null);
+  }
+  useBackDismiss(panelOpen, closePanels);
+
+  // The emoji picker popover gets its own back entry too: back (and Escape, above) closes it before the viewer.
+  const emojiOpenRef = useRef(emojiOpen);
+  useEffect(() => {
+    emojiOpenRef.current = emojiOpen;
+  });
+  function closeEmojiPicker() {
+    setEmojiPickerKey((k) => k + 1);
+  }
+  useBackDismiss(emojiOpen, closeEmojiPicker);
+
+  // Links inside the viewer (its own and those in sheets portaled from it, which React bubbles here) go through
+  // onNavigate: the viewer leaves its history entries, then the destination is pushed from the page's own entry.
+  function handleLinkClickCapture(e: MouseEvent<HTMLDivElement>) {
+    if (!onNavigate || e.defaultPrevented) return;
+    const anchor = (e.target as Element | null)?.closest?.("a[href]");
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    const href = internalNavigationHref({
+      href: anchor.href,
+      origin: window.location.origin,
+      currentPath: `${window.location.pathname}${window.location.search}`,
+      target: anchor.target,
+      download: anchor.hasAttribute("download"),
+      button: e.button,
+      modifier: e.metaKey || e.ctrlKey || e.shiftKey || e.altKey,
+    });
+    if (!href) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && dialogRef.current?.contains(active)) active.blur();
+    setClosing(true);
+    onNavigate(href);
+  }
+
+  // Every deliberate exit (the X, Escape, a drag down) comes through here. A focused reply field is blurred first so
+  // the soft keyboard goes down with the viewer (useDialogFocus then hands focus back to the story ring). onClose is
+  // the history-backed close (StoryTrayViewer), so back, the X and a drag down all leave history the same.
+  function handleClose() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && dialogRef.current?.contains(active)) active.blur();
+    setClosing(true);
+    onClose();
+  }
+
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
+
+  /** Moves the whole viewer `offset` px down with its fade, or back to rest at 0. */
+  function applyDismissVisual(offset: number, animate: boolean) {
+    const node = dialogRef.current;
+    if (!node) return;
+    const v = dismissVisual(offset);
+    node.style.transition = animate
+      ? `transform ${STORY_DISMISS_DURATION_MS}ms ${STORY_DISMISS_EASING}, opacity ${STORY_DISMISS_DURATION_MS}ms ${STORY_DISMISS_EASING}`
+      : "none";
+    node.style.transform = offset > 0 ? `translateY(${v.translateY}px) scale(${v.scale})` : "";
+    node.style.opacity = offset > 0 ? String(v.opacity) : "";
+  }
+
+  function dismissByDrag() {
+    if (prefersReducedMotion()) {
+      handleClose();
+      return;
+    }
+    setClosing(true);
+    const node = dialogRef.current;
+    if (node) {
+      const end = dismissVisual(window.innerHeight);
+      node.style.transition = `transform ${STORY_DISMISS_DURATION_MS}ms ${STORY_DISMISS_EASING}, opacity ${STORY_DISMISS_DURATION_MS}ms ${STORY_DISMISS_EASING}`;
+      node.style.transform = `translateY(${end.translateY}px) scale(${end.scale})`;
+      node.style.opacity = "0";
+    }
+    closeTimerRef.current = setTimeout(handleClose, STORY_DISMISS_DURATION_MS);
+  }
+
+  function snapBack() {
+    applyDismissVisual(0, !prefersReducedMotion());
+  }
 
   // Checks the boundary against `index` directly and calls onClose as a
   // plain function call, rather than from inside setIndex's updater — the
@@ -289,10 +440,63 @@ export function StoryViewer({
   function handlePointerDown(e: PointerEvent<HTMLButtonElement>) {
     pointerDownAtRef.current = Date.now();
     pointerStartXRef.current = e.clientX;
+    gestureRef.current = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      axis: null,
+      allowDismiss: !closing && canStartStoryDismiss({ onControl: startsOnControl(e.target as Element), layerOpen }),
+      lastY: e.clientY,
+      lastT: e.timeStamp,
+      velocityY: 0,
+    };
+    // Keeps the moves and the release on this zone even when a mouse drag leaves it (touch is captured already).
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // A pointer that's already gone can't be captured; the release then just doesn't arrive here.
+    }
     setPaused(true);
   }
 
+  function handlePointerMove(e: PointerEvent<HTMLButtonElement>) {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (g.axis === null) g.axis = lockGestureAxis(dx, dy);
+    if (g.axis !== "vertical" || !g.allowDismiss) return;
+    if (e.timeStamp > g.lastT) {
+      g.velocityY = velocityBetween(g.lastY, g.lastT, e.clientY, e.timeStamp);
+      g.lastY = e.clientY;
+      g.lastT = e.timeStamp;
+    }
+    // Reduced motion: no following movement; the release alone decides.
+    if (!prefersReducedMotion()) applyDismissVisual(dismissOffset(dy), false);
+  }
+
+  function handlePointerCancel(e: PointerEvent<HTMLButtonElement>) {
+    const g = gestureRef.current;
+    if (g && g.pointerId === e.pointerId && g.axis === "vertical") snapBack();
+    gestureRef.current = null;
+    setPaused(false);
+  }
+
   function handlePointerUp(e: PointerEvent<HTMLButtonElement>, tapDirection: "prev" | "next") {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    if (g && g.pointerId === e.pointerId && releaseIntent(g.axis) === "dismiss-gesture") {
+      // A vertical drag never also taps or swipes: it closes or snaps back. The click that trails it is ignored too.
+      lastZonePointerUpAt = Date.now();
+      setPaused(false);
+      if (!g.allowDismiss) return;
+      const offset = dismissOffset(e.clientY - g.y);
+      const velocity = releaseVelocity(g.velocityY, e.timeStamp - g.lastT);
+      if (decideStoryDismiss(offset, velocity) === "dismiss") dismissByDrag();
+      else snapBack();
+      return;
+    }
+
     const held = Date.now() - pointerDownAtRef.current;
     const deltaX = e.clientX - pointerStartXRef.current;
     lastZonePointerUpAt = Date.now();
@@ -420,6 +624,8 @@ export function StoryViewer({
       // right is forward); the panels of text over them (caption, viewers, comments, reply) follow the reader.
       dir="ltr"
       aria-modal="true"
+      data-story-viewer
+      onClickCapture={handleLinkClickCapture}
       aria-label={format(t.stories.viewer.label, { index: index + 1, total: stories.length, name: authorName })}
       tabIndex={-1}
       style={{ zIndex: viewerZ }}
@@ -466,29 +672,37 @@ export function StoryViewer({
         )}
       </div>
 
-      {/* Tap zones — sit above the media, below the header/caption chrome. */}
+      {/* Tap zones — sit above the media, below the header/caption chrome. Also where a drag down to close
+          starts: touch-none so the browser hands every move to the gesture instead of scrolling or cancelling it. */}
       <div className="absolute inset-0 z-10 flex">
         <button
           type="button"
+          data-story-zone
           aria-label={t.stories.viewer.previous}
-          className="h-full w-1/3"
+          className="h-full w-1/3 touch-none"
           onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
           onPointerUp={(e) => handlePointerUp(e, "prev")}
+          onPointerCancel={handlePointerCancel}
           onPointerLeave={() => setPaused(false)}
           onClick={() => handleZoneClick("prev")}
         />
         <button
           type="button"
+          data-story-zone
           aria-label={t.stories.viewer.next}
-          className="h-full w-2/3"
+          className="h-full w-2/3 touch-none"
           onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
           onPointerUp={(e) => handlePointerUp(e, "next")}
+          onPointerCancel={handlePointerCancel}
           onPointerLeave={() => setPaused(false)}
           onClick={() => handleZoneClick("next")}
         />
       </div>
 
-      <div className="absolute inset-x-0 top-0 z-20 p-3">
+      {/* Clear of the notch / Dynamic Island / status bar: the header (and its Close button) starts below it. */}
+      <div className="absolute inset-x-0 top-0 z-20 px-3 pb-3" style={{ paddingTop: `calc(${SAFE_AREA_TOP} + 0.75rem)` }}>
         {/* Decorative — the dialog's own name already says "Story 2 of 5". */}
         <div className="flex gap-1" aria-hidden>
           {stories.map((s, i) => (
@@ -502,7 +716,9 @@ export function StoryViewer({
         </div>
         {/* gap + min-w-0/shrink-0: the name truncates before it can push
             Pause/Close off the right edge at a large text size. */}
-        <div className="mt-2 flex items-center justify-between gap-2">
+        {/* dir follows the reader (the root is ltr for the media and progress bars): Close sits at the end corner,
+            top-right, or top-left in Arabic. */}
+        <div dir={dir} className="mt-2 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <UserLink
               userId={authorId}
@@ -540,13 +756,16 @@ export function StoryViewer({
                 <Trash2 size={18} />
               </button>
             )}
+            {/* Close: always there, on every story. A translucent disc so it reads over any photo or video, a 44px
+                target, above the media and tap zones (this header is z-20). */}
             <button
               type="button"
-              onClick={onClose}
+              data-story-close
+              onClick={handleClose}
               aria-label={shell.common.close}
-              className="rounded-full p-1.5 text-white/80 hover:bg-white/10"
+              className="flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/25 backdrop-blur-sm hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
-              <X size={20} />
+              <X size={22} strokeWidth={2.25} aria-hidden />
             </button>
           </div>
         </div>
@@ -717,6 +936,7 @@ export function StoryViewer({
             ))}
             {/* + opens the full emoji picker for anything beyond the six quick reactions; the story pauses while it's open. */}
             <EmojiPickerButton
+              key={emojiPickerKey}
               triggerVariant="plus"
               triggerClassName="rounded-full bg-black/30 p-2 text-white hover:bg-white/20"
               onOpenChange={setEmojiOpen}

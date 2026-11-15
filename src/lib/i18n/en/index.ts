@@ -5,6 +5,7 @@
 
 import { accountEn } from "@/lib/i18n/en/account";
 import { advertiseEn } from "@/lib/i18n/en/advertise";
+import { appLinksEn } from "@/lib/i18n/en/appLinks";
 import { callsEn } from "@/lib/i18n/en/calls";
 import { challengesEn } from "@/lib/i18n/en/challenges";
 import { circleShareEn } from "@/lib/i18n/en/circleShare";
@@ -32,6 +33,7 @@ import { vocabEn } from "@/lib/i18n/en/vocab";
 export {
   accountEn,
   advertiseEn,
+  appLinksEn,
   callsEn,
   challengesEn,
   circleShareEn,
@@ -82,6 +84,7 @@ export const en = {
   commentTools: commentToolsEn,
   storyUpload: storyUploadEn,
   postUpload: postUploadEn,
+  appLinks: appLinksEn,
   ...accountEn,
 };
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition, type UIEvent } from "react";
 import Link from "next/link";
+import { inAppPathFor } from "@/lib/app-links";
 import { Calendar, ChevronDown, ChevronUp, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
@@ -560,6 +561,7 @@ function MediaBlock({
   // "Translate" under the post's text when it's in another language than the reader's (not while editing it).
   const translation = useContentTranslation({ kind: "post", id: post.id, text: post.content, enabled: !editing });
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const linkInAppPath = post.mediaType === "LINK" && post.linkUrl ? inAppPathFor(post.linkUrl) : null;
   // The `muted` JSX prop only reliably applies at mount — once a WebView
   // video is already playing, toggling it doesn't flip the element's live
   // audio output (the icon/UI updates, but sound never actually changes).
@@ -817,7 +819,18 @@ function MediaBlock({
         </>
       )}
 
-      {post.mediaType === "LINK" && post.linkUrl && (
+      {linkInAppPath && (
+        // A link to a YuKon3t page opens that page in place (in the app: never Safari/Chrome), no safety sheet.
+        <Link
+          href={linkInAppPath}
+          prefetch={false}
+          className="mt-3 flex w-full items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-accent hover:bg-line/40"
+        >
+          <ExternalLink size={14} className="shrink-0" />
+          <span className="truncate">{post.linkUrl}</span>
+        </Link>
+      )}
+      {post.mediaType === "LINK" && post.linkUrl && !linkInAppPath && (
         <>
           <button
             type="button"

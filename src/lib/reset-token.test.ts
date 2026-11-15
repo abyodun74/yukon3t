@@ -21,10 +21,20 @@ describe("reset tokens", () => {
   });
 
   it("travel in the URL fragment, never the query string", () => {
-    const url = resetPasswordUrl("https://yukon3t.com", "abc_DEF-1");
+    const url = resetPasswordUrl("abc_DEF-1", { appUrl: "https://yukon3t.com", nodeEnv: "production" });
     expect(url).toBe("https://yukon3t.com/reset-password#token=abc_DEF-1");
     expect(new URL(url).search).toBe("");
     expect(readResetTokenFromHash(new URL(url).hash)).toBe("abc_DEF-1");
+  });
+
+  it("always use the canonical host in production, so an installed app can open the link", () => {
+    for (const appUrl of [undefined, "", "https://yukon3t-abc.vercel.app", "https://main--yukon3t.netlify.app/"]) {
+      expect(resetPasswordUrl("t", { appUrl, nodeEnv: "production" })).toBe("https://yukon3t.com/reset-password#token=t");
+    }
+    expect(resetPasswordUrl("t", { appUrl: "http://localhost:3000/", nodeEnv: "development" })).toBe(
+      "http://localhost:3000/reset-password#token=t",
+    );
+    expect(resetPasswordUrl("t", { nodeEnv: "development" })).toBe("https://yukon3t.com/reset-password#token=t");
   });
 
   it("the page script reads the fragment and replaces the URL with the bare path", () => {

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { NativeAppSwitch } from "@/components/native-app-switch";
+import { isLikelyIosAppUserAgent } from "@/lib/ios-app";
 import { LanguagePicker } from "@/components/language-picker";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
@@ -11,6 +14,7 @@ export default async function CheckEmailPage({
   const isVerify = context === "verify";
   const locale = await getLocale();
   const t = await getDictionary();
+  const userAgent = (await headers()).get("user-agent");
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
@@ -26,7 +30,12 @@ export default async function CheckEmailPage({
           {t.checkEmail.enterCode}
         </Link>
       ) : (
-        <p className="mt-3 text-sm text-foreground-soft">{t.checkEmail.closeTab}</p>
+        // In the app there is no tab to close: say where the emailed link leads and what to do if it opens the browser.
+        <NativeAppSwitch
+          appOnServer={isLikelyIosAppUserAgent(userAgent)}
+          app={<p className="mt-3 text-sm text-foreground-soft">{t.appLinks.checkEmailInApp}</p>}
+          web={<p className="mt-3 text-sm text-foreground-soft">{t.checkEmail.closeTab}</p>}
+        />
       )}
       <LanguagePicker locale={locale} label={t.languagePicker.label} />
     </div>

@@ -288,6 +288,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|mp3|m4a|wav|ogg|mp4|webm|mov)$).*)",
+    // .well-known/ (apple-app-site-association, assetlinks.json) is fetched by Apple's and Google's verifiers: static
+    // JSON that needs no CSP nonce, device cookie or page rate limit (src/lib/app-links.ts).
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|mp3|m4a|wav|ogg|mp4|webm|mov)$).*)",
   ],
 };

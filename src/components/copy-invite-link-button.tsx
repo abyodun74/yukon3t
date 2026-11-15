@@ -4,13 +4,14 @@ import { useState } from "react";
 import { Link2, Check } from "lucide-react";
 import { useMessagesText } from "@/components/messages-text";
 import { copyTextToClipboard } from "@/lib/copy-image";
+import { canonicalUrl } from "@/lib/app-links";
 
 export function CopyInviteLinkButton({ conversationId }: { conversationId: string }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const t = useMessagesText().t.group;
 
   async function copy() {
-    const url = `${window.location.origin}/messages/${conversationId}`;
+    const url = canonicalUrl(`/messages/${conversationId}`);
     setStatus((await copyTextToClipboard(url)) ? "copied" : "failed");
     setTimeout(() => setStatus("idle"), 2000);
   }

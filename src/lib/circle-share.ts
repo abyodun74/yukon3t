@@ -7,17 +7,16 @@
 // admins' Invite flow) and the server answers a generic "unavailable" for it, so a crafted request can't put a private
 // Circle's name into a chat.
 
-/** Every shared Circle link uses the canonical production host (never a preview / *.netlify.app origin). */
-export const CIRCLE_SHARE_ORIGIN = "https://yukon3t.com";
+import { CANONICAL_ORIGIN } from "@/lib/app-links";
 
 /** May this Circle be shared through chats, the device share sheet or a copied link? PUBLIC ones only. */
 export function isCircleShareable(circle: { visibility: string }): boolean {
   return circle.visibility === "PUBLIC";
 }
 
-/** https://yukon3t.com/circles/<slug> */
+/** https://yukon3t.com/circles/<slug>: the canonical production host (never a preview / *.netlify.app origin). */
 export function circleShareUrl(slug: string): string {
-  return `${CIRCLE_SHARE_ORIGIN}/circles/${encodeURIComponent(slug)}`;
+  return `${CANONICAL_ORIGIN}/circles/${encodeURIComponent(slug)}`;
 }
 
 /**

@@ -16,6 +16,7 @@ import { FcmTokenBridge } from "@/components/fcm-token-bridge";
 import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { SessionKeepAlive } from "@/components/session-keep-alive";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
+import { InAppLinkGuard } from "@/components/in-app-link-guard";
 import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
 import { ShareTargetGate } from "@/components/share-target-gate";
@@ -268,6 +269,8 @@ export default async function RootLayout({
           <ContentTranslationProvider available={translationAvailable} autoTranslate={autoTranslate}>
             <AppSplash />
             <CapacitorBridge />
+            {/* Native app only: a tapped link to a YuKon3t page stays in the app (src/lib/app-links.ts). */}
+            <InAppLinkGuard />
             <RegisterServiceWorker />
             <StaleBuildReload />
             <OfflineBanner />

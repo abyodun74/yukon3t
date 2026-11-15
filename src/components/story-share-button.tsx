@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Forward, X } from "lucide-react";
 import { getShareableConversations, shareStoryToConversations } from "@/app/actions/stories";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useBackDismiss } from "@/lib/use-back-dismiss";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
@@ -67,6 +68,8 @@ export function StoryShareButton({
   }
 
   const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
+  // Back (Android's button, the iOS back gesture) closes this sheet first, leaving the Story viewer under it open.
+  useBackDismiss(open, close);
   // Opened from the Story viewer: the sheet layer, raised one above the viewer (src/lib/overlay-layers.ts), portaled
   // to the root overlay host.
   const sheetZ = useOverlayZ("sheet");

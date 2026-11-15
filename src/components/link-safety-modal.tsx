@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { checkLinkBeforeOpen } from "@/app/actions/link-safety";
 import { cn } from "@/lib/utils";
+import { inAppPathFor } from "@/lib/app-links";
 import { Sheet } from "@/components/sheet";
 import { useShellText } from "@/components/ui-text";
 
@@ -30,6 +32,7 @@ import { useShellText } from "@/components/ui-text";
  */
 export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boolean; onClose: () => void }) {
   const { t } = useShellText();
+  const router = useRouter();
   const [status, setStatus] = useState<"checking" | "safe" | "flagged" | "unknown">("checking");
 
   let domain = url;
@@ -62,7 +65,10 @@ export function LinkSafetyModal({ url, open, onClose }: { url: string; open: boo
   }, [url, open]);
 
   function proceed() {
-    window.open(url, "_blank", "noopener,noreferrer");
+    // A YuKon3t page opens in place (in the native app a new window would mean Safari/Chrome); another site outside.
+    const inApp = inAppPathFor(url, window.location.href);
+    if (inApp) router.push(inApp);
+    else window.open(url, "_blank", "noopener,noreferrer");
     onClose();
   }
 

@@ -1,6 +1,7 @@
 import type { Dictionary } from "@/lib/i18n/en";
 import { account } from "@/lib/i18n/es/account";
 import { advertise } from "@/lib/i18n/es/advertise";
+import { appLinks } from "@/lib/i18n/es/appLinks";
 import { calls } from "@/lib/i18n/es/calls";
 import { challenges } from "@/lib/i18n/es/challenges";
 import { circleShare } from "@/lib/i18n/es/circleShare";
@@ -51,5 +52,6 @@ export const es: Dictionary = {
   commentTools,
   storyUpload,
   postUpload,
+  appLinks,
   ...account,
 };

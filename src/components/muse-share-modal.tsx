@@ -7,6 +7,7 @@ import { recordMuseShare, shareMuseToStory } from "@/app/actions/muse";
 import { getMyConversationsForShare } from "@/app/actions/messages";
 import { shareMuseToConversations } from "@/app/actions/share-to-chats";
 import { canShareNatively, shareNative } from "@/lib/native-share";
+import { canonicalUrl } from "@/lib/app-links";
 import { resolveBrandedVideoUrl } from "@/lib/branded-video-client";
 import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
@@ -82,7 +83,7 @@ export function MuseShareModal({
   const [, startTransition] = useTransition();
 
   const canShareToStory = videoDurationSeconds <= MAX_STORY_VIDEO_SECONDS;
-  const url = typeof window !== "undefined" ? `${window.location.origin}/muse/${museId}` : "";
+  const url = canonicalUrl(`/muse/${museId}`);
   const canNativeShare = canShareNatively() || (typeof navigator !== "undefined" && "share" in navigator);
 
   useEffect(() => {
