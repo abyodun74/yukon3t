@@ -49,7 +49,7 @@ export const es2 = {
   },
   "post-text-only-story": {
     q: "¿Puedo publicar una historia solo de texto?",
-    a: "Sí. Al agregar una historia, cambia a la pestaña «Texto» en lugar de elegir una foto o un video. Escribe o pega lo que quieras decir, elige un color de fondo y publícala. Por dentro se convierte en una imagen, así que funciona exactamente igual que cualquier otra historia (caduca a las 24 horas y admite reacciones, respuestas y comentarios).",
+    a: "Sí. Al agregar una historia, cambia a la pestaña «Texto» en lugar de elegir una foto o un video. Escribe o pega lo que quieras decir, elige un color de fondo y publícala. Por dentro se convierte en una imagen, así que funciona exactamente igual que cualquier otra historia (caduca a las 24 horas y admite reacciones, respuestas y comentarios). Puede tener hasta 2000 caracteres. Si es largo, la imagen muestra solo el comienzo y el texto completo aparece debajo con «Ver más».",
   },
   "post-more-than-one-story": {
     q: "¿Puedo publicar más de una historia el mismo día?",

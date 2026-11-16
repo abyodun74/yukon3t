@@ -14,6 +14,7 @@ import {
   shouldUseAndroidNativePicker,
 } from "@/lib/native-picker-activity";
 import { looksLikeStaleServerActionError } from "@/lib/stale-build";
+import { TEXT_STORY_MAX_CHARS, textStoryExcerpt, textStoryNeedsCaption } from "@/lib/story-text";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
@@ -90,7 +91,6 @@ const TEXT_STORY_BACKGROUNDS: { bg: string; fg: string }[] = [
   { bg: "#ffffff", fg: "#14181a" },
 ];
 const TEXT_STORY_SIZE = { width: 1080, height: 1920 };
-const TEXT_STORY_MAX_CHARS = 500;
 
 /**
  * Greedy word wrap for <canvas> text. A word wider than maxWidth on its own is
@@ -514,7 +514,10 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     setTextPosting(true);
     setError(null);
     try {
-      const file = await renderTextStoryImage(trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex]);
+      // Long text: the image shows an excerpt (large, readable font) and the full text rides along as the caption,
+      // which the viewer collapses behind "Show more".
+      const needsCaption = textStoryNeedsCaption(trimmed);
+      const file = await renderTextStoryImage(needsCaption ? textStoryExcerpt(trimmed) : trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex]);
       const result = await uploadFileDirect(file, "story-image");
       if (!result.ok) {
         setError(byCode(t.stories.upload.errors, result.error));
@@ -523,6 +526,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       const fd = new FormData();
       fd.set("mediaType", "IMAGE");
       fd.set("mediaUrl", result.publicUrl);
+      if (needsCaption) fd.set("caption", trimmed);
       const created = await createStory(fd);
       if (created.error) {
         setError(byCode(t.stories.upload.errors, created.error));

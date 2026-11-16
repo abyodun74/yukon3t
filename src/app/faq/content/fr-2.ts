@@ -49,7 +49,7 @@ export const fr2 = {
   },
   "post-text-only-story": {
     q: "Puis-je publier une story composée uniquement de texte ?",
-    a: "Oui. Lorsque vous ajoutez une story, passez à l'onglet « Texte » au lieu de choisir une photo ou une vidéo. Saisissez ou collez ce que vous voulez dire, choisissez une couleur d'arrière-plan et publiez. En coulisses, le texte devient une image : la story fonctionne donc exactement comme n'importe quelle autre (expiration au bout de 24 heures, réactions, réponses, commentaires).",
+    a: "Oui. Lorsque vous ajoutez une story, passez à l'onglet « Texte » au lieu de choisir une photo ou une vidéo. Saisissez ou collez ce que vous voulez dire, choisissez une couleur d'arrière-plan et publiez. En coulisses, le texte devient une image : la story fonctionne donc exactement comme n'importe quelle autre (expiration au bout de 24 heures, réactions, réponses, commentaires). Il peut compter jusqu'à 2000 caractères. S'il est long, l'image n'en montre que le début et le texte complet s'affiche dessous avec « Voir plus ».",
   },
   "post-more-than-one-story": {
     q: "Puis-je publier plusieurs stories le même jour ?",

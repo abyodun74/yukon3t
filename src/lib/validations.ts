@@ -618,7 +618,9 @@ export const storySchema = z.object({
   // (only the parsed provider+id is ever stored, never this raw string).
   // Same field/purpose as postSchema's own embedUrl.
   embedUrl: z.string().url().optional(),
-  caption: z.string().trim().max(200).optional().default(""),
+  // 2000 so a long text story's full text can ride along as its caption (see src/lib/story-text.ts); the media
+  // composer's own caption input still caps at 200 client-side.
+  caption: z.string().trim().max(2000).optional().default(""),
 });
 
 export const museSchema = z.object({

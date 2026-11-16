@@ -19,6 +19,7 @@ import {
   deleteStoryComment,
 } from "@/app/actions/stories";
 import { StoryShareButton } from "@/components/story-share-button";
+import { StoryCaption } from "@/components/story-caption";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { formatDateTime, formatShortAge } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
@@ -186,6 +187,8 @@ export function StoryViewer({
   // next story always plays it.
   const [userPausedForId, setUserPausedForId] = useState<string | null>(null);
   const [replyFocused, setReplyFocused] = useState(false);
+  // "Show more" on a long caption: keyed by story id (resets on the next story) and holds the story while it is read.
+  const [captionExpandedForId, setCaptionExpandedForId] = useState<string | null>(null);
   // On its way out (X, Escape, a drag down): holds the story still while the close animation / history pop runs.
   const [closing, setClosing] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -242,7 +245,8 @@ export function StoryViewer({
   const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
   const userPaused = story ? userPausedForId === story.id : false;
-  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing;
+  const captionExpanded = story ? captionExpandedForId === story.id : false;
+  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing || captionExpanded;
   // A panel shown inside the viewer. Back closes it before the viewer (its own same-URL history entry, on top of the
   // viewer's: src/lib/viewer-history.ts).
   const panelOpen = showComments || showViewers || confirmingDelete;
@@ -828,7 +832,14 @@ export function StoryViewer({
             />
           ) : (
             <div className="bg-gradient-to-t from-black/70 to-transparent p-4 pt-10">
-              {story.caption && <p dir="auto" className="break-words text-sm text-white">{story.caption}</p>}
+              {story.caption && (
+                <StoryCaption
+                  key={story.id}
+                  text={story.caption}
+                  expanded={captionExpanded}
+                  onToggle={() => setCaptionExpandedForId((id) => (id === story.id ? null : story.id))}
+                />
+              )}
               {story.sharedPostId && (
                 <Link
                   href={`/post/${story.sharedPostId}`}
@@ -886,7 +897,15 @@ export function StoryViewer({
         </div>
       ) : (
         <div dir={dir} className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10">
-          {story.caption && <p dir="auto" className="mb-2 break-words text-sm text-white">{story.caption}</p>}
+          {story.caption && (
+            <StoryCaption
+              key={story.id}
+              className="mb-2"
+              text={story.caption}
+              expanded={captionExpanded}
+              onToggle={() => setCaptionExpandedForId((id) => (id === story.id ? null : story.id))}
+            />
+          )}
           {story.sharedPostId && (
             <Link
               href={`/post/${story.sharedPostId}`}

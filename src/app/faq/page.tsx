@@ -1028,6 +1028,9 @@ const sections: Section[] = [
             want to say, choose a background color, and post — it becomes an
             image behind the scenes, so it works exactly like any other
             Story (24-hour expiry, reactions, replies, comments).
+            A text Story can be up to 2,000 characters. If it&apos;s long, the image
+            shows just the beginning and the full text appears below it with a
+            &ldquo;Show more&rdquo; button.
           </>
         ),
       },

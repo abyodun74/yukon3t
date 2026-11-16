@@ -49,7 +49,7 @@ export const pt2 = {
   },
   "post-text-only-story": {
     q: "Posso publicar um story só de texto?",
-    a: "Sim. Ao adicionar um story, mude para a aba «Texto» em vez de escolher uma foto ou um vídeo. Digite ou cole o que quiser dizer, escolha uma cor de fundo e publique. Nos bastidores ele vira uma imagem, então funciona exatamente como qualquer outro story (expira em 24 horas e aceita reações, respostas e comentários).",
+    a: "Sim. Ao adicionar um story, mude para a aba «Texto» em vez de escolher uma foto ou um vídeo. Digite ou cole o que quiser dizer, escolha uma cor de fundo e publique. Nos bastidores ele vira uma imagem, então funciona exatamente como qualquer outro story (expira em 24 horas e aceita reações, respostas e comentários). Pode ter até 2000 caracteres. Se for longo, a imagem mostra só o começo e o texto completo aparece abaixo com «Ver mais».",
   },
   "post-more-than-one-story": {
     q: "Posso publicar mais de um story no mesmo dia?",
