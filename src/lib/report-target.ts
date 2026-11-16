@@ -7,6 +7,7 @@ import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 import { loadStandingCollabInvite } from "@/lib/collab-invites-server";
 import { giftsEnabledFor } from "@/lib/gifts";
 import { challengesEnabledFor } from "@/lib/challenges";
+import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 
 // Who a report is about is always worked out here, on the server, from the reported thing itself: the client only
 // says what it reports (type + id), never whom. Before this, every type but MESSAGE took the accused user id from the
@@ -122,7 +123,10 @@ async function visibleTargetAccused(
         where: { conversationId_userId: { conversationId: message.conversationId, userId: reporter.id } },
         select: { id: true },
       });
-      return membership ? message.senderId : null;
+      // A collab's group chat hidden from the reporter by a block with the collab's author is not theirs (the person
+      // stays reportable as USER, like a blocked author's collab).
+      if (!membership || (await collabChatHiddenFor(reporter.id, message.conversationId))) return null;
+      return message.senderId;
     }
     case "CIRCLE": {
       // A PRIVATE Circle exists only for its members and standing invitees (canSeeCircle).

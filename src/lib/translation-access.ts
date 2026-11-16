@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 
 // Which posts, comments and messages a viewer may have translated: exactly what they can already read, and nothing
 // that is held or taken down. Pure where-fragments (the server half, src/lib/translation-server.ts, supplies the
@@ -73,7 +74,8 @@ export function translatableMessagesWhere(ids: string[], viewerId: string): Pris
     deletedForEveryoneAt: null,
     viewOnce: false,
     NOT: { deletedForUserIds: { has: viewerId } },
-    conversation: { members: { some: { userId: viewerId } } },
+    // A member's chat, never a collab's group chat hidden from them by a block with the collab's author.
+    conversation: { members: { some: { userId: viewerId } }, ...collabChatVisibleWhere(viewerId) },
   };
 }
 

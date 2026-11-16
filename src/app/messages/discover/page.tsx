@@ -6,6 +6,7 @@ import { getEmbedding, toPgVector } from "@/lib/embeddings";
 import { nearestGroupIds } from "@/lib/search-embeddings";
 import { format, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 
 const GROUP_INCLUDE = {
   _count: { select: { members: true } },
@@ -34,6 +35,8 @@ export default async function DiscoverGroupsPage({
     isGroup: true as const,
     discoverable: true,
     NOT: { members: { some: { userId: me.id } } },
+    // Never a collab's group chat whose collab author is blocked either way with me.
+    AND: [collabChatVisibleWhere(me.id)],
   };
 
   const exactGroups = await prisma.conversation.findMany({

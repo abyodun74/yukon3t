@@ -1,6 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { BackButton } from "@/components/back-button";
 import { prisma } from "@/lib/prisma";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { DiscoverPeopleSearch } from "@/components/discover-people-search";
 import { PeopleYouMayKnow } from "@/components/people-you-may-know";
@@ -66,6 +67,7 @@ export default async function DiscoverPage({
           AND: [
             { members: { some: { userId: me.id } } },
             { members: { some: { userId: { in: mayKnowAcceptedOtherIds } } } },
+            collabChatVisibleWhere(me.id),
           ],
         },
         include: { members: { select: { userId: true } } },
@@ -154,6 +156,7 @@ export default async function DiscoverPage({
           AND: [
             { members: { some: { userId: me.id } } },
             { members: { some: { userId: { in: acceptedOtherIds } } } },
+            collabChatVisibleWhere(me.id),
           ],
         },
         include: { members: { select: { userId: true } } },

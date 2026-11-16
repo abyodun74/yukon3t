@@ -58,7 +58,8 @@ const UNCHECKED_SINGLE_READS = new Set([
   // Author or site admin deleting a collab: the author is never blocked with themselves, and a site admin's delete is
   // moderation (also offered on /admin/circles).
   "app/actions/collab.ts#deleteCollabPost",
-  // Leaving stays possible for someone blocked with the author: it only removes their own participation.
+  // Not gated server-side for someone blocked with the author (it only removes their own participation); they have
+  // no UI entry point to it, since the collab page 404s for them.
   "app/actions/collab.ts#leaveCollab",
   // The admin side of a report (resolveReport, the moderation queue): who a report is about. (Filing one,
   // reportableTargetAccused, does apply the rule, like a blocked author's post; the person stays reportable as USER.)

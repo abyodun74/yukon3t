@@ -2,6 +2,7 @@
 
 import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getConnectedOrPendingIds } from "@/lib/connections";
@@ -211,6 +212,7 @@ export async function loadMoreDiscoverPeople(
           AND: [
             { members: { some: { userId: me.id } } },
             { members: { some: { userId: { in: acceptedOtherIds } } } },
+            collabChatVisibleWhere(me.id),
           ],
         },
         include: { members: { select: { userId: true } } },

@@ -180,7 +180,7 @@ export const es4 = {
   },
   "blocking-hides-collaborations": {
     q: "¿Qué pasa con las colaboraciones cuando bloqueo a alguien?",
-    a: "Si bloqueas a alguien, o esa persona te bloquea a ti, las colaboraciones que creó desaparecen para ti: no aparecen en la lista de Collab Boards ni en la búsqueda, sus enlaces llevan a una página que no se encuentra y no puedes unirte, pedir unirte, aceptar una invitación, votar en sus encuestas ni entrar en sus sesiones, aunque ya estuvieras participando. Sigues figurando como participante, y todo vuelve si se levanta el bloqueo. Aun así, puedes salir de la colaboración y puedes reportar a esa persona.",
+    a: "Si bloqueas a alguien, o esa persona te bloquea a ti, las colaboraciones que creó desaparecen para ti: no aparecen en la lista de Collab Boards ni en la búsqueda, sus enlaces llevan a una página que no se encuentra y no puedes unirte, pedir unirte, aceptar una invitación, votar en sus encuestas ni entrar en sus sesiones, aunque ya estuvieras participando. El chat de grupo de la colaboración también desaparece de tus Mensajes mientras dure el bloqueo: no puedes abrirlo, leerlo ni enviarle nada, y no recibes notificaciones de él. Sigues figurando como participante y como miembro del chat, y todo vuelve si se levanta el bloqueo, incluidos los mensajes enviados mientras tanto. Aun así, puedes reportar a esa persona.",
   },
   "report-someone-something": {
     q: "¿Cómo reporto a alguien o algo?",

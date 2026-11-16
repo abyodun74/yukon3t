@@ -24,6 +24,7 @@ import { getHiddenPeerIds, isMembershipLocked } from "@/lib/hidden-chats";
 import { hiddenUnlockPath } from "@/lib/hidden-chats-rules";
 import { groupJoinRequestRefusal } from "@/lib/group-chat-rules";
 import { isBlockedWithAny } from "@/lib/blocks";
+import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import { getDictionary } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
 
@@ -52,6 +53,10 @@ export default async function ConversationPage({
     }),
   ]);
   if (!conversation) notFound();
+  // A collab's group chat whose author is blocked either way with me doesn't exist for me (lib/collab-visibility.ts):
+  // the same notFound() as a missing chat, before the join-request page and before the hidden-chat PIN redirect, so
+  // neither tells it apart. Only groups can be collab chats, so a 1:1 costs no query.
+  if (conversation.isGroup && (await collabChatHiddenFor(me.id, id))) notFound();
 
   // Not a member: only a discoverable group can be joined by request — DMs and non-discoverable groups stay
   // invite-only, and someone blocked either way with anyone in it gets nothing (same rule as requestToJoinGroup).

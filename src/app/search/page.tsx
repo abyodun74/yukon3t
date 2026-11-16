@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { visibleCircleWhere } from "@/lib/circle-visibility";
-import { collabNotBlockedWhere } from "@/lib/collab-visibility";
+import { collabChatVisibleWhere, collabNotBlockedWhere } from "@/lib/collab-visibility";
 import { CircleLongPress } from "@/components/circle-long-press";
 import { CollabLongPress } from "@/components/collab-long-press";
 import { TrustBadge } from "@/components/trust-badge";
@@ -211,6 +211,8 @@ export default async function SearchPage({
           // match the isAdmin condition either way, so it stays visible —
           // only an admin-created group is excluded here.
           NOT: [{ members: { some: { userId: me.id } } }, { createdBy: { isAdmin: true } }],
+          // Never a collab's group chat whose collab author is blocked either way with me.
+          AND: [collabChatVisibleWhere(me.id)],
           ...(sort === "current" ? { createdAt: { gt: currentSince } } : {}),
           name: { contains: q, mode: "insensitive" },
         },

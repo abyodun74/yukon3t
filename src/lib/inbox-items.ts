@@ -4,11 +4,14 @@ import { latestMessagesByConversation } from "@/lib/latest-messages";
 import { inboxPreview } from "@/lib/e2ee/secret-chat";
 import type { InboxItem } from "@/components/messages-inbox-list";
 import { messagesEn } from "@/lib/i18n/en/messages";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 
 /**
  * The rows of a conversation list for one user: "visible" is the Messages inbox, "hidden" is the PIN-locked area
  * (/messages/hidden) — the same query split on the caller's own ConversationMember.hiddenAt, so a conversation is
- * always in exactly one of the two. Callers of "hidden" must have checked isHiddenUnlocked first.
+ * always in exactly one of the two. Callers of "hidden" must have checked isHiddenUnlocked first. Neither list ever
+ * has a collab's group chat whose author is blocked either way with the user (collabChatVisibleWhere, in the same
+ * query: no extra lookup, nothing per row); the membership row is untouched, so it comes back when the block is lifted.
  */
 export async function getInboxItems(
   userId: string,
@@ -17,7 +20,10 @@ export async function getInboxItems(
   names: Pick<typeof messagesEn.fallback, "group" | "unknown" | "message"> = messagesEn.fallback,
 ): Promise<InboxItem[]> {
   const rows = await prisma.conversation.findMany({
-    where: { members: { some: { userId, hiddenAt: which === "hidden" ? { not: null } : null } } },
+    where: {
+      members: { some: { userId, hiddenAt: which === "hidden" ? { not: null } : null } },
+      ...collabChatVisibleWhere(userId),
+    },
     include: {
       members: {
         include: { user: { select: { id: true, name: true, avatarUrl: true, lastSeenAt: true } } },

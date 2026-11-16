@@ -524,6 +524,9 @@ export async function exportMyData(proof?: unknown) {
       circleMemberships: { include: { circle: true } },
       sentConnections: { where: { targetId: { notIn: hidden.peerIds } } },
       receivedConnections: { where: { requesterId: { notIn: hidden.peerIds } } },
+      // Deliberately NOT filtered by the collab group-chat block rule (collabChatVisibleWhere): a message you sent in a
+      // collab's group chat that a block with the collab's author now hides from you is still your own data, and the
+      // export only ever holds your own messages (no one else's, no chat name or member list).
       sentMessages: { where: { conversationId: { notIn: hidden.conversationIds } } },
       // Birthday wishes you sent (who to, which year); the wish itself is one of sentMessages. Your own "Share my
       // birthday" choice and recorded time zone are columns of this row.

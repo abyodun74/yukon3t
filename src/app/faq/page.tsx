@@ -3081,9 +3081,13 @@ const sections: Section[] = [
             or in search, their links lead to a page that can&apos;t be
             found, and you can&apos;t join, ask to join, accept an invite,
             vote in their polls or join their sessions, even if you were
-            already taking part. You stay listed as a participant, and
-            everything comes back if the block is lifted. You can still
-            leave the collaboration, and you can still report the person.
+            already taking part. The collaboration&apos;s group chat also
+            disappears from your Messages while the block lasts: you
+            can&apos;t open it, read it or send anything to it, and you get
+            no notifications from it. You stay listed as a participant and
+            as a member of the chat, and everything comes back if the block
+            is lifted, including the messages sent in the meantime. You can
+            still report the person.
           </>
         ),
       },

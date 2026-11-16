@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { isConversationLocked } from "@/lib/hidden-chats";
+import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
@@ -60,6 +61,9 @@ async function conversationForMember(conversationId: string, userId: string) {
     },
   });
   if (!conversation || !conversation.members.some((m) => m.userId === userId)) return null;
+  // A collab's group chat hidden from this member by a block with the collab's author isn't there either. Only groups
+  // can be collab chats, so a 1:1 (every secret chat) costs no query.
+  if (conversation.isGroup && (await collabChatHiddenFor(userId, conversationId))) return null;
   // A chat this member has hidden and not unlocked is, to every action here, not there at all.
   if (await isConversationLocked(userId, conversationId)) return null;
   return conversation;

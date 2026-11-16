@@ -82,6 +82,12 @@ vi.mock("@/lib/latest-messages", () => ({
   latestMessageAtByConversation: async (ids: string[]) =>
     new Map(ids.map((id) => [id, new Date(1000 * conversations.findIndex((c) => c.id === id))])),
 }));
+// No collab group chats in these tests (the collab group-chat block rule is covered in collab-chat-visibility.test.ts).
+vi.mock("@/lib/collab-chat-visibility-server", () => ({
+  collabChatHiddenFor: async () => false,
+  collabChatsHiddenFor: async () => new Set<string>(),
+  collabChatRecipientsOnly: async (_conversationId: string, ids: Iterable<string>) => [...ids],
+}));
 vi.mock("@/lib/prisma", () => {
   const prisma = {
     message: {

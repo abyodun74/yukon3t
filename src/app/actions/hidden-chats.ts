@@ -9,6 +9,7 @@ import { notifyBadgeChange } from "@/lib/realtime-server";
 import { getDeviceId, getDeviceLabel } from "@/lib/device-id";
 import { createDeviceChallenge, verifyDeviceChallenge } from "@/lib/device-challenge";
 import { DEFAULT_LOCALE } from "@/lib/i18n/locales";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import {
   hiddenPinSchema,
   setHiddenPinSchema,
@@ -101,8 +102,9 @@ export async function hideConversation(conversationId: string) {
   // Without a PIN a hidden chat could never be opened again.
   if (!(await getHiddenPinState(user.id)).hiddenChatsPinHash) return { error: "no_pin" as const };
 
+  // A collab's group chat hidden from the caller by a block with the collab's author is a chat they are not in.
   const { count } = await prisma.conversationMember.updateMany({
-    where: { conversationId: parsed.data, userId: user.id },
+    where: { conversationId: parsed.data, userId: user.id, conversation: collabChatVisibleWhere(user.id) },
     data: { hiddenAt: new Date() },
   });
   if (count === 0) return { error: "not_a_member" as const };
@@ -120,7 +122,7 @@ export async function unhideConversation(conversationId: string) {
   if (!(await isHiddenUnlocked(user.id))) return { error: "hidden_locked" as const };
 
   const { count } = await prisma.conversationMember.updateMany({
-    where: { conversationId: parsed.data, userId: user.id },
+    where: { conversationId: parsed.data, userId: user.id, conversation: collabChatVisibleWhere(user.id) },
     data: { hiddenAt: null },
   });
   if (count === 0) return { error: "not_a_member" as const };

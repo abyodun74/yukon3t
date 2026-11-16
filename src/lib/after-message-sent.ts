@@ -8,13 +8,15 @@ import { track } from "@/lib/analytics";
 import { publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { getMembersHidingConversation } from "@/lib/hidden-chats";
+import { collabChatRecipientsOnly } from "@/lib/collab-chat-visibility-server";
 import { HIDDEN_PUSH_TYPE, splitHiddenRecipients } from "@/lib/hidden-chats-rules";
 import { hiddenPush, messagePush } from "@/lib/push-text";
 
 /**
  * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
  * rows, badge counts and the realtime nudge. Shared by sendMessage, sendToConversations, shareMuseToConversations, forwardMessage and sendViewOnceMessage so a
- * message sent any of those ways reaches the recipient identically. In a lib file, not actions/messages.ts: every export
+ * message sent any of those ways reaches the recipient identically. Members a collab's group chat is hidden from (a
+ * block with the collab's author, collabChatRecipientsOnly) are not recipients at all. In a lib file, not actions/messages.ts: every export
  * of a "use server" file is callable from the browser, and this trusts its `user` argument.
  */
 export async function afterMessageSent({
@@ -54,14 +56,18 @@ export async function afterMessageSent({
   await bestEffort("recordActivity", () => recordActivity(user.id));
   await track("MESSAGE_SENT", user.id, { conversationId, mediaType });
 
-  const recipientIds =
-    memberIds.filter((id) => id !== user.id);
+  // A collab's group chat doesn't exist for a member blocked either way with the collab's author
+  // (lib/collab-visibility.ts): they get nothing at all for it, no push, no bell row and no badge signal. Their
+  // membership and lastReadAt are untouched, so the thread is there, unread, once the block is lifted.
+  let recipientIds = memberIds.filter((id) => id !== user.id);
   // A recipient who has this chat hidden gets none of what identifies it: no sender name, no preview, no link into the
-  // thread and no bell row, only a generic notification that opens Home. If the lookup itself fails, everyone gets
-  // that generic push: a vague notification for all is the safe mistake, a named one on the wrong phone is not.
+  // thread and no bell row, only a generic notification that opens Home. If a lookup itself fails, everyone gets
+  // that generic push: a vague notification for all is the safe mistake, a named one on the wrong phone is not. (The
+  // bell rows still written then are dropped at read time by visibleNotificationWhere / collabNotificationVisibleWhere.)
   let hidingIds: string[] = recipientIds;
   let hiddenLookupFailed = false;
   try {
+    recipientIds = await collabChatRecipientsOnly(conversationId, recipientIds);
     hidingIds = await getMembersHidingConversation(conversationId, recipientIds);
   } catch (err) {
     hiddenLookupFailed = true;

@@ -57,6 +57,12 @@ vi.mock("@/lib/blocks", () => ({
 }));
 
 type In = { in: string[] };
+// No collab group chats in these tests (the collab group-chat block rule is covered in collab-chat-visibility.test.ts).
+vi.mock("@/lib/collab-chat-visibility-server", () => ({
+  collabChatHiddenFor: async () => false,
+  collabChatsHiddenFor: async () => new Set<string>(),
+  collabChatRecipientsOnly: async (_conversationId: string, ids: Iterable<string>) => [...ids],
+}));
 vi.mock("@/lib/prisma", () => {
   const conv = (id: string) => conversations.find((c) => c.id === id) ?? null;
   const prisma = {

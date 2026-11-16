@@ -62,7 +62,23 @@ describe("translation authorization", () => {
       deletedForEveryoneAt: null,
       viewOnce: false,
       NOT: { deletedForUserIds: { has: "viewer" } },
-      conversation: { members: { some: { userId: "viewer" } } },
+      conversation: {
+        members: { some: { userId: "viewer" } },
+        // Never a collab's group chat hidden from the viewer by a block with the collab's author.
+        NOT: {
+          collabBoardPost: {
+            is: {
+              authorId: { not: "viewer" },
+              author: {
+                OR: [
+                  { blocksMade: { some: { blockedId: "viewer" } } },
+                  { blocksReceived: { some: { blockerId: "viewer" } } },
+                ],
+              },
+            },
+          },
+        },
+      },
     });
   });
 

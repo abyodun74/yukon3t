@@ -38,6 +38,12 @@ vi.mock("@/lib/hidden-chats", () => ({
   isMembershipLocked: async () => locked,
   isConversationLocked: vi.fn(async () => false),
 }));
+// No collab group chats in these tests (the collab group-chat block rule is covered in collab-chat-visibility.test.ts).
+vi.mock("@/lib/collab-chat-visibility-server", () => ({
+  collabChatHiddenFor: async () => false,
+  collabChatsHiddenFor: async () => new Set<string>(),
+  collabChatRecipientsOnly: async (_conversationId: string, ids: Iterable<string>) => [...ids],
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     conversationMember: { findUnique: async () => membership },

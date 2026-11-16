@@ -3,6 +3,7 @@
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
+import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateImage } from "@/lib/moderation";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -47,7 +48,13 @@ async function loadDirectConversation(userId: string, conversationId: string) {
     where: { id: conversationId },
     select: { isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true } } },
   });
-  if (!conversation || !conversation.members.some((m) => m.userId === userId)) {
+  // A collab's group chat hidden from the sender by a block with the collab's author answers like a chat they are not
+  // in (before "not_supported", which would tell the two apart). Only groups can be collab chats: a 1:1 costs no query.
+  if (
+    !conversation ||
+    !conversation.members.some((m) => m.userId === userId) ||
+    (conversation.isGroup && (await collabChatHiddenFor(userId, conversationId)))
+  ) {
     return { error: "not_a_member" as const };
   }
   // A chat the sender has hidden takes messages only while their PIN unlock is live (same as sendMessage).

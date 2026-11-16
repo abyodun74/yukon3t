@@ -28,6 +28,7 @@ import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { STORY_TRAY_AUTHOR_WHERE } from "@/lib/profile-access";
 import { loadViewableStory } from "@/lib/profile-access-server";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -521,7 +522,8 @@ export async function getShareableConversations() {
   const user = await requireVerifiedUser();
 
   const rows = await prisma.conversation.findMany({
-    where: { members: { some: { userId: user.id, hiddenAt: null } } },
+    // Never a collab's group chat hidden from the caller by a block with the collab's author.
+    where: { members: { some: { userId: user.id, hiddenAt: null } }, ...collabChatVisibleWhere(user.id) },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

@@ -12,6 +12,7 @@ import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { hiddenPush } from "@/lib/push-text";
 import { storyHref } from "@/lib/notification-href";
 import { canViewPost } from "@/lib/post-visibility";
+import { collabChatHiddenFor, collabChatRecipientsOnly } from "@/lib/collab-chat-visibility-server";
 
 async function canSeeStoryForScreenshot(viewerId: string, authorId: string, storyId: string) {
   const [connection, view] = await Promise.all([
@@ -127,9 +128,16 @@ export async function notifyScreenshotTaken(input: ScreenshotTarget) {
         where: { conversationId: target.id },
         select: { userId: true },
       });
-      // Only someone in the conversation can have screenshotted it.
-      if (!members.some((m) => m.userId === user.id)) return { error: "not_found" };
-      const others = members.filter((m) => m.userId !== user.id).map((m) => m.userId);
+      // Only someone in the conversation can have screenshotted it, and a collab's group chat hidden from them by a
+      // block with the collab's author isn't theirs to screenshot.
+      if (!members.some((m) => m.userId === user.id) || (await collabChatHiddenFor(user.id, target.id))) {
+        return { error: "not_found" };
+      }
+      // Nobody that collab chat is hidden from hears about it either.
+      const others = await collabChatRecipientsOnly(
+        target.id,
+        members.filter((m) => m.userId !== user.id).map((m) => m.userId),
+      );
       const hiding = new Set(await getMembersHidingConversation(target.id, others));
       await Promise.all(
         others.map((recipientId) =>

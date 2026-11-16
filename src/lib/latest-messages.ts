@@ -1,5 +1,6 @@
 import { Prisma, type MessageMediaType, type ModerationStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { collabChatHiddenSql } from "@/lib/collab-chat-visibility-server";
 
 /**
  * "The latest message of each of these conversations", as one index probe per conversation.
@@ -80,7 +81,8 @@ export async function latestMessageAtByConversation(conversationIds: readonly st
  * The Messages badge: how many of the user's non-hidden conversations have a message from someone else, not deleted
  * for the user, newer than the user's own `lastReadAt` (or any such message when they never opened the chat). The
  * same answer as "the newest such message is newer than lastReadAt", counted in the database with one EXISTS per
- * membership instead of loading messages.
+ * membership instead of loading messages. A collab's group chat hidden from the user by a block with its author
+ * (collabChatHiddenSql, lib/collab-chat-visibility-server.ts) counts for nothing, like a hidden chat.
  */
 export async function countConversationsWithUnread(userId: string): Promise<number> {
   const rows = await prisma.$queryRaw<{ unread: number }[]>`
@@ -88,6 +90,7 @@ export async function countConversationsWithUnread(userId: string): Promise<numb
     FROM "ConversationMember" cm
     WHERE cm."userId" = ${userId}
       AND cm."hiddenAt" IS NULL
+      AND NOT ${collabChatHiddenSql(userId, Prisma.sql`cm."conversationId"`)}
       AND EXISTS (
         SELECT 1
         FROM "Message" m

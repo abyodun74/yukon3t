@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { connectionRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -352,6 +353,7 @@ async function getAcceptedConnectionsByIds(userId: string, orderedIds: string[])
           AND: [
             { members: { some: { userId } } },
             { members: { some: { userId: { in: otherIds } } } },
+            collabChatVisibleWhere(userId),
           ],
         },
         include: { members: { select: { userId: true } } },

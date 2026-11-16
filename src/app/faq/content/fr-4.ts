@@ -180,7 +180,7 @@ export const fr4 = {
   },
   "blocking-hides-collaborations": {
     q: "Que deviennent les collaborations quand je bloque quelqu'un ?",
-    a: "Si vous bloquez quelqu'un, ou si cette personne vous bloque, les collaborations qu'elle a créées disparaissent pour vous : elles ne figurent plus dans la liste des Collab Boards ni dans la recherche, leurs liens mènent à une page introuvable, et vous ne pouvez plus les rejoindre, demander à les rejoindre, accepter une invitation, voter à leurs sondages ni rejoindre leurs sessions, même si vous y participiez déjà. Vous figurez toujours parmi les participants, et tout revient si le blocage est levé. Vous pouvez toujours quitter la collaboration, et vous pouvez toujours signaler la personne.",
+    a: "Si vous bloquez quelqu'un, ou si cette personne vous bloque, les collaborations qu'elle a créées disparaissent pour vous : elles ne figurent plus dans la liste des Collab Boards ni dans la recherche, leurs liens mènent à une page introuvable, et vous ne pouvez plus les rejoindre, demander à les rejoindre, accepter une invitation, voter à leurs sondages ni rejoindre leurs sessions, même si vous y participiez déjà. La discussion de groupe de la collaboration disparaît aussi de vos Messages tant que dure le blocage : vous ne pouvez ni l'ouvrir, ni la lire, ni y envoyer quoi que ce soit, et vous n'en recevez aucune notification. Vous figurez toujours parmi les participants et parmi les membres de la discussion, et tout revient si le blocage est levé, y compris les messages envoyés entre-temps. Vous pouvez toujours signaler la personne.",
   },
   "report-someone-something": {
     q: "Comment signaler une personne ou un contenu ?",

@@ -3,6 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { isMembershipLocked } from "@/lib/hidden-chats";
 import { captureError } from "@/lib/error-tracking";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { shareTargetRefusal, type ShareTargetRow } from "@/lib/share-to-chats";
 
 // The server half of sending one share to several chats (src/lib/share-to-chats.ts has the rules). In a lib file, not
@@ -36,7 +37,11 @@ export async function sendToEachChat({
   send: (target: ShareTargetRow) => Promise<"secret_chat" | null>;
 }): Promise<{ sent: number; failed: number; rateLimited: boolean }> {
   const [targets, blockedIds] = await Promise.all([
-    prisma.conversation.findMany({ where: { id: { in: [...targetIds] } }, select: SHARE_TARGET_SELECT }),
+    // A collab's group chat hidden from the sharer by a block with the collab's author isn't found: counted as failed.
+    prisma.conversation.findMany({
+      where: { id: { in: [...targetIds] }, ...collabChatVisibleWhere(userId) },
+      select: SHARE_TARGET_SELECT,
+    }),
     getBlockedEitherWayIds(userId),
   ]);
   const targetById = new Map<string, ShareTargetRow>(targets.map((t) => [t.id, t]));

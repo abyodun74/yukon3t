@@ -80,7 +80,13 @@ describe("countConversationsWithUnread", () => {
     expect(sql).toContain(`m."senderId" <> ?`);
     expect(sql).toContain(`NOT (? = ANY (m."deletedForUserIds"))`);
     expect(sql).toContain(`(cm."lastReadAt" IS NULL OR m."createdAt" > cm."lastReadAt")`);
-    expect(values).toEqual(["me", "me", "me"]);
+    // A collab's group chat whose author is blocked either way with the user counts for nothing (collabChatHiddenSql).
+    expect(sql).toContain(`AND NOT EXISTS (`);
+    expect(sql).toContain(`WHERE cb."conversationId" = cm."conversationId"`);
+    expect(sql).toContain(`AND cb."authorId" <> ?`);
+    expect(sql).toContain(`WHERE (b."blockerId" = cb."authorId" AND b."blockedId" = ?)`);
+    expect(sql).toContain(`OR (b."blockerId" = ? AND b."blockedId" = cb."authorId")`);
+    expect(values).toEqual(["me", "me", "me", "me", "me", "me"]);
   });
 
   it("is zero when nothing comes back", async () => {

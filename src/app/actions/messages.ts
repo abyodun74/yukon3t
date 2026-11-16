@@ -33,6 +33,8 @@ import { afterMessageSent } from "@/lib/after-message-sent";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { destroyViewOnceMedia } from "@/lib/view-once-media";
 import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
+import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import {
   forwardSourceRefusal,
   forwardTargetRefusal,
@@ -173,7 +175,8 @@ export async function addGroupMembers(conversationId: string, formData: FormData
     where: { id: conversationId },
     include: { members: { select: { userId: true } } },
   });
-  if (!conversation || !conversation.isGroup) {
+  // A collab's group chat hidden from the caller by a block with the collab's author doesn't exist for them.
+  if (!conversation || !conversation.isGroup || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_found" as const };
   }
   if (conversation.createdById !== user.id) {
@@ -235,7 +238,7 @@ export async function renameGroupChat(conversationId: string, formData: FormData
   const user = await requireVerifiedUser();
 
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
-  if (!conversation || !conversation.isGroup) {
+  if (!conversation || !conversation.isGroup || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_found" as const };
   }
   if (conversation.createdById !== user.id) {
@@ -266,7 +269,7 @@ export async function setGroupDiscoverable(conversationId: string, discoverable:
   const user = await requireVerifiedUser();
 
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
-  if (!conversation || !conversation.isGroup) {
+  if (!conversation || !conversation.isGroup || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_found" as const };
   }
   if (conversation.createdById !== user.id) {
@@ -280,7 +283,12 @@ export async function setGroupDiscoverable(conversationId: string, discoverable:
   return { error: null, discoverable };
 }
 
-/** Removes the caller from a group; deletes the conversation entirely once nobody is left in it. */
+/**
+ * Removes the caller from a group; deletes the conversation entirely once nobody is left in it. Deliberately NOT gated
+ * on the collab group-chat block rule (collabChatHiddenFor), like leaveCollab: it only deletes the caller's own
+ * membership and tells them nothing about the chat. There is no UI entry point to it for someone the collab's chat is
+ * hidden from (the thread page, where the Leave button is, 404s for them).
+ */
 export async function leaveGroup(conversationId: string) {
   const user = await requireVerifiedUser();
 
@@ -336,6 +344,11 @@ export async function deleteGroupChat(conversationId: string) {
   if (isAdminOverride && !user.isAdmin) {
     return { error: "forbidden" as const };
   }
+  // As its creator, a collab chat hidden from the caller by a block with the collab's author doesn't exist for them. A
+  // site admin's delete of someone else's group is moderation (/admin/groups) and is left alone.
+  if (!isAdminOverride && (await collabChatHiddenFor(user.id, conversationId))) {
+    return { error: "not_found" as const };
+  }
 
   if (isAdminOverride) {
     // A site admin removing someone else's group is a moderation action: recorded in the AuditLog against the
@@ -376,7 +389,7 @@ export async function requestToJoinGroup(conversationId: string) {
     where: { id: conversationId },
     select: { id: true, isGroup: true, discoverable: true, members: { select: { userId: true } } },
   });
-  if (!conversation) {
+  if (!conversation || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_found" as const };
   }
   const memberIds = conversation.members.map((m) => m.userId);
@@ -433,7 +446,7 @@ export async function respondToJoinRequest(requestId: string, approve: boolean) 
       conversation: { select: { isGroup: true, createdById: true, members: { select: { userId: true } } } },
     },
   });
-  if (!request || !request.conversation.isGroup) {
+  if (!request || !request.conversation.isGroup || (await collabChatHiddenFor(user.id, request.conversationId))) {
     return { error: "not_found" as const };
   }
   if (request.conversation.createdById !== user.id) {
@@ -531,7 +544,9 @@ export async function sendMessage(formData: FormData) {
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId, userId: user.id } },
   });
-  if (!membership) {
+  // A collab's group chat hidden from the sender by a block with the collab's author is answered exactly like a chat
+  // they are not in, before the hidden-chat lock (which would otherwise tell the two apart).
+  if (!membership || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_a_member" as const };
   }
   // A chat the sender has hidden takes messages only while their PIN unlock is live. When it runs out mid-thread the
@@ -695,7 +710,9 @@ export async function getConversationMessages(conversationId: string) {
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId, userId: user.id } },
   });
-  if (!membership) {
+  // A collab chat hidden by a block with its author: answered like a non-member's, before anything is marked read or
+  // delivered (lastReadAt stays where it was, so its messages are still unread once the block is lifted).
+  if (!membership || (await collabChatHiddenFor(user.id, conversationId))) {
     return { error: "not_a_member" as const, messages: [], conversation: null };
   }
   // Before anything is marked read or returned: a hidden chat that isn't unlocked gives up nothing.
@@ -798,7 +815,7 @@ export async function deleteMessageForMe(messageId: string) {
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
   });
-  if (!membership) {
+  if (!membership || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_a_member" as const };
   }
   if (await isMembershipLocked(membership, user.id)) {
@@ -825,7 +842,7 @@ export async function editMessage(messageId: string, formData: FormData) {
   const { content } = parsed.data;
 
   const message = await prisma.message.findUnique({ where: { id: messageId } });
-  if (!message) {
+  if (!message || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_found" as const };
   }
   if (message.senderId !== user.id) {
@@ -894,7 +911,7 @@ export async function toggleMessageReaction(messageId: string, emoji: string) {
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
   });
-  if (!membership) {
+  if (!membership || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_a_member" as const };
   }
   if (await isMembershipLocked(membership, user.id)) {
@@ -943,7 +960,7 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId: message.conversationId, userId: user.id } },
   });
-  if (!membership) {
+  if (!membership || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_a_member" as const };
   }
   if (await isMembershipLocked(membership, user.id)) {
@@ -1000,6 +1017,9 @@ export async function removeCorrection(correctionId: string) {
   }
 
   const message = await prisma.message.findUnique({ where: { id: correction.messageId } });
+  if (message && (await collabChatHiddenFor(user.id, message.conversationId))) {
+    return { error: "not_found" as const };
+  }
   if (message && (await isConversationLocked(user.id, message.conversationId))) {
     return { error: "hidden_locked" as const };
   }
@@ -1022,7 +1042,7 @@ export async function deleteMessageForEveryone(messageId: string) {
   const user = await requireVerifiedUser();
 
   const message = await prisma.message.findUnique({ where: { id: messageId } });
-  if (!message) {
+  if (!message || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_found" as const };
   }
   if (message.senderId !== user.id) {
@@ -1074,8 +1094,9 @@ export async function deleteMessageForEveryone(messageId: string) {
 export async function markMessagesDelivered() {
   const user = await requireVerifiedUser();
 
+  // Never a collab chat hidden from the caller by a block with its author: nothing in it reached them.
   const memberships = await prisma.conversationMember.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, conversation: collabChatVisibleWhere(user.id) },
     select: { conversationId: true },
   });
   const conversationIds = memberships.map((m) => m.conversationId);
@@ -1100,7 +1121,7 @@ export async function getMyConversationsForShare() {
   const user = await requireVerifiedUser();
 
   const rows = await prisma.conversation.findMany({
-    where: { members: { some: { userId: user.id, hiddenAt: null } } },
+    where: { members: { some: { userId: user.id, hiddenAt: null } }, ...collabChatVisibleWhere(user.id) },
     select: {
       id: true,
       isGroup: true,
@@ -1159,7 +1180,7 @@ export async function getForwardTargets() {
 
   const [rows, blockedIds] = await Promise.all([
     prisma.conversation.findMany({
-      where: { members: { some: { userId: user.id, hiddenAt: null } } },
+      where: { members: { some: { userId: user.id, hiddenAt: null } }, ...collabChatVisibleWhere(user.id) },
       select: FORWARD_TARGET_SELECT,
     }),
     getBlockedEitherWayIds(user.id),
@@ -1218,7 +1239,7 @@ export async function forwardMessage(messageId: string, conversationIds: string[
     where: { conversationId_userId: { conversationId: source.conversationId, userId: user.id } },
     select: { hiddenAt: true },
   });
-  if (!sourceMembership) {
+  if (!sourceMembership || (await collabChatHiddenFor(user.id, source.conversationId))) {
     return { error: "not_found" as const };
   }
   if (await isMembershipLocked(sourceMembership, user.id)) {
@@ -1243,7 +1264,11 @@ export async function forwardMessage(messageId: string, conversationIds: string[
   }
 
   const [targets, blockedIds] = await Promise.all([
-    prisma.conversation.findMany({ where: { id: { in: targetIds } }, select: FORWARD_TARGET_SELECT }),
+    // A collab chat hidden from the caller by a block with its author isn't found, so it counts as failed.
+    prisma.conversation.findMany({
+      where: { id: { in: targetIds }, ...collabChatVisibleWhere(user.id) },
+      select: FORWARD_TARGET_SELECT,
+    }),
     getBlockedEitherWayIds(user.id),
   ]);
   const targetById = new Map(targets.map((t) => [t.id, t]));

@@ -38,15 +38,15 @@ describe("collabNotBlockedWhere", () => {
 });
 
 describe("collabNotificationVisibleWhere", () => {
-  it("drops rows about a collab whose author is blocked either way with the reader (rows with no collab untouched)", () => {
+  it("drops rows about a collab, or tied to a collab's group chat, whose author is blocked either way with the reader", () => {
+    const blocked = {
+      OR: [{ blocksMade: { some: { blockedId: ME } } }, { blocksReceived: { some: { blockerId: ME } } }],
+    };
     expect(collabNotificationVisibleWhere(ME)).toEqual({
-      NOT: {
-        collab: {
-          author: {
-            OR: [{ blocksMade: { some: { blockedId: ME } } }, { blocksReceived: { some: { blockerId: ME } } }],
-          },
-        },
-      },
+      AND: [
+        { NOT: { collab: { author: blocked } } },
+        { NOT: { conversation: { collabBoardPost: { is: { authorId: { not: ME }, author: blocked } } } } },
+      ],
     });
   });
 });
