@@ -27,6 +27,7 @@ import { isBlockedWithAny } from "@/lib/blocks";
 import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import { getDictionary } from "@/lib/i18n/server";
 import { GuestGatedScreen } from "@/components/guest-preview";
+import { CHECKLIST_SELECT } from "@/lib/shopping-list";
 
 export default async function ConversationPage({
   params,
@@ -194,6 +195,8 @@ export default async function ConversationPage({
       orderBy: { createdAt: "desc" },
       take: 200,
       include: {
+        // A shared checklist message (src/lib/shopping-list.ts): its rows, in order.
+        checklist: CHECKLIST_SELECT,
         reactions: { select: { emoji: true, userId: true } },
         corrections: { include: { author: { select: { id: true, name: true } } } },
         story: {

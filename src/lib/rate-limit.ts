@@ -118,6 +118,9 @@ const limiterDefinitions = {
   messageSend: makeLimiter(20, "1 m"),
   // Forwarding a chat message (forwardMessage): per action, on top of messageSend per destination.
   messageForward: makeLimiter(20, "10 m", "messageForward"),
+  // Ticking, adding, editing and removing rows of a shared checklist message (src/app/actions/checklists.ts). Loose:
+  // ticking off a long list in a shop is many quick taps.
+  checklistChange: makeLimiter(120, "10 m", "checklistChange"),
   // The forward picker's list of chats (getForwardTargets).
   messageForwardTargets: makeLimiter(60, "10 m", "messageForwardTargets"),
   postCreate: makeLimiter(10, "5 m"),

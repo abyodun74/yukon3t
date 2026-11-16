@@ -104,6 +104,7 @@ export const FAQ_IDS = [
   "reply-specific-message",
   "forward-message",
   "send-photos-videos-voice-notes",
+  "send-shopping-list",
   "send-photo-video-disappears-after",
   "see-photo-chat-full-screen",
   "when-open-chat-jump-straight",

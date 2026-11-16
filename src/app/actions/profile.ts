@@ -527,7 +527,24 @@ export async function exportMyData(proof?: unknown) {
       // Deliberately NOT filtered by the collab group-chat block rule (collabChatVisibleWhere): a message you sent in a
       // collab's group chat that a block with the collab's author now hides from you is still your own data, and the
       // export only ever holds your own messages (no one else's, no chat name or member list).
-      sentMessages: { where: { conversationId: { notIn: hidden.conversationIds } } },
+      // A checklist you sent (the "Shopping list"; its message content is only the header line): its title and the rows
+      // you wrote yourself, with their ticked state. Rows other members added are their text, not yours, so they stay out.
+      sentMessages: {
+        where: { conversationId: { notIn: hidden.conversationIds } },
+        include: {
+          checklist: {
+            select: {
+              title: true,
+              createdAt: true,
+              items: {
+                where: { addedById: user.id },
+                orderBy: { position: "asc" },
+                select: { text: true, checkedAt: true, createdAt: true },
+              },
+            },
+          },
+        },
+      },
       // Birthday wishes you sent (who to, which year); the wish itself is one of sentMessages. Your own "Share my
       // birthday" choice and recorded time zone are columns of this row.
       birthdayWishesSent: {

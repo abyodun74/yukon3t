@@ -19,6 +19,8 @@ export type ForwardSource = {
   deletedForEveryoneAt: Date | null;
   viewOnce: boolean;
   storyId: string | null;
+  /** A shared checklist message: its stored content is only the header stand-in, so a copy would lose the list. */
+  hasChecklist?: boolean;
 };
 
 /**
@@ -29,6 +31,7 @@ export type ForwardSource = {
  *    must never be the one to decrypt it. The caller also refuses anything from a chat that is secret right now;
  *  - a story reply or shared story: the story has its own audience rules (and expires); forwarding the reply
  *    alone would be a message without its context;
+ *  - a shared checklist (the list lives in its own rows, edited by the chat's members; a copy would be its title only);
  *  - a media message whose file is gone, and an empty message.
  */
 export function forwardSourceRefusal(source: ForwardSource): "not_forwardable" | null {
@@ -36,6 +39,7 @@ export function forwardSourceRefusal(source: ForwardSource): "not_forwardable" |
   if (source.moderationStatus !== "PUBLISHED") return "not_forwardable";
   if (source.viewOnce) return "not_forwardable";
   if (source.storyId) return "not_forwardable";
+  if (source.hasChecklist) return "not_forwardable";
   if (isEncryptedContent(source.content)) return "not_forwardable";
   if (source.mediaType !== "NONE" && !source.mediaUrl) return "not_forwardable";
   if (source.mediaType === "NONE" && source.content.trim() === "") return "not_forwardable";
@@ -51,11 +55,13 @@ export function canOfferForward(params: {
   secretActive: boolean;
   wasEncrypted?: boolean;
   sending: boolean;
-  message: Omit<ForwardSource, "storyId"> & { story: unknown | null };
+  message: Omit<ForwardSource, "storyId" | "hasChecklist"> & { story: unknown | null; checklist?: unknown | null };
 }): boolean {
   const { secretActive, wasEncrypted, sending, message } = params;
   if (secretActive || wasEncrypted || sending) return false;
-  return forwardSourceRefusal({ ...message, storyId: message.story ? "story" : null }) === null;
+  return (
+    forwardSourceRefusal({ ...message, storyId: message.story ? "story" : null, hasChecklist: Boolean(message.checklist) }) === null
+  );
 }
 
 /** De-duplicated destination ids, in the order picked. */

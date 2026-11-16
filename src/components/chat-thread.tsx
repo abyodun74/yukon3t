@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Reply, Send, Upload, Video, X } from "lucide-react";
+import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Reply, Send, ShoppingCart, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -55,6 +55,14 @@ import { useMessagesText } from "@/components/messages-text";
 import { useUiText } from "@/components/ui-text";
 import { useContentTranslation } from "@/components/content-translation";
 import { ForwardMessageSheet } from "@/components/forward-message-sheet";
+import { ShoppingListSheet, emptyShoppingListDraft, type ShoppingListDraft } from "@/components/shopping-list-sheet";
+import { ChecklistBubble } from "@/components/checklist-bubble";
+import {
+  checklistFallbackText,
+  formatShoppingList,
+  normalizeChecklistInput,
+  type ChecklistData,
+} from "@/lib/shopping-list";
 import { canOfferForward } from "@/lib/message-forward";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
@@ -136,6 +144,9 @@ type MessageData = {
   forwarded: boolean;
   // A digital gift sent from this chat (src/lib/gifts.ts): the bubble shows its card (GiftChatCard).
   giftSendId?: string | null;
+  // A shared checklist (the composer's "Shopping list", src/lib/shopping-list.ts): the bubble shows ChecklistBubble
+  // instead of `content`, which is only its one-line stand-in for previews.
+  checklist?: ChecklistData | null;
   // A "for your eyes only" photo/video: mediaUrl is always null (the file is in the private bucket and is fetched
   // once, through ViewOnceViewer), mediaType says which it is, and these say what the chip shows.
   viewOnce: boolean;
@@ -350,6 +361,7 @@ const MessageBubble = memo(function MessageBubble({
   onReply,
   onForward,
   onViewOnceOpened,
+  onHiddenLocked,
   secretActive,
   encryptForEdit,
   giftsEnabled = false,
@@ -370,6 +382,8 @@ const MessageBubble = memo(function MessageBubble({
   onForward: (message: MessageData) => void;
   /** The recipient's one open of a view-once message was claimed on the server. */
   onViewOnceOpened: (messageId: string) => void;
+  /** A checklist change was refused because this hidden chat's PIN unlock ran out: off to the PIN prompt. */
+  onHiddenLocked: () => void;
   /** This is a secret (end-to-end encrypted) chat: edits must be encrypted, and corrections aren't offered. */
   secretActive: boolean;
   encryptForEdit: (text: string) => Promise<string>;
@@ -455,6 +469,7 @@ const MessageBubble = memo(function MessageBubble({
       !editing &&
       !sending &&
       !message.viewOnce &&
+      !message.checklist &&
       message.moderationStatus === "PUBLISHED",
   });
   const myCorrection = message.corrections.find((c) => c.authorId === currentUserId);
@@ -480,6 +495,8 @@ const MessageBubble = memo(function MessageBubble({
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
     if (deleted || editing || sending) return;
+    // Typing in a checklist row: a drag there selects text, it isn't a swipe to reply.
+    if ((e.target as Element | null)?.closest?.("input, textarea")) return;
     // Only primary touch/mouse input — ignore secondary buttons/multi-touch.
     if (e.button !== 0) return;
     dragStateRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false };
@@ -722,7 +739,8 @@ const MessageBubble = memo(function MessageBubble({
                   }
                 }}
                 maxLength={4000}
-                rows={2}
+                // Tall enough to edit a multi-line message (a shopping list) without scrolling a two-line box.
+                rows={Math.min(8, Math.max(2, draft.split("\n").length))}
                 autoFocus
                 aria-label={t.editLabel}
                 dir="auto"
@@ -881,7 +899,19 @@ const MessageBubble = memo(function MessageBubble({
                   alt={message.mediaType === "GIF" ? t.gifAlt : t.photoAlt}
                 />
               )}
-              {message.content && (
+              {message.checklist && (
+                <ChecklistBubble
+                  checklist={message.checklist}
+                  mine={mine}
+                  disabled={sending}
+                  // Never new readable text in a secret chat (src/app/actions/checklists.ts refuses it too).
+                  textEditable={!secretActive}
+                  onChanged={(checklist) => onEdited({ ...message, checklist })}
+                  onHiddenLocked={onHiddenLocked}
+                  t={thread.checklist}
+                />
+              )}
+              {message.content && !message.checklist && (
                 <p
                   // What someone wrote, in whatever language they wrote it: its own direction, not the page's.
                   dir="auto"
@@ -894,7 +924,7 @@ const MessageBubble = memo(function MessageBubble({
                   {linkifyText(translation.displayText)}
                 </p>
               )}
-              {message.content && translation.control}
+              {message.content && !message.checklist && translation.control}
             </>
           )}
           <div
@@ -1018,7 +1048,7 @@ const MessageBubble = memo(function MessageBubble({
                   {t.forward}
                 </button>
               )}
-              {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && !message.giftSendId && (
+              {!mine && !secretActive && !message.wasEncrypted && !message.viewOnce && !message.giftSendId && !message.checklist && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -1044,7 +1074,7 @@ const MessageBubble = memo(function MessageBubble({
                   {t.report}
                 </button>
               )}
-              {mine && !message.viewOnce && !message.giftSendId && (
+              {mine && !message.viewOnce && !message.giftSendId && !message.checklist && (
                 <button
                   type="button"
                   disabled={isPending}
@@ -1165,6 +1195,10 @@ export function ChatThread({
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [showDictation, setShowDictation] = useState(false);
+  // The shopping list sheet (ShoppingListSheet). Its draft outlives closing the sheet and a failed send, and is
+  // cleared once the list has been sent.
+  const [shoppingListOpen, setShoppingListOpen] = useState(false);
+  const [shoppingListDraft, setShoppingListDraft] = useState<ShoppingListDraft>(emptyShoppingListDraft);
   const [error, setError] = useState<string | null>(null);
   const { locale, t: messagesText } = useMessagesText();
   const { t: ui } = useUiText();
@@ -1651,38 +1685,69 @@ export function ChatThread({
     });
   }
 
-  function handleSend() {
-    if (isPending) return;
-    if (viewOnceOn) {
+  /**
+   * Sends what is in the composer, or, with `list`, a shopping list built in ShoppingListSheet. Both go through
+   * sendMessage (rate limit, membership, blocks, the hidden-chat lock, moderation, push); a list takes none of the
+   * composer's own draft, attachments or reply target. For a list, a problem found before sending is returned (shown
+   * in the sheet) instead of being set as the composer's error.
+   *
+   * Outside a secret chat a list is sent as a shared checklist (`checklist` field; the server stores its rows and
+   * writes the message's one-line stand-in itself). In a secret chat the server must never hold readable items, so the
+   * same list is sent as formatShoppingList's plain text instead, encrypted here like any typed message. The composer
+   * and the sheet look and behave the same either way; only the sent message differs (plain lines, not tick boxes).
+   */
+  function handleSend(list?: { title: string; items: string[] }): string | null {
+    const fromList = list !== undefined;
+    if (isPending) return null;
+    if (!fromList && viewOnceOn) {
       handleSendViewOnce();
-      return;
+      return null;
     }
-    const text = content.trim();
-    if (!text && !pendingAudio && !pendingVideo && !pendingImage && !pendingGif) return;
+    const listTitle = list ? list.title.trim() || t.composer.shoppingList.defaultTitle : "";
+    const checklist = list && !secret.active ? normalizeChecklistInput({ title: listTitle, items: list.items }) : null;
+    // The list as plain lines: what a secret chat gets, and what is kept as the composer's draft if the chat's PIN
+    // unlock ran out (see hidden_locked below).
+    const listPlainText = list ? formatShoppingList(listTitle, list.items, t.composer.shoppingList.defaultTitle) : "";
+    if (fromList && !listPlainText) return t.composer.shoppingList.empty;
+    const text = checklist ? checklistFallbackText(checklist.title) : fromList ? listPlainText : content.trim();
+    const audio = fromList ? null : pendingAudio;
+    const video = fromList ? null : pendingVideo;
+    const image = fromList ? null : pendingImage;
+    const gif = fromList ? null : pendingGif;
+    if (!text && !audio && !video && !image && !gif) return null;
     // In a secret chat the text is encrypted before it leaves this device. If that can't happen, say so and stop -
     // never send it as readable text.
     if (text && secret.active) {
-      if (utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES) {
-        setError(t.errors.tooLong);
-        return;
-      }
-      if (!secret.canEncrypt) {
-        setError(t.errors.cantSendYet);
-        return;
+      const problem = utf8ByteLength(text) > E2EE_MAX_PLAINTEXT_BYTES ? t.errors.tooLong : !secret.canEncrypt ? t.errors.cantSendYet : null;
+      if (problem) {
+        if (fromList) return problem;
+        setError(problem);
+        return null;
       }
     }
-    const audio = pendingAudio;
-    const video = pendingVideo;
-    const image = pendingImage;
-    const gif = pendingGif;
-    const replyTo = replyTarget;
-    setContent("");
-    setPendingAudio(null);
-    setPendingVideo(null);
-    setPendingImage(null);
-    setPendingGif(null);
-    setReplyTarget(null);
+    const replyTo = fromList ? null : replyTarget;
+    if (!fromList) {
+      setContent("");
+      setPendingAudio(null);
+      setPendingVideo(null);
+      setPendingImage(null);
+      setPendingGif(null);
+      setReplyTarget(null);
+    }
     setError(null);
+    if (fromList) setShoppingListOpen(false);
+
+    // Puts back what this send took: the composer's text and attachments, or, for a list, nothing (its draft is only
+    // cleared once it was sent, so reopening the sheet shows it again).
+    function restoreDraft() {
+      if (fromList) return;
+      setContent(text);
+      setPendingAudio(audio);
+      setPendingVideo(video);
+      setPendingImage(image);
+      setPendingGif(gif);
+      setReplyTarget(replyTo);
+    }
 
     // A fresh, independently-owned object URL for the optimistic bubble's
     // own preview — deliberately not the composer's pendingImagePreviewUrl
@@ -1696,15 +1761,25 @@ export function ChatThread({
     // in, rather than blocking the optimistic append entirely.
     const optimisticImageUrl = image ? URL.createObjectURL(image) : null;
     const optimisticId = `${OPTIMISTIC_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimistic = buildOptimisticMessage({
+      id: optimisticId,
+      content: text,
+      mediaType: image ? "IMAGE" : "NONE",
+      mediaUrl: optimisticImageUrl,
+      replyTo,
+    });
     setMessages((prev) => [
       ...prev,
-      buildOptimisticMessage({
-        id: optimisticId,
-        content: text,
-        mediaType: image ? "IMAGE" : "NONE",
-        mediaUrl: optimisticImageUrl,
-        replyTo,
-      }),
+      checklist
+        ? {
+            ...optimistic,
+            checklist: {
+              id: optimisticId,
+              title: checklist.title,
+              items: checklist.items.map((itemText, i) => ({ id: `${optimisticId}-${i}`, text: itemText, checkedAt: null, checkedById: null })),
+            },
+          }
+        : optimistic,
     ]);
 
     function settleOptimistic(replacement: MessageData | null) {
@@ -1718,30 +1793,21 @@ export function ChatThread({
 
     startTransition(async () => {
       let wireContent = text;
-      if (text && secret.active) {
+      if (text && secret.active && !checklist) {
         try {
           wireContent = await secret.encrypt(text);
         } catch {
           setError(t.errors.notSent);
-          setContent(text);
-          setPendingAudio(audio);
-          setPendingVideo(video);
-          setPendingImage(image);
-          setPendingGif(gif);
-          setReplyTarget(replyTo);
+          restoreDraft();
           settleOptimistic(null);
           return;
         }
       }
-      const media = await uploadPendingMedia();
+      // uploadPendingMedia reads the composer's own attachments, which a list send never takes.
+      const media = fromList ? ({ mediaType: "NONE" } as const) : await uploadPendingMedia();
       if ("error" in media) {
         setError(t.errors.send);
-        setContent(text);
-        setPendingAudio(audio);
-        setPendingVideo(video);
-        setPendingImage(image);
-        setPendingGif(gif);
-        setReplyTarget(replyTo);
+        restoreDraft();
         settleOptimistic(null);
         return;
       }
@@ -1754,6 +1820,7 @@ export function ChatThread({
         fd.set("mediaThumbnailUrl", media.mediaThumbnailUrl);
       }
       if (replyTo) fd.set("replyToMessageId", replyTo.id);
+      if (checklist) fd.set("checklist", JSON.stringify({ title: checklist.title, items: checklist.items }));
       let result;
       try {
         result = await sendMessage(fd);
@@ -1762,17 +1829,16 @@ export function ChatThread({
         // otherwise be an uncaught exception that crashes the whole page
         // instead of showing a normal composer error.
         setError(t.errors.network);
-        setContent(text);
-        setPendingAudio(audio);
-        setPendingVideo(video);
-        setPendingImage(image);
-        setPendingGif(gif);
-        setReplyTarget(replyTo);
+        restoreDraft();
         settleOptimistic(null);
         return;
       }
       if (result.error) {
-        const modeChanged = result.error === "plaintext_in_secret_chat" || result.error === "not_a_secret_chat";
+        // not_supported_in_secret_chat: a checklist sent just as the chat became secret.
+        const modeChanged =
+          result.error === "plaintext_in_secret_chat" ||
+          result.error === "not_a_secret_chat" ||
+          result.error === "not_supported_in_secret_chat";
         // The other person just turned secret chat on/off: re-read the state so the next send is encrypted (or not) correctly.
         if (modeChanged) void secret.refresh();
         setError(
@@ -1788,20 +1854,22 @@ export function ChatThread({
                 ? t.errors.modeChanged
                 : t.errors.send,
         );
-        setContent(text);
-        setPendingAudio(audio);
-        setPendingVideo(video);
-        setPendingImage(image);
-        setPendingGif(gif);
-        setReplyTarget(replyTo);
+        restoreDraft();
         settleOptimistic(null);
-        if (result.error === "hidden_locked") promptHiddenUnlock();
+        if (result.error === "hidden_locked") {
+          // A list is kept as the composer's draft (when that is empty) so it survives the trip to the PIN prompt.
+          if (fromList && !content.trim()) setContent(listPlainText);
+          promptHiddenUnlock();
+        }
         return;
       }
       settleOptimistic(result.message ? (result.message as MessageData) : null);
+      if (fromList) setShoppingListDraft(emptyShoppingListDraft());
       announce(t.sent);
     });
+    return null;
   }
+
 
   async function pickImage(file: File | undefined) {
     if (!file) return;
@@ -2048,6 +2116,7 @@ export function ChatThread({
                   onReply={setReplyTarget}
                   onForward={handleForward}
                   onViewOnceOpened={handleViewOnceOpened}
+                  onHiddenLocked={promptHiddenUnlock}
                   giftsEnabled={gifts?.enabled ?? false}
                 />
               </div>
@@ -2323,6 +2392,20 @@ export function ChatThread({
                 className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line"
               />
             )}
+            {/* Shopping list: sent as one ordinary text message through handleSend, so it is the same in every chat
+                (secret or not). Not offered while a view-once photo/video is pending, which can't carry text. */}
+            {!viewOnceOn && (
+              <button
+                type="button"
+                onClick={() => setShoppingListOpen(true)}
+                disabled={isPending}
+                title={t.composer.shoppingList.button}
+                aria-label={t.composer.shoppingList.button}
+                className="rounded-lg p-2.5 -m-1 text-foreground-soft hover:bg-line disabled:opacity-40"
+              >
+                <ShoppingCart size={16} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowDictation(true)}
@@ -2338,7 +2421,7 @@ export function ChatThread({
             <button
               type="button"
               disabled={isPending}
-              onClick={handleSend}
+              onClick={() => handleSend()}
               aria-label={t.composer.send}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink disabled:opacity-50"
             >
@@ -2358,6 +2441,16 @@ export function ChatThread({
         </div>
       </div>
       {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
+
+      <ShoppingListSheet
+        open={shoppingListOpen}
+        onClose={() => setShoppingListOpen(false)}
+        draft={shoppingListDraft}
+        onDraftChange={setShoppingListDraft}
+        onSend={(list) => handleSend(list)}
+        sending={isPending}
+        t={t.composer.shoppingList}
+      />
 
       {showDictation && (
         <DictationRecorder

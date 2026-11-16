@@ -430,6 +430,8 @@ model User {
   conversations        ConversationMember[]
   messageReactions     MessageReaction[]
   messageCorrections   MessageCorrection[]
+  checklistItemsAdded   ChecklistItem[]      @relation("ChecklistItemAddedBy")
+  checklistItemsChecked ChecklistItem[]      @relation("ChecklistItemCheckedBy")
   createdConversations Conversation[]       @relation("ConversationCreator")
   groupJoinRequests    GroupJoinRequest[]
 
@@ -2919,6 +2921,8 @@ model Message {
   translations ContentTranslation[]
   birthdayWish BirthdayWish?
   giftSend     GiftSend?           @relation(fields: [giftSendId], references: [id], onDelete: SetNull)
+  // A shared, tick-able list (the composer's "Shopping list"): see ChecklistMessage.
+  checklist    ChecklistMessage?
 
   // Every message query filters on conversationId and sorts/paginates on
   // createdAt together (getConversationMessages, the collab board, the
@@ -2954,6 +2958,44 @@ model ViewOnceMedia {
 /**
  * One active correction suggestion per (message, corrector) — resubmitting updates it rather than stacking duplicates.
  */
+/**
+ * A checklist message (the chat composer's "Shopping list", src/lib/shopping-list.ts): one per Message, which keeps a
+ * plain-text stand-in in `content` ("🛒 <title>") for the inbox preview, push and anything that only reads text. Every
+ * current member of the chat can tick, untick, add, edit and remove items (src/app/actions/checklists.ts). Never in a
+ * secret (E2EE) chat: the server would have to read the items, so there the composer sends the list as ordinary
+ * encrypted text instead. Deleted with its message; deleteMessageForEveryone deletes it too (it is the message's text).
+ */
+model ChecklistMessage {
+  id        String   @id @default(cuid())
+  messageId String   @unique
+  title     String
+  createdAt DateTime @default(now())
+
+  message Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  items   ChecklistItem[]
+}
+
+/** One row of a ChecklistMessage. `position` orders the rows (new ones go last); ticking sets checkedAt/checkedById. */
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  checklistId String
+  position    Int
+  text        String
+  checkedAt   DateTime?
+  checkedById String?
+  addedById   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  checklist ChecklistMessage @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  checkedBy User?            @relation("ChecklistItemCheckedBy", fields: [checkedById], references: [id], onDelete: SetNull)
+  addedBy   User?            @relation("ChecklistItemAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@index([checklistId, position])
+  @@index([checkedById])
+  @@index([addedById])
+}
+
 model MessageCorrection {
   id            String   @id @default(cuid())
   messageId     String

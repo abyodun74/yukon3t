@@ -36,6 +36,7 @@ import { countryName } from "@/lib/i18n/country-names";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { CHECKLIST_SELECT } from "@/lib/shopping-list";
 
 export default async function CollabDetailPage({
   params,
@@ -219,6 +220,8 @@ export default async function CollabDetailPage({
         orderBy: { createdAt: "desc" },
         take: 200,
         include: {
+          // A shared checklist message (src/lib/shopping-list.ts): its rows, in order.
+          checklist: CHECKLIST_SELECT,
           reactions: { select: { emoji: true, userId: true } },
           corrections: { include: { author: { select: { id: true, name: true } } } },
           story: {

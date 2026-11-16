@@ -13,7 +13,14 @@ import {
   addGroupMembersSchema,
   correctionSchema,
   forwardMessageSchema,
+  checklistInputSchema,
 } from "@/lib/validations";
+import {
+  CHECKLIST_SELECT,
+  checklistFallbackText,
+  checklistModerationText,
+  normalizeChecklistInput,
+} from "@/lib/shopping-list";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText, moderateMedia } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
@@ -537,7 +544,26 @@ export async function sendMessage(formData: FormData) {
   if (!parsed.success || !parsed.data.conversationId) {
     return { error: "invalid" as const };
   }
-  const { conversationId, content, mediaType, mediaUrl, mediaThumbnailUrl, replyToMessageId } = parsed.data;
+  const { conversationId, mediaType, mediaUrl, mediaThumbnailUrl, replyToMessageId } = parsed.data;
+  let { content } = parsed.data;
+
+  // A shared checklist (the composer's "Shopping list", src/lib/shopping-list.ts): JSON { title, items }, text only.
+  // Its content is set here, never taken from the client: the one-line stand-in that previews and pushes show.
+  const rawChecklist = formData.get("checklist");
+  let checklist: { title: string; items: string[] } | null = null;
+  if (rawChecklist !== null) {
+    if (typeof rawChecklist !== "string" || mediaType !== "NONE") return { error: "invalid" as const };
+    let json: unknown;
+    try {
+      json = JSON.parse(rawChecklist);
+    } catch {
+      return { error: "invalid" as const };
+    }
+    const checklistParsed = checklistInputSchema.safeParse(json);
+    checklist = checklistParsed.success ? normalizeChecklistInput(checklistParsed.data) : null;
+    if (!checklist) return { error: "invalid" as const };
+    content = checklistFallbackText(checklist.title);
+  }
 
   // Ownership check: the sender must actually be a member of this
   // conversation — never trust a client-supplied conversationId alone.
@@ -572,6 +598,11 @@ export async function sendMessage(formData: FormData) {
   // the text is end-to-end encrypted, so the server can't read it, scan it or
   // preview it. Everything below that touches `content` goes through `secret`.
   const secret = conversation ? isSecretChat(conversation) : false;
+  // A checklist's items are stored and shown by the server as readable text, which a secret chat must never hold. The
+  // composer never sends one there (it sends the list as encrypted text instead); this refuses anything that does.
+  if (checklist && secret) {
+    return { error: "not_supported_in_secret_chat" as const };
+  }
 
   // A client-supplied replyToMessageId must belong to this same
   // conversation — otherwise someone could quote-reply to a message from a
@@ -601,7 +632,10 @@ export async function sendMessage(formData: FormData) {
     await cleanupUploads();
     return { error: secretGate };
   }
-  const scanText = textForModeration({ secret, content });
+  // A checklist is checked as a whole (title and every item), like any text message: flagged = held for review.
+  const scanText = checklist
+    ? checklistModerationText(checklist.title, checklist.items)
+    : textForModeration({ secret, content });
 
   if (mediaType === "AUDIO" || mediaType === "VIDEO" || mediaType === "IMAGE") {
     const key = mediaUrl ? keyFromPublicUrl(mediaUrl) : null;
@@ -674,12 +708,23 @@ export async function sendMessage(formData: FormData) {
       mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
       moderationStatus,
       replyToMessageId,
+      checklist: checklist
+        ? {
+            create: {
+              title: checklist.title,
+              items: {
+                create: checklist.items.map((text, position) => ({ text, position, addedById: user.id })),
+              },
+            },
+          }
+        : undefined,
     },
     include: {
       reactions: { select: REACTION_SELECT },
       corrections: { include: CORRECTION_INCLUDE },
       story: STORY_SELECT,
       replyTo: REPLY_TO_SELECT,
+      checklist: CHECKLIST_SELECT,
     },
   });
   await afterMessageSent({
@@ -797,6 +842,7 @@ export async function getConversationMessages(conversationId: string) {
         corrections: { include: CORRECTION_INCLUDE },
         story: STORY_SELECT,
         replyTo: REPLY_TO_SELECT,
+        checklist: CHECKLIST_SELECT,
       },
     }),
   ]);
@@ -841,7 +887,10 @@ export async function editMessage(messageId: string, formData: FormData) {
   }
   const { content } = parsed.data;
 
-  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { checklist: { select: { id: true } } },
+  });
   if (!message || (await collabChatHiddenFor(user.id, message.conversationId))) {
     return { error: "not_found" as const };
   }
@@ -853,7 +902,9 @@ export async function editMessage(messageId: string, formData: FormData) {
   }
   // A view-once message is its media and nothing else: it is sent without text and stays that way.
   // Nor is a gift card (Message.giftSendId, src/lib/gifts.ts): the server wrote it, there is no text to edit.
-  if (message.viewOnce || message.giftSendId) {
+  // Nor is a checklist: its stored content is only the header stand-in; the list itself changes row by row
+  // (src/app/actions/checklists.ts).
+  if (message.viewOnce || message.giftSendId || message.checklist) {
     return { error: "invalid" as const };
   }
   if (await isConversationLocked(user.id, message.conversationId)) {
@@ -883,6 +934,7 @@ export async function editMessage(messageId: string, formData: FormData) {
       corrections: { include: CORRECTION_INCLUDE },
       story: STORY_SELECT,
       replyTo: REPLY_TO_SELECT,
+      checklist: CHECKLIST_SELECT,
     },
   });
   await deleteTranslationsOf("message", messageId);
@@ -1070,6 +1122,8 @@ export async function deleteMessageForEveryone(messageId: string) {
     prisma.messageCorrection.deleteMany({ where: { messageId } }),
     // Its translations are its text in other words: gone with it.
     prisma.contentTranslation.deleteMany({ where: { messageId } }),
+    // A checklist is the message's text too (its rows cascade).
+    prisma.checklistMessage.deleteMany({ where: { messageId } }),
   ]);
 
   // A voice/video note's actual file otherwise keeps sitting in R2 forever,
@@ -1228,6 +1282,7 @@ export async function forwardMessage(messageId: string, conversationIds: string[
       deletedForUserIds: true,
       viewOnce: true,
       storyId: true,
+      checklist: { select: { id: true } },
       conversation: { select: { isGroup: true, members: { select: { e2eeEnabledAt: true } } } },
     },
   });
@@ -1246,7 +1301,7 @@ export async function forwardMessage(messageId: string, conversationIds: string[
     return { error: "hidden_locked" as const };
   }
   // A secret chat's messages never leave it this way: the server can't read them and must not be handed their text.
-  if (isSecretChat(source.conversation) || forwardSourceRefusal(source)) {
+  if (isSecretChat(source.conversation) || forwardSourceRefusal({ ...source, hasChecklist: Boolean(source.checklist) })) {
     return { error: "not_forwardable" as const };
   }
   if (source.senderId !== user.id && (await isBlockedEitherWay(user.id, source.senderId))) {

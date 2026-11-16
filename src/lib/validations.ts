@@ -19,6 +19,7 @@ import { EVENT_ANNOUNCEMENT_MAX_LENGTH } from "@/lib/circle-event-organizer";
 import { RSVP_STATUSES } from "@/lib/rsvp";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
+import { SHOPPING_LIST_ITEM_MAX, SHOPPING_LIST_MAX_ITEMS } from "@/lib/shopping-list";
 import {
   BIRTHDAY_AUDIENCE_VALUES,
   BIRTHDAY_EMOJIS,
@@ -687,6 +688,20 @@ export const messageSchema = z
     message: "A message needs text or a voice/video/photo attachment.",
     path: ["content"],
   });
+
+/**
+ * A new checklist message (sendMessage's `checklist` field, JSON): loose raw bounds here; the exact limits (title 40,
+ * item 80, 30 items, blank rows dropped) are applied by normalizeChecklistInput (src/lib/shopping-list.ts).
+ */
+export const checklistInputSchema = z.object({
+  title: z.string().max(400),
+  items: z.array(z.string().max(800)).min(1).max(SHOPPING_LIST_MAX_ITEMS),
+});
+
+/** Adding a row to, or rewriting a row of, a checklist (src/app/actions/checklists.ts). */
+export const checklistItemTextSchema = z.object({
+  text: z.string().trim().min(1).max(SHOPPING_LIST_ITEM_MAX),
+});
 
 /** forwardMessage: which message, and which of the caller's chats (at most FORWARD_MAX_RECIPIENTS). Never the text. */
 export const forwardMessageSchema = z.object({

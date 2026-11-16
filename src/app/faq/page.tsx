@@ -1434,6 +1434,26 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "send-shopping-list",
+        q: "Can I send a shopping list in a chat?",
+        a: (
+          <>
+            Yes. Tap the cart button under the chat&apos;s message box, give
+            the list a name if you like, and type one item per row (press
+            Enter for the next one); a list holds up to 30 items. Tap
+            &ldquo;Send list&rdquo; and it arrives as a shared checklist:
+            everyone in the chat, you included, can tick items off (and
+            untick them), add items, and change or remove them, and everyone
+            sees the changes as they happen. Items are checked against our
+            Community Guidelines like any message. In a secret chat the list
+            is sent as ordinary encrypted text instead, one line per item with
+            an empty box in front, and those boxes can&apos;t be ticked: we
+            can&apos;t read a secret chat, so we can&apos;t keep a shared list
+            for it. Shopping lists can&apos;t be forwarded.
+          </>
+        ),
+      },
+      {
         id: "send-photo-video-disappears-after",
         q: "Can I send a photo or video that disappears after it's viewed?",
         requiresViewOnce: true,

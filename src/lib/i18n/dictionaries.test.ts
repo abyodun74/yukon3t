@@ -159,6 +159,9 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,
     "messages.hidden.pin",
+    // "Item {number}": "item" is the Portuguese word too.
+    "messages.thread.composer.shoppingList.itemLabel",
+    "messages.thread.checklist.itemField",
     "ui.online",
     "ui.report.reasons.PHISHING",
     ...NAMES_KEPT,
