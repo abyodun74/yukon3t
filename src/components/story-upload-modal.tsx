@@ -137,7 +137,11 @@ function wrapCanvasText(ctx: CanvasRenderingContext2D, words: string[], maxWidth
  * font size steps down for a longer post so it still fits the fixed canvas
  * instead of overflowing or getting clipped.
  */
-async function renderTextStoryImage(text: string, colors: { bg: string; fg: string }): Promise<File> {
+async function renderTextStoryImage(
+  text: string,
+  colors: { bg: string; fg: string },
+  topAlign = false,
+): Promise<File> {
   const canvas = document.createElement("canvas");
   canvas.width = TEXT_STORY_SIZE.width;
   canvas.height = TEXT_STORY_SIZE.height;
@@ -168,7 +172,10 @@ async function renderTextStoryImage(text: string, colors: { bg: string; fg: stri
   }
   const lines = wrapCanvasText(ctx, words, maxWidth);
   // Very long text: keep the whole block inside the frame (with margin).
-  const maxBlockHeight = canvas.height * 0.86;
+  // An excerpt of a long story is top-aligned (below the viewer's header/progress bars) and must stay out of the
+  // bottom third, where the collapsed caption sits: top 13%, block at most 52% tall, so it ends by ~65%.
+  const topAlignedY = canvas.height * 0.13;
+  const maxBlockHeight = topAlign ? canvas.height * 0.52 : canvas.height * 0.86;
   while (fontSize > 28 && lines.length * fontSize * 1.3 > maxBlockHeight) {
     fontSize -= 4;
     setFont(fontSize);
@@ -176,7 +183,7 @@ async function renderTextStoryImage(text: string, colors: { bg: string; fg: stri
   }
 
   const lineHeight = fontSize * 13 / 10;
-  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+  const startY = topAlign ? topAlignedY + lineHeight / 2 : canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
   lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, startY + i * lineHeight));
 
   const blob: Blob = await new Promise((resolve, reject) => {
@@ -517,7 +524,7 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       // Long text: the image shows an excerpt (large, readable font) and the full text rides along as the caption,
       // which the viewer collapses behind "Show more".
       const needsCaption = textStoryNeedsCaption(trimmed);
-      const file = await renderTextStoryImage(needsCaption ? textStoryExcerpt(trimmed) : trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex]);
+      const file = await renderTextStoryImage(needsCaption ? textStoryExcerpt(trimmed) : trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex], needsCaption);
       const result = await uploadFileDirect(file, "story-image");
       if (!result.ok) {
         setError(byCode(t.stories.upload.errors, result.error));

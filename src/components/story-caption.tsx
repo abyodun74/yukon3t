@@ -30,7 +30,7 @@ export function StoryCaption({
         className={cn(
           "whitespace-pre-line break-words text-sm text-white [overflow-wrap:anywhere]",
           long && !expanded && "line-clamp-3",
-          expanded && "max-h-[40dvh] overflow-y-auto",
+          expanded && "max-h-[45dvh] overflow-y-auto rounded-lg bg-black/85 p-3",
         )}
       >
         {text}
