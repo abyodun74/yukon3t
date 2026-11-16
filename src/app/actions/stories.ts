@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { findDirectConversationId } from "@/lib/direct-conversation";
 import { getMembersHidingConversation } from "@/lib/hidden-chats";
 import { hiddenPush, pushText } from "@/lib/push-text";
 import { format, type Locale } from "@/lib/i18n/locales";
@@ -440,16 +441,14 @@ export async function replyToStory(storyId: string, formData: FormData) {
     return { error: "forbidden" as const };
   }
 
-  const conversation = await prisma.conversation.findFirst({
-    where: {
-      isGroup: false,
-      AND: [
-        { members: { some: { userId: user.id } } },
-        { members: { some: { userId: story.authorId } } },
-      ],
-    },
-    select: { id: true, isGroup: true, members: { select: { e2eeEnabledAt: true } } },
-  });
+  // The genuine 1:1 with the author (the shared helper), never a group chat the two share.
+  const directId = await findDirectConversationId(user.id, story.authorId);
+  const conversation = directId
+    ? await prisma.conversation.findUnique({
+        where: { id: directId },
+        select: { id: true, isGroup: true, members: { select: { e2eeEnabledAt: true } } },
+      })
+    : null;
   if (!conversation) {
     return { error: "not_connected" as const };
   }

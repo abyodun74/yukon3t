@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { findDirectConversationIds } from "@/lib/direct-conversation";
 
 export type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED" | null;
 
@@ -52,28 +53,12 @@ export async function getAuthorEngagementStatus(viewerId: string, authorIds: str
   }
 
   // For any author the viewer is already ACCEPTED-connected to, resolve the
-  // shared 2-person conversation so the Connect popover can link straight
-  // into the chat — same batched approach as /connections/page.tsx.
+  // 1:1 conversation so the Connect popover can link straight into the
+  // chat — the shared findDirectConversationIds, one query for all of them.
   const acceptedAuthorIds = distinctAuthorIds.filter(
     (id) => connectionByAuthorId.get(id)?.status === "ACCEPTED",
   );
-  const conversations = acceptedAuthorIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          isGroup: false,
-          AND: [
-            { members: { some: { userId: viewerId } } },
-            { members: { some: { userId: { in: acceptedAuthorIds } } } },
-          ],
-        },
-        include: { members: { select: { userId: true } } },
-      })
-    : [];
-  const conversationIdByAuthorId = new Map<string, string>();
-  for (const c of conversations) {
-    const other = c.members.find((m) => m.userId !== viewerId);
-    if (other) conversationIdByAuthorId.set(other.userId, c.id);
-  }
+  const conversationIdByAuthorId = await findDirectConversationIds(viewerId, acceptedAuthorIds);
 
   for (const authorId of distinctAuthorIds) {
     const connection = connectionByAuthorId.get(authorId);

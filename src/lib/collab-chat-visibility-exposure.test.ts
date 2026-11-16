@@ -53,10 +53,8 @@ const LIST_FILTER = /\bcollabChat(Visible|Hidden)Where\(/;
 
 // Conversation lists that deliberately don't take the filter, with the reason. Keyed by file, the count.
 const UNFILTERED_CONVERSATION_LISTS: Record<string, number> = {
-  // "The DM with each of these people" maps, `isGroup: false`: a collab chat is always a group, so never listed.
-  "app/actions/discover.ts": 1,
-  "app/actions/connections.ts": 1,
-  "lib/engagement-status.ts": 1,
+  // (The "DM with each of these people" maps all go through findDirectConversationIds, lib/direct-conversation.ts,
+  // which applies collabChatVisibleWhere; direct-conversation-lookup-guard.test.ts keeps them there.)
   // Site-admin views (/admin/groups, the moderation Duplicates tool): moderation, no member-facing shortcut.
   "app/admin/groups/page.tsx": 1,
   "lib/moderation-duplicates-data.ts": 2,
@@ -78,9 +76,7 @@ const UNCHECKED_CHAT_READS = new Set([
   "lib/content-moderation.ts#removeModeratedContent",
   "lib/report-target.ts#accusedUserIdOf",
   // 1:1 chats only (`isGroup: false`, or refuses a group before anything else): a collab chat is always a group.
-  "app/actions/connections.ts#respondToConnection",
   "app/actions/stories.ts#replyToStory",
-  "lib/direct-conversation.ts#findDirectConversationId",
   "lib/birthday-wish-server.ts#sendBirthdayWishAs",
   "app/actions/gifts.ts#chatPlaceRefusal",
   // Gift cards only ever go into a 1:1 (chatPlaceRefusal), so a gift's chat is never a collab chat.

@@ -15,6 +15,28 @@ import type { ConnectionStatus } from "@/lib/engagement-status";
  * connect" prompt inside the conversation itself (see ChatThread).
  */
 function MessageRequestButton({ targetId }: { targetId: string }) {
+  return (
+    <StartDirectMessageButton
+      targetId={targetId}
+      className="rounded-md border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+    />
+  );
+}
+
+/**
+ * "Message" for someone the caller has no 1:1 chat with yet (findDirectConversationIds found none: there may still be
+ * a group chat the two share, which is never what this opens). startDirectMessage reuses a 1:1 that appeared meanwhile,
+ * else starts one. Also used for accepted connections without a 1:1 (here and on /connections).
+ */
+export function StartDirectMessageButton({
+  targetId,
+  className,
+  label,
+}: {
+  targetId: string;
+  className: string;
+  label?: string;
+}) {
   const { t } = useFeedText();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -36,9 +58,9 @@ function MessageRequestButton({ targetId }: { targetId: string }) {
             router.push(`/messages/${result.conversationId}`);
           });
         }}
-        className="rounded-md border border-line px-3 py-2 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-50"
+        className={className}
       >
-        {t.people.message}
+        {label ?? t.people.message}
       </button>
       {error && <span role="alert" className="text-xs text-danger">{t.people.chatFailed}</span>}
     </div>
@@ -67,12 +89,19 @@ export function ConnectButton({
     return (
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-success">{t.people.connected}</span>
-        <Link
-          href={conversationId ? `/messages/${conversationId}` : "/messages"}
-          className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink"
-        >
-          {t.people.message}
-        </Link>
+        {conversationId ? (
+          <Link
+            href={`/messages/${conversationId}`}
+            className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink"
+          >
+            {t.people.message}
+          </Link>
+        ) : (
+          <StartDirectMessageButton
+            targetId={targetId}
+            className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-ink disabled:opacity-50"
+          />
+        )}
       </div>
     );
   }

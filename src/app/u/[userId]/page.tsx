@@ -32,6 +32,7 @@ import { GuestGatedScreen } from "@/components/guest-preview";
 import { ProfileBirthdayCard } from "@/components/profile-birthday-card";
 import { loadProfileBirthdayCard } from "@/lib/birthdays-data";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { findDirectConversationId } from "@/lib/direct-conversation";
 import { giftsEnabledFor } from "@/lib/gifts";
 import { loadProfileGifts } from "@/lib/gift-profile";
 import { GiftFrameOverlay } from "@/components/gift-art";
@@ -147,19 +148,8 @@ export default async function PublicProfilePage({
   };
 
   const [conversationId, { posts, postsHaveMore }, activeStories] = await Promise.all([
-    connection?.status === "ACCEPTED"
-      ? prisma.conversation
-          .findFirst({
-            where: {
-              AND: [
-                { members: { some: { userId: me.id } } },
-                { members: { some: { userId: user.id } } },
-              ],
-            },
-            select: { id: true },
-          })
-          .then((row) => row?.id ?? null)
-      : null,
+    // The Message button: the genuine 1:1 only, never a group chat the two share (findDirectConversationId).
+    connection?.status === "ACCEPTED" ? findDirectConversationId(me.id, user.id) : null,
     loadPosts(),
     canSeePosts
       ? prisma.story.findMany({

@@ -2,7 +2,7 @@
 
 import { requireVerifiedUser, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { collabChatVisibleWhere } from "@/lib/collab-visibility";
+import { findDirectConversationIds } from "@/lib/direct-conversation";
 import { intentTagValues } from "@/lib/validations";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getConnectedOrPendingIds } from "@/lib/connections";
@@ -206,23 +206,7 @@ export async function loadMoreDiscoverPeople(
   const acceptedOtherIds = connections
     .filter((c) => c.status === "ACCEPTED")
     .map((c) => (c.requesterId === me.id ? c.targetId : c.requesterId));
-  const conversations = acceptedOtherIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          AND: [
-            { members: { some: { userId: me.id } } },
-            { members: { some: { userId: { in: acceptedOtherIds } } } },
-            collabChatVisibleWhere(me.id),
-          ],
-        },
-        include: { members: { select: { userId: true } } },
-      })
-    : [];
-  const conversationIdByOtherId = new Map<string, string>();
-  for (const conv of conversations) {
-    const other = conv.members.find((m) => m.userId !== me.id);
-    if (other) conversationIdByOtherId.set(other.userId, conv.id);
-  }
+  const directConversations = await findDirectConversationIds(me.id, acceptedOtherIds);
 
   const items = people.map((person) => {
     const connection = connectionByOtherId.get(person.id);
@@ -230,7 +214,7 @@ export async function loadMoreDiscoverPeople(
       person,
       connectionStatus: connection?.status ?? null,
       isRequester: connection?.requesterId === me.id,
-      conversationId: conversationIdByOtherId.get(person.id) ?? null,
+      conversationId: directConversations.get(person.id) ?? null,
     };
   });
 
@@ -310,20 +294,7 @@ export async function searchDiscoverPeople(rawQuery: string, rawPage: number): P
   const connectedIds = peopleIds.filter(
     (id) => discoverSearchState(pickDiscoverSearchConnection(connectionsByOtherId.get(id) ?? []), me.id) === "connected",
   );
-  const conversations = connectedIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          isGroup: false,
-          AND: [{ members: { some: { userId: me.id } } }, { members: { some: { userId: { in: connectedIds } } } }],
-        },
-        select: { id: true, members: { select: { userId: true } } },
-      })
-    : [];
-  const conversationIdByOtherId = new Map<string, string>();
-  for (const conv of conversations) {
-    const other = conv.members.find((m) => m.userId !== me.id);
-    if (other) conversationIdByOtherId.set(other.userId, conv.id);
-  }
+  const directConversations = await findDirectConversationIds(me.id, connectedIds);
 
   const items = pagePeople.map((person): DiscoverSearchItem => {
     const connection = pickDiscoverSearchConnection(connectionsByOtherId.get(person.id) ?? []);
@@ -332,7 +303,7 @@ export async function searchDiscoverPeople(rawQuery: string, rawPage: number): P
       person,
       state,
       connectionId: state === "incoming" && connection ? connection.id : null,
-      conversationId: state === "connected" ? (conversationIdByOtherId.get(person.id) ?? null) : null,
+      conversationId: state === "connected" ? (directConversations.get(person.id) ?? null) : null,
     };
   });
 

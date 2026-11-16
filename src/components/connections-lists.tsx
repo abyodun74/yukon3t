@@ -5,6 +5,7 @@ import { ConnectionResponseButtons } from "@/components/connection-response-butt
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { CallButton } from "@/components/call-button";
+import { StartDirectMessageButton } from "@/components/connect-button";
 import type { IntentTag } from "@/lib/validation-constants";
 import { useFeedText } from "@/components/feed-text";
 import type { pagesEn } from "@/lib/i18n/en/pages";
@@ -176,13 +177,20 @@ export function ConnectedList({
             <span className="text-xs text-foreground-soft">{intents[c.intentTag]}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {c.conversationId && (
+            {c.conversationId ? (
               <Link
                 href={`/messages/${c.conversationId}`}
                 className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
               >
                 {labels.message}
               </Link>
+            ) : (
+              // No 1:1 yet (a group chat the two share doesn't count): starts one.
+              <StartDirectMessageButton
+                targetId={c.other.id}
+                label={labels.message}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-50"
+              />
             )}
             <CallButton
               calleeId={c.other.id}

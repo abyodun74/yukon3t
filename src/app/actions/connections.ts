@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { connectionRequestSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -12,7 +11,7 @@ import { pushActivityNotification } from "@/lib/notify-push";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { latestMessageAtByConversation } from "@/lib/latest-messages";
-import { findDirectConversationId, startDirectConversation } from "@/lib/direct-conversation";
+import { findDirectConversationId, findDirectConversationIds, startDirectConversation } from "@/lib/direct-conversation";
 import { isDemoContactRefused } from "@/lib/app-review-demo";
 
 // Matches /connections/page.tsx's own PAGE_SIZE (src/app/connections/page.tsx).
@@ -132,18 +131,9 @@ export async function respondToConnection(connectionId: string, accept: boolean)
     // re-requested and re-accepted) would otherwise leave its old DM
     // conversation orphaned and spawn a second one here — reuse it instead,
     // same find-before-create pattern as replyToStory in actions/stories.ts.
-    const existingConversation = await prisma.conversation.findFirst({
-      where: {
-        isGroup: false,
-        AND: [
-          { members: { some: { userId: updated.requesterId } } },
-          { members: { some: { userId: updated.targetId } } },
-        ],
-      },
-      select: { id: true },
-    });
+    const existingConversationId = await findDirectConversationId(updated.requesterId, updated.targetId);
     const conversation =
-      existingConversation ??
+      (existingConversationId ? { id: existingConversationId } : null) ??
       (await prisma.conversation.create({
         data: {
           members: {
@@ -308,20 +298,14 @@ async function getAcceptedConnectionIdsByActivity(userId: string): Promise<strin
   if (rows.length === 0) return [];
 
   const otherIds = rows.map((c) => (c.requesterId === userId ? c.targetId : c.requesterId));
-  const conversations = await prisma.conversation.findMany({
-    where: {
-      isGroup: false,
-      AND: [{ members: { some: { userId } } }, { members: { some: { userId: { in: otherIds } } } }],
-    },
-    select: { id: true, members: { select: { userId: true } } },
-  });
+  // The same 1:1 the row's Message button opens (findDirectConversationIds), so the order follows that thread.
+  const directConversations = await findDirectConversationIds(userId, otherIds);
   // One index probe per chat for its newest message (src/lib/latest-messages.ts), not every message of every chat.
-  const lastMessageAtById = await latestMessageAtByConversation(conversations.map((c) => c.id));
+  const lastMessageAtById = await latestMessageAtByConversation([...directConversations.values()]);
   const lastActivityByOtherId = new Map<string, Date>();
-  for (const conv of conversations) {
-    const other = conv.members.find((m) => m.userId !== userId);
-    const lastMessageAt = lastMessageAtById.get(conv.id);
-    if (other && lastMessageAt) lastActivityByOtherId.set(other.userId, lastMessageAt);
+  for (const [otherId, conversationId] of directConversations) {
+    const lastMessageAt = lastMessageAtById.get(conversationId);
+    if (lastMessageAt) lastActivityByOtherId.set(otherId, lastMessageAt);
   }
 
   return rows
@@ -347,23 +331,7 @@ async function getAcceptedConnectionsByIds(userId: string, orderedIds: string[])
   const byId = new Map(rows.map((c) => [c.id, c]));
 
   const otherIds = rows.map((c) => (c.requesterId === userId ? c.target.id : c.requester.id));
-  const myConversations = otherIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          AND: [
-            { members: { some: { userId } } },
-            { members: { some: { userId: { in: otherIds } } } },
-            collabChatVisibleWhere(userId),
-          ],
-        },
-        include: { members: { select: { userId: true } } },
-      })
-    : [];
-  const conversationIdByUserId = new Map<string, string>();
-  for (const c of myConversations) {
-    const other = c.members.find((m) => m.userId !== userId);
-    if (other) conversationIdByUserId.set(other.userId, c.id);
-  }
+  const directConversations = await findDirectConversationIds(userId, otherIds);
 
   return orderedIds
     .map((id) => byId.get(id))
@@ -374,7 +342,7 @@ async function getAcceptedConnectionsByIds(userId: string, orderedIds: string[])
         id: c.id,
         other,
         intentTag: c.intentTag,
-        conversationId: conversationIdByUserId.get(other.id) ?? null,
+        conversationId: directConversations.get(other.id) ?? null,
       };
     });
 }

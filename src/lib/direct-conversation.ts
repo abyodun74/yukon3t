@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import type { IntentTag } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { collabChatVisibleWhere } from "@/lib/collab-visibility";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import { track } from "@/lib/analytics";
 
@@ -9,16 +10,66 @@ import { track } from "@/lib/analytics";
 // lib file, not a "use server" one: it trusts its arguments, so the caller has already checked the target (ACTIVE, not
 // an admin or the guest identity, no block either way) and applied its rate limits.
 
-/** The existing 1:1 chat between the two, whatever their connection status. */
-export async function findDirectConversationId(userId: string, otherId: string): Promise<string | null> {
-  const existing = await prisma.conversation.findFirst({
+/**
+ * "The DM with each of these people": the ONLY place that maps a person to their 1:1 chat with `viewerId` (Discover,
+ * People you may know, Discover search, Connections, the profile's Message button, the Connect popover, story replies,
+ * message requests, birthday wishes). `direct-conversation-lookup-guard.test.ts` fails if anything else builds such a
+ * map or queries a member pair.
+ *
+ * A chat counts only when it is a genuine 1:1: `isGroup: false` AND its members are exactly the viewer and that one
+ * person. A group chat (an ordinary group or a collab's chat, which is always a group) the two happen to share is never
+ * returned, even when it is the only chat they share: the person then has no DM and the Message button starts one. A
+ * secret (E2EE) 1:1 is still a 1:1 and is returned. `collabChatVisibleWhere` is applied in the query too (a no-op for
+ * a 1:1, kept so this list obeys the collab-chat rule like every other conversation list). Hidden (PIN) chats are not
+ * filtered here, as before: the lists that must leave out a hidden peer (Connections) drop the peer itself, and the
+ * thread page sends a locked viewer to the PIN prompt.
+ *
+ * Duplicates: two 1:1 rows for one pair can exist (callers find-then-create without a lock, so two racing requests can
+ * each create one; the moderation Duplicates tool lists them). The oldest (createdAt, then id) always wins, so every
+ * surface opens the same thread.
+ *
+ * One query for any number of people (no N+1). Returns otherId -> conversationId for those that have a 1:1.
+ */
+export async function findDirectConversationIds(viewerId: string, otherIds: readonly string[]): Promise<Map<string, string>> {
+  const others = [...new Set(otherIds)].filter((id) => id && id !== viewerId);
+  const result = new Map<string, string>();
+  if (others.length === 0) return result;
+
+  const rows = await prisma.conversation.findMany({
     where: {
       isGroup: false,
-      AND: [{ members: { some: { userId } } }, { members: { some: { userId: otherId } } }],
+      AND: [
+        { members: { some: { userId: viewerId } } },
+        { members: { some: { userId: { in: others } } } },
+        { members: { every: { userId: { in: [viewerId, ...others] } } } },
+        collabChatVisibleWhere(viewerId),
+      ],
     },
-    select: { id: true },
+    select: { id: true, members: { select: { userId: true } } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  return existing?.id ?? null;
+
+  const wanted = new Set(others);
+  for (const row of rows) {
+    const otherId = directPeerOf(viewerId, row.members);
+    if (otherId && wanted.has(otherId) && !result.has(otherId)) result.set(otherId, row.id);
+  }
+  return result;
+}
+
+/** The one other member of a two-person chat that includes `viewerId`, or null for anything else. */
+function directPeerOf(viewerId: string, members: { userId: string }[]): string | null {
+  if (members.length !== 2) return null;
+  const [a, b] = members;
+  if (a.userId === b.userId) return null;
+  if (a.userId === viewerId) return b.userId;
+  if (b.userId === viewerId) return a.userId;
+  return null;
+}
+
+/** The existing 1:1 chat between the two, whatever their connection status (findDirectConversationIds for one person). */
+export async function findDirectConversationId(userId: string, otherId: string): Promise<string | null> {
+  return (await findDirectConversationIds(userId, [otherId])).get(otherId) ?? null;
 }
 
 /**

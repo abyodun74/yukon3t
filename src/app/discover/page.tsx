@@ -1,7 +1,7 @@
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { BackButton } from "@/components/back-button";
 import { prisma } from "@/lib/prisma";
-import { collabChatVisibleWhere } from "@/lib/collab-visibility";
+import { findDirectConversationIds } from "@/lib/direct-conversation";
 import { DiscoverPeopleList } from "@/components/discover-people-list";
 import { DiscoverPeopleSearch } from "@/components/discover-people-search";
 import { PeopleYouMayKnow } from "@/components/people-you-may-know";
@@ -61,23 +61,7 @@ export default async function DiscoverPage({
   const mayKnowAcceptedOtherIds = mayKnowConnections
     .filter((c) => c.status === "ACCEPTED")
     .map((c) => (c.requesterId === me.id ? c.targetId : c.requesterId));
-  const mayKnowConversations = mayKnowAcceptedOtherIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          AND: [
-            { members: { some: { userId: me.id } } },
-            { members: { some: { userId: { in: mayKnowAcceptedOtherIds } } } },
-            collabChatVisibleWhere(me.id),
-          ],
-        },
-        include: { members: { select: { userId: true } } },
-      })
-    : [];
-  const mayKnowConversationIdByOtherId = new Map<string, string>();
-  for (const conv of mayKnowConversations) {
-    const other = conv.members.find((m) => m.userId !== me.id);
-    if (other) mayKnowConversationIdByOtherId.set(other.userId, conv.id);
-  }
+  const mayKnowDirectConversations = await findDirectConversationIds(me.id, mayKnowAcceptedOtherIds);
   const mayKnowItems = mayKnow.map(({ person, mutualCount }) => {
     const connection = mayKnowConnectionByOtherId.get(person.id);
     return {
@@ -85,7 +69,7 @@ export default async function DiscoverPage({
       mutualCount,
       connectionStatus: connection?.status ?? null,
       isRequester: connection?.requesterId === me.id,
-      conversationId: mayKnowConversationIdByOtherId.get(person.id) ?? null,
+      conversationId: mayKnowDirectConversations.get(person.id) ?? null,
     };
   });
 
@@ -150,23 +134,7 @@ export default async function DiscoverPage({
   const acceptedOtherIds = connections
     .filter((c) => c.status === "ACCEPTED")
     .map((c) => (c.requesterId === me.id ? c.targetId : c.requesterId));
-  const conversations = acceptedOtherIds.length
-    ? await prisma.conversation.findMany({
-        where: {
-          AND: [
-            { members: { some: { userId: me.id } } },
-            { members: { some: { userId: { in: acceptedOtherIds } } } },
-            collabChatVisibleWhere(me.id),
-          ],
-        },
-        include: { members: { select: { userId: true } } },
-      })
-    : [];
-  const conversationIdByOtherId = new Map<string, string>();
-  for (const conv of conversations) {
-    const other = conv.members.find((m) => m.userId !== me.id);
-    if (other) conversationIdByOtherId.set(other.userId, conv.id);
-  }
+  const directConversations = await findDirectConversationIds(me.id, acceptedOtherIds);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -236,7 +204,7 @@ export default async function DiscoverPage({
               person,
               connectionStatus: connection?.status ?? null,
               isRequester: connection?.requesterId === me.id,
-              conversationId: conversationIdByOtherId.get(person.id) ?? null,
+              conversationId: directConversations.get(person.id) ?? null,
             };
           })}
           initialHasMore={hasMore}

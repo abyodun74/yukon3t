@@ -263,6 +263,13 @@ describe("searchDiscoverPeople: connection state", () => {
     expect(byId.get("cd")).toMatchObject({ state: "none", connectionId: null });
   });
 
+  it("a connected person who only shares a group chat with the viewer has no conversationId (never the group)", async () => {
+    users = [person("cg")];
+    connections = [{ id: "k1", status: "ACCEPTED", requesterId: ME, targetId: "cg" }];
+    conversations = [{ id: "grp", isGroup: true, members: [{ userId: ME }, { userId: "cg" }] }];
+    expect((await searchDiscoverPeople("ada", 1)).items[0]).toMatchObject({ state: "connected", conversationId: null });
+  });
+
   it("an accepted row wins over an older declined one in the other direction", async () => {
     users = [person("c1")];
     connections = [
