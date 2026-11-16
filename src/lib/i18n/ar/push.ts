@@ -30,7 +30,7 @@ export const push: typeof pushEn = {
     POST_LIKE: "إعجاب بمنشورك",
     POST_COMMENT: "تعليق على منشورك",
     COMMENT_REPLY: "رد على تعليقك",
-    MUSE_LIKE: "تفاعل مع مقطع Muse الخاص بك",
+    MUSE_LIKE: "إعجاب بمقطع Muse الخاص بك",
     MUSE_COMMENT: "تعليق على مقطع Muse الخاص بك",
     MUSE_REPOST: "إعادة نشر لمقطع Muse الخاص بك",
     MUSE_SHARE: "مشاركة لمقطع Muse الخاص بك",

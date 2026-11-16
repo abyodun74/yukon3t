@@ -66,7 +66,7 @@ export const pages: typeof pagesEn = {
       CONNECTION_POST: "{name} compartilhou uma nova publicação",
       POST_LIKE: "{name} curtiu sua publicação",
       POST_COMMENT: "{name} comentou na sua publicação",
-      MUSE_LIKE: "{name} reagiu ao seu Muse",
+      MUSE_LIKE: "{name} curtiu seu Muse",
       MUSE_COMMENT: "{name} comentou no seu Muse",
       MUSE_REPOST: "{name} recompartilhou seu Muse",
       MUSE_SHARE: "{name} compartilhou seu Muse",

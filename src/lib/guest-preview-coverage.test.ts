@@ -30,7 +30,7 @@ const GUEST_READ_ALLOWED: Record<string, readonly string[]> = {
     "getLiveStreamComments",
     "getMyLiveStreamStatus",
   ],
-  "muse.ts": ["getMuseFeed", "getMuseById", "getMuseForPost", "getMuseReactionSummary"],
+  "muse.ts": ["getMuseFeed", "getMuseById", "getMuseForPost"],
   "muse-comments.ts": ["getMuseComments", "getMuseCommentReplies", "getMuseCommentThread"],
   "polls.ts": ["loadPolls"],
   "posts.ts": ["loadMoreProfilePosts"],

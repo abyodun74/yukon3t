@@ -1,6 +1,7 @@
 import { FeedLayout } from "@/components/feed-layout";
 import { MuseTextProvider } from "@/components/muse-text";
 import { MuseCommentsTextProvider } from "@/components/muse-comments-text";
+import { MuseControlsTextProvider } from "@/components/muse-controls-text";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 // Home shows posts (the feed's wording) and opens a short video in the Muse viewer (Muse's).
@@ -11,7 +12,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <FeedLayout>
       <MuseTextProvider locale={locale} text={t.muse}>
         <MuseCommentsTextProvider locale={locale} text={t.museComments}>
-          {children}
+          <MuseControlsTextProvider locale={locale} text={t.museControls}>
+            {children}
+          </MuseControlsTextProvider>
         </MuseCommentsTextProvider>
       </MuseTextProvider>
     </FeedLayout>

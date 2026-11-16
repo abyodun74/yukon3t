@@ -19,6 +19,12 @@ import { format } from "@/lib/i18n/locales";
 
 type NavText = typeof shellEn.nav;
 
+/**
+ * A touch that starts inside one of these never switches tabs: a modal (aria-modal, see the swipe listener below) or a
+ * control with its own horizontal drag that marks itself `data-no-tab-swipe` (the Muse card's length bar on /muse).
+ */
+const NO_TAB_SWIPE_SELECTOR = '[aria-modal="true"], [data-no-tab-swipe]';
+
 function navLinks(userId: string, t: NavText) {
   return [
     { href: "/home", label: t.home },
@@ -171,7 +177,7 @@ export function Nav({ session, theme }: { session: Session | null; theme: Theme 
       // standard aria-modal="true" dialog pattern, so checking for that
       // ancestor covers all of them without each one needing its own
       // opt-out.
-      startedInModal = e.target instanceof Element ? Boolean(e.target.closest('[aria-modal="true"]')) : false;
+      startedInModal = e.target instanceof Element ? Boolean(e.target.closest(NO_TAB_SWIPE_SELECTOR)) : false;
     }
 
     function onTouchEnd(e: TouchEvent) {

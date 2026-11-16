@@ -20,6 +20,7 @@ import { liveEn } from "@/lib/i18n/en/live";
 import { messagesEn } from "@/lib/i18n/en/messages";
 import { museEn } from "@/lib/i18n/en/muse";
 import { museCommentsEn } from "@/lib/i18n/en/museComments";
+import { museControlsEn } from "@/lib/i18n/en/museControls";
 import { pagesEn } from "@/lib/i18n/en/pages";
 import { profileEn } from "@/lib/i18n/en/profile";
 import { pushEn } from "@/lib/i18n/en/push";
@@ -49,6 +50,7 @@ export {
   messagesEn,
   museEn,
   museCommentsEn,
+  museControlsEn,
   pagesEn,
   profileEn,
   pushEn,
@@ -76,6 +78,7 @@ export const en = {
   collab: collabEn,
   muse: museEn,
   museComments: museCommentsEn,
+  museControls: museControlsEn,
   live: liveEn,
   calls: callsEn,
   vocab: vocabEn,

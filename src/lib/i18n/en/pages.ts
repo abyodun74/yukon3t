@@ -70,7 +70,7 @@ export const pagesEn = {
       CONNECTION_POST: "{name} shared a new post",
       POST_LIKE: "{name} liked your post",
       POST_COMMENT: "{name} commented on your post",
-      MUSE_LIKE: "{name} reacted to your Muse",
+      MUSE_LIKE: "{name} liked your Muse",
       MUSE_COMMENT: "{name} commented on your Muse",
       MUSE_REPOST: "{name} reshared your Muse",
       MUSE_SHARE: "{name} shared your Muse",

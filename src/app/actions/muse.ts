@@ -25,7 +25,6 @@ import { notifySubscribers } from "@/lib/notify-subscribers";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
-import type { ReactionSummary } from "@/lib/reactions";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
 import {
@@ -414,39 +413,13 @@ export async function deleteMuse(id: string) {
 }
 
 /**
- * Toggles the caller's emoji reaction on a Muse: picking the emoji they
- * already reacted with removes it, picking a different one replaces it —
- * same one-active-reaction-per-user shape as togglePostReaction/
- * toggleStoryReaction. Muse.likeCount is a denormalized *total* reaction
- * count (unaffected by an emoji swap, only by add/remove) so the feed list
- * can show a cheap per-item count without a groupBy per item; the full
- * per-emoji breakdown (for ReactionBar) is computed here via groupBy, same
- * scalable pattern as togglePostReaction.
+ * Toggles the caller's like on a Muse. A Muse's like is a MuseReaction row (one per person); the Muse viewer's heart
+ * sends the heart emoji to like and the person's current emoji to unlike (src/lib/muse-controls.ts likeToggleEmoji),
+ * so sending the emoji they already reacted with removes it. Rows from before the heart-only button (any other emoji)
+ * still count as likes and are never converted; a different emoji replaces the old one without changing the count or
+ * notifying again. Muse.likeCount is the denormalized total (for a like group, the group's distinct likers). Answers
+ * the caller's liked state and the count to show.
  */
-async function museReactionSummary(museId: string, viewerId: string): Promise<ReactionSummary[]> {
-  const counts = await prisma.museReaction.groupBy({
-    by: ["emoji"],
-    where: { museId },
-    _count: { emoji: true },
-  });
-  const mine = await prisma.museReaction.findUnique({
-    where: { museId_userId: { museId, userId: viewerId } },
-    select: { emoji: true },
-  });
-  return counts.map((c) => ({
-    emoji: c.emoji,
-    count: c._count.emoji,
-    reactedByMe: c.emoji === mine?.emoji,
-  }));
-}
-
-/** The full per-emoji breakdown for one Muse — fetched lazily, only for whichever item is currently on-screen in the feed (see MuseFeed), not for every item in a fetched page. */
-export async function getMuseReactionSummary(museId: string) {
-  const user = await requireVerifiedViewer();
-  const reactions = await museReactionSummary(museId, user.id);
-  return { error: null, reactions };
-}
-
 export async function toggleMuseReaction(museId: string, emoji: string) {
   const user = await requireVerifiedUser();
 
@@ -465,6 +438,7 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
   // A reaction of any emoji is this Muse's "like" (likeCount). Switching emoji keeps the like; only a new one notifies.
   let likeCount: number;
   let newLiker: boolean;
+  let liked: boolean;
   if (muse.likeGroupId) {
     // The author's own copy of the same video on Home (their reshare post, or their post it was made from): one like
     // for the whole same-author group (src/lib/like-groups.ts). Other people's copies are never in it.
@@ -473,7 +447,7 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
       getVisiblePostsWhere(user.id),
       getBlockedEitherWayIds(user.id),
     ]);
-    ({ likeCount, newLiker } = await prisma.$transaction(async (tx) => {
+    ({ likeCount, newLiker, liked } = await prisma.$transaction(async (tx) => {
       await lockLikeGroup(tx, groupId);
       const existing = await tx.museReaction.findUnique({
         where: { museId_userId: { museId, userId: user.id } },
@@ -481,16 +455,16 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
       });
       if (existing?.emoji === emoji) {
         await unlikeGroup(tx, groupId, user.id);
-        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false };
+        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false, liked: false };
       }
       if (existing) {
         await tx.museReaction.update({ where: { id: existing.id }, data: { emoji } });
-        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false };
+        return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: false, liked: true };
       }
       const wasLiker = await isGroupLiker(tx, groupId, user.id);
       await tx.museReaction.create({ data: { museId, userId: user.id, emoji } });
       await likeVisibleMembers(tx, { groupId, userId: user.id, visiblePostsWhere, blockedIds });
-      return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: !wasLiker };
+      return { likeCount: await recomputeLikeGroup(tx, groupId), newLiker: !wasLiker, liked: true };
     }));
     revalidatePath("/home");
   } else {
@@ -498,6 +472,7 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
       where: { museId_userId: { museId, userId: user.id } },
     });
     newLiker = !existing;
+    liked = existing?.emoji !== emoji;
     if (existing?.emoji === emoji) {
       const [, updated] = await prisma.$transaction([
         prisma.museReaction.delete({ where: { id: existing.id } }),
@@ -523,10 +498,8 @@ export async function toggleMuseReaction(museId: string, emoji: string) {
     await pushActivityNotification(muse.authorId, "MUSE_LIKE", user.name, `/muse/${museId}`);
   }
 
-  const reactions = await museReactionSummary(museId, user.id);
-
   revalidatePath("/muse");
-  return { error: null, reactions, likeCount };
+  return { error: null, liked, likeCount };
 }
 
 // A Muse's comments and replies: actions/muse-comments.ts.

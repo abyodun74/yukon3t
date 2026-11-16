@@ -1157,7 +1157,7 @@ const sections: Section[] = [
         q: "Can I share, reshare, or follow on Muse?",
         a: (
           <>
-            Yes, all three sit alongside the comment and reaction buttons on
+            Yes, all three sit alongside the comment and like buttons on
             each Muse. The share icon opens a sheet: share it to your{" "}
             <strong>Home</strong>, add it to your <strong>Story</strong>{" "}
             (for Muses up to 2 minutes), send it to a friend or group, use
@@ -1168,7 +1168,7 @@ const sections: Section[] = [
             creator, notifies them, and tapping it again takes it back off.
             &ldquo;Subscribe&rdquo; next to the creator&apos;s name follows
             them so you hear about their future posts. None of these require
-            being connected to the creator first, same as reacting or
+            being connected to the creator first, same as liking or
             commenting.
           </>
         ),
@@ -1202,8 +1202,9 @@ const sections: Section[] = [
             removes your like from both. A copy someone else makes (their
             reshare of your Muse, or their Muse made from your post) has its
             own count: likes on it stay on it, and likes on yours stay on
-            yours. On a Muse, any emoji reaction counts as a like, and
-            changing your emoji doesn&apos;t change the count. The owner is
+            yours. A Muse has a heart Like button; an emoji reaction you left
+            on a Muse before that still counts as your like (the heart shows
+            filled), and tapping the heart removes it. The owner is
             notified only the first time you like either of their two copies.
             Ordinary reposts of a post already count their likes on the
             original post.
@@ -1237,11 +1238,28 @@ const sections: Section[] = [
       },
       {
         id: "react-comment-muse",
-        q: "Can I react or comment on a Muse?",
+        q: "Can I like or comment on a Muse?",
         a: (
           <>
-            Yes — the same quick-reaction row as posts and Stories (tap the +
-            at the end of it for every emoji), plus a public comment thread.
+            Yes. Tap the heart on the right to like a Muse (it turns red; tap
+            it again to unlike), and the number under it is how many people
+            liked it. An emoji reaction you left on a Muse before the heart
+            arrived still counts as your like. Emoji and GIFs live in the
+            comments: the comment box has a quick-emoji row, a full emoji
+            picker and a GIF search.
+            <br />
+            <br />
+            Hold your finger on a Muse video to pause it while you hold, or
+            tap it to pause: a bar along the bottom then shows how far along
+            the video is and its full length (for example 0:12 / 0:45). Drag
+            along the bar to jump to another moment; the video carries on
+            from there if it was playing. With a keyboard, the bar can be
+            focused and moved with the arrow keys (5 seconds at a time). The
+            bar isn&apos;t shown for videos embedded from another site
+            (YouTube, TikTok and similar), whose own player has its own
+            controls.
+            <br />
+            <br />
             Tap the comment icon: the video keeps playing in a small rounded
             card at the top while the comments fill the lower part of the
             screen. Tap the video, drag the handle at the top of the comments

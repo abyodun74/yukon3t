@@ -16,6 +16,7 @@ import { live } from "@/lib/i18n/ar/live";
 import { messages } from "@/lib/i18n/ar/messages";
 import { muse } from "@/lib/i18n/ar/muse";
 import { museComments } from "@/lib/i18n/ar/museComments";
+import { museControls } from "@/lib/i18n/ar/museControls";
 import { pages } from "@/lib/i18n/ar/pages";
 import { profile } from "@/lib/i18n/ar/profile";
 import { push } from "@/lib/i18n/ar/push";
@@ -43,6 +44,7 @@ export const ar: Dictionary = {
   collab,
   muse,
   museComments,
+  museControls,
   live,
   calls,
   vocab,

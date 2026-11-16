@@ -1,16 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useReducedMotion } from "motion/react";
 // The small `m` components: animation code is loaded lazily by MotionProvider (root layout).
 import * as m from "motion/react-m";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye, Pause, Play } from "lucide-react";
+import { X, MessageCircle, Volume2, VolumeX, Share2, Repeat2, Trash2, Eye, Pause, Play, Heart } from "lucide-react";
 import {
   getMuseFeed,
   getMuseForPost,
-  getMuseReactionSummary,
   toggleMuseReaction,
   deleteMuse,
   toggleMuseRepost,
@@ -19,17 +18,15 @@ import {
 import { MuseShareModal } from "@/components/muse-share-modal";
 import { MuseCommentsSheet } from "@/components/muse-comments-sheet";
 import { UserLink } from "@/components/user-link";
-import { EmojiPickerButton } from "@/components/emoji-picker-button";
-import { ReactionBar } from "@/components/reaction-bar";
 import { SubscribeButton } from "@/components/subscribe-button";
-import { QUICK_REACTIONS } from "@/lib/emoji";
+import { MuseProgressBar } from "@/components/muse-progress-bar";
+import { useMuseControlsText } from "@/components/muse-controls-text";
 import { cn } from "@/lib/utils";
-import type { ReactionSummary } from "@/lib/reactions";
 import { embedSrc, type EmbedProvider } from "@/lib/video-embed";
 import { useStopEmbedOnScrollOut } from "@/lib/use-stop-embed-on-scroll-out";
 import { useMuseText } from "@/components/muse-text";
 import { useGuestPreview } from "@/components/guest-preview";
-import { useShellText, useUiText } from "@/components/ui-text";
+import { useShellText } from "@/components/ui-text";
 import { useNetworkQuality } from "@/lib/network-quality-client";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
@@ -42,6 +39,18 @@ import {
   museCommentsFrame,
   type MuseCommentsFrame,
 } from "@/lib/muse-comments-layout";
+import {
+  INITIAL_PROGRESS_BAR_STATE,
+  MUSE_HOLD_MS,
+  PROGRESS_BAR_LINGER_MS,
+  holdCancelledByMove,
+  MUSE_LIKE_EMOJI,
+  likeToggleEmoji,
+  optimisticLike,
+  progressBarReducer,
+  settleLike,
+  shouldVideoPlay,
+} from "@/lib/muse-controls";
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -80,11 +89,12 @@ type MuseItem = {
   sharedPostId: string | null;
   /** Set when this Muse shares one like count with its author's own feed copy of the video (src/lib/like-groups.ts). */
   likeGroupId?: string | null;
-  /** Client only: bumped when another card of the group changed the like, so this card re-reads its emoji summary. */
-  likeSyncVersion?: number;
   // Only on the card a Home feed video opened the viewer on (museSeedItem): that post, not a Muse.
   seedPostId?: string;
 };
+
+/** Where a press is a control's, never the card's hold-to-pause. */
+const MUSE_HOLD_EXCLUDED = "button, a, input, textarea, select, iframe, [role='slider'], [data-muse-progress]";
 
 /** "1,204 views": the plural form for `count`, with the number grouped the reader's way. */
 function countLabel(locale: Locale, forms: string, count: number) {
@@ -234,31 +244,43 @@ export function MuseFeed({
     return () => observer.disconnect();
   }, [loadMore]);
 
-  async function toggleReaction(museId: string, emoji: string) {
+  // A tap on the heart while that Muse's previous tap is still on its way is ignored, so two quick taps can't race.
+  const likePendingRef = useRef(new Set<string>());
+
+  /**
+   * The heart: like (adds the heart reaction) or unlike (removes whatever reaction the viewer has: any emoji counts as
+   * their like, src/lib/like-groups.ts). Shown at once, then set to the server's answer: its liked state and its count
+   * (a like group's count for a Muse that shares one with its author's feed copy), or put back as it was on failure.
+   */
+  async function toggleLike(museId: string) {
     if (isGuest) {
       promptSignUp();
-      return undefined;
+      return;
     }
-    const result = await toggleMuseReaction(museId, emoji);
-    if (result.reactions) {
-      // The server's count: for a Muse sharing its likes with its author's own feed copy (likeGroupId) it is the
-      // group's, not this Muse's own reaction total.
-      const likeCount = result.likeCount;
-      const myReaction = result.reactions.find((r) => r.reactedByMe)?.emoji ?? null;
-      const liked = myReaction !== null;
-      const likeGroupId = items.find((it) => it.id === museId)?.likeGroupId ?? null;
-      setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, likeCount, myReaction } : it)));
-      if (likeGroupId) {
-        const change = { likeGroupId, liked, likeCount };
-        applyGroupLike(change, museId);
-        // A card of the same group (the author's own feed copy, on Home under this viewer) takes the same answer.
-        announceLikeGroup({ ...change, source: likeSyncSource });
-      }
+    const current = items.find((it) => it.id === museId);
+    if (!current || likePendingRef.current.has(museId)) return;
+    likePendingRef.current.add(museId);
+    const before = { myReaction: current.myReaction, likeCount: current.likeCount };
+    setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, ...optimisticLike(before) } : it)));
+    let result: Awaited<ReturnType<typeof toggleMuseReaction>> | { error: "failed" };
+    try {
+      result = await toggleMuseReaction(museId, likeToggleEmoji(before.myReaction));
+    } catch {
+      result = { error: "failed" };
+    } finally {
+      likePendingRef.current.delete(museId);
     }
-    return result.reactions;
+    const settled = settleLike(before, result);
+    setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, ...settled } : it)));
+    if (result.error === null && current.likeGroupId) {
+      const change = { likeGroupId: current.likeGroupId, liked: settled.myReaction !== null, likeCount: settled.likeCount };
+      applyGroupLike(change, museId);
+      // A card of the same group (the author's own feed copy, on Home under this viewer) takes the same answer.
+      announceLikeGroup({ ...change, source: likeSyncSource });
+    }
   }
 
-  /** Another card of the group changed the like: same count everywhere, and the cards re-read their emoji summary. */
+  /** Another card of the group changed the like: same count and liked state everywhere. */
   function applyGroupLike(change: { likeGroupId: string; liked: boolean; likeCount: number }, exceptId: string | null) {
     setItems((prev) =>
       prev.map((it) =>
@@ -266,8 +288,7 @@ export function MuseFeed({
           ? {
               ...it,
               likeCount: change.likeCount,
-              myReaction: change.liked ? (it.myReaction ?? "❤️") : null,
-              likeSyncVersion: (it.likeSyncVersion ?? 0) + 1,
+              myReaction: change.liked ? (it.myReaction ?? MUSE_LIKE_EMOJI) : null,
             }
           : it,
       ),
@@ -504,7 +525,7 @@ export function MuseFeed({
             consumeUnblockTap={consumeUnblockTap}
             currentUserId={currentUserId}
             onToggleMute={() => setMuted((m) => !m)}
-            onToggleReaction={(emoji) => toggleReaction(item.id, emoji)}
+            onToggleLike={() => toggleLike(item.id)}
             onOpenComments={() => openComments(item.id)}
             onDelete={() => removeMuse(item.id)}
             onToggleRepost={() => toggleRepost(item.id)}
@@ -601,7 +622,7 @@ function MuseCard({
   consumeUnblockTap,
   currentUserId,
   onToggleMute,
-  onToggleReaction,
+  onToggleLike,
   onOpenComments,
   onDelete,
   onToggleRepost,
@@ -625,7 +646,7 @@ function MuseCard({
   consumeUnblockTap: () => boolean;
   currentUserId: string;
   onToggleMute: () => void;
-  onToggleReaction: (emoji: string) => Promise<ReactionSummary[] | undefined>;
+  onToggleLike: () => void;
   onOpenComments: () => void;
   onDelete: () => void;
   onToggleRepost: () => void;
@@ -634,8 +655,8 @@ function MuseCard({
 }) {
   const { locale, t: muse } = useMuseText();
   const t = muse.feed;
-  const { t: ui } = useUiText();
   const { t: shell } = useShellText();
+  const { t: controls } = useMuseControlsText();
   const [paused, setPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   // Wider than isVisible on purpose — isVisible means "this is the active,
@@ -655,11 +676,15 @@ function MuseCard({
   // until they become the active card — the active one keeps all the
   // bandwidth there is.
   const lowData = useNetworkQuality() === "slow";
-  const [reactions, setReactions] = useState<ReactionSummary[]>([]);
+  // What keeps the length / progress bar up (hold, pause, a drag, keyboard focus) and its short linger afterwards:
+  // src/lib/muse-controls.ts. `holding` and `scrubbing` also hold the video still.
+  const [bar, dispatchBar] = useReducer(progressBarReducer, INITIAL_PROGRESS_BAR_STATE);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // will-change only while the frame is actually moving, so the video layer isn't kept promoted the rest of the time.
   const [frameMoving, setFrameMoving] = useState(false);
   const isOwner = item.author.id === currentUserId;
+  // Any reaction the viewer has counts as their like (an old emoji one too).
+  const liked = item.myReaction !== null;
   // The feed post the viewer opened on (not a Muse): only its video, author and caption are shown.
   const isSeedPost = Boolean(item.seedPostId);
 
@@ -677,25 +702,6 @@ function MuseCard({
       ? embedSrc({ provider: item.embedProvider, id: item.embedId })
       : "";
   const embedRef = useStopEmbedOnScrollOut<HTMLIFrameElement>(embedIframeSrc);
-
-  // Fetches this card's full per-emoji breakdown once, on mount — the feed
-  // list itself only carries likeCount (a cheap denormalized total) and
-  // myReaction, not every item's full breakdown, since that would mean a
-  // groupBy per item on every page load. With real scrolling, every loaded
-  // card is simultaneously mounted (not just one "current" item), so this
-  // now fires once per page of items rather than once per swipe — the same
-  // tradeoff Home's own post feed already makes for its reaction data.
-  useEffect(() => {
-    if (isSeedPost) return;
-    let cancelled = false;
-    getMuseReactionSummary(item.id).then((result) => {
-      if (!cancelled) setReactions(result.reactions);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // likeSyncVersion: the like changed on another card of the same video (like-group-sync.ts).
-  }, [item.id, isSeedPost, item.likeSyncVersion]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -746,7 +752,7 @@ function MuseCard({
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    const shouldPlay = isVisible && !paused;
+    const shouldPlay = shouldVideoPlay({ isVisible, paused, holding: bar.holding, scrubbing: bar.scrubbing });
 
     // Plays with sound. If the browser refuses (no user gesture yet), plays muted instead and tells the feed, which
     // shows "Tap for sound" — never a silent failure, never a card that just sits there.
@@ -771,14 +777,57 @@ function MuseCard({
     }
     // item.audioUrl: a separate audio track can appear when the opening card turns into its Muse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, paused, item.audioUrl]);
-
-  async function handleToggleReaction(emoji: string) {
-    const next = await onToggleReaction(emoji);
-    if (next) setReactions(next);
-  }
+  }, [isVisible, paused, bar.holding, bar.scrubbing, item.audioUrl]);
 
   const isEmbed = item.mediaType === "EMBED";
+
+  // Paused (the tap, or the Pause button): the bar shows; playing again: it fades out after a moment.
+  useEffect(() => {
+    dispatchBar({ type: paused ? "pause" : "play" });
+  }, [paused]);
+  useEffect(() => {
+    if (!bar.lingering) return;
+    const timer = window.setTimeout(() => dispatchBar({ type: "linger_done" }), PROGRESS_BAR_LINGER_MS);
+    return () => window.clearTimeout(timer);
+  }, [bar.lingering]);
+
+  // Press and hold on the video: paused while held, with the length bar up; letting go plays on. A press that moves
+  // (a scroll to the next Muse) or that the browser takes over (pointercancel) never becomes a hold, and the click that
+  // follows a hold is not also a tap-to-pause. Never on an embed (its player is not ours), with comments open, or on a
+  // control (the rail, the top buttons, links, the bar itself).
+  const holdRef = useRef<{ id: number; x: number; y: number; timer: number; fired: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  useEffect(() => () => window.clearTimeout(holdRef.current?.timer), []);
+
+  function startHold(e: PointerEvent<HTMLElement>) {
+    suppressClickRef.current = false;
+    if (isEmbed || commentsOpen || !e.isPrimary || holdRef.current) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (e.target instanceof Element && e.target.closest(MUSE_HOLD_EXCLUDED)) return;
+    const id = e.pointerId;
+    const timer = window.setTimeout(() => {
+      if (holdRef.current?.id !== id) return;
+      holdRef.current.fired = true;
+      dispatchBar({ type: "hold_start" });
+    }, MUSE_HOLD_MS);
+    holdRef.current = { id, x: e.clientX, y: e.clientY, timer, fired: false };
+  }
+
+  function moveHold(e: PointerEvent<HTMLElement>) {
+    const hold = holdRef.current;
+    if (!hold || hold.id !== e.pointerId || hold.fired) return;
+    if (holdCancelledByMove(hold, { x: e.clientX, y: e.clientY })) endHold(e.pointerId, false);
+  }
+
+  function endHold(pointerId: number, released: boolean) {
+    const hold = holdRef.current;
+    if (!hold || hold.id !== pointerId) return;
+    window.clearTimeout(hold.timer);
+    holdRef.current = null;
+    if (!hold.fired) return;
+    dispatchBar({ type: "hold_end" });
+    if (released) suppressClickRef.current = true;
+  }
 
   // While comments are open the feed can't scroll, but a resize (rotation, an Android keyboard shrinking the WebView,
   // which shortens every h-dvh card) could leave it between two cards: keep this one exactly in view.
@@ -799,8 +848,21 @@ function MuseCard({
     <section
       ref={sectionRef}
       style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
-      className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black"
+      className="relative flex h-dvh w-screen flex-col overflow-hidden bg-black [-webkit-touch-callout:none]"
+      onPointerDown={startHold}
+      onPointerMove={moveHold}
+      onPointerUp={(e) => endHold(e.pointerId, true)}
+      onPointerCancel={(e) => endHold(e.pointerId, false)}
+      // A long press held on the video is the hold above, not the browser's video menu (Save video, ...).
+      onContextMenu={(e) => {
+        if (holdRef.current) e.preventDefault();
+      }}
       onClick={() => {
+        // The release of a hold (above) is not a tap.
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          return;
+        }
         // With comments open, a tap on the video (or around it) closes them, like the handle does.
         if (commentsOpen) {
           onCloseComments();
@@ -1031,17 +1093,29 @@ function MuseCard({
                   </span>
                   <span className="text-[0.6875rem]">{item.commentCount}</span>
                 </button>
-                <div className="flex shrink-0 flex-col items-center gap-0.5 text-white">
-                  <EmojiPickerButton
-                    onSelect={handleToggleReaction}
-                    quickReactions={QUICK_REACTIONS}
-                    // The overlay sits at z-[70]; the picker is portaled to <body>.
-                    popupZClass={onClose ? "z-[80]" : undefined}
-                  />
-                  <span className="text-[0.6875rem]" aria-label={plural(locale, ui.reactions.count, item.likeCount)} role="img">
-                    {item.likeCount}
+                {/* The heart: a like, nothing else (the emoji and GIF pickers are in the comments composer). Filled red
+                    once liked by any reaction, old emoji ones included; colour and fill tween, no pop. */}
+                <button
+                  type="button"
+                  onClick={onToggleLike}
+                  aria-label={format(liked ? controls.unlikeLabel : controls.likeLabel, {
+                    likes: countLabel(locale, controls.likes, item.likeCount),
+                  })}
+                  data-muse-like
+                  className="flex min-w-11 flex-col items-center gap-0.5 text-white"
+                >
+                  <span className="rounded-full bg-black/40 p-2">
+                    <Heart
+                      size={20}
+                      aria-hidden
+                      className={cn(
+                        "transition-[color,fill] duration-150 ease-out motion-reduce:transition-none",
+                        liked ? "fill-danger text-danger" : "fill-transparent",
+                      )}
+                    />
                   </span>
-                </div>
+                  <span className="text-[0.6875rem]">{item.likeCount}</span>
+                </button>
                 <button
                   type="button"
                   onClick={onToggleRepost}
@@ -1075,18 +1149,24 @@ function MuseCard({
             )}
           </div>
 
-          {reactions.length > 0 && (
-            <div className="px-4 pt-2" onClick={(e) => e.stopPropagation()}>
-              <ReactionBar reactions={reactions} onToggle={handleToggleReaction} />
-            </div>
-          )}
-
           {/* Same bottom-nav clearance layout.tsx's <body> reserves in
               normal flow (pb-[calc(var(--tab-bar-height)+safe-area)] md:pb-0) — this card
               sits inside a `fixed` ancestor, so it doesn't inherit that
               padding and would otherwise render behind the (higher
               z-index) nav bar. */}
-          <div className="h-4" />
+          {isEmbed ? (
+            // An embed's player is the platform's own: its position can't be read, so no length bar.
+            <div className="h-4" />
+          ) : (
+            <MuseProgressBar
+              videoRef={videoRef}
+              mediaKey={isNearby}
+              storedDuration={item.videoDurationSeconds}
+              state={bar}
+              commentsOpen={commentsOpen}
+              dispatch={dispatchBar}
+            />
+          )}
           {onClose ? (
             <SafeAreaBottomSpacer />
           ) : (
