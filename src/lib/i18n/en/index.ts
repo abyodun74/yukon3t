@@ -10,6 +10,7 @@ import { callsEn } from "@/lib/i18n/en/calls";
 import { challengesEn } from "@/lib/i18n/en/challenges";
 import { circleShareEn } from "@/lib/i18n/en/circleShare";
 import { circlesEn } from "@/lib/i18n/en/circles";
+import { collabShareEn } from "@/lib/i18n/en/collabShare";
 import { collabEn } from "@/lib/i18n/en/collab";
 import { commentToolsEn } from "@/lib/i18n/en/commentTools";
 import { feedEn } from "@/lib/i18n/en/feed";
@@ -39,6 +40,7 @@ export {
   circleShareEn,
   circlesEn,
   collabEn,
+  collabShareEn,
   commentToolsEn,
   feedEn,
   giftsEn,
@@ -81,6 +83,7 @@ export const en = {
   gifts: giftsEn,
   challenges: challengesEn,
   circleShare: circleShareEn,
+  collabShare: collabShareEn,
   commentTools: commentToolsEn,
   storyUpload: storyUploadEn,
   postUpload: postUploadEn,

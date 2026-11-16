@@ -28,7 +28,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/hidden-chats", () => ({ getHiddenPeerIds: vi.fn() }));
-vi.mock("@/lib/blocks", () => ({ getBlockedEitherWayIds: vi.fn() }));
+let blockedWithAuthor = new Set<string>();
+vi.mock("@/lib/blocks", () => ({
+  getBlockedEitherWayIds: vi.fn(),
+  isBlockedEitherWay: async (a: string, b: string) =>
+    (b === AUTHOR && blockedWithAuthor.has(a)) || (a === AUTHOR && blockedWithAuthor.has(b)),
+}));
 vi.mock("@/lib/collab-invite", async (orig) => ({
   ...(await orig<typeof import("@/lib/collab-invite")>()),
   collabInviteStillStands: () => true,
@@ -49,6 +54,20 @@ describe("viewerCanSeeCollab", () => {
     expect(await viewerCanSeeCollab("priv", as(INVITEE))).toBe(true);
     expect(await viewerCanSeeCollab("priv", as(OUTSIDER, true))).toBe(true);
     expect(await viewerCanSeeCollab("priv", as(OUTSIDER))).toBe(false);
+  });
+
+  it("hides a collab from anyone blocked either way with its author: outsiders, participants, invitees, site admins", async () => {
+    blockedWithAuthor = new Set([OUTSIDER, PARTICIPANT, INVITEE]);
+    try {
+      expect(await viewerCanSeeCollab("pub", as(OUTSIDER))).toBe(false);
+      expect(await viewerCanSeeCollab("pub", as(OUTSIDER, true))).toBe(false);
+      expect(await viewerCanSeeCollab("priv", as(PARTICIPANT))).toBe(false);
+      expect(await viewerCanSeeCollab("priv", as(INVITEE))).toBe(false);
+      // The author is never hidden from their own collab.
+      expect(await viewerCanSeeCollab("priv", as(AUTHOR))).toBe(true);
+    } finally {
+      blockedWithAuthor = new Set();
+    }
   });
 
   it("answers false for a missing or malformed id", async () => {

@@ -102,7 +102,7 @@ export const es3 = {
   },
   "open-hidden-chat-unhide-one": {
     q: "¿Cómo abro un chat oculto y cómo dejo de ocultarlo?",
-    a: "Mantén presionada la palabra «Mensajes» en la parte superior de tu pantalla de Mensajes, o ve a Ajustes, «Privacidad», «Chats ocultos». Escribe tu PIN y verás la lista de tus chats ocultos. Esas dos entradas están siempre ahí para todo el mundo, así que no revelan si has ocultado algo. La zona se vuelve a bloquear sola después de unos 10 minutos, en cuanto sales de la aplicación o cambias de pestaña con un chat oculto en pantalla, cuando tocas «Bloquear ahora» y cuando cierras sesión. Para dejar de ocultar un chat, ábrelo, toca ⋯ y elige «Dejar de ocultar el chat».",
+    a: "Mantén presionada la palabra «Mensajes» en la parte superior de tu pantalla de Mensajes, o ve a Ajustes, «Privacidad», «Chats ocultos». Escribe tu PIN y verás la lista de tus chats ocultos. Esas dos entradas están siempre ahí para todo el mundo, así que no revelan si has ocultado algo. La zona se vuelve a bloquear sola después de unos 10 minutos, en cuanto sales de la aplicación o cambias de pestaña con un chat oculto en pantalla, cuando tocas «Bloquear ahora» y cuando cierras sesión. Si sales con un chat oculto en pantalla, la pantalla se cubre de inmediato; al volver, escribes tu PIN y regresas a ese chat. Para dejar de ocultar un chat, ábrelo, toca ⋯ y elige «Dejar de ocultar el chat».",
   },
   "other-person-know-hid-our": {
     q: "¿La otra persona sabe que oculté nuestro chat?",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth-guards";
 import { buildCollabIcs } from "@/lib/calendar-export";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 
 /**
  * Serves the next scheduled session as a downloadable .ics — the
@@ -47,7 +48,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
 
   const startAt = sessionId ? collab?.oneOffSessions?.[0]?.startsAt : collab?.nextSessionAt;
-  if (!collab || !startAt) {
+  // Blocked either way with the author: the same 404 as a missing collab, participants included.
+  if (!collab || !startAt || (await collabHiddenFromViewer(collab, user.id))) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 

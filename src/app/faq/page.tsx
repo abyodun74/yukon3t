@@ -296,6 +296,55 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "links-open-in-app",
+        q: "Do links open in the YuKon3t app?",
+        a: (
+          <>
+            Inside the app, yes. In the YuKon3t app for Android or iPhone,
+            tapping a link to a YuKon3t page (yukon3t.com) in a chat, a post,
+            a comment or a notification opens that page right in the app.
+            Links to any other website open in your phone&apos;s browser. On
+            the website, a YuKon3t link opens in the same tab and other
+            sites open in a new one.
+            <br />
+            <br />
+            Every link YuKon3t makes for you to share (a post, a Muse, a
+            Circle, a collab, a group chat&apos;s link, or a link you copy by pressing
+            and holding it) is a real https://yukon3t.com address, so it
+            works wherever you send it. A YuKon3t link tapped in another
+            app, like a text message, WhatsApp or an email, opens the
+            website in your browser for now: opening those links straight
+            in the app needs a newer version of the app, which isn&apos;t
+            out yet.
+          </>
+        ),
+      },
+      {
+        id: "app-opens-where-left-off",
+        q: "Why does the app open where I left off?",
+        a: (
+          <>
+            In the YuKon3t app for Android or iPhone, switching to another
+            app and coming back returns you to the same screen: the chat,
+            profile, Circle or Settings page you were on, or the post you
+            were writing. New messages in an open chat load as soon as
+            you&apos;re back, and if you were away for 2 minutes or more,
+            the screen you&apos;re on refreshes in place without losing what
+            you typed. If you tap a notification, the app goes to what the
+            notification is about instead. If the app was fully closed (you
+            swiped it away, or your phone closed it to free up memory), it
+            starts on Home, like any fresh start.
+            <br />
+            <br />
+            Hidden chats stay protected: the moment you leave the app with a
+            hidden chat on screen, it locks and the screen is covered. When
+            you come back you&apos;re asked for your PIN, and once you enter
+            it you&apos;re back in the chat. If YuKon3t was updated while you
+            were away, the app reloads onto the same page.
+          </>
+        ),
+      },
+      {
         id: "slow-connection-data-saver",
         q: "Does YuKon3t work on a slow or patchy connection?",
         a: (
@@ -334,14 +383,14 @@ const sections: Section[] = [
         q: "The app opens in Chrome instead of full-screen — how do I fix that?",
         a: (
           <>
-            This is a one-time Android setting, not a bug. Go to your
-            phone&apos;s Settings → Apps → YuKon3t → &ldquo;Open by
-            default&rdquo; (some Android versions call this &ldquo;Set as
-            default&rdquo; or &ldquo;Supported links&rdquo;), and make sure{" "}
-            <code>yukon3t.com</code> is toggled on under &ldquo;Supported web
-            addresses.&rdquo; Android turns this off by default as a privacy
-            control — the app can&apos;t switch it on for you, so it&apos;s a
-            one-time manual step after installing.
+            If you tapped a YuKon3t link in another app (a text message,
+            WhatsApp, an email) and it opened yukon3t.com in Chrome,
+            that&apos;s expected for now: links tapped outside the app open
+            the website. Opening them straight in the app needs a newer
+            version of the app, which isn&apos;t out yet. To use the
+            full-screen app, open YuKon3t from its icon on your home screen
+            or in your app list. Links to YuKon3t pages that you tap inside
+            the app already open in the app.
           </>
         ),
       },
@@ -631,7 +680,10 @@ const sections: Section[] = [
             Home, tapping a short video (up to 5 minutes) opens it full-screen
             in Muse instead, with sound: keep scrolling for more Muses, and
             close it or go back to land on the same spot in your feed. The
-            play button on the video still pauses it in place.
+            play button on the video still pauses it in place. Tapping a
+            name or a link in that full-screen view closes it first and then
+            opens the page, so going back from there returns you to your
+            feed.
           </>
         ),
       },
@@ -1004,6 +1056,24 @@ const sections: Section[] = [
             (previous person) anywhere on the screen — swiping always moves
             between people, regardless of which of their Stories you&apos;re
             currently on.
+          </>
+        ),
+      },
+      {
+        id: "close-story",
+        q: "How do I close a Story?",
+        a: (
+          <>
+            Tap the X at the top of any Story, or swipe down on it (a quick
+            flick is enough). On Android, the Back button or back gesture
+            closes it too, and on a computer so does Esc. If something is
+            open on top of the Story (the comments, the list of who viewed
+            it, the delete confirmation, the Share sheet or the emoji
+            picker), Back or Esc closes that first and leaves the Story
+            open. Tapping the person&apos;s name or a link inside a Story
+            closes it and opens that page; going back from there returns you
+            to where you were before you opened the Story. After the last
+            Story, the viewer closes by itself.
           </>
         ),
       },
@@ -1786,7 +1856,10 @@ const sections: Section[] = [
             don&apos;t show whether you&apos;ve hidden anything. The area
             locks again by itself after about 10 minutes, as soon as you
             leave the app or switch tabs with a hidden chat on screen, when
-            you tap &ldquo;Lock now,&rdquo; and when you sign out. To unhide, open the chat, tap ⋯ and choose
+            you tap &ldquo;Lock now,&rdquo; and when you sign out. If you
+            leave with a hidden chat on screen, the screen is covered right
+            away; when you come back, you enter your PIN and land back in
+            that chat. To unhide, open the chat, tap ⋯ and choose
             &ldquo;Unhide chat.&rdquo;
           </>
         ),
@@ -1986,6 +2059,28 @@ const sections: Section[] = [
             Circles can be shared: a private Circle is invite-only, so its
             share sheet says so instead, and its owner and co-admins add
             people with &ldquo;Invite people&rdquo; on its page.
+          </>
+        ),
+      },
+      {
+        id: "share-collab",
+        q: "How do I share a collab?",
+        a: (
+          <>
+            Press and hold a collab on the Collab board or in search results
+            (or right-click it), or tap the Share button on its page.{" "}
+            <strong>Share in chats</strong> sends it to up to 5 of your chats
+            at once (secret chats aren&apos;t listed), <strong>Share
+            via…</strong> opens your device&apos;s share sheet, and{" "}
+            <strong>Copy link</strong> copies its link. The message carries
+            only the collab&apos;s title and link. In the YuKon3t app,
+            tapping that link in a chat opens the collab right in the app,
+            and anyone who opens it while signed out is asked to sign in
+            first. Only public collabs that are still open can be shared: a
+            private collab is invite-only, so its share sheet says so
+            instead, and its organizers add people with &ldquo;Invite
+            people&rdquo; on its page. A closed collab can&apos;t be shared
+            either.
           </>
         ),
       },
@@ -2663,6 +2758,15 @@ const sections: Section[] = [
             your new password twice to confirm it. You can
             also sign in with just your email link if you&apos;d rather not
             use a password at all.
+            <br />
+            <br />
+            In the YuKon3t app, an emailed sign-in or reset link opens in
+            your phone&apos;s browser for now, not in the app. To sign in
+            inside the app, use your username and password. No password yet?
+            Tap &ldquo;Forgot password?&rdquo; on the sign-in screen to set
+            one: the link we email opens in your browser, and once
+            you&apos;ve chosen a password there, come back to the app and
+            sign in with it.
           </>
         ),
       },
@@ -2964,6 +3068,22 @@ const sections: Section[] = [
             example), so use a profile picture you&apos;re comfortable with
             others seeing. Posts, stories, and Muse keep their own save and
             share options.
+          </>
+        ),
+      },
+      {
+        id: "blocking-hides-collaborations",
+        q: "What happens to collaborations when I block someone?",
+        a: (
+          <>
+            If you block someone, or they block you, the collaborations they
+            created disappear for you: they aren&apos;t on the Collab board
+            or in search, their links lead to a page that can&apos;t be
+            found, and you can&apos;t join, ask to join, accept an invite,
+            vote in their polls or join their sessions, even if you were
+            already taking part. You stay listed as a participant, and
+            everything comes back if the block is lifted. You can still
+            leave the collaboration, and you can still report the person.
           </>
         ),
       },

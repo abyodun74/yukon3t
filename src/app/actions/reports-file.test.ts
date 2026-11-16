@@ -96,6 +96,11 @@ vi.mock("@/lib/post-visibility", () => ({
 }));
 vi.mock("@/lib/circle-invite-data", () => ({ loadStandingCircleInvites: async () => new Map() }));
 vi.mock("@/lib/collab-invites-server", () => ({ loadStandingCollabInvite: async () => null }));
+// Blocked either way with a collab's author: the collab doesn't exist for the reporter (lib/collab-visibility.ts).
+let blockedWithMe = new Set<string>();
+vi.mock("@/lib/blocks", () => ({
+  isBlockedEitherWay: async (a: string, b: string) => blockedWithMe.has(a === ME ? b : a),
+}));
 vi.mock("@/lib/collab-permissions", () => ({
   canViewCollab: (
     collab: { authorId: string; visibility: string },
@@ -241,6 +246,17 @@ describe("fileReport: the accused is derived on the server", () => {
     const result = await fileReport(form({ targetType, targetId, reportedUserId: VICTIM }));
     expect(result).toEqual({ error: "invalid" });
     expect(reportCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a collab whose author is blocked either way with the reporter (the author stays reportable)", async () => {
+    blockedWithMe = new Set([AUTHOR]);
+    try {
+      expect(await fileReport(form({ targetType: "COLLAB_POST", targetId: COLLAB_PUBLIC }))).toEqual({ error: "invalid" });
+      expect(reportCreate).not.toHaveBeenCalled();
+      expect(await fileReport(form({ targetType: "USER", targetId: AUTHOR }))).toEqual({ error: null });
+    } finally {
+      blockedWithMe = new Set();
+    }
   });
 
   it("keeps the secret-chat evidence text for a MESSAGE report only", async () => {

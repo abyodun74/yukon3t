@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isCircleAdmin } from "@/lib/circle-permissions";
 import { canSeeCircleContent } from "@/lib/circle-visibility";
 import { isCollabAdmin } from "@/lib/collab-permissions";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 import {
   POLLS_PAGE_SIZE,
   POLLS_REFRESH_MAX,
@@ -75,12 +76,17 @@ export async function getCirclePollAccess(
 
 /**
  * A collab's polls: seen by anyone who can see a PUBLIC collab, and only by participants (and admins) of a PRIVATE one
- * (not by someone merely holding an invite). Voting needs to be a participant.
+ * (not by someone merely holding an invite). Voting needs to be a participant. Nobody blocked either way with the
+ * author gets any access (participants and site admins included): to them the collab doesn't exist, so every poll
+ * action answers not_found (lib/collab-visibility.ts).
  */
 export async function getCollabPollAccess(
   collab: { id: string; authorId: string; visibility: string },
   viewer: Viewer,
 ): Promise<PollParentAccess> {
+  if (await collabHiddenFromViewer(collab, viewer.id)) {
+    return { canView: false, isMember: false, isParentAdmin: false, canCreate: false };
+  }
   const participant = await prisma.collabParticipant.findUnique({
     where: { userId_collabId: { userId: viewer.id, collabId: collab.id } },
     select: { role: true },

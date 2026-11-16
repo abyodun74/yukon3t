@@ -7,6 +7,7 @@ import { sendFcmActivityToUser } from "@/lib/fcm";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { captureError } from "@/lib/error-tracking";
 import { nextOccurrence } from "@/lib/collab-schedule";
+import { collabViewersOnly } from "@/lib/collab-visibility-server";
 import { sessionOccurrenceKey } from "@/lib/polls";
 
 // Same reasoning as event-reminders' own window: matched to the scheduled
@@ -129,7 +130,9 @@ async function sendSessionReminders(collab: { id: string; authorId: string; titl
     where: { collabId: collab.id },
     select: { userId: true },
   });
-  const recipientIds = new Set([collab.authorId, ...participants.map((p) => p.userId)]);
+  // Never a participant blocked either way with the author: the collab doesn't exist for them (no bell row, no push
+  // carrying its title).
+  const recipientIds = new Set(await collabViewersOnly(collab, [collab.authorId, ...participants.map((p) => p.userId)]));
 
   const collabTitle = collab.title.trim().slice(0, 80);
   // In each recipient's language: only the fallback title and the line under it are ours to word.

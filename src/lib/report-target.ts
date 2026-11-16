@@ -3,6 +3,7 @@ import { getVisiblePostsWhere } from "@/lib/post-visibility";
 import { canSeeCircle, canSeeCircleContent } from "@/lib/circle-visibility";
 import { loadStandingCircleInvites } from "@/lib/circle-invite-data";
 import { canViewCollab } from "@/lib/collab-permissions";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 import { loadStandingCollabInvite } from "@/lib/collab-invites-server";
 import { giftsEnabledFor } from "@/lib/gifts";
 import { challengesEnabledFor } from "@/lib/challenges";
@@ -148,7 +149,9 @@ async function visibleTargetAccused(
         where: { id: targetId },
         select: { id: true, authorId: true, visibility: true },
       });
-      if (!collab) return null;
+      // Like a blocked author's post: a collab whose author is blocked either way doesn't exist for the reporter
+      // (lib/collab-visibility.ts). The author themselves can still be reported (USER).
+      if (!collab || (await collabHiddenFromViewer(collab, reporter.id))) return null;
       if (collab.visibility === "PRIVATE" && collab.authorId !== reporter.id) {
         const participant = await prisma.collabParticipant.findFirst({
           where: { collabId: collab.id, userId: reporter.id },

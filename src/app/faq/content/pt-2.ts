@@ -59,6 +59,10 @@ export const pt2 = {
     q: "Como passo dos stories de uma pessoa para os de outra?",
     a: "Enquanto vê um story, toque no lado direito da tela para avançar pelos stories daquela mesma pessoa, ou no lado esquerdo para voltar. Para pular para os stories de outra pessoa, deslize para a esquerda (próxima pessoa) ou para a direita (pessoa anterior) em qualquer lugar da tela: deslizar sempre troca de pessoa, não importa em qual story dela você esteja.",
   },
+  "close-story": {
+    q: "Como fecho um story?",
+    a: "Toque no X no topo de qualquer story ou deslize para baixo sobre ele (um gesto rápido basta). No Android, o botão Voltar ou o gesto de voltar também o fecha, e no computador, a tecla Esc. Se houver algo aberto sobre o story (os comentários, a lista de quem viu, a confirmação de exclusão, o menu de compartilhar ou o seletor de emojis), Voltar ou Esc fecha isso primeiro e o story continua aberto. Tocar no nome da pessoa ou em um link dentro de um story fecha o story e abre essa página; voltar dali leva você para onde estava antes de abrir o story. Depois do último story, o visualizador fecha sozinho.",
+  },
   "people-react-reply-comment-story": {
     q: "As pessoas podem reagir, responder ou comentar no meu story?",
     a: "Sim, as três coisas, e são diferentes: **reagir** é um emoji rápido (você vê quem reagiu ao abrir seu próprio story); **responder** envia uma mensagem direta privada e só funciona entre pessoas que já têm conexão, como nas mensagens comuns; **comentar** publica um comentário público que qualquer pessoa vendo o story pode ver, acessível pelo ícone de comentários ao lado das reações, e você recebe uma notificação quando alguém comenta no seu. Também há um ícone de **compartilhar** ao lado dos comentários em qualquer story: qualquer pessoa que possa ver o story, e não só quem o publicou, pode tocar nele para encaminhá-lo a uma das suas conversas diretas ou em grupo. Quem recebe vê o story de verdade na conversa e pode tocar nele para abri-lo em tela cheia, na mesma visualização da fileira de stories, em vez de apenas uma mensagem de texto sobre ele.",

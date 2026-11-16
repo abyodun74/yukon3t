@@ -31,6 +31,10 @@ export const es4 = {
     q: "¿Cómo comparto un Circle?",
     a: "Mantén pulsado un Circle en cualquier lista de Circles (o haz clic derecho en él), o toca «Compartir Circle» en su página. **Compartir en chats** lo envía a hasta 5 de tus chats a la vez (los chats secretos no aparecen), **Compartir con…** abre el menú para compartir de tu dispositivo y **Copiar enlace** copia su enlace. El mensaje lleva solo el nombre y el enlace del Circle, y a quien abra el enlace sin haber iniciado sesión se le pide iniciar sesión primero. Solo se pueden compartir los Circles públicos: un Circle privado es solo por invitación, así que su panel para compartir lo explica, y su propietario y sus coadmins agregan personas con «Invitar personas» en su página.",
   },
+  "share-collab": {
+    q: "¿Cómo comparto una colaboración?",
+    a: "Mantén pulsada una colaboración en la lista de Collab Boards o en los resultados de búsqueda (o haz clic derecho en ella), o toca el botón de compartir en su página. **Compartir en chats** la envía a hasta 5 de tus chats a la vez (los chats secretos no aparecen), **Compartir con…** abre el menú para compartir de tu dispositivo y **Copiar enlace** copia su enlace. El mensaje lleva solo el título y el enlace de la colaboración. En la aplicación de YuKon3t, al tocar ese enlace en un chat, la colaboración se abre ahí mismo, en la aplicación, y a quien lo abra sin haber iniciado sesión se le pide iniciar sesión primero. Solo se pueden compartir las colaboraciones públicas que siguen abiertas: una colaboración privada es solo por invitación, así que su panel para compartir lo explica, y quienes la organizan agregan personas con «Invitar personas» en su página. Una colaboración cerrada tampoco se puede compartir.",
+  },
   "invite-someone-circles-voice-channel": {
     q: "¿Cómo invito a alguien al canal de voz de un Circle?",
     a: "Abre el canal de voz y toca «Invitar» para elegir entre los miembros del Circle. Cualquier miembro puede invitar a otro, no solo el propietario o los coadmins. El canal muestra un recuento de cuántas invitaciones están pendientes, aceptadas y rechazadas. Aceptar una invitación no mete a alguien directamente en la sala por sí solo: esa persona aún tiene que tocar para entrar, igual que cualquier otra.",
@@ -115,7 +119,7 @@ export const es4 = {
   },
   "forgot-password": {
     q: "Olvidé mi contraseña.",
-    a: "Usa «¿Olvidaste tu contraseña?» en la página de inicio de sesión y luego escribe tu nueva contraseña dos veces para confirmarla. También puedes iniciar sesión solo con un enlace por correo si prefieres no usar ninguna contraseña.",
+    a: "Usa «¿Olvidaste tu contraseña?» en la página de inicio de sesión y luego escribe tu nueva contraseña dos veces para confirmarla. También puedes iniciar sesión solo con un enlace por correo si prefieres no usar ninguna contraseña.\n\nEn la aplicación de YuKon3t, un enlace de inicio de sesión o de restablecimiento que te enviamos por correo se abre por ahora en el navegador de tu teléfono, no en la aplicación. Para iniciar sesión dentro de la aplicación, usa tu nombre de usuario y tu contraseña. ¿Todavía no tienes contraseña? Toca «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión para crear una: el enlace que te enviamos se abre en tu navegador y, cuando hayas elegido allí una contraseña, vuelve a la aplicación e inicia sesión con ella.",
   },
   "was-asked-reset-password": {
     q: "¿Por qué me pidieron restablecer mi contraseña?",
@@ -173,6 +177,10 @@ export const es4 = {
   "save-someones-profile-picture": {
     q: "¿Puedo guardar la foto de perfil de otra persona?",
     a: "No desde YuKon3t. Las fotos de perfil no tienen opción para guardar, descargar ni compartir, tampoco cuando tocas una para ampliarla, y los atajos de mantener pulsado, hacer clic derecho o arrastrar para guardar están desactivados para ellas. En la app de Android, las capturas y grabaciones de pantalla salen en negro mientras está abierta la foto de perfil ampliada de otra persona; esto no es posible en iPhone ni en la web, y las fotos pequeñas que aparecen en otras partes de la app no están cubiertas. Es una medida disuasoria, no un bloqueo: YuKon3t no puede impedir todas las capturas de pantalla ni detener a alguien decidido a copiar lo que ve en su pantalla (con otra cámara, por ejemplo), así que usa una foto de perfil que no te importe que otros vean. Las publicaciones, las historias y Muse conservan sus propias opciones para guardar y compartir.",
+  },
+  "blocking-hides-collaborations": {
+    q: "¿Qué pasa con las colaboraciones cuando bloqueo a alguien?",
+    a: "Si bloqueas a alguien, o esa persona te bloquea a ti, las colaboraciones que creó desaparecen para ti: no aparecen en la lista de Collab Boards ni en la búsqueda, sus enlaces llevan a una página que no se encuentra y no puedes unirte, pedir unirte, aceptar una invitación, votar en sus encuestas ni entrar en sus sesiones, aunque ya estuvieras participando. Sigues figurando como participante, y todo vuelve si se levanta el bloqueo. Aun así, puedes salir de la colaboración y puedes reportar a esa persona.",
   },
   "report-someone-something": {
     q: "¿Cómo reporto a alguien o algo?",

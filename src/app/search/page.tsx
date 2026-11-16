@@ -2,7 +2,9 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { visibleCircleWhere } from "@/lib/circle-visibility";
+import { collabNotBlockedWhere } from "@/lib/collab-visibility";
 import { CircleLongPress } from "@/components/circle-long-press";
+import { CollabLongPress } from "@/components/collab-long-press";
 import { TrustBadge } from "@/components/trust-badge";
 import { PostCard } from "@/components/post-card";
 import { SearchPostsList } from "@/components/search-posts-list";
@@ -170,6 +172,8 @@ export default async function SearchPage({
                 { description: { contains: q, mode: "insensitive" } },
               ],
             },
+            // Never a collab whose author is blocked either way with the viewer (lib/collab-visibility.ts).
+            collabNotBlockedWhere(me.id),
           ],
         },
         orderBy:
@@ -426,10 +430,14 @@ export default async function SearchPage({
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {collabs.map((collab) => (
-              <Link
+              <CollabLongPress
                 key={collab.id}
+                collab={{ id: collab.id, title: collab.title, visibility: collab.visibility, status: collab.status }}
+                className="flex min-w-0"
+              >
+              <Link
                 href={`/collab/${collab.id}`}
-                className="rounded-xl border border-line p-4 hover:border-accent"
+                className="min-w-0 flex-1 rounded-xl border border-line p-4 hover:border-accent"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-teal">
                   {vocabName(collab.type, dictionary.vocab.collabTypes)}
@@ -440,6 +448,7 @@ export default async function SearchPage({
                   {`${format(t.by, { name: collab.author.name ?? t.unknown })} · ${plural(locale, t.participants, collab._count.participants)}`}
                 </p>
               </Link>
+              </CollabLongPress>
             ))}
           </div>
         </div>
@@ -545,10 +554,14 @@ export default async function SearchPage({
               </h3>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {smart.collabs.map((collab) => (
-                  <Link
+                  <CollabLongPress
                     key={collab.id}
+                    collab={{ id: collab.id, title: collab.title, visibility: collab.visibility, status: collab.status }}
+                    className="flex min-w-0"
+                  >
+                  <Link
                     href={`/collab/${collab.id}`}
-                    className="rounded-xl border border-line p-4 hover:border-accent"
+                    className="min-w-0 flex-1 rounded-xl border border-line p-4 hover:border-accent"
                   >
                     <p className="text-xs font-medium uppercase tracking-wide text-teal">
                       {vocabName(collab.type, dictionary.vocab.collabTypes)}
@@ -559,6 +572,7 @@ export default async function SearchPage({
                       {`${format(t.by, { name: collab.author.name ?? t.unknown })} · ${plural(locale, t.participants, collab._count.participants)}`}
                     </p>
                   </Link>
+                  </CollabLongPress>
                 ))}
               </div>
             </div>

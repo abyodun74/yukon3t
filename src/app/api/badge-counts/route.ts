@@ -4,6 +4,7 @@ import { requireViewer, AuthError } from "@/lib/auth-guards";
 import { getHiddenState } from "@/lib/hidden-chats";
 import { visibleNotificationWhere } from "@/lib/hidden-chats-rules";
 import { circleNotificationVisibleWhere } from "@/lib/circle-visibility";
+import { collabNotificationVisibleWhere } from "@/lib/collab-visibility";
 import { rememberLocale } from "@/lib/user-locale";
 import { countConversationsWithUnread } from "@/lib/latest-messages";
 
@@ -66,7 +67,7 @@ export async function GET() {
       where: {
         recipientId: user.id,
         readAt: null,
-        AND: [...visibleNotificationWhere(hidden), circleNotificationVisibleWhere(user.id)],
+        AND: [...visibleNotificationWhere(hidden), circleNotificationVisibleWhere(user.id), collabNotificationVisibleWhere(user.id)],
       },
       // The bell shows "9+" past 9 (its aria-label says the number, so it reads at most 100): capping lets Postgres
       // stop there instead of evaluating the visibility filters on every unread row.

@@ -31,6 +31,10 @@ export const fr4 = {
     q: "Comment partager un Circle ?",
     a: "Appuyez longuement sur un Circle partout où des Circles sont listés (ou faites un clic droit dessus), ou touchez « Partager le Circle » sur sa page. **Partager dans les discussions** l'envoie à 5 de vos discussions au maximum en une fois (les discussions secrètes n'y figurent pas), **Partager via…** ouvre le menu de partage de votre appareil, et **Copier le lien** copie son lien. Le message ne contient que le nom et le lien du Circle, et toute personne qui ouvre le lien sans être connectée doit d'abord se connecter. Seuls les Circles publics peuvent être partagés : un Circle privé est accessible sur invitation uniquement, son menu de partage l'explique donc, et son propriétaire et ses co-admins ajoutent des personnes avec « Inviter des personnes » sur sa page.",
   },
+  "share-collab": {
+    q: "Comment partager une collaboration ?",
+    a: "Appuyez longuement sur une collaboration dans la liste des Collab Boards ou dans les résultats de recherche (ou faites un clic droit dessus), ou touchez le bouton de partage sur sa page. **Partager dans les discussions** l'envoie à 5 de vos discussions au maximum en une fois (les discussions secrètes n'y figurent pas), **Partager via…** ouvre le menu de partage de votre appareil, et **Copier le lien** copie son lien. Le message ne contient que le titre et le lien de la collaboration. Dans l'application YuKon3t, toucher ce lien dans une discussion ouvre la collaboration directement dans l'application, et toute personne qui l'ouvre sans être connectée doit d'abord se connecter. Seules les collaborations publiques encore ouvertes peuvent être partagées : une collaboration privée est accessible sur invitation uniquement, son menu de partage l'explique donc, et les personnes qui l'organisent ajoutent des participants avec « Inviter des personnes » sur sa page. Une collaboration fermée ne peut pas non plus être partagée.",
+  },
   "invite-someone-circles-voice-channel": {
     q: "Comment inviter quelqu'un dans le salon vocal d'un Circle ?",
     a: "Ouvrez le salon vocal et touchez « Inviter » pour choisir parmi les membres du Circle. N'importe quel membre peut en inviter un autre, pas seulement le propriétaire ou les co-admins. Le salon affiche le décompte des invitations en attente, acceptées et refusées. Accepter une invitation ne fait pas entrer la personne directement dans le salon : elle doit encore toucher pour le rejoindre, comme tout le monde.",
@@ -115,7 +119,7 @@ export const fr4 = {
   },
   "forgot-password": {
     q: "J'ai oublié mon mot de passe.",
-    a: "Utilisez « Mot de passe oublié ? » sur la page de connexion, puis saisissez votre nouveau mot de passe deux fois pour le confirmer. Vous pouvez aussi vous connecter uniquement avec un lien reçu par e-mail si vous préférez ne pas utiliser de mot de passe du tout.",
+    a: "Utilisez « Mot de passe oublié ? » sur la page de connexion, puis saisissez votre nouveau mot de passe deux fois pour le confirmer. Vous pouvez aussi vous connecter uniquement avec un lien reçu par e-mail si vous préférez ne pas utiliser de mot de passe du tout.\n\nDans l'application YuKon3t, un lien de connexion ou de réinitialisation reçu par e-mail s'ouvre pour l'instant dans le navigateur de votre téléphone, pas dans l'application. Pour vous connecter dans l'application, utilisez votre nom d'utilisateur et votre mot de passe. Pas encore de mot de passe ? Touchez « Mot de passe oublié ? » sur l'écran de connexion pour en définir un : le lien que nous vous envoyons s'ouvre dans votre navigateur, et une fois votre mot de passe choisi, revenez dans l'application et connectez-vous avec.",
   },
   "was-asked-reset-password": {
     q: "Pourquoi m'a-t-on demandé de réinitialiser mon mot de passe ?",
@@ -173,6 +177,10 @@ export const fr4 = {
   "save-someones-profile-picture": {
     q: "Puis-je enregistrer la photo de profil de quelqu'un ?",
     a: "Pas depuis YuKon3t. Les photos de profil n'ont aucune option d'enregistrement, de téléchargement ou de partage, y compris quand vous en touchez une pour l'agrandir, et les raccourcis appui long, clic droit et glisser pour enregistrer sont désactivés pour elles. Dans l'application Android, les captures et enregistrements d'écran sont noirs tant que la photo de profil agrandie d'une autre personne est ouverte ; ce n'est pas possible sur iPhone ni sur le web, et les petites photos affichées ailleurs dans l'application ne sont pas concernées. C'est une mesure dissuasive, pas un verrou : YuKon3t ne peut pas empêcher toutes les captures d'écran ni arrêter quelqu'un de déterminé à copier ce qui s'affiche sur son écran (avec un autre appareil photo, par exemple) ; choisissez donc une photo de profil que vous acceptez que d'autres voient. Les publications, les stories et Muse gardent leurs propres options d'enregistrement et de partage.",
+  },
+  "blocking-hides-collaborations": {
+    q: "Que deviennent les collaborations quand je bloque quelqu'un ?",
+    a: "Si vous bloquez quelqu'un, ou si cette personne vous bloque, les collaborations qu'elle a créées disparaissent pour vous : elles ne figurent plus dans la liste des Collab Boards ni dans la recherche, leurs liens mènent à une page introuvable, et vous ne pouvez plus les rejoindre, demander à les rejoindre, accepter une invitation, voter à leurs sondages ni rejoindre leurs sessions, même si vous y participiez déjà. Vous figurez toujours parmi les participants, et tout revient si le blocage est levé. Vous pouvez toujours quitter la collaboration, et vous pouvez toujours signaler la personne.",
   },
   "report-someone-something": {
     q: "Comment signaler une personne ou un contenu ?",

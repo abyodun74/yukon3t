@@ -16,6 +16,8 @@ import { collabFieldsFromIssues, collabInvalidPath } from "@/lib/collab-form-err
 import { expandCircleInvites, getAcceptedConnectionIds, sendCollabInvites } from "@/lib/collab-invites-server";
 import { canCollabInviterStillInvite, canInviteToCollab } from "@/lib/collab-invite";
 import { pendingInviteClaimWhere } from "@/lib/invite-standing";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
+import { isBlockedEitherWay } from "@/lib/blocks";
 
 export async function createCollabPost(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -174,7 +176,8 @@ export async function updateCollabPost(id: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id } });
-  if (!collab) {
+  // Blocked either way with the author: the collab doesn't exist for this co-admin (lib/collab-visibility.ts).
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     redirect("/collab");
   }
   const membership = await getCollabMembership(id, user.id);
@@ -322,7 +325,8 @@ export async function joinCollab(collabId: string) {
     where: { id: collabId },
     include: { participants: { where: { role: "MODERATOR" }, select: { userId: true } } },
   });
-  if (!collab) {
+  // Blocked either way with the author: answered exactly like a missing collab, participants included.
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
 
@@ -386,12 +390,17 @@ export async function respondToCollabJoinRequest(requestId: string, approve: boo
       },
     },
   });
-  if (!request) {
+  if (!request || (await collabHiddenFromViewer(request.collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(request.collabId, user.id);
   if (!isCollabAdmin(request.collab, myMembership, user)) {
     return { error: "forbidden" as const };
+  }
+  // A requester blocked either way with the author can't be let in (the collab doesn't exist for them); their request
+  // isn't listed and stays as it is. Declining it is still allowed.
+  if (approve && (await isBlockedEitherWay(request.userId, request.collab.authorId))) {
+    return { error: "not_found" as const };
   }
 
   if (approve) {
@@ -434,7 +443,7 @@ export async function inviteToCollab(collabId: string, formData: FormData) {
   }
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id: collabId } });
-  if (!collab) {
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(collabId, user.id);
@@ -492,6 +501,11 @@ export async function respondToCollabInvite(inviteId: string, accept: boolean) {
   }
   if (invite.inviteeId !== user.id) {
     return { error: "forbidden" as const };
+  }
+  // Blocked either way with the author: the collab (and so the invite) doesn't exist for them. Neither answer is
+  // taken, so the invite row stays exactly as it is.
+  if (await collabHiddenFromViewer(invite.collab, user.id)) {
+    return { error: "not_found" as const };
   }
   const claim = pendingInviteClaimWhere(invite);
 
@@ -564,7 +578,7 @@ export async function cancelCollabInvite(inviteId: string) {
     where: { id: inviteId },
     select: { inviteeId: true, collab: { select: { id: true, authorId: true } } },
   });
-  if (!invite) {
+  if (!invite || (await collabHiddenFromViewer(invite.collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(invite.collab.id, user.id);
@@ -618,7 +632,7 @@ export async function addCollabCoAdmin(collabId: string, targetUserId: string) {
   }
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id: collabId } });
-  if (!collab) {
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(collabId, user.id);
@@ -652,7 +666,7 @@ export async function removeCollabCoAdmin(collabId: string, targetUserId: string
   }
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id: collabId } });
-  if (!collab) {
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(collabId, user.id);
@@ -682,7 +696,7 @@ export async function removeCollabParticipant(collabId: string, targetUserId: st
   }
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id: collabId } });
-  if (!collab) {
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
   const myMembership = await getCollabMembership(collabId, user.id);

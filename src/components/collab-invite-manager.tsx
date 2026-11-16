@@ -53,7 +53,8 @@ export function CollabInviteManager({
   const listSeparator = useUiText().t.listSeparator;
 
   return (
-    <div className="mt-8">
+    // #collab-invites: the Collab share sheet's "Invite people" (a PRIVATE collab is shared by invite only).
+    <div id="collab-invites" className="mt-8 scroll-mt-20">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-soft">
         {format(t.heading, { count: totalCount })}
       </h2>

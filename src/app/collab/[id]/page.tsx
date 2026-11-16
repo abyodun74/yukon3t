@@ -13,6 +13,7 @@ import { CollabJoinRequestManager } from "@/components/collab-join-request-manag
 import { CollabInviteManager } from "@/components/collab-invite-manager";
 import { CollabInviteResponse } from "@/components/collab-invite-response";
 import { CollabSessionRoom } from "@/components/collab-session-room";
+import { CollabShareButton } from "@/components/collab-long-press";
 import { CollabAddToCalendar } from "@/components/collab-add-to-calendar";
 import { PollSection } from "@/components/poll-section";
 import { CollabOneOffSessions } from "@/components/poll-time";
@@ -29,6 +30,8 @@ import { splitVisibleInvites } from "@/lib/collab-circle-invite";
 import { canInviteToCollab, collabInviteExcludesInvitee } from "@/lib/collab-invite";
 import { loadCollabInvitesForAdmins, loadStandingCollabInvite } from "@/lib/collab-invites-server";
 import { getOwnedCircleOptions } from "@/lib/collab-circle-options";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
+import { notBlockedWithAuthorUserWhere } from "@/lib/collab-visibility";
 import { countryName } from "@/lib/i18n/country-names";
 import { vocabName } from "@/lib/i18n/language-names";
 import { aroundPlaceholder, plural } from "@/lib/i18n/locales";
@@ -57,6 +60,9 @@ export default async function CollabDetailPage({
     },
   });
   if (!collab) notFound();
+  // Blocked either way with the author: to this viewer the collab doesn't exist, the same 404 as a missing one, even
+  // for a participant or invitee (their rows are kept). lib/collab-visibility.ts.
+  if (await collabHiddenFromViewer(collab, me.id)) notFound();
 
   const isParticipant = collab.participants.length > 0;
 
@@ -111,7 +117,8 @@ export default async function CollabDetailPage({
   const pendingJoinRequests =
     canModerate && collab.visibility === "PUBLIC"
       ? await prisma.collabJoinRequest.findMany({
-          where: { collabId: collab.id, status: "PENDING" },
+          // A requester blocked either way with the author isn't listed (the request row stays as it is).
+          where: { collabId: collab.id, status: "PENDING", user: notBlockedWithAuthorUserWhere(collab.authorId) },
           orderBy: { createdAt: "asc" },
           include: { user: { select: { id: true, name: true, username: true, avatarUrl: true } } },
         })
@@ -264,6 +271,10 @@ export default async function CollabDetailPage({
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <h1 dir="auto" className="min-w-0 break-words text-2xl font-semibold">{collab.title}</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <CollabShareButton
+            collab={{ id: collab.id, title: collab.title, visibility: collab.visibility, status: collab.status }}
+            canInvite={canInvite}
+          />
           {(isOwner || isParticipant || collab.visibility === "PUBLIC") && (
             <CollabParticipantButton
               collabId={collab.id}

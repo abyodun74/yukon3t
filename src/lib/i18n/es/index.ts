@@ -5,6 +5,7 @@ import { appLinks } from "@/lib/i18n/es/appLinks";
 import { calls } from "@/lib/i18n/es/calls";
 import { challenges } from "@/lib/i18n/es/challenges";
 import { circleShare } from "@/lib/i18n/es/circleShare";
+import { collabShare } from "@/lib/i18n/es/collabShare";
 import { circles } from "@/lib/i18n/es/circles";
 import { collab } from "@/lib/i18n/es/collab";
 import { commentTools } from "@/lib/i18n/es/commentTools";
@@ -49,6 +50,7 @@ export const es: Dictionary = {
   gifts,
   challenges,
   circleShare,
+  collabShare,
   commentTools,
   storyUpload,
   postUpload,

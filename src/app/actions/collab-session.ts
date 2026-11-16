@@ -15,6 +15,7 @@ import { getCollabMembership } from "@/lib/collab-permissions";
 import { publishEvent, notifyBadgeChange } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { sendCollabInvites, viewerCanSeeCollab } from "@/lib/collab-invites-server";
+import { collabHiddenFromViewer, collabViewersOnly } from "@/lib/collab-visibility-server";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
 import { captureError } from "@/lib/error-tracking";
 import {
@@ -46,7 +47,8 @@ export async function joinCollabSession(collabId: string) {
     prisma.collabBoardPost.findUnique({ where: { id: collabId } }),
     getCollabMembership(collabId, user.id),
   ]);
-  if (!collab) {
+  // Blocked either way with the author: answered like a missing collab, even for a participant (lib/collab-visibility.ts).
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const };
   }
   if (!membership) {
@@ -151,7 +153,7 @@ export async function startCollabSession(
     }),
     getCollabMembership(collabId, user.id),
   ]);
-  if (!collab) {
+  if (!collab || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "not_found" as const, ...noInvites };
   }
   if (!membership) {
@@ -187,7 +189,7 @@ export async function startCollabSession(
 
   if (options.notify) {
     try {
-      await notifyCollabSessionStarted(collabId, user);
+      await notifyCollabSessionStarted(collab, user);
     } catch (err) {
       console.error("[collab-session] session-started notification failed", err);
       await captureError(err, { action: "startCollabSession", collabId });
@@ -204,10 +206,15 @@ export async function startCollabSession(
  * by collabId, which has no index). The check and the insert run in one transaction that first locks the collab's
  * row (a no-op update, same trick as lockConnectedCall), so two admins starting at the same moment can't both pass.
  */
-async function notifyCollabSessionStarted(collabId: string, starter: { id: string; name: string | null }) {
+async function notifyCollabSessionStarted(
+  collab: { id: string; authorId: string },
+  starter: { id: string; name: string | null },
+) {
+  const collabId = collab.id;
   const participants = await prisma.collabParticipant.findMany({ where: { collabId }, select: { userId: true } });
   const participantIds = participants.map((p) => p.userId);
-  const recipientIds = sessionStartedRecipients(participantIds, starter.id);
+  // Never a participant blocked either way with the author: the collab doesn't exist for them.
+  const recipientIds = await collabViewersOnly(collab, sessionStartedRecipients(participantIds, starter.id));
   if (recipientIds.length === 0) return;
 
   const now = new Date();
@@ -287,10 +294,10 @@ export async function listCollabRecordings(collabId: string) {
   const user = await requireVerifiedUser();
 
   const [collab, membership] = await Promise.all([
-    prisma.collabBoardPost.findUnique({ where: { id: collabId }, select: { roomName: true } }),
+    prisma.collabBoardPost.findUnique({ where: { id: collabId }, select: { roomName: true, authorId: true } }),
     getCollabMembership(collabId, user.id),
   ]);
-  if (!collab?.roomName || !membership) {
+  if (!collab?.roomName || !membership || (await collabHiddenFromViewer(collab, user.id))) {
     return { recordings: [] };
   }
 
@@ -307,10 +314,10 @@ export async function getCollabRecordingLink(collabId: string, recordingId: stri
   const user = await requireVerifiedUser();
 
   const [collab, membership] = await Promise.all([
-    prisma.collabBoardPost.findUnique({ where: { id: collabId }, select: { roomName: true } }),
+    prisma.collabBoardPost.findUnique({ where: { id: collabId }, select: { roomName: true, authorId: true } }),
     getCollabMembership(collabId, user.id),
   ]);
-  if (!collab?.roomName || !membership) {
+  if (!collab?.roomName || !membership || (await collabHiddenFromViewer(collab, user.id))) {
     return { error: "forbidden" as const };
   }
 

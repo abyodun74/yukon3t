@@ -37,6 +37,8 @@ export const FAQ_IDS = [
   "new-member-alerts",
   "home-split-into-sections-like",
   "update-the-app",
+  "links-open-in-app",
+  "app-opens-where-left-off",
   "slow-connection-data-saver",
   // The Android app
   "app-opens-chrome-instead-full",
@@ -79,6 +81,7 @@ export const FAQ_IDS = [
   "post-text-only-story",
   "post-more-than-one-story",
   "move-between-different-peoples-stories",
+  "close-story",
   "people-react-reply-comment-story",
   // Muse
   "muse-2",
@@ -134,6 +137,7 @@ export const FAQ_IDS = [
   "sub-circles",
   "invite-people-private-circle",
   "share-circle",
+  "share-collab",
   "invite-someone-circles-voice-channel",
   "collab-board",
   "difference-between-public-private-collab",
@@ -183,6 +187,7 @@ export const FAQ_IDS = [
   "trust-score-trust-badge",
   "someone-know-take-screenshot",
   "save-someones-profile-picture",
+  "blocking-hides-collaborations",
   "report-someone-something",
 ] as const;
 

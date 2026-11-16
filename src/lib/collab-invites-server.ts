@@ -4,6 +4,7 @@ import { selectCircleInvitees } from "@/lib/collab-circle-invite";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { canViewCollab } from "@/lib/collab-permissions";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 import {
   collabInviteExcludesInvitee,
   collabInviteStillStands,
@@ -33,6 +34,8 @@ export async function expandCircleInvites(
   inviterId: string,
   circleIds: string[],
   exclude: { participantIds: string[]; existingInviteeIds: string[]; alsoInvitingIds: string[] },
+  /** People blocked either way with the collab's author, when the inviter is a co-admin (the collab doesn't exist for them). */
+  authorBlockedIds: Iterable<string> = [],
 ) {
   const uniqueCircleIds = [...new Set(circleIds)];
   const circles = await prisma.circle.findMany({
@@ -43,7 +46,7 @@ export async function expandCircleInvites(
     return { error: "forbidden" as const };
   }
 
-  const [members, blockedIds, hiddenPeerIds] = await Promise.all([
+  const [members, inviterBlockedIds, hiddenPeerIds] = await Promise.all([
     prisma.circleMembership.findMany({
       where: { circleId: { in: uniqueCircleIds } },
       select: { userId: true, user: { select: { status: true } } },
@@ -56,7 +59,7 @@ export async function expandCircleInvites(
     inviterId,
     members: members.map((m) => ({ userId: m.userId, status: m.user.status })),
     ...exclude,
-    blockedIds,
+    blockedIds: [...inviterBlockedIds, ...authorBlockedIds],
     hiddenPeerIds,
   });
   if (!selection.ok) {
@@ -127,7 +130,8 @@ export async function loadStandingCollabInvite(inviteeId: string, collab: { id: 
 /**
  * Whether `viewer` may see this collab at all: the collab page's own gate (canViewCollab — PUBLIC, the author, a
  * participant, a standing invite, or a site admin), for Server Actions that take a collab id from the browser and
- * return what that page shows (getCollabSessionParticipants). False for a missing collab.
+ * return what that page shows (getCollabSessionParticipants). False for a missing collab, and for one whose author is
+ * blocked either way with the viewer (collabHiddenFromViewer: to them it doesn't exist, participants included).
  */
 export async function viewerCanSeeCollab(collabId: unknown, viewer: { id: string; isAdmin: boolean }) {
   if (typeof collabId !== "string" || !collabId) return false;
@@ -136,6 +140,7 @@ export async function viewerCanSeeCollab(collabId: unknown, viewer: { id: string
     select: { id: true, authorId: true, visibility: true },
   });
   if (!collab) return false;
+  if (await collabHiddenFromViewer(collab, viewer.id)) return false;
   if (canViewCollab(collab, false, viewer, false)) return true;
   const participant = await prisma.collabParticipant.findUnique({
     where: { userId_collabId: { userId: viewer.id, collabId: collab.id } },
@@ -166,7 +171,10 @@ export async function sendCollabInvites(
     return { error: "rate_limited" as const };
   }
 
-  const [acceptedConnectionIds, existingParticipants, existingRows] = await Promise.all([
+  // Someone blocked either way with the author can't be invited (the collab doesn't exist for them); dropped silently,
+  // like a non-connection. Only a co-admin inviter needs the lookup: the author's own blocks already keep those people
+  // out of their connections and (expandCircleInvites) their Circles' invitees.
+  const [acceptedConnectionIds, existingParticipants, existingRows, authorBlockedIds] = await Promise.all([
     getAcceptedConnectionIds(inviterId),
     prisma.collabParticipant.findMany({ where: { collabId }, select: { userId: true } }),
     prisma.collabInvite.findMany({
@@ -179,10 +187,11 @@ export async function sendCollabInvites(
         inviter: collabInviterStandingSelect(collabId),
       },
     }),
+    collab.authorId === inviterId ? Promise.resolve(new Set<string>()) : getBlockedEitherWayIds(collab.authorId),
   ]);
   const participantIds = new Set(existingParticipants.map((p) => p.userId));
   const inviteeIds = [...new Set(request.inviteeIds)].filter(
-    (id) => acceptedConnectionIds.has(id) && !participantIds.has(id),
+    (id) => acceptedConnectionIds.has(id) && !participantIds.has(id) && !authorBlockedIds.has(id),
   );
   if (inviteeIds.length === 0 && circleIds.length === 0) {
     return { error: "invalid" as const };
@@ -205,7 +214,7 @@ export async function sendCollabInvites(
       participantIds: [...participantIds],
       existingInviteeIds: existingInvites.filter(collabInviteExcludesInvitee).map((i) => i.inviteeId),
       alsoInvitingIds: inviteeIds,
-    });
+    }, authorBlockedIds);
     if (expanded.error) {
       return { error: expanded.error };
     }

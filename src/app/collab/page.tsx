@@ -2,6 +2,9 @@ import Link from "next/link";
 import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { ReportTrigger } from "@/components/report-form";
+import { CollabLongPress } from "@/components/collab-long-press";
+import { canInviteToCollab } from "@/lib/collab-invite";
+import { collabNotBlockedWhere } from "@/lib/collab-visibility";
 import { TrustBadge } from "@/components/trust-badge";
 import { UserLink } from "@/components/user-link";
 import { PostConnectPopover } from "@/components/post-connect-popover";
@@ -33,7 +36,8 @@ export default async function CollabPage({
       : post.countries.map((country) => countryName(country, locale)).join(dictionary.ui.listSeparator);
 
   const posts = await prisma.collabBoardPost.findMany({
-    where: { status: "OPEN", visibility: "PUBLIC" },
+    // Never a collab whose author is blocked either way with the viewer (lib/collab-visibility.ts).
+    where: { status: "OPEN", visibility: "PUBLIC", AND: [collabNotBlockedWhere(me.id)] },
     orderBy: { createdAt: sort === "oldest" ? "asc" : "desc" },
     take: 40,
     include: {
@@ -52,11 +56,15 @@ export default async function CollabPage({
       status: "OPEN",
       visibility: "PRIVATE",
       OR: [{ authorId: me.id }, { participants: { some: { userId: me.id } } }],
+      // A participant blocked either way with the author no longer sees it (their row stays).
+      AND: [collabNotBlockedWhere(me.id)],
     },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: {
       author: { select: { id: true, name: true, username: true, avatarUrl: true } },
+      // The viewer's own role: an organizer's share sheet points at the Invite flow (canInviteToCollab).
+      participants: { where: { userId: me.id }, select: { role: true } },
       _count: { select: { participants: true } },
     },
   });
@@ -106,6 +114,9 @@ export default async function CollabPage({
           const engagement = engagementStatusFor(engagementByAuthorId, post.author.id);
           return (
           <div key={post.id} className="rounded-xl border border-line p-4">
+            <CollabLongPress
+              collab={{ id: post.id, title: post.title, visibility: post.visibility, status: post.status }}
+            >
             <Link href={`/collab/${post.id}`} className="block">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="rounded-full bg-teal/10 px-2.5 py-0.5 text-xs font-medium text-teal">
@@ -119,6 +130,7 @@ export default async function CollabPage({
                 {plural(locale, t.participants, post._count.participants)}
               </p>
             </Link>
+            </CollabLongPress>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {byBefore.trim() && <span className="text-xs text-foreground-soft">{byBefore.trim()}</span>}
@@ -176,8 +188,12 @@ export default async function CollabPage({
           </p>
           <div className="mt-3 space-y-3">
             {privatePosts.map((post) => (
-              <Link
+              <CollabLongPress
                 key={post.id}
+                collab={{ id: post.id, title: post.title, visibility: post.visibility, status: post.status }}
+                canInvite={canInviteToCollab(post, post.participants[0] ?? null, me.id)}
+              >
+              <Link
                 href={`/collab/${post.id}`}
                 className="block rounded-xl border border-line p-4 hover:border-accent"
               >
@@ -196,6 +212,7 @@ export default async function CollabPage({
                   {byAfter} · {plural(locale, t.participants, post._count.participants)}
                 </p>
               </Link>
+              </CollabLongPress>
             ))}
           </div>
         </div>

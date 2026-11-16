@@ -102,7 +102,7 @@ export const pt3 = {
   },
   "open-hidden-chat-unhide-one": {
     q: "Como abro uma conversa oculta e como deixo de ocultá-la?",
-    a: "Toque e segure a palavra «Mensagens» no topo da sua tela de Mensagens, ou vá em Configurações, «Privacidade», «Conversas ocultas». Digite seu PIN e suas conversas ocultas são listadas. Essas duas entradas estão sempre ali para todo mundo, então não mostram se você ocultou alguma coisa. A área volta a ser bloqueada sozinha depois de cerca de 10 minutos, assim que você sai do aplicativo ou troca de aba com uma conversa oculta na tela, quando você toca em «Bloquear agora» e quando você sai da conta. Para deixar de ocultar, abra a conversa, toque em ⋯ e escolha «Deixar de ocultar a conversa».",
+    a: "Toque e segure a palavra «Mensagens» no topo da sua tela de Mensagens, ou vá em Configurações, «Privacidade», «Conversas ocultas». Digite seu PIN e suas conversas ocultas são listadas. Essas duas entradas estão sempre ali para todo mundo, então não mostram se você ocultou alguma coisa. A área volta a ser bloqueada sozinha depois de cerca de 10 minutos, assim que você sai do aplicativo ou troca de aba com uma conversa oculta na tela, quando você toca em «Bloquear agora» e quando você sai da conta. Se você sai com uma conversa oculta na tela, a tela é coberta na hora; quando você volta, digita seu PIN e retorna a essa conversa. Para deixar de ocultar, abra a conversa, toque em ⋯ e escolha «Deixar de ocultar a conversa».",
   },
   "other-person-know-hid-our": {
     q: "A outra pessoa sabe que ocultei nossa conversa?",

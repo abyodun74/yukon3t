@@ -7,6 +7,7 @@ import { filterCircleContentViewers } from "@/lib/circle-permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateText } from "@/lib/moderation";
 import { getBlockedEitherWayIds } from "@/lib/blocks";
+import { collabHiddenFromViewer, collabViewersOnly } from "@/lib/collab-visibility-server";
 import { captureError } from "@/lib/error-tracking";
 import { pushActivityNotificationToMany } from "@/lib/notify-push";
 import { publishEvent, publishEvents } from "@/lib/realtime-server";
@@ -124,6 +125,7 @@ export async function createPoll(input: unknown) {
   let access: PollParentAccess;
   let circle: { id: string; slug: string; createdById: string; visibility: string } | null = null;
   let channel: { id: string; visibility: string } | null = null;
+  let collabAuthorId: string | null = null;
   if (data.circleId) {
     circle = await prisma.circle.findUnique({
       where: { id: data.circleId },
@@ -143,9 +145,11 @@ export async function createPoll(input: unknown) {
       where: { id: data.collabId! },
       select: { id: true, authorId: true, visibility: true, status: true },
     });
-    if (!collab) return failure("not_found");
+    // Blocked either way with the author: answered like a missing collab, before anything that would show it exists.
+    if (!collab || (await collabHiddenFromViewer(collab, user.id))) return failure("not_found");
     if (collab.status === "CLOSED") return failure("collab_closed");
     access = await getCollabPollAccess(collab, user);
+    collabAuthorId = collab.authorId;
   }
   if (!access.canCreate) return failure("forbidden");
 
@@ -175,7 +179,12 @@ export async function createPoll(input: unknown) {
   });
 
   try {
-    await notifyPollCreated(user.id, { circleId: circle?.id ?? null, channel, collabId: data.collabId ?? null });
+    await notifyPollCreated(user.id, {
+      circleId: circle?.id ?? null,
+      channel,
+      collabId: data.collabId ?? null,
+      collabAuthorId,
+    });
   } catch (err) {
     console.error("[polls] poll-created notification failed", err);
     await captureError(err, { action: "createPoll", pollId: poll.id });
@@ -193,7 +202,12 @@ export async function createPoll(input: unknown) {
  */
 async function notifyPollCreated(
   actorId: string,
-  parent: { circleId: string | null; channel: { id: string; visibility: string } | null; collabId: string | null },
+  parent: {
+    circleId: string | null;
+    channel: { id: string; visibility: string } | null;
+    collabId: string | null;
+    collabAuthorId: string | null;
+  },
 ) {
   let candidates: string[];
   if (parent.circleId) {
@@ -221,7 +235,8 @@ async function notifyPollCreated(
       orderBy: { joinedAt: "desc" },
       select: { userId: true },
     });
-    candidates = participants.map((p) => p.userId);
+    // Never a participant blocked either way with the collab's author: the collab doesn't exist for them.
+    candidates = await collabViewersOnly({ authorId: parent.collabAuthorId! }, participants.map((p) => p.userId));
   }
   const recipients = pollRecipients(candidates, actorId, await getBlockedEitherWayIds(actorId));
   if (recipients.length === 0) return;
@@ -525,6 +540,7 @@ export async function schedulePollOption(pollId: string, optionId: string) {
       circleId: poll.circleId,
       circleSlug: poll.circle?.slug ?? null,
       collabId: poll.collabId,
+      collabAuthorId: poll.collab?.authorId ?? null,
       postId: scheduled.post?.id ?? null,
     });
   } catch (err) {
@@ -545,7 +561,13 @@ export async function schedulePollOption(pollId: string, optionId: string) {
 async function notifyPollScheduled(
   pollId: string,
   actor: { id: string; name: string | null },
-  target: { circleId: string | null; circleSlug: string | null; collabId: string | null; postId: string | null },
+  target: {
+    circleId: string | null;
+    circleSlug: string | null;
+    collabId: string | null;
+    collabAuthorId: string | null;
+    postId: string | null;
+  },
 ) {
   const voters = await prisma.pollVote.findMany({
     where: { pollId },
@@ -553,9 +575,14 @@ async function notifyPollScheduled(
     select: { userId: true },
   });
   // A PRIVATE Circle's voters who have since left no longer see it (lib/circle-visibility.ts), so they aren't told.
+  // Likewise a collab's voters blocked either way with its author (lib/collab-visibility.ts).
   const voterIds = voters.map((v) => v.userId);
   const recipients = pollRecipients(
-    target.circleId ? await filterCircleContentViewers(target.circleId, voterIds) : voterIds,
+    target.circleId
+      ? await filterCircleContentViewers(target.circleId, voterIds)
+      : target.collabAuthorId
+        ? await collabViewersOnly({ authorId: target.collabAuthorId }, voterIds)
+        : voterIds,
     actor.id,
     await getBlockedEitherWayIds(actor.id),
   );

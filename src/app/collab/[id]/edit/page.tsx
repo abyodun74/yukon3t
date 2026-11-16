@@ -3,6 +3,7 @@ import { getOnboardedUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { updateCollabPost } from "@/app/actions/collab";
 import { isCollabAdmin, getCollabMembership } from "@/lib/collab-permissions";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
 import { BackButton } from "@/components/back-button";
 import { CollabCountriesField } from "@/components/collab-countries-field";
 import { CollabScheduleField } from "@/components/collab-schedule-field";
@@ -33,6 +34,8 @@ export default async function EditCollabPostPage({
 
   const collab = await prisma.collabBoardPost.findUnique({ where: { id } });
   if (!collab) notFound();
+  // A co-admin blocked either way with the author: the collab doesn't exist for them (lib/collab-visibility.ts).
+  if (await collabHiddenFromViewer(collab, me.id)) notFound();
 
   const membership = await getCollabMembership(id, me.id);
   if (!isCollabAdmin(collab, membership, me)) {

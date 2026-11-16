@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmbedding, toPgVector } from "@/lib/embeddings";
 import { getListablePostsWhere } from "@/lib/post-visibility";
 import { visibleCircleWhere } from "@/lib/circle-visibility";
+import { collabNotBlockedWhere } from "@/lib/collab-visibility";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 
 const CANDIDATE_LIMIT = 30;
@@ -229,6 +230,8 @@ export async function semanticSearch(
             visibility: "PUBLIC",
             // Same admin exclusion as search/page.tsx's exact-match collab query.
             author: { isAdmin: false },
+            // Never a collab whose author is blocked either way with the viewer (lib/collab-visibility.ts).
+            AND: [collabNotBlockedWhere(viewerId)],
           },
           include: { author: { select: { id: true, name: true } }, _count: { select: { participants: true } } },
           take: CANDIDATE_LIMIT,

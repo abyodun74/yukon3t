@@ -17,6 +17,9 @@ import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { shareToChatsResult, uniqueShareTargets } from "@/lib/share-to-chats";
 import { canSeeCircle } from "@/lib/circle-visibility";
 import { circleShareMessage, isCircleShareable } from "@/lib/circle-share";
+import { canViewCollab } from "@/lib/collab-permissions";
+import { collabHiddenFromViewer } from "@/lib/collab-visibility-server";
+import { collabShareMessage, isCollabShareable } from "@/lib/collab-share";
 
 /**
  * "Send to a friend" from the post share sheet (the post's link) and from sharing in from another app (its text and/or
@@ -266,6 +269,81 @@ export async function shareCircleToConversations(circleId: string, conversationI
     return { error: "unavailable" as const };
   }
   const content = circleShareMessage(circle);
+
+  const tally = await sendToEachChat({
+    userId: user.id,
+    targetIds,
+    send: async (target) => {
+      const created = await createNonE2eeMessage({
+        conversationId: target.id,
+        senderId: user.id,
+        content,
+        mediaType: "NONE",
+        moderationStatus: "PUBLISHED",
+      });
+      if (created.error) return created.error;
+      await afterMessageSent({
+        user,
+        conversationId: target.id,
+        memberIds: target.members.map((m) => m.userId),
+        secret: false,
+        content,
+        mediaType: "NONE",
+      });
+      return null;
+    },
+  });
+
+  return shareToChatsResult(tally);
+}
+
+/**
+ * Shares a collab to 1-SHARE_MAX_RECIPIENTS of the caller's chats (the long-press / Share sheet on a collab,
+ * collab-share-sheet.tsx), mirroring shareCircleToConversations. Only a PUBLIC, OPEN collab is ever shared (owner
+ * decision, see src/lib/collab-share.ts): a PRIVATE one is invite-only, a CLOSED one was ended by its organizer or
+ * removed by moderation (the same state), so they, a missing one, one the caller can't see (canViewCollab), one whose
+ * author is no longer ACTIVE and one whose author is blocked either way with the caller all answer the same generic
+ * "unavailable" a send that reached no chat answers, before any chat is touched. The browser sends ids only; the
+ * message is built here (collabShareMessage: the title, already moderated when the collab was created or edited, and
+ * its public link; nothing a non-participant can't already see) and is never free text, so there is nothing new to
+ * moderate. Every destination is checked on its own (sendToEachChat: member, hidden-chat lock, blocks either way,
+ * active peer, never a secret chat, `messageSend` per copy) and written only through createNonE2eeMessage, with the
+ * usual notifications (afterMessageSent). Answers counts only.
+ */
+export async function shareCollabToConversations(collabId: string, conversationIds: string[]) {
+  const user = await requireVerifiedUser();
+
+  const ids = shareToChatsSchema.safeParse(conversationIds);
+  if (!ids.success || typeof collabId !== "string" || !collabId) {
+    return { error: "invalid" as const };
+  }
+  const targetIds = uniqueShareTargets(ids.data);
+
+  if (!(await checkRateLimit("shareToChats", user.id))) {
+    return { error: "rate_limited" as const };
+  }
+
+  const collab = await prisma.collabBoardPost.findUnique({
+    where: { id: collabId },
+    select: {
+      id: true,
+      title: true,
+      visibility: true,
+      status: true,
+      authorId: true,
+      author: { select: { status: true } },
+    },
+  });
+  if (
+    !collab ||
+    !canViewCollab(collab, false, user, false) ||
+    !isCollabShareable(collab) ||
+    collab.author.status !== "ACTIVE" ||
+    (await collabHiddenFromViewer(collab, user.id))
+  ) {
+    return { error: "unavailable" as const };
+  }
+  const content = collabShareMessage(collab);
 
   const tally = await sendToEachChat({
     userId: user.id,
