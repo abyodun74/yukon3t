@@ -1030,7 +1030,9 @@ const sections: Section[] = [
             Story (24-hour expiry, reactions, replies, comments).
             A text Story can be up to 2,000 characters. If it&apos;s long, the image
             shows just the beginning and the full text appears below it with a
-            &ldquo;Show more&rdquo; button.
+            &ldquo;Show more&rdquo; button. To post several text Stories at once,
+            tap &ldquo;Add another&rdquo; (up to 10); each one is shared as its own
+            Story, in the order you made them.
           </>
         ),
       },

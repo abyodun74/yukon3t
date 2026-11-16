@@ -7,4 +7,13 @@ export const storyUpload: typeof storyUploadEn = {
   unsupportedFile: "Ese archivo no es una foto ni un video que podamos publicar. Usa una foto JPEG, PNG, WebP o HEIC, o un video MP4 o MOV.",
   fileReadFailed: "No se pudo leer ese archivo. Vuelve a elegirlo.",
   failedItem: "No se pudo subir este: {message}",
+  addAnother: "Añadir otra",
+  slidesLabel: "Historias de texto para compartir",
+  editSlide: "Editar historia {index}",
+  removeSlide: "Quitar historia {index}",
+  slidesHint: "Cada una se comparte como una historia aparte, en este orden.",
+  slidesFull: "Puedes añadir hasta {max} historias de texto a la vez.",
+  shareTexts: "one: Compartir # historia | other: Compartir # historias",
+  postingOf: "Publicando {current} de {total}…",
+  textPartial: "Se compartieron {posted} de {total}. Las demás siguen aquí: {reason}",
 };

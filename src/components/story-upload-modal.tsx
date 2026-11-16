@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Camera, Loader2, Upload, Video, X } from "lucide-react";
+import { AlertCircle, Camera, Loader2, Plus, Upload, Video, X } from "lucide-react";
 import { createStory } from "@/app/actions/stories";
 import { uploadFileDirect, captureVideoFrameDetailed, probeVideoDuration, resizeImageFile } from "@/lib/upload-client";
 import { MediaPickerButton } from "@/components/media-picker-button";
@@ -14,7 +14,21 @@ import {
   shouldUseAndroidNativePicker,
 } from "@/lib/native-picker-activity";
 import { looksLikeStaleServerActionError } from "@/lib/stale-build";
-import { TEXT_STORY_MAX_CHARS, textStoryExcerpt, textStoryNeedsCaption } from "@/lib/story-text";
+import {
+  TEXT_STORY_MAX_CHARS,
+  TEXT_STORY_MAX_SLIDES,
+  addSlide,
+  canAddSlide,
+  isPostableSlide,
+  nextBackgroundIndex,
+  postableSlides,
+  removeSlide,
+  slidesAfterPosting,
+  textStoryExcerpt,
+  textStoryNeedsCaption,
+  updateSlide,
+  type TextStorySlide,
+} from "@/lib/story-text";
 import { cn } from "@/lib/utils";
 import { Sheet } from "@/components/sheet";
 import { useFeedText } from "@/components/feed-text";
@@ -76,6 +90,10 @@ type ProcessResult = { item: StoryItem } | ProcessError;
 
 function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
+function makeEmptySlide(bgIndex = 0): TextStorySlide {
+  return { id: makeId(), text: "", bgIndex };
 }
 
 // Background choices for a text-only story — deliberately a small fixed
@@ -291,9 +309,17 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
   // exclusive with the media grid below rather than combinable in one
   // batch, matching how a text-story tab works elsewhere (Instagram, etc.).
   const [mode, setMode] = useState<"media" | "text">("media");
-  const [textValue, setTextValue] = useState("");
-  const [textBgIndex, setTextBgIndex] = useState(0);
+  // Text mode holds a list of text stories ("slides"), each posted as its own Story in list order. The editor shows
+  // the active one; a single slide is the original one-text-story flow. Pure list rules: src/lib/story-text.ts.
+  const [slides, setSlides] = useState<TextStorySlide[]>(() => [makeEmptySlide(0)]);
+  const [activeSlideId, setActiveSlideId] = useState(() => slides[0].id);
   const [textPosting, setTextPosting] = useState(false);
+  const [textProgress, setTextProgress] = useState<{ current: number; total: number } | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const slideStripRef = useRef<HTMLUListElement>(null);
+  const activeSlide = slides.find((s) => s.id === activeSlideId) ?? slides[0];
+  const textValue = activeSlide.text;
+  const textBgIndex = activeSlide.bgIndex;
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -327,8 +353,10 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
       setError(null);
       setProgress(null);
       setMode("media");
-      setTextValue("");
-      setTextBgIndex(0);
+      const fresh = makeEmptySlide(0);
+      setSlides([fresh]);
+      setActiveSlideId(fresh.id);
+      setTextProgress(null);
     }
   }
 
@@ -514,38 +542,112 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     }
   }
 
-  /** Rasterizes the current text/background into an image, then posts it through the exact same upload+createStory path as any picked photo. */
-  async function submitText() {
-    const trimmed = textValue.trim();
-    if (!trimmed || textPosting) return;
-    setTextPosting(true);
-    setError(null);
+  /** Rasterizes one text slide into an image, then posts it through the exact same upload+createStory path as any picked photo. */
+  async function postTextSlide(slide: TextStorySlide): Promise<{ ok: true } | { ok: false; message: string }> {
+    const trimmed = slide.text.trim();
     try {
       // Long text: the image shows an excerpt (large, readable font) and the full text rides along as the caption,
       // which the viewer collapses behind "Show more".
       const needsCaption = textStoryNeedsCaption(trimmed);
-      const file = await renderTextStoryImage(needsCaption ? textStoryExcerpt(trimmed) : trimmed, TEXT_STORY_BACKGROUNDS[textBgIndex], needsCaption);
+      const file = await renderTextStoryImage(
+        needsCaption ? textStoryExcerpt(trimmed) : trimmed,
+        TEXT_STORY_BACKGROUNDS[slide.bgIndex] ?? TEXT_STORY_BACKGROUNDS[0],
+        needsCaption,
+      );
       const result = await uploadFileDirect(file, "story-image");
-      if (!result.ok) {
-        setError(byCode(t.stories.upload.errors, result.error));
-        return;
-      }
+      if (!result.ok) return { ok: false, message: byCode(t.stories.upload.errors, result.error) };
       const fd = new FormData();
       fd.set("mediaType", "IMAGE");
       fd.set("mediaUrl", result.publicUrl);
       if (needsCaption) fd.set("caption", trimmed);
       const created = await createStory(fd);
-      if (created.error) {
-        setError(byCode(t.stories.upload.errors, created.error));
-        return;
-      }
-      router.refresh();
-      onClose();
+      if (created.error) return { ok: false, message: byCode(t.stories.upload.errors, created.error) };
+      return { ok: true };
     } catch (err) {
-      setError(looksLikeStaleServerActionError(err) ? byCode(t.stories.upload.errors, "stale_deployment") : byCode(t.stories.upload.errors, "network"));
+      return {
+        ok: false,
+        message: looksLikeStaleServerActionError(err)
+          ? byCode(t.stories.upload.errors, "stale_deployment")
+          : byCode(t.stories.upload.errors, "network"),
+      };
+    }
+  }
+
+  /**
+   * Posts every text slide that has text, one at a time in list order (so the Stories keep that order; createStory
+   * isn't idempotent, so never in parallel). The first failure stops the run: slides already posted leave the list
+   * so a retry can't post them twice, and the failed one and the rest stay, with the reason shown.
+   */
+  async function submitText() {
+    const toPost = postableSlides(slides);
+    if (toPost.length === 0 || textPosting) return;
+    setTextPosting(true);
+    setError(null);
+    const total = toPost.length;
+    const postedIds = new Set<string>();
+    let failure: { id: string; message: string } | null = null;
+    try {
+      for (let i = 0; i < toPost.length; i++) {
+        if (total > 1) setTextProgress({ current: i + 1, total });
+        const outcome = await postTextSlide(toPost[i]);
+        if (!outcome.ok) {
+          failure = { id: toPost[i].id, message: outcome.message };
+          break;
+        }
+        postedIds.add(toPost[i].id);
+      }
     } finally {
       setTextPosting(false);
+      setTextProgress(null);
     }
+    if (!failure) {
+      router.refresh();
+      onClose();
+      return;
+    }
+    // The editor is read-only while posting, so `slides` is still the list this run started from.
+    const next = slidesAfterPosting(slides, postedIds, failure.id, () => makeEmptySlide(0));
+    setSlides(next.slides);
+    setActiveSlideId(next.activeId);
+    if (postedIds.size > 0) {
+      setError(format(storyText.textPartial, { posted: postedIds.size, total, reason: failure.message }));
+      router.refresh();
+    } else {
+      setError(failure.message);
+    }
+  }
+
+  function setActiveText(text: string) {
+    setSlides((prev) => updateSlide(prev, activeSlide.id, { text }));
+  }
+
+  function setActiveBackground(bgIndex: number) {
+    setSlides((prev) => updateSlide(prev, activeSlide.id, { bgIndex }));
+  }
+
+  function scrollSlideIntoView(id: string) {
+    requestAnimationFrame(() => {
+      slideStripRef.current
+        ?.querySelector<HTMLElement>(`[data-slide-id="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  }
+
+  function addAnotherSlide() {
+    if (textPosting || canAddSlide(slides, activeSlide.id) !== "ok") return;
+    const fresh = makeEmptySlide(nextBackgroundIndex(slides, TEXT_STORY_BACKGROUNDS.length));
+    setSlides(addSlide(slides, fresh));
+    setActiveSlideId(fresh.id);
+    setError(null);
+    textAreaRef.current?.focus();
+    scrollSlideIntoView(fresh.id);
+  }
+
+  function removeTextSlide(id: string) {
+    if (textPosting) return;
+    const next = removeSlide(slides, id, activeSlide.id, () => makeEmptySlide(0));
+    setSlides(next.slides);
+    setActiveSlideId(next.activeId);
   }
 
   function submit() {
@@ -593,6 +695,9 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     });
   }
 
+  const textPostableCount = postableSlides(slides).length;
+  const addSlideCheck = canAddSlide(slides, activeSlide.id);
+  const activeSlideNumber = slides.findIndex((s) => s.id === activeSlide.id) + 1;
   const readyCount = items.filter((i) => i.upload.status === "done").length;
   const anyUploading = items.some((i) => i.upload.status === "uploading");
 
@@ -644,23 +749,77 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               style={{ backgroundColor: TEXT_STORY_BACKGROUNDS[textBgIndex].bg }}
             >
               <textarea dir="auto"
-                aria-label={t.stories.upload.textLabel}
+                ref={textAreaRef}
+                aria-label={
+                  slides.length > 1
+                    ? `${t.stories.upload.textLabel} (${format(storyText.editSlide, { index: activeSlideNumber })})`
+                    : t.stories.upload.textLabel
+                }
                 value={textValue}
-                onChange={(e) => setTextValue(e.target.value.slice(0, TEXT_STORY_MAX_CHARS))}
+                onChange={(e) => setActiveText(e.target.value.slice(0, TEXT_STORY_MAX_CHARS))}
                 placeholder={t.stories.upload.textPlaceholder}
                 maxLength={TEXT_STORY_MAX_CHARS}
+                readOnly={textPosting}
                 autoFocus
                 className="h-full w-full min-w-0 max-w-full resize-none break-words bg-transparent text-center text-lg font-semibold outline-none [overflow-wrap:anywhere] placeholder:opacity-60"
                 style={{ color: TEXT_STORY_BACKGROUNDS[textBgIndex].fg }}
               />
+              {slides.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeTextSlide(activeSlide.id)}
+                  disabled={textPosting}
+                  aria-label={format(storyText.removeSlide, { index: activeSlideNumber })}
+                  className="absolute end-1 top-1 flex h-11 w-11 items-center justify-center disabled:opacity-50"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white">
+                    <X size={14} />
+                  </span>
+                </button>
+              )}
             </div>
+
+            {slides.length > 1 && (
+              <>
+                <ul
+                  ref={slideStripRef}
+                  aria-label={storyText.slidesLabel}
+                  className="mt-3 flex gap-2 overflow-x-auto overscroll-x-contain pb-1"
+                >
+                  {slides.map((slide, i) => {
+                    const colors = TEXT_STORY_BACKGROUNDS[slide.bgIndex] ?? TEXT_STORY_BACKGROUNDS[0];
+                    const active = slide.id === activeSlide.id;
+                    return (
+                      <li key={slide.id} data-slide-id={slide.id} className="shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setActiveSlideId(slide.id)}
+                          disabled={textPosting}
+                          aria-label={format(storyText.editSlide, { index: i + 1 })}
+                          aria-current={active ? "true" : undefined}
+                          className={cn(
+                            "flex h-14 w-11 items-center justify-center rounded-lg border-2 text-sm font-semibold disabled:opacity-60",
+                            active ? "border-accent" : "border-line",
+                            !isPostableSlide(slide) && "border-dashed",
+                          )}
+                          style={{ backgroundColor: colors.bg, color: colors.fg }}
+                        >
+                          {i + 1}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-1 text-center text-[0.6875rem] text-foreground-soft">{storyText.slidesHint}</p>
+              </>
+            )}
 
             <div className="mt-3 flex items-center justify-center gap-2">
               {TEXT_STORY_BACKGROUNDS.map((c, i) => (
                 <button
                   key={c.bg}
                   type="button"
-                  onClick={() => setTextBgIndex(i)}
+                  onClick={() => setActiveBackground(i)}
                   aria-label={format(t.stories.upload.background, { index: i + 1 })}
                   aria-pressed={i === textBgIndex}
                   className={cn(
@@ -672,15 +831,36 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
               ))}
             </div>
 
+            <button
+              type="button"
+              onClick={addAnotherSlide}
+              disabled={addSlideCheck !== "ok" || textPosting}
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              <Plus size={16} />
+              {storyText.addAnother}
+            </button>
+            {slides.length >= TEXT_STORY_MAX_SLIDES && (
+              <p className="mt-1 text-center text-[0.6875rem] text-foreground-soft">
+                {format(storyText.slidesFull, { max: TEXT_STORY_MAX_SLIDES })}
+              </p>
+            )}
+
             {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 
             <button
               type="button"
-              disabled={!textValue.trim() || textPosting}
+              disabled={textPostableCount === 0 || textPosting}
               onClick={submitText}
               className="mt-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
             >
-              {textPosting ? t.stories.upload.posting : t.stories.upload.share}
+              {textPosting
+                ? textProgress
+                  ? format(storyText.postingOf, { current: textProgress.current, total: textProgress.total })
+                  : t.stories.upload.posting
+                : textPostableCount > 1
+                  ? plural(locale, storyText.shareTexts, textPostableCount)
+                  : t.stories.upload.share}
             </button>
             <p className="mt-2 text-center text-[0.6875rem] text-foreground-soft">{t.stories.upload.disappears}</p>
           </div>
